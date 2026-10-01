@@ -1794,6 +1794,312 @@ for (const route of ROUTES) {
   else console.log(`ok   releaseB small-backlog E2: ${nRec} records of a company figure on ${pages} pages and drawers (${kinds.filed} SEC-filed, ${kinds.illustrative} illustrative) each labelled where it appears, none with the other kind's marker; ${subjects} subjects labelled on their company tabs' sticky strip and header, their report's cover and their source drawer`);
 }
 /* ---- end releaseB: small-backlog ---- */
+/* ---- releaseB: search-recent ---- */
+/* SEARCH EVERYTHING, AND WHAT WAS LAST OPENED (Release B, B3 and B4;
+   95-boot.js, 59-recent.js), at 1440.
+   B3. One box, three groups under headings — Companies (the registry, as
+       before), Pages and tools (every tool in the registry this build holds,
+       and the public pages) and Your saved work (watchlists, scanner setups,
+       saved properties, investment cases, saved screens and comparisons,
+       read from the stores that hold them). The buttons read "Search", and
+       their names and the box's placeholder say what it searches. A tool
+       that cannot be used here is text with its reason, never a link, and
+       every link opens a page that exists. By the keys alone: "/" and
+       Ctrl+K open it, the arrows walk the results across the groups, Enter
+       opens the one chosen, and Escape closes it and gives focus back.
+   B4. With the box empty it lists Recent: the companies, pages and saved
+       work last opened, newest first, each with when — the companies in the
+       order the dashboard's "Recently opened companies" has them, because
+       both read one record; at most twenty; kept without a request to
+       anywhere; "Clear recent" empties it, and the dashboard's list with
+       it. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (url) => {
+    await ev('window.__rbMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__rbMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(400);
+  };
+  /* A real key press, through the browser's input pipeline. */
+  const KEYS = { '/': ['Slash', 191, '/'], Escape: ['Escape', 27, ''], Enter: ['Enter', 13, '\r'], ArrowDown: ['ArrowDown', 40, ''],
+    ArrowUp: ['ArrowUp', 38, ''], Tab: ['Tab', 9, ''], k: ['KeyK', 75, 'k'] };
+  const key = async (k, { ctrl = false } = {}) => {
+    const [code, vk, text] = KEYS[k];
+    const typed = ctrl ? '' : text;
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, modifiers: ctrl ? 2 : 0, ...(typed ? { text: typed } : {}) }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk, modifiers: ctrl ? 2 : 0 }, sessionId);
+    await sleep(140);
+  };
+  const clean = `(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`;
+  /* What the box lists for a query, group by group: the group's heading, and
+     each row — what it is, where it leads, whether it is text. */
+  const LISTED = (q) => `(() => { runSearch(${JSON.stringify(q)}); clearTimeout(searchTimer);
+    return [...searchResults.querySelectorAll('[data-group]')].map(g => { const h = document.getElementById(g.getAttribute('aria-labelledby') || '');
+      return { id: g.dataset.group, role: g.getAttribute('role'), hd: (h?.textContent || '').trim(), hTag: h?.tagName || null,
+        rows: [...g.querySelectorAll('[data-result], .search-off')].map(r => ({ tag: r.tagName, href: r.getAttribute('href'), result: r.hasAttribute('data-result'),
+          name: (r.querySelector('.search-name, .search-co-tk')?.textContent || r.textContent).trim().slice(0, 90), kind: (r.querySelector('.search-in')?.textContent || '').trim(),
+          off: r.classList.contains('search-off'), badge: r.querySelector('.status-badge')?.textContent.trim() || null,
+          note: (r.querySelector('.search-note')?.textContent || '').trim(), text: r.textContent.replace(/\\s+/g, ' ').trim().slice(0, 160) })) }; }); })()`;
+  const group = (gs, id) => (gs || []).find(g => g.id === id) || null;
+  const b3 = [], b4 = [];
+  const hrefs = new Set();
+  let toolsChecked = 0, keysSaid = '';
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+
+  /* ---------------------------------------------------------------- B3 */
+  try {
+    await ev(clean);
+    await load(BASE + '/property/calculator');
+    /* The reader's own work, one of each kind, made through the app's own
+       functions. The investment case is the sample one the first visit
+       seeds (Maybank's). */
+    const seeded = await ev(`(() => { const out = {};
+      const w = wlCreate('QT search list'); out.wl = w.ok; if (w.ok) wlAdd(w.watchlist.id, 'MSFT-SEC');
+      const tree = { type: 'group', logic: 'ALL', children: [{ type: 'condition', left: { indicator: 'price' }, op: 'GREATER_THAN', right: { indicator: 'sma', n: 7 } }] };
+      out.setup = scanSaveSetup({ id: 'qt-search-setup', name: 'QT search setup', version: 1, enabled: true, universe: { kind: 'all' }, timeframe: '1D', cooldownMode: 'NEW_MATCH', ruleTree: tree }).ok;
+      State.savedScreens = [{ name: 'QT search screen', screen: blankScreen(), snapshot: { matches: [], saved: '2026-09-29', stamp: { savedAt: new Date().toISOString() } } }];
+      store.write('savedScreens', State.savedScreens);
+      saveComparisons([{ id: 'cmp-qt-search', name: 'QT search comparison of Apple and Microsoft', ids: ['AAPL-SEC', 'MSFT-SEC'], tks: ['AAPL', 'MSFT'], created: new Date().toISOString() }]);
+      out.property = !!saveActiveProperty({ name: 'QT search property' });
+      return out; })()`);
+    if (!seeded.wl || !seeded.setup || !seeded.property) b3.push(`seeding the reader's work failed: ${JSON.stringify(seeded)}`);
+    await load(BASE + '/app');
+
+    /* The buttons read "Search"; their names and the placeholder say what. */
+    const said = await ev(`(() => { const i = document.getElementById('searchInput');
+      return { buttons: [...document.querySelectorAll('[data-open-search]')].map(b => ({ text: (b.querySelector('#searchLabel, .appbar-search-label, .searchbtn-label')?.textContent || '').trim(), name: b.getAttribute('aria-label') || '' })),
+        ph: i?.getAttribute('placeholder') || '', inputName: i?.getAttribute('aria-label') || '', dialog: document.getElementById('searchModal')?.getAttribute('aria-label') || '' }; })()`);
+    const namesAll = (s) => /compan/i.test(s) && /page/i.test(s) && /saved/i.test(s);
+    said.buttons.forEach((b, i) => {
+      if (b.text !== 'Search') b3.push(`search button ${i + 1} reads "${b.text}", not "Search"`);
+      if (!/^Search\b/.test(b.name) || !namesAll(b.name)) b3.push(`search button ${i + 1} is named "${b.name}" — it must start with its words, "Search", and say it searches companies, pages and saved work`);
+    });
+    if (!namesAll(said.ph)) b3.push(`the box's placeholder "${said.ph}" does not name what it searches (companies, pages, saved work)`);
+    if (!namesAll(said.inputName)) b3.push(`the box is named "${said.inputName}", which does not say it searches pages and saved work`);
+
+    /* Companies, as before, under their heading. */
+    const apple = await ev(LISTED('apple'));
+    const co = group(apple, 'companies');
+    if (!co) b3.push(`"apple" lists no Companies group: ${JSON.stringify((apple || []).map(g => g.id))}`);
+    else {
+      if (co.hd !== 'Companies' || co.hTag !== 'H2' || co.role !== 'group') b3.push(`the companies group is headed "${co.hd}" (${co.hTag}, role ${co.role}), not an h2 "Companies" naming a group`);
+      /* By the ticker's own element: the row's text runs the ticker into its
+         first chip ("AAPLUS"), where no word boundary falls. */
+      if (!co.rows.some(r => r.result && r.name === 'AAPL')) b3.push(`"apple" does not list Apple (AAPL) under Companies: ${JSON.stringify(co.rows.map(r => r.name))}`);
+    }
+    /* Your saved work: one of each kind, by its own name and kind. */
+    const mine = await ev(LISTED('qt search'));
+    const sv = group(mine, 'saved');
+    if (!sv) b3.push(`"qt search" lists no "Your saved work" group: ${JSON.stringify((mine || []).map(g => g.id))}`);
+    else {
+      if (sv.hd !== 'Your saved work' || sv.hTag !== 'H2') b3.push(`the saved-work group is headed "${sv.hd}" (${sv.hTag})`);
+      for (const [name, kind] of [['QT search list', 'Watchlist'], ['QT search setup', 'Scanner setup'], ['QT search property', 'Saved property'],
+        ['QT search screen', 'Saved screen'], ['QT search comparison of Apple and Microsoft', 'Comparison']]) {
+        const r = sv.rows.find(x => x.name === name);
+        if (!r) b3.push(`"qt search" does not list the ${kind.toLowerCase()} "${name}" (it lists ${JSON.stringify(sv.rows.map(x => x.name))})`);
+        else if (!r.result || r.off || !new RegExp(`^${kind}\\b`).test(r.kind)) b3.push(`"${name}" is listed as ${JSON.stringify(r)}, not an openable ${kind}`);
+      }
+    }
+    const may = group(await ev(LISTED('maybank')), 'saved');
+    if (!may || !may.rows.some(r => /^Investment case/.test(r.kind) && /sample/i.test(r.text))) b3.push(`"maybank" does not list the sample investment case, labelled a sample, under Your saved work: ${JSON.stringify(may?.rows || null)}`);
+
+    /* The public pages, by name, as links to their own address. */
+    for (const [label, path] of [['How it works', '/how-it-works'], ['Pricing', '/pricing'], ['Methodology', '/methodology'], ['Data sources', '/data-sources'], ['Glossary', '/learn/glossary']]) {
+      const pg = group(await ev(LISTED(label)), 'pages');
+      const r = pg?.rows.find(x => x.name === label);
+      if (!pg) b3.push(`"${label}" lists no "Pages and tools" group`);
+      else if (pg.hd !== 'Pages and tools') b3.push(`the pages group is headed "${pg.hd}"`);
+      if (pg && (!r || r.tag !== 'A' || r.href !== path)) b3.push(`"${label}" is not listed as a link to ${path}: ${JSON.stringify(r || pg.rows.slice(0, 3))}`);
+    }
+    /* Every tool in the registry this build holds, by its name: a link where
+       it can be used, else text with its badge and the reason. */
+    const tools = await ev(`TOOLS.filter(t => toolPresent(t)).map(t => { const s = toolState(t), p = t.product ? productById(t.product) : null;
+      return { id: t.id, label: t.label, path: t.path, ok: s.actionable, badge: s.label, note: s.note, product: p && p.path === t.path ? p.name : null }; })`);
+    for (const t of tools) {
+      const pg = group(await ev(LISTED(t.label)), 'pages');
+      const r = pg?.rows.find(x => x.name === t.label || (t.product && x.name === t.product));
+      toolsChecked++;
+      if (!r) { b3.push(`the tool "${t.label}" (${t.path}) is not listed for its own name`); continue; }
+      if (t.ok && (r.tag !== 'A' || r.off || !r.href)) b3.push(`the tool "${t.label}" can be used here but is listed as ${JSON.stringify(r)}`);
+      if (!t.ok && (r.result || !r.off || r.badge !== t.badge || r.note !== t.note)) b3.push(`the tool "${t.label}" cannot be used here (${t.badge}) but is listed as ${JSON.stringify(r)} — it must be text with its badge and the reason "${t.note}"`);
+    }
+    /* A tool made unusable by what loaded: the filings held back, the
+       Screener is text with the load's own error, and nothing in the box
+       links to a tool that cannot be used. */
+    const held = await ev(`(() => { const keep = realStatus; realStatus = { ok: false, error: 'held back by the check' };
+      try { const gs = ${LISTED('screener')}; const pg = gs.find(g => g.id === 'pages');
+        const offered = [...searchResults.querySelectorAll('a[href], [data-tool-path]')].map(a => toolOfLink(a)).filter(t => t && !toolState(t).actionable).map(t => t.id);
+        return { row: pg ? pg.rows.find(x => x.name === 'Screener') || null : null, offered }; }
+      finally { realStatus = keep; runSearch(''); } })()`);
+    if (!held.row || held.row.result || !held.row.off || held.row.badge !== 'Unavailable' || !/held back by the check/.test(held.row.note))
+      b3.push(`with the filings held back the Screener is listed as ${JSON.stringify(held.row)}, not text with "Unavailable" and the load's error`);
+    if (held.offered.length) b3.push(`with the filings held back the box still offers ${held.offered.join(', ')}`);
+
+    /* Never a result that goes nowhere: each link opens a view, each result
+       is a link or a button. */
+    for (const q of ['apple', 'qt search', 'maybank', 'pricing', 'scanner', 'property', 'watchlist', 'a']) {
+      const gs = await ev(LISTED(q));
+      for (const g of gs || []) for (const r of g.rows) {
+        if (r.result && !(r.tag === 'A' && r.href) && r.tag !== 'BUTTON') b3.push(`"${q}": the result "${r.name}" is a ${r.tag}, neither a link nor a button`);
+        if (r.result && r.tag === 'A') hrefs.add(r.href);
+      }
+    }
+    const nowhere = await ev(`${JSON.stringify([...hrefs])}.filter(h => { const u = new URL(h, location.href); const rt = matchRoute(u.pathname); return !rt || !VIEWS[rt.view]; })`);
+    if (nowhere.length) b3.push(`results that open no page: ${nowhere.join(', ')}`);
+
+    /* By the keys alone. */
+    const k = {};
+    await load(BASE + '/research');
+    await ev(`(() => { focusMain(); return true; })()`);
+    await key('/'); await sleep(300);
+    k.slash = await ev(`searchOpen && document.activeElement === searchInput`);
+    await key('Escape'); await sleep(300);
+    k.slashBack = await ev(`!searchOpen && document.activeElement === document.getElementById('main')`);
+    await ev(`(() => { const f = document.createElement('input'); f.id = 'rb-field'; f.setAttribute('aria-label', 'a field the check types in'); document.body.append(f); f.focus(); return true; })()`);
+    await key('k', { ctrl: true }); await sleep(300);
+    k.ctrl = await ev(`searchOpen && document.activeElement === searchInput && searchInput.value === ''`);
+    await key('Escape'); await sleep(300);
+    k.ctrlBack = await ev(`!searchOpen && document.activeElement?.id === 'rb-field'`);
+    await ev(`(() => { document.getElementById('rb-field')?.remove(); document.getElementById('openSearch').focus(); return true; })()`);
+    await key('Enter'); await sleep(300);
+    k.button = await ev(`searchOpen && document.activeElement === searchInput`);
+    await send('Input.insertText', { text: 'apple' }, sessionId); await sleep(500);
+    const order = await ev(`[...searchResults.querySelectorAll('[data-result]')].map(n => n.closest('[data-group]')?.dataset.group || null)`);
+    const walked = [];
+    for (let i = 0; i < order.length; i++) { await key('ArrowDown'); walked.push(await ev(`(() => { const a = document.activeElement; return { i: [...searchResults.querySelectorAll('[data-result]')].indexOf(a), g: a?.closest('[data-group]')?.dataset.group || null }; })()`)); }
+    k.walk = order.length > 1 && walked.every((s, i) => s.i === i) && new Set(walked.map(s => s.g)).size >= 2;
+    for (let i = 0; i < order.length; i++) await key('ArrowUp');
+    k.upToBox = await ev(`document.activeElement === searchInput`);
+    const at = order.indexOf('saved');
+    for (let i = 0; i <= at; i++) await key('ArrowDown');
+    k.onSaved = at >= 0 && await ev(`document.activeElement?.closest('[data-group]')?.dataset.group === 'saved' && /QT search comparison/.test(document.activeElement.textContent)`);
+    await key('Enter'); await sleep(700);
+    k.opened = await ev(`({ view: State.view, saved: new URLSearchParams(location.search).get('saved'), open: searchOpen })`);
+    await ev(`(() => { document.getElementById('openSearch').focus(); return true; })()`);
+    await key('Enter'); await sleep(300);
+    await key('Escape'); await sleep(300);
+    k.buttonBack = await ev(`!searchOpen && document.activeElement?.id === 'openSearch'`);
+    const ks = [['"/" opens the box with the cursor in it', k.slash], ['Escape gives focus back to the page it was pressed on', k.slashBack],
+      ['Ctrl+K opens it from a text field', k.ctrl], ['Escape gives focus back to that field', k.ctrlBack], ['Enter on the Search button opens it', k.button],
+      [`the down arrow walks every result in order, across the groups (${JSON.stringify(order)})`, k.walk], ['the up arrow walks back to the box', k.upToBox],
+      ['the arrows reach the saved comparison', k.onSaved], [`Enter opens it (${JSON.stringify(k.opened)})`, k.opened?.view === 'compare' && k.opened.saved === 'cmp-qt-search' && !k.opened.open],
+      ['Escape gives focus back to the Search button', k.buttonBack]];
+    ks.filter(([, v]) => !v).forEach(([what]) => b3.push(`keyboard: ${what} — no`));
+    keysSaid = ks.length;
+  } catch (e) { b3.push(`the checks threw: ${e.message}`); }
+  if (b3.length) { bad++; console.log(`FAIL releaseB B3 search: one box, grouped results, pages and tools and saved work, unusable tools as text, the keys (${b3.length} problems)`); b3.slice(0, 40).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   releaseB B3 search: the buttons read "Search" and say what it searches; companies, pages and tools, and your saved work under three headings; the five kinds of saved work and the sample case by name; the five public pages and all ${toolsChecked} tools in this build by name, each usable one a link and each unusable one text with its badge and reason; with the filings held back the Screener is text with the error; ${hrefs.size} result links all open a page; by the keys alone ${keysSaid} steps: "/", Ctrl+K, the button, the arrows across groups, Enter and Escape giving focus back`);
+
+  /* ---------------------------------------------------------------- B4 */
+  try {
+    await ev(clean);
+    await load(BASE + '/privacy');
+    await ev(`(() => { const w = wlCreate('QT recent list'); if (w.ok) wlAdd(w.watchlist.id, 'AAPL-SEC'); return w.ok; })()`);
+    await load(BASE + '/app');
+    const shown = `(() => { runSearch(''); const g = searchResults.querySelector('[data-group="recent"]'); const h = g ? document.getElementById(g.getAttribute('aria-labelledby') || '') : null;
+      return g ? { hd: (h?.textContent || '').trim(), clear: !!g.querySelector('button.search-clear'), empty: !!g.querySelector('.search-empty'),
+        rows: [...g.querySelectorAll('[data-result]')].map(r => ({ tag: r.tagName, name: (r.querySelector('.search-name')?.textContent || '').trim(), kind: (r.querySelector('.search-in')?.textContent || '').trim(),
+          when: r.querySelector('time.search-when')?.getAttribute('datetime') || null, said: (r.querySelector('.search-when')?.textContent || '').trim() })) } : null; })()`;
+    const first = await ev(`(() => { openSearch(); return true; })()`).then(() => sleep(300)).then(() => ev(shown));
+    if (!first) b4.push('the empty box lists no Recent group');
+    else {
+      if (first.hd !== 'Recent') b4.push(`the empty box's group is headed "${first.hd}", not "Recent"`);
+      if (!first.rows.some(r => r.name === 'Privacy')) b4.push(`the page opened before this one (Privacy) is not in Recent: ${JSON.stringify(first.rows)}`);
+      if (first.rows.some(r => r.name === 'My Dashboard')) b4.push('Recent lists the page on screen (My Dashboard), where the reader already is');
+      if (!first.clear) b4.push('Recent has no "Clear recent" control');
+    }
+    /* Cleared from the box: the empty state, the record empty, the cursor
+       back in the box. */
+    const cleared = await ev(`(async () => { document.querySelector('#searchResults button.search-clear')?.click(); await new Promise(r => setTimeout(r, 150));
+      const rec = JSON.parse(localStorage.getItem('vl.recent') || 'null');
+      return { box: document.activeElement === searchInput, rec, companies: JSON.parse(localStorage.getItem('vl.recentCompanies') || 'null'), shown: ${shown} }; })()`);
+    if (!cleared.shown || cleared.shown.rows.length || !cleared.shown.empty) b4.push(`after "Clear recent" the box shows ${JSON.stringify(cleared.shown)}, not the empty Recent`);
+    if (!cleared.rec || (cleared.rec.items || []).length || Object.keys(cleared.rec.co || {}).length || !Array.isArray(cleared.companies) || cleared.companies.length)
+      b4.push(`after "Clear recent" the record holds ${JSON.stringify({ recent: cleared.rec, recentCompanies: cleared.companies })}`);
+    if (!cleared.box) b4.push('after "Clear recent" the cursor is not back in the box');
+    await ev(`(() => { closeSearch({ restore: false }); return true; })()`); await sleep(300);
+
+    /* Recorded as the reader moves, and nothing requested to keep it. */
+    const moved = await ev(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const calls = [], kf = window.fetch, kb = navigator.sendBeacon, kx = XMLHttpRequest.prototype.open;
+      window.fetch = function (...a) { calls.push('fetch ' + String(a[0])); return kf.apply(this, a); };
+      navigator.sendBeacon = function (...a) { calls.push('beacon ' + String(a[0])); return false; };
+      XMLHttpRequest.prototype.open = function (...a) { calls.push('xhr ' + String(a[1])); return kx.apply(this, a); };
+      try {
+        openResearch('AAPL-SEC'); await w(400);
+        navigate('/pricing'); await w(300);
+        navigate('/discover/screener'); await w(500);
+        openSearch(); await w(250); runSearch('QT recent'); clearTimeout(searchTimer);
+        const row = [...searchResults.querySelectorAll('[data-group="saved"] [data-result]')].find(r => /QT recent list/.test(r.textContent));
+        if (row) row.click(); await w(400);
+        const onList = State.view;
+        openResearch('MSFT-SEC'); await w(400);
+        navigate('/how-it-works'); await w(300);
+        return { calls, onList, cookie: document.cookie };
+      } finally { window.fetch = kf; navigator.sendBeacon = kb; XMLHttpRequest.prototype.open = kx; } })()`);
+    if (moved.calls.length) b4.push(`moving between five pages with the record kept made requests: ${moved.calls.slice(0, 5).join('; ')}`);
+    if (moved.cookie) b4.push(`a cookie was set: ${moved.cookie.slice(0, 60)}`);
+    if (moved.onList !== 'watchlists') b4.push(`the saved list chosen in the box opened ${moved.onList}, not the watchlists page`);
+    await ev(`(() => { openSearch(); return true; })()`); await sleep(300);
+    const after = await ev(shown);
+    const names = (after?.rows || []).map(r => r.name);
+    const want = ['MSFT', 'QT recent list', 'Screener', 'Pricing', 'AAPL'];
+    if (!after || want.some((n, i) => !(names[i] || '').startsWith(n))) b4.push(`Recent lists ${JSON.stringify(names.slice(0, 7))}, not ${JSON.stringify(want)} newest first`);
+    if (names.includes('How it works')) b4.push('Recent lists How it works, the page on screen');
+    const badWhen = (after?.rows || []).slice(0, 5).filter(r => !r.when || !Number.isFinite(Date.parse(r.when)) || r.said !== 'just now');
+    if (badWhen.length) b4.push(`rows without when: ${JSON.stringify(badWhen)}`);
+    if (after && after.rows.slice(0, 5).some(r => !['A', 'BUTTON'].includes(r.tag))) b4.push(`a Recent row is neither a link nor a button: ${JSON.stringify(after.rows.slice(0, 5))}`);
+    /* Enter in the empty box opens the newest — the last thing opened
+       before the page on screen. */
+    await key('Enter'); await sleep(500);
+    const enter = await ev(`({ view: State.view, ticker: State.ticker, open: searchOpen })`);
+    if (enter.view !== 'research' || enter.ticker !== 'MSFT-SEC' || enter.open) b4.push(`Enter in the empty box opened ${JSON.stringify(enter)}, not the newest (MSFT)`);
+
+    /* The dashboard's recently opened companies are the same, in the same
+       order. */
+    await ev(`(() => { navigate('/app'); return true; })()`); await sleep(500);
+    const dash = await ev(`[...document.querySelectorAll('#views .dash-co strong')].map(s => s.textContent.trim())`);
+    const recentCos = names.filter(n => /^(MSFT|AAPL)\b/.test(n)).map(n => n.split(/\s/)[0]);
+    if (JSON.stringify(dash) !== JSON.stringify(recentCos)) b4.push(`the dashboard lists ${JSON.stringify(dash)} as recently opened, Recent ${JSON.stringify(recentCos)}`);
+
+    /* When: older entries say how long ago, or the day. */
+    const older = await ev(`(() => { const r = JSON.parse(localStorage.getItem('vl.recent'));
+      r.items.push({ k: 'page', id: '/methodology', t: new Date(Date.now() - 3 * 3600e3 - 60e3).toISOString() }, { k: 'page', id: '/data-sources', t: new Date(Date.now() - 3 * 864e5).toISOString() });
+      localStorage.setItem('vl.recent', JSON.stringify(r)); openSearch(); return true; })()`).then(() => sleep(300)).then(() => ev(shown));
+    const meth = older?.rows.find(r => r.name === 'Methodology'), ds = older?.rows.find(r => r.name === 'Data sources');
+    if (!meth || !/^3 hours ago$/.test(meth.said)) b4.push(`an entry three hours old says ${JSON.stringify(meth)}`);
+    if (!ds || !/^\d{1,2} [A-Z][a-z]{2,3}/.test(ds.said)) b4.push(`an entry three days old says ${JSON.stringify(ds)}, not its date`);
+    await ev(`(() => { closeSearch({ restore: false }); return true; })()`); await sleep(250);
+
+    /* At most twenty. */
+    const cap = await ev(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const paths = ROUTES.filter(r => !r.alias && !r.path.includes(':') && VIEWS[r.view] && !['/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery'].includes(r.path)).map(r => r.path).slice(0, 26);
+      for (const p of paths) { navigate(p); await w(120); }
+      const rec = JSON.parse(localStorage.getItem('vl.recent') || 'null');
+      openSearch(); await w(250); runSearch('');
+      return { visited: paths.length, kept: (rec?.items || []).length, shown: searchResults.querySelectorAll('[data-group="recent"] [data-result]').length }; })()`);
+    if (cap.kept > 20 || cap.shown > 20 || cap.shown < 15) b4.push(`after ${cap.visited} pages the record keeps ${cap.kept} and Recent shows ${cap.shown} — at most twenty`);
+
+    /* Cleared: the dashboard forgets the companies too. */
+    await ev(`(() => { document.querySelector('#searchResults button.search-clear')?.click(); closeSearch({ restore: false }); navigate('/app'); return true; })()`); await sleep(500);
+    const gone = await ev(`document.querySelectorAll('#views .dash-co').length`);
+    if (gone) b4.push(`after "Clear recent" the dashboard still lists ${gone} recently opened companies`);
+    await ev(clean);
+  } catch (e) { b4.push(`the checks threw: ${e.message}`); }
+  if (b4.length) { bad++; console.log(`FAIL releaseB B4 recent: the empty box's Recent, recorded as the reader moves (${b4.length} problems)`); b4.slice(0, 30).forEach(x => console.log('     ' + x)); }
+  else console.log('ok   releaseB B4 recent: the empty box lists Recent — a company, a page, a tool and a saved list opened in turn, newest first, each "just now", older ones "3 hours ago" or their day, and never the page on screen; Enter opens the newest; the companies in the dashboard\'s order; twenty at most after 26 pages; no request made and no cookie set to keep it; "Clear recent" empties it, puts the cursor back in the box, and the dashboard\'s list goes with it');
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+}
+/* ---- end releaseB: search-recent ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

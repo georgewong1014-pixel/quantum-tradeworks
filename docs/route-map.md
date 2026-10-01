@@ -254,8 +254,10 @@ from the slim bar (brand, search, menu button): a modal dialog while open —
 focus on its close button, Tab kept inside it, Escape and the scrim close it.
 
 1. Brand (→ `/`)
-2. **Search companies** (shows the `/` hint; the count of companies joins its
-   accessible name once the filings have loaded)
+2. **Search** (shows the `/` hint; one box over companies, pages and tools,
+   and the reader's saved work, grouped under headings, with Recent — what
+   was last opened in this browser — when nothing is typed; the count of
+   companies joins its accessible name once the filings have loaded)
 3. **My workspace** — My Dashboard (`/app`) · Watchlists (`/my/watchlists`)
    · My Alerts (`/my/alerts`) · Saved Models (`/my/workspace`)
 4. **Products** — Equities Research · Quantum Scanner · Property

@@ -3808,3 +3808,147 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    page's quiet ink rather than the bronze that warns. */
 .filed-mark { font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
 /* ---- end releaseB: small-backlog ---- */
+/* ---- releaseB: search-recent ---- */
+/* THE SEARCH (Release B, B3 and B4; 95-boot.js, 59-recent.js). One box over
+   companies, pages and tools, and the reader's saved work, each group under
+   a heading that stays in sight while its rows scroll under it; with
+   nothing typed, Recent. The site's own tokens throughout — the surface,
+   the lines, the brand for the row in hand, the badges' own colours — and
+   its depth: the row's mark is a small raised tile. Only box-shadow and
+   transform move. On a phone the box sits at the top, clear of the
+   keyboard; every result, "Clear recent" and the close button are 44px;
+   the keys' legend and Esc, of no use to a finger, go. */
+.search-modal { width: min(680px, calc(100% - 32px)); max-height: min(78vh, 720px); }
+.search-head {
+  display: flex; align-items: center; gap: var(--xs); flex: none;
+  padding: var(--sm) var(--sm) var(--sm) var(--md); border-bottom: 1px solid var(--line);
+  transition: box-shadow 160ms ease;
+}
+.search-head-ico { width: 18px; height: 18px; flex: none; color: var(--ink-3); }
+.search-input, .search-input:hover { flex: 1 1 auto; min-width: 0; width: auto; height: 40px; padding: 0 4px; border: 0; background: none; font-size: 15px; }
+/* The box's focus is the head's: a brand rule under the whole row, where a
+   ring round a borderless field drew a box inside the box. */
+.search-input:focus { border: 0; box-shadow: none; }
+.search-head:has(.search-input:focus) { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--brand) 75%, transparent); }
+.search-esc { flex: none; }
+.search-close { flex: none; width: 36px; height: 36px; }
+.search-results {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0 var(--xs) var(--xs);
+  /* A row the arrows reach comes to rest below its group's heading, never
+     under it. */
+  scroll-padding-top: 46px; scroll-padding-bottom: var(--xs);
+}
+
+/* A group: its heading, a count to the eye, and on Recent the one action. */
+.search-group + .search-group { margin-top: 4px; border-top: 1px solid var(--line); }
+.search-group-hd {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: var(--xs); min-height: 40px; padding: 10px 10px 4px;
+  background: var(--surface);
+}
+.search-group-t {
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); line-height: 1.4;
+}
+.search-group-n { font-size: var(--text-label); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.search-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.search-more { padding: 4px 10px 6px; font-size: var(--text-label); color: var(--ink-3); }
+
+/* A result: a link or a button laid out as one row. */
+.search-row {
+  appearance: none; display: flex; align-items: center; gap: var(--sm); width: 100%; min-height: 48px; padding: 8px 10px;
+  border: 0; border-radius: var(--r-md); background: none; color: var(--ink); font: inherit; text-align: left;
+  text-decoration: none; cursor: pointer;
+  transition: transform 120ms ease, box-shadow 160ms ease;
+}
+.search-row:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.search-row:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: -2px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
+}
+.search-row:active { transform: translateY(1px); }
+.search-ico {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 9px;
+  color: var(--ink-3); background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(20, 25, 22, .06);
+  transition: box-shadow 160ms ease;
+}
+.search-row:hover .search-ico, .search-row:focus-visible .search-ico {
+  color: var(--brand); background: var(--brand-wash);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent), 0 4px 12px -6px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+.search-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.search-title { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.search-name {
+  min-width: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); line-height: 1.35; color: var(--ink);
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.search-in { min-width: 0; font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+.search-note {
+  font-size: var(--text-label); line-height: 1.45; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.search-title .chip, .search-title .status-badge, .search-title .illus { flex: none; }
+.search-when { flex: none; margin-left: auto; padding-left: var(--xs); font-size: var(--text-label); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* A tool that cannot be used here, and the product that is not built: the
+   row stays, with its badge and the reason in full, and loses everything
+   that says "press me" — the gated tile's dashed edge (registry-ctas). */
+.search-off { cursor: default; outline: 1px dashed var(--line-2); outline-offset: -1px; }
+.search-off:hover { background: none; }
+.search-off:active { transform: none; }
+.search-off .search-name { color: var(--ink-2); }
+.search-off .search-ico { box-shadow: 0 0 0 1px var(--line); background: var(--surface-sunk); }
+.search-off .search-note { white-space: normal; overflow: visible; color: var(--ink-2); }
+
+/* A company found by the query: the ticker and its chips, the name, then the
+   illustrative price and the day's move in their own columns. */
+.search-co { gap: 10px; }
+.search-co-main { display: flex; align-items: center; gap: var(--sm); min-width: 0; flex: 1 1 auto; }
+.search-co-text { min-width: 0; flex: 1 1 auto; }
+.search-co-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.search-co-tk { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.search-co-tok { white-space: nowrap; flex: none; }
+.search-co-line .chip, .search-co-line .illus { flex: none; }
+.search-co-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-co-px { flex: none; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.search-co-d1 { flex: none; min-width: 48px; font-size: var(--text-label); text-align: right; }
+
+/* Recent: its one action, what it keeps, and what it says when empty. */
+.search-clear {
+  appearance: none; margin-left: auto; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm);
+  background: none; font: inherit; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--brand); cursor: pointer;
+  transition: box-shadow 160ms ease;
+}
+.search-clear:hover { background: var(--brand-wash); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent); }
+.search-clear:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.search-keep { padding: 8px 10px 4px; font-size: var(--text-label); color: var(--ink-3); }
+.search-empty { display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 18px; }
+.search-empty-t { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.search-empty-s { max-width: 62ch; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); }
+
+/* The keys, to the eye, under the results. */
+.search-keys {
+  display: flex; align-items: center; gap: var(--md); flex: none; padding: 8px var(--md);
+  border-top: 1px solid var(--line); font-size: var(--text-label); color: var(--ink-3);
+  background: color-mix(in srgb, var(--surface-sunk) 55%, var(--surface));
+}
+.search-keys > span { display: inline-flex; align-items: center; gap: 4px; }
+.search-keys .kbd { font-size: var(--text-micro); padding: 0 5px; }
+
+@media (pointer: coarse) {
+  .search-clear { min-height: 44px; }
+  .search-close { width: 44px; height: 44px; }
+}
+@media (max-width: 560px) {
+  .search-modal { top: 12px; width: calc(100% - 24px); max-height: min(78vh, calc(100dvh - 24px)); }
+  .search-head { padding: 6px 6px 6px var(--sm); }
+  .search-input, .search-input:hover { height: 44px; font-size: 16px; }
+  .search-esc, .search-keys { display: none; }
+  .search-close { width: 44px; height: 44px; }
+  .search-results { padding: 0 6px 6px; }
+  .search-row { min-height: 52px; padding: 8px; }
+  .search-clear { min-height: 44px; }
+}
+/* ---- end releaseB: search-recent ---- */
