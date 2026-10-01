@@ -33,7 +33,13 @@
  *   stylesheet byte for byte, served with a year's immutable cache and their
  *   own content type; every page and the 404 load exactly those two and
  *   weigh tens of kB, not the app's 3MB.
- * - A parameter route (/company/:id …) is served the generic page, 200.
+ * - Every company's own address (/company/<ticker or code>-<name>, as
+ *   companyPath writes it) is served 200 with its own head — the title and
+ *   canonical its page sets, and a description naming the company, its
+ *   ticker, its market and whether its figures are filed with the SEC or
+ *   illustrative, true to data/us.json — and is otherwise a route page.
+ * - A parameter route (/company/:id …) is served the generic page, 200, at
+ *   every other address it answers.
  * - An unknown address, a deep one, one in the wrong case, one past a route's
  *   last segment, is served 404 with the not-found title and noindex — the
  *   same app, which draws its not-found card.
@@ -54,7 +60,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientRouter, siteOrigin, appFiles, linked, PAGE_LIMIT } from './build.mjs';
+import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT } from './build.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -228,9 +234,11 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
 
 /* 3. Parameter routes: the generic page, 200. And the addresses the router
       accepts outside the table's own forms: a dotted registry id it rewrites
-      to the company's own segment, and the app's file name. */
+      to the company's own segment, and the app's file name. The sample id is
+      a ticker, not a company's own address (aapl-apple-inc), which has a
+      page of its own since Release B — group 11. */
 {
-  const SAMPLE = { id: 'aapl-apple-inc', tab: 'financials', setup: 'no-such-setup', alert: 'a00000000' };
+  const SAMPLE = { id: 'aapl', tab: 'financials', setup: 'no-such-setup', alert: 'a00000000' };
   const paths = [...params.map(r => r.replace(/:([A-Za-z]+)/g, (_, n) => SAMPLE[n] || `sample-${n}`)), '/company/1155.KL', '/app/equities/1155.KL/financials'];
   const got = await getAll(paths);
   const p = [];
@@ -485,6 +493,108 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     'the journeys result is not served as it is now');
 }
 /* ---- end audit1: health ---- */
+
+/* ---- releaseB: D ---- */
+/* 11. EVERY COMPANY'S OWN ADDRESS, ITS OWN HEAD (Release B, D1 and D2). The
+       address a company is linked at — companyPath's /company/<ticker, or a
+       Bursa listing code>-<two words of its name> — was served index.html as
+       every company address was, so a preview of Apple's page was the
+       homepage's, canonical and all. build.mjs now writes a page there for
+       each company in the universe the page assembles (ONE HEAD PER
+       COMPANY). Held here as served:
+       - every company's own address answers 200 with its own title,
+         description, canonical, og: and twitter: tags as build.mjs derives
+         them from the router and the loader in src/js — a page left from an
+         earlier build or an earlier data/us.json differs, and fails — is
+         index.html in every other byte but the two app files it loads,
+         carries the headers, and weighs at most PAGE_LIMIT: a page, not the
+         app;
+       - what each description says is true to the company, read here from
+         data/us.json itself rather than from the build: every filer in it is
+         named with its name and ticker, "listed in the US" and "filed with
+         the SEC" with its own CIK, on exactly one page, and no other page
+         says "filed"; every other company carries the page's own
+         illustrative line, and a Bursa one its listing code and "listed on
+         Bursa Malaysia";
+       - each company address has one exact rewrite to its own page, listed
+         before /company/:id, and no rewrite names a company the universe no
+         longer holds;
+       - every other form of a company address — a ticker, an id, a CIK, a
+         registry alias, a shorter, longer or differently-cased tail, the
+         report, the brief's /app/equities/… — and an unknown company are
+         still the generic page, 200, where the router resolves the company
+         or draws the not-found card with noindex, as it did;
+       - a query string on a company's address changes nothing. */
+{
+  const p = [];
+  const { companies } = companyPlan(ORIGIN, router);
+  const got = await getAll(companies.map(co => co.path));
+  let largest = ['', 0], total = 0;
+  for (const co of companies) {
+    const r = got.get(co.path);
+    if (r.status !== 200 || !/text\/html/.test(r.type)) { p.push(`${co.path}: ${described(r)}`); continue; }
+    const h = co.head;
+    const want = { title: h.title, description: h.description, canonical: h.canonical, ogUrl: h.canonical, ogTitle: h.title,
+      ogDescription: h.description, twitterTitle: h.title, twitterDescription: h.description, robots: null };
+    const have = headOf(r.body);
+    for (const k of Object.keys(want)) if (have[k] !== want[k]) p.push(`${co.path}: ${k} is ${JSON.stringify(have[k])}, not ${JSON.stringify(want[k])}`);
+    if (skeleton(r.body) !== PAGE_SKELETON) p.push(`${co.path}: differs from index.html outside its own head and the two app files it loads`);
+    p.push(...headerProblems(r));
+    const size = Buffer.byteLength(r.body, 'utf8');
+    total += size;
+    if (size > largest[1]) largest = [co.path, size];
+    if (size > PAGE_LIMIT) p.push(`${co.path}: ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh`);
+  }
+
+  /* True to the company: the served descriptions against data/us.json. */
+  const US = JSON.parse(read('data/us.json')).results || [];
+  const served = companies.map(co => ({ path: co.path, d: headOf(got.get(co.path).body).description || '' }));
+  const FILED = /filed with the SEC/;
+  for (const f of US) {
+    const says = served.filter(s => s.d.startsWith(`${f.name} (${f.id}), listed in the US. `) && FILED.test(s.d) && s.d.includes(`(CIK ${Number(f.cik)})`));
+    if (says.length !== 1) p.push(`${f.id} (${f.name}, CIK ${Number(f.cik)}) is filed in data/us.json, and ${says.length} company pages say so${says.length ? `: ${says.map(s => s.path).join(', ')}` : ''}`);
+  }
+  const filers = served.filter(s => FILED.test(s.d));
+  if (filers.length !== US.length) p.push(`${filers.length} company pages say "filed with the SEC", where data/us.json holds ${US.length} filers`);
+  for (const s of served) {
+    if (FILED.test(s.d)) { if (s.d.includes(router.ILLUS_TITLE) || /illustrative/i.test(s.d)) p.push(`${s.path}: says both filed and illustrative`); continue; }
+    if (!s.d.includes(router.ILLUS_TITLE)) p.push(`${s.path}: neither filed with the SEC nor labelled illustrative — "${s.d.slice(0, 90)}…"`);
+    const bursa = /^.+ \([A-Z0-9&.-]+, ([0-9A-Z]+)\), listed on Bursa Malaysia\. /.exec(s.d);
+    if (!bursa && !/^.+ \([A-Z0-9&.-]+\), listed in the US\. /.test(s.d)) p.push(`${s.path}: does not say where it is listed, with its ticker (and on Bursa its code) — "${s.d.slice(0, 90)}…"`);
+    else if (bursa && !s.path.startsWith(`/company/${bursa[1].toLowerCase()}-`)) p.push(`${s.path}: names the listing code ${bursa[1]}, which its address does not lead with`);
+  }
+
+  /* The rewrites: one per company, to its own page, before the fallback. */
+  const rw = VERCEL.rewrites || [];
+  const fallback = rw.findIndex(x => x.source === '/company/:id');
+  const own = new Set(companies.map(co => co.path));
+  if (fallback < 0) p.push('vercel.json has no /company/:id rewrite — every other form of a company address would be a 404');
+  rw.forEach((x, i) => {
+    if (!/^\/company\/[^/:]+$/.test(x.source)) return;
+    if (!own.has(x.source)) p.push(`vercel.json rewrites ${x.source} to ${x.destination}, and no company in the universe has that address — a stale page`);
+    else if (x.destination !== `/pages${x.source}.html`) p.push(`vercel.json rewrites ${x.source} to ${x.destination}, not its own page`);
+    if (fallback > -1 && i > fallback) p.push(`vercel.json lists ${x.source} after /company/:id, which answers it first`);
+  });
+  for (const path of own) if (rw.filter(x => x.source === path).length !== 1) p.push(`vercel.json has ${rw.filter(x => x.source === path).length} rewrites for ${path}, not one`);
+
+  /* Every other form of a company address, and an unknown company. */
+  const OTHER = ['/company/aapl', '/company/AAPL-SEC', '/company/CIK0000320193', '/company/aapl-apple', '/company/AAPL-apple-inc', '/company/aapl-apple-inc-extra',
+    '/company/1155', '/company/maybank', '/company/1155.KL', '/company/1155-malayan-banking-berhad', '/company/aapl-apple-inc/report', '/company/1155-malayan-banking/report',
+    '/app/equities/aapl', '/app/equities/aapl-apple-inc', '/app/equities/1155/financials', '/app/equities/brk-b-berkshire-hathaway/report', '/company/no-such-company-for-served-check'];
+  const QUERY = [['/company/aapl-apple-inc?tab=valuation', '/company/aapl-apple-inc'], ['/company/1155-malayan-banking?tab=financials&real=0', '/company/1155-malayan-banking']];
+  const more = await getAll([...OTHER, ...QUERY.flat()]);
+  for (const path of OTHER) {
+    const r = more.get(path);
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}, not the generic page with 200`); continue; }
+    if (r.body !== root.body) p.push(`${path}: not the generic page (index.html), but one titled "${headOf(r.body).title}"`);
+    p.push(...headerProblems(r));
+  }
+  for (const [a, b] of QUERY) if (more.get(a).status !== 200 || more.get(a).body !== more.get(b).body) p.push(`${a}: ${described(more.get(a))}, not the page ${b} is served`);
+
+  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative — is index.html in every other byte but the two app files, carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
+    'a company\'s own address is not served its own head, or another form of it is not the generic page');
+}
+/* ---- end releaseB: D ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

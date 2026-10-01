@@ -64,7 +64,8 @@
  *                       parameter route (/company/:id …) to index.html.
  *
  * Parameter routes keep the generic page: which company an :id names is the
- * router's to resolve, after the filings load.
+ * router's to resolve, after the filings load — except each company's own
+ * address, which has a page of its own (ONE HEAD PER COMPANY, below).
  * ─────────────────────────────────────────────────────────────────────────────
  * THE APP ONCE, NOT FIFTY-SIX TIMES (2026-09-30)
  *
@@ -94,6 +95,45 @@
  * index.html keeps both inline and does not change: scanner/scan.mjs,
  * ingest/history-store.mjs, tv-verify, bot-verify, qtti/batch.mjs, syntax.mjs
  * and the harnesses read the engine, and the CSP hash, out of it.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ONE HEAD PER COMPANY (Release B, 2026-09-30)
+ *
+ * /company/:id is a parameter route, so every company's address was served
+ * index.html, whose head is the homepage's: a link to Apple's page previewed
+ * in WhatsApp, Slack or LinkedIn as "Quantum Tradeworks — your financial
+ * decision workspace" over the homepage's description, and a crawler reading
+ * the HTML was told the page's canonical address was the site root. Which
+ * company an :id names is the router's to resolve once the filings load; but
+ * the address each company is LINKED at — companyPath's /company/<ticker, or
+ * a Bursa listing code>-<two words of its name> — can be known here, because
+ * the universe the page assembles can be read here.
+ *
+ * So each company in it gets a page of its own at that address, written as
+ * a route page is (the shell and the two app files, only the head its own):
+ *
+ *   pages/company/<slug>.html  the title and canonical the page's
+ *                       setDocumentMeta writes for that company on a cold
+ *                       load, and a description that says what the company
+ *                       is — its name, its ticker (and on Bursa its listing
+ *                       code), where it is listed, and whether its figures
+ *                       are filed with the SEC or illustrative — ahead of
+ *                       the line the company page gives itself.
+ *
+ * The universe is the page's own, read and not restated: the illustrative
+ * set (RAW) and the naming addCompany gives it, then each filer in
+ * data/us.json through the loader's realToCompany and retireIllustrativeTwin,
+ * in the order loadRealData runs them — the Bursa companies and any US
+ * listing no filer replaces, whose figures are illustrative, and every SEC
+ * filer. Nothing from the owner's machine: the personal lane is never
+ * deployed.
+ *
+ * Each page has an exact rewrite, generated from that list, after the static
+ * routes' and before the parameter routes'. Every other form of a company
+ * address — a code (/company/1155), an id (/company/AAPL-SEC), a registry
+ * alias (/company/1155.KL), a longer or differently-cased tail, the report,
+ * /app/equities/… — is still answered by its parameter route with the
+ * generic page, and an unknown company is still the generic page on which
+ * the router draws the not-found card with noindex.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -159,19 +199,21 @@ function dataVersions() {
 
    setDocumentMeta writes to `document`, which here is a stub that records
    what it was given; location is the address being built, with no query. */
+const js = (f) => lf(readFileSync(src('js', f), 'utf8'));
+/* From the first `start` that begins a line to the first `close` after it —
+   a top-level declaration, which is what every one of these is, and never a
+   comment that happens to name one mid-line. If one stops being, this throws
+   with its name rather than evaluating half a file. */
+const cut = (text, file, start, close) => {
+  let i = text.indexOf(start);
+  while (i > 0 && text[i - 1] !== '\n') i = text.indexOf(start, i + 1);
+  if (i < 0) throw new Error(`${file}: "${start.trim()}" not found at the start of a line — the build reads the router and the universe out of it`);
+  const j = text.indexOf(close, i);
+  if (j < 0) throw new Error(`${file}: no ${JSON.stringify(close)} closes "${start.trim()}"`);
+  return text.slice(i, j + close.length);
+};
 export function clientRouter(origin) {
-  const js = (f) => lf(readFileSync(src('js', f), 'utf8'));
   const UI = js('35-ui.js'), DISCOVER = js('40-views-discover.js'), LEARN = js('65-learn.js');
-  /* From the first `start` to the first `close` after it — a top-level
-     declaration, which is what every one of these is. If one stops being, this
-     throws with its name rather than evaluating half a file. */
-  const cut = (text, file, start, close) => {
-    const i = text.indexOf(start);
-    if (i < 0) throw new Error(`${file}: "${start.trim()}" not found — the build reads the router out of it`);
-    const j = text.indexOf(close, i);
-    if (j < 0) throw new Error(`${file}: no ${JSON.stringify(close)} closes "${start.trim()}"`);
-    return text.slice(i, j + close.length);
-  };
   /* META is added to from other modules — 86-scanner.js registers its pages'
      lines with Object.assign(META, {…}) so that it does not edit 35-ui.js —
      and the page runs every module before it routes. Each such statement is
@@ -203,15 +245,18 @@ export function clientRouter(origin) {
     createElement: tag,
     querySelector: (sel) => { if (!tags.has(sel)) tags.set(sel, tag()); return tags.get(sel); },
   };
-  const ctx = vm.createContext({
-    URLSearchParams, document, location: null, State: {}, BY_ID: new Map(),
-    /* Reached only for a company's own address, which is a parameter route
-       and never gets a page of its own. */
-    companyPath: () => { throw new Error('a route without a parameter asked for a company path'); },
-  });
+  /* State and BY_ID are what setDocumentMeta and canonicalPath read to name
+     a company page. Empty, as on every route page; companyHeadAt below fills
+     them for one company at a time, as the router does on its address. */
+  const ctx = vm.createContext({ URLSearchParams, document, location: null, State: {}, BY_ID: new Map() });
   const api = vm.runInContext([
     "const BASE = '';",
     cut(UI, '35-ui.js', 'const href = ', ';\n'),
+    /* A company's address, and the one word that labels synthetic figures,
+       as the page writes them. */
+    cut(UI, '35-ui.js', 'const slug = ', ';\n'),
+    cut(UI, '35-ui.js', 'function companyPath(', '\n}\n'),
+    cut(UI, '35-ui.js', 'const ILLUS_TITLE = ', ';\n'),
     cut(UI, '35-ui.js', 'const ROUTES = [', '\n];'),
     cut(UI, '35-ui.js', 'const META = {', '\n};'),
     ...additions,
@@ -221,13 +266,13 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'function matchRoute(', '\n}\n'),
     cut(UI, '35-ui.js', 'function setDocumentMeta(', '\n}\n'),
     cut(UI, '35-ui.js', 'function canonicalPath(', '\n}\n'),
-    '({ ROUTES, META, matchRoute, setDocumentMeta })',
+    '({ ROUTES, META, ILLUS_TITLE, matchRoute, setDocumentMeta, companyPath })',
   ].join('\n'), ctx, { filename: 'src/js (router)' });
 
   /* What setDocumentMeta writes on a first load of `path`: the route's title,
      META line and canonical address, or — for an address no route matches —
      the not-found card's. */
-  const headAt = (path) => {
+  const run = (path) => {
     ctx.location = { origin, pathname: path, search: '', hash: '' };
     tags.clear();
     document.title = '';
@@ -237,7 +282,21 @@ export function clientRouter(origin) {
     if (!document.title || !description || !canonical) throw new Error(`setDocumentMeta set no title, description or canonical for ${path}`);
     return { title: document.title, description, canonical };
   };
-  return { ROUTES: api.ROUTES, META: api.META, matchRoute: api.matchRoute, headAt };
+  const headAt = (path) => { ctx.State = {}; ctx.BY_ID = new Map(); return run(path); };
+  /* A company's own address, as a cold load of it ends once the filings are
+     in: applyRoute resolves the address to the company (State.ticker), finds
+     no tab in it (the snapshot), and calls setDocumentMeta — whose title
+     names the company and whose canonical is companyPath's. The resolver is
+     the page's, and the sweep holds it to reading each address back to its
+     own company in a browser; here the company is the one given. */
+  const companyHeadAt = (c) => {
+    const path = api.companyPath(c);
+    ctx.State = { ticker: c.id, researchTab: 'snapshot' };
+    ctx.BY_ID = new Map([[c.id, { c }]]);
+    try { return { path, ...run(path) }; }
+    finally { ctx.State = {}; ctx.BY_ID = new Map(); }
+  };
+  return { ROUTES: api.ROUTES, META: api.META, ILLUS_TITLE: api.ILLUS_TITLE, matchRoute: api.matchRoute, headAt, companyHeadAt };
 }
 
 /* The site's own address, read from the canonical link the template gives the
@@ -246,6 +305,108 @@ export function siteOrigin(template) {
   const m = template.match(/<link rel="canonical" href="(https?:\/\/[^/"]+)\/">/);
   if (!m) throw new Error("the template's canonical link no longer names the site root, so the site's address cannot be read");
   return m[1];
+}
+
+/* ─── THE COMPANIES, AS THE PAGE ASSEMBLES THEM ──────────────────────────────
+   The universe a visitor's page holds once its filings have loaded, and
+   nothing only the owner's machine adds (the personal lane is never
+   deployed): the illustrative set, RAW, each row named as addCompany names
+   it; then each filer in data/us.json as loadRealData adds it — through
+   realToCompany, retiring the illustrative stand-in it replaces
+   (retireIllustrativeTwin), and added the same way. Each of those is the
+   page's own code, cut out of src/js and run here, with what it reads beside
+   it (a first visit's empty storage, so no price the reader typed); only
+   loadRealData's loop is restated — it fetches, and this reads the file —
+   and the sweep holds the result to the page's own universe in a browser.
+   A filer realToCompany refuses is skipped and named, as the page skips it. */
+export function companyUniverse() {
+  const CORE = js('00-core.js'), DATASET = js('10-dataset.js'), DERIVATION = js('15-derivation.js'), UNIVERSE = js('25-universe.js');
+  /* addCompany derives a company's figures, which a head does not need. Its
+     one statement that NAMES a company — an illustrative one's listing code
+     into c.code, its short name into c.tk; a filer already has both — is run
+     on its own. Written another way, the build stops and says so, rather
+     than name companies another way than the page does. */
+  const add = cut(UNIVERSE, '25-universe.js', 'function addCompany(c) {', '\n}\n');
+  const naming = add.match(/^[ \t]*(if \(!c\.real\) \{ c\.code = c\.tk; c\.tk = c\.id; \})/m);
+  if (!naming) throw new Error('25-universe.js: addCompany no longer names an illustrative company with `if (!c.real) { c.code = c.tk; c.tk = c.id; }` — the build runs that statement to give each company the address and the title its page gives it');
+  const ctx = vm.createContext({ store: { read: (key, fallback) => fallback } });
+  const api = vm.runInContext([
+    cut(CORE, '00-core.js', 'const isNum = ', ';\n'),
+    cut(DERIVATION, '15-derivation.js', 'const F = {', '};'),
+    cut(DATASET, '10-dataset.js', 'const RAW = [', '\n];'),
+    'const U = [], BY_ID = new Map();',
+    cut(UNIVERSE, '25-universe.js', 'const manualPrices = ', ';\n'),
+    cut(UNIVERSE, '25-universe.js', 'const REAL_TYPES = {', '};'),
+    cut(UNIVERSE, '25-universe.js', 'const REAL_SECTORS = {', '\n};'),
+    cut(UNIVERSE, '25-universe.js', 'const SHIPPED_MISFILED_SECTOR = ', '));\n'),
+    cut(UNIVERSE, '25-universe.js', 'function withholdMisassembled(', '\n}\n'),
+    cut(UNIVERSE, '25-universe.js', 'function realToCompany(', '\n}\n'),
+    cut(UNIVERSE, '25-universe.js', 'function retireIllustrativeTwin(', '\n}\n'),
+    `const named = (c) => { ${naming[1]} return c; };`,
+    /* And addCompany's bookkeeping: one row, in U and under its id. */
+    'const add = (c) => { const row = { c: named(c) }; U.push(row); BY_ID.set(c.id, row); };',
+    '({ RAW, U, BY_ID, add, realToCompany, retireIllustrativeTwin })',
+  ].join('\n'), ctx, { filename: 'src/js (universe)' });
+  api.RAW.forEach(api.add);
+  const filings = JSON.parse(readFileSync(join(ROOT, 'data', 'us.json'), 'utf8'));
+  const skipped = [];
+  for (const r of filings.results || []) {
+    let c;
+    try { c = api.realToCompany(r); }
+    catch (e) { skipped.push(`${r?.id}: ${e.message}`); continue; }
+    if (api.BY_ID.has(c.id)) continue;            /* already loaded */
+    api.retireIllustrativeTwin(c);
+    api.add(c);
+  }
+  return { companies: api.U.map(r => r.c), skipped };
+}
+
+/* What a company's page is, in the line a link preview shows under its
+   title: the company's name, its ticker (and on Bursa the listing code its
+   address leads with), where it is listed, and where its figures come from —
+   each read off the company as the page holds it — then the line the page
+   gives itself (META.research, as setDocumentMeta writes it there), so the
+   served description is the page's own with the company put first. An
+   illustrative company says so in the page's own words, ILLUS_TITLE, the
+   hover text of every "illustrative" chip; a filer names the SEC and its
+   CIK, as the page's Source line does. A market, or a source, this cannot
+   name truthfully stops the build rather than being guessed at. */
+const LISTED = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' };
+export function companyDescription(c, pageLine, ILLUS_TITLE) {
+  const where = LISTED[c.mkt];
+  if (!where) throw new Error(`${c.id}: market ${JSON.stringify(c.mkt)} — the build cannot say where it is listed`);
+  const tickers = c.mkt === 'MY' && c.code && c.code !== c.tk ? `${c.tk}, ${c.code}` : c.tk;
+  let source;
+  if (!c.real) source = ILLUS_TITLE;
+  else if (!c.personal && c.cik) source = `Figures from its audited annual statements filed with the SEC (CIK ${Number(c.cik)}).`;
+  else throw new Error(`${c.id}: real figures that are not an SEC filing, which a deployed page never holds`);
+  return `${c.name} (${tickers}), ${where}. ${source} ${pageLine}`;
+}
+
+/* Every company's own address, and the head its page is served with. Pure:
+   the router's answers and the universe's, nothing else. Each address must
+   be literal segments (a rewrite's source is path-to-regexp), must be where
+   the router opens the company page, must be the canonical address that page
+   names, and must belong to one company. */
+export function companyPlan(origin, router = clientRouter(origin)) {
+  const { companies, skipped } = companyUniverse();
+  const owner = new Map();
+  const plan = companies.map((c) => {
+    const { path, title, description: pageLine, canonical } = router.companyHeadAt(c);
+    if (!/^(\/[A-Za-z0-9-]+)+$/.test(path)) throw new Error(`${c.id}: its address ${path} is not literal segments`);
+    const route = router.matchRoute(path);
+    if (!route || route.view !== 'research' || !route.path.includes(':'))
+      throw new Error(`${c.id}: the router answers ${path}, the address companyPath gives it, with ${route ? `the route ${route.path} (view ${route.view})` : 'no route'}, not the company page's parameter route`);
+    if (canonical !== origin + path) throw new Error(`${c.id}: its page names ${canonical} as its canonical address, not ${origin}${path}`);
+    if (owner.has(path)) throw new Error(`${path} is the address of both ${owner.get(path)} and ${c.id}`);
+    owner.set(path, c.id);
+    return {
+      path, id: c.id,
+      company: { name: c.name, tk: c.tk, code: c.code || null, mkt: c.mkt, real: !!c.real, cik: c.cik || null },
+      head: { title, description: companyDescription(c, pageLine, router.ILLUS_TITLE), canonical },
+    };
+  });
+  return { companies: plan, skipped };
 }
 
 /* Which addresses get which page. Pure: the router's answers, nothing else. */
@@ -278,8 +439,14 @@ export function routePlan(template) {
     pages.push({ path: r.path, view: route.view, head: router.headAt(r.path) });
   }
   if (!pages.some(p => p.path === '/')) throw new Error("ROUTES has no '/' row");
+  /* Each company's own address (ONE HEAD PER COMPANY). None may be a static
+     route's: companyPlan already refuses an address the router does not open
+     as the company page, and a static row there would be one. */
+  const { companies, skipped } = companyPlan(origin, router);
+  const statics = new Set(pages.map(p => p.path));
+  for (const co of companies) if (statics.has(co.path)) throw new Error(`${co.path} is both a route and ${co.id}'s address`);
   /* An address no route matches: setDocumentMeta(null)'s title and description. */
-  return { origin, pages, params, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES };
+  return { origin, pages, params, companies, skippedFilers: skipped, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES };
 }
 
 /* ─── THE HEAD, REWRITTEN ────────────────────────────────────────────────────
@@ -420,10 +587,22 @@ export function build() {
     fileOfHead.set(key, file);
     pages.set(file, linked(withHead(shell, named.head), files));
   }
+  /* A page per company, at its own address under pages/, made as a route
+     page is — so everything below that holds a page (no inline script, the
+     two app files, PAGE_LIMIT, --check's drift and stale files) holds it. */
+  for (const co of plan.companies) {
+    const file = `${PAGES}${co.path}.html`;
+    if (pages.has(file)) throw new Error(`${file} would be written both for a route and for ${co.id}`);
+    pages.set(file, linked(withHead(shell, co.head), files));
+  }
   const rewrites = plan.pages.map(p => ({
     source: p.path,
     destination: p.path === '/' ? '/index.html' : `/${fileOfHead.get(JSON.stringify(p.head))}`,
   }));
+  /* Each company's own address, to its page: exact like the routes above
+     (none of which is a company's), and before the parameter routes, where
+     /company/:id would answer it with the generic page. */
+  for (const co of plan.companies) rewrites.push({ source: co.path, destination: `/${PAGES}${co.path}.html` });
   /* After every exact path, so no :param can answer an address a page is
      written for (matchRoute has already decided each of those). They all go
      to one file, so their order among themselves cannot matter. */
@@ -563,7 +742,15 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
   const problems = servingProblems(built);
-  const shared = plan.pages.length - 1 - pages.size;
+  /* The company pages, and the route pages beside them. */
+  const COMPANY_PAGES = `${PAGES}/company/`;
+  const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);
+  const companySizes = [...pages].filter(([f]) => isCompanyPage(f)).map(([, p]) => Buffer.byteLength(p, 'utf8'));
+  const routePages = pages.size - companySizes.length;
+  const shared = plan.pages.length - 1 - routePages;
+  const filed = plan.companies.filter(c => c.company.real).length;
+  const companiesSaid = `${plan.companies.length} company pages (${filed} filed with the SEC, ${plan.companies.length - filed} illustrative)`;
+  plan.skippedFilers.forEach(s => console.error(`skipped      ${s} — the page's loader refuses this filer too, so it has no page`));
 
   if (process.argv.includes('--check')) {
     const drift = [];
@@ -571,15 +758,17 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
       const path = join(ROOT, label);
       if (!existsSync(path)) { drift.push(`${label} is missing — the build writes it`); continue; }
       const committed = lf(readFileSync(path, 'utf8'));
-      if (sha(committed) !== sha(body)) drift.push(`${label} DOES NOT match src/  committed ${sha(committed).slice(0, 12)}  from src ${sha(body).slice(0, 12)}`);
+      if (sha(committed) !== sha(body)) drift.push(`${label} DOES NOT match src/${isCompanyPage(label) || label === 'vercel.json' ? ' and data/us.json' : ''}  committed ${sha(committed).slice(0, 12)}  from src ${sha(body).slice(0, 12)}`);
     }
     /* A page for a route that no longer exists (or a path that changed) is
        still deployed and still served at its file's address; the build removes
-       it, so a committed one means the build was not run. */
-    stale.forEach(f => drift.push(`${f} is stale — ${f.startsWith(PAGES) ? 'no route writes it any more' : 'no page loads it any more'}`));
+       it, so a committed one means the build was not run. The same for a
+       company page whose company left the universe, or whose address moved
+       with its name. */
+    stale.forEach(f => drift.push(`${f} is stale — ${isCompanyPage(f) ? 'no company in the universe has that address any more' : f.startsWith(PAGES) ? 'no route writes it any more' : 'no page loads it any more'}`));
     problems.forEach(p => drift.push(p));
     if (!drift.length) {
-      console.log(`index.html, 404.html, ${pages.size} route pages, the app's two files and vercel.json match src/ (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
+      console.log(`index.html, 404.html, ${routePages} route pages, ${companiesSaid}, the app's two files and vercel.json match src/ and data/us.json (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
       console.log(`every page but index.html loads /${files.script.file} and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}).`);
       console.log(`sitemap.xml lists only canonical addresses that are served their own page.`);
     } else {
@@ -604,9 +793,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     console.log(`index.html   ${modules.length} modules  ${kb(html.length)}  ${sha(html).slice(0, 12)}`);
     console.log(`assets/      ${files.script.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.script.body))}, ${files.styles.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.styles.body))} — index.html's inline script and stylesheet`);
     console.log(`404.html     the not-found head, noindex  ${kb(Buffer.byteLength(notFound))}`);
-    console.log(`pages/       ${pages.size} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''}, the largest ${kb(largest)}`);
+    console.log(`pages/       ${routePages} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''}, the largest of every page ${kb(largest)}`);
+    console.log(`pages/company/  ${companiesSaid}, one per company at its own address, the largest ${kb(Math.max(0, ...companySizes))}, ${(companySizes.reduce((a, b) => a + b, 0) / 1048576).toFixed(2)}MB in all`);
     if (stale.length) console.log(`stale        ${stale.join(', ')} — removed`);
-    console.log(`vercel.json  ${rewrites.length} rewrites (${plan.params.length} parameter routes to index.html)  csp ${cspHash.slice(0, 19)}…`);
+    console.log(`vercel.json  ${rewrites.length} rewrites (${plan.companies.length} company addresses to their pages, ${plan.params.length} parameter routes to index.html)  csp ${cspHash.slice(0, 19)}…`);
     Object.entries(versions).forEach(([f, v]) => console.log(`  data/${f.padEnd(18)} v=${v}`));
     if (problems.length) {
       problems.forEach(p => console.error(`WARNING  ${p}`));

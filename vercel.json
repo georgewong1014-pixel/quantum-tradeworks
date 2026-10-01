@@ -269,6 +269,558 @@
       "destination": "/pages/terms.html"
     },
     {
+      "source": "/company/1155-malayan-banking",
+      "destination": "/pages/company/1155-malayan-banking.html"
+    },
+    {
+      "source": "/company/1295-public-bank",
+      "destination": "/pages/company/1295-public-bank.html"
+    },
+    {
+      "source": "/company/1023-cimb-group",
+      "destination": "/pages/company/1023-cimb-group.html"
+    },
+    {
+      "source": "/company/5347-tenaga-nasional",
+      "destination": "/pages/company/5347-tenaga-nasional.html"
+    },
+    {
+      "source": "/company/6033-petronas-gas",
+      "destination": "/pages/company/6033-petronas-gas.html"
+    },
+    {
+      "source": "/company/5183-petronas-chemicals",
+      "destination": "/pages/company/5183-petronas-chemicals.html"
+    },
+    {
+      "source": "/company/5225-ihh-healthcare",
+      "destination": "/pages/company/5225-ihh-healthcare.html"
+    },
+    {
+      "source": "/company/4707-nestl-malaysia",
+      "destination": "/pages/company/4707-nestl-malaysia.html"
+    },
+    {
+      "source": "/company/4197-sime-darby",
+      "destination": "/pages/company/4197-sime-darby.html"
+    },
+    {
+      "source": "/company/5285-sd-guthrie",
+      "destination": "/pages/company/5285-sd-guthrie.html"
+    },
+    {
+      "source": "/company/5235ss-klccp-stapled",
+      "destination": "/pages/company/5235ss-klccp-stapled.html"
+    },
+    {
+      "source": "/company/5106-axis-real",
+      "destination": "/pages/company/5106-axis-real.html"
+    },
+    {
+      "source": "/company/5227-igb-real",
+      "destination": "/pages/company/5227-igb-real.html"
+    },
+    {
+      "source": "/company/pgr-progressive-corporation",
+      "destination": "/pages/company/pgr-progressive-corporation.html"
+    },
+    {
+      "source": "/company/8621-lpi-capital",
+      "destination": "/pages/company/8621-lpi-capital.html"
+    },
+    {
+      "source": "/company/5218-sapura-energy",
+      "destination": "/pages/company/5218-sapura-energy.html"
+    },
+    {
+      "source": "/company/6012-maxis-berhad",
+      "destination": "/pages/company/6012-maxis-berhad.html"
+    },
+    {
+      "source": "/company/0166-inari-amertron",
+      "destination": "/pages/company/0166-inari-amertron.html"
+    },
+    {
+      "source": "/company/5398-gamuda-berhad",
+      "destination": "/pages/company/5398-gamuda-berhad.html"
+    },
+    {
+      "source": "/company/aapl-apple-inc",
+      "destination": "/pages/company/aapl-apple-inc.html"
+    },
+    {
+      "source": "/company/abbv-abbvie-inc",
+      "destination": "/pages/company/abbv-abbvie-inc.html"
+    },
+    {
+      "source": "/company/abt-abbott-laboratories",
+      "destination": "/pages/company/abt-abbott-laboratories.html"
+    },
+    {
+      "source": "/company/acn-accenture-plc",
+      "destination": "/pages/company/acn-accenture-plc.html"
+    },
+    {
+      "source": "/company/adbe-adobe-inc",
+      "destination": "/pages/company/adbe-adobe-inc.html"
+    },
+    {
+      "source": "/company/adi-analog-devices",
+      "destination": "/pages/company/adi-analog-devices.html"
+    },
+    {
+      "source": "/company/aep-american-electric",
+      "destination": "/pages/company/aep-american-electric.html"
+    },
+    {
+      "source": "/company/amat-applied-materials",
+      "destination": "/pages/company/amat-applied-materials.html"
+    },
+    {
+      "source": "/company/amd-advanced-micro",
+      "destination": "/pages/company/amd-advanced-micro.html"
+    },
+    {
+      "source": "/company/amgn-amgen-inc",
+      "destination": "/pages/company/amgn-amgen-inc.html"
+    },
+    {
+      "source": "/company/amt-american-tower",
+      "destination": "/pages/company/amt-american-tower.html"
+    },
+    {
+      "source": "/company/amzn-amazon-com",
+      "destination": "/pages/company/amzn-amazon-com.html"
+    },
+    {
+      "source": "/company/apd-air-products",
+      "destination": "/pages/company/apd-air-products.html"
+    },
+    {
+      "source": "/company/avgo-broadcom-inc",
+      "destination": "/pages/company/avgo-broadcom-inc.html"
+    },
+    {
+      "source": "/company/axp-american-express",
+      "destination": "/pages/company/axp-american-express.html"
+    },
+    {
+      "source": "/company/ba-boeing-co",
+      "destination": "/pages/company/ba-boeing-co.html"
+    },
+    {
+      "source": "/company/bac-bank-of",
+      "destination": "/pages/company/bac-bank-of.html"
+    },
+    {
+      "source": "/company/bkng-booking-holdings",
+      "destination": "/pages/company/bkng-booking-holdings.html"
+    },
+    {
+      "source": "/company/blk-blackrock-inc",
+      "destination": "/pages/company/blk-blackrock-inc.html"
+    },
+    {
+      "source": "/company/bmy-bristol-myers",
+      "destination": "/pages/company/bmy-bristol-myers.html"
+    },
+    {
+      "source": "/company/brk-b-berkshire-hathaway",
+      "destination": "/pages/company/brk-b-berkshire-hathaway.html"
+    },
+    {
+      "source": "/company/c-citigroup-inc",
+      "destination": "/pages/company/c-citigroup-inc.html"
+    },
+    {
+      "source": "/company/cat-caterpillar-inc",
+      "destination": "/pages/company/cat-caterpillar-inc.html"
+    },
+    {
+      "source": "/company/cdns-cadence-design",
+      "destination": "/pages/company/cdns-cadence-design.html"
+    },
+    {
+      "source": "/company/ci-cigna-group",
+      "destination": "/pages/company/ci-cigna-group.html"
+    },
+    {
+      "source": "/company/cl-colgate-palmolive",
+      "destination": "/pages/company/cl-colgate-palmolive.html"
+    },
+    {
+      "source": "/company/cmcsa-comcast-corp",
+      "destination": "/pages/company/cmcsa-comcast-corp.html"
+    },
+    {
+      "source": "/company/cof-capital-one",
+      "destination": "/pages/company/cof-capital-one.html"
+    },
+    {
+      "source": "/company/cop-conocophillips",
+      "destination": "/pages/company/cop-conocophillips.html"
+    },
+    {
+      "source": "/company/cost-costco-wholesale",
+      "destination": "/pages/company/cost-costco-wholesale.html"
+    },
+    {
+      "source": "/company/crm-salesforce-inc",
+      "destination": "/pages/company/crm-salesforce-inc.html"
+    },
+    {
+      "source": "/company/csco-cisco-systems",
+      "destination": "/pages/company/csco-cisco-systems.html"
+    },
+    {
+      "source": "/company/cvs-cvs-health",
+      "destination": "/pages/company/cvs-cvs-health.html"
+    },
+    {
+      "source": "/company/cvx-chevron-corp",
+      "destination": "/pages/company/cvx-chevron-corp.html"
+    },
+    {
+      "source": "/company/d-dominion-energy",
+      "destination": "/pages/company/d-dominion-energy.html"
+    },
+    {
+      "source": "/company/de-deere-co",
+      "destination": "/pages/company/de-deere-co.html"
+    },
+    {
+      "source": "/company/dhr-danaher-corp",
+      "destination": "/pages/company/dhr-danaher-corp.html"
+    },
+    {
+      "source": "/company/dis-walt-disney",
+      "destination": "/pages/company/dis-walt-disney.html"
+    },
+    {
+      "source": "/company/duk-duke-energy",
+      "destination": "/pages/company/duk-duke-energy.html"
+    },
+    {
+      "source": "/company/emr-emerson-electric",
+      "destination": "/pages/company/emr-emerson-electric.html"
+    },
+    {
+      "source": "/company/eog-eog-resources",
+      "destination": "/pages/company/eog-eog-resources.html"
+    },
+    {
+      "source": "/company/eqix-equinix-inc",
+      "destination": "/pages/company/eqix-equinix-inc.html"
+    },
+    {
+      "source": "/company/etn-eaton-corp",
+      "destination": "/pages/company/etn-eaton-corp.html"
+    },
+    {
+      "source": "/company/f-ford-motor",
+      "destination": "/pages/company/f-ford-motor.html"
+    },
+    {
+      "source": "/company/fcx-freeport-mcmoran",
+      "destination": "/pages/company/fcx-freeport-mcmoran.html"
+    },
+    {
+      "source": "/company/fdx-fedex-corp",
+      "destination": "/pages/company/fdx-fedex-corp.html"
+    },
+    {
+      "source": "/company/ge-general-electric",
+      "destination": "/pages/company/ge-general-electric.html"
+    },
+    {
+      "source": "/company/gild-gilead-sciences",
+      "destination": "/pages/company/gild-gilead-sciences.html"
+    },
+    {
+      "source": "/company/gm-general-motors",
+      "destination": "/pages/company/gm-general-motors.html"
+    },
+    {
+      "source": "/company/googl-alphabet-inc",
+      "destination": "/pages/company/googl-alphabet-inc.html"
+    },
+    {
+      "source": "/company/gs-goldman-sachs",
+      "destination": "/pages/company/gs-goldman-sachs.html"
+    },
+    {
+      "source": "/company/hd-home-depot",
+      "destination": "/pages/company/hd-home-depot.html"
+    },
+    {
+      "source": "/company/hon-honeywell-international",
+      "destination": "/pages/company/hon-honeywell-international.html"
+    },
+    {
+      "source": "/company/ibm-international-business",
+      "destination": "/pages/company/ibm-international-business.html"
+    },
+    {
+      "source": "/company/intc-intel-corp",
+      "destination": "/pages/company/intc-intel-corp.html"
+    },
+    {
+      "source": "/company/intu-intuit-inc",
+      "destination": "/pages/company/intu-intuit-inc.html"
+    },
+    {
+      "source": "/company/isrg-intuitive-surgical",
+      "destination": "/pages/company/isrg-intuitive-surgical.html"
+    },
+    {
+      "source": "/company/jnj-johnson-johnson",
+      "destination": "/pages/company/jnj-johnson-johnson.html"
+    },
+    {
+      "source": "/company/jpm-jpmorgan-chase",
+      "destination": "/pages/company/jpm-jpmorgan-chase.html"
+    },
+    {
+      "source": "/company/klac-kla-corp",
+      "destination": "/pages/company/klac-kla-corp.html"
+    },
+    {
+      "source": "/company/ko-coca-cola",
+      "destination": "/pages/company/ko-coca-cola.html"
+    },
+    {
+      "source": "/company/lin-linde-plc",
+      "destination": "/pages/company/lin-linde-plc.html"
+    },
+    {
+      "source": "/company/lly-eli-lilly",
+      "destination": "/pages/company/lly-eli-lilly.html"
+    },
+    {
+      "source": "/company/lmt-lockheed-martin",
+      "destination": "/pages/company/lmt-lockheed-martin.html"
+    },
+    {
+      "source": "/company/low-lowes-companies",
+      "destination": "/pages/company/low-lowes-companies.html"
+    },
+    {
+      "source": "/company/lrcx-lam-research",
+      "destination": "/pages/company/lrcx-lam-research.html"
+    },
+    {
+      "source": "/company/ma-mastercard-inc",
+      "destination": "/pages/company/ma-mastercard-inc.html"
+    },
+    {
+      "source": "/company/mcd-mcdonalds-corp",
+      "destination": "/pages/company/mcd-mcdonalds-corp.html"
+    },
+    {
+      "source": "/company/mdlz-mondelez-international",
+      "destination": "/pages/company/mdlz-mondelez-international.html"
+    },
+    {
+      "source": "/company/meta-meta-platforms",
+      "destination": "/pages/company/meta-meta-platforms.html"
+    },
+    {
+      "source": "/company/mmm-3m-co",
+      "destination": "/pages/company/mmm-3m-co.html"
+    },
+    {
+      "source": "/company/mo-altria-group",
+      "destination": "/pages/company/mo-altria-group.html"
+    },
+    {
+      "source": "/company/mpc-marathon-petroleum",
+      "destination": "/pages/company/mpc-marathon-petroleum.html"
+    },
+    {
+      "source": "/company/mrk-merck-co",
+      "destination": "/pages/company/mrk-merck-co.html"
+    },
+    {
+      "source": "/company/ms-morgan-stanley",
+      "destination": "/pages/company/ms-morgan-stanley.html"
+    },
+    {
+      "source": "/company/msft-microsoft-corp",
+      "destination": "/pages/company/msft-microsoft-corp.html"
+    },
+    {
+      "source": "/company/mu-micron-technology",
+      "destination": "/pages/company/mu-micron-technology.html"
+    },
+    {
+      "source": "/company/nee-nextera-energy",
+      "destination": "/pages/company/nee-nextera-energy.html"
+    },
+    {
+      "source": "/company/nflx-netflix-inc",
+      "destination": "/pages/company/nflx-netflix-inc.html"
+    },
+    {
+      "source": "/company/nke-nike-inc",
+      "destination": "/pages/company/nke-nike-inc.html"
+    },
+    {
+      "source": "/company/now-servicenow-inc",
+      "destination": "/pages/company/now-servicenow-inc.html"
+    },
+    {
+      "source": "/company/nvda-nvidia-corp",
+      "destination": "/pages/company/nvda-nvidia-corp.html"
+    },
+    {
+      "source": "/company/o-realty-income",
+      "destination": "/pages/company/o-realty-income.html"
+    },
+    {
+      "source": "/company/orcl-oracle-corp",
+      "destination": "/pages/company/orcl-oracle-corp.html"
+    },
+    {
+      "source": "/company/orly-o-reilly",
+      "destination": "/pages/company/orly-o-reilly.html"
+    },
+    {
+      "source": "/company/panw-palo-alto",
+      "destination": "/pages/company/panw-palo-alto.html"
+    },
+    {
+      "source": "/company/pep-pepsico-inc",
+      "destination": "/pages/company/pep-pepsico-inc.html"
+    },
+    {
+      "source": "/company/pfe-pfizer-inc",
+      "destination": "/pages/company/pfe-pfizer-inc.html"
+    },
+    {
+      "source": "/company/pg-procter-gamble",
+      "destination": "/pages/company/pg-procter-gamble.html"
+    },
+    {
+      "source": "/company/pld-prologis-inc",
+      "destination": "/pages/company/pld-prologis-inc.html"
+    },
+    {
+      "source": "/company/pm-philip-morris",
+      "destination": "/pages/company/pm-philip-morris.html"
+    },
+    {
+      "source": "/company/pnc-pnc-financial",
+      "destination": "/pages/company/pnc-pnc-financial.html"
+    },
+    {
+      "source": "/company/psx-phillips-66",
+      "destination": "/pages/company/psx-phillips-66.html"
+    },
+    {
+      "source": "/company/qcom-qualcomm-inc",
+      "destination": "/pages/company/qcom-qualcomm-inc.html"
+    },
+    {
+      "source": "/company/rivn-rivian-automotive",
+      "destination": "/pages/company/rivn-rivian-automotive.html"
+    },
+    {
+      "source": "/company/rtx-rtx-corp",
+      "destination": "/pages/company/rtx-rtx-corp.html"
+    },
+    {
+      "source": "/company/sbux-starbucks-corp",
+      "destination": "/pages/company/sbux-starbucks-corp.html"
+    },
+    {
+      "source": "/company/schw-schwab-charles",
+      "destination": "/pages/company/schw-schwab-charles.html"
+    },
+    {
+      "source": "/company/shw-sherwin-williams",
+      "destination": "/pages/company/shw-sherwin-williams.html"
+    },
+    {
+      "source": "/company/slb-slb-limited",
+      "destination": "/pages/company/slb-slb-limited.html"
+    },
+    {
+      "source": "/company/snps-synopsys-inc",
+      "destination": "/pages/company/snps-synopsys-inc.html"
+    },
+    {
+      "source": "/company/so-southern-co",
+      "destination": "/pages/company/so-southern-co.html"
+    },
+    {
+      "source": "/company/spg-simon-property",
+      "destination": "/pages/company/spg-simon-property.html"
+    },
+    {
+      "source": "/company/spgi-s-p",
+      "destination": "/pages/company/spgi-s-p.html"
+    },
+    {
+      "source": "/company/t-at-t",
+      "destination": "/pages/company/t-at-t.html"
+    },
+    {
+      "source": "/company/tjx-tjx-companies",
+      "destination": "/pages/company/tjx-tjx-companies.html"
+    },
+    {
+      "source": "/company/tmo-thermo-fisher",
+      "destination": "/pages/company/tmo-thermo-fisher.html"
+    },
+    {
+      "source": "/company/tmus-t-mobile",
+      "destination": "/pages/company/tmus-t-mobile.html"
+    },
+    {
+      "source": "/company/tsla-tesla-inc",
+      "destination": "/pages/company/tsla-tesla-inc.html"
+    },
+    {
+      "source": "/company/txn-texas-instruments",
+      "destination": "/pages/company/txn-texas-instruments.html"
+    },
+    {
+      "source": "/company/unh-unitedhealth-group",
+      "destination": "/pages/company/unh-unitedhealth-group.html"
+    },
+    {
+      "source": "/company/unp-union-pacific",
+      "destination": "/pages/company/unp-union-pacific.html"
+    },
+    {
+      "source": "/company/ups-united-parcel",
+      "destination": "/pages/company/ups-united-parcel.html"
+    },
+    {
+      "source": "/company/usb-us-bancorp",
+      "destination": "/pages/company/usb-us-bancorp.html"
+    },
+    {
+      "source": "/company/v-visa-inc",
+      "destination": "/pages/company/v-visa-inc.html"
+    },
+    {
+      "source": "/company/vz-verizon-communications",
+      "destination": "/pages/company/vz-verizon-communications.html"
+    },
+    {
+      "source": "/company/wfc-wells-fargo",
+      "destination": "/pages/company/wfc-wells-fargo.html"
+    },
+    {
+      "source": "/company/wmt-walmart-inc",
+      "destination": "/pages/company/wmt-walmart-inc.html"
+    },
+    {
+      "source": "/company/xom-exxon-mobil",
+      "destination": "/pages/company/xom-exxon-mobil.html"
+    },
+    {
       "source": "/company/:id",
       "destination": "/index.html"
     },
