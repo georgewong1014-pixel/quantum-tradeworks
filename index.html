@@ -3619,6 +3619,151 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 }
 @media print { .pm-bar, .pc-index { display: none !important; } }
 /* ---- end audit1: property-model ---- */
+
+/* ---- releaseB: search-recent ---- */
+/* THE SEARCH (Release B, B3 and B4; 95-boot.js, 59-recent.js). One box over
+   companies, pages and tools, and the reader's saved work, each group under
+   a heading that stays in sight while its rows scroll under it; with
+   nothing typed, Recent. The site's own tokens throughout — the surface,
+   the lines, the brand for the row in hand, the badges' own colours — and
+   its depth: the row's mark is a small raised tile. Only box-shadow and
+   transform move. On a phone the box sits at the top, clear of the
+   keyboard; every result, "Clear recent" and the close button are 44px;
+   the keys' legend and Esc, of no use to a finger, go. */
+.search-modal { width: min(680px, calc(100% - 32px)); max-height: min(78vh, 720px); }
+.search-head {
+  display: flex; align-items: center; gap: var(--xs); flex: none;
+  padding: var(--sm) var(--sm) var(--sm) var(--md); border-bottom: 1px solid var(--line);
+  transition: box-shadow 160ms ease;
+}
+.search-head-ico { width: 18px; height: 18px; flex: none; color: var(--ink-3); }
+.search-input, .search-input:hover { flex: 1 1 auto; min-width: 0; width: auto; height: 40px; padding: 0 4px; border: 0; background: none; font-size: 15px; }
+/* The box's focus is the head's: a brand rule under the whole row, where a
+   ring round a borderless field drew a box inside the box. */
+.search-input:focus { border: 0; box-shadow: none; }
+.search-head:has(.search-input:focus) { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--brand) 75%, transparent); }
+.search-esc { flex: none; }
+.search-close { flex: none; width: 36px; height: 36px; }
+.search-results {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0 var(--xs) var(--xs);
+  /* A row the arrows reach comes to rest below its group's heading, never
+     under it. */
+  scroll-padding-top: 46px; scroll-padding-bottom: var(--xs);
+}
+
+/* A group: its heading, a count to the eye, and on Recent the one action. */
+.search-group + .search-group { margin-top: 4px; border-top: 1px solid var(--line); }
+.search-group-hd {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: var(--xs); min-height: 40px; padding: 10px 10px 4px;
+  background: var(--surface);
+}
+.search-group-t {
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-3); line-height: 1.4;
+}
+.search-group-n { font-size: var(--text-label); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.search-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.search-more { padding: 4px 10px 6px; font-size: var(--text-label); color: var(--ink-3); }
+
+/* A result: a link or a button laid out as one row. */
+.search-row {
+  appearance: none; display: flex; align-items: center; gap: var(--sm); width: 100%; min-height: 48px; padding: 8px 10px;
+  border: 0; border-radius: var(--r-md); background: none; color: var(--ink); font: inherit; text-align: left;
+  text-decoration: none; cursor: pointer;
+  transition: transform 120ms ease, box-shadow 160ms ease;
+}
+.search-row:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.search-row:focus-visible {
+  outline: 2px solid var(--brand); outline-offset: -2px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--brand) 9%, transparent);
+}
+.search-row:active { transform: translateY(1px); }
+.search-ico {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; border-radius: 9px;
+  color: var(--ink-3); background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(20, 25, 22, .06);
+  transition: box-shadow 160ms ease;
+}
+.search-row:hover .search-ico, .search-row:focus-visible .search-ico {
+  color: var(--brand); background: var(--brand-wash);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 26%, transparent), 0 4px 12px -6px color-mix(in srgb, var(--brand) 45%, transparent);
+}
+.search-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.search-title { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.search-name {
+  min-width: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); line-height: 1.35; color: var(--ink);
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.search-in { min-width: 0; font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+.search-note {
+  font-size: var(--text-label); line-height: 1.45; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.search-title .chip, .search-title .status-badge, .search-title .illus { flex: none; }
+.search-when { flex: none; margin-left: auto; padding-left: var(--xs); font-size: var(--text-label); color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* A tool that cannot be used here, and the product that is not built: the
+   row stays, with its badge and the reason in full, and loses everything
+   that says "press me" — the gated tile's dashed edge (registry-ctas). */
+.search-off { cursor: default; outline: 1px dashed var(--line-2); outline-offset: -1px; }
+.search-off:hover { background: none; }
+.search-off:active { transform: none; }
+.search-off .search-name { color: var(--ink-2); }
+.search-off .search-ico { box-shadow: 0 0 0 1px var(--line); background: var(--surface-sunk); }
+.search-off .search-note { white-space: normal; overflow: visible; color: var(--ink-2); }
+
+/* A company found by the query: the ticker and its chips, the name, then the
+   illustrative price and the day's move in their own columns. */
+.search-co { gap: 10px; }
+.search-co-main { display: flex; align-items: center; gap: var(--sm); min-width: 0; flex: 1 1 auto; }
+.search-co-text { min-width: 0; flex: 1 1 auto; }
+.search-co-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
+.search-co-tk { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.search-co-tok { white-space: nowrap; flex: none; }
+.search-co-line .chip, .search-co-line .illus { flex: none; }
+.search-co-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-co-px { flex: none; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.search-co-d1 { flex: none; min-width: 48px; font-size: var(--text-label); text-align: right; }
+
+/* Recent: its one action, what it keeps, and what it says when empty. */
+.search-clear {
+  appearance: none; margin-left: auto; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-sm);
+  background: none; font: inherit; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--brand); cursor: pointer;
+  transition: box-shadow 160ms ease;
+}
+.search-clear:hover { background: var(--brand-wash); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 22%, transparent); }
+.search-clear:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.search-keep { padding: 8px 10px 4px; font-size: var(--text-label); color: var(--ink-3); }
+.search-empty { display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 18px; }
+.search-empty-t { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.search-empty-s { max-width: 62ch; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); }
+
+/* The keys, to the eye, under the results. */
+.search-keys {
+  display: flex; align-items: center; gap: var(--md); flex: none; padding: 8px var(--md);
+  border-top: 1px solid var(--line); font-size: var(--text-label); color: var(--ink-3);
+  background: color-mix(in srgb, var(--surface-sunk) 55%, var(--surface));
+}
+.search-keys > span { display: inline-flex; align-items: center; gap: 4px; }
+.search-keys .kbd { font-size: var(--text-micro); padding: 0 5px; }
+
+@media (pointer: coarse) {
+  .search-clear { min-height: 44px; }
+  .search-close { width: 44px; height: 44px; }
+}
+@media (max-width: 560px) {
+  .search-modal { top: 12px; width: calc(100% - 24px); max-height: min(78vh, calc(100dvh - 24px)); }
+  .search-head { padding: 6px 6px 6px var(--sm); }
+  .search-input, .search-input:hover { height: 44px; font-size: 16px; }
+  .search-esc, .search-keys { display: none; }
+  .search-close { width: 44px; height: 44px; }
+  .search-results { padding: 0 6px 6px; }
+  .search-row { min-height: 52px; padding: 8px; }
+  .search-clear { min-height: 44px; }
+}
+/* ---- end releaseB: search-recent ---- */
 </style>
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
@@ -3727,7 +3872,7 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
       </span>
       <span class="brand-name">Quantum <span>Tradeworks</span></span>
     </a>
-    <button type="button" class="searchbtn appbar-search" data-open-search aria-label="Search companies">
+    <button type="button" class="searchbtn appbar-search" data-open-search aria-label="Search companies, pages and tools, and your saved work">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <span class="appbar-search-label">Search</span>
     </button>
@@ -3763,13 +3908,14 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
   </div>
-  <!-- It searches companies (and lists matching pages under them), so it
-       says companies. The count joins the accessible name once the filings
-       have loaded (refreshSearchLabel). -->
-  <button type="button" class="searchbtn sb-search" id="openSearch" data-open-search aria-label="Search companies">
+  <!-- It searches companies, pages and tools, and the reader's saved work
+       (Release B), so it reads "Search"; its name says what it searches,
+       and the count of companies joins it once the filings have loaded
+       (refreshSearchLabel). The key that opens it, shown. -->
+  <button type="button" class="searchbtn sb-search" id="openSearch" data-open-search aria-label="Search companies, pages and tools, and your saved work">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-    <span class="searchbtn-label" id="searchLabel">Search companies</span>
-    <span class="kbd">/</span>
+    <span class="searchbtn-label" id="searchLabel">Search</span>
+    <span class="kbd" aria-hidden="true">/</span>
   </button>
   <nav class="sb-nav" id="appnav" aria-label="Primary"></nav>
   <div class="sb-foot">
@@ -3913,25 +4059,34 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
   <div class="drawer-bd" id="drawerBody"></div>
 </aside>
 
-<div class="modal" id="searchModal" role="dialog" aria-modal="true" aria-label="Search companies" hidden>
-  <div style="padding:var(--sm) var(--md);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:var(--xs)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;color:var(--ink-3);flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+<!-- SEARCH EVERYTHING (Release B). One box over companies, pages and tools,
+     and the reader's saved work, the results grouped under headings; with
+     nothing typed it lists what was last opened (95-boot.js, 59-recent.js). -->
+<div class="modal search-modal" id="searchModal" role="dialog" aria-modal="true" aria-label="Search" hidden>
+  <div class="search-head">
+    <svg class="search-head-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
     <!-- A placeholder is not a label: it disappears the moment anything is
          typed, and several screen readers do not announce it at all. -->
     <!-- Described by how the list below works, and followed by a status line
          that says how many matched: typing into it announced nothing, so a
          screen reader heard the box and silence, with no word that ten
          results had appeared under it or how to reach them. -->
-    <input class="input" id="searchInput" aria-label="Search companies by ticker, name or Bursa code" aria-describedby="searchHint" aria-controls="searchResults" placeholder="Search by ticker, name, or Bursa code…" style="border:0;background:none;height:36px" autocomplete="off">
-    <span class="kbd">Esc</span>
+    <input class="input search-input" id="searchInput" aria-label="Search companies, pages and tools, and your saved work" aria-describedby="searchHint" aria-controls="searchResults" placeholder="Companies, pages, saved work…" autocomplete="off" spellcheck="false">
+    <span class="kbd search-esc" aria-hidden="true">Esc</span>
     <!-- A way out that does not require knowing a key or finding the dimmed
          page behind the box. -->
-    <button class="iconbtn" id="closeSearch" aria-label="Close search">
+    <button type="button" class="iconbtn search-close" id="closeSearch" aria-label="Close search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
   </div>
-  <div id="searchResults" style="overflow-y:auto;padding:var(--xs)"></div>
-  <p class="sr-only" id="searchHint">Matches are listed below as you type. The down arrow moves into them, and Enter opens the first.</p>
+  <div id="searchResults" class="search-results"></div>
+  <!-- The keys, to the eye; searchHint says them to a screen reader. -->
+  <div class="search-keys" aria-hidden="true">
+    <span><span class="kbd">↑</span><span class="kbd">↓</span> move</span>
+    <span><span class="kbd">Enter</span> open</span>
+    <span><span class="kbd">Esc</span> close</span>
+  </div>
+  <p class="sr-only" id="searchHint">Results are grouped under Companies, Pages and tools, and Your saved work; with nothing typed, Recent lists what you last opened in this browser. The down arrow moves into the results and on across the groups, Enter opens the one you are on, or the first from the box, and Escape closes the search.</p>
   <p class="sr-only" id="searchStatus" role="status" aria-live="polite"></p>
 </div>
 
@@ -30203,6 +30358,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
+         [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
@@ -30606,6 +30762,236 @@ VIEWS.workspace = () => {
   wrap.append(listCard);
   return wrap;
 };
+/* ==========================================================================
+   RECENT — WHAT THE READER LAST OPENED, IN THIS BROWSER (Release B, B4)
+
+   With nothing typed, the search lists the last things the reader opened —
+   companies, pages and tools, and their own saved work — newest first, each
+   with when (95-boot.js draws it). This is the record behind that list. It
+   lives where everything else the reader keeps lives, in this browser's
+   local storage; nothing is sent anywhere, and nothing asks the network
+   for anything to keep it. It holds twenty at most, and the search's
+   "Clear recent" empties it.
+
+   ONE RECORD OF WHICH COMPANIES WERE OPENED. The company page already keeps
+   one: recentCompanies, written when a report is actually drawn — after the
+   plan's meter, so a report it refused was never "opened" — and read by
+   Equities' "Recently viewed" and by the dashboard, whose "Continue where
+   you left off" lists the recently opened companies and whose "Research a
+   company" step is ticked by it. A second list of companies here would be a
+   second tracker, free to disagree with the first. So the companies Recent
+   lists ARE that list, in its order; this record adds only the time each one
+   was opened, and the pages and the saved work, which nothing else kept.
+   Clearing recent clears both, so no page goes on listing a company the
+   reader asked to be forgotten.
+
+   RECORDED AS THE READER MOVES. A page is noted when it is drawn — never
+   the skeleton that waits for the filings, never the not-found card — and
+   once a visit: redrawing the page on screen (a theme switch, a filter
+   moved, the filings landing) notes nothing. What is noted is what the
+   reader would open again:
+   - a company page, as the company, once the page has counted it as read;
+   - a company's printable report, as that page, on the same condition;
+   - a scanner setup's page or its editor, as the setup, while this browser
+     holds it;
+   - the property calculator while it edits a saved property, as that
+     property;
+   - a saved item opened from the search, as that item (recentOpen) — not as
+     the page it happens to open on;
+   - any other page with an address of its own, by its canonical address, so
+     /wheel and /us-options/wheel are one page. A page of one record — a
+     scanner alert — is not noted: its record is the worker's, and can be
+     gone the next time the list is read.
+   Every entry is resolved again whenever the list is drawn, and one that no
+   longer resolves — a company not loaded here, a deleted setup, a page this
+   build does not have — is left out, so Recent never offers a door to
+   nothing.
+   ========================================================================== */
+
+const RECENT_CAP = 20;
+
+/* The record as this module writes it, whatever storage holds. A backup
+   restored through Your data writes whatever the file carries, and a
+   hand-edited one must not take the search down with it: anything not in
+   the shape written here is dropped, entry by entry. */
+function recentRead() {
+  const raw = store.read('recent', null);
+  const rec = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const when = (t) => typeof t === 'string' && Number.isFinite(Date.parse(t));
+  const items = (Array.isArray(rec.items) ? rec.items : []).filter(e => e && typeof e === 'object'
+    && (e.k === 'page' || (e.k === 'saved' && typeof e.type === 'string' && e.type))
+    && typeof e.id === 'string' && e.id && when(e.t)).slice(0, RECENT_CAP);
+  const co = {};
+  if (rec.co && typeof rec.co === 'object' && !Array.isArray(rec.co))
+    for (const [id, t] of Object.entries(rec.co)) if (when(t)) co[id] = t;
+  return { items, co };
+}
+/* A refused write of this record is not the reader's work being refused.
+   The count a save reads to say "Not saved" (store.failed, 00-core.js) is
+   left as it was, so a page noted in the same moment as a save cannot make
+   that save report a refusal that was not its own. */
+function recentWrite(r) {
+  const failed = store.failed;
+  const ok = store.write('recent', { items: r.items.slice(0, RECENT_CAP), co: r.co });
+  store.failed = failed;
+  return ok;
+}
+
+/* The company a stored id is now: a retired stand-in's id resolves to the
+   filer's row (BY_ID keeps the alias), so a time noted under the old id
+   still belongs to the company. */
+const recentCompanyId = (id) => BY_ID.get(id)?.c.id || null;
+/* The company page's list and the meter's, read as lists whatever a
+   restored backup put there: this runs on every page drawn. */
+const recentCompanyList = () => (Array.isArray(State.recentCompanies) ? State.recentCompanies : []);
+const recentReportsRead = () => (Array.isArray(State.reportLog?.ids) ? State.reportLog.ids : []);
+
+/* One thing opened, now: k is 'company', 'page' or 'saved'; a saved item
+   also carries its type ('watchlist', 'setup', 'property'…). Newest first,
+   one entry per thing. */
+function recentNote(k, id, { type = null, at = new Date() } = {}) {
+  if (!id) return;
+  const r = recentRead();
+  const t = at.toISOString();
+  if (k === 'company') {
+    /* Only a company the company page's own list holds, and only the
+       companies it still holds keep a time here — by the id it holds, or
+       the company that id is now, loaded or not. */
+    const list = recentCompanyList();
+    const held = new Set([...list, ...list.map(recentCompanyId).filter(Boolean)]);
+    const cid = recentCompanyId(id) || id;
+    if (!held.has(cid)) return;
+    r.co[cid] = t;
+    for (const x of Object.keys(r.co)) if (!held.has(recentCompanyId(x) || x) || (x !== cid && recentCompanyId(x) === cid)) delete r.co[x];
+  } else {
+    const same = (e) => e.k === k && e.id === id && (e.type || null) === (type || null);
+    r.items = [{ k, ...(type ? { type } : {}), id, t }, ...r.items.filter(e => !same(e))];
+  }
+  recentWrite(r);
+}
+
+/* Everything recent, newest first, as entries still to be resolved: the
+   companies of the company page's own list — in its order, each with the
+   time this record noted, where it has one — and the pages and saved work.
+   A company whose row is not loaded here (a filed company while the
+   filings are still on their way) is left out until it is. A company opened
+   before times were kept comes after everything that has one, in the list's
+   own order, with no time: it is not given one it does not have. */
+function recentEntries() {
+  const r = recentRead();
+  const at = {};
+  for (const [id, t] of Object.entries(r.co)) {
+    const cid = recentCompanyId(id);
+    if (cid && (!at[cid] || Date.parse(t) > Date.parse(at[cid]))) at[cid] = t;
+  }
+  const seen = new Set(), cos = [];
+  for (const id of recentCompanyList()) {
+    const cid = recentCompanyId(id);
+    if (!cid || seen.has(cid)) continue;
+    seen.add(cid);
+    cos.push({ k: 'company', id: cid, t: at[cid] || null });
+  }
+  const timed = [...cos.filter(e => e.t), ...r.items].sort((a, b) => Date.parse(b.t) - Date.parse(a.t));
+  return [...timed, ...cos.filter(e => !e.t)].slice(0, RECENT_CAP);
+}
+
+/* "Clear recent": this record, and the company page's list with it — the
+   one record of which companies were opened (above), so Equities' Recently
+   viewed and the dashboard's recently opened companies go with it. */
+function recentClear() {
+  recentWrite({ items: [], co: {} });
+  State.recentCompanies = [];
+  store.write('recentCompanies', []);
+}
+
+/* ------------------------------------------------------------- the pages */
+/* What the page on screen is, as something to open again — or null for a
+   page that is not noted (see the head of this file). */
+function recentOnScreen(route) {
+  const v = route.view;
+  if (v === 'research' || v === 'researchReport') {
+    const row = BY_ID.get(State.ticker);
+    if (!row) return null;
+    /* Read, not refused: the company page put it at the head of its own
+       list; a report was counted by the plan's meter. */
+    if (v === 'research') return recentCompanyList()[0] === row.c.id ? { k: 'company', id: row.c.id } : null;
+    return recentReportsRead().includes(row.c.id) ? { k: 'page', id: `${companyPath(row.c)}/report` } : null;
+  }
+  if (v === 'scannerSetup' || v === 'scannerSetupEdit') {
+    let id = '';
+    try { id = decodeURIComponent(route.params?.setup || ''); } catch { id = ''; }
+    const st = id && typeof scanStoreRead === 'function' ? scanStoreRead() : null;
+    const rec = st?.setups?.[id];
+    return rec && !rec.deleted ? { k: 'saved', type: 'setup', id } : null;
+  }
+  if (v === 'property') {
+    const mid = State.deal?.modelId;
+    if (mid && typeof pmFind === 'function' && pmFind(mid)) return { k: 'saved', type: 'property', id: mid };
+  }
+  if (route.path.includes(':')) return null;
+  /* A page by the address it was opened at, where that is its own: the
+     calculator is "Calculator", though its canonical address is Property's
+     front page. An alias by its canonical; Learn and the screener by theirs,
+     which name the tab on screen. */
+  return { k: 'page', id: route.alias || v === 'learn' || v === 'discover' ? canonicalPath(route) : route.path };
+}
+
+/* The page on screen, as it would be noted — or null. The search leaves it
+   out of Recent: it is where the reader already is, and Enter in the empty
+   box should take them back to where they were, not reopen it. */
+function recentHere() {
+  const v = State.view;
+  if (!v || v === 'notfound' || (realPending && UNIVERSE_VIEWS.has(v))) return null;
+  const route = matchRoute(location.pathname);
+  return route && VIEWS[route.view] ? recentOnScreen(route) : null;
+}
+
+/* The page last noted, by what cheaply tells one page from another, so a
+   redraw of the page on screen reads nothing more than this. */
+let recentSeenAt = null;
+/* A saved item the search is opening: noted as itself on the page it opens
+   on (recentOpen, below). */
+let recentOpening = null;
+function recentOnPage() {
+  const v = State.view;
+  if (!v || v === 'notfound' || (realPending && UNIVERSE_VIEWS.has(v))) return;
+  const route = matchRoute(location.pathname);
+  if (!route || !VIEWS[route.view]) return;
+  const opening = recentOpening;
+  recentOpening = null;
+  const tabbed = (v === 'learn' || v === 'discover') ? new URLSearchParams(location.search).get('tab') || '' : '';
+  const company = v === 'research' || v === 'researchReport' ? `${State.ticker}|${recentCompanyList()[0]}|${recentReportsRead().length}` : '';
+  const at = [v, location.pathname, tabbed, company, v === 'property' ? State.deal?.modelId || '' : ''].join('|');
+  if (at === recentSeenAt && !opening) return;
+  recentSeenAt = at;
+  const what = opening ? { k: 'saved', ...opening } : recentOnScreen(route);
+  if (what) recentNote(what.k, what.id, { type: what.type });
+}
+/* Every page is drawn into #views by render(), which replaces its one child;
+   the note is taken after the draw, when the address, the view and what the
+   page counted are all settled. The shell watches the same node the same
+   way for its headings and its links to tools (35-ui.js). */
+/* A note that cannot be taken is only a line left out of a list: it must
+   never reach the reader as a fault on the page they opened. */
+const recentWatch = new MutationObserver(() => {
+  try { recentOnPage(); } catch (e) { console.warn('recent: this page was not noted —', e.message); }
+});
+recentWatch.observe(viewRoot, { childList: true });
+
+/* Open a saved item from the search, noted as the item. Where opening it
+   draws a page, the note is taken there; where it opens a drawer on the
+   page already on screen, it is taken here. */
+function recentOpen(type, id, open) {
+  recentOpening = { type, id };
+  try { open(); }
+  finally {
+    queueMicrotask(() => {
+      if (!recentOpening || recentOpening.type !== type || recentOpening.id !== id) return;
+      recentOpening = null;
+      recentNote('saved', id, { type });
+    });
+  }
+}
 /* ==========================================================================
    TREND CONTEXT ENGINE
 
@@ -52116,8 +52502,355 @@ function closeSearch({ restore = true } = {}) {
 function searchButtonShown() {
   return [...document.querySelectorAll('[data-open-search]')].find(b => b.getClientRects().length && getComputedStyle(b).visibility !== 'hidden') || null;
 }
+/* SEARCH EVERYTHING (Release B, B3). One box, and its results under three
+   headings:
+   - Companies: the canonical registry, as before — symbol, old id, listing
+     code, CIK, vendor form, then name, then sector — price-only
+     instruments too, each saying so.
+   - Pages and tools: the four products, every tool in the registry (TOOLS)
+     that this build holds, the public pages as the header and its
+     Resources menu name them, and any other page with an address of its
+     own. A tool whose state is soon or unavailable is text with its badge
+     and its reason, never a link — read from toolState, as every other link
+     to it is (gateToolLink, 35-ui.js); the product that is not built is text
+     with its badge, as the header's menu has it.
+   - Your saved work: watchlists, scanner setups, and every kind Saved
+     Models lists (workspaceItems: saved properties, investment cases, saved
+     screens, comparisons, valuation runs, tool snapshots) — read from the
+     stores that hold them and opened by each kind's own open, so an item
+     behaves here as it does on its own page. A sample says so, and so does
+     a company whose figures are illustrative.
+   With nothing typed, the box lists Recent: what was last opened in this
+   browser (59-recent.js). Never a result that goes nowhere: a page is
+   listed only when its address opens a view in this build, a saved item
+   only while its store holds it, and one whose tool cannot be used here is
+   text with the reason. Ranked by how the words matched, never by any
+   measure of what matched. */
+const SEARCH_WORKSPACE_ICON = { dashboard: 'layout', watchlists: 'list', myAlerts: 'bell', saved: 'folder', portfolio: 'briefcase',
+  theses: 'book', tracked: 'chart', userdata: 'database' };
+const SEARCH_SAVED_ICON = { watchlist: 'list', setup: 'target', property: 'home', thesis: 'book', screen: 'filter', comparison: 'scale', run: 'coin', work: 'folder' };
+const SEARCH_SHOWN = 8;
+const searchPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/* The address a path names as its page's own — what <link rel=canonical>
+   says — so /discover and /discover/screener, one page, are one row. The
+   router reads the tab of Learn and the screener from the address on
+   screen; an index must not change with the page it is opened over, so a
+   bare Learn or screener address is their first tab's page, as a fresh
+   load of it is. */
+function searchCanonical(path) {
+  const rt = matchRoute(String(path).split('?')[0]);
+  if (!rt) return String(path);
+  if ((rt.view === 'learn' || rt.view === 'discover') && !rt.tab) return canonicalPath({ ...rt, tab: (rt.view === 'learn' ? LEARN_TABS : DISCOVER_TABS)[0].id });
+  return canonicalPath(rt);
+}
+const searchOpens = (path) => { const rt = matchRoute(String(path).split('?')[0]); return !!(rt && VIEWS[rt.view]); };
+/* The state of the tool an address opens, where that tool cannot be used
+   here — the registry's own reading, as the gate on every link reads it. */
+function searchOff(path) {
+  const t = path ? toolForPath(path) : null;
+  const s = t ? toolState(t) : null;
+  return s && !s.actionable ? s : null;
+}
+
+/* EVERY PAGE THE BOX CAN OPEN, AND WHAT IT IS CALLED. The products; every
+   tool this build holds (a tool whose address is its product's front page
+   is that product's row); the public pages; then every other page with an
+   address of its own, by its route's title. One row per page: an alias, a
+   route's own title for the page, the sidebar's word for it, are other
+   names of the row, not rows of their own. */
+function searchPageIndex() {
+  const rows = [], byPath = new Map(), byCanon = new Map();
+  const add = (r) => {
+    rows.push(r);
+    if (!r.path) return;
+    byPath.set(r.path, r);
+    const c = searchCanonical(r.path);
+    if (!byCanon.has(c)) byCanon.set(c, r);
+  };
+  const alsoCalled = (r, name) => { if (name && name !== r.label && !r.aka.includes(name)) r.aka.push(name); };
+  PRODUCTS.forEach(p => {
+    if (p.path && !searchOpens(p.path)) return;
+    add({ label: p.name, in: 'Product', note: p.path ? p.blurb : p.statusNote, path: p.path || null,
+      icon: PRODUCT_ICON[p.id] || 'grid', product: p.id, tool: null, aka: [p.short, p.task].filter(Boolean) });
+  });
+  TOOLS.forEach(t => {
+    if (!toolPresent(t)) return;
+    const have = byPath.get(t.path);
+    if (have) { alsoCalled(have, t.label); have.tool = have.tool || t; return; }
+    const p = t.product ? productById(t.product) : null;
+    add({ label: t.label, in: p ? p.name : 'My workspace', note: t.statusNote, path: t.path,
+      icon: p ? PRODUCT_ICON[p.id] || 'grid' : SEARCH_WORKSPACE_ICON[t.id] || 'folder', product: null, tool: t, aka: [t.action?.label].filter(Boolean) });
+  });
+  [{ label: 'Home', path: '/', icon: 'grid' }, { label: 'How it works', path: '/how-it-works', icon: 'info' }, { label: 'Pricing', path: '/pricing', icon: 'tag' },
+    ...RESOURCES.map(r => ({ label: r.label, path: r.path, icon: r.group === 'method' ? 'book' : 'doc', in: 'Resources' }))].forEach(r => {
+    if (byPath.has(r.path) || !searchOpens(r.path)) return;
+    add({ label: r.label, in: r.in || 'Page', note: META[matchRoute(r.path).view] || '', path: r.path, icon: r.icon, product: null, tool: null, aka: [] });
+  });
+  [...APP_NAV_WORKSPACE, ...APP_NAV_FOOT].forEach(n => { const r = byPath.get(n.path); if (r) alsoCalled(r, n.label); });
+  ROUTES.forEach(rt => {
+    if (rt.alias || rt.path.includes(':') || !VIEWS[rt.view]) return;
+    const have = byPath.get(rt.path) || byCanon.get(searchCanonical(rt.path));
+    if (have) { alsoCalled(have, rt.title); return; }
+    add({ label: rt.title, in: 'Page', note: META[rt.view] || '', path: rt.path, icon: 'doc', product: null, tool: null, aka: [] });
+  });
+  return rows;
+}
+
+/* The page an address recorded in Recent is: its row, a tab of Learn or the
+   screener named after its row, or a company's printable report. Null for
+   an address this build no longer opens. */
+function searchPageAt(path, index = searchPageIndex()) {
+  const [p, q = ''] = String(path).split('?');
+  const rt = matchRoute(p);
+  if (!rt || !VIEWS[rt.view]) return null;
+  if (rt.view === 'researchReport') {
+    const id = companyFromSlug(rt.params?.id);
+    const row = id ? BY_ID.get(id) : null;
+    return row ? { label: `${row.c.tk} research report`, in: row.c.name, note: 'The company on one printable page, every figure with its source.',
+      path: `${companyPath(row.c)}/report`, icon: 'doc', product: null, tool: null, aka: [] } : null;
+  }
+  if (rt.path.includes(':')) return null;
+  const base = index.find(r => r.path === p) || index.find(r => r.path && searchCanonical(r.path) === searchCanonical(p))
+    || { label: rt.title, in: 'Page', note: META[rt.view] || '', path: p, icon: 'doc', product: null, tool: null, aka: [] };
+  const tab = new URLSearchParams(q).get('tab');
+  const tabs = rt.view === 'learn' ? LEARN_TABS : rt.view === 'discover' ? DISCOVER_TABS : null;
+  const said = tabs && tab ? tabs.find(t => t.id === ((rt.view === 'learn' && LEARN_TAB_ALIAS[tab]) || tab))?.label : null;
+  return said ? { ...base, label: `${base.label}: ${said}`, path: `${p}?tab=${encodeURIComponent(tab)}` } : base;
+}
+
+/* EVERYTHING THE READER HAS SAVED, from the stores that hold it. */
+function searchSavedIndex() {
+  const out = [];
+  (State.watchlists || []).forEach(w => {
+    if (!w || typeof w !== 'object' || !w.id) return;
+    const ids = Array.isArray(w.ids) ? w.ids : [];
+    const rows = ids.map(id => BY_ID.get(id)).filter(Boolean);
+    const illN = rows.filter(r => !r.c.real).length;
+    out.push({ type: 'watchlist', id: w.id, name: w.name || 'Watchlist', kind: 'Watchlist', icon: 'list',
+      detail: searchPlural(ids.length, 'company', 'companies'), subject: rows.map(r => r.c.tk).join(' '),
+      sample: typeof isSeededWL === 'function' && isSeededWL(w), illus: illN && illN === rows.length ? 'all' : illN ? 'some' : null,
+      path: '/my/watchlists', open: () => searchOpenWatchlist(w.id) });
+  });
+  if (typeof scanBrowserSetups === 'function') scanBrowserSetups().forEach(s => out.push({ type: 'setup', id: s.id, name: s.name || s.id,
+    kind: 'Scanner setup', icon: 'target', detail: `Version ${s.version} · ${s.enabled === false ? 'disabled' : 'enabled'}`, subject: s.id,
+    sample: false, illus: null, path: scanSetupPath(s.id), open: () => navigate(scanSetupPath(s.id)) }));
+  if (typeof workspaceItems === 'function') workspaceItems().forEach(i => {
+    const prop = i.kind === 'work' && typeof pmFind === 'function' && !!pmFind(i.key);
+    const type = prop ? 'property' : i.kind;
+    out.push({ type, id: i.key, name: i.name, kind: prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind] || 'Saved item', icon: SEARCH_SAVED_ICON[type] || 'folder',
+      detail: i.detail, subject: i.subject, sample: !!i.sample, illus: i.illustrative === 'all' || i.illustrative === 'some' ? i.illustrative : null,
+      path: i.path || (prop ? '/property/calculator' : type === 'thesis' ? '/my/theses' : null), open: () => i.open() });
+  });
+  return out;
+}
+/* A list is opened where the reader keeps it: the watchlists page, with the
+   keyboard on that list's card rather than on the page's first control. */
+function searchOpenWatchlist(id) {
+  const w = (State.watchlists || []).find(x => x.id === id);
+  navigate('/my/watchlists');
+  if (!w) return;
+  const name = [...document.querySelectorAll('#views input[aria-label]')].find(n => n.getAttribute('aria-label') === `Name of watchlist ${w.name}`);
+  const card = name?.closest('.card');
+  if (card) focusAfterRedraw(card);
+}
+
+/* How well a query names something: all of a name, its start, the start of
+   one of its words, anywhere in it; then the same over its other names;
+   then every word of the query at the start of a word somewhere in them;
+   then every word of it in its description, and the query in its address.
+   Null when nothing matches. A query of one letter matches names only. */
+function searchScore(term, name, others = [], { about = '', path = '' } = {}) {
+  const words = (s) => String(s).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const n = String(name || '').toLowerCase();
+  if (n === term) return 0;
+  if (n.startsWith(term)) return 1;
+  if (words(n).some(w => w.startsWith(term))) return 2;
+  if (term.length < 2) return null;
+  if (n.includes(term)) return 3;
+  const o = others.filter(Boolean).map(s => String(s).toLowerCase());
+  if (o.some(s => s === term || s.startsWith(term) || words(s).some(w => w.startsWith(term)))) return 4;
+  if (o.some(s => s.includes(term))) return 5;
+  const tokens = words(term);
+  if (tokens.length > 1) { const all = words([n, ...o].join(' ')); if (tokens.every(t => all.some(w => w.startsWith(t)))) return 6; }
+  if (about && term.length >= 3) { const said = words(about); if (tokens.length && tokens.every(t => said.some(w => w.startsWith(t)))) return 7; }
+  if (path && term.length >= 3 && String(path).toLowerCase().includes(term)) return 8;
+  return null;
+}
+const searchRank = (list, scoreOf) => list.map((x, n) => ({ x, n, s: scoreOf(x) })).filter(y => y.s !== null)
+  .sort((a, b) => a.s - b.s || a.n - b.n).map(y => y.x);
+
+/* ----------------------------------------------------------------- rows */
+/* One row: its mark, its name with its chips and where it belongs, and a
+   line saying what it is. A link where it has an address of its own (the
+   browser's link behaviour — a new tab, the address in the status bar), a
+   button where a saved item opens by its own function, and text — nothing
+   to press — where its tool cannot be used here. */
+function searchItemRow({ ic, name, chips = [], place = null, note = null, path = null, open = null, toolPath = null, off = null, text = false, when = null }) {
+  const kids = [
+    el('i', { class: 'search-ico', 'aria-hidden': 'true', html: icon(ic || 'doc', 16) }),
+    el('span', { class: 'search-main' }, [
+      el('span', { class: 'search-title' }, [el('span', { class: 'search-name' }, name), ...chips.filter(Boolean), place ? el('span', { class: 'search-in' }, place) : null]),
+      note ? el('span', { class: 'search-note' }, note) : null,
+    ]),
+    when,
+  ];
+  if (off || text) return el('div', { class: 'search-row search-item search-off', 'data-tool': off ? off.id : null, 'data-tool-state': off ? off.status : null }, kids);
+  if (path) return el('a', { class: 'search-row search-item', href: href(path), 'data-result': '',
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); open(); } }, kids);
+  return el('button', { type: 'button', class: 'search-row search-item', 'data-result': '', 'data-tool-path': toolPath, onclick: () => open() }, kids);
+}
+/* A page or a tool: its product's badge on a product; a tool's badge where
+   its state is worth marking (Demo, Delayed), with why; a tool that cannot
+   be used here as text, its badge and its reason in full. */
+function searchPageRow(r, { when = null } = {}) {
+  if (!r.path) return searchItemRow({ ic: r.icon, name: r.label, chips: [productBadge(r.product)], place: r.in, note: r.note, text: true, when });
+  const tool = r.tool || toolForPath(r.path);
+  const s = tool ? toolState(tool) : null;
+  if (s && !s.actionable) return searchItemRow({ ic: r.icon, name: r.label, chips: [toolBadge(tool)], place: r.in, note: s.note, off: s, when });
+  const flag = s && TOOL_FLAGGED.has(s.status) ? toolBadge(tool) : null;
+  return searchItemRow({ ic: r.icon, name: r.label, chips: [r.product ? productBadge(r.product) : flag], place: r.in, note: flag ? s.note : r.note,
+    path: r.path, open: () => { closeSearch(); navigate(r.path); }, when });
+}
+/* A saved item: its kind, what it holds, and whether it is a sample or
+   carries illustrative figures. Opened by its own kind's function, and
+   noted in Recent as itself. */
+function searchSavedRow(item, { when = null } = {}) {
+  const chips = [
+    item.sample ? el('span', { class: 'chip chip-bronze', title: 'Seeded on a first visit to show what one looks like. Not your work.' }, 'sample') : null,
+    item.illus === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
+      : item.illus === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
+  ];
+  const s = searchOff(item.path);
+  if (s) return searchItemRow({ ic: item.icon, name: item.name, chips: [...chips, toolBadge(s.tool)], place: item.kind, note: s.note, off: s, when });
+  return searchItemRow({ ic: item.icon, name: item.name, chips, place: item.kind, note: item.detail, toolPath: item.path,
+    open: () => { closeSearch(); recentOpen(item.type, item.id, item.open); }, when });
+}
+/* A company in Recent: its ticker, its name, and what its figures are. */
+function searchRecentCompanyRow(row, when) {
+  const c = row.c;
+  return searchItemRow({ ic: 'chart', name: c.tk, chips: [illusChip(c), marketChip(c.mkt)], place: c.name,
+    note: ['Company', c.exch, c.personal ? 'personal research' : null].filter(Boolean).join(' · '),
+    path: companyPath(c), open: () => { closeSearch(); openResearch(c.id); }, when });
+}
+/* A company found by the query, as it has always been drawn: the ticker
+   and its chips, the name and sector, then the price and the day's move —
+   an illustrative company's, since no licensed price is held for a filed
+   one. Its mark is in the name's column, so the column is the row's first
+   child and the ticker its first word, as they have always been. */
+const searchCoMark = () => el('i', { class: 'search-ico', 'aria-hidden': 'true', html: icon('chart', 16) });
+function searchCompanyRow({ ins, r }) {
+  if (!r) {
+    const b = el('button', { type: 'button', class: 'search-row search-co', 'data-result': '', onclick: () => { closeSearch(); navigate('/my/tracked'); } });
+    b.append(el('div', { class: 'search-co-main' }, [searchCoMark(), el('div', { class: 'search-co-text' }, [
+      el('div', { class: 'search-co-line' }, [
+        el('span', { class: 'search-co-tk' }, ins.symbol), marketChip(ins.market),
+        el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]),
+      el('div', { class: 'metaline search-co-name' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`)])]));
+    return b;
+  }
+  const b = el('button', { type: 'button', class: 'search-row search-co', 'data-result': '', onclick: () => { closeSearch(); openResearch(r.c.id); } });
+  /* The row of chips wraps. Its tokens are nowrap and do not shrink, and on a
+     phone the last of them, the exchange, ran out of the name's column and
+     over the price: "Bursa Main" printed across RM10.86 at 360, 390 and 430. */
+  b.append(el('div', { class: 'search-co-main' }, [searchCoMark(), el('div', { class: 'search-co-text' }, [
+    el('div', { class: 'search-co-line' }, [
+      el('span', { class: 'search-co-tk' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
+      r.c.personal ? el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'personal research') : null,
+      /* The code the reader may have typed, so a hit on it is visibly a hit.
+         A fixed-width numeric token: .metaline wraps anywhere, and inside a
+         nowrap flex row that broke "1155" into two lines at 360px. */
+      r.c.code && r.c.code !== r.c.tk ? el('span', { class: 'metaline search-co-tok' }, r.c.code) : null,
+      el('span', { class: 'metaline search-co-tok' }, r.c.exch)]),
+    el('div', { class: 'metaline search-co-name' }, `${r.c.name} · ${r.c.sector}`)])]));
+  b.append(el('span', { class: 'num search-co-px' }, fmtMoney(r.c.px.p, r.c.ccy)));
+  b.append(el('span', { class: 'num search-co-d1 ' + signClass(r.c.px.d1) }, withSign(r.c.px.d1, 2)));
+  return b;
+}
+/* When a Recent entry was opened, on the reader's own clock: how long ago
+   within the day, "yesterday", then the date; the full date and time on
+   hover. An entry from before times were kept says so rather than being
+   given a time it does not have. */
+function searchWhen(iso, now = Date.now()) {
+  if (!iso) return el('span', { class: 'search-when', title: 'Opened before this browser kept the time' }, 'earlier');
+  const t = Date.parse(iso), d = new Date(t), s = Math.max(0, (now - t) / 1000);
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const said = s < 60 ? 'just now'
+    : s < 3600 ? `${Math.floor(s / 60)} min ago`
+    : s < 86400 ? `${searchPlural(Math.floor(s / 3600), 'hour')} ago`
+    : d.toDateString() === yesterday.toDateString() ? 'yesterday'
+    : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(d.getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}) });
+  return el('time', { class: 'search-when', datetime: d.toISOString(),
+    title: d.toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }, said);
+}
+
+/* One group: its heading — the name a screen reader gives the group — a
+   count to the eye (the status line says it in words), its rows, and a
+   line when more matched than are shown. */
+function searchGroup(id, title, rows, { count = null, more = null, action = null } = {}) {
+  const hid = `search-h-${id}`;
+  return el('div', { class: `search-group search-group-${id}`, role: 'group', 'aria-labelledby': hid, 'data-group': id }, [
+    el('div', { class: 'search-group-hd' }, [
+      el('h2', { class: 'search-group-t', id: hid }, title),
+      count ? el('span', { class: 'search-group-n', 'aria-hidden': 'true' }, count) : null,
+      action]),
+    rows.length ? el('ul', { class: 'search-list', role: 'list' }, rows.map(r => el('li', {}, r))) : null,
+    more ? el('p', { class: 'search-more' }, more) : null,
+  ]);
+}
+/* RECENT (B4): what was last opened, newest first, each with when — the
+   record 59-recent.js keeps, each entry resolved again now, and one that no
+   longer resolves left out. One row per page, however it was reached; and
+   not the page on screen, which is where the reader already is. */
+function searchRecentGroup() {
+  const index = searchPageIndex();
+  let saved = null;
+  const savedOf = (type, id) => (saved || (saved = searchSavedIndex())).find(i => i.type === type && i.id === id) || null;
+  /* An entry as what it opens now, and the key that says two entries open
+     the same thing. */
+  const resolve = (e) => {
+    if (e.k === 'company') { const row = BY_ID.get(e.id); return row ? { key: `c:${row.c.id}`, row } : null; }
+    if (e.k === 'page') { const p = searchPageAt(e.id, index); return p ? { key: `p:${p.path}`, page: p } : null; }
+    const item = savedOf(e.type, e.id);
+    return item ? { key: `s:${item.type}:${item.id}`, item } : null;
+  };
+  const here = recentHere();
+  const shown = new Set(here ? [resolve(here)?.key].filter(Boolean) : []);
+  const rows = recentEntries().map(e => {
+    const r = resolve(e);
+    if (!r || shown.has(r.key)) return null;
+    shown.add(r.key);
+    const when = searchWhen(e.t);
+    return r.row ? searchRecentCompanyRow(r.row, when) : r.page ? searchPageRow(r.page, { when }) : searchSavedRow(r.item, { when });
+  }).filter(Boolean);
+  const clear = rows.length ? el('button', { type: 'button', class: 'search-clear', onclick: () => {
+    recentClear();
+    runSearch('');
+    searchInput.focus();
+    const st = $('#searchStatus');
+    if (st) st.textContent = 'Recent cleared.';
+  } }, 'Clear recent') : null;
+  const g = searchGroup('recent', 'Recent', rows, { action: clear });
+  g.append(rows.length
+    ? el('p', { class: 'search-keep' }, 'Opened in this browser, newest first — twenty at most, kept on this device and sent nowhere.')
+    : el('div', { class: 'search-empty' }, [
+        el('p', { class: 'search-empty-t' }, 'Nothing opened yet'),
+        el('p', { class: 'search-empty-s' }, 'The companies, pages and saved work you open are listed here, newest first — kept in this browser, sent nowhere. Or type a ticker, a company’s name or Bursa code, a page or tool, or the name of something you saved.'),
+      ]));
+  return g;
+}
+
 function runSearch(q) {
-  const term = q.trim().toLowerCase();
+  const term = String(q || '').trim().toLowerCase();
+  const status = $('#searchStatus');
+  searchResults.scrollTop = 0;
+  /* Nothing typed: Recent. The status line says nothing for an empty box. */
+  if (!term) {
+    searchResults.replaceChildren(searchRecentGroup());
+    gateToolLinks(searchResults);
+    if (status) status.textContent = '';
+    return;
+  }
   /* The box promises "ticker, name, or Bursa code". addCompany moves a Bursa
      company's numeric code into c.code and its short name into c.tk, so a
      search that read only tk and id could never match 1155 to Maybank — the
@@ -52126,88 +52859,43 @@ function runSearch(q) {
      form, then name, then sector. A price-only instrument is listed too and
      says so — a reader who tracks it should not be told it does not exist. */
   const found = searchInstruments(term, {}, { limit: 10 });
-  const rows = found.hits.map(ins => ({ ins, r: ins.companyId ? BY_ID.get(ins.companyId) : null }));
-  const hits = rows;
-  const hover = (b) => {
-    b.addEventListener('pointerenter', () => b.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
-    b.addEventListener('pointerleave', () => b.style.background = 'none');
-  };
-  searchResults.replaceChildren(...rows.map(({ ins, r }) => {
-    if (!r) {
-      const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
-        onclick: () => { closeSearch({ restore: false }); navigate('/my/tracked'); } });
-      hover(b);
-      const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:2px 6px;flex-wrap:wrap' }, [
-        el('span', { style: 'font-size:13px;font-weight:600' }, ins.symbol), marketChip(ins.market),
-        el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'price only — no statements')]));
-      nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${ins.companyName} · tracked by price on Watchlists › Tracked`));
-      b.append(nm);
-      return b;
-    }
-    const b = el('button', { class: 'row', style: 'width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
-      /* No focus restore: the page is about to change and navigate() puts
-         focus on the new content, which is where a chosen result leads. */
-      onclick: () => { closeSearch({ restore: false }); openResearch(r.c.id); } });
-    hover(b);
-    const nm = el('div', { style: 'min-width:0;flex:1' });
-    /* The row of chips wraps. Its tokens are nowrap and do not shrink, and on a
-       phone the last of them, the exchange, ran out of the name's column and
-       over the price: "Bursa Main" printed across RM10.86 at 360, 390 and 430. */
-    nm.append(el('div', { class: 'row', style: 'gap:2px 6px;flex-wrap:wrap' }, [
-      el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
-      r.c.personal ? el('span', { class: 'chip chip-bronze', style: 'flex:none' }, 'personal research') : null,
-      /* The code the reader may have typed, so a hit on it is visibly a hit.
-         A fixed-width numeric token: .metaline wraps anywhere, and inside a
-         nowrap flex row that broke "1155" into two lines at 360px. */
-      r.c.code && r.c.code !== r.c.tk ? el('span', { class: 'metaline', style: 'white-space:nowrap;flex:none' }, r.c.code) : null,
-      el('span', { class: 'metaline', style: 'white-space:nowrap;flex:none' }, r.c.exch)]));
-    nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, `${r.c.name} · ${r.c.sector}`));
-    b.append(nm);
-    b.append(el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
-    b.append(el('span', { class: 'num ' + signClass(r.c.px.d1), style: 'font-size:12px;min-width:48px;text-align:right' }, withSign(r.c.px.d1, 2)));
-    return b;
-  }));
-  if (found.total > rows.length) searchResults.append(el('p', { class: 'metaline', style: 'padding:6px 10px' }, `Showing ${rows.length} of ${found.total} — keep typing to narrow.`));
-
+  const cos = found.hits.map(ins => ({ ins, r: ins.companyId ? BY_ID.get(ins.companyId) : null }));
   /* Pages, not only companies. Search indexed the universe and nothing else, so
      "wheel" answered "No company matches that search" while the Cash Wheel
      workspace sat two clicks away with no inbound link — the search box
-     confirmed the feature did not exist. Every route already carries a title,
-     so this is a filter over data that was there all along. */
-  const routeHits = !term ? [] : ROUTES.filter(rt =>
-    !rt.path.includes(':') && !rt.alias && (rt.title.toLowerCase().includes(term) || rt.path.toLowerCase().includes(term)))
-    /* Aliases share a title with their canonical route; show each page once,
-       and never by an alias row, which would lead with the brief's address. */
-    .filter((rt, i, a) => a.findIndex(x => x.view === rt.view && x.title === rt.title) === i)
-    .slice(0, 6);
-  if (routeHits.length) {
-    searchResults.append(el('p', { class: 'eyebrow', style: 'padding:10px 10px 4px' }, 'Pages'));
-    routeHits.forEach(rt => {
-      const a = el('a', { class: 'row', href: href(rt.path),
-        style: 'width:100%;text-decoration:none;padding:9px 10px;gap:10px;border-radius:var(--r-sm)',
-        onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
-          e.preventDefault(); closeSearch(); navigate(rt.path); } });
-      a.addEventListener('pointerenter', () => a.style.background = 'color-mix(in srgb, var(--brand) 8%, transparent)');
-      a.addEventListener('pointerleave', () => a.style.background = 'none');
-      a.append(el('div', { style: 'min-width:0;flex:1' }, [
-        el('div', { style: 'font-size:13px;font-weight:600' }, rt.title),
-        el('div', { class: 'metaline' }, rt.path),
-      ]));
-      searchResults.append(a);
-    });
-  }
-  if (!hits.length && !routeHits.length)
-    searchResults.append(emptyState('Nothing matches that search — no company, and no page.'));
+     confirmed the feature did not exist. */
+  /* A tool's or a product's own sentence says what it does ("rental yield"),
+     so its words find it; a page's description is the page's summary for a
+     link preview, and matched every other query. */
+  const pages = searchRank(searchPageIndex(), r => searchScore(term, r.label, [...r.aka, r.in], { about: r.tool || r.product ? r.note : '', path: r.path }));
+  const saved = searchRank(searchSavedIndex(), i => searchScore(term, i.name, [i.kind, i.subject], { about: i.detail }));
+  const more = (shown, total) => (total > shown ? `Showing ${shown} of ${total} — keep typing to narrow.` : null);
+  const groups = [];
+  if (cos.length) groups.push(searchGroup('companies', 'Companies', cos.map(searchCompanyRow),
+    { count: found.total > cos.length ? `${cos.length} of ${found.total}` : String(cos.length), more: more(cos.length, found.total) }));
+  const pagesShown = pages.slice(0, SEARCH_SHOWN), savedShown = saved.slice(0, SEARCH_SHOWN);
+  if (pages.length) groups.push(searchGroup('pages', 'Pages and tools', pagesShown.map(r => searchPageRow(r)),
+    { count: pages.length > pagesShown.length ? `${pagesShown.length} of ${pages.length}` : String(pages.length), more: more(pagesShown.length, pages.length) }));
+  if (saved.length) groups.push(searchGroup('saved', 'Your saved work', savedShown.map(i => searchSavedRow(i)),
+    { count: saved.length > savedShown.length ? `${savedShown.length} of ${saved.length}` : String(saved.length), more: more(savedShown.length, saved.length) }));
+  if (!groups.length) groups.push(emptyState('Nothing matches that search — no company, no page or tool, and nothing you have saved.'));
+  searchResults.replaceChildren(...groups);
+  /* The shell's one gate, over what was drawn: a link to a tool that cannot
+     be used here is text wherever it was drawn, this box included. */
+  gateToolLinks(searchResults);
   /* The count, said. The list appears silently under the box, so a screen
      reader heard what it typed and nothing else — not that anything had
      matched, nor how many. Said once the list is drawn, for the text in the
      box; an empty box says nothing. */
-  const status = $('#searchStatus');
-  if (status) status.textContent = !term ? ''
-    : (!hits.length && !routeHits.length) ? 'Nothing matches that search.'
-    : [hits.length ? (found.total > hits.length ? `${hits.length} of ${found.total} matches shown` : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`) : null,
-       routeHits.length ? `${routeHits.length} ${routeHits.length === 1 ? 'page' : 'pages'}` : null].filter(Boolean).join(' and ') + '.';
+  if (status) {
+    const said = [
+      cos.length ? (found.total > cos.length ? `${cos.length} of ${found.total} companies shown` : searchPlural(cos.length, 'company', 'companies')) : null,
+      pages.length ? `${pagesShown.length} ${pagesShown.length === 1 ? 'page or tool' : 'pages and tools'}${pages.length > pagesShown.length ? ` of ${pages.length}` : ''}` : null,
+      saved.length ? `${searchPlural(savedShown.length, 'saved item')}${saved.length > savedShown.length ? ` of ${saved.length}` : ''}` : null,
+    ].filter(Boolean);
+    status.textContent = !said.length ? 'Nothing matches that search.'
+      : said.length === 1 ? `${said[0]}.` : `${said.slice(0, -1).join(', ')} and ${said[said.length - 1]}.`;
+  }
 }
 /* Debounced: a keystroke every 40ms re-ranked the whole registry each time. */
 let searchTimer = null;
@@ -52247,22 +52935,36 @@ document.addEventListener('keydown', e => {
     return;
   }
 
+  /* Typing on a result goes on in the box, where the words are: a letter
+     pressed after the arrows had walked into the list was lost on the
+     result. Space and Enter stay the result's own. */
+  if (searchOpen && searchResults.contains(document.activeElement) && !e.ctrlKey && !e.metaKey && !e.altKey
+      && ((e.key.length === 1 && e.key !== ' ') || e.key === 'Backspace')) {
+    const end = searchInput.value.length;
+    searchInput.focus();
+    searchInput.setSelectionRange(end, end);
+    return;
+  }
+
   /* Enter in the box opens the first result — what a reader typing a ticker
-     expects; nothing opens when nothing matched. */
+     expects, and with nothing typed, the newest thing in Recent; nothing
+     opens when nothing matched. */
   if (searchOpen && e.key === 'Enter' && document.activeElement === searchInput) {
     /* The list on screen may belong to the previous query: typing is
        debounced by 120ms, and Enter pressed inside that window opened the old
        first result — Maybank, on a fresh box, for "nvda". The pending search
        is run now, so Enter answers the text actually in the box. */
     if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; runSearch(searchInput.value); }
-    const first = searchResults.querySelector('button,a');
+    const first = searchResults.querySelector('[data-result]');
     if (first) { e.preventDefault(); first.click(); }
     return;
   }
 
-  /* Arrow keys walk the results; Up from the first returns to the box. */
+  /* The arrow keys walk every result, on across the groups' headings; Up
+     from the first returns to the box. Only the results: a tool listed as
+     text, a heading and "Clear recent" are not stops on the walk. */
   if (searchOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-    const items = [...searchResults.querySelectorAll('button,a')];
+    const items = [...searchResults.querySelectorAll('[data-result]')];
     if (!items.length) return;
     const i = items.indexOf(document.activeElement);
     e.preventDefault();
@@ -52326,12 +53028,14 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () 
 const refreshSearchLabel = () => {
   /* No number while the filings are in flight. Writing "36" and correcting it to
      "138" a second later states a figure the product is about to contradict.
-     The visible label is "Search companies" in both states — it fits the
-     sidebar, and it is true in both — and the count, once there is a right
-     one, joins every search button's accessible name — after the words on
-     the button, so a voice command naming what is visible still finds it. */
-  $('#searchLabel').textContent = 'Search companies';
-  $$('[data-open-search]').forEach(b => b.setAttribute('aria-label', realPending ? 'Search companies' : `Search companies (${U.length})`));
+     The box searches companies, pages and tools, and the reader's saved work
+     (Release B), so the visible label is "Search" — true of all three, and
+     it fits the sidebar — and the name says what it searches, starting with
+     the words on the button, so a voice command naming what is visible still
+     finds it. The count of companies joins it once there is a right one. */
+  $('#searchLabel').textContent = 'Search';
+  $$('[data-open-search]').forEach(b => b.setAttribute('aria-label',
+    `Search ${realPending ? 'companies' : `${U.length} companies`}, pages and tools, and your saved work`));
 };
 
 /* The banner used to say every figure on the site was synthetic. That was true
@@ -52412,6 +53116,9 @@ if (realEnabled()) {
          the route is resolved again once the filings are in. applyRoute
          re-renders, so no separate render call is needed. */
       applyRoute();
+      /* A search open while they loaded answers again with them: a filed
+         company typed, or opened recently, was not there to list. */
+      if (searchOpen) runSearch(searchInput.value);
       console.info(`real data: +${res.added} SEC-filed companies`);
     })
     .catch(err => {
@@ -52427,6 +53134,8 @@ if (realEnabled()) {
       applyRoute();
       /* The banner has a failed-load wording; nothing called it from here. */
       refreshDisclosure();
+      /* And an open search says which tools the failure made unusable. */
+      if (searchOpen) runSearch(searchInput.value);
       console.warn('real data failed to load:', err.message);
     });
 }

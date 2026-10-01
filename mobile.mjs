@@ -1653,6 +1653,138 @@ for (const w of [360, 390]) {
   if (fails.length) { bad++; console.log(`FAIL audit1 property-model — My properties or the sectioned calculator at some width: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
 }
 /* ---- end audit1: property-model ---- */
+/* ---- releaseB: search-recent ---- */
+/* THE SEARCH ON A PHONE (Release B, B3 and B4). At 360 and 390, light and
+   dark: the box open with nothing typed, listing Recent — a company, a page,
+   a tool and a saved list with a long name — and open on a query with a
+   result in every group ("property": companies, pages and tools, and a
+   saved property). No horizontal overflow; the box inside the screen; every
+   result's words inside its own row; each result, "Clear recent" and the
+   close button 44px tall, the close button 44px wide too. And by the keys
+   alone at 390: the bar's Search button and "/" open it, the arrows walk the
+   results across the groups, Enter opens one, and Escape closes it and gives
+   focus back to where it was. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const KEYS = { '/': ['Slash', 191, '/'], Escape: ['Escape', 27, ''], Enter: ['Enter', 13, '\r'], ArrowDown: ['ArrowDown', 40, ''], ArrowUp: ['ArrowUp', 38, ''] };
+  const key = async (k) => {
+    const [code, vk, text] = KEYS[k];
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, ...(text ? { text } : {}) }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk }, sessionId);
+    await sleep(140);
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(250);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(300);
+  };
+  const LONG = 'QT phone list — every Bursa bank and the two US banks followed for their net interest margins';
+  const seed = `(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`;
+  const MEASURE = `(() => { const out = { problems: [] }; const vw = window.innerWidth, vh = window.innerHeight;
+    const de = document.documentElement;
+    if (de.scrollWidth > vw + 1) out.problems.push('the page overflows by ' + (de.scrollWidth - vw) + 'px');
+    const box = document.getElementById('searchModal'), m = box.getBoundingClientRect();
+    if (m.left < -0.5 || m.right > vw + 0.5 || m.top < -0.5 || m.bottom > vh + 0.5) out.problems.push('the box runs outside the screen: ' + JSON.stringify([m.left, m.top, m.right, m.bottom].map(Math.round)));
+    const res = document.getElementById('searchResults');
+    if (res.scrollWidth > res.clientWidth + 1) out.problems.push('the results scroll sideways by ' + (res.scrollWidth - res.clientWidth) + 'px');
+    const rows = [...res.querySelectorAll('[data-result], .search-off')];
+    out.rows = rows.length;
+    rows.forEach(r => { const b = r.getBoundingClientRect(); const name = (r.querySelector('.search-name')?.textContent || r.textContent).trim().slice(0, 32);
+      if (b.height < 43.5) out.problems.push('"' + name + '" is ' + Math.round(b.height) + 'px tall');
+      const past = Math.max(0, ...[...r.querySelectorAll('*')].filter(n => n.getClientRects().length).map(n => n.getBoundingClientRect().right - b.right));
+      if (past > 1) out.problems.push('"' + name + '": its words run ' + Math.round(past) + 'px out of its row');
+      if (b.right > m.right + 0.5 || b.left < m.left - 0.5) out.problems.push('"' + name + '" runs past the box'); });
+    const tgt = (sel, label, both) => { const n = document.querySelector(sel); if (!n || !n.getClientRects().length) return false; const b = n.getBoundingClientRect();
+      if (b.height < 43.5 || (both && b.width < 43.5)) out.problems.push(label + ' is ' + Math.round(b.width) + '×' + Math.round(b.height) + 'px'); return true; };
+    out.clear = tgt('#searchResults .search-clear', '"Clear recent"', false);
+    tgt('#closeSearch', 'the close button', true);
+    out.groups = [...res.querySelectorAll('[data-group]')].map(g => g.dataset.group);
+    return out; })()`;
+  let measured = 0;
+  try {
+    for (const [w, dark] of [[360, false], [390, false], [390, true]]) {
+      const at = `${w}px${dark ? ' dark' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+      /* Light is asked for, not assumed: headless Chrome follows the
+         machine's own scheme, which may be dark. */
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] }, sessionId);
+      await ev(seed);
+      await load('/property/calculator');
+      await ev(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms));
+        saveActiveProperty({ name: 'QT phone property' });
+        const l = wlCreate(${JSON.stringify(LONG)}); if (l.ok) wlAdd(l.watchlist.id, 'MAYBANK');
+        openResearch('AAPL-SEC'); await w(300); navigate('/pricing'); await w(200); navigate('/discover/screener'); await w(300);
+        openSearch(); await w(250); runSearch('QT phone list'); clearTimeout(searchTimer);
+        [...searchResults.querySelectorAll('[data-group="saved"] [data-result]')].find(r => /QT phone list/.test(r.textContent))?.click(); await w(400);
+        return true; })()`);
+      await ev(`(() => { document.querySelector('.appbar-search')?.click(); return true; })()`); await sleep(400);
+      const empty = await ev(MEASURE);
+      measured++;
+      if (!empty.groups.includes('recent')) fails.push(`${at}: the box with nothing typed lists no Recent (${JSON.stringify(empty.groups)})`);
+      else if (empty.rows < 4) fails.push(`${at}: Recent lists ${empty.rows} rows after a company, a page, a tool and a saved list were opened`);
+      if (!empty.clear) fails.push(`${at}: Recent has no "Clear recent" on screen`);
+      empty.problems.forEach(p => fails.push(`${at}, Recent: ${p}`));
+      await send('Input.insertText', { text: 'property' }, sessionId); await sleep(500);
+      const full = await ev(MEASURE);
+      measured++;
+      for (const g of ['companies', 'pages', 'saved']) if (!full.groups.includes(g)) fails.push(`${at}: "property" lists no ${g} group (${JSON.stringify(full.groups)})`);
+      full.problems.forEach(p => fails.push(`${at}, "property": ${p}`));
+      await ev(`(() => { closeSearch({ restore: false }); return true; })()`); await sleep(300);
+    }
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+
+    /* By the keys alone at 390. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await load('/research');
+    const k = {};
+    await ev(`(() => { document.querySelector('.appbar-search').focus(); return true; })()`);
+    await key('Enter'); await sleep(350);
+    k.button = await ev(`searchOpen && document.activeElement === searchInput`);
+    await send('Input.insertText', { text: 'property' }, sessionId); await sleep(500);
+    const order = await ev(`[...searchResults.querySelectorAll('[data-result]')].map(n => n.closest('[data-group]')?.dataset.group || null)`);
+    const walked = [];
+    for (let i = 0; i < order.length; i++) { await key('ArrowDown'); walked.push(await ev(`(() => { const a = document.activeElement; return { i: [...searchResults.querySelectorAll('[data-result]')].indexOf(a), g: a?.closest('[data-group]')?.dataset.group || null, seen: (() => { const b = a.getBoundingClientRect(), r = searchResults.getBoundingClientRect(); return b.top >= r.top - 1 && b.bottom <= r.bottom + 1; })() }; })()`)); }
+    k.walk = order.length > 2 && walked.every((s, i) => s.i === i) && new Set(walked.map(s => s.g)).size >= 3;
+    k.inSight = walked.every(s => s.seen);
+    for (let i = 0; i < order.length; i++) await key('ArrowUp');
+    k.upToBox = await ev(`document.activeElement === searchInput`);
+    const firstPage = order.indexOf('pages');
+    for (let i = 0; i <= firstPage; i++) await key('ArrowDown');
+    const chosen = await ev(`(() => { const a = document.activeElement; return a?.closest('[data-group]')?.dataset.group === 'pages' ? new URL(a.href, location.href).pathname : null; })()`);
+    await key('Enter'); await sleep(600);
+    k.opened = chosen && await ev(`!searchOpen && location.pathname === ${JSON.stringify(chosen || '')}`);
+    await ev(`(() => { document.querySelector('.appbar-search').focus(); return true; })()`);
+    await key('Enter'); await sleep(350);
+    await key('Escape'); await sleep(350);
+    k.buttonBack = await ev(`!searchOpen && document.activeElement?.classList.contains('appbar-search')`);
+    await ev(`(() => { focusMain(); return true; })()`);
+    await key('/'); await sleep(350);
+    k.slash = await ev(`searchOpen && document.activeElement === searchInput`);
+    await key('Escape'); await sleep(350);
+    k.slashBack = await ev(`!searchOpen && document.activeElement === document.getElementById('main')`);
+    [['Enter on the bar\'s Search button opens the box', k.button], [`the down arrow walks every result in order across the three groups (${JSON.stringify(order)})`, k.walk],
+      ['each result the arrows reach is scrolled into sight', k.inSight], ['the up arrow walks back to the box', k.upToBox],
+      [`Enter opens the page chosen (${chosen})`, k.opened], ['Escape gives focus back to the bar\'s Search button', k.buttonBack],
+      ['"/" opens the box', k.slash], ['Escape gives focus back to the page', k.slashBack]]
+      .filter(([, v]) => !v).forEach(([what]) => fails.push(`390px keyboard: ${what} — no`));
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+    await ev(seed).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL releaseB search-recent — the search on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   releaseB search-recent: the search at 360 and 390 (light) and 390 (dark), ${measured} states — Recent with a company, a page, a tool and a long-named list, and "property" with a result in every group: no overflow, the box on screen, every result's words in its row, results, "Clear recent" and close 44px; by the keys alone at 390 the bar's button and "/" open it, the arrows walk all three groups keeping each result in sight, Enter opens a page, Escape gives focus back`);
+}
+/* ---- end releaseB: search-recent ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

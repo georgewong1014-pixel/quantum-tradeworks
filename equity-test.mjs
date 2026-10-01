@@ -10282,7 +10282,9 @@ try {
           openSearch(); await w(250);
           const typeInto = async (t) => { i.value = t; i.dispatchEvent(new Event('input', { bubbles: true })); await w(450); };
           await typeInto('bank');
-          out.bank = { said: st.textContent, rows: searchResults.querySelectorAll('button').length };
+          /* The companies' rows: the box also lists pages and saved work
+             since Release B, and the status line names each group. */
+          out.bank = { said: st.textContent, rows: searchResults.querySelectorAll('[data-group="companies"] [data-result]').length };
           await typeInto('zzqxv');
           out.none = st.textContent;
           await typeInto('');
@@ -10298,7 +10300,7 @@ try {
         if (!r.hint) p.push('the search box is described by nothing');
         if (!r.controls) p.push('the search box does not name the list it controls');
         if (r.role !== 'status') p.push(`the search's status line is ${r.role === null ? 'missing' : 'role ' + r.role}`);
-        const m = /^(\d+) (?:of \d+ matches shown|match(?:es)?)\b/.exec(r.bank?.said || '');
+        const m = /^(\d+) (?:of \d+ companies shown|compan(?:y|ies))\b/.exec(r.bank?.said || '');
         if (r.role === 'status' && (!m || Number(m[1]) !== r.bank.rows)) p.push(`"bank" listed ${r.bank?.rows} companies and the status said "${r.bank?.said}"`);
         if (r.role === 'status' && r.none !== 'Nothing matches that search.') p.push(`a search that matches nothing said "${r.none}"`);
         if (r.role === 'status' && (r.empty || r.closed)) p.push(`an empty box or a closed search still says "${r.empty || r.closed}"`);
@@ -10532,6 +10534,7 @@ try {
       portfolios: /portfolio holdings/, priceAlerts: /price alerts/, propertyReportLog: /included property reports you used this month/,
       propertyReportsBought: /property reports you unlocked/, qttiPlan: /trading-index observations/, rateUnitBuilt: /units for property rates/,
       rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
+      recent: /pages, tools and saved work you recently opened/,
       registerActor: /name or initials you give the register log/, registerLog: /register records/, reportLog: /company reports you opened this month/,
       requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
       savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/,
