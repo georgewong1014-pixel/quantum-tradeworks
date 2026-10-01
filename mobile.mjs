@@ -1824,13 +1824,23 @@ for (const w of [360, 390]) {
   const DERIVED = `(() => { const td = [...document.querySelectorAll('td.cell-sourced')].find(t => /derived/.test(t.parentElement.textContent)); if (!td) return false; td.focus(); td.click(); return true; })()`;
   try {
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
-    for (const [w, h, dark] of [[360, 640, false], [390, 844, false], [390, 844, true], [768, 1024, false], [1440, 900, false]]) {
-      const at = `${w}x${h}${dark ? ' dark' : ''}`;
+    /* And in Verdana at 768 and 1440. CI's Linux fallback is wider than this
+       machine's fonts: a table that fits the drawer here scrolls there, with
+       a classic scrollbar under it — and Chrome scrolls a focused scroll
+       box's client area into view, not its scrollbar, so the 16px bar and
+       the ring hung past the drawer's foot on CI alone (the universe table
+       closing a metric's definition, a derived line's Inputs). Verdana is as
+       wide, and makes the same tables scroll here. */
+    for (const [w, h, dark, font] of [[360, 640, false], [390, 844, false], [390, 844, true], [768, 1024, false], [1440, 900, false],
+      [768, 1024, false, 'Verdana, sans-serif'], [1440, 900, false, 'Verdana, sans-serif']]) {
+      const at = `${w}x${h}${dark ? ' dark' : ''}${font ? ' in Verdana' : ''}`;
+      const face = () => font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`) : null;
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }, { name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] }, sessionId);
       for (const co of ['MAYBANK', 'aapl-apple-inc']) {
         await send('Page.navigate', { url: `${BASE}/company/${co}?tab=financials` }, sessionId);
         if (!(await settled())) { fails.push(`${at} /company/${co}?tab=financials: the page did not settle`); continue; }
+        await face();
         await sleep(500);
         if ((await ev(DERIVED)) !== true) { fails.push(`${at} /company/${co}?tab=financials: no derived line to open`); continue; }
         await sleep(500);
@@ -1840,6 +1850,7 @@ for (const w of [360, 390]) {
       }
       await send('Page.navigate', { url: `${BASE}/discover/screener` }, sessionId);
       if (!(await settled())) { fails.push(`${at} /discover/screener: the page did not settle`); continue; }
+      await face();
       await sleep(500);
       for (const which of ['0', 'FIELDS.length - 1']) {
         if ((await ev(`(openMetricInfo(FIELDS[${which}]), true)`)) !== true) { fails.push(`${at}: the metric definition FIELDS[${which}] did not open`); continue; }
@@ -1851,6 +1862,7 @@ for (const w of [360, 390]) {
       if (w < 1024) {
         await send('Page.navigate', { url: `${BASE}/app` }, sessionId);
         if (!(await settled())) { fails.push(`${at} /app: the page did not settle`); continue; }
+        await face();
         await sleep(400);
         await ev(`(document.getElementById('navOpen').click(), true)`);
         await sleep(500);
@@ -1863,7 +1875,7 @@ for (const w of [360, 390]) {
   } catch (e) { fails.push(`the check threw: ${e.message}`); }
   finally { await send('Emulation.setEmulatedMedia', { features: [] }, sessionId); }
   if (fails.length) { bad++; console.log(`FAIL releaseB small-backlog E5 — a focus ring in a drawer is cut off or missing: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   releaseB small-backlog E5: ${walked} drawers walked by Tab and Shift+Tab at 360, 390 (light and dark), 768 and 1440 — ${stopsSeen} stops, each with a ring no clipping box or screen edge cuts, the last stop included`);
+  else console.log(`ok   releaseB small-backlog E5: ${walked} drawers walked by Tab and Shift+Tab at 360, 390 (light and dark), 768 and 1440, and at 768 and 1440 in Verdana — ${stopsSeen} stops, each with a ring no clipping box or screen edge cuts, the last stop included`);
 }
 /* E3 — THE SCREENER BESIDE THE SIDEBAR. The filter rail (288px) and the
    results sat side by side from a 1041px window up, by the window's width;

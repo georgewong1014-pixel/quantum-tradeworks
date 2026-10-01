@@ -89,8 +89,13 @@ const child = spawn(browserPath, [
 
 const cleanup = () => { try { child.kill(); } catch {} };
 
+/* Up to 30 seconds for the browser to answer. A first launch on a fresh
+   machine — a CI runner, a new profile — can take longer than 15: on
+   2026-10-01 CI's first capture failed "never came up" and the next launch,
+   seconds later, came up at once. A browser that answers sooner costs no
+   wait. */
 async function endpoint() {
-  for (let i = 0; i < 150; i++) {
+  for (let i = 0; i < 300; i++) {
     try { const r = await fetch(`http://127.0.0.1:${port}/json/version`); if (r.ok) return (await r.json()).webSocketDebuggerUrl; }
     catch { /* not up yet */ }
     await new Promise(r => setTimeout(r, 100));

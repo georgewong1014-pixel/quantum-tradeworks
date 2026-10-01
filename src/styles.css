@@ -3805,7 +3805,12 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    focus makes the body itself the Tab stop (fitScrollStops, 35-ui.js); its
    edges are the drawer's and the screen's, where an outside ring cannot be
    drawn, so its ring is drawn just inside them, as the sidebar's are. */
-.drawer-bd { scroll-padding-block: var(--sm); }
+/* And a classic scrollbar's height on top (up to 17px): a table wider than
+   the drawer scrolls, and Chrome brings a focused scroll box's client area
+   into view, not its scrollbar — with --sm alone, the bar and the ring under
+   it hung past the drawer's foot wherever such a table closed the drawer
+   (CI's wider fonts; Verdana here). */
+.drawer-bd { scroll-padding-block: calc(var(--sm) + 17px); }
 .drawer-bd:focus-visible { outline-offset: -2px; }
 /* E2 — the SEC-filed half of the label, the illustrative marker's twin
    (dataChip, 35-ui.js): the same small word beside the ticker, in the
