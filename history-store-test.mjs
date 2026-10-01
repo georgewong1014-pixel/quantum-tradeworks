@@ -1228,7 +1228,7 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
   const { mergeFrameBars, trimFrames, periodKey, periodStatus, periodLastSession, isPeriodKey, formatHistory, STORE_ENGINE_NAMES } = S;
   const { exportTimeframe, FRAMES_READ } = await import('./ingest/history-import.mjs');
   const { checkFrames, compareFrames, describeOverlap, describeFrames } = await import('./ingest/history-check.mjs');
-  const nodeF = (args) => run(process.execPath, args, { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  const nodeF = (args, env) => run(process.execPath, args, { cwd: ROOT, ...(env ? { env: { ...process.env, ...env } } : {}) }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
   const sec = (iso) => String(Date.parse(iso) / 1000);
   const readJson = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
   try {
@@ -1465,10 +1465,14 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
       const wRows = [0, 5].map(s => { const x = dRows.slice(s, s + 5); return [x[0][0], x[0][1], Math.max(...x.map(r => r[2])), Math.min(...x.map(r => r[3])), x[4][4], x.reduce((t, r) => t + r[5], 0)]; });
       for (const [n, rows] of [['OANDA_GLD, 1D.csv', dRows], ['OANDA_GLD, 1W.csv', wRows]]) { const p = join(SC, n); await writeFile(p, csv(rows)); await utimes(p, new Date('2026-09-28T13:00:00Z'), new Date('2026-09-28T13:00:00Z')); }
       await writeFile(join(SC, 'notes.csv'), 'not,an,export\n');
-      const tmpBefore = new Set((await readdir(tmpdir())).filter(n => n.startsWith('qt-frames-self-check-')));
+      /* The self-check gets a temporary folder of its own: in the shared one,
+         another run's self-check at the same moment read as this one's
+         leftover. */
+      const SCT = join(FR, 'tmp');
+      await mkdir(SCT, { recursive: true });
       const hadHistory = existsSync(join(ROOT, 'data/price-history.json'));
-      const r7 = await nodeF([join(ROOT, 'ingest/history-check.mjs'), '--self-check', '--dir', SC, '--instruments', reg, '--now', '2026-09-28T13:00:00Z']);
-      const left = (await readdir(tmpdir())).filter(n => n.startsWith('qt-frames-self-check-') && !tmpBefore.has(n));
+      const r7 = await nodeF([join(ROOT, 'ingest/history-check.mjs'), '--self-check', '--dir', SC, '--instruments', reg, '--now', '2026-09-28T13:00:00Z'], { TMPDIR: SCT, TEMP: SCT, TMP: SCT });
+      const left = await readdir(SCT);
       check(r7.code === 0 && /self-check +2 export\(s\) from .*OANDA_GLD, 1D\.csv, OANDA_GLD, 1W\.csv/.test(r7.stdout)
         && /1W +GLD +2 week\(s\) overlap \(2026-09-07 … 2026-09-14, daily 2026-09-07 … 2026-09-18\): 2 match/.test(r7.stdout) && /every price difference has a reason/.test(r7.stdout)
         && !left.length && existsSync(join(ROOT, 'data/price-history.json')) === hadHistory,
