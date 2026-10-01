@@ -2168,7 +2168,9 @@ VIEWS.compare = () => {
   const t = el('table', { class: 'dt dt-pagesticky' });
   const thr = el('tr');
   thr.append(el('th', { class: 'pin' }, 'Measure'));
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}${r.c.real ? '' : ' <span class="illus" title="' + esc(ILLUS_TITLE) + '">illustrative</span>'}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  /* Each column says SEC-filed or illustrative (dataChip, Release B E2): the
+     filed column was the one with no word. */
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
@@ -2238,7 +2240,9 @@ VIEWS.compare = () => {
   wrap.append(mx);
   scatterChart(host, {
     points: plotted.map(r => ({
-      id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality,
+      /* Its mark's name says which kind (dataTag), as the value map's does:
+         Maybank's mark was announced exactly as a filed company's. */
+      id:r.c.id, label:r.c.tk, name:r.c.name + dataText(r.c), tag:dataTag(r.c), x:r.val.mos.base, y:r.pct.quality,
       size:toBase(r.m.mcap, r.c.ccy), capLabel:fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       model:r.val.pack.name, conf:r.val.confBand, varName:r.c.mkt === 'US' ? '--s1' : '--s2' })),
     xLabel:'Difference to model estimate vs base-case value — right of the line is below it',
@@ -2720,7 +2724,9 @@ VIEWS.portfolio = () => {
   dt.append(el('thead', {}, el('tr', {}, ['Company', 'Dividend per share', 'Quantity', `Gross (${State.baseCcy})`, 'Withholding', `Net (${State.baseCcy})`].map(h => el('th', {}, h)))));
   dt.append(el('tbody', {}, [...pos].filter(p => p.incomeBase > 0).sort((a, b) => b.incomeBase - a.incomeBase).map(p =>
     el('tr', {}, [
-      el('td', { class: 'ident' }, p.r.c.tk),
+      /* Which kind each payout is (Release B, E2): the illustrative set's
+         synthetic dividends were listed here unmarked. */
+      el('td', { class: 'ident' }, [p.r.c.tk, ' ', dataChip(p.r.c)]),
       el('td', {}, fmtMoney(p.r.m.dps, p.r.c.ccy, 3)),
       el('td', {}, Number.isInteger(p.h.qty) ? p.h.qty.toLocaleString('en-US') : fmtNum(p.h.qty, 3)),
       el('td', {}, fmtAmount(p.incomeBase, State.baseCcy)),

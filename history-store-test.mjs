@@ -1798,6 +1798,145 @@ const r = spawnSync(process.execPath, ['--import', ${JSON.stringify(pre)}[proces
   }
 }
 /* ---- end bugfix6: ingest ---- */
+/* ---- releaseB: small-backlog ---- */
+/* E1 — history-import --dry-run. There was no way to see what an import
+   would do before it did it: the flag was unknown, so it was ignored and
+   the import wrote the history, its .bak and the rejects file. Now a dry
+   run reads, dates and validates as the import does, reports what it would
+   add, change, refuse and trim, and writes nothing. Held to the real thing:
+   the same export into an identical copy of the same history, imported for
+   real, must add, correct, finalise, refuse and trim exactly what the dry
+   run named, with the same lines and the same exit code. The history
+   (temporary files only) holds a bar the export corrects, one read off the
+   screen while its session traded, which the export finalises, a final bar
+   an export saved mid-session cannot replace, and series the keep of 5
+   trims — one the export never touches; the export holds an ambiguous date
+   and a bar whose high is under its low. A stale lock beside the history,
+   which a writer would take over and remove, and a folder that does not
+   exist, show that a dry run touches no file and makes none. */
+{
+  const { readdir, stat } = await import('node:fs/promises');
+  const { createHash } = await import('node:crypto');
+  const { hostname } = await import('node:os');
+  const DR = join(tmpdir(), `qt-releaseB-dry-${process.pid}`);
+  await rm(DR, { recursive: true, force: true });
+  await mkdir(join(DR, 'exports'), { recursive: true });
+  const imp = (args) => run(process.execPath, [join(ROOT, 'ingest/history-import.mjs'), ...args], { cwd: ROOT }).then(r => ({ code: 0, ...r }), e => ({ code: e.code, stdout: e.stdout || '', stderr: e.stderr || '' }));
+  /* Every file under a folder: its name, size, modification time and bytes. */
+  const listing = async (d) => {
+    const out = {};
+    const walk = async (p) => { for (const n of await readdir(p)) { const f = join(p, n); const s = await stat(f);
+      if (s.isDirectory()) await walk(f); else out[f.slice(d.length)] = [s.size, s.mtimeMs, createHash('sha1').update(await readFile(f)).digest('hex')]; } };
+    if (existsSync(d)) await walk(d);
+    return out;
+  };
+  const readJson = async (p) => (existsSync(p) ? JSON.parse(await readFile(p, 'utf8')) : null);
+  const lines = (s) => String(s).split(/\r?\n/);
+  try {
+    const reg = join(DR, 'instruments.json');
+    await writeFile(reg, JSON.stringify({ instruments: ['QDRY', 'QOLD', 'QLIVE'].map(symbol => ({ symbol, market: 'US' })) }));
+    /* The history as it stands. */
+    const base = emptyHistory();
+    const at = (source, capturedAt) => ({ source, capturedAt, market: 'US', E, now: NOW });
+    mergeBars(base, 'QDRY', weekdays('2026-09-14', 5).map((date, k) => ({ date, open: 99 + k, high: 101 + k, low: 98 + k, close: 100 + k, volume: 900 + 10 * k })), at('import:old.csv', '2026-09-19T00:00:00Z'));
+    mergeBars(base, 'QDRY', [{ date: '2026-09-21', close: 104.5 }], at('screen', '2026-09-21T15:00:00Z'));
+    mergeBars(base, 'QOLD', weekdays('2026-09-08', 7).map((date, k) => ({ date, close: 20 + k })), at('import:qold.csv', '2026-09-19T00:00:00Z'));
+    mergeBars(base, 'QLIVE', [{ date: '2026-09-25', open: 49, high: 51, low: 48, close: 50, volume: 10 }], at('import:final.csv', '2026-09-26T00:00:00Z'));
+    /* The exports: QDRY saved on Saturday 26 September, every session
+       closed; QLIVE saved at 11:00 New York on Friday the 25th, while that
+       session traded. */
+    const csv = (rows) => ['date,open,high,low,close,volume', ...rows].join('\n') + '\n';
+    const qdry = join(DR, 'exports', 'QDRY.csv'), qlive = join(DR, 'exports', 'QLIVE.csv');
+    await writeFile(qdry, csv(['2026-09-17,102,104,101,103,930', '2026-09-18,103,106,102.5,105,1100', '2026-09-21,104,106,103,105.5,1200',
+      '2026-09-22,105,107,104,106,1300', '2026-09-23,106,108,105,107,1400', '03/04/2026,1,2,0.5,1.5,10', '2026-09-24,107,105,108,107.5,1500', '2026-09-25,107,109,106,108,1600']));
+    await writeFile(qlive, csv(['2026-09-24,48,50,47,49,20', '2026-09-25,49,50.5,48.5,49.5,5']));
+    await utimes(qdry, new Date('2026-09-26T12:00:00Z'), new Date('2026-09-26T12:00:00Z'));
+    await utimes(qlive, new Date('2026-09-25T15:00:00Z'), new Date('2026-09-25T15:00:00Z'));
+    for (const d of ['dry', 'real']) { await mkdir(join(DR, d)); await saveHistory(join(DR, d, 'h.json'), JSON.parse(JSON.stringify(base)), { now: NOW }); }
+    /* A lock left by a writer that died: a real import takes it over and
+       removes it. */
+    await writeFile(join(DR, 'dry', 'h.json.lock'), JSON.stringify({ pid: 2147483646, host: hostname(), startedAt: '2026-09-26T00:00:00Z', token: 'dead' }, null, 2) + '\n');
+    const args = (out, ...more) => ['--dir', join(DR, 'exports'), '--instruments', reg, '--out', out, '--keep', '5', ...more];
+    const before = await listing(join(DR, 'dry'));
+    const dry = await imp(args(join(DR, 'dry', 'h.json'), '--dry-run'));
+    const after = await listing(join(DR, 'dry'));
+    const real = await imp(args(join(DR, 'real', 'h.json')));
+    const H = await readJson(join(DR, 'real', 'h.json'));
+    const RJ = (await readJson(join(DR, 'real', 'h.rejects.json')))?.rejects || [];
+
+    /* 1. Nothing written: the folder file for file, byte for byte, the dead
+       writer's lock included — no history change, no .bak, no rejects file,
+       no lock of its own. */
+    check(same(before, after) && Object.keys(after).length === 2 && dry.code === 2 && /^DRY RUN — 2 file\(s\) read, dated and validated against .*h\.json; nothing is written: no history, no \.bak, no rejects file/m.test(dry.stdout)
+      && /dry run: nothing was written — .*h\.json, its \.bak and .*h\.rejects\.json are as they were/.test(dry.stdout),
+      'releaseB E1: history-import --dry-run writes nothing — the history, its folder and a dead writer\'s lock are byte for byte as they were, and no .bak, rejects file or lock of its own appears',
+      { code: dry.code, before: Object.keys(before), after: Object.keys(after), changed: Object.keys(after).filter(k => !same(before[k], after[k])), err: dry.stderr.slice(0, 300) });
+
+    /* 2. The same lines as the real run, from the same merge: each file's
+       line and its notes, the totals, what was outranked and rejected, the
+       trim — everything but the words that say a write happened. */
+    const comparable = (out) => {
+      const kept = [];
+      let inRows = false;
+      for (const l of lines(out)) {
+        if (/^dry run, row by row/.test(l)) { inRows = true; continue; }
+        if (inRows && /^( {2}(add|change|refuse|trim)\s| {12}\S)/.test(l)) continue;
+        inRows = false;
+        if (/^DRY RUN — |^(wrote|would write) |every refused row (is in|would go to) |^ {2}(dates|adjusted) +: |^dry run: /.test(l)) continue;
+        kept.push(l.replace(/would be recorded/g, 'recorded'));
+      }
+      return kept.filter(l => l.trim());
+    };
+    const dl = comparable(dry.stdout), rl = comparable(real.stdout);
+    check(real.code === dry.code && same(dl, rl) && dl.some(l => /^QDRY +3 new/.test(l)) && dl.some(l => /^ {2}trimmed +: 6 bar\(s\)/.test(l)),
+      'releaseB E1: a dry run prints the real import\'s own lines — each file\'s count and notes, new bars, finalised, corrected, outranked, rejected and trimmed — and exits as it does (2: rows refused)',
+      { dryCode: dry.code, realCode: real.code, onlyDry: dl.filter(l => !rl.includes(l)).slice(0, 6), onlyReal: rl.filter(l => !dl.includes(l)).slice(0, 6) });
+
+    /* 3. Row by row, what the real import then did. */
+    const rows = {};
+    let head = null;
+    for (const l of lines(dry.stdout).slice(lines(dry.stdout).findIndex(x => /^dry run, row by row/.test(x)) + 1)) {
+      const m = l.match(/^ {2}(add|change|refuse|trim) +(.*)$/);
+      if (m) { head = m[1]; (rows[head] ||= []).push(m[2]); continue; }
+      const c = l.match(/^ {12}(\S.*)$/);
+      if (c && head) { rows[head].push(c[1]); continue; }
+      head = null;
+    }
+    const baseKeys = (s) => Object.keys(base.series[s] || {});
+    const realNew = ['QDRY', 'QLIVE'].map(s => [s, Object.keys(H?.series?.[s] || {}).filter(d => !baseKeys(s).includes(d)).sort()]);
+    const realCorr = (H?.corrections?.QDRY || []).map(c => `QDRY ${c.date} ${c.field} ${c.from ?? '—'} → ${c.to ?? '—'}`);
+    const realRefused = RJ.map(x => `${x.symbol} ${x.date}: ${x.codes.join(', ')}`).sort();
+    const dryRefused = (rows.refuse || []).map(r => r.replace(/ \(line \d+\)/, '').replace(/ — .*$/, '')).sort();
+    const gone = (s) => [...new Set([...baseKeys(s), ...(realNew.find(([k]) => k === s)?.[1] || [])])].filter(d => !(d in (H?.series?.[s] || {}))).sort();
+    const wantTrim = [['QDRY', gone('QDRY')], ['QOLD', gone('QOLD')]].map(([s, ks]) => `${s}: ${ks.length} bar(s), ${ks[0]} … ${ks[ks.length - 1]} — older than the newest 5`);
+    check(same(rows.add, realNew.map(([s, ks]) => `${s}: ${ks.length} bar(s), ${ks.length > 1 ? `${ks[0]} … ${ks[ks.length - 1]}` : ks[0]}`))
+      && same(realNew, [['QDRY', ['2026-09-22', '2026-09-23', '2026-09-25']], ['QLIVE', ['2026-09-24']]])
+      && realCorr.length === 4 && realCorr.every(c => rows.change?.some(r => r.startsWith(c)))
+      && rows.change?.some(r => /^QDRY 2026-09-21 close 104\.5 → 105\.5 — a reading taken at 2026-09-21T15:00:00Z while it traded, which this capture would replace; not a correction$/.test(r))
+      && same(dryRefused, realRefused) && realRefused.length === 3
+      && rows.refuse?.some(r => /^QDRY 03\/04\/2026 \(line 7\): AMBIGUOUS_DATE — ambiguous date/.test(r)) && rows.refuse?.some(r => /^QDRY 2026-09-24: .*HIGH_BELOW/.test(r))
+      && rows.refuse?.some(r => /^QLIVE 2026-09-25: PROVISIONAL_READING — captured at 2026-09-25T15:00:00\.000Z, before its session closed/.test(r))
+      && same(rows.trim, wantTrim) && same(gone('QDRY'), ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17']) && same(gone('QOLD'), ['2026-09-08', '2026-09-09'])
+      && H?.series?.QLIVE?.['2026-09-25'] === 50 && existsSync(join(DR, 'real', 'h.json.bak')),
+      'releaseB E1: the dry run names, row by row, exactly what the real import then did — the three sessions and one it adds, the four fields it corrects and the screen reading it finalises, the three rows it refuses (an ambiguous date by its line, a high under its low, a mid-session reading over a final bar) as the rejects file lists them, and the six bars the keep of 5 trims, from a series the export never touched too',
+      { rows, realNew, realCorr, realRefused, wantTrim });
+
+    /* 4. A history that is not there yet, in a folder that is not there:
+       read as empty, reported, and neither made. --dry says the same, as
+       it does to history-check and the scanner. */
+    const nowhere = join(DR, 'nowhere', 'deeper', 'h.json');
+    const d3 = await imp(args(nowhere, '--dry'));
+    check(!existsSync(join(DR, 'nowhere')) && d3.code === 2 && /against .*h\.json \(not there yet\); nothing is written/.test(d3.stdout)
+      && /would write .*h\.json — 2 symbols — dry run, not written/.test(d3.stdout) && /h\.json \(still absent\) and .*h\.rejects\.json are as they were/.test(d3.stdout),
+      'releaseB E1: --dry against a history that does not exist yet reads it as empty, says so, and creates neither the file nor its folder',
+      { code: d3.code, out: d3.stdout.split('\n').filter(l => /DRY RUN|would write|dry run:/.test(l)), made: existsSync(join(DR, 'nowhere')) });
+  } catch (e) {
+    fail('releaseB E1: the test threw', e.stack || e.message);
+  } finally {
+    await rm(DR, { recursive: true, force: true }).catch(() => {});
+  }
+}
+/* ---- end releaseB: small-backlog ---- */
 
 console.log(failures ?`\n${failures} failed, ${passes} passed` : `\nall ${passes} history-store checks hold`);
 process.exit(failures ? 1 : 0);

@@ -11,6 +11,10 @@
  *        for a daily file, the imported weeks and months for a 1W or 1M one)
  *   ... [--adjusted provider|none|unknown]                 (default unknown)
  *   ... [--interval 1D|1W|1M]                              (when the file name does not say)
+ *   ... --dry-run   (or --dry)   read, date and validate, and report exactly what
+ *                                 the import would add, change, refuse and trim —
+ *                                 writing nothing: no history, no .bak, no
+ *                                 rejects file, no lock, no folder
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
@@ -95,14 +99,27 @@
  *   'unknown', and a recorded split is applied only where the series shows
  *   the break it explains. The import then names every price break left in
  *   each series it wrote, so an unadjusted split is seen the day it lands.
+ *
+ * A DRY RUN
+ *   --dry-run (--dry, the word history-check and the scanner use, means the
+ *   same) does everything an import does up to the write: reads each file,
+ *   dates its stamps, validates every row with the engine, merges it into
+ *   the history as it stands under the same rank and provisional rules, and
+ *   trims to the same keep — then prints what that import would add, change,
+ *   refuse and trim, row by row where the real run points at the rejects
+ *   file, and writes nothing: not the history, not its .bak, not the rejects
+ *   file, and not the lock or the folder (dryRunHistory). Its exit code is
+ *   the import's. The per-file lines and totals are the ones the real run
+ *   prints, from the same merge, so the two cannot come to disagree.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { readFile, readdir, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { updateHistory, mergeBars, mergeFrameBars, describeMerge, rejectsPathFor, engine, loadInstruments, marketOf, parseDateCell, eveningOpen, csvRows, numberCell,
-         periodKey, periodStatus, periodLastSession, volumeNotCounted, KEEP } from './history-store.mjs';
+         periodKey, periodStatus, periodLastSession, volumeNotCounted, KEEP, loadHistory, trimHistory, trimFrames } from './history-store.mjs';
 
 const DATE_KEYS  = ['date', 'time', 'timestamp', 'datetime'];
 const CLOSE_KEYS = ['close', 'last', 'price', 'adj close', 'adjclose', 'close/last'];
@@ -239,6 +256,73 @@ export function parseCsv(text, label, { tz = 'UTC', session = null } = {}) {
   return { rows, refused, nextDay, unread, columns: { open: oi > -1, high: hi > -1, low: li > -1, volume: vi > -1 } };
 }
 
+/* The dates (or periods) the history holds, per daily symbol and per
+   imported frame ("SYM 1W"). */
+const keysHeld = (h) => {
+  const out = {};
+  for (const [s, m] of Object.entries(h.series || {})) out[s] = Object.keys(m || {});
+  for (const [tf, bySym] of Object.entries(h.frames || {})) for (const [s, f] of Object.entries(bySym || {})) out[`${s} ${tf}`] = Object.keys(f?.series || {});
+  return out;
+};
+const keysGone = (from, to) => Object.entries(from)
+  .map(([k, ks]) => { const left = new Set(to[k] || []); return [k, ks.filter(d => !left.has(d)).sort()]; })
+  .filter(([, ks]) => ks.length);
+
+/* WHAT AN IMPORT WOULD DO, WRITING NOTHING (--dry-run).
+   updateHistory is the store's one writer: under a lock it loads, merges,
+   trims, saves over the file with the old one kept as .bak, and appends
+   what it refused to the rejects file. Its own `dry` leaves out the save
+   and the rejects but still takes the lock — a file created and removed
+   beside the history, and a stale one renamed aside and taken over — and
+   creates the folder. This is the same sequence with the writer left out:
+   the history read as the store reads it (an absent file is an empty
+   history; a damaged one is refused, never read as empty), `fn`'s merges,
+   the trims at the same keeps, and the refused rows as the store files
+   them. Nothing is created, renamed or removed. It returns updateHistory's
+   account, and what the store only counts, by name: the dates each series
+   and frame would gain, and the ones the trim would take. */
+export async function dryRunHistory(path, fn, { keep = KEEP, frameKeep = KEEP } = {}) {
+  for (const [name, n] of [['keep', keep], ['frame keep', frameKeep]]) {
+    if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error(`the ${name} must be a whole number of bars, 1 or more — got ${Number.isNaN(n) ? 'no number' : n}`), { code: 'BAD_KEEP' });
+  }
+  const existed = existsSync(path);
+  const hist = await loadHistory(path);
+  const before = keysHeld(hist);
+  const results = [].concat((await fn(hist)) || []);
+  const merged = keysHeld(hist);
+  const trim = trimHistory(hist, keep);
+  trim.frames = trimFrames(hist, frameKeep);
+  const refused = results.flatMap(r => [...(r.rejected || []), ...(r.outranked || []).map(o => ({ ...o, codes: [o.provisional ? 'PROVISIONAL_READING' : 'OUTRANKED'] }))]);
+  const added = Object.entries(merged).map(([k, ks]) => { const had = new Set(before[k] || []); return [k, ks.filter(d => !had.has(d)).sort()]; }).filter(([, ks]) => ks.length);
+  return { hist, results, trim, refused, added, trimmed: keysGone(merged, keysHeld(hist)), existed };
+}
+
+/* A dry run's account, row by row. The real run counts what it did and
+   points at the rejects file for every row it refused; a dry run writes no
+   rejects file, so each span added, each change, each refusal and each
+   trim is named here. */
+export function describeDryRun({ results, refused, added, trimmed, trim }) {
+  const lines = [];
+  const span = (ks) => (ks.length > 1 ? `${ks[0]} … ${ks[ks.length - 1]}` : ks[0]);
+  const unitOf = (k) => (/ 1W$/.test(k) ? 'week(s)' : / 1M$/.test(k) ? 'month(s)' : 'bar(s)');
+  const put = (head, rows) => rows.forEach((r, i) => lines.push(`  ${(i ? '' : head).padEnd(10)}${r}`));
+  put('add', added.length ? added.map(([k, ks]) => `${k}: ${ks.length} ${unitOf(k)}, ${span(ks)}`) : ['nothing new']);
+  const tf = (x) => (x.timeframe ? ` ${x.timeframe}` : '');
+  const changes = results.flatMap(r => [
+    ...(r.corrected || []).map(c => `${r.symbol}${tf(r)} ${c.date} ${c.field} ${c.from ?? '—'} → ${c.to ?? '—'} (${c.prevSrc} → ${c.src}) — would be recorded as a correction`),
+    ...(r.superseded || []).map(s => `${r.symbol}${tf(r)} ${s.date} close ${s.from} → ${s.to} — a reading taken at ${s.fromAt} while it traded, which this capture would replace; not a correction`),
+  ]);
+  const filled = results.reduce((n, r) => n + (r.filled || 0), 0), confirmed = results.reduce((n, r) => n + (r.confirmed || 0), 0);
+  if (filled) changes.push(`${filled} held bar(s) given open/high/low or volume they lacked`);
+  if (confirmed) changes.push(`${confirmed} held bar(s) with no source given this import's`);
+  put('change', changes.length ? changes : ['nothing held changes']);
+  put('refuse', refused.length ? refused.map(x => `${x.symbol}${tf(x)} ${x.date ?? '(no date)'}${x.line ? ` (line ${x.line})` : ''}: ${x.codes.join(', ')}${x.why ? ` — ${x.why}` : ''}`) : ['nothing']);
+  put('trim', trimmed.length
+    ? trimmed.map(([k, ks]) => `${k}: ${ks.length} ${unitOf(k)}, ${span(ks)} — older than the newest ${/ 1[WM]$/.test(k) ? trim.frames.keep : trim.keep}`)
+    : ['nothing']);
+  return lines;
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
@@ -252,12 +336,17 @@ async function main() {
      does): 1D, the default, 1W or 1M. */
   const intervalFlag = flag('interval', null);
   const intervalTf = intervalFlag ? exportTimeframe(intervalFlag) : null;
+  /* What the import would do, and nothing written (dryRunHistory). --dry
+     is the word history-check and the scanner take for the same thing; read
+     here as an unknown flag, it was ignored and the import wrote. */
+  const DRY = argv.includes('--dry-run') || argv.includes('--dry');
 
   if (!inPath && !inDir) {
     console.error(`usage:
   node ingest/history-import.mjs --in <file.csv> --symbol <SYMBOL>
   node ingest/history-import.mjs --dir <folder>        (symbol taken from each filename)
   ... [--interval 1D|1W|1M]   (TradingView's file name says it: "OANDA_XAUUSD, 1W.csv")
+  ... [--dry-run]             (what the import would add, change, refuse and trim; nothing written)
 
 Export from TradingView: open the chart, then the menu beside the symbol >
 "Export chart data…" > CSV. One file per instrument and timeframe.`);
@@ -346,7 +435,9 @@ Export from TradingView: open the chart, then the menu beside the symbol >
   let failed = 0, dateRefused = 0;
   let run;
   try {
-    run = await updateHistory(outPath, async (hist) => {
+    /* One merge for both: the store's writer, or the same steps with no
+       write (dryRunHistory). */
+    run = await (DRY ? dryRunHistory : updateHistory)(outPath, async (hist) => {
       const results = [];
       for (const f of inTurn) {
         /* The file's timeframe: its name's, or --interval's; a name and a
@@ -424,7 +515,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
           report.push(`${`${f.symbol} ${tf}`.padEnd(10)} ${String(r.added).padStart(5)} new  ${String(before).padStart(5)} -> ${String(keys.length).padStart(5)} ${unit}s` +
             `  ${keys[0] || '—'} to ${keys[keys.length - 1] || '—'}` +
             `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
-            `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
+            `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — ${DRY ? 'would be recorded' : 'recorded'})` : ''}` +
             `${notWritten(r, unit)}` +
             `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
           tail();
@@ -454,7 +545,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
         report.push(`${f.symbol.padEnd(10)} ${String(r.added).padStart(5)} new  ${String(before).padStart(5)} -> ${String(dates.length).padStart(5)} points` +
           `  ${dates[0] || '—'} to ${dates[dates.length - 1] || '—'}` +
           `  ${kept.length === 3 ? 'open/high/low kept' : 'close only'}${parsed.columns.volume ? `, volume kept${ticks ? ' (a tick count)' : ''}` : ', no volume column'}` +
-          `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — recorded)` : ''}` +
+          `${r.corrected.length ? `  (${r.corrected.length} field(s) corrected against the previous value — ${DRY ? 'would be recorded' : 'recorded'})` : ''}` +
           `${notWritten(r, 'session')}` +
           `${r.rejected.length ? `  (${r.rejected.length} row(s) refused: ${[...new Set(r.rejected.flatMap(x => x.codes))].join(', ')})` : ''}`);
         tail();
@@ -470,21 +561,36 @@ Export from TradingView: open the chart, then the menu beside the symbol >
       }
       return results;
     }, keeps);
-  } catch (e) { console.error(`history not written: ${e.message}`); process.exit(1); }
+  } catch (e) { console.error(DRY ? `dry run stopped, nothing written: ${e.message}` : `history not written: ${e.message}`); process.exit(1); }
 
+  const rejectsPath = rejectsPathFor(outPath);
+  if (DRY) console.log(`DRY RUN — ${files.length} file(s) read, dated and validated against ${outPath}${run.existed ? '' : ' (not there yet)'}; nothing is written: no history, no .bak, no rejects file`);
   report.forEach(l => console.log(l));
   const { hist, results, trim } = run;
-  const { totals, lines } = describeMerge(results, trim, rejectsPathFor(outPath));
+  const { totals, lines } = describeMerge(results, trim, rejectsPath);
   /* The imported weeks and months the file now holds, beside the daily
-     series' symbol count. */
-  const frameCount = Object.entries(hist.frames || {}).map(([tf, bySym]) => `${Object.keys(bySym || {}).length} with imported ${UNIT[tf] || tf}s`);
-  console.log(`\nwrote ${outPath} — ${hist.symbols} symbols${frameCount.length ? ` (${frameCount.join(', ')})` : ''}`);
-  lines.forEach(l => console.log(l));
-  if (dateRefused) console.log(`  dates     : ${dateRefused} row(s) with an ambiguous or unreadable date were refused, not guessed`);
+     series' symbol count — a frame or a series with no bar left is one the
+     save drops, so a dry run, which does not save, does not count it. */
+  const frameCount = Object.entries(hist.frames || {}).map(([tf, bySym]) => [tf, Object.values(bySym || {}).filter(f => Object.keys(f?.series || {}).length).length])
+    .filter(([, n]) => n).map(([tf, n]) => `${n} with imported ${UNIT[tf] || tf}s`);
+  const symbols = Object.values(hist.series || {}).filter(m => m && Object.keys(m).length).length;
+  console.log(`\n${DRY ? 'would write' : 'wrote'} ${outPath} — ${symbols} symbols${frameCount.length ? ` (${frameCount.join(', ')})` : ''}${DRY ? ' — dry run, not written' : ''}`);
+  /* The real run's words, but for what a dry run does not do: it records no
+     correction, and it writes no rejects file — every refused row is listed
+     below instead. */
+  lines.map(l => (!DRY ? l : /^\s+every refused row is in /.test(l) ? `              every refused row would go to ${rejectsPath} — a dry run writes none, so each is listed below`
+    : l.replace(' — recorded in corrections', ' — would be recorded in corrections')))
+    .forEach(l => console.log(l));
+  if (dateRefused) console.log(`  dates     : ${dateRefused} row(s) with an ambiguous or unreadable date ${DRY ? 'would be' : 'were'} refused, not guessed`);
   if (tickSymbols.length) console.log(`  volume    : a tick count for ${tickSymbols.join(', ')} — a spot currency or metals broker has no exchange volume, so the figure is how many times its price changed, not ounces, lots or contracts traded; recorded as given`);
-  console.log(`  adjusted  : ${adjusted === 'provider' ? 'provider — recorded on every bar written, so a split you record is not applied to these prices a second time'
-    : adjusted === 'none' ? 'none — recorded on every bar written: the prices are as they traded, and a split you record adjusts them'
-    : 'unknown — recorded on every bar written; pass --adjusted provider or none when you know'}`);
+  const recorded = DRY ? 'would be recorded' : 'recorded';
+  console.log(`  adjusted  : ${adjusted === 'provider' ? `provider — ${recorded} on every bar written, so a split you record is not applied to these prices a second time`
+    : adjusted === 'none' ? `none — ${recorded} on every bar written: the prices are as they traded, and a split you record adjusts them`
+    : `unknown — ${recorded} on every bar written; pass --adjusted provider or none when you know`}`);
+  if (DRY) {
+    console.log('dry run, row by row — what this import would do:');
+    describeDryRun(run).forEach(l => console.log(l));
+  }
 
   /* Every break left in what was imported, read the way the scanner reads
      it — with the actions already recorded beside the history applied — so
@@ -519,6 +625,7 @@ Export from TradingView: open the chart, then the menu beside the symbol >
   }
   console.log('\nPersonal research only. This history is derived from your own exports and');
   console.log('carries no right to redistribute.');
+  if (DRY) console.log(`\ndry run: nothing was written — ${outPath}${run.existed ? ', its .bak' : ' (still absent)'} and ${rejectsPath} are as they were. Run it again without --dry-run to import.`);
   process.exit(failed === files.length ? 1 : totals.rejected || totals.outranked || failed ? 2 : 0);
 }
 

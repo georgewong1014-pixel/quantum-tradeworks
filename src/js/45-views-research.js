@@ -1281,6 +1281,10 @@ VIEWS.research = () => {
   const stick = el('div', { class: 'ticker-sticky' });
   const ident = el('div', { class: 'ts-ident' });
   ident.append(el('span', { class: 'ts-tk' }, c.tk));
+  /* SEC-filed or illustrative, on the one identity left on screen once the
+     header scrolls away (Release B, E2): the strip showed an illustrative
+     company's sample price with no word that it is one. */
+  ident.append(dataChip(c));
   ident.append(el('span', { class: 'ts-name' }, c.name));
   ident.append(el('span', { class: 'ts-px num' }, fmtMoney(c.px.p, c.ccy)));
   ident.append(el('span', { class: 'ts-chg num ' + signClass(c.px.d1) }, withSign(c.px.d1, 2)));

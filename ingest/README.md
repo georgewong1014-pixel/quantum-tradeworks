@@ -293,10 +293,36 @@ all go through it.
 
 ```bash
 node ingest/history-import.mjs --in KLSE.csv --symbol KLSE    # an export, open/high/low kept
+node ingest/history-import.mjs --in KLSE.csv --symbol KLSE --dry-run   # what it would do; nothing written
 node ingest/history-import.mjs --in "watchlist-shots/OANDA_XAUUSD, 1D.csv" --symbol XAUUSD   # a TradingView export
 node ingest/history.mjs --in data/personal-prices.json       # what the daily run does
 node ingest/live.mjs --history --days 400                     # a provider (personal lane)
 ```
+
+**A dry run first.** `--dry-run` (or `--dry`, the word `history-check` and
+the scanner use) does everything an import does up to the write — reads each
+file, dates its stamps, validates every row with the engine, merges it into
+the history as it stands under the same rank and provisional rules, trims to
+the same keep — and then reports what the import *would* do, and writes
+nothing: not the history, not its `.bak`, not the rejects file, not the lock,
+and not a missing folder. Its per-file lines and totals are the real run's,
+from the same merge, followed by the rows the real run only counts or files
+away:
+
+```text
+dry run, row by row — what this import would do:
+  add       QDRY: 3 bar(s), 2026-09-22 … 2026-09-25
+  change    QDRY 2026-09-18 close 104 → 105 (import:old.csv → import:QDRY.csv) — would be recorded as a correction
+            QDRY 2026-09-21 close 104.5 → 105.5 — a reading taken at 2026-09-21T15:00:00Z while it traded, which this capture would replace; not a correction
+  refuse    QDRY 03/04/2026 (line 7): AMBIGUOUS_DATE — ambiguous date "03/04/2026" — day and month could be either way round; use YYYY-MM-DD
+            QLIVE 2026-09-25: PROVISIONAL_READING — captured at 2026-09-25T15:00:00.000Z, before its session closed, …
+  trim      QOLD: 2 bar(s), 2026-09-08 … 2026-09-09 — older than the newest 5
+```
+
+It exits as the import would (0, or 2 when a row would be refused or a file
+fails), so a script can look before it writes. The store's test holds a dry
+run to the real import of the same export into a copy of the same history:
+the same lines, the same exit code, and exactly the rows it named.
 
 What the store decides, so no writer decides it differently:
 

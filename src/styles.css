@@ -1402,10 +1402,33 @@ table.dt tbody tr:hover .pin-end { background: color-mix(in srgb, var(--brand) 5
    focus on controls there that nobody can see. */
 .rail-sticky.rail-tall { position: static; }
 
-.screener-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr); gap: var(--md); align-items: start; }
-@media (max-width: 1040px) {
-  .screener-layout { grid-template-columns: minmax(0, 1fr); }
+/* THE RAIL BESIDE THE RESULTS ONLY WHILE THE LAYOUT HAS ROOM FOR BOTH
+   (Release B, E3). This stacked by the window's width, at 1040px; but from
+   1024px the sidebar takes 264px of the window, so from 1041 to 1280 the
+   results card beside the 288px rail was left 394 to 633px, and at 1100 a
+   row showed its company and one score, the rest behind a sideways scroll.
+   The table scrolls inside its card at any width (twelve columns, 1,750px);
+   what a row needs in view is its pinned company and the three figures every
+   screen carries — Quality, Value and the difference from the base-case
+   model estimate, 617px. So the layout asks its own width: beside, it needs
+   the rail, the gap and a results window of 696px, room for those columns
+   in a wider fallback font and the edge of the next — 1,000px; narrower, the
+   rail stands above the results, not stuck over them. */
+.screener-layout { display: grid; grid-template-columns: 288px minmax(0, 1fr); gap: var(--md); align-items: start;
+  container: screener-layout / inline-size; }
+@container screener-layout (max-width: 999.98px) {
+  .screener-layout > * { grid-column: 1 / -1; }
   .screener-layout > .card:first-child { position: static !important; }
+}
+/* Stacked across a tablet's or a laptop's width, the rail's two groups —
+   which companies, then what they must clear — stand side by side, so the
+   results begin half a rail sooner and no filter's label sits a page's
+   width from its fields; the Absolute/percentile switch and the two actions
+   keep a control's width. On a phone the rail stays one column. */
+@container screener-layout (min-width: 600px) and (max-width: 999.98px) {
+  .scr-rail-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--xl); align-items: start; }
+  .scr-rail-hd .segmented { max-width: 26rem; }
+  .scr-rail-foot .btn { max-width: 14rem; }
 }
 
 .research-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--md); align-items: start; }
@@ -3584,3 +3607,23 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 }
 @media print { .pm-bar, .pc-index { display: none !important; } }
 /* ---- end audit1: property-model ---- */
+
+/* ---- releaseB: small-backlog ---- */
+/* E5 — THE DRAWER'S FOCUS RING, WHOLE. The drawer scrolls its body, and a
+   control the keyboard reaches there is scrolled in only until its own edge
+   meets the body's, so the ring, 2px drawn 2px outside that edge, lay under
+   it: the last stop of a derived line's drawer (its "Inputs" table at 390),
+   the universe chart closing a metric's definition, Apple's "Every filing on
+   EDGAR" at 360 — each focused with no ring at its foot. The body now keeps
+   a margin at its top and bottom that the focus scroll leaves clear, wider
+   than the ring. A definition too long for the drawer with nothing in it to
+   focus makes the body itself the Tab stop (fitScrollStops, 35-ui.js); its
+   edges are the drawer's and the screen's, where an outside ring cannot be
+   drawn, so its ring is drawn just inside them, as the sidebar's are. */
+.drawer-bd { scroll-padding-block: var(--sm); }
+.drawer-bd:focus-visible { outline-offset: -2px; }
+/* E2 — the SEC-filed half of the label, the illustrative marker's twin
+   (dataChip, 35-ui.js): the same small word beside the ticker, in the
+   page's quiet ink rather than the bronze that warns. */
+.filed-mark { font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+/* ---- end releaseB: small-backlog ---- */

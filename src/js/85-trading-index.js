@@ -593,15 +593,27 @@ VIEWS.tradingIndex = () => {
      back as "Linked to …" — so focus fell to <body>. It goes to that
      heading, which says what the press did. */
   const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); focusAfterRedraw('#qtti-link h3'); });
-  if (qLink) { qLink.id = 'qtti-link'; wrap.append(qLink); }
+  /* ONE PRIMARY ACTION, AND IT IS THE SAVE (Release B, E4). The banner draws
+     its offer with a primary "Fill in the identity" — on this page the only
+     primary a link from a company's research had, and not the page's work.
+     Its two choices, fill in or go back, are the reader's to weigh, so both
+     are quiet here, as every action but the save is. */
+  if (qLink) {
+    qLink.id = 'qtti-link';
+    qLink.querySelectorAll('.btn-primary, .btn-ghost').forEach(b => { b.classList.remove('btn-primary', 'btn-ghost'); b.classList.add('btn-quiet'); });
+    wrap.append(qLink);
+  }
 
   /* Reset here means a blank plan, which for this tool IS the useful starting
      point — every panel is the reader's own transcription and there is no
      default reading to fall back to. See qttiClearedPlan for what survives. */
+  /* The save is the page's one primary action, as the property calculator's
+     is, and says what it keeps. It was a grey outline "Save" among quieter
+     buttons, and a fresh page had no primary action at all. */
   wrap.append(workBar('trading', () => {
     State.qtti = qttiClearedPlan(State.qtti, { keepRules: false });
     saveQtti();
-  }));
+  }, { primary: true, saveLabel: 'Save this run' }));
 
   /* THE STEPPER.
      Six things have to be recorded and they were a vertical stack of cards a
@@ -1022,12 +1034,13 @@ VIEWS.tradingIndex = () => {
        walked a reading upward could load the example and leave no trail —
        so it keeps the log, and the replacement is appended to it like a
        clear. */
-    el('button', { class: 'btn btn-ghost btn-sm', id: 'q-load-worked', onclick: () => {
+    /* Quiet: the save above is the page's one primary action (E4). */
+    el('button', { class: 'btn btn-quiet btn-sm', id: 'q-load-worked', onclick: () => {
       const next = qttiWorkedExample();
       next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the §14 worked example' }).corrections;
       State.qtti = next; save(); toast('Worked example loaded');
     } }, 'Load the §14 worked example'),
-    el('button', { class: 'btn btn-ghost btn-sm', id: 'q-clear-evidence', onclick: () => {
+    el('button', { class: 'btn btn-quiet btn-sm', id: 'q-clear-evidence', onclick: () => {
       State.qtti = qttiClearedPlan(State.qtti, { keepRules: true });
       save(); toast('Evidence cleared — your template and capital rules are kept');
     } }, 'Clear evidence'),

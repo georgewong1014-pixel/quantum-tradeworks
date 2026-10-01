@@ -1653,6 +1653,199 @@ for (const w of [360, 390]) {
   if (fails.length) { bad++; console.log(`FAIL audit1 property-model — My properties or the sectioned calculator at some width: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
 }
 /* ---- end audit1: property-model ---- */
+/* ---- releaseB: small-backlog ---- */
+/* E5 — A FOCUS RING THE DRAWER CUTS OFF. The drawer (a metric's definition,
+   a statement line's lineage) scrolls its body, and the keyboard's focus is
+   scrolled into it only until the control's own edge meets the body's: the
+   ring, 2px drawn 2px outside that edge, lay under the edge. At 390x844 the
+   last stop of a derived line's drawer — its "Inputs" table — ended a pixel
+   past the body's bottom with the whole ring below it, as did Apple's
+   "Every filing on EDGAR" at 360 and the universe chart at the end of a
+   metric's definition; and a definition too long for the drawer, the body
+   itself the Tab stop, drew its ring outside the screen on the drawer's
+   outer sides, at every width. Walked here by the keyboard as a reader
+   walks it — Tab round every stop and Shift+Tab from the close button to
+   the last — in a filed and an illustrative company's lineage drawer, the
+   first and last metric definitions and, below 1024px, the sidebar drawer,
+   at 360, 390 (light and dark), 768 and 1440: every stop shows a ring, and
+   no ring crosses the edge of a box that clips it or of the screen. */
+{
+  const fails = [];
+  let walked = 0, stopsSeen = 0;
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  const tab = async (back = false) => {
+    const modifiers = back ? 8 : 0;
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers }, sessionId);
+    await sleep(140);
+  };
+  const settled = async () => { for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) return true; } return false; };
+  /* Where the focused control's ring reaches — its outline's width past its
+     offset, so an inset ring (a negative offset) stays at the edge — against
+     every ancestor that clips and against the screen. */
+  const RING = `(() => {
+    const a = document.activeElement;
+    if (!a || a === document.body) return null;
+    const s = getComputedStyle(a), r = a.getBoundingClientRect();
+    const grow = (parseFloat(s.outlineWidth) || 0) + (parseFloat(s.outlineOffset) || 0);
+    const ring = { l: r.left - grow, r: r.right + grow, t: r.top - grow, b: r.bottom + grow };
+    const cuts = [];
+    const test = (q, who) => { const c = [];
+      if (ring.l < q.l - 0.5) c.push('left'); if (ring.r > q.r + 0.5) c.push('right');
+      if (ring.t < q.t - 0.5) c.push('top'); if (ring.b > q.b + 0.5) c.push('bottom');
+      if (c.length) cuts.push(who + ' cuts its ' + c.join(', ')); };
+    for (let p = a.parentElement; p && p !== document.body; p = p.parentElement) {
+      const ps = getComputedStyle(p);
+      if (ps.overflowX === 'visible' && ps.overflowY === 'visible') continue;
+      const q = p.getBoundingClientRect(), px = (v) => parseFloat(v) || 0;
+      test({ l: q.left + px(ps.borderLeftWidth), r: q.right - px(ps.borderRightWidth), t: q.top + px(ps.borderTopWidth), b: q.bottom - px(ps.borderBottomWidth) },
+        p.id ? '#' + p.id : p.tagName.toLowerCase() + '.' + String(p.className).split(' ')[0]);
+    }
+    test({ l: 0, t: 0, r: document.documentElement.clientWidth, b: window.innerHeight }, 'the screen');
+    return { name: (a.getAttribute('aria-label') || a.textContent || a.tagName).trim().replace(/\\s+/g, ' ').slice(0, 48),
+      ring: a.matches(':focus-visible') && s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2, cuts,
+      inside: !!a.closest('#drawer, #sidebar') };
+  })()`;
+  const judge = (at, where) => {
+    if (!at || at.error) { fails.push(`${where}: nothing measured (${at?.error || 'no focus'})`); return; }
+    stopsSeen++;
+    if (!at.inside) fails.push(`${where}: focus left the drawer for "${at.name}"`);
+    else if (!at.ring) fails.push(`${where}: "${at.name}" takes focus with no visible ring`);
+    else if (at.cuts.length) fails.push(`${where}: the ring on "${at.name}" is clipped — ${at.cuts.join('; ')}`);
+  };
+  /* Round every stop from where the drawer put focus, then back from its
+     first stop to its last. */
+  const walk = async (where, first) => {
+    const names = [];
+    for (let i = 0; i < 40; i++) {
+      await tab();
+      const at = await ev(RING);
+      if (names.length && at?.name === names[0]) break;
+      names.push(at?.name);
+      judge(at, `${where}, Tab stop ${names.length}`);
+    }
+    await ev(`(document.querySelector(${JSON.stringify(first)})?.focus(), true)`);
+    await tab(true);
+    judge(await ev(RING), `${where}, Shift+Tab to the last stop`);
+    walked++;
+    return names.length;
+  };
+  const DERIVED = `(() => { const td = [...document.querySelectorAll('td.cell-sourced')].find(t => /derived/.test(t.parentElement.textContent)); if (!td) return false; td.focus(); td.click(); return true; })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h, dark] of [[360, 640, false], [390, 844, false], [390, 844, true], [768, 1024, false], [1440, 900, false]]) {
+      const at = `${w}x${h}${dark ? ' dark' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }, { name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] }, sessionId);
+      for (const co of ['MAYBANK', 'aapl-apple-inc']) {
+        await send('Page.navigate', { url: `${BASE}/company/${co}?tab=financials` }, sessionId);
+        if (!(await settled())) { fails.push(`${at} /company/${co}?tab=financials: the page did not settle`); continue; }
+        await sleep(500);
+        if ((await ev(DERIVED)) !== true) { fails.push(`${at} /company/${co}?tab=financials: no derived line to open`); continue; }
+        await sleep(500);
+        await walk(`${at} ${co}'s derived-line drawer`, '#drawer [data-close-drawer]');
+        await ev(`(closeDrawer(), true)`);
+        await sleep(400);
+      }
+      await send('Page.navigate', { url: `${BASE}/discover/screener` }, sessionId);
+      if (!(await settled())) { fails.push(`${at} /discover/screener: the page did not settle`); continue; }
+      await sleep(500);
+      for (const which of ['0', 'FIELDS.length - 1']) {
+        if ((await ev(`(openMetricInfo(FIELDS[${which}]), true)`)) !== true) { fails.push(`${at}: the metric definition FIELDS[${which}] did not open`); continue; }
+        await sleep(500);
+        await walk(`${at} metric definition FIELDS[${which}]`, '#drawer [data-close-drawer]');
+        await ev(`(closeDrawer(), true)`);
+        await sleep(400);
+      }
+      if (w < 1024) {
+        await send('Page.navigate', { url: `${BASE}/app` }, sessionId);
+        if (!(await settled())) { fails.push(`${at} /app: the page did not settle`); continue; }
+        await sleep(400);
+        await ev(`(document.getElementById('navOpen').click(), true)`);
+        await sleep(500);
+        await walk(`${at} sidebar drawer`, '#sidebar #navClose');
+        await ev(`(document.getElementById('navClose').click(), true)`);
+        await sleep(300);
+      }
+    }
+    if (walked < 20) fails.push(`only ${walked} drawers were walked`);
+  } catch (e) { fails.push(`the check threw: ${e.message}`); }
+  finally { await send('Emulation.setEmulatedMedia', { features: [] }, sessionId); }
+  if (fails.length) { bad++; console.log(`FAIL releaseB small-backlog E5 — a focus ring in a drawer is cut off or missing: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   releaseB small-backlog E5: ${walked} drawers walked by Tab and Shift+Tab at 360, 390 (light and dark), 768 and 1440 — ${stopsSeen} stops, each with a ring no clipping box or screen edge cuts, the last stop included`);
+}
+/* E3 — THE SCREENER BESIDE THE SIDEBAR. The filter rail (288px) and the
+   results sat side by side from a 1041px window up, by the window's width;
+   but from 1024px the sidebar takes 264px of it, so from 1041 to 1280 the
+   results card was left 394 to 633px, and at 1100 a reader saw a company
+   and one score of each row, the rest behind a sideways scroll. The table
+   is wider than any window (twelve columns, 1,750px) and scrolls inside
+   its card; what it needs is a window that shows each row's pinned company
+   and the three figures every screen carries — Quality, Value and the
+   difference from the base-case model estimate. At every width beside the
+   sidebar, 1024 to 1440: those four columns fit the table's window, the
+   rail keeps its 288px, nothing in it runs sideways, and a rail stacked
+   above the results is not stuck over them. And the breakpoint is the
+   layout's own: at 1440 the same page, its column narrowed to 760px, lays
+   out as it does at 1100, and widened again returns beside. */
+{
+  const fails = [];
+  const seen = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  const MEASURE = `(() => {
+    const L = document.querySelector('.screener-layout');
+    const rail = L && L.querySelector(':scope > .rail-sticky');
+    const t = L && L.querySelector('table.dt');
+    const tw = t && t.closest('.tablewrap');
+    if (!rail || !t || !tw) return { error: 'no screener layout, rail or results table' };
+    const r = rail.getBoundingClientRect(), m = L.children[1].getBoundingClientRect();
+    const ths = [...t.querySelectorAll('thead th')];
+    const core = ths.slice(0, 4);
+    const need = Math.round(core.reduce((s, th) => s + th.getBoundingClientRect().width, 0));
+    const wide = [...rail.querySelectorAll('*')].filter(n => n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflowX !== 'visible' && n.clientWidth > 0)
+      .map(n => n.tagName.toLowerCase() + (n.id ? '#' + n.id : ''));
+    return { layout: Math.round(L.getBoundingClientRect().width), rail: Math.round(r.width), window: tw.clientWidth, need,
+      heads: core.map(th => th.textContent.trim().replace(/[▲▼↕]/g, '')), beside: m.top < r.bottom - 1 && m.left >= r.right - 1,
+      sticky: getComputedStyle(rail).position === 'sticky', railOver: rail.scrollWidth > rail.clientWidth + 1, wide: wide.slice(0, 3) };
+  })()`;
+  const judge = (at, v) => {
+    if (!v || v.error) { fails.push(`${at}: not measured (${v?.error || 'nothing'})`); return; }
+    seen.push(`${at} ${v.beside ? 'beside' : 'stacked'} (window ${v.window}px)`);
+    if (v.window + 1 < v.need) fails.push(`${at}: the results window is ${v.window}px, and the company and its three figures (${v.heads.join(', ')}) need ${v.need}px — the rail ${v.beside ? 'beside it' : 'above it'}, the layout ${v.layout}px`);
+    if (v.rail < 287) fails.push(`${at}: the filter rail is ${v.rail}px, under its 288px`);
+    if (v.railOver || v.wide.length) fails.push(`${at}: the filter rail runs sideways (${v.wide.join(', ') || 'the rail itself'})`);
+    if (!v.beside && v.sticky) fails.push(`${at}: the rail stacked above the results is still sticky, so it would ride over them`);
+  };
+  try {
+    await send('Page.navigate', { url: BASE + '/discover/screener' }, sessionId);
+    for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && State.view === 'discover' && !!document.querySelector('.screener-layout table.dt')`) === true) break; }
+    for (const w of [1024, 1041, 1100, 1180, 1280, 1366, 1440]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await sleep(450);
+      judge(`${w}px`, await ev(MEASURE));
+    }
+    /* The layout's own breakpoint: its column narrowed at a wide window. */
+    const wideAt = await ev(MEASURE);
+    await ev(`(document.querySelector('.screener-layout').parentElement.style.maxWidth = '760px', true)`);
+    await sleep(450);
+    const narrowed = await ev(MEASURE);
+    judge('1440px, its column narrowed to 760px', narrowed);
+    await ev(`(document.querySelector('.screener-layout').parentElement.style.maxWidth = '', true)`);
+    await sleep(450);
+    const back = await ev(MEASURE);
+    if (!wideAt?.beside || narrowed?.beside || !back?.beside) fails.push(`the layout does not follow its own width: at 1440 ${wideAt?.beside ? 'beside' : 'stacked'}, its column narrowed to 760px ${narrowed?.beside ? 'beside' : 'stacked'}, widened again ${back?.beside ? 'beside' : 'stacked'}`);
+  } catch (e) { fails.push(`the check threw: ${e.message}`); }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  if (fails.length) { bad++; console.log(`FAIL releaseB small-backlog E3 — the screener beside the sidebar: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   releaseB small-backlog E3: the screener at ${seen.join(', ')} — every width shows each row's company and its three figures in the table's window, the rail keeps 288px and is not stuck over the results, and the breakpoint follows the layout's own width`);
+}
+/* ---- end releaseB: small-backlog ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

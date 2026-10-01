@@ -11963,6 +11963,20 @@ function provenance(row, extra = [], { freshness = false } = {}) {
 const ILLUS_TITLE = 'Illustrative figures — synthetic, created for interface demonstration. Not filed, and not real.';
 const illusChip = (c) => c?.real ? null : el('span', { class: 'illus', title: ILLUS_TITLE }, 'illustrative');
 const illusText = (c) => c?.real ? '' : ' · illustrative';
+/* BOTH HALVES OF THE LABEL (Release B, E2 — the daily audit's #8). Every
+   figure's company is labelled SEC-filed or illustrative where the figure
+   appears. illusChip marks only the synthetic half, so in the screener, a
+   peer table, a metric's distribution, a comparison and the portfolio a
+   filed company was known by a missing word — which also reads as a marker
+   cut off or never drawn. dataChip and dataText say which, the personal
+   lane's statements included; a chart mark's name carries dataTag. The
+   one-sided pair stays where only the synthetic needs saying. */
+const FILED_TITLE = 'SEC-filed — figures from the audited statements the company filed with the SEC (EDGAR companyfacts), not adjusted.';
+const PERSONAL_TITLE = 'Personal research — figures from annual statements you supplied on this machine: not an SEC filing, and not redistributable.';
+const dataTag = (c) => (!c ? '' : !c.real ? 'illustrative' : c.personal ? 'personal research' : 'SEC-filed');
+const dataChip = (c) => (!c ? null : !c.real ? illusChip(c)
+  : el('span', { class: 'filed-mark', title: c.personal ? PERSONAL_TITLE : FILED_TITLE }, dataTag(c)));
+const dataText = (c) => (c ? ` · ${dataTag(c)}` : '');
 
 function tickerCell(row) {
   /* Filed and illustrative companies sit in the same screener, heatmap and
@@ -11972,7 +11986,7 @@ function tickerCell(row) {
      marker sits on the ticker line, which does not truncate. */
   const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id),
     title: row.c.real ? undefined : ILLUS_TITLE });
-  b.append(el('span', { class: 'tk' }, [row.c.tk, illusChip(row.c)]));
+  b.append(el('span', { class: 'tk' }, [row.c.tk, dataChip(row.c)]));
   b.append(el('span', { class: 'nm' }, row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name));
   return b;
 }
@@ -14945,7 +14959,7 @@ VIEWS.researchQueue = () => {
        computed from synthetic figures (a discount, a payout ratio) is a
        synthetic event, and the page's META says each company is labelled. */
     const fr = BY_ID.get(f.id);
-    if (fr) { const ic = illusChip(fr.c); if (ic) t.append(ic); }
+    if (fr) { const ic = dataChip(fr.c); if (ic) t.append(ic); }
     if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, activeWLIsSample() ? 'Sample watchlist' : 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
@@ -14986,7 +15000,7 @@ VIEWS.researchQueue = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, illusChip(r.c)]));
+      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, dataChip(r.c)]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
@@ -15017,7 +15031,7 @@ VIEWS.researchQueue = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
+    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt)]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
     /* diffClass, not `pos`. A gap to a model estimate is not a gain, and the
@@ -15984,7 +15998,7 @@ function renderScreener() {
 
   /* ---------- filter rail ---------- */
   const rail = el('div', { class: 'card rail-sticky', style: 'padding:0;overflow:hidden' });
-  const railHd = el('div', { style: 'padding:var(--md);border-bottom:1px solid var(--line)' });
+  const railHd = el('div', { class: 'scr-rail-hd', style: 'padding:var(--md);border-bottom:1px solid var(--line)' });
   railHd.append(el('div', { class: 'row' }, [
     el('h3', { class: 'h-card' }, 'Filters'),
     el('span', { class: 'spacer' }),
@@ -16007,7 +16021,18 @@ function renderScreener() {
      It is sticky instead: it follows the reader down the results without
      trapping a wheel, and on a narrow screen where sticky would eat the whole
      viewport it simply flows with the page. */
-  const railBody = el('div', { style: 'padding:var(--md)' });
+  const railBody = el('div', { class: 'scr-rail-body', style: 'padding:var(--md)' });
+  /* Two groups, in reading order: which companies are screened (a template,
+     the universe, completeness, the local filters), then what they must
+     clear (business model, the main thresholds, the advanced ones). Beside
+     the results they run one under the other, as before; with the rail
+     stacked above the results, across the page, they stand side by side
+     instead of stretching every row to the page's width (styles.css,
+     .screener-layout). The order a reader and the keyboard meet them is the
+     same either way. */
+  const railScope = el('div', { class: 'scr-rail-group' });
+  const railRules = el('div', { class: 'scr-rail-group' });
+  railBody.append(railScope, railRules);
 
   /* Templates first: a starting point beats an empty form, and each one states
      what it tests rather than what the result is worth. */
@@ -16026,7 +16051,7 @@ function renderScreener() {
   tpl.append(tplList);
   tpl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'A template only sets thresholds. Every one is visible above and yours to change.'));
-  railBody.append(tpl);
+  railScope.append(tpl);
 
   /* universe */
   const uni = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
@@ -16035,7 +16060,7 @@ function renderScreener() {
   [['all', `All markets (${U.length})`], ['US', 'United States'], ['MY', 'Bursa Malaysia'], ['watchlist', 'Only companies I follow']]
     .forEach(([v, l]) => uniSel.append(el('option', { value: v, selected: sc.universe === v ? '' : null }, l)));
   uni.append(uniSel);
-  railBody.append(uni);
+  railScope.append(uni);
 
   /* completeness */
   const cov = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
@@ -16048,7 +16073,7 @@ function renderScreener() {
     oninput: e => { covLabel.textContent = `Minimum data completeness — ${e.target.value}%`; },
     onchange: e => { sc.minCoverage = +e.target.value; renderKeepFocus(); } }));
   cov.append(el('p', { class: 'metaline' }, 'Stops a company with thin data from passing a screen it was never tested against.'));
-  railBody.append(cov);
+  railScope.append(cov);
 
   /* local (Malaysia) */
   const loc = el('div', { class: 'sunk', style: 'margin-bottom:var(--md)' });
@@ -16059,7 +16084,7 @@ function renderScreener() {
     lab.append(el('span', {}, label));
     loc.append(lab);
   });
-  railBody.append(loc);
+  railScope.append(loc);
 
   /* business model */
   const bm = el('div', { style: 'margin-bottom:var(--md)' });
@@ -16075,7 +16100,7 @@ function renderScreener() {
       onclick: () => { sc.types = on ? sc.types.filter(x => x !== t) : [...sc.types, t]; render(); } }, t));
   });
   bm.append(bmRow);
-  railBody.append(bm);
+  railRules.append(bm);
 
   /* Six filters are visible; the rest are behind Advanced. Twenty-six numeric
      thresholds presented at once is a wall, and the six below are the ones that
@@ -16108,7 +16133,7 @@ function renderScreener() {
   const prim = el('div', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
   prim.append(el('p', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Main filters'));
   primaryFields.forEach(f => prim.append(critRow(f)));
-  railBody.append(prim);
+  railRules.append(prim);
 
   const adv = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
   const advActive = FIELDS.filter(f => !PRIMARY.includes(f.k) && sc.crit[f.k]
@@ -16117,7 +16142,7 @@ function renderScreener() {
     el('span', { class: 'row' }, ['Advanced filters',
       advActive ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(advActive)) : null])));
   if (advActive) adv.setAttribute('open', '');
-  railBody.append(adv);
+  railRules.append(adv);
 
   /* metric families */
   FIELD_GROUPS.forEach(g => {
@@ -16133,7 +16158,7 @@ function renderScreener() {
   });
   rail.append(railBody);
 
-  const railFoot = el('div', { style: 'padding:var(--sm) var(--md);border-top:1px solid var(--line);display:flex;gap:6px' });
+  const railFoot = el('div', { class: 'scr-rail-foot', style: 'padding:var(--sm) var(--md);border-top:1px solid var(--line);display:flex;gap:6px' });
   railFoot.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'flex:1', onclick: () => saveScreen(), html: `${icon('plus', 13)} Save screen` }));
   railFoot.append(el('button', { class: 'btn btn-ghost btn-sm', style: 'flex:1', onclick: () => exportScreen(), html: `${icon('down', 13)} Export` }));
   rail.append(railFoot);
@@ -16445,7 +16470,7 @@ function renderScreener() {
       const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openResearch(r.c.id); } });
       card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
-        el('span', { style: 'font-weight:700' }, r.c.tk), illusChip(r.c),
+        el('span', { style: 'font-weight:700' }, r.c.tk), dataChip(r.c),
         el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
@@ -16731,7 +16756,7 @@ function openSourceDrawer(r, f) {
   body.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
     statusChip(st),
     el('span', { class: 'chip' }, `${c.tk} · ${c.name}`),
-    illusChip(c),
+    dataChip(c),
   ]));
   /* A money figure in its own currency, with the converted value the screener
      cell showed beside it, so the drawer and the cell visibly state one
@@ -17051,7 +17076,7 @@ function openLineDrawer(r, line, i) {
   const st = lineCellStatus(r, line, i);
   const body = el('div', { class: 'stack' });
   body.append(el('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, [
-    statusChip(st), el('span', { class: 'chip' }, `${c.tk} · ${c.name}`), illusChip(c),
+    statusChip(st), el('span', { class: 'chip' }, `${c.tk} · ${c.name}`), dataChip(c),
   ]));
   const d = isNum(v) && isNum(prev) ? v - prev : null;
   const change = isNum(d)
@@ -17148,7 +17173,7 @@ function openMetricInfo(f) {
   const t = el('table', { class: 'dt' });
   t.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Value'), el('th', {}, 'Market pct')])));
   t.append(el('tbody', {}, vals.slice(0, 12).map(x => el('tr', {}, [
-    el('td', { class: 'ident' }, x.r.c.tk + illusText(x.r.c)), el('td', {}, f.fmt(x.v, x.r)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
+    el('td', { class: 'ident' }, x.r.c.tk + dataText(x.r.c)), el('td', {}, f.fmt(x.v, x.r)), el('td', {}, String(metricPct(x.r, f.k, 'market') ?? '—')),
   ]))));
   tw.append(t); body.append(tw);
   openDrawer('Metric definition', body);
@@ -17165,7 +17190,7 @@ function openExclusions(failed) {
   failed.forEach(({ r, ev }) => {
     const item = el('div', { class: 'panel', style: 'margin-bottom:8px' });
     item.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:6px' }, [
-      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt),
+      el('span', { style: 'font-weight:600;font-size:13px' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt),
       el('span', { class: 'spacer' }),
       el('span', { class: 'chip' }, `${ev.fails.length} failed`),
     ]));
@@ -17560,7 +17585,7 @@ function renderRadar() {
      every mark drawn at the latest stop is one, on a sample price, and
      neither the marks nor their names said it. */
   const points = rows.map(r => ({
-    id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c), tag: r.c.real ? '' : 'illustrative',
+    id: r.c.id, label: r.c.tk, name: r.c.name + dataText(r.c), tag: dataTag(r.c),
     x: r.val.mos.base, y: pctOf(r), size: toBase(r.d.m.mcap, r.c.ccy),
     capLabel: fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy),
     model: r.val.pack.name, conf: r.val.confBand,
@@ -17606,7 +17631,7 @@ function renderRadar() {
 
   if (!nothing) card.append(tableTwin('Show the table view of every plotted company',
     ['Company', 'Market', rr.yi === YEARS.length - 1 ? 'Price' : `Price FY${YEARS[rr.yi]}`, 'vs base-case model estimate', 'Quality pct', 'Market cap', 'Model', 'Confidence'],
-    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
+    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${dataText(r.c)}`, r.c.mkt, fmtMoney(r.price, r.c.ccy),
       withSign(r.val.mos.base, 1), pctText(r),
       fmtCap(toBase(r.d.m.mcap, r.c.ccy), State.baseCcy), esc(r.val.pack.name), r.val.confBand])));
   wrap.append(card);
@@ -17647,7 +17672,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
   const latest = yi === YEARS.length - 1;
   const body = el('div');
   body.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [
-    el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt), el('span', { class: 'chip' }, r.c.sector),
+    el('h3', { class: 'h-section' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt), el('span', { class: 'chip' }, r.c.sector),
     latest ? null : el('span', { class: 'chip chip-brand' }, `As of FY${YEARS[yi]}`)]));
   body.append(el('p', { class: 'caption', style: 'margin-bottom:var(--md)' }, r.c.name));
 
@@ -17867,7 +17892,7 @@ function openThemeDetail(t, members) {
   const tab = el('table', { class: 'dt' });
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Company'), el('th', {}, 'Quality'), el('th', {}, 'Yield'), el('th', {}, 'vs base')])));
   tab.append(el('tbody', {}, members.map(r => el('tr', {}, [
-    el('td', { class: 'ident' }, r.c.tk + illusText(r.c)), el('td', {}, scoreText(r.scores.quality.score)),
+    el('td', { class: 'ident' }, r.c.tk + dataText(r.c)), el('td', {}, scoreText(r.scores.quality.score)),
     el('td', {}, fmtPct(r.m.dy, 2)), el('td', { class: diffClass(r.val.mos?.base) }, withSign(r.val.mos?.base, 0)),
   ]))));
   tw.append(tab); body.append(tw);
@@ -18023,13 +18048,13 @@ function renderHeatmap() {
   }
   if (rows.length) card.append(tableTwin('Show the table view of every tile',
     ['Company', 'Market', mode.label, 'Market cap'],
-    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${illusText(r.c)}`, r.c.mkt, mode.fmt(mode.get(r)), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
+    rows.map(r => [`${r.c.tk} — ${esc(r.c.name)}${dataText(r.c)}`, r.c.mkt, mode.fmt(mode.get(r)), fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy)])));
   wrap.append(card);
 
   /* tag: an illustrative tile says so in its accessible name (illusNote). */
   mounts.forEach(([host, gr]) => treemap(host, {
     items: gr.map(r => ({
-      id: r.c.id, label: r.c.tk, name: r.c.name + illusText(r.c), tag: r.c.real ? '' : 'illustrative',
+      id: r.c.id, label: r.c.tk, name: r.c.name + dataText(r.c), tag: dataTag(r.c),
       value: toBase(r.m.mcap, r.c.ccy), change: mode.get(r),
       capLabel: fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       metricLabel: mode.label,
@@ -18053,7 +18078,7 @@ function openWhyMoved(id, mode) {
   const isMove = !!HM.price;
   const title = isMove ? 'Why moved?' : 'How this figure splits';
   const body = el('div');
-  body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), illusChip(r.c), marketChip(r.c.mkt)]));
+  body.append(el('div', { class: 'row', style: 'gap:8px;margin-bottom:2px' }, [el('h3', { class: 'h-section' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt)]));
   if (!a) {
     body.append(el('p', { class: 'body', style: 'font-size:13px' }, isMove
       ? `${r.c.name} carries no observed change for this period, so there is no move to attribute.`
@@ -19456,6 +19481,10 @@ VIEWS.research = () => {
   const stick = el('div', { class: 'ticker-sticky' });
   const ident = el('div', { class: 'ts-ident' });
   ident.append(el('span', { class: 'ts-tk' }, c.tk));
+  /* SEC-filed or illustrative, on the one identity left on screen once the
+     header scrolls away (Release B, E2): the strip showed an illustrative
+     company's sample price with no word that it is one. */
+  ident.append(dataChip(c));
   ident.append(el('span', { class: 'ts-name' }, c.name));
   ident.append(el('span', { class: 'ts-px num' }, fmtMoney(c.px.p, c.ccy)));
   ident.append(el('span', { class: 'ts-chg num ' + signClass(c.px.d1) }, withSign(c.px.d1, 2)));
@@ -23515,7 +23544,9 @@ VIEWS.compare = () => {
   const t = el('table', { class: 'dt dt-pagesticky' });
   const thr = el('tr');
   thr.append(el('th', { class: 'pin' }, 'Measure'));
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)}${r.c.real ? '' : ' <span class="illus" title="' + esc(ILLUS_TITLE) + '">illustrative</span>'}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  /* Each column says SEC-filed or illustrative (dataChip, Release B E2): the
+     filed column was the one with no word. */
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
@@ -23585,7 +23616,9 @@ VIEWS.compare = () => {
   wrap.append(mx);
   scatterChart(host, {
     points: plotted.map(r => ({
-      id:r.c.id, label:r.c.tk, name:r.c.name, x:r.val.mos.base, y:r.pct.quality,
+      /* Its mark's name says which kind (dataTag), as the value map's does:
+         Maybank's mark was announced exactly as a filed company's. */
+      id:r.c.id, label:r.c.tk, name:r.c.name + dataText(r.c), tag:dataTag(r.c), x:r.val.mos.base, y:r.pct.quality,
       size:toBase(r.m.mcap, r.c.ccy), capLabel:fmtCap(toBase(r.m.mcap, r.c.ccy), State.baseCcy),
       model:r.val.pack.name, conf:r.val.confBand, varName:r.c.mkt === 'US' ? '--s1' : '--s2' })),
     xLabel:'Difference to model estimate vs base-case value — right of the line is below it',
@@ -24067,7 +24100,9 @@ VIEWS.portfolio = () => {
   dt.append(el('thead', {}, el('tr', {}, ['Company', 'Dividend per share', 'Quantity', `Gross (${State.baseCcy})`, 'Withholding', `Net (${State.baseCcy})`].map(h => el('th', {}, h)))));
   dt.append(el('tbody', {}, [...pos].filter(p => p.incomeBase > 0).sort((a, b) => b.incomeBase - a.incomeBase).map(p =>
     el('tr', {}, [
-      el('td', { class: 'ident' }, p.r.c.tk),
+      /* Which kind each payout is (Release B, E2): the illustrative set's
+         synthetic dividends were listed here unmarked. */
+      el('td', { class: 'ident' }, [p.r.c.tk, ' ', dataChip(p.r.c)]),
       el('td', {}, fmtMoney(p.r.m.dps, p.r.c.ccy, 3)),
       el('td', {}, Number.isInteger(p.h.qty) ? p.h.qty.toLocaleString('en-US') : fmtNum(p.h.qty, 3)),
       el('td', {}, fmtAmount(p.incomeBase, State.baseCcy)),
@@ -40159,15 +40194,27 @@ VIEWS.tradingIndex = () => {
      back as "Linked to …" — so focus fell to <body>. It goes to that
      heading, which says what the press did. */
   const qLink = workspaceLinkBanner('qtti', p, () => { saveQtti(); render(); focusAfterRedraw('#qtti-link h3'); });
-  if (qLink) { qLink.id = 'qtti-link'; wrap.append(qLink); }
+  /* ONE PRIMARY ACTION, AND IT IS THE SAVE (Release B, E4). The banner draws
+     its offer with a primary "Fill in the identity" — on this page the only
+     primary a link from a company's research had, and not the page's work.
+     Its two choices, fill in or go back, are the reader's to weigh, so both
+     are quiet here, as every action but the save is. */
+  if (qLink) {
+    qLink.id = 'qtti-link';
+    qLink.querySelectorAll('.btn-primary, .btn-ghost').forEach(b => { b.classList.remove('btn-primary', 'btn-ghost'); b.classList.add('btn-quiet'); });
+    wrap.append(qLink);
+  }
 
   /* Reset here means a blank plan, which for this tool IS the useful starting
      point — every panel is the reader's own transcription and there is no
      default reading to fall back to. See qttiClearedPlan for what survives. */
+  /* The save is the page's one primary action, as the property calculator's
+     is, and says what it keeps. It was a grey outline "Save" among quieter
+     buttons, and a fresh page had no primary action at all. */
   wrap.append(workBar('trading', () => {
     State.qtti = qttiClearedPlan(State.qtti, { keepRules: false });
     saveQtti();
-  }));
+  }, { primary: true, saveLabel: 'Save this run' }));
 
   /* THE STEPPER.
      Six things have to be recorded and they were a vertical stack of cards a
@@ -40588,12 +40635,13 @@ VIEWS.tradingIndex = () => {
        walked a reading upward could load the example and leave no trail —
        so it keeps the log, and the replacement is appended to it like a
        clear. */
-    el('button', { class: 'btn btn-ghost btn-sm', id: 'q-load-worked', onclick: () => {
+    /* Quiet: the save above is the page's one primary action (E4). */
+    el('button', { class: 'btn btn-quiet btn-sm', id: 'q-load-worked', onclick: () => {
       const next = qttiWorkedExample();
       next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the §14 worked example' }).corrections;
       State.qtti = next; save(); toast('Worked example loaded');
     } }, 'Load the §14 worked example'),
-    el('button', { class: 'btn btn-ghost btn-sm', id: 'q-clear-evidence', onclick: () => {
+    el('button', { class: 'btn btn-quiet btn-sm', id: 'q-clear-evidence', onclick: () => {
       State.qtti = qttiClearedPlan(State.qtti, { keepRules: true });
       save(); toast('Evidence cleared — your template and capital rules are kept');
     } }, 'Clear evidence'),
