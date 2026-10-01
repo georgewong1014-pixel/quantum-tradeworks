@@ -2250,8 +2250,11 @@ for (const route of ROUTES) {
        kept — the one the server sends the company's own head for. */
     for (const [from, to] of [['/company/aapl', '/company/aapl-apple-inc'], ['/company/AAPL-SEC?tab=financials', '/company/aapl-apple-inc?tab=financials']]) {
       await load(BASE + from);
-      const at = await ev(`location.pathname + location.search`);
-      if (at !== to) q.push(`${from} ends at ${at}, not ${to}`);
+      const at = await ev(`({ at: location.pathname + location.search, same: lastPath === location.pathname, lastPath })`);
+      if (at.at !== to) q.push(`${from} ends at ${at.at}, not ${to}`);
+      /* And the page on screen is still this page: a stale record of the
+         alias made the next route change on it read as an arrival. */
+      if (!at.same) q.push(`${from}: after the address became ${at.at}, the record of the page on screen still reads ${at.lastPath}`);
     }
 
     /* The month's reports used on the Free plan: Start here names Apple's

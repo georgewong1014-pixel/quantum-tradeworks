@@ -1505,7 +1505,13 @@ function applyRoute() {
         const clean = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).split('/');
         const at = route.path.split('/').indexOf(':id');
         clean[at] = own;
+        const was = location.pathname;
         history.replaceState(history.state, '', href(clean.join('/')) + location.search);
+        /* The same page under its own name, not a new one: afterRoute's
+           record of the page on screen follows the address, or the next
+           route change on this page (a tab, a drawer's state) read as an
+           arrival — to the top, the drawer closed, focus to <main>. */
+        if (lastPath === was) lastPath = location.pathname;
       }
     }
     /* While the filings are in flight only the sample set can be searched, so
