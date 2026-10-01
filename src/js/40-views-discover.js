@@ -42,22 +42,16 @@ const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeo
 VIEWS.researchQueue = () => {
   const wrap = el('div');
 
-  /* -- header ------------------------------------------------------------ */
-  const hd = el('div', { class: 'page-hd' });
-  const hl = el('div');
-  hl.append(el('p', { class: 'eyebrow' }, 'Equities Research'));
-  hl.append(el('h1', {}, 'Research queue'));
-  hl.append(el('p', { class: 'body-lg', style: 'margin-top:8px' },
-    'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
-  hd.append(hl);
+  /* -- header: the one head (pageHead, 36-layouts.js; Release B) ---------- */
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   /* Each names the tool it opens, so the shell's gate draws it as text
      where that tool cannot be used here (gateToolLink, 35-ui.js). */
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', 'data-tool-path': '/discover/value-map', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
-  hd.append(hr);
-  wrap.append(hd);
+  wrap.append(pageHead({ title: 'Research queue', lede: 'What changed in the reported figures, your watchlist first.',
+    note: 'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.',
+    action: hr }));
 
   /* -- market context ---------------------------------------------------- */
   const ctx = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
@@ -582,20 +576,21 @@ VIEWS.home = () => {
   const alertTime = (a) => Date.parse(a?.detectedAt || a?.recordedAt || '');
   const since = o.alerts && visit.prev ? o.alerts.filter(a => alertTime(a) > Date.parse(visit.prev)) : null;
   const undated = o.alerts ? o.alerts.filter(a => !Number.isFinite(alertTime(a))).length : 0;
-  const lede = !o.hasOwn
-    ? 'Four first steps, each with its one action. As you take them, this page fills with your own work — never with sample data or anyone else’s activity.'
-    : !visit.prev ? 'This is the first visit this browser has recorded. From the next one, this line says what changed in between.'
-    : !o.alerts ? `Welcome back — you were last here ${myDashWhen(visit.prev)}.${o.setupsKnown ? ' The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : ''}`
-    : since.length ? `Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`
-    : `Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}${undated ? ` — ${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it` : ''}.`;
+  /* The lede is one line — what changed — and what qualifies it is the
+     head's note (pageHead, 36-layouts.js; Release B). */
+  const [lede, ledeNote] = !o.hasOwn
+    ? ['Four first steps, each with its one action.', 'As you take them, this page fills with your own work — never with sample data or anyone else’s activity.']
+    : !visit.prev ? ['This is the first visit this browser has recorded.', 'From the next one, the line above says what changed in between.']
+    : !o.alerts ? [`Welcome back — you were last here ${myDashWhen(visit.prev)}.`, o.setupsKnown ? 'The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : null]
+    : since.length ? [`Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`, null]
+    : [`Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}.`, undated ? `${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it.` : null];
   /* The page's name is part of its heading. As an eyebrow <p> above an h1
      reading only "Good morning", heading navigation and the rotor never
-     named the page; the heading is now "My Dashboard: Good morning", drawn
-     as before. */
-  wrap.append(el('div', { class: 'page-hd dash-hd' }, el('div', {}, [
-    el('h1', {}, [el('span', { class: 'eyebrow dash-eyebrow' }, 'My Dashboard'), el('span', { class: 'sr-only' }, ': '), myDashGreeting()]),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
-  ])));
+     named the page, so the heading says "My Dashboard: Good morning". The
+     eyebrow is My workspace's, as on every workspace page (pageKicker), and
+     the page's name — the current tab of the header above — is the
+     heading's first words for a screen reader. */
+  wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '), myDashGreeting()], lede, note: ledeNote }));
 
   /* -- first time: the checklist, and nothing else ------------------------ */
   if (!o.hasOwn) {
@@ -3392,19 +3387,19 @@ function tabStrip(label, tabs, current, open, attrs = {}) {
 
 VIEWS.discover = () => {
   const wrap = el('div');
-  const hd = el('div', { style: 'margin-bottom:var(--lg)' });
   /* Equities Research's Screener (Release A): the product tab row above
-     names the product, and this strip is the Screener's sub-tabs. */
-  hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
-  /* The page title's weight, 700, as on every other page (it was 600). */
-  hd.append(el('h1', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
+     names the product, and the page opens with the one head every product
+     page wears (pageHead, 36-layouts.js; Release B) — it had an eyebrow of
+     its own and no lede. */
+  wrap.append(pageHead({ title: 'Narrow the universe to what is worth reading',
+    lede: 'Screen the companies held here on quality, financial strength and valuation.', cls: 'page-hd-tools' }));
   /* Through the address: /discover/screener and /discover/value-map have
      routes of their own, the other two ride on ?tab=. A segmented control,
      not a second underline row: under the product's own underline tabs, two
      identical rows gave no sign which was the product's and which this
      page's. The tablist, its keys and its one tab stop are unchanged. */
-  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' }));
-  wrap.append(hd);
+  wrap.append(el('div', { style: 'margin-bottom:var(--lg)' },
+    tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' })));
 
   /* With a fallback: a tab id this view does not know renders the screener
      rather than throwing out of render() and leaving the previous page on

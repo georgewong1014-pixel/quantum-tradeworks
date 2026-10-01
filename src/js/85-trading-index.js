@@ -573,7 +573,6 @@ VIEWS.tradingIndex = () => {
   const p = State.qtti;
   const r = qttiRun(p);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scanSubnav('trading'));
   /* Every control on this form redraws the page, and render() replaced the
      control under the keyboard: focus fell to <body> on each select, tick and
      field. So each control carries an id built from its own label, and the
@@ -581,13 +580,11 @@ VIEWS.tradingIndex = () => {
   const save = () => { saveQtti(); redrawKeepFocus(); };
   const qid = (label) => `q-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Timing and risk control'),
-    el('h1', {}, 'QT Trading Index'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record. '
-      + 'It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.'),
-  ])));
+  /* Under the Scanner's header, whose Trading Index tab is current (Release
+     B, B5): the one head every product page wears (pageHead,
+     36-layouts.js). Its eyebrow said "Timing and risk control". */
+  wrap.append(pageHead({ title: 'QT Trading Index', lede: 'Timing and risk control, from chart evidence you record.',
+    note: 'A multi-timeframe trend reading and a test of your own first-tranche rules. It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.' }));
 
   /* "Fill in the identity" is gone once it has been used — the banner comes
      back as "Linked to …" — so focus fell to <body>. It goes to that
@@ -1060,12 +1057,9 @@ let OPP_SEQ = 0;
 let oppDraft = null;
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'Opportunity register'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Real properties, each with what is known about it and what is not. Ordered by when it was recorded, never by how good it looks.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Opportunity register', lede: 'Real properties, each with what is known about it and what is not.',
+    note: 'Ordered by when it was recorded, never by how good it looks.' }));
 
   const list = State.opportunities || [];
 

@@ -212,8 +212,9 @@ function fitHeadingLevels(root, parent = 1) {
   }
 }
 
+/* Marked (data-empty), so a check finds every empty state a page shows. */
 function emptyState(text) {
-  return el('div', { class: 'emptystate', html: `${icon('search', 30)}<p>${esc(text)}</p>` });
+  return el('div', { class: 'emptystate', 'data-empty': '', html: `${icon('search', 30)}<p>${esc(text)}</p>` });
 }
 
 /* ------------------------------------------------------------ drawer/toast */
@@ -324,8 +325,8 @@ function toast(msg) {
 
    Nothing was removed to get here. The Screener (the Value map one of its
    own tabs), Sarawak Economy Watch and the Cash Wheel are tabs of Equities
-   Research (PRODUCT_TABS); the Trading Index is a section of the Scanner's
-   strip (SCANNER_SUBNAV); every address that opened a
+   Research (PRODUCT_TABS); the Trading Index is a tab of the Scanner's
+   row; every address that opened a
    page before still opens it. docs/route-map.md is the whole map.
    ========================================================================== */
 
@@ -498,32 +499,36 @@ const TOOLS = [
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     action: { label: 'Record a property', path: '/property/opportunities' } },
-  /* Quantum Scanner — its sections, as its own strip lists them
-     (SCANNER_SUBNAV, 87-scanner-ops.js). */
-  { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'],
+  /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
+     other two products' tools are (Release B, B5): its own strip, drawn
+     inside every scanner page from a table of its own, is gone. In the order
+     that strip had them, the Trading Index last (Release A); the Market
+     says, as the strip did, that it screens the reader's own series, not the
+     market. */
+  { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
     status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from the worker’s records on your own computer — or from files you open here.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
-  { id: 'market', product: 'scanner', label: 'Market', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'],
+  { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
     status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
     action: { label: 'Screen your series', path: '/app/scanner/market' } },
-  { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'],
+  { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
     status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; the worker on your computer runs them once exported, and evaluating one here needs your price history.',
     action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
-  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'],
-    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
-    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
-  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'],
-    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
-    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
-  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'],
-    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
-    action: { label: 'Assess a trend', path: '/research/trading-index' } },
-  { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'],
-    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
-    action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
-  { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'],
+  { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'], tab: true,
     status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
     action: { label: 'Scan a watchlist', path: '/app/scanner/watchlists' } },
+  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'], tab: true,
+    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
+    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
+  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
+    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
+    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
+  { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'], tab: true,
+    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
+    action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
+  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'], tab: true,
+    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+    action: { label: 'Assess a trend', path: '/research/trading-index' } },
   /* The workspace — the reader's own, in this browser. */
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
     status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
@@ -810,9 +815,9 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    tabs and dark on the others. So the product row carries one "Screener"
    tab, current on every tab of that page, and the page's strip is the
    screener's own sub-tabs: the Value map is still one click away, in the
-   row that holds it. The Scanner keeps its own section strip
-   (87-scanner-ops.js SCANNER_SUBNAV, drawn by every scanner page through
-   scanSubnav), where the Trading Index is its last section.
+   row that holds it. The Scanner's row is its sections, the Trading Index
+   among them (Release B): it drew them as a strip of its own inside each of
+   its pages, and now wears the row the other two products wear.
 
    Property has no Overview tab. /property and /property/calculator are one
    view — the calculator, whose canonical address is /property — so an
@@ -823,27 +828,19 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    tabs and in this build, in the registry's order — so a tab's name, its
    address and its badge cannot differ from How it works or the dashboard,
    and a tool another branch adds takes its place in the row when its route
-   exists. Equities and Property only: the Scanner draws its own strip. */
+   exists. All three built products; the workspace's row is its own
+   (workspaceTabs, 36-layouts.js). */
 const PRODUCT_TABS = Object.defineProperties({}, {
   equities: { enumerable: true, get: () => productTabs('equities') },
+  scanner:  { enumerable: true, get: () => productTabs('scanner') },
   property: { enumerable: true, get: () => productTabs('property') },
 });
 /* The company page and its report belong to Equities but keep their own
    tabs; a second row above them would be two strips of tabs on one page. */
 const NO_PRODUCT_TABS = new Set(['research', 'researchReport']);
-
-/* Views reachable by URL but not in the header. */
-const SUBNAV_MY = [
-  { id:'portfolio',  label:'Portfolio',  path:'/my/portfolio' },
-  { id:'watchlists', label:'Watchlists', path:'/my/watchlists' },
-  { id:'thesis',     label:'Investment cases', path:'/my/theses' },
-  { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
-  { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
-  /* Everything saved, across kinds, in one list — beside the page that
-     exports it. */
-  { id:'workspace',  label:'Workspace',  path:'/my/workspace' },
-  { id:'userdata',   label:'Your data',  path:'/my/data' },
-];
+/* The personal pages' own row (SUBNAV_MY) is gone: they wear My workspace's
+   header, its tabs the workspace's tools in the registry (workspaceTabs,
+   36-layouts.js; Release B, B5). */
 
 /* Every view of the scanner, by the ids docs/phase3-plan.md §2 fixes. One
    list, because three things need all of them: the header's section, the
@@ -1971,36 +1968,50 @@ function buildNav() {
    A strip the same as the one on screen is left in place. It was rebuilt on
    every render, so a tab the reader had reached went to <body> when the
    filings landed a moment after the page opened, and a strip scrolled along
-   on a phone jumped back to its current tab. */
+   on a phone jumped back to its current tab.
+   THE ONE HEADER OF EVERY PRODUCT PAGE AND EVERY WORKSPACE PAGE (Release B,
+   B5). The Scanner's row is here with the other two, its sections from the
+   registry — its pages drew their own strip inside the page, which is gone
+   (scannerSubnav, 87-scanner-ops.js) — and its Alerts tab carries the unread
+   count that strip carried. My Workspace's pages wear the same header, named
+   for the workspace, its tabs the workspace's tools (workspaceTabs): the
+   personal pages' nameless strip (mySubnav) is gone the same way. */
 function renderProductTabs() {
   const host = shellEl.tabsHost;
   if (!host) return;
   const pid = productOf(State.view);
-  const tabs = PRODUCT_TABS[pid];
+  const ws = !pid && isWorkspaceView(State.view);
+  const tabs = pid ? PRODUCT_TABS[pid] : ws ? workspaceTabs() : null;
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; delete host.dataset.strip; return; }
-  const p = productById(pid);
+  const p = pid ? productById(pid) : null;
   const here = tabs.find(t => t.views.includes(State.view));
   /* The tools' states are part of what the strip says: a tool the filings
-     failed under is text in it, and comes back a link when they load. */
-  const strip = JSON.stringify([pid, tabs.map(t => [t.label, t.path, toolState(t.tool)?.status]), here?.path ?? null]);
+     failed under is text in it, and comes back a link when they load. So is
+     a tab's count: a match read changes the Scanner's Alerts tab. */
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null]);
   if (!host.hidden && host.dataset.strip === strip) return;
-  const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
+  const items = tabs.map(t => {
+    const n = tabCount(t);
+    return { label: n ? `${t.label} · ${n}` : t.label, path: t.path, current: t === here, ariaLabel: n ? `${t.label}, ${n} unread` : null };
+  });
+  const nav = p
+    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: pid === 'scanner' ? 'scan-subnav' : '' })
+    : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
   host.dataset.strip = strip;
   wireSectionTabs(nav);
 }
 
-/* ONE ROW OF SECTION TABS, ONE COMPONENT. The Equities and Property rows
-   above (renderProductTabs), the Scanner's own strip (scannerSubnav,
-   87-scanner-ops.js) and the personal pages' strip (mySubnav) are the same
-   level of navigation, and were two unrelated patterns: an underline row with
-   the product's name and badge for two products, and for the third a grey box
-   of pills with no name, wrapping into three rows on a phone. Each is now
-   this: the product's name and badge where there is a product, then one row
-   of underline tabs that scrolls, with the current tab marked aria-current.
-   A strip drawn inside a view (inView) takes the band's look where it sits,
-   at the top of the page (.ptabs-inview). */
+/* ONE ROW OF SECTION TABS, ONE COMPONENT. The products' rows and the
+   workspace's (renderProductTabs) are the same level of navigation, and were
+   two unrelated patterns: an underline row with the product's name and
+   badge for two products, and for the third a grey box of pills with no
+   name, wrapping into three rows on a phone. Each is now this: the product's
+   name and badge — or the workspace's name — then one row of underline tabs
+   that scrolls, with the current tab marked aria-current. A strip drawn
+   inside a view (inView) takes the band's look where it sits, at the top of
+   the page (.ptabs-inview); since Release B no page draws one of its own. */
 /* One tab. Where its tool cannot be used here, text in place of the link,
    with the badge and why (gateToolLink), whichever page drew the strip.
    Where the tool works but its state is worth marking — Delayed, Demo — the
@@ -2016,10 +2027,11 @@ function sectionTab(t) {
   if (s && !s.actionable) return gateDetached(a);
   return flagged ? [a, toolBadge(tool)] : a;
 }
-function sectionTabs({ label, pid = null, tabs, cls = '', inView = false }) {
+function sectionTabs({ label, pid = null, name = null, tabs, cls = '', inView = false }) {
   const p = pid ? productById(pid) : null;
   const nav = el('nav', { class: `ptabs ${pid ? `pub-acc-${pid} ` : ''}${cls}`.trim(), 'aria-label': label }, [
-    p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]) : null,
+    p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)])
+      : name ? el('span', { class: 'ptabs-name' }, [shellIcon(name.icon, 16, 'ptabs-ico'), el('span', {}, name.name)]) : null,
     el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {}, sectionTab(t)))),
   ]);
   if (!inView) return nav;
@@ -2642,7 +2654,9 @@ function drawPage(samePage) {
      dark, a tab of the page's own strip — the whole page faded out and slid
      up 6px under the reader, and the control given focus back was measured
      6px off where it came to rest (stayPut). A new page still enters. */
-  const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, node));
+  /* Above the page, in its column: the product's Start here panel, until the
+     reader hides it (Release B, B6; 36-layouts.js). */
+  const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, [startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);

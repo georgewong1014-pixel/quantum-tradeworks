@@ -2113,7 +2113,9 @@ try {
       const stamped = items.filter(i => i.kind !== 'thesis').every(i => i.stamp?.model);
       navigate('/my/workspace'); await wait(200);
       const listed = document.querySelectorAll('.ws-list .ws-row:not(.ws-head)').length;
-      const inNav = [...document.querySelectorAll('main nav.my-subnav a[aria-current=page]')].some(a => a.textContent === 'Workspace');
+      /* In My workspace's header since Release B, under the registry's name
+         for it (the personal pages' own row called it "Workspace"). */
+      const inNav = [...document.querySelectorAll('#productTabs nav.ws-tabs a[aria-current=page]')].some(a => a.textContent === 'Saved Models');
       const doc = exportEverything();
       const exported = ['runs', 'comparisons', 'savedScreens', 'savedWork', 'theses'].filter(k => k in doc.data);
       const run0 = doc.data.runs[0];
@@ -2137,7 +2139,7 @@ try {
     if (r.kinds.join() !== 'comparison,run,screen,thesis,work') p.push(`kinds ${r.kinds}`);
     if (!r.stamped) p.push('an item saved in this run carries no stamp');
     if (r.listed !== r.n) p.push(`the page shows ${r.listed} rows for ${r.n} items`);
-    if (!r.inNav) p.push('Workspace is not the selected tab in the My Investments subnav');
+    if (!r.inNav) p.push('Saved Models is not the current tab in My workspace\'s header');
     if (r.exported.length !== 5 || !r.dataVersions?.['us.json']) p.push(`export carries ${r.exported} and data versions ${JSON.stringify(r.dataVersions)}`);
     if (!r.portable) p.push('PORTABLE_KEYS lacks valuation, comparisons or runs');
     if (r.runHas.length !== 4) p.push(`a saved run keeps only ${r.runHas}`);
@@ -3301,17 +3303,19 @@ try {
   /* NAVIGATION. The scanner is the product after Equities Research — in the
      app's sidebar since Release A, the header's successor — every scanner
      address (and the Trading Index, a section of it now) marks it current,
-     /my/scanner is an alias whose canonical is /app/scanner, and My
-     Investments no longer carries a scanner tab. */
+     /my/scanner is an alias whose canonical is /app/scanner, and the
+     personal pages' row — My workspace's header since Release B — carries
+     no scanner tab. */
   {
     const r = await evaluate(`(async () => {
-      const out = { labels: [...document.querySelectorAll('#appnav a.sb-link .sb-text')].map(n => n.textContent.trim()), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
+      const out = { labels: [...document.querySelectorAll('#appnav a.sb-link .sb-text')].map(n => n.textContent.trim()),
+        my: workspaceTabs().filter(t => t.views.some(v => SCANNER_VIEWS.includes(v))).map(t => t.id), cur: {}, views: {} };
       for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner', '/research/trading-index']) {
         navigate(p);
         out.cur[p] = document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null;
         out.views[p] = State.view;
       }
-      out.trading = document.querySelector('main nav[aria-label="Scanner sections"] a[aria-current=page]')?.textContent.trim() || null;
+      out.trading = document.querySelector('#productTabs nav.scan-subnav a[aria-current=page]')?.textContent.trim() || null;
       navigate('/my/scanner');
       out.canon = document.querySelector('link[rel=canonical]').getAttribute('href').replace(location.origin, '');
       navigate('/my/scanner?symbol=MSFT');
@@ -3323,7 +3327,7 @@ try {
     })()`);
     const p = [];
     if (r.labels.join() !== 'My Dashboard,Watchlists,My Alerts,Saved Models,Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans') p.push(`sidebar ${r.labels.join(', ')}`);
-    if (r.my.includes('scanner')) p.push('My Investments still carries a scanner tab');
+    if (r.my.length) p.push(`My workspace's header carries a scanner tab (${r.my.join(', ')})`);
     for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
     if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);
     const wantView = { '/app/scanner': 'scannerDashboard', '/app/scanner/market': 'scannerMarket', '/app/scanner/backtest': 'scannerBacktest', '/admin/scanner': 'scannerAdmin',
@@ -7813,8 +7817,9 @@ try {
         one "Screener" tab, current on all four tabs of the screener's page,
         and no "Value map" tab, whose page is one click away in the page's own
         strip; the research queue is Equities', in the sidebar and the tabs;
-     3. the Trading Index is the last row of the strip every scanner page
-        draws (SCANNER_SUBNAV), not a row copied into it at boot;
+     3. the Trading Index is the last tab of the Scanner's row — the
+        registry's, in its product header since Release B — not a row
+        copied into it at boot;
      4. the scanner's unread count beside My Alerts is named for the page it
         opens, and carries the Scanner's mark;
      5. /welcome's way out is a 44px target at every width;
@@ -7843,9 +7848,11 @@ try {
           sub: [...document.querySelectorAll('#views [role=tablist][aria-label="Screener tools"] [role=tab]')].map(t => t.textContent),
           side: document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null };
       }
-      out.strip = SCANNER_SUBNAV.map(s => s.id);
+      /* The Scanner's row is its product header's since Release B, read
+         from the registry (it was SCANNER_SUBNAV, drawn inside each page). */
+      out.strip = productTabs('scanner').map(t => t.id);
       navigate('/app/scanner/setups'); await w(40);
-      out.stripOnPage = [...document.querySelectorAll('#views nav[aria-label="Scanner sections"] a')].map(a => a.textContent);
+      out.stripOnPage = [...document.querySelectorAll('#productTabs nav.scan-subnav .ptab')].map(a => a.childNodes[0]?.textContent.trim());
       const keepA = scanAlertsFile, keepSt = localStorage.getItem('vl.scanAlertState'), keepPrefs = localStorage.getItem('vl.scanPrefs');
       try {
         localStorage.removeItem('vl.scanAlertState'); localStorage.removeItem('vl.scanPrefs');
@@ -7884,13 +7891,13 @@ try {
       if (t.current.length !== 1 || t.current[0] !== want) p.push(`${path}: product tab current ${JSON.stringify(t.current)}, not "${want}"`);
       if (path !== '/research/queue' && t.sub.join('|') !== 'Stock Screener|Quality vs Value Map|Screening Strategies|Heatmap') p.push(`${path}: the screener's own strip reads ${t.sub.join(' · ')}`);
     }
-    if (r.strip[r.strip.length - 1] !== 'trading' || r.strip.filter(x => x === 'trading').length !== 1) p.push(`SCANNER_SUBNAV: ${r.strip.join(', ')}`);
+    if (r.strip[r.strip.length - 1] !== 'trading' || r.strip.filter(x => x === 'trading').length !== 1) p.push(`the Scanner's row: ${r.strip.join(', ')}`);
     if (r.stripOnPage[r.stripOnPage.length - 1] !== 'Trading Index') p.push(`a scanner page's strip ends ${r.stripOnPage.slice(-1)[0]}`);
     if (!r.count || r.count.label !== 'Scanner alerts, 3 unread' || r.count.href !== '/app/scanner/alerts' || r.count.text !== '3' || !r.count.mark) p.push(`the unread count beside My Alerts: ${JSON.stringify(r.count)}`);
     if (r.welcome.length < 2 || r.welcome.some(b => b.h < 44 || b.w < 44)) p.push(`/welcome's Back and Skip: ${JSON.stringify(r.welcome)}`);
     if (r.foot !== 'Research queue') p.push(`the dashboard's footnote link to /research/queue reads "${r.foot}"`);
     if (p.length) fail('release-a integration: public pages wear the short disclosure, one navigation row per level, the Trading Index in the scanner strip, a named unread count, 44px on /welcome', p);
-    else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} public pages wear the short disclosure with every word behind "Which sources?"; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in SCANNER_SUBNAV; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
+    else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} public pages wear the short disclosure with every word behind "Which sources?"; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in the Scanner's row; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
   }
   /* ---- end release-a: integration ---- */
 
@@ -8425,10 +8432,11 @@ try {
       await evaluate(`(() => { document.activeElement?.blur(); const k = JSON.parse(${JSON.stringify(saved.cmp)}); State.compare = k.compare; saveCompare();
         State.wht = k.wht; store.write('wht', k.wht); return true; })()`);
 
-      /* R4, again — a Scanner section tab, drawn inside the page, across
-         the OS switching theme back to dark. */
+      /* R4, again — a Scanner section tab, in the Scanner's product header
+         since Release B (it was drawn inside the page), across the OS
+         switching theme back to dark. */
       await evaluate(`(async () => { navigate('/app/scanner'); await new Promise(r => setTimeout(r, 400)); return true; })()`);
-      const sTab = await evaluate(`(() => { const a = document.querySelectorAll('#views .scan-subnav a.ptab')[1]; if (!a) return null;
+      const sTab = await evaluate(`(() => { const a = document.querySelectorAll('#productTabs .scan-subnav a.ptab')[1]; if (!a) return null;
         a.focus(); return document.activeElement === a ? a.getAttribute('href') : null; })()`);
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
       await sleep(400);
@@ -8700,10 +8708,11 @@ try {
       /* V12 — a tab in the Scanner's own strip, scrolled along to it on a
          phone, is still in sight in its strip after the OS switches theme
          (the new strip started at its beginning and then swung to the
-         current tab). */
+         current tab). The strip is the Scanner's product header since
+         Release B, above the page rather than in it. */
       await view(360, 780);
-      await open('/app/scanner', null, `!!document.querySelector('#views .ptabs-list')`);
-      const lastTab = await evaluate(`(() => { const l = [...document.querySelectorAll('#views .ptabs-list')].find(x => x.scrollWidth > x.clientWidth + 4);
+      await open('/app/scanner', null, `!!document.querySelector('#productTabs .ptabs-list')`);
+      const lastTab = await evaluate(`(() => { const l = [...document.querySelectorAll('#productTabs .ptabs-list')].find(x => x.scrollWidth > x.clientWidth + 4);
         if (!l) return null; const tabs = [...l.querySelectorAll('a')]; const t = tabs[tabs.length - 1]; t.focus(); t.scrollIntoView({ block: 'center', inline: 'nearest' });
         return t.textContent.trim(); })()`);
       await sleep(300);
@@ -10534,7 +10543,7 @@ try {
       rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
       registerActor: /name or initials you give the register log/, registerLog: /register records/, reportLog: /company reports you opened this month/,
       requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
-      savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/,
+      savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/, startHere: /Start here panels you have hidden/,
       scanPrefs: /scanner notification and display preferences/, scanSetups: /scanner setups with every version/, screen: /screener’s current filters/,
       screenCcy: /currency the Compare and screener pages total in/, sensAxes: /valuation sensitivity grid/, theme: /theme/, theses: /investment cases/,
       valuation: /valuation assumptions you edit/, watchlist: /watchlists/, watchlists: /watchlists/, wheelLegs: /Cash Wheel plan and its legs/,

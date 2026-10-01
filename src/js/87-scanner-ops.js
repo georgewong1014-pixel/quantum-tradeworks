@@ -157,41 +157,21 @@ function scanOpsAlertLink(a, label) {
   return id ? scanOpsLink(`/app/scanner/alerts/${id}`, label) : el('span', {}, label);
 }
 
-/* The scanner's own sections. Shared by every scanner page, the setups
-   batch's included: scannerSubnav('dashboard' | 'market' | 'setups' |
-   'watchlists' | 'alerts' | 'backtest' | 'settings' | 'trading'). The
-   operations pages are not in it — they are the worker's, reached from the
-   dashboard. The QT Trading Index is a section of the Scanner (Release A):
-   its row is last, and its page (85-trading-index.js) draws this strip with
-   itself current. */
-const SCANNER_SUBNAV = [
-  { id: 'dashboard',  label: 'Dashboard',            path: '/app/scanner' },
-  { id: 'market',     label: 'Market (your series)', path: '/app/scanner/market' },
-  { id: 'setups',     label: 'Setups',               path: '/app/scanner/setups' },
-  { id: 'watchlists', label: 'Watchlists',           path: '/app/scanner/watchlists' },
-  { id: 'alerts',     label: 'Alerts',               path: '/app/scanner/alerts' },
-  { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
-  { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
-  { id: 'trading',    label: 'Trading Index',        path: '/research/trading-index' },
-];
-/* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
-   n unread" — as the alerts pages' own strip did (SC-309 as built). This
-   strip replaces that one on every scanner page and had dropped it, so the
-   main navigation read "Scanner 24" over a strip that read only "Alerts".
-   No count when nothing is counted (no alerts file, in-app off) or none is
-   unread, as the main navigation's badge. */
-/* Drawn as the product tab row Equities and Property wear (sectionTabs,
-   35-ui.js): the Scanner's name and badge, then one scrolling row of
-   underline tabs. It was a grey box of pills with no name, wrapping into
-   three rows on a phone, one level of navigation drawn two ways across the
-   three products. The table and the unread count are unchanged. */
-function scannerSubnav(active) {
-  const unread = scanOpsUnread();
-  return sectionTabs({ label: 'Scanner sections', pid: 'scanner', cls: 'scan-subnav', inView: true,
-    tabs: SCANNER_SUBNAV.map(s => {
-      const n = s.id === 'alerts' && unread > 0 ? unread : 0;
-      return { label: n ? `${s.label} · ${n}` : s.label, path: s.path, current: active === s.id, ariaLabel: n ? `${s.label}, ${n} unread` : null };
-    }) });
+/* THE SCANNER'S SECTIONS ARE ITS PRODUCT HEADER'S TABS (Release B, B5).
+   Every scanner page drew a strip of its own here, from a table of its own
+   (SCANNER_SUBNAV: "Watchlists" where the registry, How it works and the
+   dashboard say "Watchlist scanner"), inside the page, where Equities and
+   Property wear the shell's header above theirs. The Scanner wears that
+   header now — its name, its badge and one row of tabs read from TOOLS,
+   the Alerts tab still "Alerts · n", named "Alerts, n unread" (SC-309 as
+   built; tabCount, 36-layouts.js) — drawn by the shell for every scanner
+   page, the Trading Index and the operations pages included.
+   scannerSubnav stays, because every scanner page calls it through
+   scanSubnav (86-scanner.js), which would otherwise draw the older strip of
+   its own; it adds nothing to the page, so no second strip repeats the
+   header's. */
+function scannerSubnav() {
+  return document.createDocumentFragment();
 }
 const SCANNER_OPS_NAV = [
   { id: 'overview', label: 'Overview',    path: '/admin/scanner' },
@@ -205,12 +185,11 @@ function scanOpsSubnav(active) {
     'aria-current': active === s.id ? 'page' : null })));
   return row;
 }
-function scanOpsHead(eyebrow, title, lead) {
-  return el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, eyebrow),
-    el('h1', {}, title),
-    lead ? el('p', { class: 'body-lg', style: 'margin-top:8px;max-width:72ch' }, lead) : null,
-  ]));
+/* The one page head (pageHead, 36-layouts.js): the eyebrow is the product's
+   name, the lede one line, and what the page must still say at its top the
+   note under it. */
+function scanOpsHead(title, lede, note = null, action = null) {
+  return pageHead({ title, lede, note, action });
 }
 /* Every operations page opens with this, before anything that could be
    read as supervision. */
@@ -504,14 +483,13 @@ VIEWS.scannerDashboard = () => {
   const st = scanOpsStatus();
   const S = SCAN_STATE[st.state] || SCAN_STATE.never;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scannerSubnav('dashboard'));
   /* The product's one action, as its entry in PRODUCTS names it, is the
      overview's primary: the page had none, and "Create a setup" was two
-     clicks away under Setups. */
-  const head = scanOpsHead('Quantum Scanner · personal lane', 'Scanner',
-    'Whether your setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from what the worker recorded on this machine. Nothing here is a scan run by this page and presented as the worker’s.');
+     clicks away under Setups. It stands at the head's end. */
   const sc = typeof productById === 'function' ? productById('scanner') : null;
-  if (sc?.action && sc.actionPath && matchRoute(sc.actionPath)) head.append(scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }));
+  const head = scanOpsHead('Scanner dashboard', 'Your setups, the last scan and its matches, as the worker recorded them.',
+    'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine. Nothing here is a scan run by this page and presented as the worker’s.',
+    sc?.action && sc.actionPath && matchRoute(sc.actionPath) ? scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }) : null);
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
@@ -808,9 +786,8 @@ function scanScreenOne(s, history, sym, ctx) {
 VIEWS.scannerMarket = () => {
   const S = scanMarketState;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scannerSubnav('market'));
-  wrap.append(scanOpsHead('Quantum Scanner · personal lane', 'Market screening — your series',
-    'Run one of your setups over every instrument of a market that holds a series in your own price history, now, in this browser. The result is listed in symbol order and recorded nowhere. It screens your history, not the market, and none of it is offered to anyone else.'));
+  wrap.append(scanOpsHead('Market screening — your series', 'Run one of your setups over a market’s series in your own history, now.',
+    'Every instrument of the market that holds a series in your price history, in this browser. The result is listed in symbol order and recorded nowhere. It screens your history, not the market, and none of it is offered to anyone else.'));
 
   const history = scanOpsHistory();
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
@@ -975,9 +952,8 @@ function scanBacktestMerge(parts, s) {
 VIEWS.scannerBacktest = () => {
   const S = scanBacktestState;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scannerSubnav('backtest'));
-  wrap.append(scanOpsHead('Quantum Scanner · simulation', 'Historical matches — simulation',
-    'The dates on which a setup’s conditions held in your own history, with the values that made them hold — evaluated by the same engine the worker runs, one bar at a time.'));
+  wrap.append(scanOpsHead('Historical matches — simulation', 'The dates on which a setup’s conditions held in your own history.',
+    'With the values that made them hold — evaluated by the same engine the worker runs, one bar at a time.'));
 
   /* THE LABEL IS FIXED AND COMES FIRST — before any number it qualifies. */
   const sim = el('section', { class: 'scan-sim', role: 'note', 'aria-label': 'This is a simulation' }, [
@@ -1123,10 +1099,12 @@ function scanBacktestResult(R) {
 /* ============================================================= operations === */
 /* The four /admin/scanner pages. Read-only; each states which of its files
    is absent and what writes it. */
-function scanOpsPage(active, title, lead) {
+/* Under the Scanner's header, as every scanner page: the head, then these
+   pages' own row of four, then the notice. */
+function scanOpsPage(active, title, lede, note) {
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(scanOpsHead(title, lede, note));
   wrap.append(scanOpsSubnav(active));
-  wrap.append(scanOpsHead('Scanner operations · this machine', title, lead));
   wrap.append(scanOpsNotice());
   return wrap;
 }
@@ -1149,7 +1127,7 @@ function scanOpsSessionNow(market, now) {
 }
 
 VIEWS.scannerAdmin = () => {
-  const wrap = scanOpsPage('overview', 'Scanner operations',
+  const wrap = scanOpsPage('overview', 'Scanner operations', 'What the worker on this machine did, read from the files it writes.',
     'Data, sessions, runs, the alert engine, delivery, usage and errors, in that order — each read from a file the worker or the daily task writes on this machine.');
   const now = scanOpsNow();
   const history = scanOpsHistory();
@@ -1334,8 +1312,8 @@ const scanBreakChip = (st) => sevChip((SCAN_BREAK_STATE[st] || ['info'])[0], (SC
 const scanRatioText = (r) => `×${Number(r.toPrecision(3))}`;
 
 VIEWS.scannerAdminData = () => {
-  const wrap = scanOpsPage('data', 'Data health',
-    'Your price history as the engine reads it: every bar validated, gaps counted against the sessions of its market, dates checked against the days each market trades, price breaks named with what explains them, staleness judged against the clock. Nothing in the file is corrected here — only named.');
+  const wrap = scanOpsPage('data', 'Data health', 'Your price history as the engine reads it, every bar validated.',
+    'Gaps counted against the sessions of its market, dates checked against the days each market trades, price breaks named with what explains them, staleness judged against the clock. Nothing in the file is corrected here — only named.');
   let history = scanOpsHistory();
   /* A history opened from disk on this page arrives without the recorded
      actions the loader attaches; they are attached for this page's reading
@@ -1542,8 +1520,8 @@ VIEWS.scannerAdminData = () => {
 
 const scanJobsState = { filter: 'all' };
 VIEWS.scannerAdminJobs = () => {
-  const wrap = scanOpsPage('jobs', 'Runs',
-    'Every attempt the worker recorded — completed, partial, failed or skipped — newest first, with its duration, its counts and its error; and the log of the controls run against it.');
+  const wrap = scanOpsPage('jobs', 'Runs', 'Every attempt the worker recorded, newest first.',
+    'Completed, partial, failed or skipped, each with its duration, its counts and its error; and the log of the controls run against it.');
   const { runs, audit, dropped } = scanOpsRuns();
   const card = el('section', { class: 'card' });
   if (!runs.length) {
@@ -1714,8 +1692,8 @@ const SCAN_OPS_CHANNELS = [
   ['PUSH', 'Web push', 'NOT_CONFIGURED', 'Not built: web push belongs to a later live-scanning release (P2), which is not available here, and needs a push service and a server to hold subscriptions.'],
 ];
 VIEWS.scannerAdminDelivery = () => {
-  const wrap = scanOpsPage('delivery', 'Delivery',
-    'Where scanner alerts go. In-app is the only channel: the alert is the record, written before anything else, and nothing is sent anywhere.');
+  const wrap = scanOpsPage('delivery', 'Delivery', 'Where scanner alerts go: into the app, and nowhere else.',
+    'In-app is the only channel: the alert is the record, written before anything else, and nothing is sent anywhere.');
   const D = scanDeliveriesFile;
   const fileCh = D?.channels ? (Array.isArray(D.channels) ? Object.fromEntries(D.channels.filter(Boolean).map(c => [c.channel || c.id, c])) : D.channels) : {};
   const unread = scanOpsUnread();

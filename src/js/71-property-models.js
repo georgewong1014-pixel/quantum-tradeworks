@@ -862,12 +862,11 @@ const pmPlace = (d) => [d?.district, (SARAWAK_CITIES.find(c => c.id === d?.city)
 
 VIEWS.propertyModels = () => {
   const wrap = el('div', { class: 'pm-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'My properties'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Each property you save keeps its inputs and its scenarios. Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.'),
-  ])));
+  /* The one head (pageHead, 36-layouts.js; Release B, B5), the page's one
+     primary action at its end — it sat inside the storage note below. */
+  wrap.append(pageHead({ title: 'My properties', lede: 'The properties you have saved, each with its inputs and its scenarios.',
+    note: 'Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.',
+    action: el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property') }));
 
   const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
   const st = propertyStatus(State.deal);
@@ -877,7 +876,6 @@ VIEWS.propertyModels = () => {
     el('span', { class: 'chip' }, 'No account, no sync'),
     el('p', { class: 'metaline', style: 'flex:1 1 280px;margin:0' },
       'A cleared browser or another device starts empty. The export on Your data carries every property here, with its scenarios.'),
-    el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property'),
   ]));
   wrap.append(lim);
 

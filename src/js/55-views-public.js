@@ -860,15 +860,8 @@ const HELD_IS_SAMPLE = {
 
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(mySubnav('userdata'));
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Your data'),
-    el('h1', {}, 'Bring your own prices'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.'),
-  ]));
-  wrap.append(hd);
+  wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
+    note: 'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.' }));
   appendSampleBanner(wrap);
 
   /* Why this exists, said once and without hedging. */
@@ -965,6 +958,9 @@ VIEWS.userdata = () => {
     sw.append(tw2);
   }
   wrap.append(sw);
+  /* The one place a hidden Start here panel comes back from (Release B,
+     B6; 36-layouts.js). */
+  wrap.append(startHereSettings());
 
   /* ---------- what is loaded now ---------- */
   const have = userSeriesCount();
@@ -1171,18 +1167,13 @@ VIEWS.userdata = () => {
 
 VIEWS.watchlists = () => {
   const wrap = el('div', { class: 'stack' });
-  /* Above the heading, matching the other five. A strip that sits above the
-     title on four pages and below it on two reads as a different control. */
-  wrap.append(mySubnav('watchlists'));
-  /* The personal pages' heading — eyebrow, 24px title, standfirst — as My
-     Dashboard and Saved Models beside it in the sidebar have. It was a 40px
-     display heading with the sample banner above it, the one page of the
-     four that looked like a different product. */
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'Watchlists'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
-  ])));
+  /* The personal pages' heading — eyebrow, 24px title, one-line lede — the
+     one head every product and workspace page wears (pageHead,
+     36-layouts.js). It was a 40px display heading with the sample banner
+     above it, the one page of the four that looked like a different
+     product. */
+  wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
+    note: 'Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when
@@ -1250,8 +1241,11 @@ VIEWS.watchlists = () => {
     'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
   wrap.append(ctl);
 
+  /* What to do next, with the one action the page has for it: Create, above.
+     A second primary, "Find companies", sent the reader away from the page
+     before a list existed to add them to. */
   if (!lists.length) {
-    wrap.append(emptyStateCta('No watchlists yet', 'Create one above, or find companies to add.', 'Find companies', '/discover/screener'));
+    wrap.append(emptyStateCta('No watchlists yet', 'Name your first list above and press Create — then add companies to it by ticker, or from their company pages.'));
     return wrap;
   }
 
@@ -1298,7 +1292,10 @@ VIEWS.watchlists = () => {
     addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:10px' }, [addInp, addBtn]));
 
-    if (!items.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
+    /* An empty list says how it fills: the field above it, or a company
+       page's own "Add to watchlist". */
+    if (!items.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px', 'data-empty': '' },
+      'Nothing in this list yet. Add a company by its ticker, listing code, CIK or name above — or with “Add to watchlist” on its company page.'));
     else {
       const t = el('table', { class: 'dt' });
       t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Coverage', 'Instrument id', 'Added', ''].map((h, i) => el('th', i === 1 ? { style: 'text-align:left' } : {}, h)))));
@@ -1494,20 +1491,22 @@ function openTrendDrawer(row, t) {
   openDrawer(`${row.sym} — trend context`, body);
 }
 
-/* Shared secondary navigation for the personal surfaces — the same section
-   row the products wear (sectionTabs, 35-ui.js), with no product name: one
-   scrolling row of underline tabs, the page on screen current. As a box of
-   pills it wrapped into two rows on a phone, a different control from the
-   row a reader had just used on a product page. */
-function mySubnav(active) {
-  return sectionTabs({ label: 'Personal pages', cls: 'my-subnav', inView: true,
-    tabs: SUBNAV_MY.map(s => ({ label: s.label, path: s.path, current: active === s.id })) });
+/* THE PERSONAL PAGES WEAR THE WORKSPACE HEADER (Release B, B5). This drew a
+   row of its own inside six of the eight pages — no name, labels that were
+   not the sidebar's ("Alerts" under My Alerts, "Workspace" under Saved
+   Models), and none on the dashboard or on two of the pages it listed. The
+   shell draws My workspace's header above every one of them now, its tabs
+   the workspace's tools from the registry (renderProductTabs, 35-ui.js). The
+   pages still call this, and it adds nothing, so no second row repeats it. */
+function mySubnav() {
+  return document.createDocumentFragment();
 }
 
 /* A consistent empty state: says what the surface is for and offers the one
-   action that fills it, rather than rendering a blank container. */
+   action that fills it, rather than rendering a blank container. Marked, so
+   a check can find every one (data-empty). */
 function emptyStateCta(title, body, ctaLabel, ctaPath) {
-  const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxl) var(--lg)' });
+  const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxl) var(--lg)', 'data-empty': '' });
   card.append(el('h2', { class: 'h-card' }, title));
   card.append(el('p', { class: 'metaline', style: 'margin:8px auto 14px;max-width:52ch' }, body));
   if (ctaLabel) card.append(el('a', { class: 'btn btn-primary', href: href(ctaPath),
@@ -1706,7 +1705,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
-         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
+         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',

@@ -34,14 +34,10 @@ VIEWS.areas = () => {
   if (geoLoadState === 'idle') loadSarawakLayers();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'Area screen'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Localities in one town, shaded by what you have recorded about them. Flood exposure is entered from a source you name; '
-      + 'rents, vacancy and prices come from the comparables register. Nothing here is modelled, inferred or bought in — an area with '
-      + 'no record is drawn hollow, because an unexamined area must never look like a safe one.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Area screen', lede: 'Localities in one town, shaded by what you have recorded about them.',
+    note: 'Flood exposure is entered from a source you name; rents, vacancy and prices come from the comparables register. Nothing here is modelled, inferred or bought in — an area with '
+      + 'no record is drawn hollow, because an unexamined area must never look like a safe one.' }));
 
   const city = SARAWAK_CITIES.find(c => c.id === S.city) || SARAWAK_CITIES[0];
   const geoAreas = sarawakGeo?.cities?.[S.city]?.areas || {};
@@ -514,12 +510,9 @@ function areaRecorder(city, area) {
 
 VIEWS.comparables = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'Sarawak comparables register'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Transacted prices and achieved rents you have recorded, with what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Sarawak comparables register', lede: 'Transacted prices and achieved rents you have recorded, each with its source.',
+    note: 'With what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.' }));
 
   /* WHO IS RECORDING, AND UNDO.
      Both belong here rather than in a settings page: this is the screen someone
@@ -698,7 +691,10 @@ VIEWS.comparables = () => {
               : c === 'standing' ? observationStanding(o).id : o[c])).join(',')));
       dl('quantum-comparables.csv', lines.join('\n'), 'text/csv');
     } }, 'Export CSV'),
-    el('button', { class: 'btn btn-primary btn-sm', id: 'register-import', onclick: () => openComparableImport() }, 'Import'),
+    /* Beside its two exports, in their weight: the page's one primary action
+       is what fills the register first (Release B, B5), and on an empty one
+       two filled buttons asked the reader to choose between them. */
+    el('button', { class: 'btn btn-ghost btn-sm', id: 'register-import', onclick: () => openComparableImport() }, 'Import'),
   ]));
   io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'CSV is for reading; JSON brings back every field of each record, worked-example marks and land areas included. The file also carries the change history for reading — an import starts each record\'s history afresh, at the import. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));

@@ -391,16 +391,11 @@ const TREND_STRATEGIES = [
    ========================================================================== */
 VIEWS.tracked = () => {
   const wrap = el('div', { class: 'stack' });
-  wrap.append(mySubnav('tracked'));
-  /* The personal pages' heading. `.h1` and `.lede` had no rules, so this
-     title was the browser's 32px at weight 600 — a size and weight no other
-     page uses. */
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'Tracked'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Price and trend only. Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.'),
-  ])));
+  /* The personal pages' heading — the one head (pageHead, 36-layouts.js),
+     under My workspace's header. `.h1` and `.lede` had no rules, so this
+     title was once the browser's 32px at weight 600. */
+  wrap.append(pageHead({ title: 'Tracked', lede: 'Instruments followed by price and trend only.',
+    note: 'Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.' }));
 
   const book = priceBook?.prices || {};
   const series = trackedHistory?.series || {};

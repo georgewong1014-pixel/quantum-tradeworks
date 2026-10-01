@@ -12052,8 +12052,9 @@ function fitHeadingLevels(root, parent = 1) {
   }
 }
 
+/* Marked (data-empty), so a check finds every empty state a page shows. */
 function emptyState(text) {
-  return el('div', { class: 'emptystate', html: `${icon('search', 30)}<p>${esc(text)}</p>` });
+  return el('div', { class: 'emptystate', 'data-empty': '', html: `${icon('search', 30)}<p>${esc(text)}</p>` });
 }
 
 /* ------------------------------------------------------------ drawer/toast */
@@ -12164,8 +12165,8 @@ function toast(msg) {
 
    Nothing was removed to get here. The Screener (the Value map one of its
    own tabs), Sarawak Economy Watch and the Cash Wheel are tabs of Equities
-   Research (PRODUCT_TABS); the Trading Index is a section of the Scanner's
-   strip (SCANNER_SUBNAV); every address that opened a
+   Research (PRODUCT_TABS); the Trading Index is a tab of the Scanner's
+   row; every address that opened a
    page before still opens it. docs/route-map.md is the whole map.
    ========================================================================== */
 
@@ -12338,32 +12339,36 @@ const TOOLS = [
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
     status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
     action: { label: 'Record a property', path: '/property/opportunities' } },
-  /* Quantum Scanner — its sections, as its own strip lists them
-     (SCANNER_SUBNAV, 87-scanner-ops.js). */
-  { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'],
+  /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
+     other two products' tools are (Release B, B5): its own strip, drawn
+     inside every scanner page from a table of its own, is gone. In the order
+     that strip had them, the Trading Index last (Release A); the Market
+     says, as the strip did, that it screens the reader's own series, not the
+     market. */
+  { id: 'scanDash', product: 'scanner', label: 'Dashboard', path: '/app/scanner', views: ['scannerDashboard', 'scanner'], tab: true,
     status: 'beta', statusNote: 'Whether your setups are active, when the last scan succeeded and what matched, read from the worker’s records on your own computer — or from files you open here.',
     action: { label: 'Open the scanner', path: '/app/scanner' } },
-  { id: 'market', product: 'scanner', label: 'Market', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'],
+  { id: 'market', product: 'scanner', label: 'Market (your series)', path: '/app/scanner/market', views: ['scannerMarket'], needs: ['history'], tab: true,
     status: 'beta', statusNote: 'Runs one of your setups over the instruments with a series in your own price history, in symbol order, recorded nowhere.',
     action: { label: 'Screen your series', path: '/app/scanner/market' } },
-  { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'],
+  { id: 'setups', product: 'scanner', label: 'Setups', path: '/app/scanner/setups', views: ['scannerSetups', 'scannerSetupNew', 'scannerSetup', 'scannerSetupEdit'], tab: true,
     status: 'beta', statusNote: 'Your own conditions, every version kept in this browser; the worker on your computer runs them once exported, and evaluating one here needs your price history.',
     action: { label: 'Create a setup', path: '/app/scanner/setups/new' } },
-  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'],
-    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
-    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
-  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'],
-    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
-    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
-  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'],
-    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
-    action: { label: 'Assess a trend', path: '/research/trading-index' } },
-  { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'],
-    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
-    action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
-  { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'],
+  { id: 'scanWatchlists', product: 'scanner', label: 'Watchlist scanner', path: '/app/scanner/watchlists', views: ['scannerWatchlists'], tab: true,
     status: 'beta', statusNote: 'Your watchlists as the universe a setup checks, exported to the file the worker reads.',
     action: { label: 'Scan a watchlist', path: '/app/scanner/watchlists' } },
+  { id: 'scanAlerts', product: 'scanner', label: 'Alerts', path: '/app/scanner/alerts', views: ['scannerAlerts', 'scannerAlert'], needs: ['alerts'], ages: ['history'], tab: true,
+    status: 'beta', statusNote: 'The worker’s record of the bars on which your setups held, read here; nothing is sent.',
+    action: { label: 'Review your matches', path: '/app/scanner/alerts' } },
+  { id: 'backtest', product: 'scanner', label: 'Historical', path: '/app/scanner/backtest', views: ['scannerBacktest'], needs: ['history'], tab: true,
+    status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
+    action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
+  { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'], tab: true,
+    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
+    action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
+  { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'], tab: true,
+    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+    action: { label: 'Assess a trend', path: '/research/trading-index' } },
   /* The workspace — the reader's own, in this browser. */
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
     status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
@@ -12650,9 +12655,9 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    tabs and dark on the others. So the product row carries one "Screener"
    tab, current on every tab of that page, and the page's strip is the
    screener's own sub-tabs: the Value map is still one click away, in the
-   row that holds it. The Scanner keeps its own section strip
-   (87-scanner-ops.js SCANNER_SUBNAV, drawn by every scanner page through
-   scanSubnav), where the Trading Index is its last section.
+   row that holds it. The Scanner's row is its sections, the Trading Index
+   among them (Release B): it drew them as a strip of its own inside each of
+   its pages, and now wears the row the other two products wear.
 
    Property has no Overview tab. /property and /property/calculator are one
    view — the calculator, whose canonical address is /property — so an
@@ -12663,27 +12668,19 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    tabs and in this build, in the registry's order — so a tab's name, its
    address and its badge cannot differ from How it works or the dashboard,
    and a tool another branch adds takes its place in the row when its route
-   exists. Equities and Property only: the Scanner draws its own strip. */
+   exists. All three built products; the workspace's row is its own
+   (workspaceTabs, 36-layouts.js). */
 const PRODUCT_TABS = Object.defineProperties({}, {
   equities: { enumerable: true, get: () => productTabs('equities') },
+  scanner:  { enumerable: true, get: () => productTabs('scanner') },
   property: { enumerable: true, get: () => productTabs('property') },
 });
 /* The company page and its report belong to Equities but keep their own
    tabs; a second row above them would be two strips of tabs on one page. */
 const NO_PRODUCT_TABS = new Set(['research', 'researchReport']);
-
-/* Views reachable by URL but not in the header. */
-const SUBNAV_MY = [
-  { id:'portfolio',  label:'Portfolio',  path:'/my/portfolio' },
-  { id:'watchlists', label:'Watchlists', path:'/my/watchlists' },
-  { id:'thesis',     label:'Investment cases', path:'/my/theses' },
-  { id:'alerts',     label:'Alerts',     path:'/my/alerts' },
-  { id:'tracked',    label:'Tracked',    path:'/my/tracked' },
-  /* Everything saved, across kinds, in one list — beside the page that
-     exports it. */
-  { id:'workspace',  label:'Workspace',  path:'/my/workspace' },
-  { id:'userdata',   label:'Your data',  path:'/my/data' },
-];
+/* The personal pages' own row (SUBNAV_MY) is gone: they wear My workspace's
+   header, its tabs the workspace's tools in the registry (workspaceTabs,
+   36-layouts.js; Release B, B5). */
 
 /* Every view of the scanner, by the ids docs/phase3-plan.md §2 fixes. One
    list, because three things need all of them: the header's section, the
@@ -13811,36 +13808,50 @@ function buildNav() {
    A strip the same as the one on screen is left in place. It was rebuilt on
    every render, so a tab the reader had reached went to <body> when the
    filings landed a moment after the page opened, and a strip scrolled along
-   on a phone jumped back to its current tab. */
+   on a phone jumped back to its current tab.
+   THE ONE HEADER OF EVERY PRODUCT PAGE AND EVERY WORKSPACE PAGE (Release B,
+   B5). The Scanner's row is here with the other two, its sections from the
+   registry — its pages drew their own strip inside the page, which is gone
+   (scannerSubnav, 87-scanner-ops.js) — and its Alerts tab carries the unread
+   count that strip carried. My Workspace's pages wear the same header, named
+   for the workspace, its tabs the workspace's tools (workspaceTabs): the
+   personal pages' nameless strip (mySubnav) is gone the same way. */
 function renderProductTabs() {
   const host = shellEl.tabsHost;
   if (!host) return;
   const pid = productOf(State.view);
-  const tabs = PRODUCT_TABS[pid];
+  const ws = !pid && isWorkspaceView(State.view);
+  const tabs = pid ? PRODUCT_TABS[pid] : ws ? workspaceTabs() : null;
   if (!tabs || NO_PRODUCT_TABS.has(State.view)) { host.replaceChildren(); host.hidden = true; delete host.dataset.strip; return; }
-  const p = productById(pid);
+  const p = pid ? productById(pid) : null;
   const here = tabs.find(t => t.views.includes(State.view));
   /* The tools' states are part of what the strip says: a tool the filings
-     failed under is text in it, and comes back a link when they load. */
-  const strip = JSON.stringify([pid, tabs.map(t => [t.label, t.path, toolState(t.tool)?.status]), here?.path ?? null]);
+     failed under is text in it, and comes back a link when they load. So is
+     a tab's count: a match read changes the Scanner's Alerts tab. */
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null]);
   if (!host.hidden && host.dataset.strip === strip) return;
-  const nav = sectionTabs({ label: `${p.name} sections`, pid, tabs: tabs.map(t => ({ label: t.label, path: t.path, current: t === here })) });
+  const items = tabs.map(t => {
+    const n = tabCount(t);
+    return { label: n ? `${t.label} · ${n}` : t.label, path: t.path, current: t === here, ariaLabel: n ? `${t.label}, ${n} unread` : null };
+  });
+  const nav = p
+    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: pid === 'scanner' ? 'scan-subnav' : '' })
+    : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
   host.dataset.strip = strip;
   wireSectionTabs(nav);
 }
 
-/* ONE ROW OF SECTION TABS, ONE COMPONENT. The Equities and Property rows
-   above (renderProductTabs), the Scanner's own strip (scannerSubnav,
-   87-scanner-ops.js) and the personal pages' strip (mySubnav) are the same
-   level of navigation, and were two unrelated patterns: an underline row with
-   the product's name and badge for two products, and for the third a grey box
-   of pills with no name, wrapping into three rows on a phone. Each is now
-   this: the product's name and badge where there is a product, then one row
-   of underline tabs that scrolls, with the current tab marked aria-current.
-   A strip drawn inside a view (inView) takes the band's look where it sits,
-   at the top of the page (.ptabs-inview). */
+/* ONE ROW OF SECTION TABS, ONE COMPONENT. The products' rows and the
+   workspace's (renderProductTabs) are the same level of navigation, and were
+   two unrelated patterns: an underline row with the product's name and
+   badge for two products, and for the third a grey box of pills with no
+   name, wrapping into three rows on a phone. Each is now this: the product's
+   name and badge — or the workspace's name — then one row of underline tabs
+   that scrolls, with the current tab marked aria-current. A strip drawn
+   inside a view (inView) takes the band's look where it sits, at the top of
+   the page (.ptabs-inview); since Release B no page draws one of its own. */
 /* One tab. Where its tool cannot be used here, text in place of the link,
    with the badge and why (gateToolLink), whichever page drew the strip.
    Where the tool works but its state is worth marking — Delayed, Demo — the
@@ -13856,10 +13867,11 @@ function sectionTab(t) {
   if (s && !s.actionable) return gateDetached(a);
   return flagged ? [a, toolBadge(tool)] : a;
 }
-function sectionTabs({ label, pid = null, tabs, cls = '', inView = false }) {
+function sectionTabs({ label, pid = null, name = null, tabs, cls = '', inView = false }) {
   const p = pid ? productById(pid) : null;
   const nav = el('nav', { class: `ptabs ${pid ? `pub-acc-${pid} ` : ''}${cls}`.trim(), 'aria-label': label }, [
-    p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)]) : null,
+    p ? el('span', { class: 'ptabs-name' }, [shellIcon(PRODUCT_ICON[pid], 16, 'ptabs-ico'), el('span', {}, p.name), productBadge(pid)])
+      : name ? el('span', { class: 'ptabs-name' }, [shellIcon(name.icon, 16, 'ptabs-ico'), el('span', {}, name.name)]) : null,
     el('ul', { class: 'ptabs-list' }, tabs.map(t => el('li', {}, sectionTab(t)))),
   ]);
   if (!inView) return nav;
@@ -14482,7 +14494,9 @@ function drawPage(samePage) {
      dark, a tab of the page's own strip — the whole page faded out and slid
      up 6px under the reader, and the control given focus back was measured
      6px off where it came to rest (stayPut). A new page still enters. */
-  const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, node));
+  /* Above the page, in its column: the product's Start here panel, until the
+     reader hides it (Release B, B6; 36-layouts.js). */
+  const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, [startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);
@@ -14758,6 +14772,233 @@ function gridKeyboard(table, label) {
   });
 }
 /* ==========================================================================
+   ONE PRODUCT LAYOUT, AND WHERE A FIRST-TIME READER STARTS (Release B)
+
+   B5 — ONE HEADER, ONE HEAD. Every page of a product wears the same product
+   header: the product's name, its badge and ONE row of tabs, all read from
+   the registry (TOOLS, 35-ui.js) and drawn by the shell above the page
+   (renderProductTabs). Every My Workspace page wears one workspace header
+   drawn the same way. Two strips are gone with it: the Scanner drew its own
+   inside each of its pages, from a table of its own whose labels the
+   registry did not use ("Watchlists" there, "Watchlist scanner" in How it
+   works and on the dashboard), and the personal pages drew one with no name
+   whose labels were not the sidebar's ("Alerts" under "My Alerts",
+   "Workspace" under "Saved Models"), on six of the eight pages.
+   Under the header, one head (pageHead): the eyebrow says where the page
+   sits — the product, or My workspace — the h1 what the page is for, and
+   the lede says it in one line. The eyebrows had been nineteen different
+   things: a product ("Property"), a section ("My workspace"), a page's own
+   name ("Compare", "Thesis"), a qualifier ("Timing and risk control"). What
+   an old standfirst said beyond its first line is not dropped: it is the
+   head's note, under the lede. A page's one primary action, where it has
+   one for the whole page, stands at the head's end.
+
+   B6 — START HERE. The first time a reader opens Equities, the Scanner or
+   Property, a compact panel sits at the top of the page: what the product
+   does, its one action, what the reader gets, and a real example labelled
+   for what it is — Apple's report from its SEC filings, the committed
+   example setup, the sample property. It is part of the page, never a
+   dialog or a tour. It stays until the reader hides it, per product, and
+   comes back only from Your data & settings (startHereSettings).
+   ========================================================================== */
+
+/* THE WORKSPACE'S HEADER: the sidebar's own name for the section. */
+const WORKSPACE_HEAD = { name: 'My workspace', icon: 'layout' };
+/* A page of the reader's own workspace is one a workspace tool opens (TOOLS,
+   product null): the dashboard, the lists, the alerts, what is saved — and a
+   tool another branch adds there, once its route lands (toolPresent). */
+const isWorkspaceView = (view = State.view) => TOOLS.some(t => t.product === null && toolViews(t).includes(view));
+const workspaceTabs = () => TOOLS.filter(t => t.product === null && toolPresent(t))
+  .map(t => ({ id: t.id, label: t.label, path: t.path, views: toolViews(t), tool: t }));
+
+/* A tab's count. The Scanner's Alerts tab carries the unread matches, as its
+   own strip did (SC-309 as built) — read from the scanner's own count, and
+   none where nothing is counted (no record visible here, in-app off). */
+function tabCount(t) {
+  if (t.id !== 'scanAlerts' || typeof scanOpsUnread !== 'function') return 0;
+  try { const n = scanOpsUnread(); return Number.isInteger(n) && n > 0 ? n : 0; } catch { return 0; }
+}
+
+/* WHERE THE PAGE SITS — the eyebrow of every product and workspace page. */
+function pageKicker(view = State.view) {
+  const p = productById(productOf(view));
+  if (p) return p.name;
+  return isWorkspaceView(view) ? WORKSPACE_HEAD.name : null;
+}
+
+/* ONE PAGE HEAD. The eyebrow is where the page sits (pageKicker) unless a
+   page outside the products and the workspace names its own; the lede is
+   one line; the note carries what the page must still say at its top — a
+   disclosure, a limit — in the smaller, secondary voice under it; the action
+   is the page's one primary action, where the whole page has one. */
+function pageHead({ title, lede = null, note = null, action = null, eyebrow = null, cls = '' } = {}) {
+  const kicker = eyebrow || pageKicker();
+  return el('div', { class: `page-hd${cls ? ` ${cls}` : ''}` }, [
+    el('div', { class: 'page-hd-text' }, [
+      kicker ? el('p', { class: 'eyebrow' }, kicker) : null,
+      el('h1', {}, title),
+      lede ? el('p', { class: 'body-lg page-lede' }, lede) : null,
+      note ? el('p', { class: 'page-note' }, note) : null,
+    ]),
+    action ? el('div', { class: 'page-hd-act' }, action) : null,
+  ]);
+}
+
+/* ---------------------------------------------------------- start here */
+/* What each product does and what a reader gets, in the product's own terms
+   (PRODUCTS and TOOLS say the same), and the example each one opens. The
+   action is the product's own (PRODUCTS.action), so the panel, the homepage
+   card, How it works and the dashboard checklist say the same words. */
+const START_HERE = {
+  equities: {
+    does: 'Research a company from its financial statements.',
+    gets: 'You get its statements, ratios and a valuation range, each figure with its formula and source — US filers from their SEC filings, the Malaysian set illustrative.',
+  },
+  scanner: {
+    does: 'Checks rules you write against each daily close of the price history you supply.',
+    gets: 'You get a record of every bar on which a setup held, kept on your own computer and never sent. This site ships no prices: setups are written here and run where your price history is.',
+  },
+  property: {
+    does: 'Models what buying and letting a property does to your cash.',
+    gets: 'You get the monthly cash flow, rental yield, break-even rent and cash needed up front, from the figures you enter — saved to My properties with its scenarios.',
+  },
+};
+/* Apple Inc., by the registry's id for the filed company. */
+const START_APPLE = 'AAPL-SEC';
+const START_SETUP = 'trend-breakout';
+
+/* Which products' panels the reader has hidden: { product: when }. */
+const startHereHidden = () => { const v = store.read('startHere', {}); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; };
+/* The panel a page shows: its product's, unless hidden. Only on the pages
+   of the product's own tools (TOOLS) — so never on a public or a workspace
+   page, nor on a company page or its report, which keep their own tabs and
+   head, nor on the Scanner's operations pages, which are read-only views of
+   the worker's files where nothing is there to press. */
+function startHereFor(view = State.view) {
+  const pid = productOf(view);
+  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view)) return null;
+  if (!TOOLS.some(t => t.product === pid && toolViews(t).includes(view))) return null;
+  return startHereHidden()[pid] ? null : pid;
+}
+function hideStartHere(pid) {
+  const refused = store.failed;
+  store.write('startHere', { ...startHereHidden(), [pid]: new Date().toISOString() });
+  render();
+  /* The panel went with the control that hid it; the reader goes on at the
+     page's own heading, which the panel sat above. */
+  focusAfterRedraw('#views h1');
+  toast(store.failed !== refused ? STORE_REFUSED
+    : `Start here is hidden for ${productById(pid)?.name}. Your data & settings brings it back.`);
+}
+
+/* The example, labelled for what it is, and a way to open it that works
+   wherever the panel is. */
+function startHereExample(pid) {
+  const line = (kids, note = null) => el('div', { class: 'start-here-ex-line' }, [
+    el('span', { class: 'start-here-label' }, 'Example'), ...kids,
+    note ? el('span', { class: 'caption start-here-ex-note' }, note) : null]);
+  const inApp = (path, text) => el('a', { class: 'start-here-ex', href: href(path), onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault(); navigate(path);
+  } }, text);
+  if (pid === 'equities') {
+    const r = typeof BY_ID !== 'undefined' ? BY_ID.get(START_APPLE) : null;
+    const chip = el('span', { class: 'chip chip-ok' }, 'filed with the SEC');
+    /* The filings are loading, or did not load: Apple is not held, and a
+       link would open a page that cannot draw it. */
+    if (!r?.c?.real) return line([el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report'), chip],
+      typeof realPending !== 'undefined' && realPending ? 'It opens once the filings have loaded.' : 'It needs the filed statements, which did not load here.');
+    /* The report is metered on the Free plan, as the company page says:
+       opening one not yet read this month is one of the month's reports. */
+    const meter = reportAllowed(r.c.id);
+    const cap = lim('reportsPerMonth');
+    return line([inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report'), chip], !Number.isFinite(cap) ? null
+      : !meter.ok ? `This month’s ${cap} company reports on this plan are used, so it opens next month.`
+      : meter.counted ? `On this plan it is one of this month’s ${cap} company reports.` : null);
+  }
+  if (pid === 'scanner') {
+    const ex = typeof SCAN_EXAMPLES !== 'undefined' ? SCAN_EXAMPLES.setups.find(x => x.id === START_SETUP) : null;
+    return line([inApp(`/app/scanner/setups/new?example=${encodeURIComponent(START_SETUP)}`, `The example setup: ${ex?.name || 'Trend breakout'}`),
+      el('span', { class: 'chip' }, 'syntax, not a suggestion')]);
+  }
+  if (pid === 'property') {
+    const sd = typeof pmSampleDeal === 'function' ? pmSampleDeal() : null;
+    const proj = sd && typeof PROJECTS !== 'undefined' ? PROJECTS.find(x => x.id === sd.projectId) : null;
+    /* The calculator's sample deal, loaded as My properties' "Open the
+       sample" loads it: work in progress is kept aside first (propertyLoad). */
+    return line([el('button', { type: 'button', class: 'start-here-ex linklike', onclick: () => newPropertyDeal() },
+      `The sample property${proj ? `: ${proj.name}` : ''}`),
+      el('span', { class: 'chip chip-bronze' }, 'sample — not a real listing')]);
+  }
+  return null;
+}
+
+/* The product's one action. On the page it opens, a link to the same page
+   goes nowhere, so there it takes the reader to where that page starts: its
+   first field. */
+function startHereAction(pid) {
+  const p = productById(pid);
+  const same = matchRoute(p.actionPath)?.view === State.view;
+  if (same) return el('button', { type: 'button', class: 'btn btn-ghost start-here-go', onclick: () => {
+    const f = [...document.querySelectorAll('#views input:not([type=hidden]), #views select, #views textarea')]
+      .find(n => !n.closest('.start-here') && n.getClientRects().length && !n.disabled);
+    if (!f) { focusMain(); return; }
+    f.scrollIntoView({ block: 'center' });
+    f.focus({ preventScroll: true });
+  } }, [p.action, el('span', { 'aria-hidden': 'true', html: icon('down', 15) })]);
+  return el('a', { class: 'btn btn-ghost start-here-go', href: href(p.actionPath), onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault(); navigate(p.actionPath);
+  } }, [p.action, el('span', { 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;flex:none"><path d="M5 12h14M13 6l6 6-6 6"/></svg>' })]);
+}
+
+/* THE PANEL. A named region at the top of the page — not a dialog, nothing
+   that takes focus or blocks the page — with no primary button: the page's
+   own action stays the one primary. */
+function startHerePanel(pid) {
+  const p = productById(pid), s = START_HERE[pid];
+  if (!p || !s) return null;
+  return el('section', { class: `start-here pub-acc-${pid}`, 'aria-label': `Start here: ${p.name}`, data: { product: pid } }, [
+    el('div', { class: 'start-here-top' }, [
+      el('p', { class: 'start-here-kicker' }, [
+        el('span', { class: 'start-here-ico', 'aria-hidden': 'true', html: icon(PRODUCT_ICON[pid] || 'grid', 16) }),
+        el('span', {}, 'Start here'), el('span', { class: 'start-here-dot', 'aria-hidden': 'true' }, '·'), el('span', { class: 'start-here-pname' }, p.name)]),
+      el('button', { type: 'button', class: 'btn btn-quiet btn-sm start-here-hide', 'aria-label': `Hide Start here for ${p.name}`,
+        onclick: () => hideStartHere(pid) }, [el('span', {}, 'Hide'), el('span', { 'aria-hidden': 'true', html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:14px;height:14px;flex:none"><path d="M18 6 6 18M6 6l12 12"/></svg>' })]),
+    ]),
+    el('p', { class: 'start-here-does' }, s.does),
+    el('p', { class: 'start-here-gets' }, s.gets),
+    el('div', { class: 'start-here-ft' }, [startHereAction(pid), startHereExample(pid)]),
+  ]);
+}
+/* Mounted by drawPage above the page, inside its column. */
+const startHereNode = () => { const pid = startHereFor(); return pid ? startHerePanel(pid) : null; };
+
+/* YOUR DATA & SETTINGS: which panels are hidden, and the one control that
+   brings them back. Nothing to press while none is hidden. */
+function startHereSettings() {
+  const hidden = startHereHidden();
+  const names = PRODUCTS.filter(p => START_HERE[p.id] && hidden[p.id]).map(p => p.name);
+  const card = el('div', { class: 'card', id: 'start-here-settings' });
+  card.append(cardHead('Start here panels',
+    'Equities Research, Quantum Scanner and Property Intelligence each open with a short Start here panel — what the product does, its one action and an example — until you hide it.'));
+  if (!names.length) {
+    card.append(el('p', { class: 'metaline' }, 'None is hidden: each shows at the top of its product until you hide it there.'));
+    return card;
+  }
+  card.append(el('div', { class: 'row row-wrap', style: 'gap:var(--sm) var(--md);align-items:center' }, [
+    el('p', { class: 'body', style: 'flex:1 1 280px;margin:0' }, `Hidden for ${names.join(names.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1')}.`),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'startHereReset', onclick: () => {
+      const refused = store.failed;
+      store.write('startHere', {});
+      render();
+      focusAfterRedraw('#start-here-settings .h-card', '#views h1');
+      toast(store.failed !== refused ? STORE_REFUSED : 'The Start here panels will show again, at the top of each product.');
+    } }, 'Show them again'),
+  ]));
+  return card;
+}
+/* ==========================================================================
    VIEW — RESEARCH QUEUE (Equities Research)
 
    This was the whole of /app until Release A. The root URL used to drop a
@@ -14801,22 +15042,16 @@ const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeo
 VIEWS.researchQueue = () => {
   const wrap = el('div');
 
-  /* -- header ------------------------------------------------------------ */
-  const hd = el('div', { class: 'page-hd' });
-  const hl = el('div');
-  hl.append(el('p', { class: 'eyebrow' }, 'Equities Research'));
-  hl.append(el('h1', {}, 'Research queue'));
-  hl.append(el('p', { class: 'body-lg', style: 'margin-top:8px' },
-    'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.'));
-  hd.append(hl);
+  /* -- header: the one head (pageHead, 36-layouts.js; Release B) ---------- */
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   /* Each names the tool it opens, so the shell's gate draws it as text
      where that tool cannot be used here (gateToolLink, 35-ui.js). */
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('filter')} Open screener` }));
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openDashboardCustomiser(), html: `${icon('grid')} Customise` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', 'data-tool-path': '/discover/value-map', onclick: () => go('discover', { tab: 'radar' }), html: `${icon('target')} Quality vs Value Map` }));
-  hd.append(hr);
-  wrap.append(hd);
+  wrap.append(pageHead({ title: 'Research queue', lede: 'What changed in the reported figures, your watchlist first.',
+    note: 'Research, not recommendations. Everything below is derived from the statement lines held for each company — audited filings for the SEC-filed set, illustrative figures for the Malaysian one, and each page says which. No figure is asserted without the inputs behind it, and nothing here tells you what to do with it. Open any number to see its formula, period and coverage.',
+    action: hr }));
 
   /* -- market context ---------------------------------------------------- */
   const ctx = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
@@ -15341,20 +15576,21 @@ VIEWS.home = () => {
   const alertTime = (a) => Date.parse(a?.detectedAt || a?.recordedAt || '');
   const since = o.alerts && visit.prev ? o.alerts.filter(a => alertTime(a) > Date.parse(visit.prev)) : null;
   const undated = o.alerts ? o.alerts.filter(a => !Number.isFinite(alertTime(a))).length : 0;
-  const lede = !o.hasOwn
-    ? 'Four first steps, each with its one action. As you take them, this page fills with your own work — never with sample data or anyone else’s activity.'
-    : !visit.prev ? 'This is the first visit this browser has recorded. From the next one, this line says what changed in between.'
-    : !o.alerts ? `Welcome back — you were last here ${myDashWhen(visit.prev)}.${o.setupsKnown ? ' The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : ''}`
-    : since.length ? `Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`
-    : `Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}${undated ? ` — ${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it` : ''}.`;
+  /* The lede is one line — what changed — and what qualifies it is the
+     head's note (pageHead, 36-layouts.js; Release B). */
+  const [lede, ledeNote] = !o.hasOwn
+    ? ['Four first steps, each with its one action.', 'As you take them, this page fills with your own work — never with sample data or anyone else’s activity.']
+    : !visit.prev ? ['This is the first visit this browser has recorded.', 'From the next one, the line above says what changed in between.']
+    : !o.alerts ? [`Welcome back — you were last here ${myDashWhen(visit.prev)}.`, o.setupsKnown ? 'The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : null]
+    : since.length ? [`Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`, null]
+    : [`Nothing new in the scanner’s record since you were last here, ${myDashWhen(visit.prev)}.`, undated ? `${myDashPlural(undated, 'match', 'matches')} with no recorded time cannot be placed either side of it.` : null];
   /* The page's name is part of its heading. As an eyebrow <p> above an h1
      reading only "Good morning", heading navigation and the rotor never
-     named the page; the heading is now "My Dashboard: Good morning", drawn
-     as before. */
-  wrap.append(el('div', { class: 'page-hd dash-hd' }, el('div', {}, [
-    el('h1', {}, [el('span', { class: 'eyebrow dash-eyebrow' }, 'My Dashboard'), el('span', { class: 'sr-only' }, ': '), myDashGreeting()]),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede),
-  ])));
+     named the page, so the heading says "My Dashboard: Good morning". The
+     eyebrow is My workspace's, as on every workspace page (pageKicker), and
+     the page's name — the current tab of the header above — is the
+     heading's first words for a screen reader. */
+  wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '), myDashGreeting()], lede, note: ledeNote }));
 
   /* -- first time: the checklist, and nothing else ------------------------ */
   if (!o.hasOwn) {
@@ -18151,19 +18387,19 @@ function tabStrip(label, tabs, current, open, attrs = {}) {
 
 VIEWS.discover = () => {
   const wrap = el('div');
-  const hd = el('div', { style: 'margin-bottom:var(--lg)' });
   /* Equities Research's Screener (Release A): the product tab row above
-     names the product, and this strip is the Screener's sub-tabs. */
-  hd.append(el('p', { class: 'eyebrow' }, 'Screener'));
-  /* The page title's weight, 700, as on every other page (it was 600). */
-  hd.append(el('h1', { style: 'font-size:24px;font-weight:700;letter-spacing:-.02em;margin:2px 0 var(--md)' }, 'Narrow the universe to what is worth reading'));
+     names the product, and the page opens with the one head every product
+     page wears (pageHead, 36-layouts.js; Release B) — it had an eyebrow of
+     its own and no lede. */
+  wrap.append(pageHead({ title: 'Narrow the universe to what is worth reading',
+    lede: 'Screen the companies held here on quality, financial strength and valuation.', cls: 'page-hd-tools' }));
   /* Through the address: /discover/screener and /discover/value-map have
      routes of their own, the other two ride on ?tab=. A segmented control,
      not a second underline row: under the product's own underline tabs, two
      identical rows gave no sign which was the product's and which this
      page's. The tablist, its keys and its one tab stop are unchanged. */
-  hd.append(tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' }));
-  wrap.append(hd);
+  wrap.append(el('div', { style: 'margin-bottom:var(--lg)' },
+    tabStrip('Screener tools', DISCOVER_TABS, State.discoverTab, id => go('discover', { tab: id }), { class: 'segmented tools-seg' })));
 
   /* With a fallback: a tab id this view does not know renders the screener
      rather than throwing out of render() and leaving the previous page on
@@ -18971,14 +19207,10 @@ function companyActions(r) {
    never silently choose a security. */
 VIEWS.researchHome = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Research'),
-    el('h1', {}, 'Start from a company, a market or a question'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Nothing on this page is ordered by preference, and opening it does not choose a company for you.'),
-  ]));
-  wrap.append(hd);
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Start from a company, a market or a question',
+    lede: 'Find a company by name, ticker, listing code or CIK — or start from a market.',
+    note: 'Nothing on this page is ordered by preference, and opening it does not choose a company for you.' }));
 
   const search = el('div', { class: 'card' });
   search.append(cardHead('Find a company', 'By name, ticker, listing code, CIK or an old link — and by market and coverage.'));
@@ -23005,16 +23237,10 @@ function openReview(t) {
 
 VIEWS.thesis = () => {
   const wrap = el('div');
-  wrap.append(mySubnav('thesis'));
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Thesis'),
-    el('h1', {}, 'What you believe, and what would prove you wrong'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.'),
-  ]));
-  hd.append(el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }));
-  wrap.append(hd);
+  /* The one head (pageHead, 36-layouts.js), under My workspace's header. */
+  wrap.append(pageHead({ title: 'What you believe, and what would prove you wrong', lede: 'Your investment cases, each checked against the latest data held.',
+    note: 'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.',
+    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }) }));
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
   appendSampleBanner(wrap);
@@ -23043,7 +23269,13 @@ VIEWS.thesis = () => {
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
 
-  if (!State.theses.length) { wrap.append(el('div', { class: 'card' }, emptyState('No thesis yet. Open any company and start one from the Thesis tab.'))); return wrap; }
+  /* What to do next, with the one action that does it (Release B, B6): a
+     case is written on a company's own Thesis tab, so the action opens the
+     way to a company. It said where to go and offered no way there. */
+  if (!State.theses.length) {
+    wrap.append(emptyStateCta('No investment cases yet', 'A case records what you believe about a company and what would prove you wrong. Open a company and write one from its Thesis tab.', 'Find a company', '/research'));
+    return wrap;
+  }
   const list = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   State.theses.forEach(t => list.append(thesisCard(t)));
   wrap.append(list);
@@ -23176,14 +23408,9 @@ function openComparison(id) {
 VIEWS.compare = () => {
   CMP_LIVE = null;
   const wrap = el('div');
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Compare'),
-    el('h1', {}, 'Economically comparable, not just same-sector'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Sector alone is not a peer group. Business model, capital intensity, maturity and market convention all change which metrics mean the same thing across two companies.'),
-  ]));
-  wrap.append(hd);
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Economically comparable, not just same-sector', lede: 'Sector alone is not a peer group.',
+    note: 'Business model, capital intensity, maturity and market convention all change which metrics mean the same thing across two companies.' }));
   /* The names in a ?companies= link that are no company here, said rather
      than dropped (applyRoute, 35-ui.js). */
   const missing = State.compareMissing || [];
@@ -23794,20 +24021,11 @@ function positionsOf(pf) {
 
 VIEWS.portfolio = () => {
   const wrap = el('div');
-  /* mySubnav existed and was called from userdata and watchlists only — the two
-     surfaces nothing in the product linked to. So the four pages a reader could
-     actually reach were each a dead end, and the two that carried the way out
-     were unreachable. Four calls restore six finished surfaces to each other. */
-  wrap.append(mySubnav('portfolio'));
+  /* The personal pages reach one another through My workspace's header,
+     drawn by the shell above every one of them (Release B, B5); the page
+     itself opens with the one head (pageHead, 36-layouts.js). */
   const pf = activePF();
 
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Portfolio'),
-    el('h1', {}, 'Understand your exposures — not a trading screen'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'This view separates business performance from currency movement from transaction costs, and shows how much of the portfolio is backed by a written thesis. It does not optimise, rebalance, or recommend an allocation.'),
-  ]));
   const hr = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   /* Focus stays on the select across the redraw (redrawKeepFocus). */
   const sel = el('select', { class: 'select', style: 'width:auto;min-width:190px', 'aria-label': 'Active portfolio', id: 'pf-active',
@@ -23817,8 +24035,10 @@ VIEWS.portfolio = () => {
   hr.append(sel);
   hr.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPortfolioManager(), html: `${icon('briefcase', 13)} Manage` }));
   hr.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => openAddHolding(), html: `${icon('plus', 13)} Add holding` }));
-  hd.append(hr);
-  wrap.append(hd);
+  wrap.append(pageHead({ title: 'Understand your exposures — not a trading screen',
+    lede: 'Your holdings, with business performance kept apart from currency and costs.',
+    note: 'It shows how much of the portfolio is backed by a written thesis, and it does not optimise, rebalance, or recommend an allocation.',
+    action: hr }));
   appendSampleBanner(wrap);
 
   const pos = positionsOf(pf);
@@ -25417,15 +25637,8 @@ const HELD_IS_SAMPLE = {
 
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(mySubnav('userdata'));
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Your data'),
-    el('h1', {}, 'Bring your own prices'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.'),
-  ]));
-  wrap.append(hd);
+  wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
+    note: 'This site ships no market prices, because none of the prices it could ship are licensed for it to redistribute. Yours are a different question.' }));
   appendSampleBanner(wrap);
 
   /* Why this exists, said once and without hedging. */
@@ -25522,6 +25735,9 @@ VIEWS.userdata = () => {
     sw.append(tw2);
   }
   wrap.append(sw);
+  /* The one place a hidden Start here panel comes back from (Release B,
+     B6; 36-layouts.js). */
+  wrap.append(startHereSettings());
 
   /* ---------- what is loaded now ---------- */
   const have = userSeriesCount();
@@ -25728,18 +25944,13 @@ VIEWS.userdata = () => {
 
 VIEWS.watchlists = () => {
   const wrap = el('div', { class: 'stack' });
-  /* Above the heading, matching the other five. A strip that sits above the
-     title on four pages and below it on two reads as a different control. */
-  wrap.append(mySubnav('watchlists'));
-  /* The personal pages' heading — eyebrow, 24px title, standfirst — as My
-     Dashboard and Saved Models beside it in the sidebar have. It was a 40px
-     display heading with the sample banner above it, the one page of the
-     four that looked like a different product. */
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'Watchlists'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' }, 'Companies you follow. Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.'),
-  ])));
+  /* The personal pages' heading — eyebrow, 24px title, one-line lede — the
+     one head every product and workspace page wears (pageHead,
+     36-layouts.js). It was a 40px display heading with the sample banner
+     above it, the one page of the four that looked like a different
+     product. */
+  wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
+    note: 'Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when
@@ -25807,8 +26018,11 @@ VIEWS.watchlists = () => {
     'The export carries each member’s canonical instrument id and market — the shape a scanner takes as its universe — and says it belongs to this browser. “Export for the scanner” writes the same file as watchlists.json: the scanner’s worker cannot read this browser, so a setup resolved from your latest export sees the lists as they were when you last exported them.'));
   wrap.append(ctl);
 
+  /* What to do next, with the one action the page has for it: Create, above.
+     A second primary, "Find companies", sent the reader away from the page
+     before a list existed to add them to. */
   if (!lists.length) {
-    wrap.append(emptyStateCta('No watchlists yet', 'Create one above, or find companies to add.', 'Find companies', '/discover/screener'));
+    wrap.append(emptyStateCta('No watchlists yet', 'Name your first list above and press Create — then add companies to it by ticker, or from their company pages.'));
     return wrap;
   }
 
@@ -25855,7 +26069,10 @@ VIEWS.watchlists = () => {
     addInp.addEventListener('keydown', e => { if (e.key === 'Enter') addBtn.click(); });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:10px' }, [addInp, addBtn]));
 
-    if (!items.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'Nothing in this list yet.'));
+    /* An empty list says how it fills: the field above it, or a company
+       page's own "Add to watchlist". */
+    if (!items.length) card.append(el('p', { class: 'metaline', style: 'margin-top:8px', 'data-empty': '' },
+      'Nothing in this list yet. Add a company by its ticker, listing code, CIK or name above — or with “Add to watchlist” on its company page.'));
     else {
       const t = el('table', { class: 'dt' });
       t.append(el('thead', {}, el('tr', {}, ['Symbol', 'Company', 'Coverage', 'Instrument id', 'Added', ''].map((h, i) => el('th', i === 1 ? { style: 'text-align:left' } : {}, h)))));
@@ -26051,20 +26268,22 @@ function openTrendDrawer(row, t) {
   openDrawer(`${row.sym} — trend context`, body);
 }
 
-/* Shared secondary navigation for the personal surfaces — the same section
-   row the products wear (sectionTabs, 35-ui.js), with no product name: one
-   scrolling row of underline tabs, the page on screen current. As a box of
-   pills it wrapped into two rows on a phone, a different control from the
-   row a reader had just used on a product page. */
-function mySubnav(active) {
-  return sectionTabs({ label: 'Personal pages', cls: 'my-subnav', inView: true,
-    tabs: SUBNAV_MY.map(s => ({ label: s.label, path: s.path, current: active === s.id })) });
+/* THE PERSONAL PAGES WEAR THE WORKSPACE HEADER (Release B, B5). This drew a
+   row of its own inside six of the eight pages — no name, labels that were
+   not the sidebar's ("Alerts" under My Alerts, "Workspace" under Saved
+   Models), and none on the dashboard or on two of the pages it listed. The
+   shell draws My workspace's header above every one of them now, its tabs
+   the workspace's tools from the registry (renderProductTabs, 35-ui.js). The
+   pages still call this, and it adds nothing, so no second row repeats it. */
+function mySubnav() {
+  return document.createDocumentFragment();
 }
 
 /* A consistent empty state: says what the surface is for and offers the one
-   action that fills it, rather than rendering a blank container. */
+   action that fills it, rather than rendering a blank container. Marked, so
+   a check can find every one (data-empty). */
 function emptyStateCta(title, body, ctaLabel, ctaPath) {
-  const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxl) var(--lg)' });
+  const card = el('div', { class: 'card', style: 'text-align:center;padding:var(--xxl) var(--lg)', 'data-empty': '' });
   card.append(el('h2', { class: 'h-card' }, title));
   card.append(el('p', { class: 'metaline', style: 'margin:8px auto 14px;max-width:52ch' }, body));
   if (ctaLabel) card.append(el('a', { class: 'btn btn-primary', href: href(ctaPath),
@@ -26263,7 +26482,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
-         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
+         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
@@ -26528,17 +26747,12 @@ const fmtSaved = (v) => {
 
 VIEWS.workspace = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(mySubnav('workspace'));
   const all = workspaceItems();
 
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Workspace · this browser only'),
-    el('h1', {}, 'Everything you have saved'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Valuation runs, comparisons, screens, investment cases and tool snapshots, each with the model and data version it was saved against — and whether either has moved since.'),
-  ]));
-  wrap.append(hd);
+  /* The one head (pageHead, 36-layouts.js): under My workspace's header,
+     which is drawn by the shell. */
+  wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
+    note: 'Valuation runs, comparisons, screens, investment cases and tool snapshots — and whether the model or the data under each has moved since.' }));
 
   /* The limits, before the list: where this lives, and what "moved" means. */
   const lim = el('div', { class: 'card ws-limits' });
@@ -27059,16 +27273,11 @@ const TREND_STRATEGIES = [
    ========================================================================== */
 VIEWS.tracked = () => {
   const wrap = el('div', { class: 'stack' });
-  wrap.append(mySubnav('tracked'));
-  /* The personal pages' heading. `.h1` and `.lede` had no rules, so this
-     title was the browser's 32px at weight 600 — a size and weight no other
-     page uses. */
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'Tracked'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Price and trend only. Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.'),
-  ])));
+  /* The personal pages' heading — the one head (pageHead, 36-layouts.js),
+     under My workspace's header. `.h1` and `.lede` had no rules, so this
+     title was once the browser's 32px at weight 600. */
+  wrap.append(pageHead({ title: 'Tracked', lede: 'Instruments followed by price and trend only.',
+    note: 'Nothing here is valued, scored or ranked — these are instruments the engine cannot analyse, followed so the direction is visible alongside the research.' }));
 
   const book = priceBook?.prices || {};
   const series = trackedHistory?.series || {};
@@ -32264,12 +32473,11 @@ const pmPlace = (d) => [d?.district, (SARAWAK_CITIES.find(c => c.id === d?.city)
 
 VIEWS.propertyModels = () => {
   const wrap = el('div', { class: 'pm-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'My properties'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Each property you save keeps its inputs and its scenarios. Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.'),
-  ])));
+  /* The one head (pageHead, 36-layouts.js; Release B, B5), the page's one
+     primary action at its end — it sat inside the storage note below. */
+  wrap.append(pageHead({ title: 'My properties', lede: 'The properties you have saved, each with its inputs and its scenarios.',
+    note: 'Open one and the calculator edits it — the financing, the returns, the sensitivity, the tests, the grade and the report all read the same figures, so nothing is typed twice.',
+    action: el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property') }));
 
   const props = pmAll().sort((a, b) => String(pmUpdated(b) || '').localeCompare(String(pmUpdated(a) || '')));
   const st = propertyStatus(State.deal);
@@ -32279,7 +32487,6 @@ VIEWS.propertyModels = () => {
     el('span', { class: 'chip' }, 'No account, no sync'),
     el('p', { class: 'metaline', style: 'flex:1 1 280px;margin:0' },
       'A cleared browser or another device starts empty. The export on Your data carries every property here, with its scenarios.'),
-    el('button', { class: 'btn btn-primary', id: 'pm-new', onclick: () => newPropertyDeal() }, 'New property'),
   ]));
   wrap.append(lim);
 
@@ -34388,14 +34595,11 @@ VIEWS.sarawak = () => {
   });
   [...swkOpenRecords].forEach(k => { if (!swkHeld.has(k)) swkOpenRecords.delete(k); });
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  const hd = el('div', { class: 'page-hd' });
-  hd.append(el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Sarawak Economy Watch'),
-    el('h1', {}, 'Companies with material exposure to the Sarawak economy'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.'),
-  ]));
-  wrap.append(hd);
+  /* The one head every product page wears (pageHead, 36-layouts.js); the
+     watch's own name is its tab in the header above. */
+  wrap.append(pageHead({ title: 'Companies with material exposure to the Sarawak economy',
+    lede: 'The Bursa companies that operate in Sarawak, and what you record about them.',
+    note: 'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.' }));
 
   const recs = State.sarawakExposure || [];
 
@@ -34740,12 +34944,9 @@ VIEWS.property = () => {
   const paid = propertyReportUnlocked(d.projectId);
   const wrap = el('div');
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property Deal Check'),
-    el('h1', {}, 'Turn a property into a financial model'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Most property tools show you what things sold for. This models what owning it would actually do to your cash: true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.',
+    note: 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.' }));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -38688,12 +38889,11 @@ VIEWS.wheel = () => {
   const fit = wheelFit(p, m, null);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'US equities'),
-    el('h1', {}, 'Options Cash Wheel'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'A fully collateralised cash-secured put and covered call cycle, modelled from figures you enter. Research and arithmetic — no chain data, no recommended contract, no execution.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). Its
+     eyebrow said "US equities"; the Cash Wheel is a tab of Equities
+     Research, whose header is above it. */
+  wrap.append(pageHead({ title: 'Options Cash Wheel', lede: 'A cash-secured put and covered call cycle, modelled from figures you enter.',
+    note: 'Fully collateralised, on US equities. Research and arithmetic — no chain data, no recommended contract, no execution.' }));
 
   /* "Fill in the identity" is gone once used, so focus goes to the banner's
      "Linked to …" heading rather than falling to <body>. */
@@ -40139,7 +40339,6 @@ VIEWS.tradingIndex = () => {
   const p = State.qtti;
   const r = qttiRun(p);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scanSubnav('trading'));
   /* Every control on this form redraws the page, and render() replaced the
      control under the keyboard: focus fell to <body> on each select, tick and
      field. So each control carries an id built from its own label, and the
@@ -40147,13 +40346,11 @@ VIEWS.tradingIndex = () => {
   const save = () => { saveQtti(); redrawKeepFocus(); };
   const qid = (label) => `q-${String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Timing and risk control'),
-    el('h1', {}, 'QT Trading Index'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record. '
-      + 'It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.'),
-  ])));
+  /* Under the Scanner's header, whose Trading Index tab is current (Release
+     B, B5): the one head every product page wears (pageHead,
+     36-layouts.js). Its eyebrow said "Timing and risk control". */
+  wrap.append(pageHead({ title: 'QT Trading Index', lede: 'Timing and risk control, from chart evidence you record.',
+    note: 'A multi-timeframe trend reading and a test of your own first-tranche rules. It carries no weight in the research composite and does not replace the Strategy Lens — fundamentals first, technicals second.' }));
 
   /* "Fill in the identity" is gone once it has been used — the banner comes
      back as "Linked to …" — so focus fell to <body>. It goes to that
@@ -40626,12 +40823,9 @@ let OPP_SEQ = 0;
 let oppDraft = null;
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'Opportunity register'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Real properties, each with what is known about it and what is not. Ordered by when it was recorded, never by how good it looks.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Opportunity register', lede: 'Real properties, each with what is known about it and what is not.',
+    note: 'Ordered by when it was recorded, never by how good it looks.' }));
 
   const list = State.opportunities || [];
 
@@ -41147,12 +41341,12 @@ function scanSubnav(active) {
   });
   return row;
 }
-function scanPageHead(title, lede, eyebrow = 'Quantum Scanner · personal lane') {
-  return el('div', { class: 'page-hd', style: 'margin-bottom:0' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, eyebrow),
-    el('h1', {}, title),
-    lede ? el('p', { class: 'body-lg', style: 'margin-top:8px' }, lede) : null,
-  ]));
+/* The one page head (pageHead, 36-layouts.js; Release B, B5): the eyebrow
+   is the product's name — these pages said "Quantum Scanner · personal
+   lane", "Scanner setup · new" and "Recorded match" — the lede one line,
+   and what the page must still say at its top the note under it. */
+function scanPageHead(title, lede, note = null) {
+  return pageHead({ title, lede, note });
 }
 const scanPage = () => el('div', { class: 'scan-page' });
 /* A download of a JSON document, as the watchlists page does it. */
@@ -42360,7 +42554,8 @@ VIEWS.scannerSetups = () => {
   const drift = scanDriftRows({ st });
   const driftById = new Map(drift.map(r => [r.id, r]));
   const fileCheck = scanSetupsFile ? scanValidate(scanSetupsFile) : null;
-  const head = scanPageHead('Your setups', 'Conditions you wrote, saved in this browser with every version, and exported to the file the worker reads. Nothing here proposes a setup or ranks one against another.');
+  const head = scanPageHead('Your setups', 'Conditions you wrote, saved in this browser with every version.',
+    'Exported to the file the worker reads. Nothing here proposes a setup or ranks one against another.');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [scanLink('/app/scanner/setups/new', 'New setup', { class: 'btn btn-primary' })]));
   wrap.append(head);
 
@@ -42423,7 +42618,9 @@ VIEWS.scannerSetups = () => {
     e.append(el('p', { class: 'body', style: 'margin:6px auto 0' }, fileOnly.length
       ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them above to see their versions here and edit them in the builder, or write a new one.`
       : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales. A committed example of the file is at scanner/setups.example.json.'));
-    e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-primary btn-sm' })));
+    /* One primary action on the page (Release B, B5): the head's "New setup"
+       is it, and this, the same address, stays quiet beside the words. */
+    e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-ghost btn-sm' })));
     wrap.append(e);
   } else {
     const list = el('div', { class: 'card' });
@@ -42519,7 +42716,8 @@ VIEWS.scannerSetup = () => {
   const q = Number(new URLSearchParams(location.search).get('version'));
   const wantV = Number.isInteger(q) && q > 0 ? q : null;
   const name = cur?.name || alerts[0]?.setupName || id;
-  const head = scanPageHead(name, cur?.description || null, rec?.deleted ? 'Scanner setup · deleted' : 'Scanner setup');
+  const head = scanPageHead(name, cur?.description || null,
+    rec?.deleted ? 'Deleted: its versions are kept, because the matches it recorded name them, and it has left the export.' : null);
   const acts = el('div', { class: 'row row-wrap', style: 'gap:8px' });
   if (rec && !rec.deleted) {
     acts.append(scanLink(`/app/scanner/setups/${encodeURIComponent(id)}/edit`, 'Edit', { class: 'btn btn-primary btn-sm' }));
@@ -42825,7 +43023,10 @@ const SCAN_EXAMPLE_DOC = {
    seed's words are not shown over it, and it counts as changed unless it
    is blank. */
 let scanDraftSeed = null;
-const SCAN_SEED_PARAMS = ['from', 'fromAlert', 'key', 'market', 'symbol'];
+/* ?example=<id> starts from one of the committed examples, as the builder's
+   own "Start from an example" does — the door the Scanner's Start here panel
+   opens (Release B, B6; 36-layouts.js). */
+const SCAN_SEED_PARAMS = ['from', 'fromAlert', 'key', 'market', 'symbol', 'example'];
 const scanSeedSig = (qs = new URLSearchParams(location.search)) => SCAN_SEED_PARAMS.filter(k => qs.get(k)).map(k => `${k}=${qs.get(k)}`).join('&');
 const scanSeedOwns = () => !!scanDraft && scanDraftSeed?.draft === scanDraft;
 const scanDraftUntouched = () => !!scanDraft && JSON.stringify(scanDraft) === (scanSeedOwns() ? scanDraftSeed.json : JSON.stringify(scanBlankDraft()));
@@ -42876,7 +43077,7 @@ function scanAlertSetup(a) {
 function scanSeedDraft(qs) {
   const notes = [];
   let d = null;
-  const from = qs.get('from'), fromAlert = qs.get('fromAlert');
+  const from = qs.get('from'), fromAlert = qs.get('fromAlert'), example = qs.get('example');
   const copyOf = (s, name, whence) => {
     const x = scanAsDraft(s);
     Object.assign(x, { id: scanCopyId(s.id), name: `Copy of ${name || s.name || s.id}`, description: '', enabled: true });
@@ -42896,6 +43097,15 @@ function scanSeedDraft(qs) {
        ?from= beside ?symbol=. That is where the reader came from, not a
        setup to copy, so it is not reported as missing. */
     else if (!(typeof BY_ID !== 'undefined' && BY_ID.has(from))) notes.push(`No setup “${from}” is saved here${scanSetupsFile ? ' or in the worker’s file' : ''}, so the draft starts blank.`);
+  } else if (example) {
+    /* As the picker loads one (scanExamplePicker): as written, under its
+       own id unless a setup here or in the worker's file already has it. */
+    const ex = SCAN_EXAMPLES.setups.find(x => x.id === example);
+    if (ex) {
+      d = scanAsDraft(ex);
+      if (scanStoreRead().setups[d.id] || scanFileSetupIds().has(d.id)) d.id = scanCopyId(d.id);
+      notes.push(`Started from the example “${ex.name}” (scanner/setups.example.json) — an illustration of the syntax, not a suggestion. Its id, name, universe and every condition are yours to replace.`);
+    } else notes.push(`No example “${example}” is in scanner/setups.example.json, so the draft starts blank.`);
   }
   d = d || scanBlankDraft();
   const market = String(qs.get('market') || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
@@ -42939,8 +43149,8 @@ function scanBuilderView(mode) {
     d = scanDraft;
   }
   wrap.append(mode === 'edit'
-    ? scanPageHead(`Edit ${rec.name || rec.id}`, `Currently v${rec.current}. A change to what it evaluates saves as v${Math.max(...rec.versions.map(v => v.version)) + 1} and keeps every earlier version; a change to the name, description or enabled flag does not.`, 'Scanner setup · edit')
-    : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history. Test it here, then save it as version 1; the setups page exports it to the file the worker reads.', 'Scanner setup · new'));
+    ? scanPageHead(`Edit ${rec.name || rec.id}`, `Currently v${rec.current}.`, `A change to what it evaluates saves as v${Math.max(...rec.versions.map(v => v.version)) + 1} and keeps every earlier version; a change to the name, description or enabled flag does not.`)
+    : scanPageHead('New setup', 'Conditions you choose, evaluated on your own history.', 'Test it here, then save it as version 1; the setups page exports it to the file the worker reads.'));
   if (ask) {
     const p = el('div', { class: 'card scan-seed-ask', role: 'region', 'aria-label': 'A draft is already open' });
     p.append(cardHead('A draft is already open', 'This address starts a new draft, and the one open here has changes. Nothing is replaced until you choose.'));
@@ -42968,7 +43178,7 @@ function scanBuilderView(mode) {
    was loaded, and an arrow key — which on Windows changes a closed select —
    chose the first example again at every press: the other four could not be
    reached from the keyboard. */
-const scanShownExample = () => (scanSeedOwns() && scanDraftSeed.example) || '';
+const scanShownExample = () => (scanSeedOwns() && (scanDraftSeed.example || new URLSearchParams(scanDraftSeed.sig || '').get('example'))) || '';
 function scanExamplePicker() {
   const card = el('div', { class: 'card scan-examples' });
   const id = `scanf-${++scanFieldSeq}`;
@@ -43419,7 +43629,8 @@ function scanBuilder(d, ctx) {
 VIEWS.scannerWatchlists = () => {
   const wrap = scanPage();
   wrap.append(scanSubnav('watchlists'));
-  wrap.append(scanPageHead('Watchlist scanner', 'Your watchlists as scanner universes. The worker cannot read this browser, so a setup carries a snapshot of its list’s symbols, or is resolved from your latest export of the lists; this page says where either has parted from the list.'));
+  wrap.append(scanPageHead('Watchlist scanner', 'Your watchlists as scanner universes.',
+    'The worker cannot read this browser, so a setup carries a snapshot of its list’s symbols, or is resolved from your latest export of the lists; this page says where either has parted from the list.'));
   const lists = State.watchlists || [];
   /* The file the worker resolves export-resolved setups from, and when
      this browser last wrote it. */
@@ -43549,7 +43760,8 @@ VIEWS.scannerAlerts = () => {
   const inRange = (a) => { const b = scanAlertBar(a); return (!f.from || b >= f.from) && (!f.to || b <= f.to); };
   const rangeText = f.from && f.to ? `between ${f.from} and ${f.to}` : f.from ? `on or after ${f.from}` : f.to ? `on or before ${f.to}` : '';
   const unread = scanUnreadCount();
-  wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first — a record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
+  wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first.',
+    'A record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
     wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'data/scan-alerts.json lives on the machine the worker runs on; it is git-ignored and never deployed, so on the published site there is nothing to show — and no unread count, rather than a count of nought. Locally, run node scanner/scan.mjs and reload.', ['/app/scanner/setups', 'Your setups']));
     return wrap;
@@ -43934,7 +44146,7 @@ VIEWS.scannerAlert = () => {
   const nr = legacy ? 'not recorded — this alert predates engine 0.3.0' : null;
   const bar = scanAlertBar(a);
   const version = a.setupVersion ?? (legacy ? 1 : null);
-  const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, null, 'Recorded match');
+  const head = scanPageHead(`${a.setupName || a.setupId} · ${a.symbol} · ${bar}`, 'A match the worker recorded.');
   head.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     scanAlertNext(a),
     el('span', { class: `chip ${SCAN_STATUS_CHIP[status]}` }, status.toLowerCase()),
@@ -44162,7 +44374,8 @@ const SCAN_CHANNELS = [
 VIEWS.scannerSettings = () => {
   const wrap = scanPage();
   wrap.append(scanSubnav('settings'));
-  wrap.append(scanPageHead('Scanner settings', 'Notifications and display, kept in this browser. The in-app notification centre is the alerts page and its unread count; nothing is sent anywhere.'));
+  wrap.append(scanPageHead('Scanner settings', 'Notifications and display, kept in this browser.',
+    'The in-app notification centre is the alerts page and its unread count; nothing is sent anywhere.'));
   const prefs = scanPrefsRead();
   const deliveries = typeof scanDeliveriesFile !== 'undefined' ? scanDeliveriesFile : null;
 
@@ -44380,41 +44593,21 @@ function scanOpsAlertLink(a, label) {
   return id ? scanOpsLink(`/app/scanner/alerts/${id}`, label) : el('span', {}, label);
 }
 
-/* The scanner's own sections. Shared by every scanner page, the setups
-   batch's included: scannerSubnav('dashboard' | 'market' | 'setups' |
-   'watchlists' | 'alerts' | 'backtest' | 'settings' | 'trading'). The
-   operations pages are not in it — they are the worker's, reached from the
-   dashboard. The QT Trading Index is a section of the Scanner (Release A):
-   its row is last, and its page (85-trading-index.js) draws this strip with
-   itself current. */
-const SCANNER_SUBNAV = [
-  { id: 'dashboard',  label: 'Dashboard',            path: '/app/scanner' },
-  { id: 'market',     label: 'Market (your series)', path: '/app/scanner/market' },
-  { id: 'setups',     label: 'Setups',               path: '/app/scanner/setups' },
-  { id: 'watchlists', label: 'Watchlists',           path: '/app/scanner/watchlists' },
-  { id: 'alerts',     label: 'Alerts',               path: '/app/scanner/alerts' },
-  { id: 'backtest',   label: 'Historical',           path: '/app/scanner/backtest' },
-  { id: 'settings',   label: 'Settings',             path: '/app/scanner/settings' },
-  { id: 'trading',    label: 'Trading Index',        path: '/research/trading-index' },
-];
-/* The Alerts link carries the unread count — "Alerts · n", named "Alerts,
-   n unread" — as the alerts pages' own strip did (SC-309 as built). This
-   strip replaces that one on every scanner page and had dropped it, so the
-   main navigation read "Scanner 24" over a strip that read only "Alerts".
-   No count when nothing is counted (no alerts file, in-app off) or none is
-   unread, as the main navigation's badge. */
-/* Drawn as the product tab row Equities and Property wear (sectionTabs,
-   35-ui.js): the Scanner's name and badge, then one scrolling row of
-   underline tabs. It was a grey box of pills with no name, wrapping into
-   three rows on a phone, one level of navigation drawn two ways across the
-   three products. The table and the unread count are unchanged. */
-function scannerSubnav(active) {
-  const unread = scanOpsUnread();
-  return sectionTabs({ label: 'Scanner sections', pid: 'scanner', cls: 'scan-subnav', inView: true,
-    tabs: SCANNER_SUBNAV.map(s => {
-      const n = s.id === 'alerts' && unread > 0 ? unread : 0;
-      return { label: n ? `${s.label} · ${n}` : s.label, path: s.path, current: active === s.id, ariaLabel: n ? `${s.label}, ${n} unread` : null };
-    }) });
+/* THE SCANNER'S SECTIONS ARE ITS PRODUCT HEADER'S TABS (Release B, B5).
+   Every scanner page drew a strip of its own here, from a table of its own
+   (SCANNER_SUBNAV: "Watchlists" where the registry, How it works and the
+   dashboard say "Watchlist scanner"), inside the page, where Equities and
+   Property wear the shell's header above theirs. The Scanner wears that
+   header now — its name, its badge and one row of tabs read from TOOLS,
+   the Alerts tab still "Alerts · n", named "Alerts, n unread" (SC-309 as
+   built; tabCount, 36-layouts.js) — drawn by the shell for every scanner
+   page, the Trading Index and the operations pages included.
+   scannerSubnav stays, because every scanner page calls it through
+   scanSubnav (86-scanner.js), which would otherwise draw the older strip of
+   its own; it adds nothing to the page, so no second strip repeats the
+   header's. */
+function scannerSubnav() {
+  return document.createDocumentFragment();
 }
 const SCANNER_OPS_NAV = [
   { id: 'overview', label: 'Overview',    path: '/admin/scanner' },
@@ -44428,12 +44621,11 @@ function scanOpsSubnav(active) {
     'aria-current': active === s.id ? 'page' : null })));
   return row;
 }
-function scanOpsHead(eyebrow, title, lead) {
-  return el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, eyebrow),
-    el('h1', {}, title),
-    lead ? el('p', { class: 'body-lg', style: 'margin-top:8px;max-width:72ch' }, lead) : null,
-  ]));
+/* The one page head (pageHead, 36-layouts.js): the eyebrow is the product's
+   name, the lede one line, and what the page must still say at its top the
+   note under it. */
+function scanOpsHead(title, lede, note = null, action = null) {
+  return pageHead({ title, lede, note, action });
 }
 /* Every operations page opens with this, before anything that could be
    read as supervision. */
@@ -44727,14 +44919,13 @@ VIEWS.scannerDashboard = () => {
   const st = scanOpsStatus();
   const S = SCAN_STATE[st.state] || SCAN_STATE.never;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scannerSubnav('dashboard'));
   /* The product's one action, as its entry in PRODUCTS names it, is the
      overview's primary: the page had none, and "Create a setup" was two
-     clicks away under Setups. */
-  const head = scanOpsHead('Quantum Scanner · personal lane', 'Scanner',
-    'Whether your setups are active, when the last scan succeeded, which setups matched and whether anything is delivered — read from what the worker recorded on this machine. Nothing here is a scan run by this page and presented as the worker’s.');
+     clicks away under Setups. It stands at the head's end. */
   const sc = typeof productById === 'function' ? productById('scanner') : null;
-  if (sc?.action && sc.actionPath && matchRoute(sc.actionPath)) head.append(scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }));
+  const head = scanOpsHead('Scanner dashboard', 'Your setups, the last scan and its matches, as the worker recorded them.',
+    'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine. Nothing here is a scan run by this page and presented as the worker’s.',
+    sc?.action && sc.actionPath && matchRoute(sc.actionPath) ? scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }) : null);
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
@@ -45031,9 +45222,8 @@ function scanScreenOne(s, history, sym, ctx) {
 VIEWS.scannerMarket = () => {
   const S = scanMarketState;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scannerSubnav('market'));
-  wrap.append(scanOpsHead('Quantum Scanner · personal lane', 'Market screening — your series',
-    'Run one of your setups over every instrument of a market that holds a series in your own price history, now, in this browser. The result is listed in symbol order and recorded nowhere. It screens your history, not the market, and none of it is offered to anyone else.'));
+  wrap.append(scanOpsHead('Market screening — your series', 'Run one of your setups over a market’s series in your own history, now.',
+    'Every instrument of the market that holds a series in your price history, in this browser. The result is listed in symbol order and recorded nowhere. It screens your history, not the market, and none of it is offered to anyone else.'));
 
   const history = scanOpsHistory();
   const haveHistory = !!(history?.series && Object.keys(history.series).length);
@@ -45198,9 +45388,8 @@ function scanBacktestMerge(parts, s) {
 VIEWS.scannerBacktest = () => {
   const S = scanBacktestState;
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(scannerSubnav('backtest'));
-  wrap.append(scanOpsHead('Quantum Scanner · simulation', 'Historical matches — simulation',
-    'The dates on which a setup’s conditions held in your own history, with the values that made them hold — evaluated by the same engine the worker runs, one bar at a time.'));
+  wrap.append(scanOpsHead('Historical matches — simulation', 'The dates on which a setup’s conditions held in your own history.',
+    'With the values that made them hold — evaluated by the same engine the worker runs, one bar at a time.'));
 
   /* THE LABEL IS FIXED AND COMES FIRST — before any number it qualifies. */
   const sim = el('section', { class: 'scan-sim', role: 'note', 'aria-label': 'This is a simulation' }, [
@@ -45346,10 +45535,12 @@ function scanBacktestResult(R) {
 /* ============================================================= operations === */
 /* The four /admin/scanner pages. Read-only; each states which of its files
    is absent and what writes it. */
-function scanOpsPage(active, title, lead) {
+/* Under the Scanner's header, as every scanner page: the head, then these
+   pages' own row of four, then the notice. */
+function scanOpsPage(active, title, lede, note) {
   const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  wrap.append(scanOpsHead(title, lede, note));
   wrap.append(scanOpsSubnav(active));
-  wrap.append(scanOpsHead('Scanner operations · this machine', title, lead));
   wrap.append(scanOpsNotice());
   return wrap;
 }
@@ -45372,7 +45563,7 @@ function scanOpsSessionNow(market, now) {
 }
 
 VIEWS.scannerAdmin = () => {
-  const wrap = scanOpsPage('overview', 'Scanner operations',
+  const wrap = scanOpsPage('overview', 'Scanner operations', 'What the worker on this machine did, read from the files it writes.',
     'Data, sessions, runs, the alert engine, delivery, usage and errors, in that order — each read from a file the worker or the daily task writes on this machine.');
   const now = scanOpsNow();
   const history = scanOpsHistory();
@@ -45557,8 +45748,8 @@ const scanBreakChip = (st) => sevChip((SCAN_BREAK_STATE[st] || ['info'])[0], (SC
 const scanRatioText = (r) => `×${Number(r.toPrecision(3))}`;
 
 VIEWS.scannerAdminData = () => {
-  const wrap = scanOpsPage('data', 'Data health',
-    'Your price history as the engine reads it: every bar validated, gaps counted against the sessions of its market, dates checked against the days each market trades, price breaks named with what explains them, staleness judged against the clock. Nothing in the file is corrected here — only named.');
+  const wrap = scanOpsPage('data', 'Data health', 'Your price history as the engine reads it, every bar validated.',
+    'Gaps counted against the sessions of its market, dates checked against the days each market trades, price breaks named with what explains them, staleness judged against the clock. Nothing in the file is corrected here — only named.');
   let history = scanOpsHistory();
   /* A history opened from disk on this page arrives without the recorded
      actions the loader attaches; they are attached for this page's reading
@@ -45765,8 +45956,8 @@ VIEWS.scannerAdminData = () => {
 
 const scanJobsState = { filter: 'all' };
 VIEWS.scannerAdminJobs = () => {
-  const wrap = scanOpsPage('jobs', 'Runs',
-    'Every attempt the worker recorded — completed, partial, failed or skipped — newest first, with its duration, its counts and its error; and the log of the controls run against it.');
+  const wrap = scanOpsPage('jobs', 'Runs', 'Every attempt the worker recorded, newest first.',
+    'Completed, partial, failed or skipped, each with its duration, its counts and its error; and the log of the controls run against it.');
   const { runs, audit, dropped } = scanOpsRuns();
   const card = el('section', { class: 'card' });
   if (!runs.length) {
@@ -45937,8 +46128,8 @@ const SCAN_OPS_CHANNELS = [
   ['PUSH', 'Web push', 'NOT_CONFIGURED', 'Not built: web push belongs to a later live-scanning release (P2), which is not available here, and needs a push service and a server to hold subscriptions.'],
 ];
 VIEWS.scannerAdminDelivery = () => {
-  const wrap = scanOpsPage('delivery', 'Delivery',
-    'Where scanner alerts go. In-app is the only channel: the alert is the record, written before anything else, and nothing is sent anywhere.');
+  const wrap = scanOpsPage('delivery', 'Delivery', 'Where scanner alerts go: into the app, and nowhere else.',
+    'In-app is the only channel: the alert is the record, written before anything else, and nothing is sent anywhere.');
   const D = scanDeliveriesFile;
   const fileCh = D?.channels ? (Array.isArray(D.channels) ? Object.fromEntries(D.channels.filter(Boolean).map(c => [c.channel || c.id, c])) : D.channels) : {};
   const unread = scanOpsUnread();
@@ -46008,14 +46199,10 @@ VIEWS.areas = () => {
   if (geoLoadState === 'idle') loadSarawakLayers();
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'Area screen'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Localities in one town, shaded by what you have recorded about them. Flood exposure is entered from a source you name; '
-      + 'rents, vacancy and prices come from the comparables register. Nothing here is modelled, inferred or bought in — an area with '
-      + 'no record is drawn hollow, because an unexamined area must never look like a safe one.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Area screen', lede: 'Localities in one town, shaded by what you have recorded about them.',
+    note: 'Flood exposure is entered from a source you name; rents, vacancy and prices come from the comparables register. Nothing here is modelled, inferred or bought in — an area with '
+      + 'no record is drawn hollow, because an unexamined area must never look like a safe one.' }));
 
   const city = SARAWAK_CITIES.find(c => c.id === S.city) || SARAWAK_CITIES[0];
   const geoAreas = sarawakGeo?.cities?.[S.city]?.areas || {};
@@ -46488,12 +46675,9 @@ function areaRecorder(city, area) {
 
 VIEWS.comparables = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'Property'),
-    el('h1', {}, 'Sarawak comparables register'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Transacted prices and achieved rents you have recorded, with what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.'),
-  ])));
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Sarawak comparables register', lede: 'Transacted prices and achieved rents you have recorded, each with its source.',
+    note: 'With what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.' }));
 
   /* WHO IS RECORDING, AND UNDO.
      Both belong here rather than in a settings page: this is the screen someone
@@ -46672,7 +46856,10 @@ VIEWS.comparables = () => {
               : c === 'standing' ? observationStanding(o).id : o[c])).join(',')));
       dl('quantum-comparables.csv', lines.join('\n'), 'text/csv');
     } }, 'Export CSV'),
-    el('button', { class: 'btn btn-primary btn-sm', id: 'register-import', onclick: () => openComparableImport() }, 'Import'),
+    /* Beside its two exports, in their weight: the page's one primary action
+       is what fills the register first (Release B, B5), and on an empty one
+       two filled buttons asked the reader to choose between them. */
+    el('button', { class: 'btn btn-ghost btn-sm', id: 'register-import', onclick: () => openComparableImport() }, 'Import'),
   ]));
   io.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'CSV is for reading; JSON brings back every field of each record, worked-example marks and land areas included. The file also carries the change history for reading — an import starts each record\'s history afresh, at the import. Import skips a record it already holds rather than doubling its weight in a median — same district, kind, amount and date is the same transaction however many times it is pasted.'));
