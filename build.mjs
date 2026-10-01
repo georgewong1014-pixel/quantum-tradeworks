@@ -257,6 +257,8 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'const slug = ', ';\n'),
     cut(UI, '35-ui.js', 'function companyPath(', '\n}\n'),
     cut(UI, '35-ui.js', 'const ILLUS_TITLE = ', ';\n'),
+    cut(UI, '35-ui.js', 'const COMPANY_LISTED = ', ';\n'),
+    cut(UI, '35-ui.js', 'function companyMetaDescription(', '\n}\n'),
     cut(UI, '35-ui.js', 'const ROUTES = [', '\n];'),
     cut(UI, '35-ui.js', 'const META = {', '\n};'),
     ...additions,
@@ -392,7 +394,12 @@ export function companyPlan(origin, router = clientRouter(origin)) {
   const { companies, skipped } = companyUniverse();
   const owner = new Map();
   const plan = companies.map((c) => {
-    const { path, title, description: pageLine, canonical } = router.companyHeadAt(c);
+    const { path, title, description, canonical } = router.companyHeadAt(c);
+    /* The page writes the company's own description (companyMetaDescription,
+       35-ui.js); the build composes it independently, and the two must agree,
+       or a link preview and the page would say different things. */
+    const composed = companyDescription(c, router.META.research, router.ILLUS_TITLE);
+    if (description !== composed) throw new Error(`${c.id}: the page describes itself as ${JSON.stringify(description)}, the build as ${JSON.stringify(composed)}`);
     if (!/^(\/[A-Za-z0-9-]+)+$/.test(path)) throw new Error(`${c.id}: its address ${path} is not literal segments`);
     const route = router.matchRoute(path);
     if (!route || route.view !== 'research' || !route.path.includes(':'))
@@ -403,7 +410,7 @@ export function companyPlan(origin, router = clientRouter(origin)) {
     return {
       path, id: c.id,
       company: { name: c.name, tk: c.tk, code: c.code || null, mkt: c.mkt, real: !!c.real, cik: c.cik || null },
-      head: { title, description: companyDescription(c, pageLine, router.ILLUS_TITLE), canonical },
+      head: { title, description, canonical },
     };
   });
   return { companies: plan, skipped };

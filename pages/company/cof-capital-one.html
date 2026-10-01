@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- The first paint's title and description are the '/' route's, so a crawler
-     that does not run the script reads the same positioning the router sets
-     (35-ui.js ROUTES and META.marketing). -->
+<!-- These are the '/' route's title, description and canonical, for
+     index.html. Every other page build.mjs writes (pages/*.html, the company
+     pages and 404.html) carries its own, as the router sets them on that
+     address (setDocumentMeta, 35-ui.js), so a crawler that does not run the
+     script reads each page's own. -->
 <title>COF — CAPITAL ONE FINANCIAL CORP · Quantum Tradeworks</title>
 <meta name="description" content="CAPITAL ONE FINANCIAL CORP (COF), listed in the US. Figures from its audited annual statements filed with the SEC (CIK 927628). A company report where every number shows its formula, its period and its source.">
 <meta name="color-scheme" content="light dark">
@@ -361,6 +363,6 @@
 <div class="viztip" id="viztip" role="status" aria-live="polite"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="/assets/app.080589ff1a7e.js"></script>
+<script src="/assets/app.f50582984ce9.js"></script>
 </body>
 </html>

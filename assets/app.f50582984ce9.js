@@ -13035,19 +13035,43 @@ function matchRoute(pathname) {
   return null;
 }
 
+/* A company page's description: its name, its ticker (and on Bursa the
+   listing code its address leads with), where it is listed and where its
+   figures come from, then the page's own line — the sentence its served page
+   carries (build.mjs holds the build's companyDescription to this). Once the
+   script ran, the page wrote the generic research line over it. */
+const COMPANY_LISTED = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' };
+function companyMetaDescription(c, pageLine) {
+  const where = COMPANY_LISTED[c.mkt];
+  if (!where) return pageLine;
+  const tickers = c.mkt === 'MY' && c.code && c.code !== c.tk ? `${c.tk}, ${c.code}` : c.tk;
+  const source = !c.real ? ILLUS_TITLE
+    : c.personal ? 'Figures from your own personal-research statements — not licensed, not for redistribution.'
+    : c.cik ? `Figures from its audited annual statements filed with the SEC (CIK ${Number(c.cik)}).` : null;
+  return `${c.name} (${tickers}), ${where}. ${source ? `${source} ` : ''}${pageLine}`;
+}
 function setDocumentMeta(route) {
+  /* While the filings load, a company address can resolve to the
+     illustrative stand-in a filer will replace, and the head named the
+     stand-in for a moment (/company/msft-microsoft-corp read "MSFT —
+     Microsoft Corporation" with the stand-in's canonical). The served page's
+     head is the company's own; it stands until the router runs again with the
+     filings in. */
+  const holdHead = (route?.view === 'research' || route?.view === 'researchReport') && typeof realPending !== 'undefined' && realPending;
   const co = (route?.view === 'research' || route?.view === 'researchReport') && !route.pending && State.ticker && BY_ID.get(State.ticker);
   const name = co
     ? `${route.view === 'researchReport' ? 'Research report: ' : ''}${co.c.tk} — ${co.c.name}`
     : (route?.title || 'Not found');
-  document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
-  const desc = META[route?.view] || META.marketing;
-  let tag = document.querySelector('meta[name="description"]');
-  if (!tag) { tag = document.createElement('meta'); tag.setAttribute('name', 'description'); document.head.append(tag); }
-  tag.setAttribute('content', desc);
-  let canon = document.querySelector('link[rel="canonical"]');
-  if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
-  canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+  if (!holdHead) {
+    document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
+    const desc = co && route.view === 'research' ? companyMetaDescription(co.c, META.research) : (META[route?.view] || META.marketing);
+    let tag = document.querySelector('meta[name="description"]');
+    if (!tag) { tag = document.createElement('meta'); tag.setAttribute('name', 'description'); document.head.append(tag); }
+    tag.setAttribute('content', desc);
+    let canon = document.querySelector('link[rel="canonical"]');
+    if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
+    canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+  }
   /* The not-found card says noindex, wherever it is drawn. The host answers
      an address no route matches with 404.html, which carries it; but a
      parameter route is served the app with 200 whatever its parameter, so

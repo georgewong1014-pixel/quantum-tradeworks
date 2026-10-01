@@ -71,6 +71,7 @@ page of its own, with the company's own head (see Company pages, below).
 | `/my/watchlists` | watchlists | app | Watchlists (workspace) | canonical |
 | `/my/theses` | thesis | app | Saved Models (workspace) | canonical |
 | `/my/alerts` | alerts | app | My Alerts (workspace) | canonical |
+| `/my/reports` | reports | app | Reports (workspace) | canonical |
 | `/my/tracked` | tracked | app | Watchlists (workspace) | canonical |
 | `/app/scanner` | scannerDashboard | app | Quantum Scanner (product) | canonical |
 | `/app/scanner/market` | scannerMarket | app | Quantum Scanner (product) | canonical |
@@ -259,33 +260,37 @@ focus on its close button, Tab kept inside it, Escape and the scrim close it.
    was last opened in this browser — when nothing is typed; the count of
    companies joins its accessible name once the filings have loaded)
 3. **My workspace** — My Dashboard (`/app`) · Watchlists (`/my/watchlists`)
-   · My Alerts (`/my/alerts`) · Saved Models (`/my/workspace`)
+   · My Alerts (`/my/alerts`) · Saved Models (`/my/workspace`) · Reports (`/my/reports`)
 4. **Products** — Equities Research · Quantum Scanner · Property
    Intelligence, each with its badge. Business Intelligence is not listed
    (`SHOW_UNBUILT = false`).
 5. Your data & settings (`/my/data`) · Plans (`/pricing`) · theme toggle
 
 The item marked current is the one `SECTION_OF` names for the view. The
-other personal pages keep their `mySubnav` row and mark the item they fit:
-portfolio and investment cases mark Saved Models, tracked instruments mark
-Watchlists.
+other personal pages wear My workspace's header (below) and mark the item
+they fit: portfolio and investment cases mark Saved Models, tracked
+instruments mark Watchlists.
 
-The scanner's unread-alert count sits on the My Alerts row as a link of its
-own to `/app/scanner/alerts`, named "Scanner alerts, N unread" (as the
-scanner's own strip names its Alerts link), its pill carrying the Scanner's
-mark so it does not read as My Alerts' own count. `/my/alerts` is the
-research alert feed and does not list the scanner's matches, so the count is
-not on the My Alerts link itself, which would promise alerts the page it
-opens does not show.
+My Alerts carries one unread count, inside its own link ("My Alerts, N
+unread"): the unread among the kinds of alert that keep a read state — the
+scanner's matches, by the scanner's own rule (scanUnreadCount; none when its
+record is not visible here or the in-app count is off, never 0). `/my/alerts`
+lists both kinds, each labelled — Research and Scanner matches — so the count
+opens the page that shows what it counts. `/app/scanner/alerts` stays the
+scanner's full history, linked from the Scanner matches section.
 
-**Reports** is not in My workspace: a research report is printed from a
-company page and nothing keeps a list of them, so the item would open
-nothing (`SHOW_REPORTS = false`). It joins when a reports list exists.
+**Reports** (`/my/reports`, `SHOW_REPORTS = true`) sits in My workspace after
+Saved Models: what the reader's own work can print — a company's research
+report, each saved property's investor report and decision record, the Cash
+Wheel's and the Trading Index's decision records — each opening the real
+report.
 
 ### Product tabs
 
-One row above an Equities or Property page (a nav landmark named
-"<Product> sections"), from `PRODUCT_TABS`:
+One row above every product page (a nav landmark named "<Product>
+sections"), read from the tool registry (`TOOLS`, 35-ui.js; `PRODUCT_TABS` is
+a view over it), under one product header — the product's name, its status
+badge and the page's one primary action (`pageHead`, 36-layouts.js):
 
 - **Equities Research** — Overview (`/research`) · Screener
   (`/discover/screener`) · Compare (`/compare`) · Research queue
@@ -309,19 +314,21 @@ One row above an Equities or Property page (a nav landmark named
   overview view is built.
 - The company page (`research`) and its report keep their own tabs and get
   no product row.
-- **Quantum Scanner** keeps its own section table (87-scanner-ops.js
-  `SCANNER_SUBNAV`, which every scanner page draws through `scanSubnav`,
-  named "Scanner sections"): Dashboard, Market (your series), Setups,
-  Watchlists, Alerts, Historical, Settings, **Trading Index**
-  (`/research/trading-index`, a section of the scanner since Release A).
-  It is drawn with the same component as the Equities and Property rows
-  (`sectionTabs`, 35-ui.js) — the product's name and badge, one scrolling
-  row of underline tabs — at the top of the page rather than in
-  `#productTabs`, because each scanner page names its own section. The
+- **Quantum Scanner** — since Release B its sections are TOOLS rows like the
+  others' and it wears the same product header (its own strip,
+  `SCANNER_SUBNAV`, is gone): Dashboard, Market (your series), Setups,
+  Watchlists, Alerts (carrying the unread count, "Alerts, N unread"),
+  Historical, Settings, **Trading Index** (`/research/trading-index`). The
   Trading Index's page shows the row with itself current.
-- The personal pages (`/my/*`) draw `mySubnav` with the same component,
-  without a product name: Portfolio · Watchlists · Investment cases ·
-  Alerts · Tracked · Workspace · Your data.
+- **My workspace** — every personal page (`/my/*` and the dashboard) wears
+  one workspace header with one tab row read from the registry's workspace
+  tools (`workspaceTabs`, 36-layouts.js): My Dashboard, Watchlists, My Alerts, Saved Models,
+  Reports, Portfolio, Investment cases, Tracked, Your data.
+- **Start here.** The first time a reader opens Equities, the Scanner or
+  Property, a labelled region at the top of its pages says what the product
+  does, its one action and what they get, with a labelled example; "Hide" is
+  remembered per product (`vl.startHere`) and Your data & settings brings it
+  back.
 
 ### Footer
 

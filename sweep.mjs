@@ -556,16 +556,30 @@ for (const route of ROUTES) {
     commit: 'abcdef1234567890', commitFrom: 'the sweep', journeys: [run('equities', 'Equities: search, filed statements, watchlist', 'PASS'), run('scanner', 'Scanner: build, save and evaluate a setup', 'PASS')] };
   const FAILING = { ...GOOD, journeys: [GOOD.journeys[0], run('scanner', 'Scanner: build, save and evaluate a setup', 'FAIL', { failedStep: 'Save the setup', route: '/app/scanner/setups/new', note: 'Save did not open the setup’s page' })] };
 
-  /* The committed placeholder, as the server has it. */
-  serve = null;
+  /* The placeholder the repository started with — health/journeys.json before
+     any run — served as a fixture. The journeys workflow commits each run over
+     the file (6e52922 was its first), so what is committed cannot be assumed:
+     reading it as committed failed this check, and every CI run after it, the
+     moment production was first tested. */
+  serve = { status: 200, body: { kind: 'quantum-tradeworks-journeys', schema: 1, ranAt: null, url: null, commit: null, commitFrom: null, journeys: [],
+    note: 'No run recorded yet. .github/workflows/journeys.yml replaces this file with the result of journeys.mjs --url production after its first run; /status reads it and says not run yet until then.' } };
   let s = await open();
   if (s.h2 !== 'Does each tool work?') p.push(`/status has no "Does each tool work?" section (${JSON.stringify(s.h2)})`);
   const quickSaid = (q) => q.map(x => `${x.status}: ${x.text.replace(/\s+/g, ' ').slice(0, 110)}`).join(' | ');
   if (s.quick.length !== 4 || s.quick.some(q => q.status !== 'PASS')) p.push(`the in-browser checks on this build: ${quickSaid(s.quick)}`);
   if (!/^4 of 4 pass\./.test(s.quickSum)) p.push(`the in-browser summary reads ${JSON.stringify(s.quickSum)}`);
-  if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`the committed placeholder: ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "not run yet"`);
+  if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`the placeholder: ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "not run yet"`);
   if (!s.asked) p.push('/status never asked the site for health/journeys.json');
   if (!s.modes.length || s.modes.some(m => m !== 'no-store')) p.push(`/status asks for health/journeys.json with cache ${JSON.stringify(s.modes)}, not no-store`);
+
+  /* The file as committed, whatever the last run recorded: either the
+     placeholder or a dated run — never unreadable, never an invented result. */
+  serve = null;
+  {
+    const c = await open();
+    if (!/^(Not run yet\.|Last recorded run )/.test(c.sum)) p.push(`the committed health/journeys.json reads ${JSON.stringify(c.sum.slice(0, 90))}, not "not run yet" or a dated run`);
+    if (!c.asked) p.push('/status never asked the site for the committed health/journeys.json');
+  }
 
   /* A fixture, and the visit must have asked the site for it. */
   const fixture = async (as, what) => { serve = as; const r = await open(); if (!r.asked) p.push(`${what}: the page never asked the site for the file`); return r; };
@@ -1239,7 +1253,7 @@ for (const route of ROUTES) {
     if (s.ogDescription !== s.description || s.twitterDescription !== s.description) p.push(`${c.path}: og:description or twitter:description does not repeat the description`);
     if (s.robots) p.push(`${c.path}: served with robots ${s.robots}`);
     const d = s.description || '';
-    if (!d.endsWith(` ${c.description}`)) p.push(`${c.path}: the served description does not end with the page's own, ${JSON.stringify(c.description)}`);
+    if (d !== c.description) p.push(`${c.path}: served the description ${JSON.stringify(d.slice(0, 90))}, the page sets ${JSON.stringify(String(c.description).slice(0, 90))}`);
     const where = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' }[c.mkt];
     const named = d.startsWith(`${c.name} (`) && new RegExp(`^${esc(c.name)} \\(${esc(c.tk)}[,)]`).test(d)
       && (c.mkt !== 'MY' || !c.code || c.code === c.tk || d.includes(`, ${c.code}), `));
@@ -1263,8 +1277,18 @@ for (const route of ROUTES) {
     if (o.title !== s.title) p.push(`${c.path} (${kind}), opened cold: the page sets the title ${JSON.stringify(o.title)}, and was served ${JSON.stringify(s.title)}`);
     if (at(o.canonical) !== at(s.canonical)) p.push(`${c.path} (${kind}), opened cold: the page sets the canonical ${o.canonical}, and was served ${s.canonical}`);
     if (o.robots) p.push(`${c.path} (${kind}), opened cold: robots ${o.robots}`);
-    if (!(s.description || '').endsWith(` ${o.description}`)) p.push(`${c.path} (${kind}), opened cold: the served description does not end with the page's own`);
+    if ((s.description || '') !== o.description) p.push(`${c.path} (${kind}), opened cold: the page sets a description other than the one it was served`);
   }
+  /* While the filings load, the served head stands: an address can resolve
+     to an illustrative stand-in then, and the head named it for a moment. */
+  const hold = await evalValue(`(() => {
+    const read = () => ({ title: document.title, canon: document.querySelector('link[rel=canonical]')?.getAttribute('href'), desc: document.querySelector('meta[name="description"]')?.getAttribute('content') });
+    const before = read(), keep = { rp: realPending, t: State.ticker };
+    const stand = U.find(r => !r.c.real && r.c.mkt === 'US') || U.find(r => !r.c.real);
+    try { realPending = true; State.ticker = stand.c.id; setDocumentMeta(matchRoute(companyPath(stand.c))); return { before, after: read(), id: stand.c.id }; }
+    finally { realPending = keep.rp; State.ticker = keep.t; }
+  })()`);
+  if (!hold || JSON.stringify(hold.before) !== JSON.stringify(hold.after)) p.push(`while the filings load, setDocumentMeta rewrote the head for ${hold?.id}: ${JSON.stringify(hold).slice(0, 240)}`);
   const nFiled = live.filter(c => c.real && !c.personal).length;
   if (p.length) { bad++; console.log(`FAIL company heads: a company's own address is not served the head its page sets (${p.length} problems)`); p.slice(0, 25).forEach(x => console.log('     ' + x)); if (p.length > 25) console.log(`     … and ${p.length - 25} more`); }
   else console.log(`ok   company heads: the ${live.length} companies the page holds with its filings in (${nFiled} filed with the SEC, ${live.length - nFiled} illustrative) are the ${plan.length} the build wrote pages for, each at the address the page's companyPath gives it and its resolver reads back; each is served the title and canonical the page's setDocumentMeta sets there, og: and twitter: repeating them, and the page's own description led by the company's name, ticker, market and source; ${opened.length} opened cold (${opened.join(', ')}) draw their company page with the head they were served`);
