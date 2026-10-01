@@ -139,7 +139,11 @@ function startHereExample(pid) {
        opening one not yet read this month is one of the month's reports. */
     const meter = reportAllowed(r.c.id);
     const cap = lim('reportsPerMonth');
-    return line([inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report'), chip], !Number.isFinite(cap) ? null
+    /* With the month's reports used, the report would open only to say it
+       is not available: the example is named, not linked, as Reports lists a
+       refused report, and the note says when it opens. */
+    const ex = meter.ok ? inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report') : el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report');
+    return line([ex, chip], !Number.isFinite(cap) ? null
       : !meter.ok ? `This month’s ${cap} company reports on this plan are used, so it opens next month.`
       : meter.counted ? `On this plan it is one of this month’s ${cap} company reports.` : null);
   }

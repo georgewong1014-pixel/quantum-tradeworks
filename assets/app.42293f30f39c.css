@@ -766,6 +766,10 @@ table.dt thead th.chg { color: var(--ink-3); }
    run together with no padding or active state. It was only ever shown on the
    two pages nothing linked to, which is why it went unnoticed; it now appears
    on all six. */
+/* The strip scrolls, so it clips at its 3px of padding, and the page's ring
+   stands 4px out (2px, offset 2px): on My Alerts' kind filter it was shaved
+   at top and bottom. Inside the button, it is whole. */
+.segmented button:focus-visible, .segmented a:focus-visible { outline-offset: -2px; }
 .segmented button, .segmented a {
   appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
   padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;

@@ -664,7 +664,13 @@ function alertsScannerSection(rec) {
   }
   const every = toolLink('/app/scanner/alerts', { class: 'btn btn-ghost btn-sm al-every' }, ['Every scanner alert ', el('span', { 'aria-hidden': 'true' }, '→')]);
   sec.append(alertsSectionHead('al-scanner-hd', `Scanner matches — ${rec.open.length}`, sub, every));
-  const mutedN = rec.unread != null ? Math.max(0, rec.fresh - rec.unread) : 0;
+  /* What the unread count leaves out, each by its own reason (scanUnreadCount:
+     a match with an id, not yet opened, from a setup not muted). Taken as
+     the difference, a match with no id — which cannot be marked read, so is
+     never counted — was said to come from "a muted setup" with none muted. */
+  const freshOpen = rec.open.filter(a => scanAlertStatus(a, rec.st) === 'NEW');
+  const mutedN = rec.unread != null ? freshOpen.filter(a => scanAlertIdOf(a) && rec.prefs.muted?.[a.setupId]).length : 0;
+  const idlessN = rec.unread != null ? freshOpen.filter(a => !scanAlertIdOf(a)).length : 0;
   const archivedSaid = rec.archived
     ? `${rec.archived} archived match${rec.archived === 1 ? ' is' : 'es are'} not listed here — the scanner’s alert history holds ${rec.archived === 1 ? 'it' : 'them'}.` : null;
   if (!rec.all.length) {
@@ -684,14 +690,16 @@ function alertsScannerSection(rec) {
   }
   sec.append(el('p', { class: 'metaline al-scan-said' }, rec.prefs.inApp === false
     ? `${rec.fresh} not yet opened — the in-app unread count is switched off in the scanner’s settings.`
-    : `${rec.unread} unread${mutedN ? ` — ${mutedN} more from ${mutedN === 1 ? 'a muted setup' : 'muted setups'}, not counted` : ''}.`));
+    : `${rec.unread} unread${mutedN ? ` — ${mutedN} more from ${mutedN === 1 ? 'a muted setup' : 'muted setups'}, not counted` : ''}${idlessN ? `${mutedN ? ';' : ' —'} ${idlessN} recorded with no id, which cannot be marked read, not counted` : ''}.`));
   const setups = typeof scanStoreRead === 'function' ? scanStoreRead().setups || {} : {};
   const nameOf = (a) => setups[a.setupId]?.name || a.setupName || a.setupId || 'a setup';
   const EVENT = { NEW_MATCH: 'new match', MATCH: 'match', FIRST_OBSERVED: 'first observed' };
   const list = el('ul', { class: 'al-scan-list', 'aria-label': 'Scanner matches, newest bar first' });
   rec.open.slice(0, ALERTS_SCANNER_ROWS).forEach(a => {
     const isNew = scanAlertStatus(a, rec.st) === 'NEW';
-    const path = scanAlertPath(a);
+    /* A match with no id has no page of its own; it opens the history,
+       which lists it — not /app/scanner/alerts/ with an empty id. */
+    const path = scanAlertIdOf(a) ? scanAlertPath(a) : '/app/scanner/alerts';
     const muted = !!rec.prefs.muted?.[a.setupId];
     list.append(el('li', {}, el('a', { class: `al-scan-row${isNew ? ' is-new' : ''}`, href: href(path),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, [
@@ -718,12 +726,13 @@ VIEWS.alerts = () => {
   const kind = alertsKind();
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'My Alerts'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'What changed in the research you follow, and the bars on which your own scanner setups held — each labelled by kind, each naming its source. None of them is an instruction to buy or sell.'),
-  ])));
+  /* The workspace's one page head (pageHead, 36-layouts.js). Its own head
+     carried a three-line standfirst that a phone clamps to two lines, which
+     cut "None of them is an instruction to buy or sell" from sight; that
+     sentence is the lede now, which a phone shows whole. */
+  wrap.append(pageHead({ title: 'My Alerts',
+    lede: 'What changed in the research you follow, and where your scanner setups held. None of it is an instruction to buy or sell.',
+    note: 'Each alert is labelled by kind — Research or Scanner matches — and names its source.' }));
   appendSampleBanner(wrap);
 
   /* generated alert feed, thesis-linked first */
@@ -824,7 +833,19 @@ VIEWS.alerts = () => {
       'The facts that changed in the companies you follow and your investment cases, thesis-linked first, and any price threshold of yours crossed. Rebuilt from the current data on each load, so never unread; not deduplicated — one company can appear once per source that reports on it.'));
     if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
       `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
-    if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
+    /* Empty, it says what fills it and offers the one action that starts
+       to. "Nothing has changed state since the last run" named a run this
+       feed does not have — it is rebuilt from the current data — and left
+       the page, with ?kind=research, without a single action. */
+    if (!shown.length && items.length) feedCard.append(emptyState('Every current item is of a type you have switched off.'));
+    else if (!shown.length) {
+      const empty = emptyState('Nothing to report now. This feed reads the companies you follow, your investment cases, your saved screens and your price alerts — a fact that changed in one of them, or a threshold of yours crossed, appears here.');
+      empty.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/watchlists'), onclick: (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+        e.preventDefault(); navigate('/my/watchlists');
+      } }, 'Follow a company on a watchlist'));
+      feedCard.append(empty);
+    }
     const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
     shown.forEach(a => {
       const s = SEV_STYLE[a.sev] || SEV_STYLE.info;

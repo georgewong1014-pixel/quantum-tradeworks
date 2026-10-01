@@ -144,12 +144,11 @@ const reportsRow = (id, main, acts) => el('li', { class: 'rp-row', 'data-id': id
 VIEWS.reports = () => {
   const wrap = el('div', { class: 'rp-page' });
   wrap.append(mySubnav('reports'));
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'Reports'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Every report your own work in this browser can produce, each opening the real one — to print, or to save as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.'),
-  ])));
+  /* The workspace's one page head (pageHead, 36-layouts.js): a lede a phone
+     shows whole, the rest in the note under it. */
+  wrap.append(pageHead({ title: 'Reports',
+    lede: 'Every report your own work in this browser can produce, each opening the real one.',
+    note: 'Print one, or save it as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.' }));
 
   /* A log kept from an earlier month counts nothing now: the meter's own turn
      to a new month (reportAllowed, 05-plans.js), made once before anything

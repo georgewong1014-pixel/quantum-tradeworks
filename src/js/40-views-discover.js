@@ -512,7 +512,8 @@ function myDashSteps(o) {
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
     { k: 'research', product: 'equities', tool: 'overview', title: 'Research a company', done: !!lastCo,
-      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
+      /* A name that ends in a full stop (Apple Inc.) ends the sentence. */
+      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}`.replace(/\.?$/, '.')
         : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
       action: eq?.action || 'Start research', path: eq?.actionPath || '/research' },
     { k: 'watchlist', product: null, tool: 'watchlists', title: 'Create a watchlist', done: o.createdLists.length > 0,
@@ -598,7 +599,10 @@ VIEWS.home = () => {
     const top = el('div', { class: 'dash-start-top' });
     top.append(el('div', {}, [
       el('h2', { id: 'dash-start-hd', class: 'h-section' }, 'Set up your workspace'),
-      el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' }, 'Each step is ticked from what this browser actually holds, and stays ticked once it is true.'),
+      /* "…and stays ticked once it is true" was kept by nothing: each step
+         is read afresh, so Clear recent, which forgets the companies opened,
+         un-ticked "Research a company". The step follows what it reads. */
+      el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' }, 'Each step is ticked from what this browser holds now.'),
     ]));
     top.append(el('div', { class: 'dash-progress' }, [
       el('span', { class: 'dash-progress-t' }, `${done} of ${steps.length} done`),
@@ -2592,8 +2596,10 @@ function openSavedScreen(idx) {
     const live = BY_ID.get(m.id);
     const dq = live ? scoreDelta(live.scores.quality.score, m.quality) : null;
     const dv = live ? scoreDelta(live.scores.value.score, m.value) : null;
+    /* Each company says which kind its scores are (E2): the drawer listed
+       the Bursa set's synthetic scores beside the filers' unmarked. */
     return el('tr', {}, [
-      el('td', { class: 'ident' }, m.tk),
+      el('td', { class: 'ident' }, [m.tk, ' ', dataChip(live?.c)]),
       el('td', {}, scoreText(m.quality)),
       el('td', { class: dq ? signClass(dq) : '' }, live ? `${scoreText(live.scores.quality.score)}${dq ? ` (${withSign(dq, 0, '')})` : ''}` : '—'),
       el('td', {}, scoreText(m.value)),

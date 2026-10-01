@@ -570,7 +570,10 @@ const TOOLS = [
   { id: 'tracked', product: null, label: 'Tracked', path: '/my/tracked', views: ['tracked'],
     status: 'beta', statusNote: 'Instruments followed by price and trend only, from closes you supply — this site ships none.',
     action: { label: 'Open tracked instruments', path: '/my/tracked' } },
-  { id: 'userdata', product: null, label: 'Your data', path: '/my/data', views: ['userdata'],
+  /* Named as the sidebar names it (APP_NAV_FOOT) and as every page that
+     sends a reader here does: the workspace's tab said "Your data" beside a
+     sidebar saying "Your data & settings". */
+  { id: 'userdata', product: null, label: 'Your data & settings', path: '/my/data', views: ['userdata'],
     status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.',
     action: { label: 'Open your data', path: '/my/data' } },
 ];
@@ -1033,7 +1036,7 @@ const ROUTES = [
   { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
   /* end Phase 3 — user */
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
-  { path: '/my/data',             view: 'userdata',  title: 'Your data' },
+  { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
@@ -1214,11 +1217,22 @@ function setDocumentMeta(route) {
   /* While the filings load, a company address can resolve to the
      illustrative stand-in a filer will replace, and the head named the
      stand-in for a moment (/company/msft-microsoft-corp read "MSFT —
-     Microsoft Corporation" with the stand-in's canonical). The served page's
-     head is the company's own; it stands until the router runs again with the
-     filings in. */
-  const holdHead = (route?.view === 'research' || route?.view === 'researchReport') && typeof realPending !== 'undefined' && realPending;
-  const co = (route?.view === 'research' || route?.view === 'researchReport') && !route.pending && State.ticker && BY_ID.get(State.ticker);
+     Microsoft Corporation" with the stand-in's canonical). On the page the
+     server sent for this address, the head is the company's own: it stands
+     until the router runs again with the filings in. Reached from another
+     page, the head is that page's — Maybank's on Microsoft's address,
+     Pricing's on Maybank's, which holding it kept — so until then the head
+     names no company: the page's own title, the research line, and the
+     address itself as its canonical. */
+  const companyView = route?.view === 'research' || route?.view === 'researchReport';
+  const loading = companyView && typeof realPending !== 'undefined' && realPending;
+  const here = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).replace(/\/+$/, '') || '/';
+  const servedHere = (() => {
+    const c = document.querySelector('link[rel="canonical"]')?.getAttribute('href');
+    try { return !!c && (new URL(c, location.origin).pathname.replace(/\/+$/, '') || '/') === here; } catch { return false; }
+  })();
+  const holdHead = loading && servedHere;
+  const co = companyView && !route.pending && !loading && State.ticker && BY_ID.get(State.ticker);
   const name = co
     ? `${route.view === 'researchReport' ? 'Research report: ' : ''}${co.c.tk} — ${co.c.name}`
     : (route?.title || 'Not found');
@@ -1230,7 +1244,7 @@ function setDocumentMeta(route) {
     tag.setAttribute('content', desc);
     let canon = document.querySelector('link[rel="canonical"]');
     if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
-    canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+    canon.setAttribute('href', location.origin + href(loading ? here : canonicalPath(route)));
   }
   /* The not-found card says noindex, wherever it is drawn. The host answers
      an address no route matches with 404.html, which carries it; but a
@@ -1480,11 +1494,17 @@ function applyRoute() {
          excluded it, so a reload or a shared link 404'd. The rewrites are one
          per route now and /company/:id takes a dot, but the address is still
          swapped for the company's own dotless segment, keeping the route, tab
-         and query, so every company has one address whichever name opened it. */
-      if (String(route.params.id).includes('.')) {
+         and query, so every company has one address whichever name opened it.
+         So is any other name once the filings are in — a ticker alone, a
+         code, an older name's tail, the address of the illustrative stand-in
+         a filer replaced while they loaded: only the company's own address is
+         sent the company's own head, and a link copied from the bar on
+         /company/msft-microsoft-corporation previewed as the homepage. */
+      const own = companyPath(BY_ID.get(id).c).split('/').pop();
+      if (String(route.params.id).includes('.') || (!realPending && String(route.params.id) !== own)) {
         const clean = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).split('/');
         const at = route.path.split('/').indexOf(':id');
-        clean[at] = companyPath(BY_ID.get(id).c).split('/').pop();
+        clean[at] = own;
         history.replaceState(history.state, '', href(clean.join('/')) + location.search);
       }
     }

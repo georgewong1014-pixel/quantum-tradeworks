@@ -802,6 +802,10 @@ table.dt thead th.chg { color: var(--ink-3); }
    run together with no padding or active state. It was only ever shown on the
    two pages nothing linked to, which is why it went unnoticed; it now appears
    on all six. */
+/* The strip scrolls, so it clips at its 3px of padding, and the page's ring
+   stands 4px out (2px, offset 2px): on My Alerts' kind filter it was shaved
+   at top and bottom. Inside the button, it is whole. */
+.segmented button:focus-visible, .segmented a:focus-visible { outline-offset: -2px; }
 .segmented button, .segmented a {
   appearance: none; border: 0; background: none; cursor: pointer; text-decoration: none;
   padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
@@ -16730,7 +16734,10 @@ const TOOLS = [
   { id: 'tracked', product: null, label: 'Tracked', path: '/my/tracked', views: ['tracked'],
     status: 'beta', statusNote: 'Instruments followed by price and trend only, from closes you supply — this site ships none.',
     action: { label: 'Open tracked instruments', path: '/my/tracked' } },
-  { id: 'userdata', product: null, label: 'Your data', path: '/my/data', views: ['userdata'],
+  /* Named as the sidebar names it (APP_NAV_FOOT) and as every page that
+     sends a reader here does: the workspace's tab said "Your data" beside a
+     sidebar saying "Your data & settings". */
+  { id: 'userdata', product: null, label: 'Your data & settings', path: '/my/data', views: ['userdata'],
     status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.',
     action: { label: 'Open your data', path: '/my/data' } },
 ];
@@ -17193,7 +17200,7 @@ const ROUTES = [
   { path: '/app/scanner/settings',           view: 'scannerSettings',   title: 'Scanner settings' },
   /* end Phase 3 — user */
   { path: '/start',               view: 'launcher',  title: 'Start with your goal' },
-  { path: '/my/data',             view: 'userdata',  title: 'Your data' },
+  { path: '/my/data',             view: 'userdata',  title: 'Your data & settings' },
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
@@ -17374,11 +17381,22 @@ function setDocumentMeta(route) {
   /* While the filings load, a company address can resolve to the
      illustrative stand-in a filer will replace, and the head named the
      stand-in for a moment (/company/msft-microsoft-corp read "MSFT —
-     Microsoft Corporation" with the stand-in's canonical). The served page's
-     head is the company's own; it stands until the router runs again with the
-     filings in. */
-  const holdHead = (route?.view === 'research' || route?.view === 'researchReport') && typeof realPending !== 'undefined' && realPending;
-  const co = (route?.view === 'research' || route?.view === 'researchReport') && !route.pending && State.ticker && BY_ID.get(State.ticker);
+     Microsoft Corporation" with the stand-in's canonical). On the page the
+     server sent for this address, the head is the company's own: it stands
+     until the router runs again with the filings in. Reached from another
+     page, the head is that page's — Maybank's on Microsoft's address,
+     Pricing's on Maybank's, which holding it kept — so until then the head
+     names no company: the page's own title, the research line, and the
+     address itself as its canonical. */
+  const companyView = route?.view === 'research' || route?.view === 'researchReport';
+  const loading = companyView && typeof realPending !== 'undefined' && realPending;
+  const here = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).replace(/\/+$/, '') || '/';
+  const servedHere = (() => {
+    const c = document.querySelector('link[rel="canonical"]')?.getAttribute('href');
+    try { return !!c && (new URL(c, location.origin).pathname.replace(/\/+$/, '') || '/') === here; } catch { return false; }
+  })();
+  const holdHead = loading && servedHere;
+  const co = companyView && !route.pending && !loading && State.ticker && BY_ID.get(State.ticker);
   const name = co
     ? `${route.view === 'researchReport' ? 'Research report: ' : ''}${co.c.tk} — ${co.c.name}`
     : (route?.title || 'Not found');
@@ -17390,7 +17408,7 @@ function setDocumentMeta(route) {
     tag.setAttribute('content', desc);
     let canon = document.querySelector('link[rel="canonical"]');
     if (!canon) { canon = document.createElement('link'); canon.setAttribute('rel', 'canonical'); document.head.append(canon); }
-    canon.setAttribute('href', location.origin + href(canonicalPath(route)));
+    canon.setAttribute('href', location.origin + href(loading ? here : canonicalPath(route)));
   }
   /* The not-found card says noindex, wherever it is drawn. The host answers
      an address no route matches with 404.html, which carries it; but a
@@ -17640,11 +17658,17 @@ function applyRoute() {
          excluded it, so a reload or a shared link 404'd. The rewrites are one
          per route now and /company/:id takes a dot, but the address is still
          swapped for the company's own dotless segment, keeping the route, tab
-         and query, so every company has one address whichever name opened it. */
-      if (String(route.params.id).includes('.')) {
+         and query, so every company has one address whichever name opened it.
+         So is any other name once the filings are in — a ticker alone, a
+         code, an older name's tail, the address of the illustrative stand-in
+         a filer replaced while they loaded: only the company's own address is
+         sent the company's own head, and a link copied from the bar on
+         /company/msft-microsoft-corporation previewed as the homepage. */
+      const own = companyPath(BY_ID.get(id).c).split('/').pop();
+      if (String(route.params.id).includes('.') || (!realPending && String(route.params.id) !== own)) {
         const clean = (location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : location.pathname).split('/');
         const at = route.path.split('/').indexOf(':id');
-        clean[at] = companyPath(BY_ID.get(id).c).split('/').pop();
+        clean[at] = own;
         history.replaceState(history.state, '', href(clean.join('/')) + location.search);
       }
     }
@@ -19298,7 +19322,11 @@ function startHereExample(pid) {
        opening one not yet read this month is one of the month's reports. */
     const meter = reportAllowed(r.c.id);
     const cap = lim('reportsPerMonth');
-    return line([inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report'), chip], !Number.isFinite(cap) ? null
+    /* With the month's reports used, the report would open only to say it
+       is not available: the example is named, not linked, as Reports lists a
+       refused report, and the note says when it opens. */
+    const ex = meter.ok ? inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report') : el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report');
+    return line([ex, chip], !Number.isFinite(cap) ? null
       : !meter.ok ? `This month’s ${cap} company reports on this plan are used, so it opens next month.`
       : meter.counted ? `On this plan it is one of this month’s ${cap} company reports.` : null);
   }
@@ -19900,7 +19928,8 @@ function myDashSteps(o) {
   const setupsText = [o.setups.length ? `${o.setups.length} saved in this browser` : '', o.fileActive?.valid ? `${o.fileActive.valid} in the worker’s file` : ''].filter(Boolean).join(' · ');
   return [
     { k: 'research', product: 'equities', tool: 'overview', title: 'Research a company', done: !!lastCo,
-      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}.`
+      /* A name that ends in a full stop (Apple Inc.) ends the sentence. */
+      note: lastCo ? `Last opened: ${lastCo.c.tk} — ${lastCo.c.name}${lastCo.c.real ? '' : ' (illustrative figures)'}`.replace(/\.?$/, '.')
         : 'Statements, ratios and a valuation range, every figure with its formula and its source.',
       action: eq?.action || 'Start research', path: eq?.actionPath || '/research' },
     { k: 'watchlist', product: null, tool: 'watchlists', title: 'Create a watchlist', done: o.createdLists.length > 0,
@@ -19986,7 +20015,10 @@ VIEWS.home = () => {
     const top = el('div', { class: 'dash-start-top' });
     top.append(el('div', {}, [
       el('h2', { id: 'dash-start-hd', class: 'h-section' }, 'Set up your workspace'),
-      el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' }, 'Each step is ticked from what this browser actually holds, and stays ticked once it is true.'),
+      /* "…and stays ticked once it is true" was kept by nothing: each step
+         is read afresh, so Clear recent, which forgets the companies opened,
+         un-ticked "Research a company". The step follows what it reads. */
+      el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' }, 'Each step is ticked from what this browser holds now.'),
     ]));
     top.append(el('div', { class: 'dash-progress' }, [
       el('span', { class: 'dash-progress-t' }, `${done} of ${steps.length} done`),
@@ -21980,8 +22012,10 @@ function openSavedScreen(idx) {
     const live = BY_ID.get(m.id);
     const dq = live ? scoreDelta(live.scores.quality.score, m.quality) : null;
     const dv = live ? scoreDelta(live.scores.value.score, m.value) : null;
+    /* Each company says which kind its scores are (E2): the drawer listed
+       the Bursa set's synthetic scores beside the filers' unmarked. */
     return el('tr', {}, [
-      el('td', { class: 'ident' }, m.tk),
+      el('td', { class: 'ident' }, [m.tk, ' ', dataChip(live?.c)]),
       el('td', {}, scoreText(m.quality)),
       el('td', { class: dq ? signClass(dq) : '' }, live ? `${scoreText(live.scores.quality.score)}${dq ? ` (${withSign(dq, 0, '')})` : ''}` : '—'),
       el('td', {}, scoreText(m.value)),
@@ -31436,12 +31470,11 @@ const reportsRow = (id, main, acts) => el('li', { class: 'rp-row', 'data-id': id
 VIEWS.reports = () => {
   const wrap = el('div', { class: 'rp-page' });
   wrap.append(mySubnav('reports'));
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'Reports'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'Every report your own work in this browser can produce, each opening the real one — to print, or to save as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.'),
-  ])));
+  /* The workspace's one page head (pageHead, 36-layouts.js): a lede a phone
+     shows whole, the rest in the note under it. */
+  wrap.append(pageHead({ title: 'Reports',
+    lede: 'Every report your own work in this browser can produce, each opening the real one.',
+    note: 'Print one, or save it as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.' }));
 
   /* A log kept from an earlier month counts nothing now: the meter's own turn
      to a new month (reportAllowed, 05-plans.js), made once before anything
@@ -32482,7 +32515,13 @@ function alertsScannerSection(rec) {
   }
   const every = toolLink('/app/scanner/alerts', { class: 'btn btn-ghost btn-sm al-every' }, ['Every scanner alert ', el('span', { 'aria-hidden': 'true' }, '→')]);
   sec.append(alertsSectionHead('al-scanner-hd', `Scanner matches — ${rec.open.length}`, sub, every));
-  const mutedN = rec.unread != null ? Math.max(0, rec.fresh - rec.unread) : 0;
+  /* What the unread count leaves out, each by its own reason (scanUnreadCount:
+     a match with an id, not yet opened, from a setup not muted). Taken as
+     the difference, a match with no id — which cannot be marked read, so is
+     never counted — was said to come from "a muted setup" with none muted. */
+  const freshOpen = rec.open.filter(a => scanAlertStatus(a, rec.st) === 'NEW');
+  const mutedN = rec.unread != null ? freshOpen.filter(a => scanAlertIdOf(a) && rec.prefs.muted?.[a.setupId]).length : 0;
+  const idlessN = rec.unread != null ? freshOpen.filter(a => !scanAlertIdOf(a)).length : 0;
   const archivedSaid = rec.archived
     ? `${rec.archived} archived match${rec.archived === 1 ? ' is' : 'es are'} not listed here — the scanner’s alert history holds ${rec.archived === 1 ? 'it' : 'them'}.` : null;
   if (!rec.all.length) {
@@ -32502,14 +32541,16 @@ function alertsScannerSection(rec) {
   }
   sec.append(el('p', { class: 'metaline al-scan-said' }, rec.prefs.inApp === false
     ? `${rec.fresh} not yet opened — the in-app unread count is switched off in the scanner’s settings.`
-    : `${rec.unread} unread${mutedN ? ` — ${mutedN} more from ${mutedN === 1 ? 'a muted setup' : 'muted setups'}, not counted` : ''}.`));
+    : `${rec.unread} unread${mutedN ? ` — ${mutedN} more from ${mutedN === 1 ? 'a muted setup' : 'muted setups'}, not counted` : ''}${idlessN ? `${mutedN ? ';' : ' —'} ${idlessN} recorded with no id, which cannot be marked read, not counted` : ''}.`));
   const setups = typeof scanStoreRead === 'function' ? scanStoreRead().setups || {} : {};
   const nameOf = (a) => setups[a.setupId]?.name || a.setupName || a.setupId || 'a setup';
   const EVENT = { NEW_MATCH: 'new match', MATCH: 'match', FIRST_OBSERVED: 'first observed' };
   const list = el('ul', { class: 'al-scan-list', 'aria-label': 'Scanner matches, newest bar first' });
   rec.open.slice(0, ALERTS_SCANNER_ROWS).forEach(a => {
     const isNew = scanAlertStatus(a, rec.st) === 'NEW';
-    const path = scanAlertPath(a);
+    /* A match with no id has no page of its own; it opens the history,
+       which lists it — not /app/scanner/alerts/ with an empty id. */
+    const path = scanAlertIdOf(a) ? scanAlertPath(a) : '/app/scanner/alerts';
     const muted = !!rec.prefs.muted?.[a.setupId];
     list.append(el('li', {}, el('a', { class: `al-scan-row${isNew ? ' is-new' : ''}`, href: href(path),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, [
@@ -32536,12 +32577,13 @@ VIEWS.alerts = () => {
   const kind = alertsKind();
   const wrap = el('div');
   wrap.append(mySubnav('alerts'));
-  wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
-    el('p', { class: 'eyebrow' }, 'My workspace'),
-    el('h1', {}, 'My Alerts'),
-    el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'What changed in the research you follow, and the bars on which your own scanner setups held — each labelled by kind, each naming its source. None of them is an instruction to buy or sell.'),
-  ])));
+  /* The workspace's one page head (pageHead, 36-layouts.js). Its own head
+     carried a three-line standfirst that a phone clamps to two lines, which
+     cut "None of them is an instruction to buy or sell" from sight; that
+     sentence is the lede now, which a phone shows whole. */
+  wrap.append(pageHead({ title: 'My Alerts',
+    lede: 'What changed in the research you follow, and where your scanner setups held. None of it is an instruction to buy or sell.',
+    note: 'Each alert is labelled by kind — Research or Scanner matches — and names its source.' }));
   appendSampleBanner(wrap);
 
   /* generated alert feed, thesis-linked first */
@@ -32642,7 +32684,19 @@ VIEWS.alerts = () => {
       'The facts that changed in the companies you follow and your investment cases, thesis-linked first, and any price threshold of yours crossed. Rebuilt from the current data on each load, so never unread; not deduplicated — one company can appear once per source that reports on it.'));
     if (hiddenN) feedCard.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
       `${hiddenN} more item${hiddenN === 1 ? ' is' : 's are'} hidden by the types switched off under Alert types.`));
-    if (!shown.length) feedCard.append(emptyState(items.length ? 'Every current item is of a type you have switched off.' : 'Nothing has changed state since the last run.'));
+    /* Empty, it says what fills it and offers the one action that starts
+       to. "Nothing has changed state since the last run" named a run this
+       feed does not have — it is rebuilt from the current data — and left
+       the page, with ?kind=research, without a single action. */
+    if (!shown.length && items.length) feedCard.append(emptyState('Every current item is of a type you have switched off.'));
+    else if (!shown.length) {
+      const empty = emptyState('Nothing to report now. This feed reads the companies you follow, your investment cases, your saved screens and your price alerts — a fact that changed in one of them, or a threshold of yours crossed, appears here.');
+      empty.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/watchlists'), onclick: (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+        e.preventDefault(); navigate('/my/watchlists');
+      } }, 'Follow a company on a watchlist'));
+      feedCard.append(empty);
+    }
     const l = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
     shown.forEach(a => {
       const s = SEV_STYLE[a.sev] || SEV_STYLE.info;

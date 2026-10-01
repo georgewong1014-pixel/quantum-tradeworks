@@ -323,7 +323,7 @@ badge and the page's one primary action (`pageHead`, 36-layouts.js):
 - **My workspace** — every personal page (`/my/*` and the dashboard) wears
   one workspace header with one tab row read from the registry's workspace
   tools (`workspaceTabs`, 36-layouts.js): My Dashboard, Watchlists, My Alerts, Saved Models,
-  Reports, Portfolio, Investment cases, Tracked, Your data.
+  Reports, Portfolio, Investment cases, Tracked, Your data & settings.
 - **Start here.** The first time a reader opens Equities, the Scanner or
   Property, a labelled region at the top of its pages says what the product
   does, its one action and what they get, with a labelled example; "Hide" is

@@ -1804,6 +1804,19 @@ for (const route of ROUTES) {
       await judge(`/discover/screener, ${tk}'s source drawer`, { subject: [id], roots: ['#drawer:not([hidden]) #drawerBody'] });
       await ev(`(closeDrawer(), true)`); await sleep(400);
     }
+    /* A saved screen's drawer — reached from search, Recent and Saved
+       Models — sets every match's scores as saved beside today's; it listed
+       the synthetic Bursa scores beside the filers' with neither marked
+       (the Release B verifier's find). */
+    const savedAt = await ev(`(() => { const keep = window.prompt; State.savedScreens = []; window.prompt = () => 'releaseB E2 screen';
+      try { saveScreen(); } finally { window.prompt = keep; }
+      const i = State.savedScreens.findIndex(s => s.name === 'releaseB E2 screen'); if (i >= 0) openSavedScreen(i); return i; })()`);
+    await sleep(500);
+    if (savedAt < 0) p.push('/discover/screener: no screen was saved, so its drawer was not walked');
+    else {
+      await judge('a saved screen\'s drawer', { roots: ['#drawer:not([hidden]) #drawerBody'] }, ['filed', 'illustrative']);
+      await ev(`(closeDrawer(), true)`); await sleep(400);
+    }
     await load(BASE + '/compare?companies=AAPL-SEC,MAYBANK');
     await judge('/compare', {}, ['filed', 'illustrative']);
     await load(BASE + '/research/queue');
@@ -2183,6 +2196,121 @@ for (const route of ROUTES) {
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   if (p.length) { bad++; console.log(`FAIL releaseB integration: a page's current tab outside its row (${p.length} problems)`); p.slice(0, 30).forEach(x => console.log('     ' + x)); }
   else console.log(`ok   releaseB integration: the current tab wholly inside its row on the last two tabs of every product's row and the workspace's, opened cold — ${n} pages at 390, 1024, 1280 and 1440`);
+
+  /* WHAT THE RELEASE B VERIFIER FOUND, each held. Run on the merged branch,
+     it tried the seams the owners' own checks could not see. */
+  const q = [];
+  let steps = 'measured';
+  try {
+    /* The dashboard's first step: a name that ends in a full stop ends the
+       sentence once ("Apple Inc.."), and the caption promises nothing it
+       does not keep ("stays ticked once it is true" — Clear recent
+       un-ticked it). Where this browser holds work of its own (the owner's
+       machine), the page shows that work instead of the steps. */
+    await load(BASE + '/privacy');
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+    await load(BASE + '/company/aapl-apple-inc');
+    await ev(`(navigate('/app'), true)`); await sleep(500);
+    const d8 = await ev(`(() => { const t = document.querySelector('main').innerText; return { checklist: /Set up your workspace/.test(t), last: (t.match(/Last opened:[^\\n]*/) || [''])[0], stays: /stays ticked/.test(t) }; })()`);
+    if (!d8.checklist) steps = 'not shown here: this browser holds work of its own';
+    else if (!/Apple Inc\.$/.test(d8.last) || /\.\.$/.test(d8.last) || d8.stays) q.push(`the dashboard's first step: ${JSON.stringify(d8)}`);
+
+    /* A saved screen's drawer labels every company (its labels are walked
+       with E2's own scan in small-backlog E2; here, every row). */
+    await load(BASE + '/discover/screener');
+    const d1 = await ev(`(async () => { const keep = window.prompt; State.savedScreens = []; window.prompt = () => 'releaseB verify';
+      try { saveScreen(); } finally { window.prompt = keep; }
+      const i = State.savedScreens.findIndex(s => s.name === 'releaseB verify'); if (i < 0) return null;
+      openSavedScreen(i); await new Promise(r => setTimeout(r, 400));
+      const rows = [...document.querySelectorAll('#drawerBody table.dt tbody tr')];
+      const un = rows.filter(tr => !tr.cells[0].querySelector('.illus, .filed-mark')).map(tr => tr.cells[0].textContent.trim());
+      closeDrawer(); return { rows: rows.length, un }; })()`);
+    if (!d1 || !d1.rows || d1.un.length) q.push(`a saved screen's drawer: ${d1 ? `${d1.un.length} of ${d1.rows} companies unlabelled (${d1.un.slice(0, 4).join(', ')})` : 'no screen saved'}`);
+
+    /* Reached in-app while the filings load, a company page's head names no
+       company and is not the page before's (Apple's on Maybank's address,
+       Pricing's on Apple's); once they are in, it is the company's own. */
+    await load(BASE + '/company/aapl-apple-inc');
+    const d2 = await ev(`(async () => {
+      const read = () => ({ title: document.title, canon: new URL(document.querySelector('link[rel=canonical]').href).pathname });
+      realPending = true;
+      try { navigate('/company/1155-malayan-banking'); await new Promise(r => setTimeout(r, 300)); return read(); }
+      finally { realPending = false; } })()`);
+    if (/AAPL|Apple|MAYBANK|Malayan/i.test(d2.title) || d2.canon !== '/company/1155-malayan-banking') q.push(`Apple → Maybank while the filings load: ${JSON.stringify(d2)}`);
+    await load(BASE + '/pricing');
+    const d2b = await ev(`(async () => {
+      const read = () => ({ title: document.title, canon: new URL(document.querySelector('link[rel=canonical]').href).pathname });
+      realPending = true;
+      try { navigate('/company/aapl-apple-inc'); await new Promise(r => setTimeout(r, 300)); const during = read();
+        realPending = false; navigate('/company/aapl-apple-inc'); await new Promise(r => setTimeout(r, 400)); return { during, after: read() }; }
+      finally { realPending = false; } })()`);
+    if (/Pricing/.test(d2b.during.title) || d2b.during.canon !== '/company/aapl-apple-inc' || !/AAPL — Apple Inc/.test(d2b.after.title)) q.push(`Pricing → Apple while the filings load, then loaded: ${JSON.stringify(d2b)}`);
+
+    /* Any other name for a company ends at its own address, tab and query
+       kept — the one the server sends the company's own head for. */
+    for (const [from, to] of [['/company/aapl', '/company/aapl-apple-inc'], ['/company/AAPL-SEC?tab=financials', '/company/aapl-apple-inc?tab=financials']]) {
+      await load(BASE + from);
+      const at = await ev(`location.pathname + location.search`);
+      if (at !== to) q.push(`${from} ends at ${at}, not ${to}`);
+    }
+
+    /* The month's reports used on the Free plan: Start here names Apple's
+       report without linking it to a page that refuses it. */
+    await load(BASE + '/research');
+    const d9 = await ev(`(async () => {
+      State.plan = 'free'; store.write('plan', 'free');
+      State.reportLog = { month: meterMonth(), ids: U.map(r => r.c.id).filter(id => id !== 'AAPL-SEC').slice(0, 5) }; store.write('reportLog', State.reportLog);
+      render(); await new Promise(r => setTimeout(r, 200));
+      const ex = [...document.querySelectorAll('.start-here .start-here-ex')].find(n => /Apple/.test(n.textContent));
+      State.reportLog = { month: meterMonth(), ids: [] }; store.write('reportLog', State.reportLog); render();
+      return ex?.tagName || null; })()`);
+    if (d9 !== 'SPAN') q.push(`with the month's reports used, Start here's Apple example is ${d9 === 'A' ? 'a link' : JSON.stringify(d9)}`);
+
+    /* My Alerts and Reports wear the one page head; on a phone the lede is
+       whole — My Alerts' carries "not an instruction to buy or sell". */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    for (const [path, re] of [['/my/alerts', /instruction to buy or sell/], ['/my/reports', /real one/]]) {
+      await load(BASE + path);
+      const d6 = await ev(`(() => { const l = document.querySelector('#views .page-hd .page-lede'); return l ? { text: l.textContent, clamped: l.scrollHeight > l.clientHeight + 1 } : null; })()`);
+      if (!d6 || !re.test(d6.text) || d6.clamped) q.push(`${path} at 390: the page head's lede is ${JSON.stringify(d6)}`);
+    }
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+
+    /* My Alerts' research section, empty, says what fills it and offers one
+       action; a scanner match with no id is not "from a muted setup", and
+       opens the history rather than /app/scanner/alerts/ with no id. */
+    await load(BASE + '/my/alerts?kind=research');
+    const d7 = await ev(`(async () => {
+      clearSeededData(); State.theses = []; State.savedScreens = []; State.priceAlerts = []; render(); await new Promise(r => setTimeout(r, 200));
+      const sec = document.getElementById('al-research');
+      return { empty: !!sec?.querySelector('[data-empty]'), action: sec?.querySelector('[data-empty] a[href$="/my/watchlists"]')?.textContent.trim() || null, text: sec?.querySelector('[data-empty] p')?.textContent || '' }; })()`);
+    if (!d7.empty || !d7.action || /since the last run/.test(d7.text)) q.push(`My Alerts' empty research section: ${JSON.stringify(d7).slice(0, 200)}`);
+    await load(BASE + '/my/alerts');
+    const d10 = await ev(`(async () => {
+      const keep = [scanAlertsFile, store.read('scanAlertState', null)];
+      scanAlertsFile = { alerts: [
+        { id: 'a0rv00001', key: 'rv|AAPL|1D|2026-09-25', setupId: 'rv', setupName: 'Verify', setupVersion: 1, symbol: 'AAPL', candleDate: '2026-09-25', timeframe: '1D', eventType: 'NEW_MATCH', close: 230, detectedAt: '2026-09-26T01:00:00Z' },
+        { setupId: 'rv', setupName: 'Verify', setupVersion: 1, symbol: 'MSFT', candleDate: '2026-09-24', timeframe: '1D', eventType: 'NEW_MATCH', close: 410, detectedAt: '2026-09-25T01:00:00Z' } ] };
+      store.write('scanAlertState', {}); render(); await new Promise(r => setTimeout(r, 200));
+      const out = { said: document.querySelector('.al-scan-said')?.textContent || null, hrefs: [...document.querySelectorAll('.al-scan-row')].map(a => a.getAttribute('href')) };
+      /* The kind filter's ring, inside its button: the strip scrolls and
+         clipped the page's ring at its 3px of padding. */
+      const btn = document.querySelector('.al-kind-seg button'); btn.focus({ focusVisible: true });
+      out.ring = btn.matches(':focus-visible') ? getComputedStyle(btn).outlineOffset : 'not focus-visible';
+      scanAlertsFile = keep[0]; if (keep[1] == null) localStorage.removeItem('vl.scanAlertState'); else store.write('scanAlertState', keep[1]); render();
+      return out; })()`);
+    if (!d10.said || /muted/.test(d10.said) || d10.hrefs.some(h => /\/alerts\/$/.test(h))) q.push(`a scanner match with no id on My Alerts: ${JSON.stringify(d10)}`);
+    if (d10.ring !== '-2px') q.push(`My Alerts' kind filter: the focus ring's offset is ${d10.ring}, not inside the button`);
+
+    /* One name for /my/data: the workspace's tab, the sidebar and the title. */
+    await load(BASE + '/my/data');
+    const d12 = await ev(`({ tab: document.querySelector('#productTabs .ptab[aria-current]')?.textContent.trim(), side: document.querySelector('#appnav a[href$="/my/data"] .sb-text')?.textContent.trim(), title: document.title })`);
+    if (d12.tab !== 'Your data & settings' || d12.side !== d12.tab || !/^Your data & settings/.test(d12.title)) q.push(`/my/data is named ${JSON.stringify(d12)}`);
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+  } catch (e) { q.push(`the checks threw: ${e.message}`); }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  if (q.length) { bad++; console.log(`FAIL releaseB integration: what the verifier found (${q.length} problems)`); q.slice(0, 30).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   releaseB integration: what the verifier found holds — a saved screen's drawer labels every company; a company reached in-app while the filings load names no company and no other page's head, then its own; aliases end at the company's own address; Start here names a refused report without linking it; My Alerts and Reports wear the one head, whole at 390; an empty research section has one action; a match with no id is not called muted; the kind filter's ring is whole; /my/data has one name; the first steps ${steps}`);
 }
 /* ---- end releaseB: integration ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
