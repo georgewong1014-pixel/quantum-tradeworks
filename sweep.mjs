@@ -411,7 +411,10 @@ for (const route of ROUTES) {
    now loads the app's script and stylesheet from assets/app.<hash>.js and
    .css (build.mjs, THE APP ONCE) instead of carrying 3.3MB of both inline;
    index.html, and every parameter route it answers, still carries them
-   inline. Both must run under the one policy vercel.json sends: the inline
+   inline — but a company's own address has had a page of its own since
+   Release B (build.mjs, ONE HEAD PER COMPANY), so a ticker (/company/aapl)
+   is the parameter route's sample here, and Apple's own address a page's.
+   Both must run under the one policy vercel.json sends: the inline
    script by its hash, the file by 'self'. The loop above opens every route
    under that policy and would see a blocked script as a CSP line and an
    empty page; this says which way each kind of page got its app, and that
@@ -436,7 +439,7 @@ for (const route of ROUTES) {
     srcs: [...document.scripts].filter(s => s.src).map(s => new URL(s.src).pathname),
     sheets: [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => new URL(l.href).pathname),
     rules: [...document.styleSheets].reduce((n, s) => { try { return n + s.cssRules.length; } catch { return n; } }, 0) })`);
-  const kinds = [['/', 'inline'], ['/company/aapl-apple-inc', 'inline'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/nope-for-the-slim-sweep', 'file']];
+  const kinds = [['/', 'inline'], ['/company/aapl', 'inline'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/company/aapl-apple-inc', 'file'], ['/nope-for-the-slim-sweep', 'file']];
   const rules = new Set();
   for (const [path, how] of kinds) {
     bucket = [];
@@ -490,7 +493,7 @@ for (const route of ROUTES) {
   ws.removeEventListener('message', hold);
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   if (p.length) { bad++; console.log('FAIL slim: the app is not loaded as each page should load it'); p.forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   slim: / and a parameter route run the app inline, a route page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
+  else console.log(`ok   slim: / and a parameter route run the app inline, a route page, a company's own page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
 }
 /* ---- end audit: slim ---- */
 /* ---- audit1: health ---- */
@@ -1146,6 +1149,127 @@ for (const route of ROUTES) {
   else console.log(`ok   registry-ctas-verify: with us.json held back no button on ${pressed} pages opens the screener, the value map, a comparison or the queue — the research home's screener cards and a saved screen's Continue are text; as production serves it ${PROD.length} pages link nowhere near the scanner's Market, Alerts or Historical, write no status by hand, and what a page or the drawer adds late is gated; one primary action on each of ${tabsSeen} company tabs; ${reads ? `the alerts page's ${reads.links} links read the history's newest bar ${reads.n} time${reads.n === 1 ? '' : 's'} (${reads.ms}ms); ` : ''}Saved Models wears the registry's badge; the dashboard's Continue is on the newest thing made`);
 }
 /* ---- end audit1: registry-ctas-verify ---- */
+/* ---- releaseB: D ---- */
+/* EVERY COMPANY'S OWN ADDRESS IS SERVED THE HEAD ITS PAGE SETS (Release B,
+   D1 and D2). build.mjs writes a page per company at the address companyPath
+   gives it, from the router and the loader it reads out of src/js, and
+   served-check.mjs holds what is served to that reading, offline. This holds
+   it to the app itself, running here with its filings loaded, so the two
+   cannot share a mistake:
+   - the companies the page holds are exactly those the build wrote pages
+     for, each at the address the page's own companyPath gives it, which the
+     page's own resolver reads back to that company — the page a preview
+     names is the page the address opens;
+   - each address is served the title and canonical the page's
+     setDocumentMeta sets for that company on a cold load of it (the company
+     resolved from the address, the snapshot tab), og: and twitter: tags
+     repeating them and no robots tag; and a description that ends with the
+     page's own line and leads with the company as the page holds it — its
+     name, its ticker (and on Bursa its code), where it is listed, and "filed
+     with the SEC" with its CIK for a filer, the page's illustrative line for
+     a synthetic one;
+   - a company of each kind, opened cold — a filer, a filer whose ticker has
+     a hyphen, a Bursa company, a US listing with illustrative figures, a
+     Bursa code with a letter in it — draws its company page, not the
+     not-found card, with the title and canonical it was served. */
+{
+  const evalValue = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
+  const decode = (s) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const TAGS = { title: /<title>([^<]*)<\/title>/, description: /<meta name="description" content="([^"]*)">/,
+    canonical: /<link rel="canonical" href="([^"]*)">/, ogUrl: /<meta property="og:url" content="([^"]*)">/,
+    ogTitle: /<meta property="og:title" content="([^"]*)">/, ogDescription: /<meta property="og:description" content="([^"]*)">/,
+    twitterTitle: /<meta name="twitter:title" content="([^"]*)">/, twitterDescription: /<meta name="twitter:description" content="([^"]*)">/,
+    robots: /<meta name="robots" content="([^"]*)">/ };
+  /* The HTML as a preview reads it, before any script. */
+  const served = async (path) => {
+    const r = await fetch(BASE + path, { redirect: 'manual' });
+    const html = await r.text();
+    const top = html.slice(0, Math.max(0, html.indexOf('</head>')));
+    return { status: r.status, ...Object.fromEntries(Object.entries(TAGS).map(([k, re]) => { const m = top.match(re); return [k, m ? decode(m[1]) : null]; })) };
+  };
+  const at = (u) => { try { const x = new URL(u); return x.pathname + x.search; } catch { return String(u); } };
+  /* Opened cold, and read once the router has settled with the filings in. */
+  const open = async (path) => {
+    await evalValue('window.__companyHeadMark = 1');
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 150; i++) {
+      if (await evalValue(`!window.__companyHeadMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break;
+      await sleep(100);
+    }
+    await sleep(300);
+    return evalValue(`({ view: State.view, ticker: State.ticker, title: document.title,
+      description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? null,
+      canonical: document.querySelector('link[rel="canonical"]')?.href ?? null,
+      robots: document.querySelector('meta[name="robots"]')?.getAttribute('content') ?? null })`);
+  };
+  const p = [];
+  /* The page's universe once its filings are in, and for each company what a
+     cold load of its own address sets: applyRoute's resolution of the
+     address, the snapshot tab, setDocumentMeta. Run on a page opened for the
+     purpose, whose head the next navigation replaces. */
+  await open('/research');
+  const ILLUS = await evalValue('ILLUS_TITLE');
+  const live = await evalValue(`U.map(r => {
+      const c = r.c, path = companyPath(c), route = matchRoute(path);
+      State.ticker = companyFromSlug(path.split('/').pop());
+      State.researchTab = 'snapshot';
+      setDocumentMeta(route);
+      return { id: c.id, path, resolves: State.ticker, view: route ? route.view : null, title: document.title,
+        canonical: document.querySelector('link[rel="canonical"]')?.href ?? null,
+        description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? null,
+        name: c.name, tk: c.tk, code: c.code || null, mkt: c.mkt, real: !!c.real, personal: !!c.personal, cik: c.cik || null };
+    })`) || [];
+  if (live.length < 100) p.push(`the page holds ${live.length} companies — its filings did not load`);
+  /* The companies the build wrote pages for, read as the build reads them. */
+  const { readFileSync } = await import('node:fs');
+  const { companyPlan, siteOrigin } = await import('./build.mjs');
+  const plan = companyPlan(siteOrigin(readFileSync(new URL('./src/index.template.html', import.meta.url), 'utf8'))).companies;
+  const built = new Map(plan.map(c => [c.path, c.id])), held = new Map(live.map(c => [c.path, c.id]));
+  for (const [path, id] of held) if (built.get(path) !== id) p.push(`${path}: the page holds ${id} there, and the build wrote ${built.has(path) ? `${built.get(path)}'s page` : 'no page'}`);
+  for (const [path, id] of built) if (!held.has(path)) p.push(`${path}: the build wrote ${id}'s page there, and the page holds no company at that address`);
+  const esc = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const c of live) {
+    if (c.resolves !== c.id) p.push(`${c.path}: the page's resolver reads it as ${c.resolves}, not ${c.id} — its head would name a company the address does not open`);
+    if (c.view !== 'research') p.push(`${c.path}: the router opens ${c.view} there, not the company page`);
+    const s = await served(c.path);
+    if (s.status !== 200) { p.push(`${c.path}: served ${s.status}`); continue; }
+    if (s.title !== c.title) p.push(`${c.path}: served title ${JSON.stringify(s.title)}, the page sets ${JSON.stringify(c.title)}`);
+    if (at(s.canonical) !== at(c.canonical) || at(s.canonical) !== c.path) p.push(`${c.path}: served canonical ${s.canonical}, the page sets ${c.canonical}`);
+    if (s.ogUrl !== s.canonical || s.ogTitle !== s.title || s.twitterTitle !== s.title) p.push(`${c.path}: og:url ${s.ogUrl}, og:title ${JSON.stringify(s.ogTitle)}, twitter:title ${JSON.stringify(s.twitterTitle)} do not repeat the canonical and the title`);
+    if (s.ogDescription !== s.description || s.twitterDescription !== s.description) p.push(`${c.path}: og:description or twitter:description does not repeat the description`);
+    if (s.robots) p.push(`${c.path}: served with robots ${s.robots}`);
+    const d = s.description || '';
+    if (!d.endsWith(` ${c.description}`)) p.push(`${c.path}: the served description does not end with the page's own, ${JSON.stringify(c.description)}`);
+    const where = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' }[c.mkt];
+    const named = d.startsWith(`${c.name} (`) && new RegExp(`^${esc(c.name)} \\(${esc(c.tk)}[,)]`).test(d)
+      && (c.mkt !== 'MY' || !c.code || c.code === c.tk || d.includes(`, ${c.code}), `));
+    if (!named || !where || !d.includes(`), ${where}. `)) p.push(`${c.path}: the description does not lead with ${c.name}, ${c.tk}${c.mkt === 'MY' ? ` and ${c.code}` : ''} and ${where || `market ${c.mkt}`} — "${d.slice(0, 110)}"`);
+    const filed = c.real && !c.personal;
+    const saysFiled = /filed with the SEC/.test(d);
+    if (filed !== saysFiled || (filed && !d.includes(`(CIK ${Number(c.cik)})`))) p.push(`${c.path}: ${filed ? `a filer (CIK ${Number(c.cik)})` : 'not a filer'}, and its description ${saysFiled ? 'says' : 'does not say'} "filed with the SEC"${filed && saysFiled ? ' with another CIK' : ''}`);
+    if (!c.real !== d.includes(ILLUS)) p.push(`${c.path}: ${c.real ? 'filed' : 'illustrative'}, and its description ${d.includes(ILLUS) ? 'carries' : 'does not carry'} the page's illustrative line`);
+  }
+  /* One company of each kind, opened cold. */
+  const kinds = [['a filer', c => c.real && !c.tk.includes('-')], ['a filer whose ticker has a hyphen', c => c.real && c.tk.includes('-')],
+    ['a Bursa company', c => !c.real && c.mkt === 'MY'], ['a US listing with illustrative figures', c => !c.real && c.mkt === 'US'],
+    ['a Bursa code with a letter in it', c => c.mkt === 'MY' && /[A-Z]/.test(c.code || '')]];
+  const opened = [];
+  for (const [kind, is] of kinds) {
+    const c = live.find(is);
+    if (!c) { if (/^a (filer|Bursa company)$/.test(kind)) p.push(`the page holds no ${kind.slice(2)}`); continue; }
+    const s = await served(c.path), o = await open(c.path);
+    opened.push(c.path);
+    if (!o || o.view !== 'research' || o.ticker !== c.id) { p.push(`${c.path} (${kind}), opened cold: ${o?.view} for ${o?.ticker}, not ${c.id}'s company page`); continue; }
+    if (o.title !== s.title) p.push(`${c.path} (${kind}), opened cold: the page sets the title ${JSON.stringify(o.title)}, and was served ${JSON.stringify(s.title)}`);
+    if (at(o.canonical) !== at(s.canonical)) p.push(`${c.path} (${kind}), opened cold: the page sets the canonical ${o.canonical}, and was served ${s.canonical}`);
+    if (o.robots) p.push(`${c.path} (${kind}), opened cold: robots ${o.robots}`);
+    if (!(s.description || '').endsWith(` ${o.description}`)) p.push(`${c.path} (${kind}), opened cold: the served description does not end with the page's own`);
+  }
+  const nFiled = live.filter(c => c.real && !c.personal).length;
+  if (p.length) { bad++; console.log(`FAIL company heads: a company's own address is not served the head its page sets (${p.length} problems)`); p.slice(0, 25).forEach(x => console.log('     ' + x)); if (p.length > 25) console.log(`     … and ${p.length - 25} more`); }
+  else console.log(`ok   company heads: the ${live.length} companies the page holds with its filings in (${nFiled} filed with the SEC, ${live.length - nFiled} illustrative) are the ${plan.length} the build wrote pages for, each at the address the page's companyPath gives it and its resolver reads back; each is served the title and canonical the page's setDocumentMeta sets there, og: and twitter: repeating them, and the page's own description led by the company's name, ticker, market and source; ${opened.length} opened cold (${opened.join(', ')}) draw their company page with the head they were served`);
+}
+/* ---- end releaseB: D ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

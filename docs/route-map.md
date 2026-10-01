@@ -42,7 +42,8 @@ public page shows no sidebar. "Canonical" is what `canonicalPath()` writes
 into `<link rel="canonical">`: a route is canonical when it is the first
 non-alias route for its view and tab, and otherwise an alias of that route.
 A company page's canonical is the company's own path (`companyPath`),
-whichever address opened it.
+whichever address opened it — and since Release B that address is served a
+page of its own, with the company's own head (see Company pages, below).
 
 | Path | View | Chrome | Product or section | Canonical |
 |---|---|---|---|---|
@@ -122,7 +123,7 @@ whichever address opened it.
 | `/privacy` | privacy | public | — (public header) | canonical |
 | `/terms` | terms | public | — (public header) | canonical |
 
-74 routes. Any other path renders the not-found card (public chrome), and
+75 routes. Any other path renders the not-found card (public chrome), and
 the host answers it with status 404 (see the redirect map below). A
 route whose view is not defined in the build would also render the
 not-found card, never a blank page or a throw (`applyRoute`); since the
@@ -135,6 +136,70 @@ Two tabs of the discover view have no path of their own and ride on
 `/learn` with no tab show the screener and the metric dictionary, and name
 `/discover/screener` and `/learn/glossary` as their canonical, so the sitemap
 lists those two and not the bare addresses.
+
+## Company pages
+
+Release B (D1, D2). `/company/:id` is a parameter route, and every company
+address used to be served `index.html`, whose head is the homepage's — so a
+link to a company previewed (WhatsApp, Slack, Facebook, LinkedIn) as the
+homepage, and a crawler reading the HTML was told its canonical was the site
+root. The address each company is linked at is known when the site is
+built, so that one address now has a page of its own.
+
+- **Which addresses.** Each company's canonical address, as `companyPath`
+  writes it — `/company/<ticker>-<two words of the name>`, or on Bursa
+  `/company/<listing code>-<two words>` (`/company/aapl-apple-inc`,
+  `/company/brk-b-berkshire-hathaway`, `/company/1155-malayan-banking`) —
+  for every company in the universe the page assembles once its filings
+  load: the illustrative set in `src/js/10-dataset.js` (the Bursa companies,
+  and PGR, the one US listing no filer replaces) and every SEC filer in
+  `data/us.json`. `build.mjs` reads that universe out of the page's own code
+  (`RAW`, the naming `addCompany` gives it, `realToCompany`,
+  `retireIllustrativeTwin`) rather than restating it. With the data at the
+  time of writing: 138 companies, 119 filed with the SEC and 19 illustrative
+  (18 Bursa, 1 US). Nothing from the owner's machine: the personal lane is
+  never deployed.
+- **What each is served.** `pages/company/<slug>.html`: the shell and the two
+  app files, like a route page, with the company's own head — the title the
+  page's `setDocumentMeta` writes for it (`AAPL — Apple Inc. · Quantum
+  Tradeworks`), its own address as canonical and `og:url`, and a description
+  that says what the company is ahead of the company page's own line:
+  "Apple Inc. (AAPL), listed in the US. Figures from its audited annual
+  statements filed with the SEC (CIK 320193). A company report where every
+  number shows its formula, its period and its source." — or, for a
+  synthetic one, "Malayan Banking Berhad (MAYBANK, 1155), listed on Bursa
+  Malaysia. Illustrative figures — synthetic, created for interface
+  demonstration. Not filed, and not real. …" (the app's own words for
+  illustrative figures). `og:`/`twitter:` tags repeat the title and the
+  description. Once the script runs, the page sets the same title and
+  canonical, and the generic research line as its description.
+- **Rewrites.** One exact rewrite per company, generated from that list,
+  after the static routes' and before the parameter routes', so
+  `/company/:id` never answers a company's own address.
+- **What keeps the generic page.** Every other form of a company address is
+  still answered by its parameter route with `index.html`, where the router
+  resolves the company: a ticker or code (`/company/aapl`, `/company/1155`),
+  an id (`/company/AAPL-SEC`), a CIK or registry alias (`/company/1155.KL`),
+  a shorter, longer or differently-cased tail, the report
+  (`/company/<…>/report`) and the brief's `/app/equities/…` forms. An unknown
+  company is the generic page too, on which the router draws the not-found
+  card with `noindex`, as before.
+- **Weight.** Each page is 22–23kB (the shell's markup); the 138 are 3.03MB
+  together. A company's own address now transfers 23kB of HTML plus the
+  app's two files, which every page shares and a browser keeps for a year,
+  where it transferred the 3.4MB `index.html` with the app inline.
+- **Checks.** `node build.mjs --check` fails on a company page that is
+  missing, stale (a company that left the universe, or an address that moved
+  with a name), edited or carrying the app, and on `vercel.json` out of step;
+  the build itself refuses two companies at one address, an address the
+  router does not open as the company page, a market it cannot name and an
+  `addCompany` it cannot read. `served-check.mjs` (group 11) holds every
+  company address to its head as served, the descriptions to `data/us.json`
+  itself (filed exactly where the file says so), the rewrites' order, and the
+  other forms to the generic page. `sweep.mjs` (company heads) holds the
+  served heads to the page running in a browser with its filings loaded: the
+  same companies, each address read back to its own company by the page's
+  resolver, and the title and canonical the page sets there.
 
 ## Sitemap
 
@@ -151,7 +216,11 @@ Left out on purpose: every alias above; `/my/*`, `/app/watchlists`,
 `robots.txt` disallows (personal or one machine's); `/app` — My Dashboard, the visitor's
 own counts and saved work — which `robots.txt` also disallows, by that
 address alone (`Disallow: /app$`); `/welcome` and `/start`, which are
-application shells rather than destinations; parameterised pages.
+application shells rather than destinations; parameterised pages. The
+company pages above are not listed either: whether search engines should be
+invited to index them — 19 of them show synthetic figures under a real
+listed company's name — is the owner's decision, not the build's, and
+`build.mjs --check` still holds the sitemap to the routes' own pages.
 
 ## Navigation map
 
@@ -273,9 +342,11 @@ What the host serves at each address (since the launch audit, 2026-09-29) is
 generated by `build.mjs` from `ROUTES`, not written by hand: each route
 without a parameter has an exact rewrite to its own page (`pages/<route>.html`,
 the site root to `index.html`), whose `<head>` is the one the router sets
-there; the parameter routes rewrite to `index.html`; there is no catch-all,
-and any other address is served `404.html` with status 404, where the app
-draws the not-found card. Every page but `index.html` — the route pages and
+there; each company's own address has an exact rewrite to its own page
+(`pages/company/<slug>.html`, Company pages above), listed before the
+parameter routes; the parameter routes rewrite to `index.html`; there is no
+catch-all, and any other address is served `404.html` with status 404, where
+the app draws the not-found card. Every page but `index.html` — the route pages and
 `404.html` — carries only its head and the shell's markup, and loads the app's
 script and stylesheet from `assets/app.<hash>.js` and `.css`, which are
 `index.html's` inline ones byte for byte, cached for a year under a name that
