@@ -123,6 +123,20 @@ function provenance(row, extra = [], { freshness = false } = {}) {
 const ILLUS_TITLE = 'Illustrative figures — synthetic, created for interface demonstration. Not filed, and not real.';
 const illusChip = (c) => c?.real ? null : el('span', { class: 'illus', title: ILLUS_TITLE }, 'illustrative');
 const illusText = (c) => c?.real ? '' : ' · illustrative';
+/* BOTH HALVES OF THE LABEL (Release B, E2 — the daily audit's #8). Every
+   figure's company is labelled SEC-filed or illustrative where the figure
+   appears. illusChip marks only the synthetic half, so in the screener, a
+   peer table, a metric's distribution, a comparison and the portfolio a
+   filed company was known by a missing word — which also reads as a marker
+   cut off or never drawn. dataChip and dataText say which, the personal
+   lane's statements included; a chart mark's name carries dataTag. The
+   one-sided pair stays where only the synthetic needs saying. */
+const FILED_TITLE = 'SEC-filed — figures from the audited statements the company filed with the SEC (EDGAR companyfacts), not adjusted.';
+const PERSONAL_TITLE = 'Personal research — figures from annual statements you supplied on this machine: not an SEC filing, and not redistributable.';
+const dataTag = (c) => (!c ? '' : !c.real ? 'illustrative' : c.personal ? 'personal research' : 'SEC-filed');
+const dataChip = (c) => (!c ? null : !c.real ? illusChip(c)
+  : el('span', { class: 'filed-mark', title: c.personal ? PERSONAL_TITLE : FILED_TITLE }, dataTag(c)));
+const dataText = (c) => (c ? ` · ${dataTag(c)}` : '');
 
 function tickerCell(row) {
   /* Filed and illustrative companies sit in the same screener, heatmap and
@@ -132,7 +146,7 @@ function tickerCell(row) {
      marker sits on the ticker line, which does not truncate. */
   const b = el('button', { class: 'tickerbtn', onclick: () => openResearch(row.c.id),
     title: row.c.real ? undefined : ILLUS_TITLE });
-  b.append(el('span', { class: 'tk' }, [row.c.tk, illusChip(row.c)]));
+  b.append(el('span', { class: 'tk' }, [row.c.tk, dataChip(row.c)]));
   b.append(el('span', { class: 'nm' }, row.c.mkt === 'MY' ? `${row.c.code} · ${row.c.name}` : row.c.name));
   return b;
 }

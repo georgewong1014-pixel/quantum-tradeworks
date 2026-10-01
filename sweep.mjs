@@ -1541,6 +1541,259 @@ for (const route of ROUTES) {
   else console.log(`ok   releaseB layouts-onboarding: ${pagesSeen} product and workspace pages each wear one header from the registry — the product's name, badge and tabs, or My workspace — with their own tab current and no second strip, and a head of eyebrow, h1 and a one-line lede; no product page offers two primary actions; the Scanner's Alerts tab says "Alerts · 1"; each product opens with a Start here panel (its action, what you get, an example that opens — Apple's filed report, the example setup, the sample property), hidden per product and remembered, on no public or workspace page, brought back from Your data & settings; ${empties.length} emptied workspace pages each say what to do next, with one action`);
 }
 /* ---- end releaseB: layouts-onboarding ---- */
+/* ---- releaseB: small-backlog ---- */
+/* E4 — THE TRADING INDEX'S ONE PRIMARY ACTION IS ITS SAVE. The page's save
+   sat in the work bar as a grey outline button beside quieter ones, so a
+   fresh page had no primary action at all, and the page opened from a
+   company's research had exactly one — the link banner's "Fill in the
+   identity" — which is not the page's work. As on the property calculator,
+   the save is the one primary and every other button is quiet. Measured in
+   the four states the page has — a fresh page, the §14 worked example
+   loaded, a run saved (Resume and Duplicate appear) and a link from Apple's
+   research (the banner) — at 1280 and at 390: one visible primary, the
+   work bar's save, every other button quiet; and pressing it saves a run. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (url) => {
+    await ev('window.__rbMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__rbMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(400);
+  };
+  const p = [];
+  const WEIGHTS = `(() => { const seen = (n) => n.getClientRects().length > 0;
+    const btns = [...document.querySelectorAll('#views .btn, body > .dock .btn')].filter(seen);
+    return { prim: btns.filter(n => n.classList.contains('btn-primary')).map(n => n.id || n.textContent.trim()),
+      loud: btns.filter(n => !n.classList.contains('btn-primary') && !n.classList.contains('btn-quiet')).map(n => (n.id ? '#' + n.id + ' ' : '') + '"' + n.textContent.trim().replace(/\\s+/g, ' ').slice(0, 40) + '"'),
+      save: document.getElementById('wb-trading-save')?.textContent.trim() || null }; })()`;
+  let states = 0;
+  try {
+    for (const [w, h, mobile] of [[1280, 900, false], [390, 844, true]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
+      await load(BASE + '/privacy');
+      await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`);
+      const judge = async (state) => {
+        const r = await ev(WEIGHTS);
+        states++;
+        if (r.prim.length !== 1 || r.prim[0] !== 'wb-trading-save') p.push(`${w}px, ${state}: the primary actions are ${JSON.stringify(r.prim)}, not the one save`);
+        if (r.loud.length) p.push(`${w}px, ${state}: not quiet — ${r.loud.join(', ')}`);
+        return r;
+      };
+      await load(BASE + '/research/trading-index');
+      await judge('a fresh page');
+      await ev(`(document.getElementById('q-load-worked').click(), true)`);
+      await sleep(300);
+      await judge('the worked example loaded');
+      const n0 = await ev(`loadWork().filter(r => r.kind === 'trading').length`);
+      const saved = await ev(`(async () => { const keep = window.prompt; window.prompt = () => 'releaseB E4 run';
+        try { document.querySelector('#views .btn-primary')?.click(); await new Promise(r => setTimeout(r, 300)); } finally { window.prompt = keep; }
+        return loadWork().filter(r => r.kind === 'trading').map(r => r.name); })()`);
+      if (!(saved.length === n0 + 1 && saved.includes('releaseB E4 run'))) p.push(`${w}px: pressing the primary did not save a run (${n0} before, ${JSON.stringify(saved)} after)`);
+      const r3 = await judge('a run saved');
+      if (!(await ev(`!!document.getElementById('wb-trading-resume') && !!document.getElementById('wb-trading-dup')`))) p.push(`${w}px: with a run saved, the work bar offers no Resume or Duplicate`);
+      await load(BASE + '/research/trading-index?from=AAPL');
+      const banner = await ev(`/Start from Apple Inc\\./.test(document.getElementById('qtti-link')?.textContent || '')`);
+      if (!banner) p.push(`${w}px: the link from Apple's research drew no banner, so the state is not measured`);
+      await judge('opened from Apple\'s research');
+      if (w === 1280 && !/^Save this run$/.test(r3.save || '')) p.push(`the save reads ${JSON.stringify(r3.save)}, not what it saves`);
+    }
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+  } catch (e) { p.push(`the check threw: ${e.message}`); }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  if (p.length) { bad++; console.log(`FAIL releaseB small-backlog E4 — the Trading Index's primary action (${p.length} problems)`); p.slice(0, 30).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   releaseB small-backlog E4: the Trading Index has one primary action, "Save this run", and every other button quiet, in ${states} states at 1280 and 390 (fresh, worked example, a run saved, opened from Apple's research); pressing it saves the run`);
+}
+/* E2 — EVERY COMPANY FIGURE SAYS WHOSE IT IS, AND WHAT KIND (the daily
+   audit's #8). A figure's company is labelled SEC-filed or illustrative
+   where the figure appears. Only the synthetic half was ever marked, so a
+   filed company in a list was known by a missing word — in the screener's
+   rows and phone cards, a metric's distribution, a company's peer table,
+   a comparison and the portfolio — and the illustrative half had gaps of
+   its own: the comparison's chart named Maybank's mark as a filed one's,
+   the portfolio's dividend projection listed synthetic payouts unmarked,
+   and a company page's sticky strip, the one identity left on screen once
+   the header scrolls away, showed a sample price with no word of it.
+   Walked for Maybank (illustrative) and Apple (filed): every tab of each
+   company page and each report, the screener with a metric's definition
+   and a source drawer for each, the comparison of the two, the research
+   queue, the value map, the heatmap, the dashboard and the portfolio. On
+   each, every record of a company figure — the smallest row, item or card
+   naming one company with a number of its own, a column's header, a chart
+   mark's name — must carry that company's label as a word the reader sees
+   (a tooltip is not one), and never the other kind's marker; the subject
+   of a company page wears its label in its header and its sticky strip,
+   and a report's on its cover. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (url) => {
+    await ev('window.__rbMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__rbMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(700);
+  };
+  /* Run in the page, never here: its records, and whether each is labelled. */
+  function labelScan({ subject = [], roots = ['#views', 'body > .dock', '#drawer:not([hidden]) #drawerBody'] } = {}) {
+    const cos = U.map(r => r.c);
+    const kindOf = (c) => (c.real ? (c.personal ? 'personal' : 'filed') : 'illustrative');
+    /* Tested on one text node at a time, or on an SVG mark's accessible
+       name: a label is a word beside the company, not a tooltip, and not
+       two cells run together. "Not filed" is not a filed label. */
+    const LABEL = { illustrative: /\billustrative\b|\bsynthetic\b/i, filed: /\bSEC-filed\b|(?<!\bnot\s)\bfiled\b|\bEDGAR\b/i, personal: /\bpersonal research\b/i };
+    const MARK = { illustrative: '.illus', filed: '.filed-mark', personal: '.filed-mark' };
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tokenRe = new Map(cos.map(c => [c.id, new RegExp(`^${esc(c.tk)}(?=$|[\\s,·—:(])`)]));
+    const anyRe = new Map(cos.filter(c => c.tk.length >= 3).map(c => [c.id, new RegExp(`(^|[^A-Za-z0-9-])${esc(c.tk)}(?=$|[^A-Za-z0-9-])`)]));
+    const occ = [];
+    const rootEls = roots.map(s => document.querySelector(s)).filter(Boolean);
+    for (const root of rootEls) {
+      for (const n of root.querySelectorAll('svg [aria-label]')) {
+        const c = cos.find(c => tokenRe.get(c.id).test(n.getAttribute('aria-label').trim()));
+        if (c) occ.push({ node: n, c, svg: true });
+      }
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let t = w.nextNode(); t; t = w.nextNode()) {
+        const s = t.nodeValue.trim();
+        if (!s || t.parentElement.closest('script,style,select,option,textarea,svg')) continue;
+        let c = cos.find(c => tokenRe.get(c.id).test(s) || s === c.name);
+        if (!c && s.length <= 80) c = cos.find(c => anyRe.get(c.id)?.test(s));
+        if (c) occ.push({ node: t.parentElement, c, svg: false });
+      }
+    }
+    const namesOther = (el, c) => occ.some(o => o.c.id !== c.id && el.contains(o.node));
+    const texts = (el) => { const out = []; const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let t = w.nextNode(); t; t = w.nextNode()) if (!t.parentElement.closest('script,style,svg')) out.push(t.nodeValue.trim()); return out.filter(Boolean); };
+    /* A figure: a number that is not the company's own name, ticker or
+       code, a date, a year, or a lone digit (a step's ordinal). */
+    const hasFigure = (el, c) => texts(el).some(s => {
+      const x = s.split(c.tk).join(' ').split(c.name).join(' ').split(c.code || '\u0000').join(' ')
+        .replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ').replace(/\bFY\s?\d{2,4}\b/g, ' ').replace(/\b(19|20)\d{2}\b/g, ' ').replace(/\bQ[1-4]\b/g, ' ').trim();
+      return /\d/.test(x) && !/^\d$/.test(x);
+    });
+    const who = (el) => el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/)[0] : '');
+    const place = (el) => { for (let p = el; p && !rootEls.includes(p); p = p.parentElement) { const h = p.querySelector?.(':scope > h1, :scope > h2, :scope > h3, :scope > .card-hd .h-card, :scope > summary'); if (h) return h.textContent.trim().slice(0, 50); } return ''; };
+    const seen = new Set(), records = [];
+    for (const o of occ) {
+      if (subject.includes(o.c.id)) continue;
+      let R = o.node;
+      if (!o.svg) {
+        const th = R.closest('thead th, th[scope="col"]');
+        if (th) R = th;
+        else {
+          while (!R.matches('tr, li, [role="row"], [role="listitem"], .noteitem, .card, dd, article, figure')) {
+            const up = R.parentElement;
+            if (!up || rootEls.includes(up) || namesOther(up, o.c)) break;
+            R = up;
+          }
+          if (!hasFigure(R, o.c)) continue;
+        }
+      }
+      if (seen.has(R)) continue;
+      seen.add(R);
+      const k = kindOf(o.c);
+      const words = o.svg ? [R.getAttribute('aria-label') || ''] : texts(R);
+      const other = Object.entries(MARK).filter(([kk]) => kk !== k && !(k !== 'illustrative' && kk !== 'illustrative')).map(([, sel]) => sel);
+      records.push({ tk: o.c.tk, kind: k, labelled: words.some(s => LABEL[k].test(s)),
+        wrong: !o.svg && other.some(sel => R.querySelector(sel)) || (o.svg && k !== 'illustrative' && LABEL.illustrative.test(words[0])),
+        el: who(R), where: place(R), text: words.join(' ').replace(/\s+/g, ' ').slice(0, 100) });
+    }
+    return records;
+  }
+  /* The subject's own label, as visible text, in the element that names it. */
+  const SUBJECT = (sel, id) => `(() => { const c = BY_ID.get(${JSON.stringify(id)})?.c; const n = document.querySelector(${JSON.stringify(sel)});
+    if (!c || !n) return null; const re = !c.real ? /\\billustrative\\b/i : c.personal ? /\\bpersonal research\\b/i : /\\bSEC-filed\\b/i;
+    const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT); for (let t = w.nextNode(); t; t = w.nextNode()) if (re.test(t.nodeValue)) return true; return false; })()`;
+  const p = [];
+  let pages = 0, nRec = 0, subjects = 0;
+  const kinds = { filed: 0, illustrative: 0 };
+  const judge = async (label, opts = {}, want = []) => {
+    const recs = await ev(`(${labelScan.toString()})(${JSON.stringify(opts)})`);
+    pages++; nRec += recs.length;
+    recs.forEach(r => { kinds[r.kind] = (kinds[r.kind] || 0) + 1; });
+    const unl = recs.filter(r => !r.labelled), wrong = recs.filter(r => r.wrong);
+    const groups = {};
+    unl.forEach(r => { const g = `${r.kind} ${r.el}${r.where ? ` under "${r.where}"` : ''}`; (groups[g] ||= []).push(r); });
+    Object.entries(groups).forEach(([g, rs]) => p.push(`${label}: ${rs.length} ${g} unlabelled — ${rs.slice(0, 3).map(r => r.tk).join(', ')}${rs.length > 3 ? ', …' : ''} ("${rs[0].text.slice(0, 70)}")`));
+    wrong.forEach(r => p.push(`${label}: ${r.tk} (${r.kind}) wears the other kind's marker — ${r.el} "${r.text.slice(0, 60)}"`));
+    for (const k of want) if (!recs.some(r => r.kind === k)) p.push(`${label}: no ${k} company's figure found, so nothing ${k} was checked there`);
+  };
+  const subject = async (label, sel, id) => {
+    const v = await ev(SUBJECT(sel, id));
+    subjects++;
+    if (v !== true) p.push(`${label}: the subject ${id} is not labelled in ${sel}${v === null ? ' (not found)' : ''}`);
+  };
+  try {
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await load(BASE + '/privacy');
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); localStorage.setItem('vl.plan', JSON.stringify('pro')); return true; })()`);
+    await load(BASE + '/privacy');
+    await ev(`(() => { const w = wlCreate('E2 labels').watchlist; wlAdd(w.id, 'AAPL-SEC'); wlAdd(w.id, 'MAYBANK');
+      State.recentCompanies = ['AAPL-SEC', 'MAYBANK']; store.write('recentCompanies', State.recentCompanies); return true; })()`);
+    for (const [co, id, kind] of [['MAYBANK', 'MAYBANK', 'illustrative'], ['aapl-apple-inc', 'AAPL-SEC', 'filed']]) {
+      for (const tab of ['snapshot', 'business', 'financials', 'quality', 'valuation', 'moat', 'risks', 'ownership', 'filings', 'thesis']) {
+        await load(`${BASE}/company/${co}?tab=${tab}`);
+        await subject(`/company/${co}?tab=${tab}`, '.ticker-sticky .ts-ident', id);
+        if (tab === 'snapshot') await subject(`/company/${co}`, '#views .card:has(h1)', id);
+        await judge(`/company/${co}?tab=${tab}`, { subject: [id] }, tab === 'snapshot' ? [kind] : []);
+      }
+      await load(`${BASE}/company/${co}/report`);
+      await subject(`/company/${co}/report`, '.rr-cover', id);
+      await judge(`/company/${co}/report`, { subject: [id] });
+    }
+    await load(BASE + '/discover/screener');
+    await judge('/discover/screener', {}, ['filed', 'illustrative']);
+    /* A metric's definition lists its top twelve: the filed companies lead
+       return on capital, the priced illustrative set leads dividend yield. */
+    for (const [k, want] of [['roic', 'filed'], ['dy', 'illustrative']]) {
+      await ev(`(openMetricInfo(FIELD_BY_K[${JSON.stringify(k)}]), true)`); await sleep(500);
+      await judge(`/discover/screener, the definition of ${await ev(`FIELD_BY_K[${JSON.stringify(k)}].label`)}`, { roots: ['#drawer:not([hidden]) #drawerBody'] }, [want]);
+      await ev(`(closeDrawer(), true)`); await sleep(400);
+    }
+    if (await ev(`(() => { const b = [...document.querySelectorAll('#views button')].find(x => /Explain exclusions/.test(x.textContent)); b?.click(); return !!b; })()`)) {
+      await sleep(500);
+      await judge('/discover/screener, Explain exclusions', { roots: ['#drawer:not([hidden]) #drawerBody'] }, ['filed', 'illustrative']);
+      await ev(`(closeDrawer(), true)`); await sleep(400);
+    } else p.push('/discover/screener: no "Explain exclusions" button');
+    for (const [tk, id] of [['AAPL', 'AAPL-SEC'], ['MAYBANK', 'MAYBANK']]) {
+      const opened = await ev(`(() => { const td = [...document.querySelectorAll('#views table.dt tbody tr')].find(tr => tr.querySelector('.tk')?.firstChild?.nodeValue === ${JSON.stringify(tk)})?.querySelector('td.cell-sourced'); td?.click(); return !!td; })()`);
+      await sleep(500);
+      if (!opened) { p.push(`/discover/screener: no ${tk} row to open a source drawer from`); continue; }
+      await subject(`/discover/screener, ${tk}'s source drawer`, '#drawerBody', id);
+      await judge(`/discover/screener, ${tk}'s source drawer`, { subject: [id], roots: ['#drawer:not([hidden]) #drawerBody'] });
+      await ev(`(closeDrawer(), true)`); await sleep(400);
+    }
+    await load(BASE + '/compare?companies=AAPL-SEC,MAYBANK');
+    await judge('/compare', {}, ['filed', 'illustrative']);
+    await load(BASE + '/research/queue');
+    await judge('/research/queue', {}, ['illustrative']);
+    await load(BASE + '/discover/value-map');
+    await judge('/discover/value-map', {}, ['illustrative']);
+    await load(BASE + '/discover?tab=heatmap');
+    await judge('/discover?tab=heatmap', {}, ['illustrative']);
+    await load(BASE + '/app');
+    await judge('/app');
+    await load(BASE + '/my/portfolio');
+    await judge('/my/portfolio', {}, ['filed', 'illustrative']);
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+  } catch (e) { p.push(`the check threw: ${e.message}`); }
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  if (p.length) { bad++; console.log(`FAIL releaseB small-backlog E2 — a company figure not labelled filed or illustrative where it appears (${p.length} problems)`); p.slice(0, 40).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   releaseB small-backlog E2: ${nRec} records of a company figure on ${pages} pages and drawers (${kinds.filed} SEC-filed, ${kinds.illustrative} illustrative) each labelled where it appears, none with the other kind's marker; ${subjects} subjects labelled on their company tabs' sticky strip and header, their report's cover and their source drawer`);
+}
+/* ---- end releaseB: small-backlog ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();
