@@ -3305,7 +3305,8 @@ try {
      Investments no longer carries a scanner tab. */
   {
     const r = await evaluate(`(async () => {
-      const out = { labels: [...document.querySelectorAll('#appnav a.sb-link .sb-text')].map(n => n.textContent.trim()), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {} };
+      const out = { labels: [...document.querySelectorAll('#appnav a.sb-link .sb-text')].map(n => n.textContent.trim()), my: SUBNAV_MY.map(s => s.id), cur: {}, views: {},
+        reports: typeof SHOW_REPORTS !== 'undefined' && SHOW_REPORTS };
       for (const p of ['/app/scanner', '/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs', '/admin/scanner/delivery', '/my/scanner', '/research/trading-index']) {
         navigate(p);
         out.cur[p] = document.querySelector('#appnav a[aria-current=page] .sb-text')?.textContent.trim() || null;
@@ -3322,7 +3323,8 @@ try {
       return out;
     })()`);
     const p = [];
-    if (r.labels.join() !== 'My Dashboard,Watchlists,My Alerts,Saved Models,Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans') p.push(`sidebar ${r.labels.join(', ')}`);
+    /* Release B: Reports follows Saved Models once its page exists (SHOW_REPORTS). */
+    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved Models,${r.reports ? 'Reports,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans`) p.push(`sidebar ${r.labels.join(', ')}`);
     if (r.my.includes('scanner')) p.push('My Investments still carries a scanner tab');
     for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
     if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);
@@ -7852,8 +7854,14 @@ try {
         scanAlertsFile = { alerts: [1, 2, 3].map(i => ({ id: 'aint000' + i, key: 'int|' + i, setupId: 'int-setup', setupName: 'Integration', setupVersion: 1,
           symbol: 'XAUUSD', timeframe: '1D', candleDate: '2026-09-2' + i, close: 1, eventType: 'NEW_MATCH', detectedAt: '2026-09-2' + i + 'T22:00:00Z' })) };
         navigate('/app'); await w(60);
-        const c = document.querySelector('#appnav [data-item="alerts"] .sb-count');
-        out.count = c ? { label: c.getAttribute('aria-label'), href: new URL(c.href).pathname, text: c.textContent.trim(), mark: !!c.querySelector('.sb-count-ico svg') } : null;
+        /* Release B: the count is part of My Alerts' own link, whose page lists
+           the scanner's matches; its name is the link's, read past the pill,
+           which is drawn and hidden from assistive technology. */
+        const c = document.querySelector('#appnav [data-item="alerts"] .sb-count'), a = c?.closest('a');
+        let said = ''; const walk = (x) => { if (x.nodeType === 3) said += x.nodeValue; else if (x.nodeType === 1 && x.getAttribute('aria-hidden') !== 'true') x.childNodes.forEach(walk); };
+        if (a) walk(a);
+        out.count = c && a ? { label: a.getAttribute('aria-label') || said.replace(/\\s+/g, ' ').trim(), href: new URL(a.href).pathname, text: c.textContent.trim(),
+          links: document.querySelectorAll('#appnav [data-item="alerts"] a').length } : null;
       } finally {
         scanAlertsFile = keepA;
         if (keepSt == null) localStorage.removeItem('vl.scanAlertState'); else localStorage.setItem('vl.scanAlertState', keepSt);
@@ -7886,7 +7894,7 @@ try {
     }
     if (r.strip[r.strip.length - 1] !== 'trading' || r.strip.filter(x => x === 'trading').length !== 1) p.push(`SCANNER_SUBNAV: ${r.strip.join(', ')}`);
     if (r.stripOnPage[r.stripOnPage.length - 1] !== 'Trading Index') p.push(`a scanner page's strip ends ${r.stripOnPage.slice(-1)[0]}`);
-    if (!r.count || r.count.label !== 'Scanner alerts, 3 unread' || r.count.href !== '/app/scanner/alerts' || r.count.text !== '3' || !r.count.mark) p.push(`the unread count beside My Alerts: ${JSON.stringify(r.count)}`);
+    if (!r.count || r.count.label !== 'My Alerts, 3 unread' || r.count.href !== '/my/alerts' || r.count.text !== '3' || r.count.links !== 1) p.push(`the unread count on My Alerts: ${JSON.stringify(r.count)}`);
     if (r.welcome.length < 2 || r.welcome.some(b => b.h < 44 || b.w < 44)) p.push(`/welcome's Back and Skip: ${JSON.stringify(r.welcome)}`);
     if (r.foot !== 'Research queue') p.push(`the dashboard's footnote link to /research/queue reads "${r.foot}"`);
     if (p.length) fail('release-a integration: public pages wear the short disclosure, one navigation row per level, the Trading Index in the scanner strip, a named unread count, 44px on /welcome', p);
@@ -8344,16 +8352,17 @@ try {
         && form.city === 'sibu' && form.price === '450000' && added?.name === 'LotX 7' && added.city === 'sibu' && added.price === 450000
         ? kept : lost).landing.push(r1);
 
-      /* R2 — an Equities or Property tab, and the sidebar's scanner-alert
-         count (the one sidebar link render() draws afresh; a stand-in count,
-         since this build ships no alerts file). */
+      /* R2 — an Equities or Property tab, and the sidebar's alert count (a
+         stand-in count, since this build ships no alerts file). Since Release
+         B the count is part of My Alerts' own link, so the link carrying it
+         is the control that must keep the keyboard through the redraw. */
       await open('/property/areas', /us\.json|sarawak-geo\.json/, `document.querySelectorAll('#productTabs a.ptab').length > 1`);
       const tab = await evaluate(`(() => { const a = document.querySelectorAll('#productTabs a.ptab')[1]; a.focus(); return a.getAttribute('href'); })()`);
       await release('/property/areas');
       const onTab = await at();
       (onTab.at === tab ? kept : lost).landing.push(`the product tab ${tab} → ${onTab.at}`);
       await open('/property/areas', /us\.json|sarawak-geo\.json/, `!!document.querySelector('#appnav a.sb-link')`);
-      const count = await evaluate(`(() => { scanUnreadCount = () => 3; render(); const a = document.querySelector('#appnav .sb-count'); a?.focus();
+      const count = await evaluate(`(() => { scanUnreadCount = () => 3; render(); const a = document.querySelector('#appnav .sb-count')?.closest('a'); a?.focus();
         return a && document.activeElement === a ? a.getAttribute('href') : null; })()`);
       await release('/property/areas');
       const onCount = await at();
@@ -10666,6 +10675,249 @@ try {
     else ok('audit1 integration: /start keeps the newer deal aside and moves the older kept-aside work into My properties; a saved property on the calculator is listed once on the dashboard, and as in progress only once it has unsaved changes');
   }
   /* ---- end audit1: integration ---- */
+
+  /* ---- releaseB: alerts-reports ---- */
+  /* RELEASE B, B1 — ONE ALERTS PAGE. /my/alerts lists both kinds of alert
+     the product raises, each labelled: Research (the fact-change feed and the
+     reader's price alerts) and Scanner matches (the scanner's own record: the
+     reader's setup, the symbol, the bar and whether it is new here, each a
+     link to its alert page), with a kind filter that counts each kind and
+     keeps its choice in the address. The sidebar's My Alerts carries ONE
+     unread count — the kinds that keep a read state, which is the scanner's
+     matches — inside its own link, and the separate link to the Scanner's
+     alerts beside it is gone. Listing a match never marks it read. With no
+     record visible the scanner section says so, and nothing reads 0.
+     B2 — A REPORTS PAGE. /my/reports lists what the reader's own work can
+     print: the research report of each company they opened or put on a list
+     of their own (with this month's allowance, as the plan meter states it),
+     each saved property's investor report and decision record, and the Cash
+     Wheel's and the Trading Index's decision records where the reader holds
+     a contract or chart evidence of their own — each opening the real page.
+     With none of it, the page says what a report is, with one action. */
+  {
+    const rbThrown = [];
+    const rbListen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') rbThrown.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+    ws.addEventListener('message', rbListen);
+    /* Everything a check below changes, put back afterwards. */
+    const rbKeep = `(() => { window.__rbKeep = window.__rbKeep || {
+      a: scanAlertsFile, ls: Object.fromEntries(['scanAlertState', 'scanPrefs', 'recentCompanies', 'reportLog', 'watchlists', 'savedWork', 'deal', 'dealBeforeLink', 'wheelPlan', 'qttiPlan', 'plan', 'runs']
+        .map(k => [k, localStorage.getItem('vl.' + k)])),
+      st: { recent: State.recentCompanies, log: JSON.parse(JSON.stringify(State.reportLog)), wl: JSON.parse(JSON.stringify(State.watchlists)), wlIdx: State.wlIdx,
+        deal: JSON.parse(JSON.stringify(State.deal)), wheel: JSON.parse(JSON.stringify(State.wheel)), qtti: JSON.parse(JSON.stringify(State.qtti)), plan: State.plan, subject: State.decisionSubject } };
+      return true; })()`;
+    const rbRestore = `(() => { const k = window.__rbKeep; if (!k) return true;
+      scanAlertsFile = k.a;
+      Object.entries(k.ls).forEach(([n, v]) => { if (v == null) localStorage.removeItem('vl.' + n); else localStorage.setItem('vl.' + n, v); });
+      State.recentCompanies = k.st.recent; State.reportLog = k.st.log; State.watchlists = k.st.wl; State.wlIdx = k.st.wlIdx;
+      State.deal = k.st.deal; State.wheel = k.st.wheel; State.qtti = k.st.qtti; State.plan = k.st.plan; State.decisionSubject = k.st.subject;
+      delete window.__rbKeep; navigate('/research'); return true; })()`;
+    try {
+      await evaluate(rbKeep);
+
+      /* B1 — the sidebar's one count, and the page's two kinds. */
+      const r = await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const txt = (n) => (n?.textContent || '').replace(/\\s+/g, ' ').trim();
+        /* The name assistive technology reads: aria-label, else the text outside aria-hidden. */
+        const nameOf = (n) => { if (!n) return ''; const l = n.getAttribute('aria-label'); if (l) return l.trim(); let s = '';
+          const walk = (x) => { if (x.nodeType === 3) { s += x.nodeValue; return; } if (x.nodeType !== 1 || x.getAttribute('aria-hidden') === 'true') return; x.childNodes.forEach(walk); };
+          walk(n); return s.replace(/\\s+/g, ' ').trim(); };
+        const out = {};
+        ['vl.scanAlertState', 'vl.scanPrefs'].forEach(k => localStorage.removeItem(k));
+        scanPrefsWrite({ inApp: true, muted: { 'rb-muted': true } });
+        const mk = (i, setupId, sym, d) => ({ id: 'arbA000' + i, key: 'rbA|' + setupId + '|' + sym + '|' + d, setupId,
+          setupName: setupId === 'rb-muted' ? 'Muted one' : 'Close above the 20-day', setupVersion: 2, symbol: sym, timeframe: '1D',
+          candleDate: d, close: 10 + i, eventType: 'NEW_MATCH', detectedAt: d + 'T22:00:00Z' });
+        scanAlertsFile = { alerts: [mk(1, 'rb-on', 'AAPL', '2026-09-21'), mk(2, 'rb-on', 'MSFT', '2026-09-22'), mk(3, 'rb-on', 'NVDA', '2026-09-23'),
+          mk(4, 'rb-muted', 'KO', '2026-09-24'), mk(5, 'rb-on', 'PEP', '2026-09-20')] };
+        scanSetAlertStatus(['arbA0001'], 'READ'); scanSetAlertStatus(['arbA0005'], 'ARCHIVED');
+        const stateBefore = localStorage.getItem('vl.scanAlertState');
+        out.unread = scanUnreadCount();
+        navigate('/my/alerts'); await w(250);
+        const li = document.querySelector('#appnav [data-item="alerts"]');
+        const links = li ? [...li.querySelectorAll('a')] : [];
+        out.side = { links: links.map(a => new URL(a.href).pathname), pill: txt(li?.querySelector('a.sb-link .sb-count .nav-count')), name: nameOf(li?.querySelector('a.sb-link')) };
+        const group = document.querySelector('#views [role="group"][aria-label="Show alerts of one kind"]');
+        const kinds = group ? [...group.querySelectorAll('button')] : [];
+        out.kinds = kinds.map(b => ({ id: b.id, t: txt(b), pressed: b.getAttribute('aria-pressed') }));
+        out.research = txt(document.querySelector('#al-research h2, #al-research h3'));
+        out.scanner = txt(document.querySelector('#al-scanner h2, #al-scanner h3'));
+        out.firstHead = txt(document.querySelector('main .card h3, main .card .h-card'));
+        const want = scanAlertsInOrder().filter(a => scanAlertStatus(a) !== 'ARCHIVED');
+        out.rows = [...document.querySelectorAll('#al-scanner a.al-scan-row')].map(a => ({ href: a.getAttribute('href'), t: txt(a), st: txt(a.querySelector('.al-scan-state')) }));
+        out.want = want.map(a => ({ href: href(scanAlertPath(a)), sym: a.symbol, bar: scanAlertBar(a), st: scanAlertStatus(a).toLowerCase() }));
+        out.every = [...document.querySelectorAll('#al-scanner a')].some(a => new URL(a.href).pathname === '/app/scanner/alerts' && /Every scanner alert/.test(txt(a)));
+        out.section = txt(document.getElementById('al-scanner'));
+        out.stateKept = localStorage.getItem('vl.scanAlertState') === stateBefore;
+        /* The filter, by its own button, keeps the keyboard on it. */
+        const sc = document.getElementById('al-kind-scanner');
+        sc?.focus(); sc?.click(); await w(200);
+        out.onlyScanner = { q: location.search, research: !!document.getElementById('al-research'), scanner: !!document.getElementById('al-scanner'),
+          pressed: document.getElementById('al-kind-scanner')?.getAttribute('aria-pressed'), focus: document.activeElement?.id || document.activeElement?.tagName };
+        document.getElementById('al-kind-research')?.click(); await w(200);
+        out.onlyResearch = { q: location.search, research: !!document.getElementById('al-research'), scanner: !!document.getElementById('al-scanner') };
+        document.getElementById('al-kind-all')?.click(); await w(200);
+        out.backToAll = { q: location.search, both: !!document.getElementById('al-research') && !!document.getElementById('al-scanner') };
+        /* No record visible, as on the hosted site: said, never counted. */
+        scanAlertsFile = null; render(); await w(250);
+        out.absent = { pill: !!document.querySelector('#appnav [data-item="alerts"] .sb-count'), section: txt(document.getElementById('al-scanner')),
+          rows: document.querySelectorAll('#al-scanner a.al-scan-row').length, kind: txt(document.getElementById('al-kind-scanner')) };
+        return out;
+      })()`);
+      const p1 = [];
+      if (r.unread !== 2) p1.push(`the fixture gives ${r.unread} unread, not 2 — the check is not testing the case`);
+      if (r.side.links.length !== 1 || r.side.links[0] !== '/my/alerts') p1.push(`My Alerts' sidebar item holds ${JSON.stringify(r.side.links)}, not its own link alone`);
+      if (r.side.pill !== '2' || !/^My Alerts, 2 unread$/.test(r.side.name)) p1.push(`My Alerts' count: pill "${r.side.pill}", link named "${r.side.name}"`);
+      if (p1.length) fail('releaseB alerts: the sidebar\'s My Alerts carries one unread count, inside its own link', p1);
+      else ok(`releaseB alerts: the sidebar's My Alerts carries one unread count, inside its own link — "${r.side.name}", the scanner's own count, muted setups left out; no second link beside it`);
+
+      const p2 = [];
+      const k = Object.fromEntries(r.kinds.map(x => [x.id, x]));
+      if (r.kinds.length !== 3 || !/^All\b/.test(k['al-kind-all']?.t || '') || !/^Research\b/.test(k['al-kind-research']?.t || '') || !/^Scanner matches\b/.test(k['al-kind-scanner']?.t || ''))
+        p2.push(`the kind filter reads ${JSON.stringify(r.kinds.map(x => x.t))}`);
+      else {
+        if (k['al-kind-all'].pressed !== 'true') p2.push('All is not the kind shown by default');
+        if (!/\b4\b/.test(k['al-kind-scanner'].t)) p2.push(`the scanner kind counts "${k['al-kind-scanner'].t}", not the 4 matches not archived`);
+        const rn = (r.research.match(/— (\d+)/) || [])[1];
+        if (!rn || !new RegExp('\\b' + rn + '\\b').test(k['al-kind-research'].t)) p2.push(`the research kind "${k['al-kind-research'].t}" does not count the ${rn} its section lists`);
+      }
+      if (!/^Research — \d+/.test(r.research)) p2.push(`the research section is headed "${r.research}"`);
+      if (!/^Scanner matches — 4\b/.test(r.scanner)) p2.push(`the scanner section is headed "${r.scanner}"`);
+      if (!/^Research — \d+/.test(r.firstHead)) p2.push(`the first card heading is "${r.firstHead}", not the research feed`);
+      if (JSON.stringify(r.rows.map(x => x.href)) !== JSON.stringify(r.want.map(x => x.href))) p2.push(`scanner rows ${JSON.stringify(r.rows.map(x => x.href))}, not ${JSON.stringify(r.want.map(x => x.href))} newest bar first`);
+      else r.want.forEach((x, i) => {
+        const t = r.rows[i].t;
+        if (!t.includes(x.sym) || !t.includes(x.bar) || r.rows[i].st !== x.st || !/Your setup “(Close above the 20-day|Muted one)”/.test(t)) p2.push(`row ${i + 1} reads "${t}" (state ${r.rows[i].st}, not ${x.st})`);
+      });
+      if (!/2 unread/.test(r.section) || !/1 more .*muted/.test(r.section)) p2.push(`the section does not say 2 unread and the muted one: "${r.section.slice(0, 240)}"`);
+      if (!/1 archived/.test(r.section)) p2.push('the archived match is not said to be archived');
+      if (!r.every) p2.push('no "Every scanner alert" link to /app/scanner/alerts in the scanner section');
+      if (!r.stateKept) p2.push('listing the matches changed their read state');
+      if (r.onlyScanner.q !== '?kind=scanner' || r.onlyScanner.research || !r.onlyScanner.scanner || r.onlyScanner.pressed !== 'true' || r.onlyScanner.focus !== 'al-kind-scanner')
+        p2.push(`Scanner matches only: ${JSON.stringify(r.onlyScanner)}`);
+      if (r.onlyResearch.q !== '?kind=research' || !r.onlyResearch.research || r.onlyResearch.scanner) p2.push(`Research only: ${JSON.stringify(r.onlyResearch)}`);
+      if (r.backToAll.q !== '' || !r.backToAll.both) p2.push(`back to All: ${JSON.stringify(r.backToAll)}`);
+      if (p2.length) fail('releaseB alerts: /my/alerts lists research and the scanner\'s matches, each labelled and counted, filtered by kind', p2);
+      else ok(`releaseB alerts: /my/alerts lists both kinds, each labelled and counted (${r.kinds.map(x => x.t).join(' · ')}) — ${r.rows.length} scanner matches newest bar first, each with the reader's setup, symbol, bar and new or read, linking to its alert; the muted and archived ones said; "Every scanner alert" to the full history; the filter in the address, keeping focus; nothing marked read`);
+
+      const p3 = [];
+      if (r.absent.pill) p3.push('the sidebar still carries a count with no record visible');
+      if (r.absent.rows) p3.push(`${r.absent.rows} scanner rows with no record`);
+      if (!/cannot be seen|not loaded here|No record of matches/i.test(r.absent.section)) p3.push(`the scanner section does not say the record cannot be seen: "${r.absent.section.slice(0, 200)}"`);
+      if (/\b0\b/.test(r.absent.kind) || /\b0 match/.test(r.absent.section)) p3.push(`a nought for a record not here: "${r.absent.kind}" / "${r.absent.section.slice(0, 160)}"`);
+      if (p3.length) fail('releaseB alerts: with no scanner record visible, the section says so and nothing reads 0', p3);
+      else ok(`releaseB alerts: with no scanner record visible the section says so ("${r.absent.section.slice(Math.max(0, r.absent.section.search(/The scanner’s record|No record/)), 200).slice(0, 110)}…"), the kind reads "${r.absent.kind}", and the sidebar has no count`);
+
+      /* B2 — the page, its place, and every report it lists. */
+      const q = await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const txt = (n) => (n?.textContent || '').replace(/\\s+/g, ' ').trim();
+        const pick = (...ids) => ids.find(id => BY_ID.has(id)) || null;
+        const out = {};
+        navigate('/my/reports'); await w(250);
+        out.view = State.view; out.title = document.title; out.h1 = txt(document.querySelector('#views h1'));
+        const items = [...document.querySelectorAll('#appnav ul[aria-labelledby="sb-ws"] > li')].map(li => li.dataset.item);
+        out.side = { items, current: document.querySelector('#appnav a.sb-link[aria-current=page]')?.dataset.navId || null };
+        out.tool = typeof toolById === 'function' && toolById('reports') ? { path: toolById('reports').path, present: toolPresent(toolById('reports')), state: toolState('reports')?.status } : null;
+        out.strip = txt(document.querySelector('#views nav[aria-label="Personal pages"] [aria-current="page"]'));
+
+        /* The reader's own work: two companies opened, one on a list of their
+           own, a saved property, a contract and chart evidence. */
+        const opened = pick('MSFT-SEC', 'AAPL-SEC'), illus = pick('MAYBANK', 'PBBANK'), listed = pick('KO-SEC', 'NVDA-SEC');
+        State.plan = 'free'; store.write('plan', 'free');
+        State.recentCompanies = [opened, illus]; store.write('recentCompanies', State.recentCompanies);
+        State.reportLog = { month: meterMonth(), ids: [opened] }; store.write('reportLog', State.reportLog);
+        const now = new Date().toISOString();
+        State.watchlists = [...State.watchlists, { id: 'wl-rb', name: 'RB list', ids: [listed], added: { [listed]: now }, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA }];
+        saveWatchlists();
+        const at = '2026-09-30T02:00:00.000Z';
+        const deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { price: true }, price: 512000 };
+        persistWork([{ id: 'w-property-rb-1', kind: 'property', name: 'RB terrace', createdAt: at, updatedAt: at, savedAt: '2026-09-30 02:00',
+          modelVersion: MODEL_VERSION, asOf: AS_OF, editor: 'this browser', stamp: buildStamp('property'), payload: { deal }, scenarios: [] }, ...loadWork()]);
+        State.wheel = { ...State.wheel, symbol: 'KO', putStrike: 55, putCredit: 1.2, isWorkedExample: false }; saveWheel();
+        State.qtti = { ...qttiWorkedExample(), symbol: 'RB chart' }; saveQtti();
+        render(); await w(250);
+        const row = (sec, id) => document.querySelector('#' + sec + ' li.rp-row[data-id="' + id + '"]');
+        const co = (id) => { const n = row('rp-companies', id); const c = BY_ID.get(id)?.c;
+          return n ? { t: txt(n), report: [...n.querySelectorAll('a')].map(a => new URL(a.href).pathname).find(p => p.endsWith('/report')) || null, want: c ? companyPath(c) + '/report' : null } : null; };
+        out.cos = { opened: co(opened), illus: co(illus), listed: co(listed) };
+        out.meter = txt(document.getElementById('rp-meter'));
+        const pr = row('rp-properties', 'w-property-rb-1');
+        out.prop = pr ? { t: txt(pr), btns: [...pr.querySelectorAll('button, a')].map(b => txt(b)) } : null;
+        out.tools = ['wheel', 'tradingIndex'].map(id => { const n = row('rp-records', id); return n ? { id, t: txt(n), btns: [...n.querySelectorAll('button, a')].map(b => txt(b)) } : { id, missing: true }; });
+        /* Each opens the real report. */
+        document.getElementById('rp-rec-w-property-rb-1')?.click(); await w(400);
+        out.propRecord = { view: State.view, subject: State.decisionSubject, which: txt(document.querySelector('#views .dr-which')), model: State.deal?.modelId };
+        navigate('/my/reports'); await w(250);
+        document.getElementById('rp-inv-w-property-rb-1')?.click();
+        for (let i = 0; i < 40 && document.activeElement?.id !== 'pc-h-report'; i++) await w(150);
+        out.propReport = { view: State.view, model: State.deal?.modelId, focus: document.activeElement?.id || null,
+          top: Math.round(document.getElementById('report')?.getBoundingClientRect().top ?? -1) };
+        navigate('/my/reports'); await w(250);
+        document.getElementById('rp-rec-wheel')?.click(); await w(400);
+        out.wheelRecord = { view: State.view, subject: State.decisionSubject, h1: txt(document.querySelector('#views .decision-record h1')) };
+        navigate('/my/reports'); await w(250);
+        document.getElementById('rp-rec-tradingIndex')?.click(); await w(400);
+        out.tiRecord = { view: State.view, subject: State.decisionSubject, h1: txt(document.querySelector('#views .decision-record h1')) };
+        /* None of the reader's own: the samples only. */
+        State.recentCompanies = []; store.write('recentCompanies', []);
+        State.reportLog = { month: meterMonth(), ids: [] }; store.write('reportLog', State.reportLog);
+        State.watchlists = State.watchlists.filter(x => x.id !== 'wl-rb')
+          .map(x => { const mine = typeof myDashOwnIds === 'function' ? myDashOwnIds(x) : []; return { ...x, ids: (x.ids || []).filter(id => !mine.includes(id)) }; });
+        saveWatchlists();
+        persistWork([]); store.write('runs', []);
+        State.wheel = { ...State.wheel, putStrike: 0, isWorkedExample: false }; saveWheel();
+        State.qtti = qttiDefaultPlan(); saveQtti();
+        const own = pmAll().length + (State.watchlists || []).filter(x => (typeof myDashOwnIds === 'function' ? myDashOwnIds(x) : []).length).length;
+        navigate('/my/reports'); await w(250);
+        const empty = document.getElementById('rp-empty');
+        out.empty = { own, shown: !!empty, t: txt(empty), btns: empty ? [...empty.querySelectorAll('a.btn, button.btn')].map(b => txt(b)) : [] };
+        return out;
+      })()`);
+      const p4 = [];
+      if (q.view !== 'reports' || q.h1 !== 'Reports' || !/^Reports · /.test(q.title)) p4.push(`/my/reports is ${q.view} "${q.h1}" titled "${q.title}"`);
+      const at = q.side.items.indexOf('reports');
+      if (at < 0 || q.side.items[at - 1] !== 'workspace') p4.push(`My workspace in the sidebar reads ${q.side.items.join(', ')} — Reports not after Saved Models`);
+      if (q.side.current !== 'reports') p4.push(`the sidebar marks ${q.side.current} on /my/reports`);
+      if (!q.tool || q.tool.path !== '/my/reports' || !q.tool.present) p4.push(`TOOLS: ${JSON.stringify(q.tool)}`);
+      if (q.strip !== 'Reports') p4.push(`the personal pages' strip marks "${q.strip}"`);
+      if (p4.length) fail('releaseB reports: /my/reports is a page, in the sidebar after Saved Models, with a TOOLS entry', p4);
+      else ok(`releaseB reports: /my/reports is a page ("${q.title}"), the sidebar's My workspace reads ${q.side.items.join(', ')} with Reports current, TOOLS lists it (${q.tool.state}) and the personal strip marks it`);
+
+      const p5 = [];
+      for (const [k, c] of Object.entries(q.cos)) {
+        if (!c) { p5.push(`the ${k} company is not listed`); continue; }
+        if (c.report !== c.want) p5.push(`the ${k} company's report opens ${c.report}, not ${c.want}`);
+      }
+      if (q.cos.illus && !/illustrative/i.test(q.cos.illus.t)) p5.push(`the illustrative company is not labelled so: "${q.cos.illus.t}"`);
+      if (q.cos.listed && !/RB list/.test(q.cos.listed.t)) p5.push(`the listed company does not name its list: "${q.cos.listed.t}"`);
+      if (q.cos.opened && !/this month/i.test(q.cos.opened.t)) p5.push(`the company opened this month does not say so: "${q.cos.opened.t}"`);
+      if (!/\b1 of (your |the )?5\b/.test(q.meter) || !/Free/.test(q.meter)) p5.push(`the allowance reads "${q.meter}"`);
+      if (!q.prop) p5.push('the saved property is not listed');
+      else if (!q.prop.btns.includes('Investor report') || !q.prop.btns.includes('Decision record')) p5.push(`the property offers ${JSON.stringify(q.prop.btns)}`);
+      q.tools.forEach(t => { if (t.missing) p5.push(`no ${t.id} decision record listed`); else if (!t.btns.includes('Decision record')) p5.push(`${t.id} offers ${JSON.stringify(t.btns)}`); });
+      if (q.propRecord.view !== 'decisionRecord' || q.propRecord.subject !== 'property' || !/RB terrace/.test(q.propRecord.which) || q.propRecord.model !== 'w-property-rb-1') p5.push(`the property's decision record: ${JSON.stringify(q.propRecord)}`);
+      if (q.propReport.view !== 'property' || q.propReport.model !== 'w-property-rb-1' || q.propReport.focus !== 'pc-h-report') p5.push(`the property's investor report: ${JSON.stringify(q.propReport)}`);
+      if (q.wheelRecord.view !== 'decisionRecord' || q.wheelRecord.subject !== 'wheel' || !/KO/.test(q.wheelRecord.h1)) p5.push(`the Cash Wheel's record: ${JSON.stringify(q.wheelRecord)}`);
+      if (q.tiRecord.view !== 'decisionRecord' || q.tiRecord.subject !== 'tradingIndex' || !/RB chart/.test(q.tiRecord.h1)) p5.push(`the Trading Index's record: ${JSON.stringify(q.tiRecord)}`);
+      if (p5.length) fail('releaseB reports: every report of the reader\'s own work is listed, and each opens the real report', p5);
+      else ok(`releaseB reports: three companies' research reports (opened this month, illustrative and labelled, on "RB list"), the allowance "${q.meter.slice(Math.max(0, q.meter.indexOf('This month:')))}", a saved property's investor report (the calculator's Report section, the property on it) and decision record, and the Cash Wheel's and the Trading Index's records — each opening the real page`);
+
+      const p6 = [];
+      if (q.empty.own) p6.push(`the fixture still holds ${q.empty.own} things of the reader's own`);
+      if (!q.empty.shown || !/A report is/.test(q.empty.t)) p6.push(`the empty page does not say what a report is: "${q.empty.t.slice(0, 160)}"`);
+      if (q.empty.btns.length !== 1) p6.push(`the empty page offers ${JSON.stringify(q.empty.btns)}, not one action`);
+      if (p6.length) fail('releaseB reports: with nothing of the reader\'s own, the page says what a report is, with one action', p6);
+      else ok(`releaseB reports: with nothing of the reader's own the page says what a report is and how to make one, with one action ("${q.empty.btns[0]}")`);
+      if (rbThrown.length) fail('releaseB alerts-reports: the pages threw', rbThrown.slice(0, 5));
+    } catch (e) {
+      fail('releaseB alerts-reports: the checks could not run', e.message);
+    } finally {
+      ws.removeEventListener('message', rbListen);
+      await evaluate(rbRestore).catch(() => {});
+    }
+  }
+  /* ---- end releaseB: alerts-reports ---- */
 
 } catch (e) {
   fail('harness error', e.message);

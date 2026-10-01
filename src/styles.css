@@ -2354,20 +2354,12 @@ a.pp-row:active { transform: translateY(1px); }
 .sb-link[aria-current="page"] .sb-ico { color: var(--acc, var(--brand)); }
 .sb-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-link .status-badge { margin-left: auto; }
-/* My Alerts' count: a link of its own, over the row's right end, to the
-   page that lists the scanner's alerts. The row keeps room for it. */
-.sb-item:has(.sb-count) > .sb-link { padding-right: 60px; }
-.sb-count {
-  position: absolute; top: 0; right: 0; bottom: 0; width: 56px;
-  display: grid; place-items: center; border-radius: var(--r-md); text-decoration: none;
-}
-/* The Scanner's mark inside the pill: the count is the Scanner's, not My
-   Alerts'. */
-.sb-count .nav-count { margin-left: 0; gap: 3px; padding: 0 6px 0 5px; transition: transform 140ms ease; }
-.sb-count-ico { display: inline-grid; place-items: center; width: 11px; height: 11px; }
-.sb-count-ico svg { width: 11px; height: 11px; }
-.sb-count:hover .nav-count { transform: scale(1.08); }
-.sb-count:focus-visible { outline-offset: -2px; }
+/* My Alerts' unread count: a pill at the row's right end, inside My Alerts'
+   own link, since the page that link opens lists what it counts (Release B).
+   It was a link of its own over the row's end, to the Scanner's alerts. */
+.sb-count { display: inline-flex; flex: none; margin-left: auto; }
+.sb-count .nav-count { margin-left: 0; transition: transform 140ms ease; }
+.sb-link:hover .sb-count .nav-count { transform: scale(1.08); }
 .sb-foot { padding: 4px 12px 14px; }
 .sb-theme .sb-ico { color: var(--ink-3); }
 
@@ -3584,3 +3576,88 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 }
 @media print { .pm-bar, .pc-index { display: none !important; } }
 /* ---- end audit1: property-model ---- */
+/* ---- releaseB: alerts-reports ---- */
+/* MY ALERTS (60-trend.js): the kinds, each counted, over the two sections;
+   the scanner's matches as rows that each open their alert. Built from the
+   tokens above; the pressed kind wears the brand's wash, the rest stay quiet. */
+.al-kinds { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--md); margin-bottom: var(--md); }
+.al-kind-seg { flex: 0 1 auto; min-width: 0; }
+.al-kind-n {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 2px;
+  border-radius: 999px; font-size: var(--text-label); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink-2);
+}
+.segmented button[aria-pressed="true"] .al-kind-n { background: var(--brand-wash); color: var(--brand); }
+.al-kinds-said { flex: 1 1 300px; margin: 0; max-width: 72ch; }
+.al-main { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.al-scan-said { margin: calc(var(--xs) * -1) 0 var(--xs); }
+.al-scan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.al-scan-list > li + li { border-top: 1px solid var(--grid); }
+.al-scan-row {
+  display: flex; align-items: center; gap: var(--sm); min-height: 56px;
+  padding: var(--sm) var(--xs); margin: 0 calc(var(--xs) * -1); border-radius: var(--r-md);
+  color: inherit; text-decoration: none;
+}
+.al-scan-row:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.al-scan-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
+.al-scan-ic {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink-3);
+}
+/* A match not yet opened here is marked by its chip and its mark, never by colour alone. */
+.al-scan-row.is-new .al-scan-ic { background: var(--brand-wash); color: var(--brand); }
+.al-scan-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.al-scan-t { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: var(--text-sm); }
+.al-scan-t strong { font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.al-scan-s { font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+.al-scan-go { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--ink-3); transition: transform 200ms ease; }
+.al-scan-go svg { width: 16px; height: 16px; }
+.al-scan-row:hover .al-scan-go { transform: translateX(2px); }
+.al-foot { margin-top: var(--sm); }
+.al-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: var(--md); border-radius: var(--r-md); background: var(--surface-sunk); border: 1px dashed var(--line-2);
+}
+.al-empty-t { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.al-empty .caption { max-width: 62ch; }
+.al-empty .btn { margin-top: 4px; }
+
+/* REPORTS (58-reports.js): three sections of rows, each row what it is, why
+   it is listed, and the reports it opens. */
+.rp-page { display: flex; flex-direction: column; gap: var(--md); }
+.rp-page > .page-hd { margin-bottom: 0; }
+.rp-meter {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: var(--xs);
+  padding: var(--sm) var(--md); border-radius: var(--r-md); background: var(--surface-sunk); border: 1px solid var(--line);
+}
+.rp-meter .chip { flex: none; }
+.rp-meter .metaline { flex: 1 1 320px; margin: 0; max-width: 84ch; }
+.rp-warn { color: var(--bronze); margin: var(--xs) 0; }
+.rp-list { list-style: none; margin: 0; padding: 0; }
+.rp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sm) var(--lg); align-items: center; padding: var(--md) 0; }
+.rp-list > .rp-row + .rp-row { border-top: 1px solid var(--grid); }
+.rp-row-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px; }
+.rp-chips:empty { display: none; }
+.rp-name { font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.rp-said { max-width: 72ch; }
+.rp-acts { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.rp-off { font-size: var(--text-sm); color: var(--ink-3); }
+.rp-none {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--xs);
+  padding: var(--md); border-radius: var(--r-md); background: var(--surface-sunk); border: 1px dashed var(--line-2);
+}
+.rp-none .caption { max-width: 66ch; }
+.rp-none .rp-acts { justify-content: flex-start; }
+.rp-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sm); padding: var(--xl) var(--lg); }
+.rp-empty .body { max-width: 70ch; }
+/* Where the actions cannot sit beside the words, under them. */
+@media (max-width: 760px) {
+  .rp-row { grid-template-columns: minmax(0, 1fr); }
+  .rp-acts { justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .al-scan-row:hover .al-scan-go { transform: none; }
+}
+@media print { .al-kinds { display: none !important; } }
+/* ---- end releaseB: alerts-reports ---- */

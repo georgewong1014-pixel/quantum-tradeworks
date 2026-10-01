@@ -1653,6 +1653,94 @@ for (const w of [360, 390]) {
   if (fails.length) { bad++; console.log(`FAIL audit1 property-model — My properties or the sectioned calculator at some width: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
 }
 /* ---- end audit1: property-model ---- */
+/* ---- releaseB: alerts-reports ---- */
+/* MY ALERTS AND REPORTS, AT EVERY WIDTH (Release B, B1 and B2). /my/alerts
+   with a scanner record of five matches — one read, one from a muted setup,
+   one archived, one with a long setup name — beside the research feed, in
+   each of its three kinds; and /my/reports with the reader's own work: two
+   companies opened, one on a list of their own, a saved property with a long
+   name, a Cash Wheel contract and Trading Index chart evidence. At 360, 390,
+   768, 1024 and 1440 in light, and 390 and 1440 in dark: no horizontal
+   overflow, and on a phone every kind button, scanner row, section link and
+   report control a 44px target. */
+{
+  const fails = [];
+  const record = `{ alerts: [
+    { id: 'arbM0001', key: 'rbM|1', setupId: 'rb-on', setupName: 'Close above the 20-day average after three weeks under it, on a rising 50-day', setupVersion: 3, symbol: 'AAPL', timeframe: '1D', candleDate: '2026-09-21', close: 231.4, eventType: 'NEW_MATCH', detectedAt: '2026-09-21T22:00:00Z' },
+    { id: 'arbM0002', key: 'rbM|2', setupId: 'rb-on', setupName: 'Close above the 20-day', setupVersion: 3, symbol: 'MSFT', timeframe: '1D', candleDate: '2026-09-22', close: 512.1, eventType: 'MATCH', detectedAt: '2026-09-22T22:00:00Z' },
+    { id: 'arbM0003', key: 'rbM|3', setupId: 'rb-on', setupName: 'Close above the 20-day', setupVersion: 3, symbol: 'BRK-B', timeframe: '1D', candleDate: '2026-09-23', close: 470.2, eventType: 'FIRST_OBSERVED', detectedAt: '2026-09-23T22:00:00Z' },
+    { id: 'arbM0004', key: 'rbM|4', setupId: 'rb-muted', setupName: 'Muted one', setupVersion: 1, symbol: 'KO', timeframe: '1D', candleDate: '2026-09-24', close: 69.9, eventType: 'NEW_MATCH', detectedAt: '2026-09-24T22:00:00Z' },
+    { id: 'arbM0005', key: 'rbM|5', setupId: 'rb-on', setupName: 'Close above the 20-day', setupVersion: 3, symbol: 'PEP', timeframe: '1D', candleDate: '2026-09-20', close: 150.3, eventType: 'NEW_MATCH', detectedAt: '2026-09-20T22:00:00Z' }] }`;
+  const seed = `(() => {
+    const now = new Date().toISOString(), at = '2026-09-30T02:00:00.000Z';
+    const pick = (...ids) => ids.find(id => BY_ID.has(id)) || ids[0];
+    localStorage.setItem('vl.recentCompanies', JSON.stringify([pick('MSFT-SEC', 'AAPL-SEC'), 'MAYBANK']));
+    const listed = pick('KO-SEC', 'NVDA-SEC');
+    localStorage.setItem('vl.watchlists', JSON.stringify([...(State.watchlists || []), { id: 'wl-rbm', name: 'A list of my own with a longer name than most', ids: [listed], added: { [listed]: now }, createdAt: now, updatedAt: now, schema: WATCHLIST_SCHEMA }]));
+    const deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { price: true }, price: 598000 };
+    localStorage.setItem('vl.savedWork', JSON.stringify([{ id: 'w-property-rbm-1', kind: 'property', name: 'Riveria Park Residences, block C, level 17, the corner unit facing the river — second viewing', createdAt: at, updatedAt: at, savedAt: '2026-09-30 02:00',
+      modelVersion: MODEL_VERSION, asOf: AS_OF, editor: 'this browser', stamp: buildStamp('property'), payload: { deal }, scenarios: [{ id: 'sc-rbm-1', name: 'Rent at the top of the range', overrides: { rent: 2200 }, createdAt: at, updatedAt: at }] }]));
+    localStorage.setItem('vl.wheelPlan', JSON.stringify({ ...State.wheel, symbol: 'KO', putStrike: 55, putCredit: 1.2, isWorkedExample: false }));
+    localStorage.setItem('vl.qttiPlan', JSON.stringify({ ...qttiWorkedExample(), symbol: 'BTC / USDC Perpetual Contract, my own reading' }));
+    localStorage.setItem('vl.plan', JSON.stringify('free'));
+    localStorage.setItem('vl.scanAlertState', JSON.stringify({ arbM0002: 'READ', arbM0005: 'ARCHIVED' }));
+    localStorage.setItem('vl.scanPrefs', JSON.stringify({ inApp: true, muted: { 'rb-muted': true } }));
+    return true;
+  })()`;
+  const KEYS = ['recentCompanies', 'watchlists', 'savedWork', 'wheelPlan', 'qttiPlan', 'plan', 'scanAlertState', 'scanPrefs', 'theme', 'deal', 'dealBeforeLink'];
+  const kept = await send('Runtime.evaluate', { returnByValue: true, expression: `JSON.stringify(Object.fromEntries(${JSON.stringify(KEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))` }, sessionId);
+  try {
+    let seeded = false, measured = 0;
+    for (const dark of [false, true]) for (const w of [360, 390, 768, 1024, 1440]) {
+      if (dark && ![390, 1440].includes(w)) continue;
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 860, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const path of ['/my/alerts', '/my/alerts?kind=scanner', '/my/reports']) {
+        await send('Page.navigate', { url: BASE + path }, sessionId);
+        await sleep(1500);
+        if (!seeded) {
+          await send('Runtime.evaluate', { awaitPromise: true, expression: `(async () => { for (let i = 0; i < 60 && (typeof realPending === 'undefined' || realPending); i++) await new Promise(r => setTimeout(r, 150)); localStorage.removeItem('vl.theme'); return ${seed}; })()` }, sessionId);
+          seeded = true;
+          await send('Page.navigate', { url: BASE + path }, sessionId);
+          await sleep(1500);
+        }
+        const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+          const w = (ms) => new Promise(res => setTimeout(res, ms));
+          for (let i = 0; i < 60 && (typeof realPending === 'undefined' || realPending); i++) await w(150);
+          if (State.view === 'alerts') { scanAlertsFile = ${record}; render(); await w(300); }
+          const small = (sel) => [...document.querySelectorAll(sel)].filter(n => n.getClientRects().length).map(n => { const b = n.getBoundingClientRect();
+            return { t: (n.textContent || n.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim().slice(0, 32), w: Math.round(b.width), h: Math.round(b.height) }; })
+            .filter(b => Math.min(b.w, b.h) < 44);
+          const TARGETS = '#views [aria-label="Show alerts of one kind"] button, #al-scanner a.al-scan-row, #al-scanner a.btn, #al-scanner .al-foot a, '
+            + '#views .rp-row a, #views .rp-row button, #views .rp-sec a.btn, #views .rp-sec button.btn, #rp-empty .btn';
+          return { view: State.view, over: document.documentElement.scrollWidth - innerWidth,
+            small: innerWidth < 768 ? small(TARGETS) : [],
+            scanRows: document.querySelectorAll('#al-scanner a.al-scan-row').length,
+            rpRows: document.querySelectorAll('#views .rp-row').length,
+            clipped: [...document.querySelectorAll('#views .al-scan-row, #views .rp-row')].filter(n => n.getBoundingClientRect().right > innerWidth + 1).length };
+        })()` }, sessionId);
+        const v = r.result?.result?.value;
+        const at = `${w}px${dark ? ' dark' : ''} ${path}`;
+        if (!v) { fails.push(`${at}: could not be measured`); continue; }
+        measured++;
+        if (v.view !== (path.startsWith('/my/reports') ? 'reports' : 'alerts')) { fails.push(`${at}: opens ${v.view}`); continue; }
+        if (v.over > 2) fails.push(`${at}: overflows by ${v.over}px`);
+        if (v.clipped) fails.push(`${at}: ${v.clipped} rows run past the right edge`);
+        v.small.forEach(s => fails.push(`${at}: "${s.t}" is ${s.w}×${s.h}px, under 44px`));
+        if (path.startsWith('/my/alerts') && v.scanRows !== 4) fails.push(`${at}: ${v.scanRows} scanner rows, not the 4 not archived`);
+        if (path === '/my/reports' && v.rpRows < 6) fails.push(`${at}: ${v.rpRows} report rows (three companies, a property, the wheel and the chart expected)`);
+      }
+    }
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+    if (!fails.length) console.log(`ok   releaseB alerts-reports: /my/alerts (all kinds, and the scanner's alone) and /my/reports at 360, 390, 768, 1024 and 1440 (light) and 390 and 1440 (dark), ${measured} pages — no overflow, no row past the edge, and every kind button, scanner row and report control 44px on a phone`);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    const k = JSON.parse(kept.result?.result?.value || '{}');
+    await send('Runtime.evaluate', { expression: `(() => { const k = ${JSON.stringify(k)}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()` }, sessionId);
+  }
+  if (fails.length) { bad++; console.log(`FAIL releaseB alerts-reports — My Alerts or Reports at some width: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+}
+/* ---- end releaseB: alerts-reports ---- */
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
