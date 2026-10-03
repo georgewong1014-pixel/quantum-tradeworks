@@ -56,7 +56,22 @@ on:
     - cron: '17 3 * * *'   # 03:17 UTC, 11:17 in Kuching
   workflow_dispatch:
 
+# THE GATE BEFORE THIS ONE. With Vercel's Deployment Checks on (Project →
+# Settings → Build and Deployment → Deployment Checks: GitHub, the two jobs of
+# checks.yml — "parses, and matches its source" and "every route renders"),
+# Vercel holds each production deployment until those pass on its commit, and
+# only then serves it: the journeys in checks.yml's browser job run against
+# that commit's own files first, so a commit whose journeys fail never goes
+# live. This workflow is what follows the release — the same journeys against
+# the live site. Two consequences here:
+#   - a deployment's run waits up to 45 minutes for the site to serve its
+#     build (the checks take 15 to 25), not 5;
+#   - the record this workflow commits is pushed with its own token, and a
+#     push made with it starts no workflow — so checks.yml never ran on it,
+#     and its deployment would wait for checks that never come. It starts
+#     them itself (actions: write).
 permissions:
+  actions: write
   contents: write
   issues: write
 
@@ -80,7 +95,8 @@ jobs:
       group: journeys
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Up to 45 minutes waiting for a held deployment to go live, then the run.
+    timeout-minutes: 60
     steps:
       # main, whatever triggered the run: the result is committed on top of it,
       # and the whole history is there to match the served build to a commit.
@@ -103,10 +119,12 @@ jobs:
           "${{ steps.chrome.outputs.chrome-path }}" --version
 
       # --url production is the template's canonical origin. After a
-      # deployment, --commit waits (up to 300s) for the site to serve that
-      # commit's build before the journeys start, and records it as served.
-      # The exit code is kept for the last step, so a failing run still
-      # writes its summary, its issue and its record.
+      # deployment, --commit waits (up to 45 minutes: a deployment held for
+      # its Deployment Checks goes live only once checks.yml passes on it) for
+      # the site to serve that commit's build before the journeys start, and
+      # records it as served; a build not served by then is recorded as what
+      # the site did serve. The exit code is kept for the last step, so a
+      # failing run still writes its summary, its issue and its record.
       - name: run the journeys against the live site
         id: run
         env:
@@ -115,7 +133,7 @@ jobs:
           set +e
           node journeys.mjs --url production \
             --json "$RUNNER_TEMP/journeys.json" --markdown "$RUNNER_TEMP/journeys.md" \
-            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA"}
+            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA" --wait 2700}
           echo "exit=$?" >> "$GITHUB_OUTPUT"
 
       - name: job summary
@@ -179,11 +197,15 @@ jobs:
             echo "no issue to open or close (fails=${FAILS:-0}, all_pass=${ALL_PASS:-false}, open issue: ${num:-none})"
           fi
 
+      # The record is pushed with this workflow's token, which starts no
+      # workflow; checks.yml is started on it by hand, so the deployment of
+      # the record can pass its Deployment Checks and go live.
       - name: record the result on main
         if: always() && steps.decide.outputs.commit == 'true'
         env:
           SUMMARY: ${{ steps.decide.outputs.summary }}
           WHY: ${{ steps.decide.outputs.why }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p health
           cp "$RUNNER_TEMP/journeys.json" health/journeys.json
@@ -192,7 +214,10 @@ jobs:
           git add health/journeys.json
           git commit -m "chore(health): production journeys — $SUMMARY [skip ci]" -m "$WHY" -m "Written by .github/workflows/journeys.yml from journeys.mjs --url production."
           for i in 1 2 3 4 5; do
-            if git push origin HEAD:main; then exit 0; fi
+            if git push origin HEAD:main; then
+              gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on the recorded commit"
+              exit 0
+            fi
             sleep $((i * 5))
             git pull --rebase origin main || { git rebase --abort; exit 1; }
           done

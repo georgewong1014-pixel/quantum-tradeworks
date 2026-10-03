@@ -211,14 +211,24 @@ function selfTest() {
      its concurrency is the job's, so an event whose job is skipped (a
      preview deployment, a pending status) cannot cancel a production run
      waiting its turn; the deployed commit's files reach the rule; and it
-     asks for the two permissions it uses and no others. */
+     asks for the three permissions it uses and no others.
+     And with Vercel's Deployment Checks holding a deployment until
+     checks.yml passes on its commit (2026-10-03): a deployment's run waits
+     45 minutes for its build to be served, inside a job allowed longer; and
+     the record, pushed with the workflow's own token (which starts no
+     workflow), has checks.yml started on it — or its deployment would wait
+     for checks that never come. */
   const wf = join(ROOT, '.github/workflows/journeys.yml');
   if (existsSync(wf)) {
     const y = readFileSync(wf, 'utf8').replace(/\r\n/g, '\n');
     t(!/^concurrency:/m.test(y) && /^ {4}concurrency:\n {6}group: journeys\n {6}cancel-in-progress: false$/m.test(y), 'the workflow: one concurrency group, the job\'s — a skipped preview event cannot cancel a pending production run');
     t(/--decide [^\n]*--deployed-files/.test(y) && /git diff --name-only "\$DEPLOY_SHA\^" "\$DEPLOY_SHA"/.test(y), 'the workflow: the deployed commit\'s files reach the commit rule');
     const perms = /^permissions:\n((?: {2}[^\n]*\n)+)/m.exec(y);
-    t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'contents: write,issues: write', 'the workflow: permissions contents write and issues write, nothing else');
+    t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'actions: write,contents: write,issues: write', 'the workflow: permissions actions, contents and issues write, nothing else');
+    const wait = Number((/--commit "\$DEPLOY_SHA" --wait (\d+)/.exec(y) || [])[1]);
+    const limit = Number((/^ {4}timeout-minutes: (\d+)$/m.exec(y) || [])[1]);
+    t(wait >= 2700 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (45 minutes at least) inside a ${limit || '?'}-minute job with ten to spare`);
+    t(/git push origin HEAD:main; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on main'))), 'the workflow: the record it pushes has checks.yml started on it, so its deployment can pass its Deployment Checks');
   }
   console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule, the result shape, the table and the workflow hold');
   process.exit(bad ? 1 : 0);
