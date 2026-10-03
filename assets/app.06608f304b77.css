@@ -4016,7 +4016,11 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
 .cp-details > summary { flex-wrap: nowrap; }
 @media (pointer: coarse), (max-width: 768px) { .cp-details > summary { min-height: 44px; } }
 .cp-details > summary:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; border-radius: var(--r-sm); }
-.cp-details[open] { gap: var(--sm); }
+/* The details' fields in a box of their own: a <details> lays its content
+   out in one internal box, so the gap set on it never reached them and each
+   label sat flush under the field above it. */
+.cp-details-body { display: flex; flex-direction: column; gap: var(--sm); margin-top: var(--xs); min-width: 0; }
+.cp-details-remove { align-self: flex-start; }
 .cp-logo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
 .cp-logo-thumb { max-height: 44px; max-width: 132px; width: auto; object-fit: contain; padding: 4px;
   background: #fff; border: 1px solid var(--line); border-radius: var(--r-sm); }
@@ -4036,11 +4040,15 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
 @container cp-layout (max-width: 1079.98px) { .cp-doc { padding: var(--xl); } }
 @container cp-layout (max-width: 560px) { .cp-doc { padding: var(--lg) var(--md); } }
 .cp-eyebrow { margin: 0 0 4px; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
-.cp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--lg); align-items: start;
+/* Prepared for takes what its name needs up to 45% of the head and wraps
+   past that, so Prepared by keeps the rest. As "auto" it took the whole of
+   an 80-character name on one line: the preparer's block was left 48px,
+   a word a line, and the client's name was drawn over the logo. */
+.cp-head { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(45%); gap: var(--lg); align-items: start;
   padding-bottom: var(--lg); border-bottom: 1px solid var(--line); }
 .cp-by, .cp-for { min-width: 0; }
 .cp-for { text-align: right; }
-.cp-logo { display: block; max-height: 56px; max-width: 200px; width: auto; object-fit: contain; margin-bottom: var(--sm); }
+.cp-logo { display: block; max-height: 56px; max-width: min(200px, 100%); width: auto; object-fit: contain; object-position: left center; margin-bottom: var(--sm); }
 :root[data-theme="dark"] .cp-logo { background: #fff; padding: 6px; border-radius: var(--r-sm); }
 @media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .cp-logo { background: #fff; padding: 6px; border-radius: var(--r-sm); } }
 .cp-by-name, .cp-for-name { margin: 0; font-size: var(--text-lead); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
@@ -4065,6 +4073,10 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
 .cp-kv dt { font-size: var(--text-sm); color: var(--ink-2); line-height: 1.5; }
 .cp-kv dd { margin: 0; font-size: var(--text-body); color: var(--ink); line-height: 1.5; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
 .cp-kv dd > .num { font-weight: var(--weight-semibold); }
+/* A label and its figure, together (72-property-proposal.js): on screen the
+   pair dissolves into the list's two columns; on paper it is one unbreakable
+   row (below). */
+.cp-kv > .cp-kv-row { display: contents; }
 .cp-kv-note { display: block; margin-top: 2px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-3); }
 .cp-kv-note .num { font-weight: var(--weight-semibold); color: var(--ink-2); }
 .cp-assume { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); }
@@ -4102,8 +4114,14 @@ table.dt.cp-table tr.cp-total th, table.dt.cp-table tr.cp-total td { font-weight
 table.dt.cp-exit tbody tr:nth-last-child(-n+4) th { font-weight: var(--weight-semibold); color: var(--ink); }
 table.dt.cp-exit tbody tr:nth-last-child(-n+4) td { font-weight: var(--weight-semibold); }
 /* The scenarios' names and what each changes wrap; a figure keeps its line. */
-table.dt.cp-sc-table thead th { white-space: normal; vertical-align: bottom; min-width: 7.5rem; }
-table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--text-label); color: var(--ink-3); text-align: right; min-width: 7.5rem; }
+/* What each scenario changes is listed above the table, so its cells hold
+   figures only. At 7.5rem a column beside a label column of 11rem, four
+   columns came to 656px — wider than the document at 768 and 1024, and the
+   last scenario was cut at the box's edge. */
+table.dt.cp-sc-table thead th { white-space: normal; vertical-align: bottom; min-width: 5.5rem; }
+table.dt.cp-sc-table tbody th { min-width: 8rem; }
+.cp-sc-change { font-size: var(--text-sm); color: var(--ink-2); }
+.cp-sec > .cp-kv + .cp-tablewrap { margin-top: var(--md); }
 .cp-note { margin: var(--sm) 0 0; max-width: 82ch; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); }
 .cp-note .num { font-weight: var(--weight-semibold); color: var(--ink); }
 .cp-warn { padding-left: 10px; border-left: 2px solid var(--bronze); }
@@ -4145,7 +4163,7 @@ table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--te
   .cp-doc .cp-tablewrap { overflow: visible !important; border: 0 !important; border-radius: 0 !important; }
   .cp-doc table.dt th, .cp-doc table.dt td { padding: 3px 6px; font-size: 9pt; line-height: 1.35; }
   .cp-doc table.dt.cp-table tbody th { min-width: 0; }
-  .cp-head { grid-template-columns: minmax(0, 1fr) auto !important; }
+  .cp-head { grid-template-columns: minmax(0, 1fr) fit-content(45%) !important; }
   .cp-for { text-align: right !important; }
   .cp-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   /* The assumptions run as two columns of text that a page can break, not
@@ -4154,8 +4172,14 @@ table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--te
   .cp-assume { display: block !important; columns: 2; column-gap: 8mm; }
   .cp-assume-grp { border: 0 !important; border-radius: 0 !important; padding: 0 0 4mm !important; }
   .cp-assume-grp > .cp-eyebrow { break-after: avoid; }
-  .cp-kv { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) !important; gap: 6px var(--md) !important; }
-  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%) !important; }
+  /* Each label and its figure one row that a page or a column cannot split.
+     A grid's rows could: a label printed at the foot of page one with its
+     figure on page two, rows printed out of order, and a group's heading
+     left alone at the foot of a column with every row of the group in the
+     next. A heading stays with the row after it. */
+  .cp-kv { display: block !important; }
+  .cp-kv > .cp-kv-row { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); column-gap: var(--md); padding-bottom: 6px; break-inside: avoid; }
+  .cp-kv-tight > .cp-kv-row { grid-template-columns: minmax(0, 1fr) fit-content(56%); padding-bottom: 4px; }
   .cp-fig, .cp-assume-grp { background: #fff !important; }
   .cp-logo { background: none !important; padding: 0 !important; }
   .cp-title { margin: var(--lg) 0 var(--md); }
@@ -4169,4 +4193,22 @@ table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--te
   table.dt.cp-table tr.cp-grp { break-after: avoid; }
 }
 @page cp-proposal { size: A4; margin: 14mm 14mm 16mm; }
+
+/* MY PROPERTIES, WITH THE PROPOSAL'S WAY IN. "Client proposal" made a row's
+   actions five buttons wide, and the actions' column, sized to them, took
+   the figures' room: from 1024 to 1180 the price ran into the monthly
+   position, that into "Updated", and the column heads over each other.
+   While the list is narrower than five buttons and four readable columns
+   need, the actions take a line of their own under the figures — the head
+   row's columns are the figures' alone. Above 900px only: below it the
+   rows stack already (audit1: property-model). */
+.pm-saved { container: pm-saved / inline-size; }
+@media (min-width: 900.02px) {
+  @container pm-saved (max-width: 979.98px) {
+    .pm-saved .pm-list { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+    .pm-saved .pm-row { row-gap: var(--sm); }
+    .pm-saved .pm-acts-row { grid-column: 1 / -1; justify-content: flex-start; }
+    .pm-saved .pm-head > :last-child { display: none; }
+  }
+}
 /* ---- end property-proposal ---- */

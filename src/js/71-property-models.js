@@ -914,12 +914,19 @@ VIEWS.propertyModels = () => {
     wrap.append(lc);
   }
 
-  const lc = el('div', { class: 'card', style: 'padding:0' });
+  /* pm-saved: the list's own width decides when a row's actions go to a
+     line of their own (styles.css, property-proposal). */
+  const lc = el('div', { class: 'card pm-saved', style: 'padding:0' });
   lc.append(el('div', { class: 'card-hd pm-list-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'pm-list-hd', tabindex: '-1' }, props.length ? `${props.length} saved propert${props.length === 1 ? 'y' : 'ies'}` : 'No properties saved yet'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, props.length
       ? 'Newest change first. The order is when each was last saved, not how it compares.'
       : 'Open the sample deal or start a new property, change its figures to yours, and save it. Every property you save is listed here.'),
+    /* Each row's "Client proposal" is a preview, as the calculator's card
+       and /my/reports say it is (72-property-proposal.js). */
+    props.length ? el('p', { class: 'caption pm-cp-preview', id: 'pm-cp-preview', style: 'margin-top:2px' }, [
+      el('span', { class: 'chip chip-bronze', style: 'margin-right:6px' }, 'Preview'),
+      'Each property’s client proposal is a preview: it is part of no plan, nothing is on sale and nothing is charged.']) : null,
   ])));
   const ul = el('ul', { class: 'pm-list', 'aria-label': 'Saved properties' });
   ul.append(el('li', { class: 'pm-row pm-head', 'aria-hidden': 'true' }, [el('span', {}, 'Property'), el('span', {}, 'Price'),
