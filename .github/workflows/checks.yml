@@ -33,8 +33,11 @@ on:
 
 concurrency:
   # A second push supersedes the first — nothing is learned from finishing a
-  # sweep against a commit that is already three behind.
-  group: checks-${{ github.ref }}
+  # sweep against a commit that is already three behind. A run started by
+  # hand (journeys.yml starts one on the record it commits) has a group of
+  # its own: in the push's, it cancelled the push's run of the commit before
+  # it (c100b2d, 2026-10-03), whose deployment then had no checks to pass.
+  group: checks-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'push' }}
   cancel-in-progress: true
 
 jobs:

@@ -529,9 +529,16 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
     await browser.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
   };
   /* Storage the journey needs before its first real page: open the origin,
-     write, and every later load reads it. */
+     write, and every later load reads it. Written once the page's filings
+     are in, not before: when they land, the page rewrites the watchlists it
+     holds (remapSavedIds — the sample list's AAPL becomes AAPL-SEC), and on
+     a cold, just-deployed site they landed after this write, while the next
+     page's HTML was still on its way and this one still alive. The sample
+     list, Apple on it, replaced the journey's empty one: "✓ On your
+     watchlist" on every run after a deployment, from 2 Oct 2026 (issue #1);
+     reproduced here with us.json held 1.2s and pages 1.5s. */
   if (storage) {
-    await tab.goto('/privacy', { data: false });
+    await tab.goto('/privacy');
     await tab.eval(`(() => { ${Object.entries(storage).map(([k, v]) => `localStorage.setItem(${JSON.stringify('vl.' + k)}, ${JSON.stringify(JSON.stringify(v))});`).join('')} return true; })()`);
   }
   tab.errors.length = 0;
