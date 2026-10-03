@@ -2343,7 +2343,8 @@ for (const route of ROUTES) {
    which the proposal leaves out. And on paper: the proposal asks for A4,
    prints the document alone — no rail, navigation or footer — within the
    page's width, in light colours under a dark screen; and, printed with
-   the assumptions started at twelve heights down the page, every group's
+   the assumptions of two properties started at sixteen heights down the
+   page in all, every group's
    heading prints with its first row, in the same column of the same page,
    and every assumption whole and in order — a heading was left alone at
    the foot of page one's first column with all its rows in the second, and
@@ -2405,7 +2406,7 @@ for (const route of ROUTES) {
     return runs;
   };
   const p = [];
-  let pdfBox = null, placements = 0, rowsHeld = 0;
+  let pdfBox = null, placements = 0, rowsHeld = 0, PAPER_N = 0;
   try {
     await load(BASE + '/property/calculator');
     bucket = [];
@@ -2473,20 +2474,34 @@ for (const route of ROUTES) {
     pdfBox = (raw.match(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/) || []).slice(1).map(Number);
     if (!(Math.abs(pdfBox[0] - 595.3) < 1.5 && Math.abs(pdfBox[1] - 841.9) < 1.5)) p.push(`the proposal prints on ${JSON.stringify(pdfBox)} pt, not A4 (595 × 842)`);
 
-    /* The assumptions on paper, started at twelve heights down the page:
-       a heading with its first row, each row whole, in order. The property
-       is the verifier's: a long name, a wide logo, a client's name. */
+    /* The assumptions on paper, started at several heights down the page:
+       a heading with its first row, each row whole, in order. Two of the
+       verifiers' properties: one with a long name, a wide logo and the
+       preparer's details, at twelve heights (a heading was left at the foot
+       of a column); one with the reader's own price, rent, rate, area,
+       quote, deposit, vacancy, tenure, hold and maintenance and no details,
+       at four ("Marginal tax rate on the" printed apart from "rent"). */
+    const PAPER = [
+      { name: 'Stutong Heights, block C — level 9 corner unit with two parking bays', details: true, heights: [0, 34, 68, 102, 136, 170, 204, 238, 272, 306, 340, 374],
+        inputs: { price: 538000, rent: 2250, bankValuation: 520000 } },
+      { name: 'Verify A', details: false, heights: [0, 34, 68, 102],
+        inputs: { price: 520000, rent: 2100, ratePct: 4.1, sqft: 1100, mrtaPremium: 4200, downPct: 10, vacancyPct: 8, tenureYears: 30, holdYears: 8, maintenance: 320 } },
+    ];
+    const PAGE_W = 595.3;
+    PAPER_N = PAPER.length;
+    for (const prop of PAPER) {
     await ev(`(async () => {
       const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const prop = ${JSON.stringify(prop)};
       const cv = document.createElement('canvas'); cv.width = 600; cv.height = 150; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 600, 150);
       newPropertyDeal({ show: false });
-      Object.assign(State.deal, { price: 538000, rent: 2250, bankValuation: 520000 }); ['price', 'rent', 'bankValuation'].forEach(k => markTouched(State.deal, k)); saveDeal();
-      const rec = saveActiveProperty({ name: 'Stutong Heights, block C — level 9 corner unit with two parking bays' });
-      store.write('proposalDetails', { name: 'Aisha binti Rahman', agency: 'Rahman Property Advisory Sdn Bhd', contact: '+60 12-345 6789 · aisha.rahman@example.com', logo: cv.toDataURL('image/png') });
+      Object.assign(State.deal, prop.inputs); Object.keys(prop.inputs).forEach(k => markTouched(State.deal, k)); saveDeal();
+      const rec = saveActiveProperty({ name: prop.name });
+      if (prop.details) store.write('proposalDetails', { name: 'Aisha binti Rahman', agency: 'Rahman Property Advisory Sdn Bhd', contact: '+60 12-345 6789 · aisha.rahman@example.com', logo: cv.toDataURL('image/png') });
+      else localStorage.removeItem('vl.proposalDetails');
       navigate(cpPath(rec.id)); await w(500);
       return true; })()`);
-    const PAGE_W = 595.3;
-    for (let k = 0; k < 12; k++) {
+    for (const h of prop.heights) {
       /* Each heading and row in a colour of its own, to be found on paper,
          and the assumptions pushed down — by a style sheet, not on the
          nodes: the page draws itself again as it prints (cpRefresh), and a
@@ -2495,7 +2510,7 @@ for (const route of ROUTES) {
       const groupOf = await ev(`(() => {
         const doc = document.getElementById('cp-doc'); if (!doc) return [];
         document.getElementById('cp-sweep-style')?.remove();
-        const css = ['#cp-doc .cp-assume { padding-top: ${k * 34}px !important; }'];
+        const css = ['#cp-doc .cp-assume { padding-top: ${h}px !important; }'];
         const of = [];
         [...doc.querySelectorAll('.cp-assume > .cp-assume-grp')].forEach((g, gi) => {
           const G = '#cp-doc .cp-assume > .cp-assume-grp:nth-child(' + (gi + 1) + ')';
@@ -2519,7 +2534,7 @@ for (const route of ROUTES) {
       }
       const where = (fill) => runs.filter(x => x.fill === fill);
       const col = (x) => (x.x < PAGE_W / 2 ? 0 : 1);
-      const at = `assumptions started ${k * 34}px lower`;
+      const at = `"${prop.name.slice(0, 24)}", its assumptions started ${h}px lower`;
       let prev = null;
       for (let j = 0; j < placed; j++) {
         const dt = where(`251,${j},0`), dd = where(`252,${j},0`);
@@ -2542,6 +2557,7 @@ for (const route of ROUTES) {
           p.push(`${at}: group ${gi + 1}'s heading prints on page ${h.pg}, column ${col(h) + 1}, and its first row on page ${r0.pg}, column ${col(r0) + 1}`);
       });
       placements++;
+    }
     }
     await ev(`(() => { document.getElementById('cp-sweep-style')?.remove(); render(); return true; })()`);
 
@@ -2576,7 +2592,7 @@ for (const route of ROUTES) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (p.length) { bad++; console.log(`FAIL property-proposal: the client proposal's ways in and its paper (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview where it stands, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; the Report section says the proposal holds no grade; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, its assumptions label and figure, dark on white under a dark screen — and with the assumptions started at ${placements} heights, every group's heading prints with its first row and all ${rowsHeld} rows print whole and in order`);
+  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview where it stands, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; the Report section says the proposal holds no grade; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, its assumptions label and figure, dark on white under a dark screen — and with the assumptions of ${PAPER_N} properties started at ${placements} heights, every group's heading prints with its first row and all ${rowsHeld} rows print whole and in order`);
 }
 /* ---- end property-proposal ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
