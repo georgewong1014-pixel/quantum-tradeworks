@@ -2305,6 +2305,19 @@ for (const route of ROUTES) {
     if (!d10.said || /muted/.test(d10.said) || d10.hrefs.some(h => /\/alerts\/$/.test(h))) q.push(`a scanner match with no id on My Alerts: ${JSON.stringify(d10)}`);
     if (d10.ring !== '-2px') q.push(`My Alerts' kind filter: the focus ring's offset is ${d10.ring}, not inside the button`);
 
+    /* An illustrative company is not for a search index (the owner,
+       2026-10-03): its page says noindex once loaded as its served page did,
+       and the tag follows the reader — gone on a filed company reached
+       in-app, back on the illustrative one's report. */
+    await load(BASE + '/company/1155-malayan-banking');
+    const rb = await ev(`(async () => {
+      const r = () => document.querySelector('meta[name="robots"]')?.getAttribute('content') || null;
+      const out = { maybank: r() };
+      navigate('/company/aapl-apple-inc'); await new Promise(x => setTimeout(x, 300)); out.apple = r();
+      navigate('/company/1155-malayan-banking/report'); await new Promise(x => setTimeout(x, 300)); out.report = r();
+      return out; })()`);
+    if (rb.maybank !== 'noindex' || rb.apple !== null || rb.report !== 'noindex') q.push(`the robots tag on Maybank, then Apple in-app, then Maybank's report: ${JSON.stringify(rb)} — want noindex, none, noindex`);
+
     /* One name for /my/data: the workspace's tab, the sidebar and the title. */
     await load(BASE + '/my/data');
     const d12 = await ev(`({ tab: document.querySelector('#productTabs .ptab[aria-current]')?.textContent.trim(), side: document.querySelector('#appnav a[href$="/my/data"] .sb-text')?.textContent.trim(), title: document.title })`);
@@ -2313,7 +2326,7 @@ for (const route of ROUTES) {
   } catch (e) { q.push(`the checks threw: ${e.message}`); }
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   if (q.length) { bad++; console.log(`FAIL releaseB integration: what the verifier found (${q.length} problems)`); q.slice(0, 30).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   releaseB integration: what the verifier found holds — a saved screen's drawer labels every company; a company reached in-app while the filings load names no company and no other page's head, then its own; aliases end at the company's own address; Start here names a refused report without linking it; My Alerts and Reports wear the one head, whole at 390; an empty research section has one action; a match with no id is not called muted; the kind filter's ring is whole; /my/data has one name; the first steps ${steps}`);
+  else console.log(`ok   releaseB integration: what the verifier found holds — a saved screen's drawer labels every company; a company reached in-app while the filings load names no company and no other page's head, then its own; aliases end at the company's own address; Start here names a refused report without linking it; My Alerts and Reports wear the one head, whole at 390; an empty research section has one action; a match with no id is not called muted; the kind filter's ring is whole; an illustrative company says noindex wherever it is open; /my/data has one name; the first steps ${steps}`);
 }
 /* ---- end releaseB: integration ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);

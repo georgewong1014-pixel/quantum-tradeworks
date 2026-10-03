@@ -12922,7 +12922,7 @@ const ROUTES = [
 ];
 
 const META = {
-  marketing: 'Your financial decision workspace: research companies, monitor your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
+  marketing: 'Your financial decision workspace: research companies, build your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
@@ -13093,9 +13093,16 @@ function setDocumentMeta(route) {
      real — the soft 404 the launch audit found, left on every company,
      report and scanner address. And the app moves between pages without a
      load, so a page reached from the 404 kept its noindex. The tag follows
-     the page on screen. */
+     the page on screen.
+     So does a company whose figures are illustrative: its page — and its
+     report — is not for a search index while its figures are synthetic
+     (the owner, 2026-10-03, until real ones replace them). Its served page
+     says so too (build.mjs reads it from here); while the filings load, the
+     head the server sent stands, robots tag and all. */
+  if (holdHead) return;
+  const noindex = !route || !!(co && !co.c.real);
   const robots = document.querySelector('meta[name="robots"]');
-  if (route) robots?.remove();
+  if (!noindex) robots?.remove();
   else if (robots) robots.setAttribute('content', 'noindex');
   else { const t = document.createElement('meta'); t.setAttribute('name', 'robots'); t.setAttribute('content', 'noindex'); document.head.append(t); }
 }
@@ -25026,7 +25033,7 @@ VIEWS.marketing = () => {
   /* True to what is built: three products work today and business planning
      does not exist yet, so it is named as next rather than listed as done. */
   hero.append(el('p', { class: 'pub-lede' },
-    'Research companies, monitor your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
+    'Research companies, build your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
   hero.append(el('div', { class: 'pub-ctas' }, [
     pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow()),
     pubJump('products', { class: 'btn btn-ghost pub-btn' }, 'Explore products'),

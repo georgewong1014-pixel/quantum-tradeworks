@@ -227,6 +227,34 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end audit: content ---- */
 
+/* ---- audit3: monitor ---- */
+/* NO PROMISE TO MONITOR WHAT THIS SITE CANNOT RUN. The headline, the site's
+   description and the footer said a visitor could "monitor your own market
+   setups"; on this site a setup can be written and saved, and nothing runs
+   it — there are no prices here (the Scanner's own card says so). Daily
+   audits #2 and #3 both flagged it, and the owner chose "build" (2026-10-03).
+   The goal card's title, "Monitor my setups", stays: it carries the Beta
+   badge and the note that says where setups run. Page code and the
+   template's meta tags; comments are history. */
+{
+  const files = [...readdirSync(join(ROOT, 'src', 'js')).filter(x => x.endsWith('.js')).map(f => join(ROOT, 'src', 'js', f)), join(ROOT, 'src', 'index.template.html')];
+  const said = [];
+  for (const f of files) {
+    /* A JS comment in a module, an HTML comment in the template: the
+       template's CSS comments ran from before its meta tags to after them,
+       and stripped as JS would have hidden all three. */
+    const raw = readFileSync(f, 'utf8');
+    const text = f.endsWith('.html') ? raw.replace(/<!--[\s\S]*?-->/g, '') : raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    text.split('\n').forEach(line => { if (/monitor your own (market )?setups|monitor your setups/i.test(line)) said.push(`${f.slice(ROOT.length + 1)}: ${line.trim().slice(0, 120)}`); });
+  }
+  if (said.length) {
+    bad += said.length;
+    console.error(`FAIL  ${said.length} line(s) promise a visitor can monitor their setups here, where nothing runs them:`);
+    said.forEach(x => console.error(`      ${x}`));
+  } else console.log('ok    no page or meta tag promises "monitor your own setups": a visitor builds setups here, and the Scanner\'s card says where they run');
+}
+/* ---- end audit3: monitor ---- */
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);

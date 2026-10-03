@@ -282,7 +282,10 @@ export function clientRouter(origin) {
     const description = tags.get('meta[name="description"]')?.attrs.content;
     const canonical = tags.get('link[rel="canonical"]')?.attrs.href;
     if (!document.title || !description || !canonical) throw new Error(`setDocumentMeta set no title, description or canonical for ${path}`);
-    return { title: document.title, description, canonical };
+    /* And whether the page asks not to be indexed — a company whose figures
+       are illustrative does, from the same function. */
+    const noindex = tags.get('meta[name="robots"]')?.attrs.content === 'noindex';
+    return { title: document.title, description, canonical, ...(noindex ? { noindex: true } : {}) };
   };
   const headAt = (path) => { ctx.State = {}; ctx.BY_ID = new Map(); return run(path); };
   /* A company's own address, as a cold load of it ends once the filings are
@@ -394,7 +397,10 @@ export function companyPlan(origin, router = clientRouter(origin)) {
   const { companies, skipped } = companyUniverse();
   const owner = new Map();
   const plan = companies.map((c) => {
-    const { path, title, description, canonical } = router.companyHeadAt(c);
+    const { path, title, description, canonical, noindex = false } = router.companyHeadAt(c);
+    /* Illustrative figures are not for a search index (the owner, 2026-10-03):
+       the page says noindex for exactly those, and a filed company's does not. */
+    if (noindex !== !c.real) throw new Error(`${c.id}: its page ${noindex ? 'asks not to be indexed' : 'may be indexed'}, but its figures are ${c.real ? 'filed' : 'illustrative'}`);
     /* The page writes the company's own description (companyMetaDescription,
        35-ui.js); the build composes it independently, and the two must agree,
        or a link preview and the page would say different things. */
@@ -410,7 +416,7 @@ export function companyPlan(origin, router = clientRouter(origin)) {
     return {
       path, id: c.id,
       company: { name: c.name, tk: c.tk, code: c.code || null, mkt: c.mkt, real: !!c.real, cik: c.cik || null },
-      head: { title, description, canonical },
+      head: { title, description, canonical, ...(noindex ? { noindex: true } : {}) },
     };
   });
   return { companies: plan, skipped };
@@ -487,7 +493,10 @@ export function withHead(html, head, { notFound = false } = {}) {
   /* A 404 has no address of its own to name: no canonical link and no og:url,
      and it tells a crawler not to index it. The client still writes its own
      canonical once it runs, as it does on every page. */
-  put(TAG.canonical, notFound ? '<meta name="robots" content="noindex">' : `<link rel="canonical" href="${escAttr(head.canonical)}">`);
+  /* A page that names itself but asks not to be indexed (a company whose
+     figures are illustrative) keeps its canonical and adds the robots tag. */
+  put(TAG.canonical, notFound ? '<meta name="robots" content="noindex">'
+    : `<link rel="canonical" href="${escAttr(head.canonical)}">${head.noindex ? '\n<meta name="robots" content="noindex">' : ''}`);
   put(TAG.ogUrl, notFound ? '' : `<meta property="og:url" content="${escAttr(head.canonical)}">\n`);
   put(TAG.ogTitle, `<meta property="og:title" content="${escAttr(head.title)}">`);
   put(TAG.ogDesc, `<meta property="og:description" content="${escAttr(head.description)}">`);

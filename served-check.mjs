@@ -535,7 +535,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (r.status !== 200 || !/text\/html/.test(r.type)) { p.push(`${co.path}: ${described(r)}`); continue; }
     const h = co.head;
     const want = { title: h.title, description: h.description, canonical: h.canonical, ogUrl: h.canonical, ogTitle: h.title,
-      ogDescription: h.description, twitterTitle: h.title, twitterDescription: h.description, robots: null };
+      ogDescription: h.description, twitterTitle: h.title, twitterDescription: h.description, robots: h.noindex ? 'noindex' : null };
     const have = headOf(r.body);
     for (const k of Object.keys(want)) if (have[k] !== want[k]) p.push(`${co.path}: ${k} is ${JSON.stringify(have[k])}, not ${JSON.stringify(want[k])}`);
     if (skeleton(r.body) !== PAGE_SKELETON) p.push(`${co.path}: differs from index.html outside its own head and the two app files it loads`);
@@ -565,6 +565,16 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   }
 
   /* The rewrites: one per company, to its own page, before the fallback. */
+  /* Not for a search index while the figures are synthetic (the owner,
+     2026-10-03): an illustrative company's page says noindex, a filed one's
+     does not — and none says it twice. */
+  for (const co of companies) {
+    const body = got.get(co.path).body;
+    const n = (body.match(/<meta name="robots" content="noindex">/g) || []).length;
+    const illus = (headOf(body).description || '').includes(router.ILLUS_TITLE);
+    if (illus && n !== 1) p.push(`${co.path}: its figures are illustrative and it carries ${n} noindex tag(s), not one`);
+    if (!illus && n) p.push(`${co.path}: its figures are filed and it asks not to be indexed`);
+  }
   const rw = VERCEL.rewrites || [];
   const fallback = rw.findIndex(x => x.source === '/company/:id');
   const own = new Set(companies.map(co => co.path));
@@ -591,7 +601,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   }
   for (const [a, b] of QUERY) if (more.get(a).status !== 200 || more.get(a).body !== more.get(b).body) p.push(`${a}: ${described(more.get(a))}, not the page ${b} is served`);
 
-  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative — is index.html in every other byte but the two app files, carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
+  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files, carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
     'a company\'s own address is not served its own head, or another form of it is not the generic page');
 }
 /* ---- end releaseB: D ---- */

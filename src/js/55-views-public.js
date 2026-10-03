@@ -124,7 +124,7 @@ VIEWS.marketing = () => {
   /* True to what is built: three products work today and business planning
      does not exist yet, so it is named as next rather than listed as done. */
   hero.append(el('p', { class: 'pub-lede' },
-    'Research companies, monitor your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
+    'Research companies, build your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
   hero.append(el('div', { class: 'pub-ctas' }, [
     pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow()),
     pubJump('products', { class: 'btn btn-ghost pub-btn' }, 'Explore products'),
