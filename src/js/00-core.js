@@ -20,23 +20,6 @@
    exist only on the reader's own machine, and they keep no-store. */
 const DATA_VERSIONS = /*@INJECT:dataversions*/;
 
-/* WHETHER THIS BROWSER HELD ANYTHING OF THE READER'S BEFORE THE APP RAN
-   (2026-10-04). A static route's page is served with the app's own render of
-   it (prerender.mjs), drawn for a visitor whose browser holds nothing — and a
-   page that waits for the filed statements kept that render on screen after
-   the script had run, until they landed (drawPage, 35-ui.js). To a returning
-   reader it then said, for seconds after the script had read their storage,
-   that their own watchlists were "sample watchlists … not yours", "0 of 4
-   done", the Free plan "Current" for a reader on another, and showed again a
-   panel they had hidden. Read here, first, before any module writes a key
-   (the sample data a first visit is given is written later), so that the
-   served page stands only for a browser that is what it was drawn for. */
-const READER_HELD_AT_START = (() => {
-  try { for (let i = 0; i < localStorage.length; i++) if (String(localStorage.key(i)).startsWith('vl.')) return true; }
-  catch { /* storage switched off: nothing is held */ }
-  return false;
-})();
-
 /* ------------------------------------------------------------------ utils */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));

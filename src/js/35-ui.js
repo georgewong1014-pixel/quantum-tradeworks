@@ -888,15 +888,23 @@ const servedOn = viewRoot?.hasAttribute('data-served') ? location.pathname : nul
 const atAddress = (p) => p !== null
   && (location.pathname === p || (p.endsWith('/index.html') && location.pathname === p.slice(0, -'index.html'.length)));
 /* THE SERVED PAGE STANDS ONLY WHERE IT IS THE READER'S PAGE (2026-10-04).
-   It is the render of the bare address for a browser that holds nothing.
-   Under an address with a query it is not the page asked for: on
-   /compare?companies=aapl,msft it compared Maybank with Public Bank, for
-   three seconds after the script had chosen Apple and Microsoft, and
-   /discover?tab=heatmap stood as the screener. In a browser that held the
-   reader's own work before the app ran (READER_HELD_AT_START, 00-core.js) it
-   is a stranger's. There the page is drawn as soon as the script runs, as
-   before pages were served — the skeleton while the filings load. */
-let servedAt = servedOn !== null && !location.search && !READER_HELD_AT_START ? servedOn : null;
+   It is the render of the bare address for a browser that holds nothing,
+   and a page that waits for the filings keeps it on screen after the script
+   has run (drawPage). Where it is not this reader's page at this address —
+   /compare?companies=aapl,msft compared Maybank with Public Bank for three
+   seconds after the script had chosen Apple and Microsoft, /discover?tab=
+   heatmap stood as the screener, and a returning reader's own watchlists
+   were "sample watchlists … not yours" — the page is drawn as soon as the
+   script runs, the skeleton while the filings load, as before pages were
+   served. Which it is was decided by any query at all and any vl.* key in
+   storage; but every browser holds the sample data its first visit is
+   given, and most shared links carry a tracking parameter (?utm_source=,
+   ?fbclid=), so after its first page every reader went served page →
+   skeleton → page on every page that waits, the flash the served page
+   exists to remove. Now it is decided by what the page's draw reads
+   (SERVED_READS, with drawPage): the served page stands while what this
+   reader's draw would read is what the render's read. */
+let servedAt = servedOn;
 const onServedPage = () => atAddress(servedAt);
 /* The served page, still on screen under its own address, whether or not it
    may stand: what the first draw replaces with a page, not a new page. */
@@ -2529,6 +2537,167 @@ function bootSkeleton() {
   return wrap;
 }
 
+/* WHAT A PAGE THAT WAITS FOR THE FILINGS IS DRAWN FROM (2026-10-04).
+   ---------------------------------------------------------------------------
+   Such a page is served as the app drew it for a browser that holds
+   nothing, with the filings in (prerender.mjs), and keeps that page on
+   screen after the script has run, until they land (drawPage). That is the
+   reader's page only where what this reader's draw will read is what that
+   draw read. So each such view names what its draw reads that a reader can
+   make differ — what it reads from the address beyond its path, and what
+   it reads of what this browser keeps (SERVED_READS) — and every page it
+   draws carries a digest of those values (data-drawn-from, on its section:
+   servedFrom). The served page carries the render's. While the filings are
+   on their way the served page stands only while this reader's digest is
+   the served one; otherwise the page is drawn, the skeleton first, as
+   before pages were served.
+
+   What a fresh visitor has is not written down here: it is whatever the
+   render read, sample data and all — the lists, holdings, cases and alerts
+   a first visit is given are the same on the second, and a returning
+   reader whose browser holds only them gets the served page. What no page
+   reads is not a reason to draw again: the theme (the stylesheet draws
+   it), what the search dialog remembers (recent), and any parameter of the
+   address no page reads — ?utm_source=, ?fbclid=, ?gclid=, ?ref= and the
+   like ride on most shared links.
+
+   Each value is read as the page shows it, so that a fresh visitor's is the
+   same before the filings land and after, and on another day:
+   - a company by its id less the filer's "-SEC": the samples name AAPL, and
+     when the filings land a stand-in's id becomes its filer's (AAPL-SEC,
+     remapSavedIds, 25-universe.js), in the browser and in what it keeps;
+   - a watchlist without the moment it was migrated (migratedAt, stamped at
+     the first visit: nothing shows it);
+   - the report meter as this month's reports, the Start here panel as
+     whether it shows on this page, the calculator's deal as whether it is
+     the reader's — not the dates they were kept with.
+   prerender.mjs refuses a render whose page reads differently once the
+   filings are in than while they were on their way, and one of a waiting
+   view this table does not name; coverage-frames.mjs holds the rule from
+   both sides — a reader holding their own value for everything a page does
+   not name is still served it, and it is the page they are drawn. */
+const servedId = (id) => String(id ?? '').replace(/-SEC$/, '');
+const servedIds = (a) => (Array.isArray(a) ? a : []).map(servedId);
+const SERVED_READ = {
+  /* Every waiting page: whether the filed statements are read at all
+     (?real=, or the choice kept), and whether this is the owner's machine,
+     which reads files no render has — the prices, the scanner's record. */
+  realData: () => realEnabled(),
+  ownerMachine: () => OWNER_MACHINE,
+  /* What this browser keeps, as the pages show it. */
+  plan: () => State.plan,
+  baseCcy: () => State.baseCcy,
+  screenCcy: () => State.screenCcy,
+  compareCcy: () => State.compareCcy,
+  density: () => State.density,
+  /* Whether the Start here panel shows on this page. On Equities' pages its
+     example says what this month's company reports leave (reportLog). */
+  startHere: () => startHereFor(),
+  reportLog: () => (State.reportLog?.month === meterMonth() ? servedIds(State.reportLog.ids) : []),
+  onboarding: () => State.onboarding,
+  dash: () => State.dash,
+  watchlists: () => (State.watchlists || []).map(w => [w.id, w.name, servedIds(w.ids),
+    Object.keys(w.added || {}).filter(k => w.added[k]).map(servedId), !!w.updatedAt]),
+  wlActive: () => State.wlIdx,
+  portfolios: () => (State.portfolios || []).map(p => ({ ...p, holdings: (p.holdings || []).map(h => ({ ...h, id: servedId(h.id) })) })),
+  theses: () => (State.theses || []).map(t => ({ ...t, ticker: servedId(t.ticker) })),
+  priceAlerts: () => (State.priceAlerts || []).map(a => ({ ...a, ticker: servedId(a.ticker) })),
+  recentCompanies: () => servedIds(State.recentCompanies),
+  compare: () => [servedIds(State.compare), State.compareMissing || []],
+  screen: () => [State.screen, State.appliedTemplate || null],
+  savedScreens: () => State.savedScreens,
+  savedWork: () => loadWork(),
+  comparisons: () => loadComparisons(),
+  runs: () => store.read('runs', []),
+  reviews: () => store.read('reviews', {}),
+  manualPrices: () => manualPrices,
+  wht: () => State.wht,
+  sarawakExposure: () => State.sarawakExposure,
+  deal: () => dealIsTheReaders(State.deal),
+  scanSetups: () => scanStoreRead(),
+  scanPrefs: () => scanPrefsRead(),
+  scanAlertState: () => scanAlertStateRead(),
+  /* From the address, beyond its path: the tab and the companies as the
+     router took them, and a parameter a page reads for itself as it is. */
+  discoverTab: () => State.discoverTab,
+};
+/* A parameter of the address, as a page reads it ('?saved'). */
+const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1)) : SERVED_READ[name]());
+/* Read by every page that waits. */
+const SERVED_READS_ALL = ['realData', 'ownerMachine'];
+/* Each waiting view that has a served page, and what its draw reads beyond
+   SERVED_READS_ALL. Found by reading each view, and by drawing each served
+   page, filings in, with a returning reader's own values for the keys this
+   browser can keep, against its render — the set halved until each key that
+   changed the page was found (710 drawings, 2026-10-04): what changed a page
+   is named, and what the view's code reads besides where no drawing could
+   show it (a price typed in, the dashboard's last visit, the alerts'
+   filters). coverage-frames.mjs keeps the half that
+   matters: a page holding the reader's own value for every key it does not
+   name is still drawn as its render. A theme is read by none (scorePill
+   drew the light or the dark ramp's hex into the screener and the
+   comparison; the stylesheet resolves it now). */
+const SERVED_READS = {
+  /* /app: what is the visitor's own — lists, holdings, cases, alerts,
+     setups, saved work of every kind, a deal begun — counted apart from the
+     samples, and the first steps. The last visit (dashVisit, which the page
+     itself keeps as it draws) is said only to a visitor with something of
+     their own, which these already name: a reload of the dashboard is
+     served. */
+  home: ['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal'],
+  /* /research/queue: the cards' arrangement, the active list, the
+     differences between price and model estimate (a price typed in), the
+     plan's limits, the currency. */
+  researchQueue: ['plan', 'baseCcy', 'dash', 'watchlists', 'wlActive', 'recentCompanies', 'manualPrices', 'startHere', 'reportLog'],
+  /* /discover, /discover/screener, /discover/value-map: the tab and the
+     screen (?tab=, ?template=, the market kept), saved screens, the table's
+     density, the currencies, a price typed in. */
+  discover: ['discoverTab', 'screen', 'savedScreens', 'density', 'baseCcy', 'screenCcy', 'plan', 'manualPrices', 'startHere', 'reportLog'],
+  /* /research, /app/equities, /app/equities/explore. */
+  researchHome: ['plan', 'theses', 'recentCompanies', 'startHere', 'reportLog'],
+  /* /compare, /app/equities/compare: the companies (?companies=, or kept),
+     a saved comparison opened (?saved=) and the count saved, the
+     currencies, the withholding rates, the plan's limit, a price typed in. */
+  compare: ['compare', '?saved', 'comparisons', 'compareCcy', 'baseCcy', 'wht', 'plan', 'manualPrices', 'startHere', 'reportLog'],
+  /* /pricing: the plan in force. */
+  plans: ['plan'],
+  /* /discover/sarawak: the reader's exposure records. */
+  sarawak: ['sarawakExposure', 'plan', 'startHere', 'reportLog'],
+  /* The scanner's pages: the setups kept here, the preferences, the alerts
+     read or archived, the list a watchlist scan takes, and what the builder
+     and the alerts read from their address. */
+  scannerDashboard: ['startHere'],
+  scannerSetups: ['scanSetups', 'startHere'],
+  scannerSetupNew: ['scanSetups', 'startHere', '?example', '?from', '?fromAlert', '?key', '?market', '?symbol'],
+  scannerWatchlists: ['watchlists', 'scanSetups', 'startHere'],
+  scannerAlerts: ['scanPrefs', 'scanAlertState', 'startHere', '?setup', '?symbol', '?status', '?page', '?from', '?to'],
+  scannerMarket: ['scanSetups', 'startHere'],
+  scannerBacktest: ['scanSetups', 'startHere'],
+  scannerSettings: ['scanPrefs', 'scanSetups', 'startHere'],
+  /* The operations pages read only the worker's files (ownerMachine). */
+  scannerAdmin: [], scannerAdminData: [], scannerAdminJobs: [], scannerAdminDelivery: [],
+};
+/* FNV-1a, 32 bits: a digest that names a value, not a secret. */
+const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
+/* What a draw of this view reads now, as "name:digest …"; null for a view
+   that names nothing (its served page never stands). */
+function servedFrom(view = State.view) {
+  const names = SERVED_READS[view];
+  if (!names) return null;
+  return [...SERVED_READS_ALL, ...names].map(n => {
+    let v;
+    try { v = JSON.stringify(servedRead(n) ?? null); } catch { v = 'unreadable'; }
+    return `${n}:${servedHash(v)}`;
+  }).join(' ');
+}
+/* Whether the page on screen, served, is the one this reader's draw would
+   be: its digest is this reader's. */
+const servedIsReaders = () => {
+  const said = viewRoot?.querySelector(':scope > section.view')?.getAttribute('data-drawn-from');
+  return !!said && said === servedFrom();
+};
+
 /* THE CONTROL IN USE SURVIVES A REDRAW OF ITS OWN PAGE.
    ---------------------------------------------------------------------------
    render() replaces the whole view, the product tabs above it and the dock
@@ -2838,8 +3007,10 @@ function drawPage(samePage) {
      what was served now: prerender.mjs renders those as the first draw has
      them, before anything has loaded, so the same page replaces itself. Not
      as an entrance either way — the page was on screen already — and a move
-     to another address draws that page as usual. */
-  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view)) { servedWaiting(true); return; }
+     to another address draws that page as usual. It stands only while it is
+     this reader's page: while what their draw would read is what the
+     render's read (SERVED_READS, servedIsReaders). */
+  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view) && servedIsReaders()) { servedWaiting(true); return; }
   /* The served page is replaced here, whether it stood or not (servedAt):
      not an entrance either way. */
   const served = overServedPage();
@@ -2847,6 +3018,9 @@ function drawPage(samePage) {
   servedWaiting(false);
   if (viewRoot.hasAttribute('data-served')) viewRoot.removeAttribute('data-served');
   renderProductTabs();
+  /* What the page is drawn from, read before it draws: a view may keep
+     something as it draws (the dashboard notes the visit). */
+  const drawnFrom = !realPending && UNIVERSE_VIEWS.has(State.view) ? servedFrom() : null;
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
     ? bootSkeleton()
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));
@@ -2867,7 +3041,8 @@ function drawPage(samePage) {
      6px off where it came to rest (stayPut). A new page still enters. */
   /* Above the page, in its column: the product's Start here panel, until the
      reader hides it (Release B, B6; 36-layouts.js). */
-  const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, [startHereNode(), node]));
+  const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
+    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);

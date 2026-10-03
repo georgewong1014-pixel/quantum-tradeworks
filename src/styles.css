@@ -4055,6 +4055,25 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    and a height the field's class gives it (.select-sm's 34px) was ignored —
    the calculator's tables of selects stood 13px a row short. */
 :where(#views[data-served] [data-inert="field"], #views[data-served] [data-inert="choice"]) { display: inline-block; }
+/* A select's width is its widest choice's where nothing sets it, and a span's
+   its words'. Its choices are served as data-label on empty spans before its
+   words (prerender.mjs, NOTHING MEASURED): each a line of no height, unseen,
+   as wide as its words — so the span is as wide as the widest, in the
+   reader's own font, as the select will be. The words come last, so they
+   stay the line the span's baseline is on. */
+#views[data-served] [data-inert="field"] > [data-label] { display: block; height: 0; overflow: hidden; visibility: hidden; white-space: pre; }
+#views[data-served] [data-inert="field"] > [data-label]::after { content: attr(data-label); }
+/* And its words are one line, cut at its edge, as a select's are: where a
+   class sets the select's width (the Trading Index's 78px state pickers)
+   its words ran on to three lines on a phone, the field 18px taller until
+   the page was drawn. clip, not hidden: the span keeps its words' baseline. */
+#views[data-served] [data-inert="field"]:has(> [data-label]) { white-space: nowrap; overflow: clip; }
+/* A textarea: textarea.input's box, and its rows (data-rows, --rows) as lines
+   of its own line height — 8px of padding and 1px of border above and below. */
+#views[data-served] .input[data-rows] {
+  height: calc(var(--rows) * 1lh + 18px); padding: 8px 10px; min-height: 76px; line-height: 1.55;
+  white-space: pre-wrap; overflow: hidden;
+}
 #views[data-served] .subnav > [data-inert="button"] {
   padding: 10px 1px 11px; font-size: 13px; font-weight: 500; color: var(--ink-3);
   border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
@@ -4071,6 +4090,8 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views[data-served] .chip[data-inert="button"] { min-height: 44px; min-width: 44px; }
   #views[data-served] [data-inert="range"] { height: 44px; }
   #views[data-served] .checkline > [data-inert="choice"] { width: 20px; height: 20px; line-height: 20px; }
+  /* textarea.input's floor here (inputs, above). */
+  #views[data-served] .input[data-rows] { min-height: 44px; }
 }
 /* The screener's results are a table above 768px and cards below, both in
    the page, CSS choosing (40-views-discover.js). The render has the table
@@ -4128,6 +4149,7 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views [data-inert="button"]:not([data-on]) { color: var(--ink-2) !important; }
   #views [data-inert="button"][data-on] { color: var(--ink) !important; font-weight: 600; }
   #views [data-inert="field"]:empty, #views [data-inert="range"]:empty, #views [data-inert="details"] { display: none !important; }
+  #views [data-inert="field"] > [data-label] { display: none !important; }
   #views :is(.segmented, .subnav):has(> [data-inert]) { background: none; border-color: transparent; box-shadow: none; }
   #views table.dt.screener-table { display: table; }
   #views [data-now]:empty::before { content: none; }

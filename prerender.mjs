@@ -14,6 +14,11 @@
  *                                      own server and its own browser, held (SELF-TEST, below)
  *
  *   --only /pricing,/about    just these pages (a write keeps every other render)
+ *   --font <family>           --check only: draw every page with the app's sans font
+ *                             forced to <family> (serif, monospace, Verdana…), as a
+ *                             machine without the render's fonts draws it — CI's Linux
+ *                             runner has neither Inter nor Segoe UI. A render carries
+ *                             nothing the fonts decide, so it must pass in any.
  *   --port <n>                the clean copy's server (or PRERENDER_PORT; by default a port
  *                             the system says is free). It must be free: nothing is drawn
  *                             from a server this run did not start.
@@ -61,7 +66,11 @@
  *   (realPending && UNIVERSE_VIEWS: the dashboard, pricing, the screener,
  *   research, the scanner's pages…) is drawn once they have landed, and the
  *   app keeps the served page on screen until then (drawPage) — so it never
- *   goes page → skeleton → page. Every other page is drawn as its FIRST draw
+ *   goes page → skeleton → page — while it is the reader's page: such a page
+ *   carries a digest of what its draw read (data-drawn-from: SERVED_READS,
+ *   35-ui.js), and stands while the reader's draw would read the same. A
+ *   waiting view that names nothing, or whose fresh visitor reads otherwise
+ *   once the filings are in, fails the run. Every other page is drawn as its FIRST draw
  *   has it, with every request it makes held unanswered, because its first
  *   draw is what replaces the served page the moment the script runs: the
  *   page replaces itself with itself. What changes once its data lands
@@ -73,7 +82,10 @@
  * a served field would be lost when the page is drawn over it. So every form
  * control is made inert text: a button becomes its own words (a <span> with
  * the button's classes, so it sits where it sat); a text, number or date
- * field, a select and a textarea become their current value; a checkbox or
+ * field, a select and a textarea become their current value (a select's
+ * other choices ride along as data-label, a textarea's rows as data-rows, so
+ * the stylesheet gives each its control's box — nothing measured in this
+ * machine's fonts is ever written into a render); a checkbox or
  * a radio button becomes ☑ or ☐; a hidden or file field is removed, as are
  * <form> (its contents kept), <script>, <template>, <canvas>, <iframe> and
  * any inline handler. What the script makes a control of goes the same way:
@@ -109,6 +121,9 @@ const argv = process.argv.slice(2);
 const flag = (n) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null; };
 const CHECK = argv.includes('--check');
 const WORKTREE = argv.includes('--worktree');
+/* --check --font <family>: the app's sans font forced to another, before the
+   page's first paint (fontScript). */
+const FONT = flag('font');
 const ONLY = (flag('only') || '').split(',').map(s => s.trim()).filter(Boolean);
 /* No default port: the clean copy is served on one the system says is free
    (freePort), and a port that is named must be free — prerender never draws
@@ -263,10 +278,23 @@ export const clockScript = (iso) => `(() => {
   globalThis.Date = Fixed;
 })();`;
 
+/* ANOTHER MACHINE'S FONTS (2026-10-04). The app's sans font is a stack —
+   Inter where it is installed, else the system's (Segoe UI here, DejaVu Sans
+   or Liberation on CI's Linux runner) — so the same page is laid out in
+   other fonts elsewhere. Installed into every document before its first
+   paint, this forces --sans to the family given, as such a machine would. */
+export const fontScript = (family) => `(() => {
+  const css = ':root { --sans: ' + ${JSON.stringify(JSON.stringify(family))} + ', sans-serif !important; }';
+  const add = () => { const s = document.createElement('style'); s.setAttribute('data-prerender-font', ''); s.textContent = css; document.documentElement.prepend(s); };
+  if (document.documentElement) add();
+  else new MutationObserver((_, mo) => { if (document.documentElement) { mo.disconnect(); add(); } }).observe(document, { childList: true });
+})();`;
+
 /* One page, in a fresh profile. hold: every request the page makes is left
    unanswered (its first draw); otherwise only the journeys file is, which a
-   workflow rewrites daily. The personal lane is answered 404 either way. */
-async function openPage(browser, url, { hold }) {
+   workflow rewrites daily. The personal lane is answered 404 either way.
+   font: --check --font, the sans font forced (fontScript). */
+async function openPage(browser, url, { hold, font = null }) {
   const { browserContextId } = await browser.send('Target.createBrowserContext', { disposeOnDetach: true });
   const { targetId } = await browser.send('Target.createTarget', { url: 'about:blank', browserContextId });
   const { sessionId } = await browser.send('Target.attachToTarget', { targetId, flatten: true });
@@ -318,6 +346,7 @@ async function openPage(browser, url, { hold }) {
   await S('Page.addScriptToEvaluateOnNewDocument', { source: clockScript(CLOCK) });
   await S('Page.addScriptToEvaluateOnNewDocument', { source:
     "document.addEventListener('securitypolicyviolation', e => __cspViolation(e.violatedDirective + ' blocked ' + String(e.blockedURI || e.sourceFile || 'inline').slice(0, 90)));" });
+  if (font) await S('Page.addScriptToEvaluateOnNewDocument', { source: fontScript(font) });
   await S('Fetch.enable', { patterns: [
     { urlPattern: '*/data/*', requestStage: 'Request' },
     { urlPattern: '*/health/*', requestStage: 'Request' },
@@ -420,22 +449,43 @@ export function servedCopy(live, counts = {}) {
       if (o.getAttribute('aria-pressed') === 'true' || o.getAttribute('aria-selected') === 'true') s.setAttribute('data-on', '');
       s.append(...c.childNodes); c.replaceWith(s); add('buttons'); continue;
     }
+    /* NOTHING MEASURED (2026-10-04). A select is as wide as its widest
+       choice where nothing sets its width, a span as its words: the
+       calculator's demand table's first column took the difference, and its
+       rows grew 18px each when the selects came. That width was held by
+       measuring the select here, in this machine's fonts, and writing it
+       into the render (min-width: 247px) — so the render was this machine's:
+       drawn in another sans font, 7 of 50 pages failed --check on that
+       width alone, as CI's Linux runner, which has neither Inter nor Segoe
+       UI, would; and one select was given a width in one font and none in
+       another. Now each choice's words ride along, as data-label on an empty
+       span before the chosen words, and the stylesheet draws them unseen and
+       a line high (styles.css, prerender): the span is as wide as its widest
+       choice in whatever font the reader has — the select's own rule — and
+       the render carries words, never a width. */
     if (tag === 'select') {
-      const s = span(c); s.setAttribute('data-inert', 'field'); s.textContent = [...o.selectedOptions].map(x => x.textContent.trim()).join(', ');
-      /* A select is as wide as its widest choice, a span as its chosen one:
-         where nothing sets the select's width, that width is held (the
-         calculator's demand table's first column took the difference, and
-         its rows grew 18px each when the selects came). */
-      const r = o.getBoundingClientRect(), was = o.getAttribute('style');
-      o.style.width = 'auto'; o.style.minWidth = '0'; o.style.maxWidth = 'none'; o.style.flex = 'none'; o.style.justifySelf = 'start'; o.style.alignSelf = 'start';
-      const own = o.getBoundingClientRect().width;
-      if (was === null) o.removeAttribute('style'); else o.setAttribute('style', was);
-      if (r.width && Math.abs(own - r.width) < 1) s.style.minWidth = `${Math.round(r.width)}px`;
+      const s = span(c); s.setAttribute('data-inert', 'field');
+      const chosen = [...o.selectedOptions].map(x => x.label.trim()).join(', ');
+      /* A choice in a group is measured indented by four spaces, as the
+         browser lists it (the Area screen's towns, under their divisions):
+         the select is that much wider than its longest town. */
+      if (chosen) for (const l of new Set([...o.options].map(x => (x.parentElement?.localName === 'optgroup' ? '    ' : '') + x.label.trim()))) {
+        if (!l.trim() || l === chosen) continue;
+        const w = document.createElement('span'); w.setAttribute('data-label', l); s.append(w);
+      }
+      s.append(chosen);
       c.replaceWith(s); add('fields'); continue;
     }
-    /* A textarea's height is its rows', which a span cannot carry: it is
-       held, as drawn (the Trading Index's notes field moved the page 27px). */
-    if (tag === 'textarea') { const s = span(c); s.setAttribute('data-inert', 'field'); s.style.minHeight = `${Math.round(o.getBoundingClientRect().height)}px`; s.style.whiteSpace = 'pre-wrap'; s.textContent = o.value; c.replaceWith(s); add('fields'); continue; }
+    /* A textarea's height is its rows of its own line height (the Trading
+       Index's notes field moved the page 27px without it). Its rows are
+       carried (data-rows, and --rows for the stylesheet), never its drawn
+       height: the stylesheet gives the span textarea.input's box from them. */
+    if (tag === 'textarea') {
+      const s = span(c); s.setAttribute('data-inert', 'field');
+      const rows = String(Math.max(1, Number(o.getAttribute('rows')) || 2));
+      s.setAttribute('data-rows', rows); s.style.setProperty('--rows', rows);
+      s.textContent = o.value; c.replaceWith(s); add('fields'); continue;
+    }
     const type = String(o.type || 'text').toLowerCase();
     if (type === 'hidden' || type === 'file') { c.remove(); add('removed'); continue; }
     const s = span(c);
@@ -560,6 +610,10 @@ function capturePage(servedCopy, servedText, { origin, site }) {
   const resBtn = document.getElementById('menuResourcesBtn');
   return {
     path: location.pathname, view: State.view, waits: !!(UNIVERSE_VIEWS.has(State.view)),
+    /* What a page that waits was drawn from (SERVED_READS, 35-ui.js), and
+       what it would be drawn from now. */
+    drawnFrom: section?.getAttribute('data-drawn-from') || null,
+    readsNow: typeof servedFrom === 'function' ? servedFrom(State.view) : null,
     chrome: document.documentElement.dataset.chrome || null,
     /* As served: what is the tab's, now, is not the page's heading. */
     h1: (views.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() || null,
@@ -594,28 +648,47 @@ function sameNavigation(served) {
 
 /* One page: its first draw, or — a page that waits for the filings — its
    draw once they are in. */
-async function render(browser, base, s, site) {
+async function render(browser, base, s, site, { font = null } = {}) {
   const url = base + s.path;
   const origin = new URL(base).origin;
-  let tab = await openPage(browser, url, { hold: true });
+  let tab = await openPage(browser, url, { hold: true, font });
   let state = 'first draw', snap;
   try {
     await settle(tab, { filings: false });
     snap = await tab.eval(capture({ origin, site }));
+    /* What a fresh visitor's draw reads while the filings are on their way:
+       what their served page is held to (servedIsReaders, 35-ui.js). */
+    const pending = snap.waits ? snap.readsNow : null;
     if (snap.waits) {
       await tab.close();
-      tab = await openPage(browser, url, { hold: false });
+      tab = await openPage(browser, url, { hold: false, font });
       await settle(tab, { filings: true });
       snap = await tab.eval(capture({ origin, site }));
       state = 'filings in';
     }
     const problems = [...tab.errors];
+    /* THE SERVED PAGE OF A PAGE THAT WAITS CAN STAND (2026-10-04). It stands
+       while what the reader's draw reads is what the render's read
+       (SERVED_READS, 35-ui.js): a waiting view that names nothing would
+       never stand, and one whose fresh visitor reads otherwise once the
+       filings are in than while they were on their way — an id the filings
+       rename, a date of the render's clock — would never stand for anyone. */
+    if (snap.waits) {
+      if (!snap.drawnFrom) problems.push(`the view ${snap.view} waits for the filings and names nothing its draw reads (SERVED_READS, 35-ui.js): its served page would never stand`);
+      else if (pending !== snap.drawnFrom) {
+        const was = new Map(String(pending || '').split(' ').map(x => x.split(':')));
+        const differ = snap.drawnFrom.split(' ').map(x => x.split(':')).filter(([n, h]) => was.get(n) !== h).map(([n]) => n);
+        problems.push(`a fresh visitor's draw of ${snap.view} reads otherwise once the filings are in than while they were on their way (${differ.join(', ') || 'what it names'}): its served page would never stand`);
+      }
+    }
     if (tab.answeredPersonal.length) problems.push(`the personal lane was answered: ${tab.answeredPersonal.join(', ')}`);
     if (snap.path !== s.path) problems.push(`the page moved to ${snap.path}`);
     if (snap.view !== s.view) problems.push(`the page drew the view ${snap.view}, where ${s.path}'s route opens ${s.view}`);
     if (!snap.h1) problems.push('the page has no h1');
     if (snap.text.includes(SKELETON) || snap.views.includes(SKELETON)) problems.push('the page is the loading skeleton');
     if (/localhost/i.test(snap.views + (snap.tabs || ''))) problems.push('the render names the address it was drawn at');
+    if (font && !await tab.eval(`getComputedStyle(document.body).fontFamily.startsWith(${JSON.stringify(JSON.stringify(font))}) || getComputedStyle(document.body).fontFamily.startsWith(${JSON.stringify(font)})`))
+      problems.push(`the sans font was not forced to ${font}`);
     return { ...snap, state, problems, personal: tab.personal.length, held: tab.held.length, tab };
   } catch (e) {
     await tab.close();
@@ -872,7 +945,7 @@ async function main() {
       const target = (flag('check') || argv.find(a => /^https?:\/\//.test(a)) || '').replace(/\/+$/, '');
       if (!/^https?:\/\//.test(target)) { console.error('--check needs the address of a served site: node prerender.mjs --check http://localhost:8123'); process.exit(2); }
       const base = asLive(target);
-      console.log(`prerender --check  ${target}${base !== new URL(target).origin ? ` (drawn at ${base}, as production serves it)` : ''}  ${scope.length} pages\n`);
+      console.log(`prerender --check  ${target}${base !== new URL(target).origin ? ` (drawn at ${base}, as production serves it)` : ''}  ${scope.length} pages${FONT ? `, the sans font forced to ${FONT}` : ''}\n`);
       const manifest = JSON.parse(lf(readFileSync(join(ROOT, MANIFEST), 'utf8')));
       browser = await startBrowser();
       for (const s of scope) {
@@ -880,7 +953,7 @@ async function main() {
         if (!m || !existsSync(join(ROOT, s.render))) { say(false, `${s.path}: no render committed (${s.render}) — run node prerender.mjs`); continue; }
         const committed = lf(readFileSync(join(ROOT, s.render), 'utf8')).replace(/\n$/, '');
         let r;
-        try { r = await render(browser, base, s, SITE); } catch (e) { say(false, `${s.path}: ${e.message}`); continue; }
+        try { r = await render(browser, base, s, SITE, { font: FONT }); } catch (e) { say(false, `${s.path}: ${e.message}`); continue; }
         const problems = [...r.problems];
         /* Where they part. The committed side is said only off CI: a render
            that should never have been committed (one carrying the owner's

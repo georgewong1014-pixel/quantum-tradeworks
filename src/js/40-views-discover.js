@@ -1805,7 +1805,13 @@ function renderScreener() {
 function scorePill(v, pct) {
   if (!isNum(v)) return NA;
   const t = v / 100;
-  const bg = cssVar(sequentialVar(t));
+  /* The ramp's step, not its colour: the stylesheet resolves it for the
+     theme on screen (2026-10-04). Resolved here, to the light or the dark
+     theme's hex as the page was drawn, the screener's markup was the
+     theme's — a page served in the light theme was not the page a reader in
+     the dark one would be drawn (SERVED_READS, 35-ui.js) — and a switch of
+     theme left every bar in the other theme's colour until a redraw. */
+  const bg = `var(${sequentialVar(t)})`;
   return `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end">
     <span class="num" style="font-weight:600;color:var(--ink)">${v}</span>
     <span style="width:26px;height:6px;border-radius:999px;background:${bg};flex:none" title="${isNum(pct) ? ord(pct) + ' percentile' : ''}"></span></span>`;

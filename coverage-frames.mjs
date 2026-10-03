@@ -228,7 +228,7 @@ try {
        pages. */
   {
     const { readFileSync } = await import('node:fs');
-    const { routePlan, prerenderScope } = await import('./build.mjs');
+    const { routePlan, prerenderScope, siteOrigin } = await import('./build.mjs');
     const P = await import('./prerender.mjs');
     const here = new URL('.', import.meta.url);
     const read = (f) => readFileSync(new URL(f, here), 'utf8').split('\r\n').join('\n');
@@ -333,16 +333,18 @@ try {
     const releaseScript = async () => { holdScript = false; for (const requestId of scriptHeld) await send('Fetch.continueRequest', { requestId }, sid); scriptHeld = []; };
     /* A first visit: storage and cache emptied, and — for a returning
        reader — what their browser holds written first. */
-    const firstVisit = async ({ seed = null, script = false } = {}) => {
+    const firstVisit = async ({ seed = null, raw = null, script = false } = {}) => {
       await releaseAll();
       await send('Page.navigate', { url: 'about:blank' }, sid);
       await sleep(150);
       await send('Storage.clearDataForOrigin', { origin: live, storageTypes: 'all' }, sid);
       await send('Network.clearBrowserCache', {}, sid);
-      if (seed) {
+      /* seed: values, written as the app writes them; raw: as stored. */
+      const kept = { ...Object.fromEntries(Object.entries(seed || {}).map(([k, v]) => [k, JSON.stringify(v)])), ...(raw || {}) };
+      if (Object.keys(kept).length) {
         await send('Page.navigate', { url: `${live}/robots.txt` }, sid);
         await sleep(300);
-        await value(`(() => { ${Object.entries(seed).map(([k, v]) => `localStorage.setItem(${JSON.stringify(`vl.${k}`)}, ${JSON.stringify(JSON.stringify(v))});`).join('')} return true; })()`);
+        await value(`(() => { const kept = ${JSON.stringify(kept)}; for (const [k, v] of Object.entries(kept)) localStorage.setItem('vl.' + k, v); return true; })()`);
       }
       held = []; holding = true; holdScript = script; scriptHeld = [];
     };
@@ -361,15 +363,19 @@ try {
        on none here.) */
     const { result: { targetId: tid } } = await send('Target.createTarget', { url: 'about:blank' });
     sid = (await send('Target.attachToTarget', { targetId: tid, flatten: true })).result.sessionId;
+    /* The clock's script, kept so a later check can draw at another. */
+    let clockId = null;
+    const FRAMES_CLOCK_SCRIPT = P.clockScript(FRAMES_CLOCK);
     for (const [method, params] of [['Runtime.enable', {}], ['Page.enable', {}], ['Network.enable', {}],
       ['Emulation.setDeviceMetricsOverride', { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }],
       ['Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }],
       ['Emulation.setTimezoneOverride', { timezoneId: P.ZONE }], ['Emulation.setLocaleOverride', { locale: P.LOCALE }],
-      ['Page.addScriptToEvaluateOnNewDocument', { source: P.clockScript(FRAMES_CLOCK) }],
+      ['Page.addScriptToEvaluateOnNewDocument', { source: FRAMES_CLOCK_SCRIPT }],
       ['Page.addScriptToEvaluateOnNewDocument', { source: observer }],
       ['Fetch.enable', { patterns: [{ urlPattern: '*', resourceType: 'Fetch', requestStage: 'Request' }, { urlPattern: '*', resourceType: 'XHR', requestStage: 'Request' },
         { urlPattern: '*/assets/app.*.js', resourceType: 'Script', requestStage: 'Request' }] }]]) {
-      await send(method, params, sid);
+      const r = await send(method, params, sid);
+      if (params.source === FRAMES_CLOCK_SCRIPT) clockId = r.result?.identifier;
     }
     try {
     for (const s of pages) {
@@ -446,30 +452,170 @@ try {
        the script has run, a page that waits for the filings keeps the served
        page only where it is the page this reader asked for, says it is
        waiting, and — drawn over at last — gives focus back where it was:
-       - an address with a query is not the bare address's render (it compared
-         Maybank with Public Bank under ?companies=aapl,msft, and stood as the
-         screener under ?tab=heatmap);
-       - a browser that held the reader's own work is not a first visit's
-         (their watchlists were "sample watchlists … not yours");
        - standing, it says so (it stood silent with dead controls);
        - a link focused in it before the script ran keeps focus when the page
-         is drawn (it fell to <body>). */
+         is drawn (it fell to <body>).
+       WHOSE PAGE IT IS (2026-10-04, second pass). The first rule — no query,
+       no vl.* key in storage — drew the skeleton over the served page for
+       nearly every reader: every browser holds the sample data its first
+       visit is given, most shared links carry ?utm_source= or ?fbclid=, and
+       a theme chosen is a key. The page now stands while what its draw reads
+       is what the render's read (SERVED_READS, 35-ui.js), and this holds it
+       from both sides, at the render's clock so that a page drawn can be
+       compared with its render element for element (servedSignature):
+       1. Every page that waits, in a browser holding the reader's own value
+          — made by the app's own functions: their lists, holdings, cases and
+          alerts, a plan, a hidden panel, saved screens, comparisons, work and
+          setups, other currencies, the dark theme, the search's history… —
+          for every key the page does not name: the served page stands once
+          the script has run, no skeleton is drawn, and the page drawn when
+          the filings land is its render. A key a page reads and does not name
+          fails here.
+       2. Every page that waits, on a second visit — after /about, the samples
+          written as a first visit writes them, and after itself, what it
+          keeps as it draws kept: it stands, and is its render.
+       3. Under ?utm_source=, ?fbclid= or ?gclid=, and with only a theme kept:
+          it stands, and is its render.
+       4. Where it is not the reader's page it never stands, and the page drawn
+          is not its render (so the check is not idle): ?companies=aapl,msft,
+          ?tab=heatmap, the dashboard holding the reader's own list, Pricing on
+          another plan, the screener with its Start here panel hidden. */
     {
       const said = [];
       const check = (ok, what, got) => { if (!ok) said.push(`${what} (${JSON.stringify(got)})`); };
       const STATE = `({ served: document.getElementById('views').hasAttribute('data-served'), pending: typeof realPending !== 'undefined' && realPending,
         wait: (document.querySelector('.served-wait[role="status"]')?.textContent || '').trim() || null, busy: document.getElementById('views').getAttribute('aria-busy') })`;
-      for (const path of ['/compare?companies=aapl,msft', '/discover?tab=heatmap']) {
-        await firstVisit();
-        await send('Page.navigate', { url: live + path }, sid);
+      /* At the render's clock, from here on. */
+      await releaseAll();
+      if (clockId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: clockId }, sid);
+      clockId = (await send('Page.addScriptToEvaluateOnNewDocument', { source: P.clockScript(P.CLOCK) }, sid)).result?.identifier;
+      const SETTLED = `typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view && !document.getElementById('views').hasAttribute('data-served')`;
+      const release = async () => { holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = []; };
+      const openFree = async (path) => { await release(); await send('Page.navigate', { url: live + path }, sid); await quiet(SETTLED); };
+      const DUMP = `Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('vl.')).sort().map(k => [k.slice(3), localStorage.getItem(k)]))`;
+      /* The reader's own, by the app's own hand: every value the steps change
+         from what a first visit to /app/equities leaves. */
+      await firstVisit();
+      await openFree('/app/equities');
+      const fresh = await value(DUMP) || {};
+      for (const step of [
+        `(() => { const r = wlCreate('My banks'); if (r.ok) { wlAdd(r.watchlist.id, 'MAYBANK'); wlAdd(r.watchlist.id, 'AAPL'); } return r.ok; })()`,
+        `(() => { State.priceAlerts = [...State.priceAlerts, { id: 'pa-frames-1', ticker: 'MSFT', op: '>', price: 500, note: 'Above my case', updatedAt: new Date().toISOString() }]; return store.write('priceAlerts', State.priceAlerts); })()`,
+        `(() => { State.portfolios = [...State.portfolios, { id: 'pf-frames-1', name: 'My income', cash: 500, cashCcy: 'MYR', holdings: [{ id: 'MAYBANK', qty: 1000, cost: 9.5, fx0: 1, fee: 10, rebate: 0 }] }]; return savePortfolios(); })()`,
+        `(() => { State.theses = [...State.theses, { id: 't-frames-1', ticker: 'AAPL', oneLine: 'Services keep growing faster than hardware.', quality: '', valCase: '', catalysts: ['Services margin'], risks: ['Regulation'], conds: [{ type: 'metric', k: 'roe', op: '<', v: 20, label: 'ROE below 20%' }], horizon: '3–5 years', review: '2026-12-01', conf: 'Medium', questions: [], created: '2026-09-20' }]; saveTheses(); return true; })()`,
+        `store.write('dividendsReceived', [{ id: 'MAYBANK', pfId: 'pf-1', date: '2026-09-10', amount: 120, ccy: 'MYR' }])`,
+        `store.write('compare', ['AAPL', 'MSFT'])`,
+        `store.write('recentCompanies', ['MSFT', 'AAPL'])`,
+        `store.write('startHere', { equities: '2026-09-20T01:00:00.000Z', scanner: '2026-09-20T01:00:00.000Z', property: '2026-09-20T01:00:00.000Z' })`,
+        `store.write('dash', [{ k: 'context', col: 'top', visible: false }, { k: 'feed', col: 'main', visible: true }, { k: 'watchlist', col: 'main', visible: true }, { k: 'discounts', col: 'rail', visible: false }, { k: 'loop', col: 'rail', visible: true }])`,
+        `store.write('dashVisit', { prev: '2026-09-20T01:00:00.000Z', seen: '2026-09-25T01:00:00.000Z' })`,
+        `store.write('density', 'compact')`, `store.write('screen', { universe: 'US' })`, `store.write('screenCcy', 'USD')`,
+        `store.write('baseCcy', 'USD')`, `store.write('compareCcy', 'local')`, `store.write('wht', { US: 15, MY: 0 })`,
+        `store.write('requiredDiscount', 25)`, `store.write('reportLog', { month: meterMonth(), ids: ['AAPL'] })`,
+        `store.write('onboarding', { level: 'experienced', market: 'US', ccy: 'USD', done: true, at: '2026-09-20T01:00:00.000Z' })`,
+        `store.write('plan', 'pro')`, `store.write('alertKinds', ['earnings'])`, `store.write('explainDepth', 'technical')`,
+        `store.write('realData', false)`, `store.write('manualPrices', { MAYBANK: 10.5 })`,
+        `store.write('scanPrefs', { inApp: false, muted: {}, pageSize: 25, statusFilter: 'ALL', precision: 'rounded' })`,
+        `store.write('scanAlertState', { 'own-setup|AAPL|2026-09-01': 'READ' })`,
+        `(() => { const d = SCAN_EXAMPLES.setups.find(x => x.ruleTree) || SCAN_EXAMPLES.setups[0]; return !!scanSaveSetup({ ...JSON.parse(JSON.stringify(d)), id: 'frames-breakout', name: 'My breakout', enabled: true })?.ok; })()`,
+        `store.write('recent', { items: [{ k: 'page', id: '/about', t: new Date().toISOString() }], co: {} })`,
+        `store.write('valuation', { AAPL: { growth: 6 } })`, `store.write('wlActive', 'wl-2')`, `store.write('lang', 'ms')`,
+        `store.write('launcherAnswers', { market: 'US' })`, `store.write('registerActor', 'Reader')`,
+        `store.write('opportunities', [{ id: 'opp-frames-1', name: 'Shophouse, Kuching', status: 'watching', created: '2026-09-20' }])`,
+        `store.write('deal', { ...State.deal, userStarted: true, price: 640000 })`, `store.write('theme', 'dark')`,
+      ]) await value(step);
+      await openFree('/discover/screener');
+      await value(`(() => { window.prompt = () => 'My dividend screen'; saveScreen(); return true; })()`);
+      await openFree('/compare');
+      await value(`!!saveComparison('Apple and Microsoft')`);
+      await value(`(() => { State.wheel = { ...State.wheel, symbol: 'KO', isWorkedExample: false }; return !!saveWork('wheel', 'My KO wheel'); })()`);
+      await openFree('/discover/sarawak');
+      await value(`(() => { const add = [...document.querySelectorAll('#views button')].find(b => b.textContent.trim() === 'Add'); if (add) add.click(); return true; })()`);
+      await sleep(300);
+      const after = await value(DUMP) || {};
+      const own = Object.fromEntries(Object.entries(after).filter(([k, v]) => fresh[k] !== v));
+      /* What each page names (none, before 2026-10-04's second pass). */
+      const reads = await value(`typeof SERVED_READS === 'undefined' ? null : { all: SERVED_READS_ALL, views: SERVED_READS }`);
+      if (Object.keys(own).length < 30) said.push(`the reader's own values were not all made: ${Object.keys(own).join(' ')}`);
+      /* One page: requests held until the script has run, then released. Did
+         the served page stand, was the skeleton ever drawn, and is the page
+         drawn its render? */
+      const committedOf = (s) => ({ views: read(s.render).replace(/\n$/, ''), tabs: manifest.pages[s.file]?.tabs ? read(s.tabs).replace(/\n$/, '') : null });
+      const site = siteOrigin(read('src/index.template.html'));
+      const DRAWN = `(() => { const copy = ${P.servedCopy}; const v = copy(document.getElementById('views')); const sec = v.querySelector(':scope > section.view');
+        if (sec) { sec.setAttribute('data-active', '1'); sec.setAttribute('data-redrawn', '1'); }
+        const host = document.getElementById('productTabs'); const t = host && !host.hidden && host.children.length ? copy(host) : null;
+        const local = (h) => h.split(location.origin).join(${JSON.stringify(site)}); return { views: local(v.innerHTML), tabs: t ? local(t.innerHTML) : null }; })()`;
+      const visit = async (s, { query = '', path = s.path, after = null } = {}) => {
+        holding = true;
+        if (after) await send('Network.setCacheDisabled', { cacheDisabled: true }, sid);
+        await send('Page.navigate', { url: live + path + query }, sid);
         await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
-        const st = await value(STATE);
-        check(st.pending && !st.served, `${path}: with the filings on their way, the served render of the bare address still stood`, st);
+        const st = await value(`({ ...${STATE}, skeleton: (window.__served || []).some(x => x.skeleton) })`);
+        await release();
+        if (after) await send('Network.setCacheDisabled', { cacheDisabled: false }, sid);
+        if (!await quiet(SETTLED)) return { stood: false, st, differs: 'the page never settled' };
+        const drawn = await value(DRAWN);
+        const skeleton = await value(`(window.__served || []).some(x => x.skeleton)`);
+        const c = committedOf(s);
+        const dv = await value(`(${P.compareMarkup})(${P.servedSignature}, ${JSON.stringify(c.views)}, ${JSON.stringify(drawn.views)})`);
+        const dt = !!c.tabs !== !!drawn.tabs ? { at: 0, drawn: drawn.tabs ? 'a tab row' : 'no tab row' }
+          : c.tabs ? await value(`(${P.compareMarkup})(${P.servedSignature}, ${JSON.stringify(c.tabs)}, ${JSON.stringify(drawn.tabs)})`) : null;
+        const differs = dv ? `#views from token ${dv.at}: …${dv.drawn.slice(0, 200)}…` : dt ? `the tab row: …${String(dt.drawn).slice(0, 160)}…` : null;
+        return { stood: st.pending && st.served && !st.skeleton && !skeleton, st: { ...st, skeleton }, differs };
+      };
+      const waitingPages = pages.filter(s => manifest.pages[s.file]?.state === 'filings in');
+      const tally = { undeclared: 0, second: 0, tracking: 0, not: 0 };
+      /* 1. */
+      for (const s of waitingPages) {
+        const view = manifest.pages[s.file].view;
+        const names = new Set([...(reads?.all || []), ...(reads?.views?.[view] || [])]);
+        const raw = Object.fromEntries(Object.entries(own).filter(([k]) => !names.has(k)));
+        await firstVisit({ raw });
+        const r = await visit(s);
+        check(r.stood, `${s.path}: holding the reader's own ${Object.keys(raw).length} keys the page does not name, the served page did not stand once the script had run`, r.st);
+        check(!r.differs, `${s.path}: holding the reader's own value for every key the page does not name (${Object.keys(raw).join(' ')}), the page drawn is not its render — it reads a key it does not name: ${r.differs}`, null);
+        if (r.stood && !r.differs) tally.undeclared++;
       }
-      await firstVisit({ seed: { onboarding: { done: true, at: '2026-09-01T00:00:00Z' }, watchlists: [{ id: 'wl-frames-own', name: 'My banks', ids: ['MAYBANK', 'AAPL'], created: '2026-09-01' }] } });
-      await send('Page.navigate', { url: `${live}/app` }, sid);
-      await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
-      { const st = await value(STATE); check(st.pending && !st.served, '/app in a browser holding the reader\'s own watchlist: the first visit\'s render still stood once the script had read it', st); }
+      /* 2. After another page, and after the page itself (a reload: what a
+            page keeps as it draws — the dashboard its visit — must not stop
+            its own served page standing). */
+      for (const s of waitingPages) {
+        let ok = true;
+        for (const before of ['/about', s.path]) {
+          await firstVisit();
+          await openFree(before);
+          const r = await visit(s, { after: before });
+          check(r.stood, `${s.path} on a second visit (after ${before}): the served page did not stand once the script had run`, r.st);
+          check(!r.differs, `${s.path} on a second visit (after ${before}): the page drawn is not its render: ${r.differs}`, null);
+          ok = ok && r.stood && !r.differs;
+        }
+        if (ok) tally.second++;
+      }
+      /* 3. */
+      const byPath = (p) => pages.find(s => s.path === p);
+      for (const [p, query, raw] of [['/pricing', '?utm_source=newsletter&utm_medium=email', null], ['/discover/screener', '?fbclid=IwAR0abc', null],
+        ['/app', '?gclid=abc123&ref=frames', null], ['/pricing', '', { theme: '"dark"' }], ['/discover/screener', '', { theme: '"dark"' }]]) {
+        await firstVisit({ raw });
+        const r = await visit(byPath(p), { query });
+        const said1 = `${p}${query}${raw ? ' with only the dark theme kept' : ''}`;
+        check(r.stood, `${said1}: the served page did not stand once the script had run`, r.st);
+        check(!r.differs, `${said1}: the page drawn is not its render: ${r.differs}`, null);
+        if (r.stood && !r.differs) tally.tracking++;
+      }
+      /* 4. */
+      for (const [p, query, keys, what] of [['/compare', '?companies=aapl,msft', [], 'comparing Apple and Microsoft by its address'],
+        ['/discover', '?tab=heatmap', [], 'the heatmap tab by its address'],
+        ['/app', '', ['watchlists', 'onboarding'], 'the dashboard, holding the reader\'s own list'],
+        ['/pricing', '', ['plan'], 'Pricing, on another plan'],
+        ['/discover/screener', '', ['startHere'], 'the screener, its Start here panel hidden']]) {
+        await firstVisit({ raw: Object.fromEntries(keys.map(k => [k, own[k]]).filter(([, v]) => v != null)) });
+        const r = await visit(byPath(p), { query });
+        check(!r.stood && r.st.pending && !r.st.served, `${p}${query} — ${what}: the served render stood once the script had run`, r.st);
+        check(!!r.differs, `${p}${query} — ${what}: the page drawn is its render, so this case shows nothing`, null);
+        if (!r.stood && r.differs) tally.not++;
+      }
+      console.log(`${said.length ? 'FAIL' : 'ok  '} whose page the served page is: ${tally.undeclared} of ${waitingPages.length} waiting pages stood holding the reader's own value for every key they do not name (${Object.keys(own).length} kept), and were drawn as their render; ${tally.second} of ${waitingPages.length} on a second visit, after /about and after themselves; ${tally.tracking} of 5 under ?utm_source=, ?fbclid=, ?gclid= or with only a theme kept; ${tally.not} of 5 never stood where they were not the reader's page`);
       await firstVisit();
       await send('Page.navigate', { url: `${live}/pricing` }, sid);
       await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
@@ -494,7 +640,7 @@ try {
       }
       await releaseAll();
       if (said.length) { bad.push('the served page standing'); console.log('FAIL served pages standing for the filings'); said.forEach(x => console.log(`     ${x}`)); }
-      else console.log('ok   served pages: under an address with a query, or in a browser that held the reader\'s work, the served render does not stand once the script has run; standing for the filings it says so and marks #views busy, both gone once drawn; a link focused in it keeps focus through the draw (/about at once, /pricing when the filings land)');
+      else console.log('ok   served pages: the served render stands once the script has run only while what the page reads is what it was drawn from, and is then the page drawn; standing for the filings it says so and marks #views busy, both gone once drawn; a link focused in it keeps focus through the draw (/about at once, /pricing when the filings land)');
     }
     /* A READER WITH NO SCRIPT (2026-10-04). The served page and its
        navigation are all such a reader has, and they met controls that did

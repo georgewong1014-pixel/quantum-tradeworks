@@ -91,7 +91,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "571fb67246546cd7"
+      "digest": "05d3e060953723e6"
     },
     "pages/admin/scanner/data.html": {
       "path": "/admin/scanner/data",
@@ -119,7 +119,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "30fed3bfa27a7a66"
+      "digest": "0fdd3ef463783107"
     },
     "pages/admin/scanner/delivery.html": {
       "path": "/admin/scanner/delivery",
@@ -147,7 +147,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8a1b93d236bd032c"
+      "digest": "e8bc852bb9a3539e"
     },
     "pages/admin/scanner/jobs.html": {
       "path": "/admin/scanner/jobs",
@@ -175,7 +175,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8ca8b0ce18715559"
+      "digest": "47d4ee97315c3d16"
     },
     "pages/app.html": {
       "path": "/app",
@@ -203,7 +203,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1575b3fdb329bc88"
+      "digest": "87878e4a09cbb00d"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -231,7 +231,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d10f9b15cd26a3c4"
+      "digest": "1e963a177a41b03f"
     },
     "pages/app/equities/compare.html": {
       "path": "/app/equities/compare",
@@ -259,7 +259,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "ca7665baee0051e1"
+      "digest": "ba8ff9ee69088420"
     },
     "pages/app/equities/explore.html": {
       "path": "/app/equities/explore",
@@ -287,7 +287,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d10f9b15cd26a3c4"
+      "digest": "1e963a177a41b03f"
     },
     "pages/app/scanner.html": {
       "path": "/app/scanner",
@@ -315,7 +315,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "df6999a7da71b922"
+      "digest": "ccf314248e8a5d54"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -343,7 +343,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "201acc17427eca97"
+      "digest": "d5b0c23f0bc13bc7"
     },
     "pages/app/scanner/backtest.html": {
       "path": "/app/scanner/backtest",
@@ -371,7 +371,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1197d074db238799"
+      "digest": "e9a6a8a2e270aa05"
     },
     "pages/app/scanner/market.html": {
       "path": "/app/scanner/market",
@@ -399,7 +399,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "91d62195896a3af4"
+      "digest": "63d6d8c184155b7d"
     },
     "pages/app/scanner/settings.html": {
       "path": "/app/scanner/settings",
@@ -427,7 +427,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "facab1e4fb69dd34"
+      "digest": "4f4a9ab13bd5815b"
     },
     "pages/app/scanner/setups.html": {
       "path": "/app/scanner/setups",
@@ -455,7 +455,7 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "1c37da9f5fe28673"
+      "digest": "ef713c132f63a2c1"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -483,7 +483,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "068660439dd8b241"
+      "digest": "8a1e5f8064ed9443"
     },
     "pages/app/scanner/watchlists.html": {
       "path": "/app/scanner/watchlists",
@@ -511,7 +511,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f60211f4472e18e1"
+      "digest": "92513646098a21e8"
     },
     "pages/compare.html": {
       "path": "/compare",
@@ -539,7 +539,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "ca7665baee0051e1"
+      "digest": "ba8ff9ee69088420"
     },
     "pages/contact.html": {
       "path": "/contact",
@@ -679,7 +679,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "f6fc4f2acd1367bd"
+      "digest": "4d86076e434db398"
     },
     "pages/discover/sarawak.html": {
       "path": "/discover/sarawak",
@@ -707,7 +707,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "64ae9a344ca185ff"
+      "digest": "7093c1aad0fb157a"
     },
     "pages/discover/screener.html": {
       "path": "/discover/screener",
@@ -735,7 +735,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "f6fc4f2acd1367bd"
+      "digest": "4d86076e434db398"
     },
     "pages/discover/value-map.html": {
       "path": "/discover/value-map",
@@ -763,7 +763,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "227267cb0fe2ca08"
+      "digest": "d1d202b7ba0cbd75"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",
@@ -903,7 +903,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ba3f752ceb3d5288"
+      "digest": "991aabc482cf975d"
     },
     "pages/methodology.html": {
       "path": "/methodology",
@@ -987,7 +987,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ec9c901c48e03a84"
+      "digest": "0e711a8d00ed50ce"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -1043,7 +1043,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "6aca34ece37d2553"
+      "digest": "b389a104797b3e26"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1071,7 +1071,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "298e15f0709ebec5"
+      "digest": "3f33f0874939541f"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -1099,7 +1099,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "6aca34ece37d2553"
+      "digest": "b389a104797b3e26"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1183,7 +1183,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "05cb77239b1bd398"
+      "digest": "560f9aa7f8e1ee82"
     },
     "pages/research.html": {
       "path": "/research",
@@ -1211,7 +1211,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d10f9b15cd26a3c4"
+      "digest": "1e963a177a41b03f"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",
@@ -1239,7 +1239,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7a1d0f72fdb37484"
+      "digest": "2858c505f77c2624"
     },
     "pages/research/trading-index.html": {
       "path": "/research/trading-index",
@@ -1267,7 +1267,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ba3f752ceb3d5288"
+      "digest": "991aabc482cf975d"
     },
     "pages/start.html": {
       "path": "/start",
@@ -1379,7 +1379,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b9a72f66f0de6301"
+      "digest": "26f713f116b732be"
     },
     "pages/welcome.html": {
       "path": "/welcome",
