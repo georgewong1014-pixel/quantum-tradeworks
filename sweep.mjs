@@ -2335,13 +2335,25 @@ for (const route of ROUTES) {
    property's proposal is reached three ways — its row on My properties, its
    row on /my/reports, and the calculator's Report section with it open —
    each a real link to /property/models/:property/proposal, each said to be
-   a preview. A deal not yet saved is told to save it first, with that one
-   action, which then leads on. An address naming no saved property says so,
-   with one action. robots.txt keeps the address out of an index with My
-   properties. And on paper: the proposal asks for A4, prints the document
-   alone — no rail, navigation or footer — within the page's width, in light
-   colours under a dark screen. Each fails before the proposal existed. */
+   a preview where it stands (My properties said nothing). A deal not yet
+   saved is told to save it first, with that one action, which then leads
+   on. An address naming no saved property says so, with one action.
+   robots.txt keeps the address out of an index with My properties. The
+   Report section names the proposal with what it holds — not the grade,
+   which the proposal leaves out. And on paper: the proposal asks for A4,
+   prints the document alone — no rail, navigation or footer — within the
+   page's width, in light colours under a dark screen; and, printed with
+   the assumptions started at twelve heights down the page, every group's
+   heading prints with its first row, in the same column of the same page,
+   and every assumption whole and in order — a heading was left alone at
+   the foot of page one's first column with all its rows in the second, and
+   "Marginal tax rate on the" printed on one page with "rent" on the next.
+   The positions are read from the PDF itself (each page printed alone, its
+   text runs located by colour), so no PDF tool is needed. The ways in and
+   the A4 checks fail before the proposal existed; the preview on My
+   properties, the Report line and the paper's rows fail on c8c9ca3. */
 {
+  const { inflateSync } = await import('node:zlib');
   const ev = async (expression) => {
     const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
     if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
@@ -2356,8 +2368,44 @@ for (const route of ROUTES) {
     }
     await sleep(400);
   };
+  /* A page of a Chrome PDF as text runs: where each was drawn (points from
+     the page's top left) and in which fill colour. Enough of the content
+     stream for that — the graphics state's matrix, the text matrix, the
+     fill colour and the text-showing operators — and nothing else. */
+  const pdfRuns = (buf) => {
+    const s = buf.toString('latin1'), runs = [];
+    const H = Number((s.match(/\/MediaBox\s*\[\s*0\s+0\s+[\d.]+\s+([\d.]+)\s*\]/) || [])[1]) || 841.92;
+    const re = /(\d+) 0 obj\s*<<([\s\S]*?)>>\s*stream\r?\n/g;
+    const mul = (a, b) => [a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3], a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3], a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5]];
+    for (let m; (m = re.exec(s));) {
+      const dict = m[2];
+      if (/\/Subtype|\/Length1|\/Type\s*\/XObject/.test(dict)) continue;
+      const len = Number((dict.match(/\/Length (\d+)/) || [])[1]);
+      if (!len) continue;
+      let data = buf.subarray(m.index + m[0].length, m.index + m[0].length + len);
+      if (/FlateDecode/.test(dict)) { try { data = inflateSync(data); } catch { continue; } }
+      const t = data.toString('latin1');
+      if (!/\bBT\b/.test(t) || /begincmap/.test(t)) continue;
+      const tok = t.match(/\/[^\s/<>[\]()]+|<[0-9A-Fa-f\s]*>|\((?:\\.|[^\\)])*\)|\[|\]|-?\d*\.?\d+(?:[eE][-+]?\d+)?|[A-Za-z'"*]+/g) || [];
+      let ctm = [1, 0, 0, 1, 0, 0], tm = ctm, tlm = ctm, fill = null;
+      const stack = [], nums = [];
+      for (const k of tok) {
+        if (/^-?\d*\.?\d/.test(k)) { nums.push(Number(k)); continue; }
+        if (k === 'q') stack.push(ctm);
+        else if (k === 'Q') ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+        else if (k === 'cm') ctm = mul(nums.slice(-6), ctm);
+        else if (k === 'BT') tm = tlm = [1, 0, 0, 1, 0, 0];
+        else if (k === 'Tm') tm = tlm = nums.slice(-6);
+        else if (k === 'Td' || k === 'TD') { const [tx, ty] = nums.slice(-2); tlm = mul([1, 0, 0, 1, tx, ty], tlm); tm = tlm; }
+        else if (k === 'rg') fill = nums.slice(-3).map(x => Math.round(x * 255)).join(',');
+        else if (k === 'Tj' || k === 'TJ' || k === "'" || k === '"') { const p = mul(tm, ctm); runs.push({ fill, x: p[4], y: H - p[5] }); }
+        if (/^[A-Za-z'"*]/.test(k)) nums.length = 0;
+      }
+    }
+    return runs;
+  };
   const p = [];
-  let pdfBox = null;
+  let pdfBox = null, placements = 0, rowsHeld = 0;
   try {
     await load(BASE + '/property/calculator');
     bucket = [];
@@ -2380,10 +2428,14 @@ for (const route of ROUTES) {
       const id = State.deal.modelId, want = cpPath(id);
       out.want = want;
       out.preview = /Preview/.test(txt(card()));
+      /* The Report section's own line on what it calculates. */
+      const contract = [...document.querySelectorAll('#report .pc-contract')].map(txt).find(x => /^Quantum calculates/.test(x)) || '';
+      out.reportLine = contract.slice(contract.search(/[^.;]*client proposal/i));
+      out.cardWords = txt(card());
       await click('#cp-next-open'); out.fromCalc = at();
       navigate('/property/models'); await w(450);
       const pm = document.getElementById('pm-cp-' + id);
-      out.models = { href: pm?.getAttribute('href') || null, t: txt(pm) };
+      out.models = { href: pm?.getAttribute('href') || null, t: txt(pm), aria: pm?.getAttribute('aria-label') || '', page: document.querySelector('main')?.innerText || '' };
       await click('#pm-cp-' + id); out.fromModels = at();
       navigate('/my/reports'); await w(600);
       const rp = document.getElementById('rp-cp-' + id);
@@ -2405,10 +2457,13 @@ for (const route of ROUTES) {
     if (!r.preview) p.push('the calculator\'s card does not call the proposal a preview');
     for (const [k, v] of [['the calculator', r.fromCalc], ['My properties', r.fromModels], ['/my/reports', r.fromReports]])
       if (v.view !== 'propertyProposal' || v.path !== r.want) p.push(`from ${k}: ${JSON.stringify(v)}`);
-    if (r.models.href !== r.want || r.models.t !== 'Client proposal') p.push(`My properties' link: ${JSON.stringify(r.models)}`);
+    if (r.models.href !== r.want || r.models.t !== 'Client proposal') p.push(`My properties' link: ${JSON.stringify({ href: r.models.href, t: r.models.t })}`);
+    if (!/client proposal is a preview/i.test(r.models.page) || !/preview/i.test(r.models.aria)) p.push(`My properties does not call the proposal a preview: the page ${/preview/i.test(r.models.page) ? 'says "preview" elsewhere' : 'never says "preview"'}, the link is named "${r.models.aria}"`);
     if (r.reports.href !== r.want || r.reports.t !== 'Client proposal' || !/client proposal/.test(r.reports.said)) p.push(`/my/reports' link: ${JSON.stringify(r.reports).slice(0, 240)}`);
     if (!/A preview/.test(r.rail) || !/nothing is on sale/.test(r.rail) || r.pricing) p.push(`the page's own words on plans: "${r.rail.slice(0, 160)}"${r.pricing ? ', with a link to /pricing' : ''}`);
     if (r.missing.view !== 'propertyProposal' || !/not saved in this browser/.test(r.missing.head) || r.missing.primaries.length !== 1) p.push(`an address naming no saved property: ${JSON.stringify(r.missing)}`);
+    /* The Report section names the proposal with what it holds. */
+    if (!r.reportLine || /sets it out/.test(r.reportLine) || !/without the grade/.test(r.reportLine)) p.push(`the Report section says of the proposal: "${r.reportLine.slice(0, 200)}" — the proposal holds no grade`);
     const robots = await (await fetch(BASE + '/robots.txt')).text();
     if (!/^Disallow:\s*\/property\/models\s*$/m.test(robots)) p.push('robots.txt does not keep /property/models, and the proposals under it, out of an index');
 
@@ -2417,6 +2472,67 @@ for (const route of ROUTES) {
     const raw = Buffer.from(pdf.result?.data || '', 'base64').toString('latin1');
     pdfBox = (raw.match(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/) || []).slice(1).map(Number);
     if (!(Math.abs(pdfBox[0] - 595.3) < 1.5 && Math.abs(pdfBox[1] - 841.9) < 1.5)) p.push(`the proposal prints on ${JSON.stringify(pdfBox)} pt, not A4 (595 × 842)`);
+
+    /* The assumptions on paper, started at twelve heights down the page:
+       a heading with its first row, each row whole, in order. The property
+       is the verifier's: a long name, a wide logo, a client's name. */
+    await ev(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const cv = document.createElement('canvas'); cv.width = 600; cv.height = 150; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 600, 150);
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 538000, rent: 2250, bankValuation: 520000 }); ['price', 'rent', 'bankValuation'].forEach(k => markTouched(State.deal, k)); saveDeal();
+      const rec = saveActiveProperty({ name: 'Stutong Heights, block C — level 9 corner unit with two parking bays' });
+      store.write('proposalDetails', { name: 'Aisha binti Rahman', agency: 'Rahman Property Advisory Sdn Bhd', contact: '+60 12-345 6789 · aisha.rahman@example.com', logo: cv.toDataURL('image/png') });
+      navigate(cpPath(rec.id)); await w(500);
+      return true; })()`);
+    const PAGE_W = 595.3;
+    for (let k = 0; k < 12; k++) {
+      const placed = await ev(`(() => {
+        const doc = document.getElementById('cp-doc'); if (!doc) return 0;
+        document.getElementById('cp-sweep-spacer')?.remove();
+        const sp = document.createElement('div'); sp.id = 'cp-sweep-spacer'; sp.style.height = '${k * 34}px';
+        doc.querySelector('.cp-assume')?.before(sp);
+        /* Each heading and row in a colour of its own, to be found on paper. */
+        doc.querySelectorAll('.cp-assume-grp').forEach((g, i) => { const e = g.querySelector('.cp-eyebrow'); if (e) e.style.color = 'rgb(250,' + i + ',0)'; });
+        let j = 0;
+        doc.querySelectorAll('.cp-assume dt').forEach(dt => { dt.style.color = 'rgb(251,' + j + ',0)'; if (dt.nextElementSibling) dt.nextElementSibling.style.color = 'rgb(252,' + j + ',0)'; dt.dataset.sweepRow = j; dt.dataset.sweepGrp = [...doc.querySelectorAll('.cp-assume-grp')].indexOf(dt.closest('.cp-assume-grp')); j++; });
+        return j; })()`);
+      if (!placed) { p.push('no assumptions to place on paper'); break; }
+      const groupOf = await ev(`[...document.querySelectorAll('#cp-doc .cp-assume dt')].map(dt => Number(dt.dataset.sweepGrp))`);
+      const runs = [];
+      for (let pg = 1; pg <= 3; pg++) {
+        const one = await send('Page.printToPDF', { preferCSSPageSize: true, pageRanges: String(pg) }, sessionId);
+        if (!one.result?.data) break;
+        pdfRuns(Buffer.from(one.result.data, 'base64')).forEach(x => runs.push({ ...x, pg }));
+      }
+      const where = (fill) => runs.filter(x => x.fill === fill);
+      const col = (x) => (x.x < PAGE_W / 2 ? 0 : 1);
+      const at = `assumptions started ${k * 34}px lower`;
+      let prev = null;
+      for (let j = 0; j < placed; j++) {
+        const dt = where(`251,${j},0`), dd = where(`252,${j},0`);
+        if (!dt.length) { p.push(`${at}: row ${j + 1}'s label is not on pages 1–3`); continue; }
+        const both = [...dt, ...dd];
+        const pages = new Set(both.map(x => x.pg)), cols = new Set(both.map(x => col(x)));
+        if (pages.size > 1 || cols.size > 1) p.push(`${at}: row ${j + 1} is split — ${both.length} runs over page${pages.size > 1 ? 's' : ''} ${[...pages].join(' and ')}, column${cols.size > 1 ? 's' : ''} ${[...cols].map(c => c + 1).join(' and ')}`);
+        const first = dt.reduce((a, b) => (a.y < b.y ? a : b));
+        const key = first.pg * 1e5 + col(first) * 1e4 + first.y;
+        if (prev != null && key < prev - 0.5) p.push(`${at}: row ${j + 1} prints before the row above it`);
+        prev = key;
+        rowsHeld++;
+      }
+      [...new Set(groupOf)].forEach(gi => {
+        const head = where(`250,${gi},0`), j0 = groupOf.indexOf(gi);
+        const row = where(`251,${j0},0`);
+        if (!head.length || !row.length) return;
+        const h = head[0], r0 = row.reduce((a, b) => (a.y < b.y ? a : b));
+        if (h.pg !== r0.pg || col(h) !== col(r0) || r0.y < h.y || r0.y - h.y > 40)
+          p.push(`${at}: group ${gi + 1}'s heading prints on page ${h.pg}, column ${col(h) + 1}, and its first row on page ${r0.pg}, column ${col(r0) + 1}`);
+      });
+      placements++;
+    }
+    await ev(`(() => { document.getElementById('cp-sweep-spacer')?.remove(); render(); return true; })()`);
+
     /* The page's text width on A4 with its 14mm margins: 182mm, 688px. */
     await send('Emulation.setDeviceMetricsOverride', { width: 688, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
     await send('Emulation.setEmulatedMedia', { media: 'print', features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
@@ -2448,7 +2564,7 @@ for (const route of ROUTES) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (p.length) { bad++; console.log(`FAIL property-proposal: the client proposal's ways in and its paper (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, its assumptions label and figure, dark on white under a dark screen`);
+  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview where it stands, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; the Report section says the proposal holds no grade; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, its assumptions label and figure, dark on white under a dark screen — and with the assumptions started at ${placements} heights, every group's heading prints with its first row and all ${rowsHeld} rows print whole and in order`);
 }
 /* ---- end property-proposal ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
