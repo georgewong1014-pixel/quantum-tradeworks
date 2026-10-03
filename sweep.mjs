@@ -1251,7 +1251,8 @@ for (const route of ROUTES) {
     if (at(s.canonical) !== at(c.canonical) || at(s.canonical) !== c.path) p.push(`${c.path}: served canonical ${s.canonical}, the page sets ${c.canonical}`);
     if (s.ogUrl !== s.canonical || s.ogTitle !== s.title || s.twitterTitle !== s.title) p.push(`${c.path}: og:url ${s.ogUrl}, og:title ${JSON.stringify(s.ogTitle)}, twitter:title ${JSON.stringify(s.twitterTitle)} do not repeat the canonical and the title`);
     if (s.ogDescription !== s.description || s.twitterDescription !== s.description) p.push(`${c.path}: og:description or twitter:description does not repeat the description`);
-    if (s.robots) p.push(`${c.path}: served with robots ${s.robots}`);
+    /* noindex exactly where the figures are illustrative (the owner, 2026-10-03). */
+    if ((s.robots || null) !== (c.real ? null : 'noindex')) p.push(`${c.path}: served with robots ${JSON.stringify(s.robots || null)}, not ${c.real ? 'none (its figures are filed)' : '"noindex" (its figures are illustrative)'}`);
     const d = s.description || '';
     if (d !== c.description) p.push(`${c.path}: served the description ${JSON.stringify(d.slice(0, 90))}, the page sets ${JSON.stringify(String(c.description).slice(0, 90))}`);
     const where = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' }[c.mkt];
@@ -1276,7 +1277,7 @@ for (const route of ROUTES) {
     if (!o || o.view !== 'research' || o.ticker !== c.id) { p.push(`${c.path} (${kind}), opened cold: ${o?.view} for ${o?.ticker}, not ${c.id}'s company page`); continue; }
     if (o.title !== s.title) p.push(`${c.path} (${kind}), opened cold: the page sets the title ${JSON.stringify(o.title)}, and was served ${JSON.stringify(s.title)}`);
     if (at(o.canonical) !== at(s.canonical)) p.push(`${c.path} (${kind}), opened cold: the page sets the canonical ${o.canonical}, and was served ${s.canonical}`);
-    if (o.robots) p.push(`${c.path} (${kind}), opened cold: robots ${o.robots}`);
+    if ((o.robots || null) !== (c.real ? null : 'noindex') || (o.robots || null) !== (s.robots || null)) p.push(`${c.path} (${kind}), opened cold: robots ${JSON.stringify(o.robots || null)}, served ${JSON.stringify(s.robots || null)} — want ${c.real ? 'none' : 'noindex'} on both`);
     if ((s.description || '') !== o.description) p.push(`${c.path} (${kind}), opened cold: the page sets a description other than the one it was served`);
   }
   /* While the filings load, the served head stands: an address can resolve
