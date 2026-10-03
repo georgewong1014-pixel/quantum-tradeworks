@@ -3266,6 +3266,311 @@ try {
     }
   }
   /* ---- end audit1: property-model ---- */
+  /* ---- property-proposal ---- */
+  /* THE CLIENT PROPOSAL PRINTS THE CALCULATOR'S FIGURES (the owner's choice,
+     3 Oct 2026: Property first). /property/models/:property/proposal sets a
+     saved property out for a client, and every number on it must equal what
+     the calculator shows for the same inputs. Held here figure by figure, on
+     a property with the reader's own price, rent, rate, valuation, tax rate
+     and floor area and two scenarios:
+       PP1  each [data-cp] figure equals the model run on the saved inputs —
+            money to the whole ringgit, a rate to its printed places — and
+            the calculator's own text for it, with the property and then each
+            scenario open there, to the calculator's precision (its RM104.7k
+            holds the proposal's RM104,731 to ±RM50); the scenarios side by
+            side equal the calculator's comparison, column by column; the
+            sale equals the calculator's year-ten exit and the last row of
+            "If you sold in year…", which is the model's own case;
+       PP2  every input prints as entered, and Sample marks exactly the
+            untouched figures: none of the reader's six, every untouched
+            review figure;
+       PP3  every fee line the model marks placeholder, unverified or quoted
+            carries that mark, and no other line does;
+       PP4  what cannot be priced is said to be: a loan tenure of 0 prints no
+            instalment, a reserve "not priced", a total "so far" and the
+            model's reason for no rate — never RM0;
+       PP5  a class that earns no rent is given no rent, yield or break-even.
+     Each fails before the proposal existed (no view, no figures). */
+  {
+    const PPK = ['savedWork', 'deal', 'dealBeforeLink', 'propertyReportsBought', 'proposalDetails', 'plan'];
+    const ppKept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(PPK)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
+    const ppStep = async (name, fn) => {
+      try { await fn(); } catch (e) { fail(`property-proposal ${name}: the check could not run`, String(e.message).split('\n')[0]); }
+    };
+    /* The page's own helpers, and a prompt that answers from a queue. */
+    const PPH = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      window.__ppP = window.__ppP || [];
+      window.prompt = (m, d) => (window.__ppP.length ? window.__ppP.shift() : d);
+      window.confirm = () => true;`;
+    /* A figure as printed: "RM104,731", "−RM627", "86.5%" — or null where a
+       word stands in its place. */
+    const num = (s) => {
+      const t = String(s ?? '').replace(/−/g, '-').replace(/-\s*RM/, '-RM').replace(/,/g, '');
+      const mm = t.match(/(-?)RM(\d+(?:\.\d+)?)([km]?)/) || t.match(/(-?)(\d+(?:\.\d+)?)()%/);
+      if (!mm) return null;
+      const scale = mm[3] === 'k' ? 1e3 : mm[3] === 'm' ? 1e6 : 1;
+      const dec = (mm[2].split('.')[1] || '').length;
+      return { v: (mm[1] ? -1 : 1) * Number(mm[2]) * scale, half: scale * 0.5 * 10 ** -dec, pct: !t.includes('RM') };
+    };
+    try {
+      await send('Page.navigate', { url: `${BASE}/property/calculator` }, sessionId);
+      for (const t = Date.now(); ; await sleep(100)) {
+        const r = await send('Runtime.evaluate', { expression: `typeof propertyPagesSettled === 'function' && propertyPagesSettled()`, returnByValue: true }, sessionId);
+        if (r.result?.result?.value === true) break;
+        if (Date.now() - t > 30000) throw new Error('the calculator did not settle');
+      }
+      await sleep(300);
+
+      await ppStep('PP1–PP3', async () => {
+        const r = await evaluate(`(async () => { ${PPH}
+          const INPUTS = { price: 520000, rent: 2100, ratePct: 4.1, bankValuation: 500000, marginalTaxPct: 24, sqft: 1100 };
+          newPropertyDeal({ show: false });
+          Object.assign(State.deal, INPUTS); Object.keys(INPUTS).forEach(k => markTouched(State.deal, k)); saveDeal();
+          const rec = saveActiveProperty({ name: 'PP proposal check' });
+          State.deal.rent = 2400; markTouched(State.deal, 'rent'); saveDeal();
+          window.__ppP = ['PP rent 2400']; const sc1 = saveAsScenario();
+          openPropertyModel(rec.id, { show: false });
+          State.deal.ratePct = 5.1; markTouched(State.deal, 'ratePct'); saveDeal();
+          window.__ppP = ['PP rate 5.1']; const sc2 = saveAsScenario();
+          openPropertyModel(rec.id, { show: false });
+          /* The full report, previewed, so the calculator shows its sale. */
+          State.propertyReportsBought = [...State.propertyReportsBought, State.deal.projectId];
+          const read = () => {
+            const tiles = {}, subs = {}, kv = {};
+            document.querySelectorAll('#views .stat').forEach(s => { const l = txt(s.querySelector('.stat-label'));
+              if (!(l in tiles)) { tiles[l] = txt(s.querySelector('.stat-value')); subs[l] = txt(s.querySelector('.stat-sub')); } });
+            document.querySelectorAll('#views dl.kv').forEach(dl => { const c = [...dl.children];
+              c.forEach((n, i) => { if (n.tagName === 'DT' && c[i + 1]?.tagName === 'DD') { const k = txt(n); if (!(k in kv)) kv[k] = txt(c[i + 1]); } }); });
+            return { tiles, subs, kv };
+          };
+          navigate('/property/calculator'); await w(500);
+          const calc = { base: read() };
+          const tables = [...document.querySelectorAll('#views table.dt')];
+          /* The ledger: the table with the groups' subtotals (a summary
+             table names "Total initial cash" too). */
+          const ledgerT = tables.find(t => t.textContent.includes('Acquisition costs subtotal'));
+          calc.ledger = {};
+          ledgerT?.querySelectorAll('tbody tr').forEach(tr => { const c = tr.children; if (c.length !== 2) return;
+            const first = c[0].childNodes[0]; const label = (first && first.nodeType === 3 ? first.nodeValue : txt(c[0])).trim(); calc.ledger[label] = txt(c[1]); });
+          const exT = tables.find(t => t.textContent.includes('Sell in year 10'));
+          calc.exit10 = {}; exT?.querySelectorAll('tbody tr').forEach(tr => { calc.exit10[txt(tr.children[0])] = txt(tr.children[2]); });
+          const hsT = tables.find(t => t.textContent.includes('Rental cash to date'));
+          const hsLast = hsT ? [...hsT.querySelectorAll('tbody tr')].pop() : null;
+          calc.holdLast = hsLast ? [...hsLast.children].map(txt) : null;
+          PM_COMPARE[rec.id] = ['base', sc1.id, sc2.id]; render(); await w(300);
+          calc.compare = {};
+          document.querySelector('#views .pm-sc-table')?.querySelectorAll('tbody tr').forEach(tr => { calc.compare[txt(tr.querySelector('th'))] = [...tr.querySelectorAll('td')].map(txt); });
+          for (const sc of [sc1, sc2]) { openPropertyModel(rec.id, { scenarioId: sc.id, show: false }); render(); await w(300); calc[sc.id] = read(); }
+          openPropertyModel(rec.id, { show: false }); render(); await w(200);
+          navigate(cpPath(rec.id)); await w(500);
+          const prop = { view: State.view,
+            figs: [...document.querySelectorAll('#views [data-cp]')].map(n => ({ key: n.dataset.cp, text: txt(n), col: n.dataset.cpCol || null, line: n.dataset.cpLine || null, group: n.dataset.cpGroup || null, sign: n.dataset.cpSign || null })),
+            ins: Object.fromEntries([...document.querySelectorAll('#views [data-cp-in]')].map(n => [n.dataset.cpIn, { text: txt(n), sample: !!n.querySelector('.cp-mark') }])),
+            lines: [...document.querySelectorAll('#views .cp-ledger tbody tr')].map(tr => ({ line: tr.querySelector('[data-cp-line]')?.dataset.cpLine || null, marks: [...tr.querySelectorAll('th .cp-mark')].map(txt) })).filter(x => x.line) };
+          const saved = pmFind(rec.id), base = pmInputsOf(saved);
+          const pick = (m) => ({ cashStillRequiredToComplete: m.cashStillRequiredToComplete, safeCashRequired: m.safeCashRequired, instalment: m.instalment,
+            cashflowMonthly: m.cashflowMonthly, breakEvenRent: m.breakEvenRent, grossYield: m.grossYield, netYield: m.netYield, noi: m.noi,
+            grossAnnualRent: m.grossAnnualRent, effectiveRent: m.effectiveRent, opex: m.opex, annualDebtService: m.annualDebtService,
+            loan: m.loan, lenderValueBasis: m.lenderValueBasis, financingCoverageOfPrice: m.financingCoverageOfPrice, valuationGapCash: m.valuationGapCash,
+            annualOwnerSubsidy: m.annualOwnerSubsidy, improvementCash: m.improvementCash, reserveCash: m.reserveCash, totalInitialCash: m.totalInitialCash,
+            unconfirmedCost: m.unconfirmedCost, cashAlreadyPaid: m.cashAlreadyPaid, psf: m.psf, cumTax: m.cumTax, cumCash: m.cumCash,
+            exitValue: m.exitValue, outstanding: m.outstanding, agentFee: m.agentFee, exitLegal: m.exitLegal, carryWhileSelling: m.carryWhileSelling,
+            rpgt: m.rpgt, netExitProceeds: m.netExitProceeds, totalProfit: m.totalProfit, irrPct: m.irrPct,
+            last: (() => { const e = m.holdVsSell[m.holdVsSell.length - 1]; return { value: e.value, outstanding: e.outstanding, net: e.net, cumCash: e.cumCash, irrPct: e.irrPct }; })(),
+            lines: m.costGroups.flatMap(g => g.items.map(it => ({ label: it[0], amount: it[1], status: it[2]?.status || null }))),
+            groups: m.costGroups.map(g => ({ id: g.id, label: g.label, n: g.items.length, sub: g.items.reduce((t, it) => t + (isNum(it[1]) ? it[1] : 0), 0) })) });
+          const models = { base: pick(dealModel(base)) };
+          [sc1, sc2].forEach(sc => { models[sc.id] = pick(dealModel(pmMerge(base, sc.overrides))); });
+          return { id: rec.id, scs: [sc1.id, sc2.id], calc, prop, models, inputs: base, review: PROPERTY_REVIEW.map(f => f.k), defaults: PROPERTY_DEFAULT_DEAL };
+        })()`);
+        if (r.prop.view !== 'propertyProposal' || !r.prop.figs.length) {
+          fail('property-proposal PP1: the proposal is not there to check', { view: r.prop.view, figures: r.prop.figs.length });
+          return;
+        }
+        /* PP1 — against the model. */
+        const PCT = { financingCoverageOfPrice: 1, grossYield: 2, netYield: 2, irrPct: 2 };
+        const p1 = [];
+        let checked = 0;
+        for (const f of r.prop.figs) {
+          const m = r.models[f.col || 'base'];
+          let want;
+          if (f.key === 'line') want = m.lines.find(x => x.label === f.line)?.amount;
+          else if (f.key === 'subtotal') want = m.groups.find(g => g.id === f.group)?.sub;
+          else if (f.key in m) want = m[f.key];
+          else { p1.push(`"${f.key}" (${f.text}) is no figure of the model's`); continue; }
+          const got = num(f.text);
+          if (want == null) { if (got) p1.push(`${f.key}${f.col ? ` [${f.col}]` : ''}: the model has none, the proposal prints ${f.text}`); continue; }
+          if (!got) { p1.push(`${f.key}${f.col ? ` [${f.col}]` : ''}: the proposal prints "${f.text}" for ${want}`); continue; }
+          const exp = f.sign === '-' ? -want : want;
+          const tol = f.key in PCT ? 0.5 * 10 ** -PCT[f.key] + 1e-9 : 0.5 + 1e-9;
+          if (Math.abs(got.v - exp) > tol) p1.push(`${f.key}${f.line ? ` "${f.line}"` : ''}${f.col ? ` [${f.col}]` : ''}: printed ${f.text}, the model's is ${exp}`);
+          checked++;
+        }
+        /* Against the calculator's own text. */
+        const c = r.calc, base = c.base;
+        const pairs = [];
+        const say = (key, calcText, where, col = null, sign = null) => pairs.push({ key, calcText, where, col, sign });
+        say('cashStillRequiredToComplete', base.tiles['Cash to complete'], 'tile "Cash to complete"');
+        say('cashStillRequiredToComplete', base.tiles['Cash still to complete'], 'tile "Cash still to complete"');
+        say('safeCashRequired', base.tiles['Safe cash required'], 'tile "Safe cash required"');
+        say('instalment', base.tiles['Monthly instalment'], 'tile "Monthly instalment"');
+        say('cashflowMonthly', base.tiles['Monthly position'], 'tile "Monthly position"');
+        say('breakEvenRent', base.tiles['Break-even rent'], 'tile "Break-even rent"');
+        say('grossYield', base.tiles['Gross yield'], 'tile "Gross yield"');
+        say('netYield', base.tiles['Net yield'], 'tile "Net yield"');
+        say('noi', base.tiles['Net operating income'], 'tile "Net operating income"');
+        say('improvementCash', base.tiles['Cash to make rent-ready'], 'tile "Cash to make rent-ready"');
+        say('reserveCash', base.tiles['Cash to keep untouched'], 'tile "Cash to keep untouched"');
+        say('irrPct', base.tiles['Internal rate of return'], 'tile "Internal rate of return"');
+        say('cumTax', base.tiles['Tax on rent over the hold'], 'tile "Tax on rent over the hold"');
+        say('cumCash', base.tiles['Rental cash, after tax'], 'tile "Rental cash, after tax"');
+        say('annualOwnerSubsidy', (base.subs['Monthly position'] || '').replace(/^Costs you /, ''), 'the "Monthly position" tile\'s "Costs you … a year to hold"');
+        say('loan', base.kv['Loan'], 'the loan card\'s "Loan"');
+        say('lenderValueBasis', base.kv['Value the loan is calculated on'], 'the loan card\'s "Value the loan is calculated on"');
+        say('financingCoverageOfPrice', base.kv['Share of the price this funds'], 'the loan card\'s "Share of the price this funds"');
+        say('grossAnnualRent', base.kv['Gross annual rent'], '"Gross annual rent"');
+        say('effectiveRent', Object.entries(base.kv).find(([k]) => k.startsWith('Effective rent after'))?.[1], '"Effective rent after … vacancy"');
+        say('opex', base.kv['Operating costs'], '"Operating costs"');
+        say('annualDebtService', base.kv['Annual debt service'], '"Annual debt service"');
+        say('totalInitialCash', c.ledger['Total initial cash'] ?? c.ledger['Total initial cash so far'], 'the ledger\'s total');
+        if (r.inputs.holdYears === 10) {
+          const e = c.exit10;
+          say('exitValue', e['Sale value'], 'year-10 exit "Sale value"');
+          say('outstanding', e['Loan outstanding'], 'year-10 exit "Loan outstanding"', null, '-');
+          say('agentFee', e['Agent commission'], 'year-10 exit "Agent commission"', null, '-');
+          say('exitLegal', e['Legal on exit'], 'year-10 exit "Legal on exit"', null, '-');
+          say('carryWhileSelling', e['Carried while selling'], 'year-10 exit "Carried while selling"', null, '-');
+          say('rpgt', e['Real property gains tax'], 'year-10 exit "Real property gains tax"', null, '-');
+          say('netExitProceeds', e['Net proceeds'], 'year-10 exit "Net proceeds"');
+          say('cumCash', Object.entries(e).find(([k]) => k.startsWith('Rental cash over the hold'))?.[1], 'year-10 exit "Rental cash over the hold"');
+          say('totalProfit', e['Total profit on cash invested'], 'year-10 exit "Total profit on cash invested"');
+          say('irrPct', e['Rate of return if sold then'], 'year-10 exit "Rate of return if sold then"');
+        } else p1.push(`the check's property holds for ${r.inputs.holdYears} years, not the 10 the calculator's exit table shows`);
+        if (c.holdLast) {
+          const [, value, outstanding, , net, cum, irr] = c.holdLast;
+          say('exitValue', value, '"If you sold in year…" last row, sale value');
+          say('outstanding', outstanding, '"If you sold in year…" last row, loan outstanding', null, 'abs');
+          say('netExitProceeds', net, '"If you sold in year…" last row, net proceeds');
+          say('cumCash', cum, '"If you sold in year…" last row, rental cash to date');
+          say('irrPct', irr, '"If you sold in year…" last row, rate of return');
+        } else p1.push('the calculator showed no "If you sold in year…" table');
+        /* The scenarios, column by column: the calculator's comparison, and
+           its tiles with that scenario open. */
+        const cols = ['base', ...r.scs];
+        const cmp = (label) => c.compare[label] || [];
+        cols.forEach((col, i) => {
+          say('cashflowMonthly', cmp('Monthly position')[i], `the comparison's "Monthly position", column ${i + 1}`, col);
+          say('safeCashRequired', (cmp('Cash required')[i] || '').replace(/ so far$/, ''), `the comparison's "Cash required", column ${i + 1}`, col);
+          say('netYield', cmp('Net yield')[i], `the comparison's "Net yield", column ${i + 1}`, col);
+          say('breakEvenRent', cmp('Break-even rent')[i], `the comparison's "Break-even rent", column ${i + 1}`, col);
+          const open = col === 'base' ? base : c[col];
+          say('instalment', open?.tiles['Monthly instalment'], `"Monthly instalment" with ${col === 'base' ? 'the property' : 'the scenario'} open`, col);
+          say('cashStillRequiredToComplete', open?.tiles['Cash to complete'], `"Cash to complete" with ${col === 'base' ? 'the property' : 'the scenario'} open`, col);
+        });
+        let against = 0;
+        for (const q of pairs) {
+          const printed = r.prop.figs.filter(f => f.key === q.key && (q.col ? f.col === q.col : !f.col));
+          if (!printed.length) { p1.push(`the proposal prints no "${q.key}"${q.col ? ` in column ${q.col}` : ''} to set beside ${q.where}`); continue; }
+          const cv = num(q.calcText);
+          if (!cv) { p1.push(`${q.where} reads "${q.calcText}" — nothing to compare`); continue; }
+          for (const f of printed) {
+            const pv = num(f.text);
+            if (!pv) { p1.push(`${q.key}: the proposal prints "${f.text}" beside ${q.where} "${q.calcText}"`); continue; }
+            const a = q.sign === 'abs' ? Math.abs(pv.v) : f.sign === '-' && q.sign !== '-' ? -pv.v : pv.v;
+            const b = q.sign === 'abs' ? Math.abs(cv.v) : cv.v;
+            if (Math.abs(a - b) > cv.half + pv.half + 1e-9) p1.push(`${q.key}${q.col ? ` [${q.col}]` : ''}: the proposal prints ${f.text}, ${q.where} shows ${q.calcText}`);
+            against++;
+          }
+        }
+        /* The ledger's lines and subtotals, against the calculator's ledger. */
+        for (const f of r.prop.figs.filter(x => x.key === 'line' || x.key === 'subtotal')) {
+          const label = f.key === 'line' ? f.line : `${r.models.base.groups.find(g => g.id === f.group)?.label} subtotal`;
+          const calcText = Object.entries(c.ledger).find(([k]) => k === label || k.startsWith(`${label} —`))?.[1];
+          const cv = num(calcText), pv = num(f.text);
+          if (f.text === 'not priced' && /not set/.test(calcText || '')) { against++; continue; }
+          if (!cv || !pv) { p1.push(`the ledger's "${label}": the proposal prints "${f.text}", the calculator "${calcText}"`); continue; }
+          if (Math.abs(pv.v - cv.v) > cv.half + pv.half + 1e-9) p1.push(`the ledger's "${label}": the proposal prints ${f.text}, the calculator shows ${calcText}`);
+          against++;
+        }
+        if (checked < 60) p1.push(`only ${checked} figures were checked against the model`);
+        if (p1.length) fail('property-proposal PP1: every figure on the client proposal is the model\'s, and the calculator shows the same for the same inputs', p1.slice(0, 24));
+        else ok(`property-proposal PP1: all ${checked} figures on the client proposal are the model's for the saved inputs, and in ${against} comparisons with the calculator's own text — its tiles, the loan card, the ledger line by line, the year-ten exit, the last row of "If you sold in year…", the comparison column by column and each scenario opened there — each is the same figure at the calculator's precision`);
+
+        /* PP2 — inputs as entered, and Sample exactly where untouched. */
+        const p2 = [];
+        const touched = r.inputs.touched || {};
+        for (const [k, x] of Object.entries(r.prop.ins)) {
+          const v = r.inputs[k];
+          if (typeof v === 'number' && v !== 0 && !['tenancyMonths', 'reserveMonths'].includes(k)) {
+            const first = (x.text.replace(/,/g, '').match(/\d+(?:\.\d+)?/) || [])[0];
+            if (Number(first) !== v) p2.push(`${k} is ${v} and prints "${x.text}"`);
+          }
+          if (touched[k] && x.sample) p2.push(`${k} was entered by the reader and is marked Sample`);
+          if (!touched[k] && r.review.includes(k) && !x.sample) p2.push(`${k} is the calculator's untouched figure and is not marked Sample`);
+        }
+        for (const k of ['price', 'rent', 'ratePct', 'bankValuation', 'marginalTaxPct', 'sqft', 'vacancyPct', 'downPct', 'holdYears', 'apprecPct'])
+          if (!r.prop.ins[k]) p2.push(`${k} is not among the inputs the proposal lists`);
+        if (p2.length) fail('property-proposal PP2: every input prints as it was entered, and Sample marks exactly the figures nobody changed', p2.slice(0, 16));
+        else ok(`property-proposal PP2: ${Object.keys(r.prop.ins).length} inputs print as entered; the reader's six carry no Sample mark and every untouched review figure carries one`);
+
+        /* PP3 — the fee lines' own marks. */
+        const p3 = [];
+        const WORD = { placeholder: 'placeholder', unverified: 'unverified', quote: 'quoted' };
+        for (const l of r.models.base.lines) {
+          const row = r.prop.lines.find(x => x.line === l.label);
+          if (!row) { p3.push(`"${l.label}" is not in the proposal's ledger`); continue; }
+          const want = WORD[l.status] || null;
+          if (want && !row.marks.includes(want)) p3.push(`"${l.label}" is ${l.status} in the model and carries ${JSON.stringify(row.marks)}`);
+          if (!want && row.marks.length) p3.push(`"${l.label}" has no mark in the model and carries ${JSON.stringify(row.marks)}`);
+        }
+        const marked = r.models.base.lines.filter(l => WORD[l.status]).length;
+        if (marked < 3) p3.push(`only ${marked} lines are marked in the model — the check needs the registry's placeholders`);
+        if (p3.length) fail('property-proposal PP3: a fee line the model marks placeholder, unverified or quoted stays marked on the proposal', p3);
+        else ok(`property-proposal PP3: the ${r.models.base.lines.length} ledger lines carry the model's own marks — ${marked} placeholder or unverified, the rest none`);
+      });
+
+      await ppStep('PP4–PP5', async () => {
+        const r = await evaluate(`(async () => { ${PPH}
+          const make = (name, set) => { newPropertyDeal({ show: false }); Object.assign(State.deal, set); Object.keys(set).forEach(k => markTouched(State.deal, k)); saveDeal(); return saveActiveProperty({ name }); };
+          const look = async (rec) => { navigate(cpPath(rec.id)); await w(400);
+            const fig = (k) => [...document.querySelectorAll('#views [data-cp="' + k + '"]')].map(txt);
+            const m = dealModel(pmInputsOf(pmFind(rec.id)));
+            return { view: State.view, text: txt(document.getElementById('cp-doc')),
+              heads: [...document.querySelectorAll('#cp-doc h2')].map(txt), groups: [...document.querySelectorAll('#cp-doc .cp-assume-grp > .cp-eyebrow')].map(txt),
+              instalment: fig('instalment'), reserve: fig('reserveCash'), irr: fig('irrPct'), yields: [...fig('grossYield'), ...fig('netYield'), ...fig('breakEvenRent')],
+              total: txt(document.querySelector('#cp-doc .cp-total th')), unpriced: [...document.querySelectorAll('#cp-doc .cp-unpriced')].map(txt),
+              irrWhy: m.irrWhy, missing: (m.missingCostLines || []).map(x => x.label) }; };
+          const noTenure = await look(make('PP tenure 0', { tenureYears: 0, price: 480000 }));
+          const land = await look(make('PP land', { propertyType: 'Land', price: 300000, landSqft: 8000 }));
+          return { noTenure, land };
+        })()`);
+        const p4 = [], t = r.noTenure;
+        if (t.view !== 'propertyProposal') p4.push(`the view is ${t.view}`);
+        if (t.instalment.some(x => /RM/.test(x))) p4.push(`the instalment prints ${JSON.stringify(t.instalment)} on a loan with no schedule`);
+        if (!t.reserve.length && !t.unpriced.some(x => /not priced/.test(x))) p4.push('the reserve is not said to be unpriced');
+        if (t.reserve.some(x => /RM/.test(x))) p4.push(`the reserve prints ${JSON.stringify(t.reserve)}`);
+        if (t.total !== 'Total so far') p4.push(`the ledger's total is headed "${t.total}"`);
+        if (!/So far/.test(t.text)) p4.push('the key figures do not say "So far"');
+        if (t.irr.some(x => /%/.test(x))) p4.push(`a rate prints: ${JSON.stringify(t.irr)}`);
+        if (t.irrWhy && !t.text.includes(t.irrWhy)) p4.push(`the model's reason for no rate ("${t.irrWhy}") is not printed`);
+        if (!t.missing.includes('Emergency reserve')) p4.push(`the check's property is not short of its reserve: ${JSON.stringify(t.missing)}`);
+        if (p4.length) fail('property-proposal PP4: what cannot be priced is printed as unpriced, never as RM0', p4);
+        else ok('property-proposal PP4: with a loan tenure of 0 the proposal prints no instalment, the reserve "not priced", the total "so far" and the model\'s own reason for no rate of return');
+        const p5 = [], l = r.land;
+        if (l.view !== 'propertyProposal') p5.push(`the view is ${l.view}`);
+        if (l.yields.length) p5.push(`a land parcel is given ${JSON.stringify(l.yields)}`);
+        if (l.groups.includes('Rent')) p5.push('a land parcel lists rent assumptions');
+        if (!l.heads.includes('What holding it costs')) p5.push(`its sections are ${JSON.stringify(l.heads)}`);
+        if (/Monthly maintenance|sinking fund/i.test(l.text)) p5.push('a land parcel lists strata charges');
+        if (p5.length) fail('property-proposal PP5: a class that earns no rent is given no rent, yield or break-even rent', p5);
+        else ok('property-proposal PP5: a land parcel\'s proposal gives no rent, yield, break-even rent or strata charge, and says what holding it costs');
+      });
+    } finally {
+      await evaluate(`(() => { const k = ${ppKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
+    }
+  }
+  /* ---- end property-proposal ---- */
 
 } catch (e) {
   fail('harness error', e.message);

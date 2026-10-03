@@ -9490,7 +9490,7 @@ try {
         const r = await evaluate(`(async () => { ${W}
           const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-29T00:00:00Z', data });
           const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons'];
-          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs'];
+          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails'];
           const bad = [];
           const accepted = (k, v) => { const x = importEverything(doc({ [k]: v })); return x.ok && x.incoming.includes(k); };
           LISTS.forEach(k => { if (accepted(k, { id: 'x' })) bad.push(k + ' as a record'); if (accepted(k, [1, 'x'])) bad.push(k + ' as a list of non-records'); });
@@ -9521,7 +9521,7 @@ try {
         const BAD1 = { portfolios: { name: 'x', holdings: [] }, theses: { id: 't' }, priceAlerts: { id: 'x' }, watchlists: {}, observations: {}, savedWork: {}, runs: {},
           dividendsReceived: {}, registerLog: {}, comparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
           deal: [], wheelPlan: [], qttiPlan: [], reviews: [], valuation: [], areaProfiles: [], demand: [], manualPrices: [], userData: [], wht: [],
-          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], registerActor: 5, baseCcy: 'EUR' };
+          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], registerActor: 5, baseCcy: 'EUR' };
         const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons',
           'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
         BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
@@ -10550,6 +10550,7 @@ try {
       manualPrices: /prices or statement lines you paste in/, observations: /prices and rents you record in the comparables register/,
       onboarding: /whether you dismissed the introduction/, opportunities: /saved property candidates/, plan: /the plan you are previewing/,
       portfolios: /portfolio holdings/, priceAlerts: /price alerts/, propertyReportLog: /included property reports you used this month/,
+      proposalDetails: /your details for client proposals/,
       propertyReportsBought: /property reports you unlocked/, qttiPlan: /trading-index observations/, rateUnitBuilt: /units for property rates/,
       rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
       recent: /pages, tools and saved work you recently opened/,
@@ -10932,6 +10933,142 @@ try {
     }
   }
   /* ---- end releaseB: alerts-reports ---- */
+  /* ---- property-proposal ---- */
+  /* YOUR DETAILS FOR PROPOSALS, AND NOTHING OF THE CLIENT'S (the client
+     proposal, 3 Oct 2026). The preparer's name, agency, contact and logo are
+     kept in this browser under one key, proposalDetails:
+       CP1  typed on the proposal page they are stored and printed; the
+            export (Your data's "Export everything") and the full backup carry
+            them, Your data lists them, a restore of the export puts them back
+            and refuses one in another shape, "Remove my details" removes
+            them, and clearing the site's storage leaves nothing; /privacy
+            names the key (the NAMED map above holds the page to every key);
+       CP2  the client's name prints on the proposal and is written nowhere —
+            not to storage, and not to the page's title, which a browser
+            keeps in its history;
+       CP3  the logo is an image read to a data URL, capped at 200 KB, and the
+            page says so: a larger file and an SVG are refused with the
+            reason and nothing stored; a PNG within the cap prints at the
+            head and is removed by "Remove the logo"; a stored value that is
+            not such an image reads as no logo.
+     Each fails before the proposal existed: no page, no key. */
+  {
+    const cpThrown = [];
+    const cpListen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') cpThrown.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+    ws.addEventListener('message', cpListen);
+    /* CP1 clears the site's storage, so all of it is kept and put back. */
+    const cpKept = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('vl.')).map(k => [k, localStorage.getItem(k)])))`);
+    const cpH = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      window.prompt = (m, d) => d; window.confirm = () => true;
+      const type = async (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(200); };
+      const pick = async (file) => { const inp = document.getElementById('cp-logo-file'); const dt = new DataTransfer(); dt.items.add(file);
+        inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true })); await w(500); return txt(document.getElementById('toast')); };`;
+    try {
+      const r = await evaluate(`(async () => { ${cpH}
+        const out = {};
+        localStorage.removeItem('vl.proposalDetails');
+        newPropertyDeal({ show: false });
+        State.deal.price = 455000; markTouched(State.deal, 'price'); saveDeal();
+        const rec = saveActiveProperty({ name: 'CP details check' });
+        navigate(cpPath(rec.id)); await w(400);
+        out.view = State.view;
+        /* CP1 — typed, stored, printed. */
+        const long = 'Aisha binti Rahman, Registered Estate Agent, with a name long enough to be cut at eighty characters';
+        await type('cp-name', long); await type('cp-agency', 'Rahman Property Advisory'); await type('cp-contact', '+60 12-345 6789');
+        out.stored = store.read('proposalDetails', null);
+        out.head = { name: txt(document.querySelector('#cp-doc .cp-by-name')), agency: txt(document.querySelector('#cp-doc .cp-by-agency')), contact: txt(document.querySelector('#cp-doc .cp-by-contact')) };
+        out.exported = exportEverything().data.proposalDetails || null;
+        out.backup = backupPayload().data.proposalDetails || null;
+        out.label = (PORTABLE_KEYS.find(x => x.k === 'proposalDetails') || {}).label || null;
+        navigate('/my/data'); await w(400);
+        out.listed = [...document.querySelectorAll('#views dl.kv dt')].map(txt).includes(out.label);
+        const file = { format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: { name: 'Restored Preparer', agency: 'Restored Agency', contact: 'x@example.com' } } };
+        localStorage.removeItem('vl.proposalDetails');
+        const imp = importEverything(file);
+        out.restore = { ok: imp.ok, incoming: imp.incoming }; if (imp.ok) imp.apply();
+        out.restored = store.read('proposalDetails', null);
+        const bad = importEverything({ format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: 'just text' } });
+        out.badShape = { ok: bad.ok, err: bad.err || null };
+        navigate('/privacy'); await w(300);
+        out.privacy = /your details for client proposals/i.test(document.getElementById('views').innerText);
+        /* Remove my details. */
+        navigate(cpPath(rec.id)); await w(400);
+        const det = document.getElementById('cp-details'); if (det && !det.open) { det.open = true; await w(50); }
+        document.getElementById('cp-details-remove')?.click(); await w(400);
+        out.removed = store.read('proposalDetails', null);
+        out.blank = !!document.querySelector('#cp-doc .cp-by .cp-blank') && !document.querySelector('#cp-doc .cp-by-name');
+        /* Cleared with the rest of the site's storage. */
+        store.write('proposalDetails', { name: 'Cleared Preparer' });
+        Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+        out.afterClear = cpDetails();
+        localStorage.setItem('vl.savedWork', JSON.stringify([rec]));
+        /* CP2 — the client's name. */
+        navigate(cpPath(rec.id)); await w(400);
+        const client = 'Encik Client Check Hamzah';
+        await type('cp-client', client);
+        out.client = { printed: txt(document.querySelector('#cp-doc .cp-for-name')), title: document.title,
+          stored: Object.keys(localStorage).filter(k => (localStorage.getItem(k) || '').includes('Client Check')) };
+        /* CP3 — the logo. */
+        out.capSaid = /at most 200 KB/.test(txt(document.getElementById('cp-details')));
+        const big = new Uint8Array(300 * 1024); big.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        out.bigToast = await pick(new File([big], 'big.png', { type: 'image/png' }));
+        out.afterBig = store.read('proposalDetails', null);
+        out.svgToast = await pick(new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], 'logo.svg', { type: 'image/svg+xml' }));
+        out.afterSvg = store.read('proposalDetails', null);
+        const cv = document.createElement('canvas'); cv.width = 120; cv.height = 40; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 120, 40);
+        const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+        out.okToast = await pick(new File([blob], 'logo.png', { type: 'image/png' }));
+        const st = store.read('proposalDetails', null);
+        out.logoStored = typeof st?.logo === 'string' ? st.logo.slice(0, 22) : null;
+        out.logoShown = document.querySelector('#cp-doc img.cp-logo')?.getAttribute('src')?.slice(0, 22) || null;
+        document.getElementById('cp-logo-remove')?.click(); await w(400);
+        out.logoGone = { stored: store.read('proposalDetails', null)?.logo ?? null, shown: !!document.querySelector('#cp-doc img.cp-logo') };
+        store.write('proposalDetails', { name: 'X', logo: 'data:image/svg+xml;base64,PHN2Zy8+' }); out.svgStored = cpDetails().logo;
+        store.write('proposalDetails', { name: 'X', logo: 'javascript:alert(1)' }); out.jsStored = cpDetails().logo;
+        deletePropertyModel(rec.id);
+        return out;
+      })()`);
+      const p1 = [];
+      if (r.view !== 'propertyProposal') p1.push(`a saved property's proposal opened as ${r.view}`);
+      if (!r.stored || r.stored.name !== r.stored.name.slice(0, 80) || r.stored.name.length !== 80 || r.stored.agency !== 'Rahman Property Advisory' || r.stored.contact !== '+60 12-345 6789')
+        p1.push(`typed on the page, the details stored as ${JSON.stringify(r.stored)}`);
+      if (r.head.name !== r.stored?.name || r.head.agency !== 'Rahman Property Advisory' || r.head.contact !== '+60 12-345 6789') p1.push(`the proposal's head prints ${JSON.stringify(r.head)}`);
+      if (JSON.stringify(r.exported) !== JSON.stringify(r.stored)) p1.push(`the export carries ${JSON.stringify(r.exported)}`);
+      if (JSON.stringify(r.backup) !== JSON.stringify(r.stored)) p1.push(`the backup carries ${JSON.stringify(r.backup)}`);
+      if (!r.listed) p1.push(`Your data does not list "${r.label}"`);
+      if (!r.restore.ok || !r.restore.incoming?.includes('proposalDetails') || r.restored?.name !== 'Restored Preparer') p1.push(`a restore of the export: ${JSON.stringify(r.restore)}, then ${JSON.stringify(r.restored)}`);
+      if (r.badShape.ok || !/proposal/i.test(r.badShape.err || '')) p1.push(`a file whose details are text was ${r.badShape.ok ? 'accepted' : `refused with "${r.badShape.err}"`}`);
+      if (!r.privacy) p1.push('/privacy does not name your details for client proposals');
+      if (r.removed !== null || !r.blank) p1.push(`"Remove my details" left ${JSON.stringify(r.removed)}, the head ${r.blank ? 'blank' : 'still printing them'}`);
+      if (r.afterClear.name || r.afterClear.agency || r.afterClear.contact || r.afterClear.logo) p1.push(`after the site's storage was cleared the details read ${JSON.stringify(r.afterClear)}`);
+      if (p1.length) fail('property-proposal CP1: your details for proposals are kept in this browser, printed, exported, backed up, restored, removed and cleared with the rest', p1);
+      else ok('property-proposal CP1: your details for proposals, typed on the page, are stored under proposalDetails (the name cut at 80 characters) and printed at the head; the export and the backup carry them, Your data lists them, a restore puts them back and refuses them as text, "Remove my details" removes them, clearing the site\'s storage leaves none, and /privacy names them');
+      const p2 = [];
+      if (r.client.printed !== 'Encik Client Check Hamzah') p2.push(`the head prints "${r.client.printed}"`);
+      if (/Client Check/.test(r.client.title)) p2.push(`the page title names the client: "${r.client.title}"`);
+      if (r.client.stored.length) p2.push(`the client's name is in storage under ${r.client.stored.join(', ')}`);
+      if (p2.length) fail('property-proposal CP2: the client\'s name prints on the proposal and is written nowhere', p2);
+      else ok(`property-proposal CP2: the client's name prints on the proposal, is in no stored key, and is not in the title ("${r.client.title}")`);
+      const p3 = [];
+      if (!r.capSaid) p3.push('the details do not say the logo can be at most 200 KB');
+      if (!/at most 200 KB/.test(r.bigToast) || r.afterBig?.logo) p3.push(`a 300 KB PNG: "${r.bigToast}", stored ${JSON.stringify(r.afterBig?.logo ?? null).slice(0, 40)}`);
+      if (!/not a PNG, JPEG or WebP/.test(r.svgToast) || r.afterSvg?.logo) p3.push(`an SVG: "${r.svgToast}", stored ${JSON.stringify(r.afterSvg?.logo ?? null).slice(0, 40)}`);
+      if (r.logoStored !== 'data:image/png;base64,' || r.logoShown !== 'data:image/png;base64,') p3.push(`a small PNG: "${r.okToast}", stored ${r.logoStored}, shown ${r.logoShown}`);
+      if (r.logoGone.stored !== null || r.logoGone.shown) p3.push(`"Remove the logo" left ${JSON.stringify(r.logoGone)}`);
+      if (r.svgStored !== null || r.jsStored !== null) p3.push(`a stored logo that is not a PNG, JPEG or WebP data URL reads as ${r.svgStored ?? r.jsStored}`);
+      if (p3.length) fail('property-proposal CP3: the logo is an image within a stated 200 KB cap, refused otherwise with the reason', p3);
+      else ok('property-proposal CP3: the page states the 200 KB cap; a 300 KB PNG and an SVG are refused with the reason and nothing stored; a small PNG is stored as a data URL, prints at the head and is removed by "Remove the logo"; a stored SVG or script address reads as no logo');
+      if (cpThrown.length) fail('property-proposal: the pages threw', cpThrown.slice(0, 5));
+    } catch (e) {
+      fail('property-proposal: the checks could not run', e.message);
+    } finally {
+      ws.removeEventListener('message', cpListen);
+      await evaluate(`(() => { const k = ${cpKept}; Object.keys(localStorage).filter(x => x.startsWith('vl.')).forEach(x => localStorage.removeItem(x));
+        Object.entries(k).forEach(([key, v]) => localStorage.setItem(key, v)); return true; })()`).catch(() => {});
+    }
+  }
+  /* ---- end property-proposal ---- */
 
 } catch (e) {
   fail('harness error', e.message);

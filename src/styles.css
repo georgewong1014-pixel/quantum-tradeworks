@@ -4075,6 +4075,8 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
 .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
 .cp-kv-tight dt { font-size: var(--text-label); }
 .cp-kv-tight dd { font-size: var(--text-sm); text-align: right; }
+/* The sentence that opens a section, before its table. */
+.cp-note.cp-lead { margin: 0 0 var(--md); }
 /* A list after a note or a table stands apart from it. */
 .cp-sec > * + .cp-kv { margin-top: var(--md); }
 /* The rows' rules run under the row's label as well as its figure. */
@@ -4134,6 +4136,9 @@ table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--te
 @media print {
   .cp-rail, .cp-screen-only, .cp-foot { display: none !important; }
   .cp-layout { display: block !important; }
+  /* The page's margins are the @page rule's 14mm below; the shell's own
+     24px each side, kept on paper, made the text 48px narrower than A4's. */
+  .shell:has(> .cp-page) { padding-left: 0 !important; padding-right: 0 !important; max-width: none !important; }
   .cp-doc { page: cp-proposal; padding: 0 !important; box-shadow: none !important; border-radius: 0 !important;
     background: #fff !important; font-size: 10pt; }
   .cp-doc .cp-tablewrap { overflow: visible !important; border: 0 !important; border-radius: 0 !important; }

@@ -365,6 +365,14 @@ function cpPropertySection(rec, d, m) {
 
 function cpAcquisitionSection(d, m) {
   const s = cpSection('acquisition', 'What buying it takes');
+  /* How the price itself is met, in the model's own split: the loan, the
+     deposit and — where the valuation is below the price — the gap. Every
+     line under it is cash, the price's own share and the costs on top. */
+  s.append(el('p', { class: 'cp-note cp-lead' }, m.loan > 0 ? [
+    `The ${cpMoneyIn(d.price)} price is met by a loan of `, cpFig('loan', cpMoney(m.loan)), ', the deposit',
+    m.valuationGapCash > 0 ? ' and the valuation-gap cash' : '',
+    ' below. The other lines are the cost of buying on top of the price, and what is set aside.',
+  ] : `The ${cpMoneyIn(d.price)} price is paid without a loan: it is the deposit below. The other lines are the cost of buying on top of the price, and what is set aside.`));
   const rows = [];
   const mark = (st) => st === 'placeholder' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder')
     : st === 'unverified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A working figure nobody has checked against its cited source.' }, 'unverified')
@@ -435,19 +443,29 @@ function cpFinancingSection(d, m) {
   return s;
 }
 
+/* What "running costs" holds for this property, in words: the lines the
+   model charges this class (dealModel's opex), so the client can find each
+   one's figure among the assumptions. */
+function cpRunningWords(d, m) {
+  const managed = m.letsToTenant && !d.selfManaged;
+  const bits = [...(m.strataCharges ? ['maintenance', 'sinking fund'] : []), 'assessment', 'quit rent', 'insurance',
+    ...(m.letsToTenant ? ['repairs'] : []), ...(managed ? ['the letting agent’s fees'] : [])];
+  return `${bits.slice(0, -1).join(', ')} and ${bits[bits.length - 1]}`;
+}
+
 function cpRentSection(d, m) {
   const s = cpSection('rental', m.letsToTenant ? 'Rent and the monthly cash flow' : 'What holding it costs');
   if (!m.letsToTenant) {
     s.append(cpNote(`A ${String(PROPERTY_CLASSES[m.propertyClass].label).toLowerCase()} class has no tenancy, so no rent, vacancy, yield or break-even rent is computed for it — working them out would mean inventing a rent nobody expects to receive.`));
     s.append(cpTable('What holding it costs, a year', null, [
-      cpRow('Running costs, a year', cpFig('opex', cpMoney(m.opex))),
+      cpRow(`Running costs, a year — ${cpRunningWords(d, m)}`, cpFig('opex', cpMoney(m.opex))),
       cpRow('Loan repayments, a year', cpFig('annualDebtService', cpMoney(m.annualDebtService))),
     ]));
   } else {
     s.append(cpTable('A year at the rent entered', null, [
       cpRow(`Rent, a year — ${cpMoneyIn(d.rent)} a month`, cpFig('grossAnnualRent', cpMoney(m.grossAnnualRent))),
       cpRow(`Rent collected, after ${cpPct(d.vacancyPct)} vacancy`, cpFig('effectiveRent', cpMoney(m.effectiveRent))),
-      cpRow('less running costs', cpFig('opex', cpMoney(m.opex))),
+      cpRow(`less running costs — ${cpRunningWords(d, m)}`, cpFig('opex', cpMoney(m.opex))),
       cpRow('Net operating income', cpFig('noi', cpMoney(m.noi))),
       cpRow('less loan repayments', cpFig('annualDebtService', cpMoney(m.annualDebtService))),
     ]));

@@ -2078,6 +2078,115 @@ for (const w of [360, 390]) {
   else console.log(`ok   releaseB search-recent: the search at 360 and 390 (light) and 390 (dark), ${measured} states — Recent with a company, a page, a tool and a long-named list, and "property" with a result in every group: no overflow, the box on screen, every result's words in its row, results, "Clear recent" and close 44px; by the keys alone at 390 the bar's button and "/" open it, the arrows walk all three groups keeping each result in sight, Enter opens a page, Escape gives focus back`);
 }
 /* ---- end releaseB: search-recent ---- */
+/* ---- property-proposal ---- */
+/* THE CLIENT PROPOSAL AT EVERY WIDTH (3 Oct 2026). A saved property with
+   two scenarios, the preparer's details and logo, and a client's name, its
+   details panel open: at 360, 390, 430, 768, 1024 and 1440, and at 390
+   dark, no horizontal overflow — a table scrolls in its own box, never the
+   page; at the three phone widths every control is a 44px target (a
+   checkbox's whole label is its target; a link inside a sentence is
+   exempt); and at 390, by the Tab key alone, every stop on the page shows
+   a focus ring and is on screen. Fails before the proposal existed. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(250);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(300);
+  };
+  const MEASURE = (phone) => `(() => { const out = { problems: [] };
+    const de = document.documentElement;
+    if (de.scrollWidth > window.innerWidth + 1) out.problems.push('the page overflows by ' + (de.scrollWidth - window.innerWidth) + 'px');
+    const doc = document.getElementById('cp-doc');
+    if (!doc) { out.problems.push('no proposal on the page'); return out; }
+    if (doc.scrollWidth > doc.clientWidth + 1) out.problems.push('the document overflows its own box by ' + (doc.scrollWidth - doc.clientWidth) + 'px');
+    if (${phone}) {
+      const page = document.querySelector('.cp-page');
+      const ctl = [...page.querySelectorAll('a[href], button, input:not([type=hidden]):not([type=file]):not([type=checkbox]), select, summary, label.checkline, [tabindex="0"]')]
+        .filter(n => n.getClientRects().length && !n.closest('p'));
+      out.n = ctl.length;
+      ctl.forEach(n => { const b = n.getBoundingClientRect(); const wide = /^(A|BUTTON|SUMMARY)$/.test(n.tagName);
+        if (b.height < 43.5 || (wide && b.width < 43.5)) out.problems.push((n.id || n.tagName.toLowerCase()) + ' "' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '" is ' + Math.round(b.width) + '×' + Math.round(b.height) + 'px'); });
+    }
+    return out; })()`;
+  let measured = 0, stops = 0, targets = 0;
+  try {
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await load('/property/calculator');
+    const path = await ev(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+      window.__pq = []; window.prompt = (m, d) => (window.__pq.length ? window.__pq.shift() : d); window.confirm = () => true;
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 538000, rent: 2250, bankValuation: 520000 }); ['price', 'rent', 'bankValuation'].forEach(k => markTouched(State.deal, k)); saveDeal();
+      const rec = saveActiveProperty({ name: 'A long property name for the phone check — Stutong Heights, block C' });
+      State.deal.rent = 2550; markTouched(State.deal, 'rent'); saveDeal(); window.__pq = ['Rent at RM2,550 with the furnished unit']; saveAsScenario();
+      openPropertyModel(rec.id, { show: false });
+      State.deal.ratePct = 5.2; markTouched(State.deal, 'ratePct'); saveDeal(); window.__pq = ['Rate up by about one percentage point']; saveAsScenario();
+      openPropertyModel(rec.id, { show: false });
+      const cv = document.createElement('canvas'); cv.width = 240; cv.height = 80; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 240, 80);
+      store.write('proposalDetails', { name: 'Aisha binti Rahman', agency: 'Rahman Property Advisory Sdn Bhd', contact: '+60 12-345 6789 · aisha.rahman@example.com', logo: cv.toDataURL('image/png') });
+      return cpPath(rec.id);
+    })()`);
+    const open = async () => ev(`(async () => { navigate(${JSON.stringify(path)}); await new Promise(r => setTimeout(r, 450));
+      const c = document.getElementById('cp-client'); c.value = 'Mr and Mrs Tan Wei Ming, and their family trust'; c.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 300));
+      const d = document.getElementById('cp-details'); if (d && !d.open) { d.open = true; await new Promise(r => setTimeout(r, 80)); }
+      return State.view; })()`);
+    for (const [w, dark] of [[360, false], [390, false], [430, false], [768, false], [1024, false], [1440, false], [390, true]]) {
+      const at = `${w}px${dark ? ' dark' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 768 ? 844 : 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] }, sessionId);
+      const view = await open();
+      if (view !== 'propertyProposal') { fails.push(`${at}: the proposal opened as ${view}`); continue; }
+      const m = await ev(MEASURE(w <= 430));
+      m.problems.forEach(x => fails.push(`${at}: ${x}`));
+      if (w <= 430) { targets += m.n || 0; if (!(m.n > 15)) fails.push(`${at}: only ${m.n} controls were measured`); }
+      measured++;
+    }
+    /* The keyboard at 390: every stop on the page shows a ring, on screen. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    await open();
+    await ev(`document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); document.activeElement?.blur(); true`);
+    const seen = new Set();
+    for (let i = 0; i < 120; i++) {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      const v = await ev(`(async () => { await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const n = document.activeElement; if (!n || n === document.body) return { end: true };
+        const page = document.querySelector('.cp-page'); if (!page || !page.contains(n)) return { outside: true, footer: !!n.closest('.footer') };
+        if (!n.dataset.cpf) n.dataset.cpf = String(Math.random()).slice(2);
+        const s = getComputedStyle(n), b = n.getBoundingClientRect();
+        const ring = n.matches(':focus-visible') && ((s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 1) || (s.boxShadow && s.boxShadow !== 'none'));
+        const onScreen = b.bottom > 0 && b.top < innerHeight && b.right > 0 && b.left < innerWidth;
+        return { id: n.dataset.cpf, ring, onScreen, who: (n.id || n.tagName.toLowerCase()) + ' "' + (n.getAttribute('aria-label') || n.textContent || '').trim().slice(0, 30) + '"' }; })()`);
+      if (!v || v.end || v.footer) break;
+      if (v.outside || seen.has(v.id)) continue;
+      seen.add(v.id);
+      if (!v.ring) fails.push(`390 keyboard: ${v.who} takes focus with no visible ring`);
+      if (!v.onScreen) fails.push(`390 keyboard: ${v.who} takes focus off screen`);
+    }
+    stops = seen.size;
+    if (stops < 12) fails.push(`390 keyboard: the Tab key reached only ${stops} stops on the proposal page`);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL property-proposal — the client proposal across widths: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   property-proposal: the client proposal (two scenarios, the preparer's details and logo, a client's name, the details open) at 360, 390, 430, 768, 1024 and 1440, and 390 dark — ${measured} widths with no overflow of the page or the document, and on the phones all ${targets} controls measured are 44px targets; by the Tab key at 390 all ${stops} stops show a ring, on screen`);
+}
+/* ---- end property-proposal ---- */
+
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

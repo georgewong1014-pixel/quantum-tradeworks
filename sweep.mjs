@@ -2330,6 +2330,121 @@ for (const route of ROUTES) {
   else console.log(`ok   releaseB integration: what the verifier found holds — a saved screen's drawer labels every company; a company reached in-app while the filings load names no company and no other page's head, then its own; aliases end at the company's own address; Start here names a refused report without linking it; My Alerts and Reports wear the one head, whole at 390; an empty research section has one action; a match with no id is not called muted; the kind filter's ring is whole; an illustrative company says noindex wherever it is open; /my/data has one name; the first steps ${steps}`);
 }
 /* ---- end releaseB: integration ---- */
+/* ---- property-proposal ---- */
+/* THE CLIENT PROPOSAL'S WAYS IN, AND ITS PAPER (3 Oct 2026). A saved
+   property's proposal is reached three ways — its row on My properties, its
+   row on /my/reports, and the calculator's Report section with it open —
+   each a real link to /property/models/:property/proposal, each said to be
+   a preview. A deal not yet saved is told to save it first, with that one
+   action, which then leads on. An address naming no saved property says so,
+   with one action. robots.txt keeps the address out of an index with My
+   properties. And on paper: the proposal asks for A4, prints the document
+   alone — no rail, navigation or footer — within the page's width, in light
+   colours under a dark screen. Each fails before the proposal existed. */
+{
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (url) => {
+    await ev('window.__ppMark = 1').catch(() => {});
+    await send('Page.navigate', { url }, sessionId);
+    for (let i = 0; i < 200; i++) {
+      try { if (await ev(`!window.__ppMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ }
+      await sleep(100);
+    }
+    await sleep(400);
+  };
+  const p = [];
+  let pdfBox = null;
+  try {
+    await load(BASE + '/property/calculator');
+    bucket = [];
+    const r = await ev(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      window.prompt = (m, d) => d; window.confirm = () => true;
+      const click = async (sel) => { const n = document.querySelector(sel); if (!n) return false; n.click(); await w(450); return true; };
+      const at = () => ({ view: State.view, path: location.pathname, of: txt(document.querySelector('#cp-doc .cp-sub')) });
+      const out = {};
+      Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+      /* An unsaved deal: the Report section says to save it first. */
+      newPropertyDeal({ show: false });
+      State.deal.price = 461000; markTouched(State.deal, 'price'); saveDeal();
+      navigate('/property/calculator'); await w(500);
+      const card = () => document.getElementById('cp-next');
+      out.unsaved = { has: !!card(), acts: card() ? [...card().querySelectorAll('a, button')].map(x => ({ id: x.id, t: txt(x) })) : [], said: txt(card()) };
+      await click('#cp-next-save');
+      out.afterSave = { modelId: State.deal.modelId, acts: card() ? [...card().querySelectorAll('a, button')].map(x => ({ id: x.id, t: txt(x), href: x.getAttribute('href') })) : [], focus: document.activeElement?.id || null };
+      const id = State.deal.modelId, want = cpPath(id);
+      out.want = want;
+      out.preview = /Preview/.test(txt(card()));
+      await click('#cp-next-open'); out.fromCalc = at();
+      navigate('/property/models'); await w(450);
+      const pm = document.getElementById('pm-cp-' + id);
+      out.models = { href: pm?.getAttribute('href') || null, t: txt(pm) };
+      await click('#pm-cp-' + id); out.fromModels = at();
+      navigate('/my/reports'); await w(600);
+      const rp = document.getElementById('rp-cp-' + id);
+      out.reports = { href: rp?.getAttribute('href') || null, t: txt(rp), said: txt(document.getElementById('rp-properties')) };
+      await click('#rp-cp-' + id); out.fromReports = at();
+      out.rail = txt(document.querySelector('.cp-rail'));
+      out.pricing = !!document.querySelector('#views a[href$="/pricing"]');
+      navigate('/property/models/no-such-property-for-the-sweep/proposal'); await w(400);
+      out.missing = { view: State.view, head: txt(document.querySelector('#cp-missing-hd')), primaries: [...document.querySelectorAll('#views .btn-primary')].map(txt) };
+      navigate(want); await w(400);
+      return out;
+    })()`);
+    const errs = bucket.filter(x => /^(EXCEPTION|CONSOLE)/.test(x));
+    if (errs.length) p.push(`the pages logged ${errs.slice(0, 3).join('; ')}`);
+    const ids = (a) => a.map(x => x.id).join(',');
+    if (!r.unsaved.has || ids(r.unsaved.acts) !== 'cp-next-save' || !/Save this property first/.test(r.unsaved.said)) p.push(`an unsaved deal's Report section: ${JSON.stringify(r.unsaved).slice(0, 240)}`);
+    if (!r.afterSave.modelId || ids(r.afterSave.acts) !== 'cp-next-open' || r.afterSave.acts[0].href !== r.want || r.afterSave.focus !== 'cp-next-open')
+      p.push(`after "Save this property first": ${JSON.stringify(r.afterSave)}`);
+    if (!r.preview) p.push('the calculator\'s card does not call the proposal a preview');
+    for (const [k, v] of [['the calculator', r.fromCalc], ['My properties', r.fromModels], ['/my/reports', r.fromReports]])
+      if (v.view !== 'propertyProposal' || v.path !== r.want) p.push(`from ${k}: ${JSON.stringify(v)}`);
+    if (r.models.href !== r.want || r.models.t !== 'Client proposal') p.push(`My properties' link: ${JSON.stringify(r.models)}`);
+    if (r.reports.href !== r.want || r.reports.t !== 'Client proposal' || !/client proposal/.test(r.reports.said)) p.push(`/my/reports' link: ${JSON.stringify(r.reports).slice(0, 240)}`);
+    if (!/A preview/.test(r.rail) || !/nothing is on sale/.test(r.rail) || r.pricing) p.push(`the page's own words on plans: "${r.rail.slice(0, 160)}"${r.pricing ? ', with a link to /pricing' : ''}`);
+    if (r.missing.view !== 'propertyProposal' || !/not saved in this browser/.test(r.missing.head) || r.missing.primaries.length !== 1) p.push(`an address naming no saved property: ${JSON.stringify(r.missing)}`);
+    const robots = await (await fetch(BASE + '/robots.txt')).text();
+    if (!/^Disallow:\s*\/property\/models\s*$/m.test(robots)) p.push('robots.txt does not keep /property/models, and the proposals under it, out of an index');
+
+    /* On paper. */
+    const pdf = await send('Page.printToPDF', { preferCSSPageSize: true }, sessionId);
+    const raw = Buffer.from(pdf.result?.data || '', 'base64').toString('latin1');
+    pdfBox = (raw.match(/\/MediaBox\s*\[\s*0\s+0\s+([\d.]+)\s+([\d.]+)\s*\]/) || []).slice(1).map(Number);
+    if (!(Math.abs(pdfBox[0] - 595.3) < 1.5 && Math.abs(pdfBox[1] - 841.9) < 1.5)) p.push(`the proposal prints on ${JSON.stringify(pdfBox)} pt, not A4 (595 × 842)`);
+    /* The page's text width on A4 with its 14mm margins: 182mm, 688px. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 688, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Emulation.setEmulatedMedia', { media: 'print', features: [{ name: 'prefers-color-scheme', value: 'dark' }] }, sessionId);
+    await sleep(400);
+    const pr = await ev(`(() => {
+      const shown = (sel) => [...document.querySelectorAll(sel)].some(n => n.getClientRects().length && getComputedStyle(n).display !== 'none');
+      const doc = document.getElementById('cp-doc'), d = doc.getBoundingClientRect();
+      const over = [...doc.querySelectorAll('*')].filter(n => n.getClientRects().length && n.getBoundingClientRect().right > d.right + 1).map(n => n.tagName + '.' + n.className).slice(0, 5);
+      const wraps = [...doc.querySelectorAll('.cp-tablewrap')].filter(t => t.scrollWidth > t.clientWidth + 1).map(t => t.getAttribute('aria-label'));
+      const cs = getComputedStyle(doc), h1 = getComputedStyle(doc.querySelector('h1'));
+      return { rail: shown('.cp-rail'), nav: shown('.sidebar, .appbar, .ptabs-host, .topbar, .footer, .cp-foot'), width: Math.round(d.width), vw: document.documentElement.clientWidth,
+        over, wraps, bg: cs.backgroundColor, ink: h1.color, page: cs.getPropertyValue('page') || null };
+    })()`);
+    if (pr.rail || pr.nav) p.push(`on paper the ${pr.rail ? 'rail' : 'navigation or footer'} still prints`);
+    if (pr.width < pr.vw - 2) p.push(`on paper the document is ${pr.width}px of the page's ${pr.vw}px`);
+    if (pr.over.length) p.push(`on paper these run past the page's edge: ${pr.over.join(', ')}`);
+    if (pr.wraps.length) p.push(`on paper these tables are wider than the page: ${pr.wraps.join(', ')}`);
+    if (pr.bg !== 'rgb(255, 255, 255)' || !/^rgb\((1\d|2\d|3\d), (1\d|2\d|3\d), (1\d|2\d|3\d)\)$/.test(pr.ink)) p.push(`on paper under a dark screen the document is ${pr.ink} on ${pr.bg}, not dark on white`);
+  } catch (e) { p.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { media: '', features: [] }, sessionId).catch(() => {});
+    await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (p.length) { bad++; console.log(`FAIL property-proposal: the client proposal's ways in and its paper (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, dark on white under a dark screen`);
+}
+/* ---- end property-proposal ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();
