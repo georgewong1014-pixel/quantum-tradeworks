@@ -36,9 +36,10 @@
    PREPARED BY is the preparer's own name, agency, contact and logo, kept in
    this browser under one key (proposalDetails) that /privacy names, the
    export on Your data carries and a cleared browser loses with everything
-   else. PREPARED FOR is the client's name and a date: they stay on this
-   page for this visit and are never stored — a client's name is somebody
-   else's personal data, and nothing here needs to keep it.
+   else. PREPARED FOR is the client's name and a date: they are held in
+   memory by this tab and never stored — not in storage, and not in the
+   page's title either, which a browser keeps in its history. A client's
+   name is somebody else's personal data, and nothing here needs to keep it.
 
    A PREVIEW. No plan includes a proposal and nothing is sold (the launch
    audit, 29 Sep 2026); the page and each way into it say so, and the
@@ -197,20 +198,23 @@ const cpLabel = (k) => String(PROPERTY_I18N[`in.${k}`]?.en || PM_FIELD_WORDS[k] 
 
 /* The inputs every figure rests on, in the calculator's own groups and
    words, each only where the property's class uses it (propertyInputApplies
-   and the class's own rules). */
+   and the class's own rules) and only where a figure here reads it: the
+   share of the rent that depends on the renovation moves the renovation's
+   own return (renovationReturn), which a proposal does not print, so it is
+   not listed as something the proposal rests on. */
 function cpInputGroups(d, m) {
   const lets = m.letsToTenant, strata = m.strataCharges, reno = num0(d.renovation) > 0;
   const managed = lets && !d.selfManaged;
   const row = (k, value, label = cpLabel(k)) => ({ k, label, value });
   const rule = { lower_of: 'The lower of the price and the valuation', valuation_only: 'The valuation' }[d.valuationRule || 'lower_of'] || 'The purchase price';
+  /* The price and the built-up area are the property's own facts, listed
+     above these groups with their marks; they are not listed twice. */
   return [
     ['Purchase', [
-      row('price', cpMoneyIn(d.price)),
       row('bankValuation', num0(d.bankValuation) > 0 ? cpMoneyIn(d.bankValuation) : 'Not entered'),
       num0(d.bankValuation) > 0 ? row('valuationRule', rule, 'What the loan is calculated on') : null,
       row('bookingDepositPaid', cpMoneyIn(num0(d.bookingDepositPaid))),
       row('renovation', cpMoneyIn(num0(d.renovation))),
-      reno && lets ? row('renoRentUpliftPct', cpPct(num0(d.renoRentUpliftPct))) : null,
       reno ? row('renoValueRecoveryPct', cpPct(num0(d.renoValueRecoveryPct))) : null,
       row('reserveMonths', cpPlural(m.reserveMonths, 'month'), 'Months of reserve to hold'),
     ]],
@@ -249,6 +253,12 @@ function cpInputGroups(d, m) {
     ]],
   ].filter(Boolean).map(([title, rows]) => [title, rows.filter(Boolean)]);
 }
+/* Every input the proposal prints that is still the calculator's starting
+   figure — the property's two facts and the groups' inputs — counted in one
+   place, so the note under the assumptions and the disclosure at the foot
+   cannot give two different numbers. */
+const CP_FACT_INPUTS = ['sqft', 'price'];
+const cpSampleKeys = (d, m) => [...CP_FACT_INPUTS, ...cpInputGroups(d, m).flatMap(([, rows]) => rows.map(r => r.k))].filter(k => cpSeeded(d, k));
 
 /* ------------------------------------------------------------- the document */
 function cpSection(id, title) {
@@ -261,9 +271,9 @@ function cpSection(id, title) {
    its children one level, so they are spread here rather than nested. */
 function cpList(rows) {
   const dl = el('dl', { class: 'cp-kv' });
-  rows.filter(Boolean).forEach(([label, value, note]) => {
+  rows.filter(Boolean).forEach(([label, value, note, attrs = {}]) => {
     dl.append(el('dt', {}, label));
-    dl.append(el('dd', {}, [...(Array.isArray(value) ? value : [value]), note ? el('span', { class: 'cp-kv-note' }, note) : null]));
+    dl.append(el('dd', attrs, [...(Array.isArray(value) ? value : [value]), note ? el('span', { class: 'cp-kv-note' }, note) : null]));
   });
   return dl;
 }
@@ -329,28 +339,26 @@ function cpPropertySection(rec, d, m) {
     ['Property type', `${d.propertyType || 'Property'} · ${cls.label}${m.propertyClassSrc === 'reader' ? ', as the preparer classed it' : ''}`],
     ['Title class', [title ? title.label : 'Not recorded'], `Recorded from the preparer’s input and not verified.${title?.restricted ? ` ${title.note}` : ''}`],
     d.titleType !== 'strata' ? ['Years remaining on the lease', isNum(d.remainingLease) && d.remainingLease > 0 ? cpN(d.remainingLease) : 'Freehold (0 entered)'] : null,
-    ['Built-up area', [`${cpN(d.sqft)} sq ft`, cpSeeded(d, 'sqft') ? cpSampleMark() : null]],
+    ['Built-up area', [`${cpN(d.sqft)} sq ft`, cpSeeded(d, 'sqft') ? cpSampleMark() : null], null, { 'data-cp-in': 'sqft' }],
     num0(d.landSqft) > 0 ? ['Land area', `${cpN(d.landSqft)} sq ft`] : null,
     ['Purchase price', [cpMoneyIn(d.price), cpSeeded(d, 'price') ? cpSampleMark() : null],
-      isNum(m.psf) ? [cpFig('psf', fmtMoney(m.psf, 'MYR', 0)), ' per sq ft of built-up area'] : null],
+      isNum(m.psf) ? [cpFig('psf', fmtMoney(m.psf, 'MYR', 0)), ' per sq ft of built-up area'] : null, { 'data-cp-in': 'price' }],
   ]));
   s.append(el('h3', {}, 'The assumptions behind every figure'));
   const grid = el('div', { class: 'cp-assume' });
-  let samples = 0;
   cpInputGroups(d, m).forEach(([title2, rows]) => {
     const box = el('div', { class: 'cp-assume-grp' });
     box.append(el('p', { class: 'cp-eyebrow' }, title2));
     const dl = el('dl', { class: 'cp-kv cp-kv-tight' });
     rows.forEach(r => {
-      const seeded = cpSeeded(d, r.k);
-      if (seeded) samples++;
       dl.append(el('dt', {}, r.label));
-      dl.append(el('dd', { 'data-cp-in': r.k }, [r.value, seeded ? cpSampleMark() : null]));
+      dl.append(el('dd', { 'data-cp-in': r.k }, [r.value, cpSeeded(d, r.k) ? cpSampleMark() : null]));
     });
     box.append(dl);
     grid.append(box);
   });
   s.append(grid);
+  const samples = cpSampleKeys(d, m).length;
   if (samples) s.append(cpNote(`${samples === 1 ? 'One figure marked' : `${samples} figures marked`} Sample ${samples === 1 ? 'is' : 'are'} still the calculator’s own starting figure: nobody changed ${samples === 1 ? 'it' : 'them'} for this property, and ${samples === 1 ? 'it was' : 'they were'} taken from no market. Every result below inherits that.`, { warn: true }));
   return s;
 }
@@ -400,18 +408,23 @@ function cpFinancingSection(d, m) {
   const s = cpSection('financing', 'The loan and the monthly commitment');
   const basis = !m.financingBasisConfirmed ? 'the purchase price'
     : m.valuationRule === 'valuation_only' ? 'the valuation' : m.valuationRule === 'lower_of' ? 'the lower of the price and the valuation' : 'the purchase price';
+  /* The commitment is the model's two figures for it, never one worked out
+     here: the instalment owed to the lender each month, and what holding
+     the property takes from the owner's own income in a year (the
+     calculator's "Costs you … a year to hold"). The monthly position under
+     the rent is the same shortfall a month at a time. */
   const cf = m.cashflowMonthly;
   s.append(cpList([
     m.financingBasisConfirmed ? ['Value the loan is calculated on', cpFig('lenderValueBasis', cpMoney(m.lenderValueBasis)), `${cpMoney(m.bankValuation)} bank or valuer estimate against a ${cpMoneyIn(d.price)} price`] : null,
     ['Loan', cpFig('loan', cpMoney(m.loan)), `A ${cpN(m.marginOfFinancePct)}% margin of finance on ${basis}`],
     ['Share of the price the loan funds', cpFig('financingCoverageOfPrice', fmtPct(m.financingCoverageOfPrice, 1))],
-    ['Monthly instalment', cpFig('instalment', cpMoney(m.instalment)), isNum(m.instalment) ? `${cpPct(d.ratePct, 2)} a year over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed: the loan has no repayment schedule at the entered tenure'],
+    ['Monthly instalment', cpFig('instalment', cpMoney(m.instalment)), isNum(m.instalment) ? `Owed to the lender each month: ${cpPct(d.ratePct, 2)} a year over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed: the loan has no repayment schedule at the entered tenure'],
     ['Loan repayments a year', cpFig('annualDebtService', cpMoney(m.annualDebtService))],
-    ['Monthly commitment from the owner’s income', cpFig('commitment', isNum(cf) ? cpMoney(Math.max(0, -cf)) : '—'),
-      !isNum(cf) ? 'Not computed — the instalment is not known.'
-        : cf < 0 ? 'What the rent, after vacancy and running costs, leaves unpaid of the instalment each month.'
-        : m.letsToTenant ? 'Nothing: the rent, after vacancy and running costs, covers the instalment.' : 'Nothing: there is no instalment or running cost to meet.'],
-    m.annualOwnerSubsidy > 0 ? ['Holding it, a year', cpFig('annualOwnerSubsidy', cpMoney(m.annualOwnerSubsidy)), 'From the owner’s own income, before any major repair.'] : null,
+    !isNum(cf) ? null
+      : m.annualOwnerSubsidy > 0 ? ['From the owner’s own income, a year', cpFig('annualOwnerSubsidy', cpMoney(m.annualOwnerSubsidy)),
+        m.letsToTenant ? 'What the rent, after vacancy and running costs, leaves unpaid of the loan repayments — before any major repair.'
+          : 'The loan repayments and the running costs together: this class earns no rent to meet them.']
+      : ['From the owner’s own income', 'Nothing', m.letsToTenant ? 'The rent, after vacancy and running costs, covers the loan repayments.' : 'There is no loan repayment or running cost to meet.'],
   ]));
   if (!m.financingBasisConfirmed) s.append(cpNote('The loan is calculated on the purchase price: no bank or valuer estimate has been entered, so the financing is modelled, not lender-confirmed. A valuation below the price would turn the difference into cash due on completion.', { warn: true }));
   else if (m.valuationGapCash > 0) s.append(el('p', { class: 'cp-note cp-warn' }, ['The valuation is ', cpFig('valuationGapCash', cpMoney(m.valuationGapCash)),
@@ -489,7 +502,9 @@ function cpScenariosSection(rec, picks) {
    hold). Nothing is assumed here that the model does not already assume. */
 function cpExitSection(d, m) {
   const s = cpSection('exit', `If it is sold after ${cpPlural(d.holdYears, 'year')}`);
-  const less = (key, v) => cpFig(key, isNum(v) ? `−${cpMoney(v)}` : '—', { 'data-cp-sign': '-' });
+  /* A deduction carries its minus — except one that prints as nothing: a
+     gains tax of nil read "−RM0", a sign on a zero. */
+  const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
   s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
     cpRow('Sale value', cpFig('exitValue', cpMoney(m.exitValue))),
     cpRow('Loan outstanding', less('outstanding', m.outstanding)),
@@ -514,8 +529,7 @@ function cpDisclosures(rec, d, m) {
   const s = cpSection('disclosures', 'What this proposal is, and is not');
   const placeholders = (m.placeholderCostLines || []).length;
   const unverified = m.costGroups.flatMap(g => g.items).filter(it => it[2]?.status === 'unverified' && isNum(it[1])).length;
-  const samples = cpInputGroups(d, m).flatMap(([, rows]) => rows).filter(r => cpSeeded(d, r.k)).length
-    + (cpSeeded(d, 'sqft') ? 1 : 0);
+  const samples = cpSampleKeys(d, m).length;
   const ul = el('ul', { class: 'cp-points' });
   [
     'Research and illustration, not financial advice and not a recommendation to buy, sell, let or finance this property. It does not take account of anyone’s objectives, financial situation or needs; before acting, take advice from someone licensed to give it.',
@@ -585,7 +599,7 @@ function cpRail(rec, details, forWhom, picks) {
     onchange: e => { forWhom.client = e.target.value.trim().slice(0, 80); renderAfterTyping(); } })));
   pf.append(field('cp-date', 'Date', el('input', { class: 'input', id: 'cp-date', type: 'date', value: forWhom.date,
     onchange: e => { forWhom.date = /^\d{4}-\d\d-\d\d$/.test(e.target.value) ? e.target.value : localDay(); renderAfterTyping(); } })));
-  pf.append(el('p', { class: 'metaline' }, 'Not kept: the client’s name stays on this page until you leave it, and prints on the proposal. Nothing about the client is stored.'));
+  pf.append(el('p', { class: 'metaline' }, 'Not stored: the client’s name is held by this tab until it is reloaded or closed, and prints on the proposal. Nothing about the client is written to this browser’s storage.'));
   body.append(pf);
 
   /* The scenarios, three at most. */
@@ -696,7 +710,10 @@ VIEWS.propertyProposal = () => {
     el('button', { type: 'button', class: 'btn btn-ghost', id: 'cp-print-foot', onclick: () => window.print() }, 'Print or save as PDF'),
     el('span', { class: 'metaline' }, CP_PREVIEW),
   ]));
-  /* The title is the file name a browser offers for the PDF. */
-  document.title = `${forWhom.client ? `Proposal for ${forWhom.client} — ` : 'Client proposal — '}${rec.name} · Quantum Tradeworks`;
+  /* The title is the file name a browser offers for the PDF, so it names the
+     property. Never the client: a browser writes every title it is shown
+     into its history, and a client's name is the one thing this page
+     promises not to keep. */
+  document.title = `Client proposal — ${rec.name} · Quantum Tradeworks`;
   return wrap;
 };

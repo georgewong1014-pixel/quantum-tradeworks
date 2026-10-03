@@ -3962,3 +3962,206 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   .search-clear { min-height: 44px; }
 }
 /* ---- end releaseB: search-recent ---- */
+/* ---- property-proposal ---- */
+/* THE CLIENT PROPOSAL (72-property-proposal.js): the controls in a column
+   beside the document, the document laid out as the A4 page it prints as.
+   Tokens only; nothing new in the palette. The document follows the theme
+   on screen and prints in light colours, as the decision record does. */
+.cp-page { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+/* Beside the document only while the layout has room for both: the rail,
+   the gap and a document about as wide as an A4 page's text (Release B's
+   rule for the screener's rail — the layout asks its own width). */
+.cp-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: var(--md); align-items: start;
+  container: cp-layout / inline-size; }
+@container cp-layout (max-width: 1079.98px) {
+  .cp-layout > * { grid-column: 1 / -1; }
+  .cp-layout > .cp-rail { position: static; }
+}
+/* Stacked across a tablet's width, the rail's groups stand side by side. */
+@container cp-layout (min-width: 640px) and (max-width: 1079.98px) {
+  .cp-rail-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--xl); align-items: start; }
+  .cp-rail-body > .cp-details { grid-column: 1 / -1; }
+}
+
+/* The controls. */
+.cp-rail { display: flex; flex-direction: column; gap: var(--md); padding: var(--lg); min-width: 0; }
+.cp-rail-hd { display: flex; flex-direction: column; gap: var(--xs); }
+.cp-rail-hd .caption { max-width: 46ch; }
+.cp-print { width: 100%; margin-top: 4px; }
+.cp-rail-warn {
+  margin: 0; padding: var(--sm) var(--md); border-radius: var(--r-md); font-size: var(--text-sm); line-height: 1.55;
+  color: var(--ink-2); background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
+}
+.cp-rail-warn a { color: var(--ink); text-underline-offset: 3px; }
+.cp-rail-body { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.cp-fs { margin: 0; padding: var(--md) 0 0; border: 0; border-top: 1px solid var(--line); min-width: 0;
+  display: flex; flex-direction: column; gap: var(--sm); }
+.cp-fs > legend { float: left; width: 100%; padding: 0; margin-bottom: var(--xs);
+  font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.cp-fs > legend + * { clear: both; }
+.cp-fs .field > label, .cp-fs-label { font-size: var(--text-sm); line-height: 20px; font-weight: var(--weight-semibold); color: var(--ink-2); }
+.cp-pick { align-items: flex-start; }
+.cp-pick input { margin-top: 3px; }
+.cp-pick strong { display: block; color: var(--ink); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.cp-pick-what { display: block; margin-top: 2px; overflow-wrap: anywhere; }
+.cp-details > summary {
+  cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 36px;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere;
+}
+.cp-details > summary::before { content: '+'; display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none;
+  border-radius: 999px; border: 1px solid var(--line-2); font-size: 12px; color: var(--ink-3); }
+.cp-details[open] > summary::before { content: '−'; }
+/* Its mark stays beside its words on a phone, where every summary wraps,
+   and it keeps the phone's 44px target over the 36px above. */
+.cp-details > summary { flex-wrap: nowrap; }
+@media (pointer: coarse), (max-width: 768px) { .cp-details > summary { min-height: 44px; } }
+.cp-details > summary:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; border-radius: var(--r-sm); }
+.cp-details[open] { gap: var(--sm); }
+.cp-logo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
+.cp-logo-thumb { max-height: 44px; max-width: 132px; width: auto; object-fit: contain; padding: 4px;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.cp-rail-links { display: flex; flex-wrap: wrap; gap: 4px; padding-top: var(--sm); border-top: 1px solid var(--line); }
+.cp-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); }
+.cp-foot .metaline { flex: 1 1 280px; max-width: 72ch; }
+.cp-missing { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sm); padding: var(--xl) var(--lg); }
+.cp-missing .body { max-width: 70ch; }
+
+/* The document: an A4 page's proportions on screen — about 700px of text
+   between margins — set in the product's own type scale. */
+.cp-doc {
+  container: cp-doc / inline-size; min-width: 0;
+  background: var(--surface-2); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--lift-2);
+  padding: var(--xxl) 52px; font-size: var(--text-body); line-height: 1.55;
+}
+@container cp-layout (max-width: 1079.98px) { .cp-doc { padding: var(--xl); } }
+@container cp-layout (max-width: 560px) { .cp-doc { padding: var(--lg) var(--md); } }
+.cp-eyebrow { margin: 0 0 4px; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.cp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--lg); align-items: start;
+  padding-bottom: var(--lg); border-bottom: 1px solid var(--line); }
+.cp-by, .cp-for { min-width: 0; }
+.cp-for { text-align: right; }
+.cp-logo { display: block; max-height: 56px; max-width: 200px; width: auto; object-fit: contain; margin-bottom: var(--sm); }
+:root[data-theme="dark"] .cp-logo { background: #fff; padding: 6px; border-radius: var(--r-sm); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .cp-logo { background: #fff; padding: 6px; border-radius: var(--r-sm); } }
+.cp-by-name, .cp-for-name { margin: 0; font-size: var(--text-lead); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.cp-by-agency { margin: 0; font-size: var(--text-body); color: var(--ink-2); overflow-wrap: anywhere; }
+.cp-by-contact, .cp-for-date { margin: 0; font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.cp-blank { margin: 4px 0; max-width: 34ch; padding: 8px 10px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-3);
+  border: 1px dashed var(--line-2); border-radius: var(--r-sm); }
+.cp-for .cp-blank { margin-left: auto; text-align: left; }
+.cp-title { margin: var(--xl) 0 var(--lg); }
+.cp-title h1 { margin: 2px 0 6px; font-size: 26px; font-weight: var(--weight-bold); letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.cp-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-2); max-width: 76ch; overflow-wrap: anywhere; }
+.cp-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sm); margin-bottom: var(--sm); }
+.cp-fig { padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); min-width: 0; }
+.cp-fig-k { margin: 0; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.cp-fig-v { margin: 4px 0 2px; font-size: var(--text-card); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.cp-fig-s { margin: 0; font-size: var(--text-label); line-height: 1.45; color: var(--ink-3); }
+.cp-sec { margin-top: var(--xl); }
+.cp-sec > h2 { margin: 0 0 var(--md); padding-bottom: 6px; border-bottom: 1px solid var(--grid);
+  font-size: var(--text-lead); font-weight: var(--weight-semibold); letter-spacing: -.01em; }
+.cp-sec h3 { margin: var(--lg) 0 var(--sm); font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.cp-kv { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 10px var(--lg); margin: 0; }
+.cp-kv dt { font-size: var(--text-sm); color: var(--ink-2); line-height: 1.5; }
+.cp-kv dd { margin: 0; font-size: var(--text-body); color: var(--ink); line-height: 1.5; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.cp-kv dd > .num { font-weight: var(--weight-semibold); }
+.cp-kv-note { display: block; margin-top: 2px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-3); }
+.cp-kv-note .num { font-weight: var(--weight-semibold); color: var(--ink-2); }
+.cp-assume { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); }
+.cp-assume-grp { padding: var(--sm) var(--md) var(--md); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); min-width: 0; }
+/* The figure takes what it needs up to a little over half the row and wraps
+   past that; the label keeps the rest. As "auto" the column took the whole
+   width of its longest value — "An individual who is a Malaysian citizen or
+   permanent resident" — and every label in the box broke a word a line. */
+.cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
+.cp-kv-tight dt { font-size: var(--text-label); }
+.cp-kv-tight dd { font-size: var(--text-sm); text-align: right; }
+/* A list after a note or a table stands apart from it. */
+.cp-sec > * + .cp-kv { margin-top: var(--md); }
+/* The rows' rules run under the row's label as well as its figure. */
+table.dt.cp-table tbody th, table.dt.cp-table tbody td { border-bottom: 1px solid var(--grid); }
+table.dt.cp-table tbody tr:last-child th, table.dt.cp-table tbody tr:last-child td { border-bottom: 0; }
+.cp-mark {
+  display: inline-flex; align-items: center; height: 18px; margin-left: 6px; padding: 0 6px; vertical-align: 1px;
+  border-radius: 999px; font-size: var(--text-micro); font-weight: var(--weight-semibold); white-space: nowrap;
+  background: var(--bronze-wash); color: var(--bronze); border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
+}
+.cp-mark-quiet { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line-2); }
+.cp-unpriced { font-size: var(--text-label); color: var(--bronze); font-weight: var(--weight-semibold); }
+.cp-tablewrap { margin: 0 0 var(--sm); }
+.cp-table { font-size: var(--text-sm); }
+table.dt.cp-table th, table.dt.cp-table td { padding: 8px 12px; }
+table.dt.cp-table tbody th { font-weight: var(--weight-medium); font-size: var(--text-sm); color: var(--ink-2); white-space: normal; min-width: 11rem; }
+table.dt.cp-table tbody td { color: var(--ink); }
+table.dt.cp-table tr.cp-grp th { padding-top: 12px; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); background: var(--surface-sunk); }
+table.dt.cp-table tr.cp-sub th, table.dt.cp-table tr.cp-sub td { font-size: var(--text-label); color: var(--ink-3); }
+table.dt.cp-table tr.cp-total th, table.dt.cp-table tr.cp-total td { font-weight: var(--weight-bold); color: var(--ink); border-top: 2px solid var(--line-2); }
+table.dt.cp-exit tbody tr:nth-last-child(-n+4) th { font-weight: var(--weight-semibold); color: var(--ink); }
+table.dt.cp-exit tbody tr:nth-last-child(-n+4) td { font-weight: var(--weight-semibold); }
+/* The scenarios' names and what each changes wrap; a figure keeps its line. */
+table.dt.cp-sc-table thead th { white-space: normal; vertical-align: bottom; min-width: 7.5rem; }
+table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--text-label); color: var(--ink-3); text-align: right; min-width: 7.5rem; }
+.cp-note { margin: var(--sm) 0 0; max-width: 82ch; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); }
+.cp-note .num { font-weight: var(--weight-semibold); color: var(--ink); }
+.cp-warn { padding-left: 10px; border-left: 2px solid var(--bronze); }
+.cp-sample { margin: 0 0 var(--md); }
+.cp-points { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.cp-points li { font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); max-width: 86ch; }
+.cp-stamp { margin: var(--lg) 0 0; padding-top: var(--sm); border-top: 1px solid var(--grid); font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+
+/* The document on a phone: its blocks stack, and a table scrolls in its own
+   box rather than the page sideways. */
+@container cp-doc (max-width: 600px) {
+  .cp-head { grid-template-columns: minmax(0, 1fr); }
+  .cp-for { text-align: left; }
+  .cp-for .cp-blank { margin-left: 0; }
+  .cp-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp-assume { grid-template-columns: minmax(0, 1fr); }
+  .cp-kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .cp-kv dd { margin-bottom: 8px; }
+  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
+  .cp-kv-tight dd { margin-bottom: 0; }
+  .cp-title h1 { font-size: 22px; }
+}
+@container cp-doc (max-width: 380px) {
+  .cp-fig-v { font-size: var(--text-lead); }
+  .cp-fig { padding: 12px; }
+}
+
+/* On paper: the document alone, the page's width, on A4 — a named page, so
+   only the proposal asks a printer for A4 and every other record keeps the
+   printer's own paper. */
+@media print {
+  .cp-rail, .cp-screen-only, .cp-foot { display: none !important; }
+  .cp-layout { display: block !important; }
+  .cp-doc { page: cp-proposal; padding: 0 !important; box-shadow: none !important; border-radius: 0 !important;
+    background: #fff !important; font-size: 10pt; }
+  .cp-doc .cp-tablewrap { overflow: visible !important; border: 0 !important; border-radius: 0 !important; }
+  .cp-doc table.dt th, .cp-doc table.dt td { padding: 3px 6px; font-size: 9pt; line-height: 1.35; }
+  .cp-doc table.dt.cp-table tbody th { min-width: 0; }
+  .cp-head { grid-template-columns: minmax(0, 1fr) auto !important; }
+  .cp-for { text-align: right !important; }
+  .cp-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  /* The assumptions run as two columns of text that a page can break, not
+     a grid of boxes: a grid row cannot be split, so the first two boxes
+     went to the next page whole and left half of page one blank. */
+  .cp-assume { display: block !important; columns: 2; column-gap: 8mm; }
+  .cp-assume-grp { border: 0 !important; border-radius: 0 !important; padding: 0 0 4mm !important; }
+  .cp-assume-grp > .cp-eyebrow { break-after: avoid; }
+  .cp-kv { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) !important; gap: 6px var(--md) !important; }
+  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%) !important; }
+  .cp-fig, .cp-assume-grp { background: #fff !important; }
+  .cp-logo { background: none !important; padding: 0 !important; }
+  .cp-title { margin: var(--lg) 0 var(--md); }
+  .cp-sec { margin-top: var(--lg); }
+  .cp-sec > h2, .cp-sec h3 { break-after: avoid; }
+  .cp-fig, .cp-kv dd, .cp-note, .cp-points li, .cp-head { break-inside: avoid; }
+  /* A short table — the year's rent, the scenarios, the sale — is read
+     whole, so it moves to the next page whole; the ledger is long enough to
+     break, but never under a group's heading. */
+  .cp-tablewrap:not(:has(.cp-ledger)) { break-inside: avoid; }
+  table.dt.cp-table tr.cp-grp { break-after: avoid; }
+}
+@page cp-proposal { size: A4; margin: 14mm 14mm 16mm; }
+/* ---- end property-proposal ---- */

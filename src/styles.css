@@ -4010,6 +4010,10 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
 .cp-details > summary::before { content: '+'; display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none;
   border-radius: 999px; border: 1px solid var(--line-2); font-size: 12px; color: var(--ink-3); }
 .cp-details[open] > summary::before { content: '−'; }
+/* Its mark stays beside its words on a phone, where every summary wraps,
+   and it keeps the phone's 44px target over the 36px above. */
+.cp-details > summary { flex-wrap: nowrap; }
+@media (pointer: coarse), (max-width: 768px) { .cp-details > summary { min-height: 44px; } }
 .cp-details > summary:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; border-radius: var(--r-sm); }
 .cp-details[open] { gap: var(--sm); }
 .cp-logo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
@@ -4064,9 +4068,18 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
 .cp-kv-note .num { font-weight: var(--weight-semibold); color: var(--ink-2); }
 .cp-assume { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); }
 .cp-assume-grp { padding: var(--sm) var(--md) var(--md); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); min-width: 0; }
-.cp-kv-tight { grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--md); }
+/* The figure takes what it needs up to a little over half the row and wraps
+   past that; the label keeps the rest. As "auto" the column took the whole
+   width of its longest value — "An individual who is a Malaysian citizen or
+   permanent resident" — and every label in the box broke a word a line. */
+.cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
 .cp-kv-tight dt { font-size: var(--text-label); }
 .cp-kv-tight dd { font-size: var(--text-sm); text-align: right; }
+/* A list after a note or a table stands apart from it. */
+.cp-sec > * + .cp-kv { margin-top: var(--md); }
+/* The rows' rules run under the row's label as well as its figure. */
+table.dt.cp-table tbody th, table.dt.cp-table tbody td { border-bottom: 1px solid var(--grid); }
+table.dt.cp-table tbody tr:last-child th, table.dt.cp-table tbody tr:last-child td { border-bottom: 0; }
 .cp-mark {
   display: inline-flex; align-items: center; height: 18px; margin-left: 6px; padding: 0 6px; vertical-align: 1px;
   border-radius: 999px; font-size: var(--text-micro); font-weight: var(--weight-semibold); white-space: nowrap;
@@ -4106,7 +4119,7 @@ table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--te
   .cp-assume { grid-template-columns: minmax(0, 1fr); }
   .cp-kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .cp-kv dd { margin-bottom: 8px; }
-  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--md); }
+  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
   .cp-kv-tight dd { margin-bottom: 0; }
   .cp-title h1 { font-size: 22px; }
 }
@@ -4129,15 +4142,25 @@ table.dt.cp-sc-table tr.cp-sc-what td { white-space: normal; font-size: var(--te
   .cp-head { grid-template-columns: minmax(0, 1fr) auto !important; }
   .cp-for { text-align: right !important; }
   .cp-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
-  .cp-assume { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* The assumptions run as two columns of text that a page can break, not
+     a grid of boxes: a grid row cannot be split, so the first two boxes
+     went to the next page whole and left half of page one blank. */
+  .cp-assume { display: block !important; columns: 2; column-gap: 8mm; }
+  .cp-assume-grp { border: 0 !important; border-radius: 0 !important; padding: 0 0 4mm !important; }
+  .cp-assume-grp > .cp-eyebrow { break-after: avoid; }
   .cp-kv { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) !important; gap: 6px var(--md) !important; }
-  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) auto !important; }
+  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%) !important; }
   .cp-fig, .cp-assume-grp { background: #fff !important; }
   .cp-logo { background: none !important; padding: 0 !important; }
   .cp-title { margin: var(--lg) 0 var(--md); }
   .cp-sec { margin-top: var(--lg); }
   .cp-sec > h2, .cp-sec h3 { break-after: avoid; }
-  .cp-fig, .cp-assume-grp, .cp-kv dd, .cp-note, .cp-points li, .cp-head { break-inside: avoid; }
+  .cp-fig, .cp-kv dd, .cp-note, .cp-points li, .cp-head { break-inside: avoid; }
+  /* A short table — the year's rent, the scenarios, the sale — is read
+     whole, so it moves to the next page whole; the ledger is long enough to
+     break, but never under a group's heading. */
+  .cp-tablewrap:not(:has(.cp-ledger)) { break-inside: avoid; }
+  table.dt.cp-table tr.cp-grp { break-after: avoid; }
 }
 @page cp-proposal { size: A4; margin: 14mm 14mm 16mm; }
 /* ---- end property-proposal ---- */
