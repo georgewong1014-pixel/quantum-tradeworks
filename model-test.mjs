@@ -3400,6 +3400,8 @@ try {
           else if (f.key in m) want = m[f.key];
           else { p1.push(`"${f.key}" (${f.text}) is no figure of the model's`); continue; }
           const got = num(f.text);
+          /* A nil carries no sign: the gains tax of nothing read "−RM0". */
+          if (/[−-]RM0(?![\d,.])/.test(f.text)) p1.push(`${f.key}${f.col ? ` [${f.col}]` : ''} prints "${f.text}", a sign on a nil`);
           if (want == null) { if (got) p1.push(`${f.key}${f.col ? ` [${f.col}]` : ''}: the model has none, the proposal prints ${f.text}`); continue; }
           if (!got) { p1.push(`${f.key}${f.col ? ` [${f.col}]` : ''}: the proposal prints "${f.text}" for ${want}`); continue; }
           const exp = f.sign === '-' ? -want : want;

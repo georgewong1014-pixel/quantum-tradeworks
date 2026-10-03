@@ -2427,13 +2427,19 @@ for (const route of ROUTES) {
       const over = [...doc.querySelectorAll('*')].filter(n => n.getClientRects().length && n.getBoundingClientRect().right > d.right + 1).map(n => n.tagName + '.' + n.className).slice(0, 5);
       const wraps = [...doc.querySelectorAll('.cp-tablewrap')].filter(t => t.scrollWidth > t.clientWidth + 1).map(t => t.getAttribute('aria-label'));
       const cs = getComputedStyle(doc), h1 = getComputedStyle(doc.querySelector('h1'));
-      return { rail: shown('.cp-rail'), nav: shown('.sidebar, .appbar, .ptabs-host, .topbar, .footer, .cp-foot'), width: Math.round(d.width), vw: document.documentElement.clientWidth,
+      /* Against its own row — the label's left edge to its figure's right —
+         since on paper a group can run on into the next column, and the
+         list's box is then both columns. */
+      const crushed = [...doc.querySelectorAll('dl.cp-kv-tight dt')].filter(dt => { const a = dt.getBoundingClientRect(), b = dt.nextElementSibling.getBoundingClientRect();
+        return a.width < (b.right - a.left) * 0.3; }).map(dt => dt.textContent.trim()).slice(0, 4);
+      return { crushed, rail: shown('.cp-rail'), nav: shown('.sidebar, .appbar, .ptabs-host, .topbar, .footer, .cp-foot'), width: Math.round(d.width), vw: document.documentElement.clientWidth,
         over, wraps, bg: cs.backgroundColor, ink: h1.color, page: cs.getPropertyValue('page') || null };
     })()`);
     if (pr.rail || pr.nav) p.push(`on paper the ${pr.rail ? 'rail' : 'navigation or footer'} still prints`);
     if (pr.width < pr.vw - 2) p.push(`on paper the document is ${pr.width}px of the page's ${pr.vw}px`);
     if (pr.over.length) p.push(`on paper these run past the page's edge: ${pr.over.join(', ')}`);
     if (pr.wraps.length) p.push(`on paper these tables are wider than the page: ${pr.wraps.join(', ')}`);
+    if (pr.crushed.length) p.push(`on paper these assumptions keep under 30% of their row, a word a line: ${pr.crushed.join(', ')}`);
     if (pr.bg !== 'rgb(255, 255, 255)' || !/^rgb\((1\d|2\d|3\d), (1\d|2\d|3\d), (1\d|2\d|3\d)\)$/.test(pr.ink)) p.push(`on paper under a dark screen the document is ${pr.ink} on ${pr.bg}, not dark on white`);
   } catch (e) { p.push(`the checks threw: ${e.message}`); }
   finally {
@@ -2442,7 +2448,7 @@ for (const route of ROUTES) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (p.length) { bad++; console.log(`FAIL property-proposal: the client proposal's ways in and its paper (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, dark on white under a dark screen`);
+  else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, its assumptions label and figure, dark on white under a dark screen`);
 }
 /* ---- end property-proposal ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);

@@ -2108,6 +2108,11 @@ for (const w of [360, 390]) {
     const doc = document.getElementById('cp-doc');
     if (!doc) { out.problems.push('no proposal on the page'); return out; }
     if (doc.scrollWidth > doc.clientWidth + 1) out.problems.push('the document overflows its own box by ' + (doc.scrollWidth - doc.clientWidth) + 'px');
+    /* An assumption's label keeps at least 30% of its row: as "auto" the
+       value column took the width of its longest value and every label
+       broke a word a line. */
+    doc.querySelectorAll('dl.cp-kv-tight dt').forEach(dt => { const a = dt.getBoundingClientRect(), full = dt.nextElementSibling.getBoundingClientRect().right - a.left;
+      if (a.width < full * 0.3) out.problems.push('the assumption "' + dt.textContent.trim() + '" has ' + Math.round(a.width) + 'px of its ' + Math.round(full) + 'px row'); });
     if (${phone}) {
       const page = document.querySelector('.cp-page');
       const ctl = [...page.querySelectorAll('a[href], button, input:not([type=hidden]):not([type=file]):not([type=checkbox]), select, summary, label.checkline, [tabindex="0"]')]
@@ -2183,7 +2188,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL property-proposal — the client proposal across widths: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   property-proposal: the client proposal (two scenarios, the preparer's details and logo, a client's name, the details open) at 360, 390, 430, 768, 1024 and 1440, and 390 dark — ${measured} widths with no overflow of the page or the document, and on the phones all ${targets} controls measured are 44px targets; by the Tab key at 390 all ${stops} stops show a ring, on screen`);
+  else console.log(`ok   property-proposal: the client proposal (two scenarios, the preparer's details and logo, a client's name, the details open) at 360, 390, 430, 768, 1024 and 1440, and 390 dark — ${measured} widths with no overflow of the page or the document and every assumption's label keeping at least 30% of its row, and on the phones all ${targets} controls measured are 44px targets; by the Tab key at 390 all ${stops} stops show a ring, on screen`);
 }
 /* ---- end property-proposal ---- */
 
