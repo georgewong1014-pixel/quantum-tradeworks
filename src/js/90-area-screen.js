@@ -240,9 +240,14 @@ VIEWS.areas = () => {
      had no geocoded point to shade. */
   else if (!sarawakGeo) {
     const wait = el('div', { class: 'card' });
-    wait.append(cardHead(`${city.name} — map`, geoLoadState === 'failed'
+    const hd = cardHead(`${city.name} — map`, geoLoadState === 'failed'
       ? 'The locality positions could not be loaded, so the map cannot be drawn. The table below works without them. Reload the page to try again.'
-      : 'Loading the locality positions. The map is drawn when they arrive; the table below works now.'));
+      : 'Loading the locality positions. The map is drawn when they arrive; the table below works now.');
+    /* "Loading" is this tab's, now (data-now, NOW in 35-ui.js): served, it
+       was the page's first draw with nothing loaded, and to a reader with no
+       script it said so for good. */
+    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.');
+    wait.append(hd);
     wrap.append(wait);
   }
   else {
@@ -1051,8 +1056,8 @@ VIEWS.status = () => {
          36-row sample set and froze that. It reported "0 US companies with
          audited SEC filings" on a build holding 119 of them. */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;min-width:15rem' }, [
-        c.now ? el('div', {}, typeof c.now === 'function' ? c.now() : c.now) : null,
-        c.gate ? el('div', { style: 'color:var(--bronze);margin-top:4px' },
+        c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now) : null,
+        c.gate ? coverageCell('div', { style: 'color:var(--bronze);margin-top:4px' },
           `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`) : null,
         c.flag ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Flagged: ${c.flag}`) : null,
         c.checks?.length ? el('div', { style: 'margin-top:4px' },

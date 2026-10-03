@@ -298,9 +298,24 @@ function healthStart() {
 }
 
 /* ---- drawing ---- */
+/* WHAT RAN IN THIS TAB IS THIS TAB'S (2026-10-04). /status is served with
+   the page already drawn in it (prerender.mjs), drawn once in the render's
+   browser: "Pass … <1 ms" (its clock held), "Checking…", "Checking — 2 of 4
+   done", "Reading the latest recorded run…" — said to every crawler and to
+   a reader with no script, for good, as if run in their tab "now". Each
+   result and its time, a check still running, and the sentences that count
+   them are the tab's own (data-now, NOW in 35-ui.js): served, they say the
+   checks run in the reader's browser with the page's script; drawn, what
+   that run found. What a check verifies — its description, which a passing
+   check prints — is the same in every tab, and is served as it is. */
+/* Each no longer than what the tab says there first, so nothing below moves
+   when it does (a phone wraps the longer onto a second line). */
+const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this page’s script.',
+  quick: 'Run in your browser by this page’s script.',
+  journeys: 'Read from the site by this page’s script.' };
 const healthChip = (status) => {
   const s = HEALTH_STATE[status];
-  return el('span', { class: `chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center' }, s ? s.label : 'Checking…');
+  return el('span', { class: `chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip }, s ? s.label : 'Checking…');
 };
 const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`) : null);
 /* The result, its name and its time on one line; what was checked below it.
@@ -316,11 +331,11 @@ function healthRow({ status, title, detail, meta }) {
   return el('li', { class: 'health-row', data: { status: status || 'PENDING' }, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
     healthChip(status),
     el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, title),
-    meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums' }, meta) : null,
+    meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums', 'data-now': '' }, meta) : null,
     detail ? el('div', { style: `flex:0 0 100%;box-sizing:border-box;padding-left:${HEALTH_INDENT}` },
       Array.isArray(detail)
         ? el('ul', { style: `${text};padding:0;list-style:none` }, detail.map(d => el('li', { class: 'caption' }, d)))
-        : el('p', { class: 'caption', style: text }, detail)) : null,
+        : el('p', { class: 'caption', style: text, 'data-now': status ? null : HEALTH_NOT_RUN.detail }, detail)) : null,
   ]);
 }
 const healthList = (id) => el('ul', { id, style: 'list-style:none;padding:0;margin:var(--sm) 0 0' });
@@ -402,14 +417,14 @@ function healthSection() {
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'health-h' }, 'Does each tool work?'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Two kinds of evidence, each saying only what it checked: the tools’ own code run in your browser now, and complete journeys through the live site, as last recorded.'),
+      'Two kinds of evidence, each saying only what it checked: the tools’ own code run in your browser when the page opens, and complete journeys through the live site, as last recorded.'),
   ])));
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'Each tool’s own code, run in this tab when the page opened, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
+    'Each tool’s own code, run in your browser by this page’s script when the page opens, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
   card.append(healthList('health-quick'));
-  card.append(el('p', { class: 'metaline', id: 'health-quick-sum', role: 'status', style: 'margin-top:var(--sm)' }));
+  card.append(el('p', { class: 'metaline', id: 'health-quick-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.quick }));
   const run = el('button', { class: 'btn btn-ghost btn-sm', id: 'health-full-run', type: 'button', onclick: async () => {
     if (HEALTH.fullRunning) return;
     HEALTH.fullRunning = true;
@@ -430,7 +445,7 @@ function healthSection() {
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'A real browser, driven through the deployed site by GitHub Actions after each production deployment, nightly and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. A run is recorded here when a journey’s status or failing step changed, or once the record is a day old — never by the run on the deployment of this record itself, which serves the same app — so what is shown can trail the latest run by up to a day. Nothing checks the site between runs.'));
-  card.append(el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)' }));
+  card.append(el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys }));
   card.append(healthList('health-journeys'));
   /* Filled once the card is on the page. */
   requestAnimationFrame(healthPaint);

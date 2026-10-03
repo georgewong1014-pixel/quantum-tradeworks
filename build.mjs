@@ -665,7 +665,13 @@ export function routePages(plan) {
   const groups = new Map();
   for (const p of plan.pages) {
     if (p.path === '/') continue;
-    const key = JSON.stringify(p.head);
+    /* My Workspace's addresses never share a page with any other (2026-10-04):
+       /my/wheel and /my/options had the wheel's head, so they were served
+       pages/us-options/wheel.html — and with it the wheel's render, as
+       /my/scanner was the Scanner's dashboard's, where no /my/ address is to
+       carry one (prerenderScope). A page of their own, the same head. An
+       alias of one of My Workspace's pages (/app/watchlists) is its. */
+    const key = JSON.stringify(p.head) + (myWorkspace(p) ? ' my' : '');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(p);
   }
@@ -676,17 +682,29 @@ export function routePages(plan) {
       return { file: `${PAGES}${named.path}.html`, named, routes: group };
     })];
 }
-/* Which pages carry a render, and where each render is committed. */
+/* My Workspace's: an address under /my/, or one whose canonical address is
+   (an alias of such a page). */
+export const myWorkspace = (p) => p.path.startsWith('/my/') || new URL(p.head.canonical).pathname.startsWith('/my/');
+/* Which pages carry a render, and where each render is committed: none of
+   My Workspace's, by every address a page answers, not by its file name. */
 export function prerenderScope(plan) {
-  return routePages(plan).filter(p => !p.file.startsWith(`${PAGES}/my/`)).map(({ file, named }) => {
+  return routePages(plan).filter(p => !p.file.startsWith(`${PAGES}/my/`) && !p.routes.some(myWorkspace)).map(({ file, named }) => {
     const stem = file === 'index.html' ? 'index' : file.slice(PAGES.length + 1, -'.html'.length);
     return { file, path: named.path, view: named.view, render: `${PRERENDER}/${stem}.html`, tabs: `${PRERENDER}/${stem}.tabs.html` };
   });
 }
+/* A RENDER IS WRITTEN ONLY BY prerender.mjs (2026-10-04). A render edited by
+   hand — a link pointed elsewhere, a heading's level changed, a figure or a
+   symbol written into an attribute or a chart — was put into its page and
+   passed --check, and nothing before a commit looked at what a render says.
+   prerender.mjs records a digest of each render it writes (the manifest's
+   "digest"), and a render whose files are not what it wrote is "edited":
+   --check fails on it, as served-check does, and a build says so. */
+export const renderDigest = (views, tabs) => createHash('sha256').update(`${views}\u0000${tabs ?? ''}`, 'utf8').digest('hex').slice(0, 16);
 /* The committed renders: the manifest, and each page's #views and tab row. */
 export function readRenders(scope) {
   const manifest = existsSync(join(ROOT, MANIFEST)) ? JSON.parse(lf(readFileSync(join(ROOT, MANIFEST), 'utf8'))) : null;
-  const renders = new Map(), missing = [];
+  const renders = new Map(), missing = [], edited = [];
   for (const s of scope) {
     const m = manifest?.pages?.[s.file];
     const has = existsSync(join(ROOT, s.render));
@@ -698,13 +716,14 @@ export function readRenders(scope) {
     const views = read(s.render);
     const tabs = m.tabs ? (existsSync(join(ROOT, s.tabs)) ? read(s.tabs) : null) : null;
     if (m.tabs && tabs === null) { missing.push(`${s.file}: ${MANIFEST} says it has a tab row, and ${s.tabs} is not there`); continue; }
+    if (m.digest !== renderDigest(views, tabs)) edited.push(`${s.render}${tabs !== null ? ` and ${s.tabs}` : ''} (${s.path}) are not what prerender.mjs wrote (${m.digest ? 'the digest in' : 'no digest in'} ${MANIFEST}) — a render is written only by node prerender.mjs`);
     renders.set(s.file, { ...s, tabsFile: s.tabs, manifest: m, views, tabs });
   }
   /* What is under prerender/ that no page in scope reads. */
   const want = new Set([MANIFEST, ...[...renders.values()].flatMap(r => [r.render, ...(r.tabs !== null ? [r.tabsFile] : [])])]);
   const extra = filesUnder(PRERENDER).filter(f => !want.has(f));
   const unknown = Object.keys(manifest?.pages || {}).filter(f => !scope.some(s => s.file === f));
-  return { manifest, renders, missing, extra, unknown };
+  return { manifest, renders, missing, edited, extra, unknown };
 }
 /* The render put into its page. Each place is the template's own, exactly
    once; the render may carry no script and no stylesheet of its own. */
@@ -726,20 +745,6 @@ export function withRender(html, r) {
   if (r.tabs) put('<div class="ptabs-host" id="productTabs" hidden></div>', `<div class="ptabs-host" id="productTabs">${r.tabs}</div>`, 'the tab row');
   put('<div id="views"></div>', `<div id="views" data-served="${escAttr(r.path)}">${r.views}</div>`, 'the page');
   return html;
-}
-/* A served page less everything that is its own beyond the head: its
-   chrome, its navigation's marks, its tab row and its render. What is left
-   is the same in every page — served-check.mjs compares it with index.html's. */
-export function unserved(html) {
-  let out = html.replace(/^(<!DOCTYPE html>\n<html lang="en") data-chrome="[a-z]+" data-served>/, '$1>');
-  for (const [open, close] of Object.values(NAV_SLOTS)) {
-    const i = out.indexOf(open), j = i < 0 ? -1 : out.indexOf(close, i + open.length);
-    if (i > -1 && j > -1) out = out.slice(0, i + open.length) + out.slice(j);
-  }
-  out = out.replace(/<div class="ptabs-host" id="productTabs">[\s\S]*?<\/div>(?=\n\s*<div id="views")/, '<div class="ptabs-host" id="productTabs" hidden></div>');
-  const v0 = out.indexOf('<div id="views"'), v1 = out.indexOf('\n  <!-- What a page says about a change', v0);
-  if (v0 > -1 && v1 > -1) out = out.slice(0, v0) + '<div id="views"></div>' + out.slice(v1);
-  return out;
 }
 
 /* ─── THE HEAD, REWRITTEN ────────────────────────────────────────────────────
@@ -878,7 +883,7 @@ export function build({ bare = false } = {}) {
     if (stems.has(s.render)) throw new Error(`${s.file} and ${stems.get(s.render)} would both be rendered to ${s.render}`);
     stems.set(s.render, s.file);
   }
-  const rendered = bare ? { manifest: null, renders: new Map(), missing: [], extra: [], unknown: [] } : readRenders(scope);
+  const rendered = bare ? { manifest: null, renders: new Map(), missing: [], edited: [], extra: [], unknown: [] } : readRenders(scope);
   const page = (head, file, opts) => {
     const r = rendered.renders.get(file);
     const p = withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null));
@@ -888,9 +893,16 @@ export function build({ bare = false } = {}) {
   const html = page(rootHead, 'index.html');
   const files = appFiles(html);
   const notFound = linked(page(plan.notFound, NOT_FOUND, { notFound: true }), files);
-  /* The parameter routes' page: index.html's head and the app, no page in
-     it (GENERIC). */
-  const pages = new Map([[GENERIC, linked(page(rootHead, GENERIC), files)]]);
+  /* The parameter routes' page: index.html's title and description and the
+     app, no page in it (GENERIC) — and no address of its own (2026-10-04).
+     It carried index.html's canonical, "/": every company report, scanner
+     setup and company id it answers told a crawler that does not run the
+     script it was the homepage, and the served renders now link several
+     (/company/AAPL-SEC, /company/aapl-apple-inc/report). Like the 404 page it
+     names no canonical and asks not to be indexed; the script writes the
+     page's own canonical and takes the noindex off as it draws the page
+     (setDocumentMeta, 35-ui.js). */
+  const pages = new Map([[GENERIC, linked(page(rootHead, GENERIC, { notFound: true }), files)]]);
   const fileOfRoute = new Map();
   for (const g of routePages(plan)) {
     g.routes.forEach(p => fileOfRoute.set(p.path, g.file));
@@ -1049,6 +1061,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
      without a render. */
   const renderProblems = [
     ...rendered.missing.map(m => `no render committed for ${m} — run node prerender.mjs, then node build.mjs`),
+    ...rendered.edited.map(m => `edited: ${m}`),
     ...rendered.extra.map(f => `${f} is stale — no page in scope reads it (node prerender.mjs removes it)`),
     ...rendered.unknown.map(f => `${MANIFEST} lists ${f}, which is not a page in scope (node prerender.mjs rewrites it)`),
   ];

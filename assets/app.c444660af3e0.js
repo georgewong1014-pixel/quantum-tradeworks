@@ -21,6 +21,23 @@
    exist only on the reader's own machine, and they keep no-store. */
 const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"eb4d3e181987","sarawak-geo.json":"455742df447a","napic-h1-2025.json":"957073a57859"};
 
+/* WHETHER THIS BROWSER HELD ANYTHING OF THE READER'S BEFORE THE APP RAN
+   (2026-10-04). A static route's page is served with the app's own render of
+   it (prerender.mjs), drawn for a visitor whose browser holds nothing — and a
+   page that waits for the filed statements kept that render on screen after
+   the script had run, until they landed (drawPage, 35-ui.js). To a returning
+   reader it then said, for seconds after the script had read their storage,
+   that their own watchlists were "sample watchlists … not yours", "0 of 4
+   done", the Free plan "Current" for a reader on another, and showed again a
+   panel they had hidden. Read here, first, before any module writes a key
+   (the sample data a first visit is given is written later), so that the
+   served page stands only for a browser that is what it was drawn for. */
+const READER_HELD_AT_START = (() => {
+  try { for (let i = 0; i < localStorage.length; i++) if (String(localStorage.key(i)).startsWith('vl.')) return true; }
+  catch { /* storage switched off: nothing is held */ }
+  return false;
+})();
+
 /* ------------------------------------------------------------------ utils */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -2594,6 +2611,16 @@ const COVERAGE_PENDING = 'Checking coverage';
 function covText(fn, pending = COVERAGE_PENDING) {
   const k = coverage();
   return k.resolved ? fn(k) : pending;
+}
+/* AN ELEMENT HOLDING A COVERAGE FIGURE (2026-10-04). While the count waits
+   for the audited set, what it says is this tab's, now: "Checking coverage —
+   the audited US set is still loading" was served, drawn with nothing loaded
+   (prerender.mjs), to every crawler and to a reader with no script, for whom
+   it never loads. The element is marked so (data-now, NOW in 35-ui.js):
+   served, it says who counts it; drawn, the count or the wait. */
+const COVERAGE_SERVED = 'Counted by this page’s script once the audited set has loaded.';
+function coverageCell(tag, attrs, text) {
+  return el(tag, String(text).includes(COVERAGE_PENDING) ? { ...attrs, 'data-now': COVERAGE_SERVED } : attrs, text);
 }
 
 /* The same fact as a sentence, so two surfaces cannot word it differently.
@@ -12722,10 +12749,56 @@ const viewRoot = $('#views');
    reader without the script reads the page's heading and content, where it
    read an empty <main> under the same header on every address. The script
    draws the page live in its place on its first draw (drawPage). The address
-   it was served at, for as long as that draw has not happened. */
-let servedAt = viewRoot?.hasAttribute('data-served') ? location.pathname : null;
-const onServedPage = () => servedAt !== null
-  && (location.pathname === servedAt || (servedAt.endsWith('/index.html') && location.pathname === servedAt.slice(0, -'index.html'.length)));
+   it was served at (servedOn), and — for as long as that draw has not
+   happened — whether the served page may stand there (servedAt). */
+const servedOn = viewRoot?.hasAttribute('data-served') ? location.pathname : null;
+const atAddress = (p) => p !== null
+  && (location.pathname === p || (p.endsWith('/index.html') && location.pathname === p.slice(0, -'index.html'.length)));
+/* THE SERVED PAGE STANDS ONLY WHERE IT IS THE READER'S PAGE (2026-10-04).
+   It is the render of the bare address for a browser that holds nothing.
+   Under an address with a query it is not the page asked for: on
+   /compare?companies=aapl,msft it compared Maybank with Public Bank, for
+   three seconds after the script had chosen Apple and Microsoft, and
+   /discover?tab=heatmap stood as the screener. In a browser that held the
+   reader's own work before the app ran (READER_HELD_AT_START, 00-core.js) it
+   is a stranger's. There the page is drawn as soon as the script runs, as
+   before pages were served — the skeleton while the filings load. */
+let servedAt = servedOn !== null && !location.search && !READER_HELD_AT_START ? servedOn : null;
+const onServedPage = () => atAddress(servedAt);
+/* The served page, still on screen under its own address, whether or not it
+   may stand: what the first draw replaces with a page, not a new page. */
+const overServedPage = () => !!viewRoot?.hasAttribute('data-served') && atAddress(servedOn);
+/* NOW (2026-10-04). Some of what a page draws is true only of the tab
+   drawing it, at the moment it draws: the reader's clock ("Good evening",
+   "Prepared 2026-10-03 21:05"), a check run in the tab and how long it took,
+   something still loading, what this browser was given. A served page is
+   drawn once, by prerender.mjs, at a fixed clock with every request held —
+   and those words were served as current to every reader, and to one with no
+   script for good. Such an element carries data-now: its value is what any
+   reader, at any time, may be told in its place (empty for nothing).
+   prerender.mjs serves that value instead of what was drawn (servedCopy);
+   the stylesheet keeps it out of sight while a script that will draw the
+   page is coming (styles.css, prerender), so the drawn words take its place
+   rather than replacing others. */
+/* WHILE THE SERVED PAGE STANDS FOR THE FILINGS (2026-10-04), after the script
+   has run, the page looked finished and nothing on it answered: a tool's tab
+   pressed did nothing, no word said anything was loading, and with the file
+   unanswered it stayed so indefinitely. Where the skeleton said "Reading the
+   audited statements", a status says what is awaited — fixed at the foot of
+   the window, so nothing on the page moves — and #views is marked busy. */
+let servedWaitNote = null;
+function servedWaiting(on) {
+  if (!on) {
+    servedWaitNote?.remove(); servedWaitNote = null;
+    viewRoot?.removeAttribute('aria-busy');
+    return;
+  }
+  viewRoot?.setAttribute('aria-busy', 'true');
+  if (servedWaitNote) return;
+  servedWaitNote = el('p', { class: 'toast served-wait', role: 'status', data: { show: '1' } },
+    'Loading the filed statements. This page is drawn again when they arrive.');
+  document.body.append(servedWaitNote);
+}
 /* Some views draw part of themselves without render() — a market screen's
    or a simulation's result, "Evaluate now" on a setup — and a drawer can
    repaint its own body. Each brings headings at the level they were written
@@ -14602,8 +14675,12 @@ function giveFocusBack(h) {
 function render() {
   const samePage = renderedPage === pageOnScreen();
   /* Before anything is replaced, and on a redraw of the page on screen only
-     — see noteFocusForRedraw above. */
-  const note = !focusNote && samePage ? (focusNote = noteFocusForRedraw()) : null;
+     — see noteFocusForRedraw above. The served page drawn over by the app is
+     the page on screen too (2026-10-04): a link focused in it, by a reader
+     who had Tabbed into the page before the script ran, lost focus to
+     <body> when the app drew the same page in its place, and the next Tab
+     started again from the top. */
+  const note = !focusNote && (samePage || overServedPage()) ? (focusNote = noteFocusForRedraw()) : null;
   /* Handed back once the page is drawn — AFTER the microtasks the page's
      views queued as they drew. The valuation tab draws its three charts in
      microtasks (50-views-studio.js); handed back before them, a control
@@ -14629,9 +14706,12 @@ function drawPage(samePage) {
      them, before anything has loaded, so the same page replaces itself. Not
      as an entrance either way — the page was on screen already — and a move
      to another address draws that page as usual. */
-  const served = onServedPage();
-  if (served && realPending && UNIVERSE_VIEWS.has(State.view)) return;
+  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view)) { servedWaiting(true); return; }
+  /* The served page is replaced here, whether it stood or not (servedAt):
+     not an entrance either way. */
+  const served = overServedPage();
   servedAt = null;
+  servedWaiting(false);
   if (viewRoot.hasAttribute('data-served')) viewRoot.removeAttribute('data-served');
   renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
@@ -15754,8 +15834,15 @@ VIEWS.home = () => {
      named the page, so the heading says "My Dashboard: Good morning". The
      eyebrow is My workspace's, as on every workspace page (pageKicker), and
      the page's name — the current tab of the header above — is the
-     heading's first words for a screen reader. */
-  wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '), myDashGreeting()], lede, note: ledeNote }));
+     heading's first words for a screen reader.
+     The greeting is the reader's clock's (data-now, NOW, 35-ui.js): the page
+     is served drawn at a fixed clock (prerender.mjs), where it said "Good
+     morning" at any hour, to a reader with no script for good, and turned
+     into "Good evening" under the rest when the page was drawn. Served, it
+     says "Welcome", true at any hour (and is kept out of sight while the
+     script that greets at the hour it is comes down). */
+  wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '),
+    el('span', { 'data-now': 'Welcome' }, myDashGreeting())], lede, note: ledeNote }));
 
   /* -- first time: the checklist, and nothing else ------------------------ */
   if (!o.hasOwn) {
@@ -16021,7 +16108,11 @@ function myDashContinue(o) {
 function myDashSampleNote() {
   return el('div', { class: 'dash-note' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
-    el('p', { class: 'caption' }, 'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
+    /* What this browser was given is said by the page drawn in it (NOW,
+       35-ui.js): served to a reader whose browser runs no script, it was
+       given nothing. */
+    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
+      'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear the sample data'),
   ]);
 }
@@ -16729,7 +16820,10 @@ function renderScreener() {
        stays: twelve columns genuinely do not fit a phone, and that scroll is
        one the reader initiates deliberately on the axis the content overflows. */
     const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0;overflow-x:auto' });
-    const table = el('table', { class: 'dt', data: { density: State.density || 'comfortable' } });
+    /* screener-table: the stylesheet's own name for it, which hides it below
+       768px whether or not the cards beside it are in the page — the served
+       page has the table only (styles.css, prerender). */
+    const table = el('table', { class: 'dt screener-table', data: { density: State.density || 'comfortable' } });
     const thead = el('thead'); const htr = el('tr');
     cols.forEach(c2 => {
       const sortBy = () => { if (sc.sort.k === c2.k) sc.sort.dir *= -1; else { sc.sort.k = c2.k; sc.sort.dir = -1; } render(); };
@@ -18572,7 +18666,11 @@ VIEWS.discover = () => {
      names the product, and the page opens with the one head every product
      page wears (pageHead, 36-layouts.js; Release B) — it had an eyebrow of
      its own and no lede. */
-  wrap.append(pageHead({ title: 'Narrow the universe to what is worth reading',
+  /* The value map has an address, a title and a place in the sitemap of its
+     own (ROUTES: "Quality vs Value Map"), and was served under the
+     screener's heading — two indexed pages, one h1 (2026-10-04). It is
+     headed by its own name; the tools that ride on ?tab= keep the page's. */
+  wrap.append(pageHead({ title: State.discoverTab === 'radar' ? 'Quality vs Value Map' : 'Narrow the universe to what is worth reading',
     lede: 'Screen the companies held here on quality, financial strength and valuation.', cls: 'page-hd-tools' }));
   /* Through the address: /discover/screener and /discover/value-map have
      routes of their own, the other two ride on ?tab=. A segmented control,
@@ -25714,7 +25812,7 @@ VIEWS.launcher = () => {
     const filed = (typeof U !== 'undefined' ? U : []).filter(r => r.c.real && r.c.mkt === 'US')
       .sort((x, y) => String(x.c.name).localeCompare(String(y.c.name)));
     if (!filed.length) {
-      card.append(el('p', { class: 'body' }, `${COVERAGE_PENDING} — the audited set is still loading.`));
+      card.append(coverageCell('p', { class: 'body' }, `${COVERAGE_PENDING} — the audited set is still loading.`));
     } else {
       const cur = a.company || filed[0].c.id;
       const sel = el('select', { class: 'select', 'aria-label': 'Company',
@@ -28924,7 +29022,7 @@ function learnData() {
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
    'Up to ten fiscal years for each SEC-filed company — as many as it has filed in XBRL, and a few carry fewer; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
-   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
+   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(coverageCell('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
   const lack = el('div');
   lack.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Absent by design'));
@@ -36543,9 +36641,11 @@ VIEWS.property = () => {
     EVIDENCE.filter(e => e.rank >= 0).forEach(e => evSel.append(el('option', { value:e.id, selected: e.id === 'user' ? '' : null }, e.label)));
     /* Today on the reader's calendar. The UTC date is yesterday's in Kuching
        until 08:00, and a record accepted with the default was dated a day
-       before it was observed. caseRaisedAt formats on the local clock. */
+       before it was observed. caseRaisedAt formats on the local clock — the
+       reader's, now: served, the page carried the render's fixed date as the
+       field's (data-now, NOW in 35-ui.js), so the field is served empty. */
     const dateInp = el('input', { class:'input input-sm', type:'date',
-      value: caseRaisedAt(new Date()).slice(0, 10), 'aria-label':'Date observed' });
+      value: caseRaisedAt(new Date()).slice(0, 10), 'aria-label':'Date observed', 'data-now': '' });
     /* The field that decides whether this is evidence or a note. Optional at
        capture, because a number nobody records is worth less than one recorded
        without its source — but the register says which it is, permanently. */
@@ -47349,9 +47449,14 @@ VIEWS.areas = () => {
      had no geocoded point to shade. */
   else if (!sarawakGeo) {
     const wait = el('div', { class: 'card' });
-    wait.append(cardHead(`${city.name} — map`, geoLoadState === 'failed'
+    const hd = cardHead(`${city.name} — map`, geoLoadState === 'failed'
       ? 'The locality positions could not be loaded, so the map cannot be drawn. The table below works without them. Reload the page to try again.'
-      : 'Loading the locality positions. The map is drawn when they arrive; the table below works now.'));
+      : 'Loading the locality positions. The map is drawn when they arrive; the table below works now.');
+    /* "Loading" is this tab's, now (data-now, NOW in 35-ui.js): served, it
+       was the page's first draw with nothing loaded, and to a reader with no
+       script it said so for good. */
+    if (geoLoadState !== 'failed') hd.querySelector('.caption')?.setAttribute('data-now', 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.');
+    wait.append(hd);
     wrap.append(wait);
   }
   else {
@@ -48160,8 +48265,8 @@ VIEWS.status = () => {
          36-row sample set and froze that. It reported "0 US companies with
          audited SEC filings" on a build holding 119 of them. */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;min-width:15rem' }, [
-        c.now ? el('div', {}, typeof c.now === 'function' ? c.now() : c.now) : null,
-        c.gate ? el('div', { style: 'color:var(--bronze);margin-top:4px' },
+        c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now) : null,
+        c.gate ? coverageCell('div', { style: 'color:var(--bronze);margin-top:4px' },
           `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`) : null,
         c.flag ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Flagged: ${c.flag}`) : null,
         c.checks?.length ? el('div', { style: 'margin-top:4px' },
@@ -48886,9 +48991,24 @@ function healthStart() {
 }
 
 /* ---- drawing ---- */
+/* WHAT RAN IN THIS TAB IS THIS TAB'S (2026-10-04). /status is served with
+   the page already drawn in it (prerender.mjs), drawn once in the render's
+   browser: "Pass … <1 ms" (its clock held), "Checking…", "Checking — 2 of 4
+   done", "Reading the latest recorded run…" — said to every crawler and to
+   a reader with no script, for good, as if run in their tab "now". Each
+   result and its time, a check still running, and the sentences that count
+   them are the tab's own (data-now, NOW in 35-ui.js): served, they say the
+   checks run in the reader's browser with the page's script; drawn, what
+   that run found. What a check verifies — its description, which a passing
+   check prints — is the same in every tab, and is served as it is. */
+/* Each no longer than what the tab says there first, so nothing below moves
+   when it does (a phone wraps the longer onto a second line). */
+const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this page’s script.',
+  quick: 'Run in your browser by this page’s script.',
+  journeys: 'Read from the site by this page’s script.' };
 const healthChip = (status) => {
   const s = HEALTH_STATE[status];
-  return el('span', { class: `chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center' }, s ? s.label : 'Checking…');
+  return el('span', { class: `chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip }, s ? s.label : 'Checking…');
 };
 const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`) : null);
 /* The result, its name and its time on one line; what was checked below it.
@@ -48904,11 +49024,11 @@ function healthRow({ status, title, detail, meta }) {
   return el('li', { class: 'health-row', data: { status: status || 'PENDING' }, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
     healthChip(status),
     el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, title),
-    meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums' }, meta) : null,
+    meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums', 'data-now': '' }, meta) : null,
     detail ? el('div', { style: `flex:0 0 100%;box-sizing:border-box;padding-left:${HEALTH_INDENT}` },
       Array.isArray(detail)
         ? el('ul', { style: `${text};padding:0;list-style:none` }, detail.map(d => el('li', { class: 'caption' }, d)))
-        : el('p', { class: 'caption', style: text }, detail)) : null,
+        : el('p', { class: 'caption', style: text, 'data-now': status ? null : HEALTH_NOT_RUN.detail }, detail)) : null,
   ]);
 }
 const healthList = (id) => el('ul', { id, style: 'list-style:none;padding:0;margin:var(--sm) 0 0' });
@@ -48990,14 +49110,14 @@ function healthSection() {
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'health-h' }, 'Does each tool work?'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Two kinds of evidence, each saying only what it checked: the tools’ own code run in your browser now, and complete journeys through the live site, as last recorded.'),
+      'Two kinds of evidence, each saying only what it checked: the tools’ own code run in your browser when the page opens, and complete journeys through the live site, as last recorded.'),
   ])));
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'Each tool’s own code, run in this tab when the page opened, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
+    'Each tool’s own code, run in your browser by this page’s script when the page opens, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
   card.append(healthList('health-quick'));
-  card.append(el('p', { class: 'metaline', id: 'health-quick-sum', role: 'status', style: 'margin-top:var(--sm)' }));
+  card.append(el('p', { class: 'metaline', id: 'health-quick-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.quick }));
   const run = el('button', { class: 'btn btn-ghost btn-sm', id: 'health-full-run', type: 'button', onclick: async () => {
     if (HEALTH.fullRunning) return;
     HEALTH.fullRunning = true;
@@ -49018,7 +49138,7 @@ function healthSection() {
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'A real browser, driven through the deployed site by GitHub Actions after each production deployment, nightly and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. A run is recorded here when a journey’s status or failing step changed, or once the record is a day old — never by the run on the deployment of this record itself, which serves the same app — so what is shown can trail the latest run by up to a day. Nothing checks the site between runs.'));
-  card.append(el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)' }));
+  card.append(el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys }));
   card.append(healthList('health-journeys'));
   /* Filled once the card is on the page. */
   requestAnimationFrame(healthPaint);
@@ -50201,6 +50321,14 @@ function inputProvenance(d, k) {
   return { word: evidenceOf(ev).label, tone: null, why: evidenceOf(ev).note };
 }
 
+/* WHEN IT WAS PREPARED, ON THE READER'S CLOCK (2026-10-04). The record is
+   drawn when it is opened, so "Prepared" is the minute it was drawn — which,
+   on the page served with the record already in it (prerender.mjs), was the
+   render's fixed clock: "Prepared 2026-10-01 09:30" to every reader, for good
+   to one with no script, until the page was drawn again over it. Served, the
+   line says when it is prepared; drawn, the minute (data-now, NOW in 35-ui.js). */
+const preparedNow = () => el('span', { 'data-now': 'Prepared when this page is opened · ' }, `Prepared ${caseRaisedAt(new Date())} · `);
+
 function decisionRecordProperty() {
   const d = State.deal, m = dealModel(d), g = propertyGrade(d, m);
   const out = el('div', { class: 'decision-record' });
@@ -50223,7 +50351,7 @@ function decisionRecordProperty() {
     /* The record's own line, "Prepared …", stays the head's metaline: it is
        the one the date check and a reader look for under the heading. */
     el('p', { class: 'metaline' },
-      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
+      [preparedNow(), `${MODEL_VERSION} · research only, not advice`]),
     el('p', { class: 'caption dr-which' }, `Of ${which}.`),
   ]));
 
@@ -50400,7 +50528,7 @@ function decisionRecordWheel() {
     el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
     el('h1', {}, `${(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
     el('p', { class: 'metaline' },
-      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
+      [preparedNow(), `${MODEL_VERSION} · research only, not advice`]),
   ]));
 
   if (p.isWorkedExample) out.append(el('p', { class: 'dr-warn' },
@@ -50500,7 +50628,7 @@ VIEWS.decisionRecord = () => {
       el('p', { class: 'eyebrow' }, 'Decision record · Trading Index'),
       el('h1', {}, `${State.qtti?.symbol || 'Instrument'} — trend evidence`),
       el('p', { class: 'metaline' },
-        `Prepared ${caseRaisedAt(new Date())} · research only, not advice`),
+        [preparedNow(), 'research only, not advice']),
     ]));
     const figs = el('div', { class: 'dr-figs' });
     /* Confidence is its own measure: a run is assessable before its five

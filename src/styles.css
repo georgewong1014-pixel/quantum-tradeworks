@@ -3977,7 +3977,20 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    window's less a 15px scrollbar and, from 1024px on an app page, the
    264px sidebar, so each @container rule below is its rule from above at
    the window widths that give that container width. Once the script runs
-   the containers answer as they always have, and the layout is the same. */
+   the containers answer as they always have, and the layout is the same.
+   WITH AN OVERLAY SCROLLBAR (2026-10-04) — a Mac's trackpad, where the page
+   takes no 15px — the container is 15px wider than the window says, and in
+   a 15px band below each width below the served layout is the other one
+   until the script runs: the tab row at 941–955px (1205–1219px beside the
+   sidebar), the screener's columns at 1328–1342px and its rail at 648–662px
+   (measured: a layout shift of up to 0.22 there, none at any other width,
+   none with a classic scrollbar). Left so, measured against the other way:
+   the containers left to be containers, Chrome's first frame of a first
+   visit drew the tab row 32px too tall and corrected it by itself 150ms
+   later — a shift of 0.074 on the dashboard and 0.484 on the screener, for
+   every first visit at every width — where this costs a band of 15px at
+   four widths, for overlay scrollbars only. No rule a stylesheet can write
+   tells the two scrollbars apart. */
 :root[data-served] .ptabs-host, :root[data-served] .screener-layout { container-type: normal; }
 /* The tab row: @container (max-width: 940px) — a window up to 955px, and
    beside the app's sidebar one up to 1219px. */
@@ -4015,11 +4028,116 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    served page stands — #views[data-served], which the app's first draw of
    the page takes off. */
 #views[data-served] .segmented > span {
-  display: inline-flex; align-items: center; padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
+  /* Centred, as a button centres its words (the screener's "Absolute" stood
+     64px left of where the button put it, in a strip that stretches it). */
+  display: inline-flex; align-items: center; justify-content: center; padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
   font-size: 13px; font-weight: 500; color: var(--ink-2);
 }
 #views[data-served] .segmented > span[data-on] { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1); }
 @media (pointer: coarse), (max-width: 768px) {
   #views[data-served] .segmented > span { min-height: 44px; min-width: 44px; justify-content: center; }
+}
+
+/* EVERY INERT CONTROL KEEPS ITS CONTROL'S BOX (2026-10-04). The segmented
+   strip above was the one translated: the stylesheet draws other controls by
+   their element too, and the served page, its controls made words, drew them
+   by none of it. Learn's section tabs (.subnav button) stood as a run of
+   plain words 20px short, and every page under them moved 21px at 1280 and
+   64px on a phone when the tabs came; a filter chip (button.chip) is 44px on
+   a touch screen and was 22, and moved the screener and the comparison by up
+   to 180px; a slider (input[type=range]) was its bare value. Each rule is the
+   element's own, from above, for the word that stands where the control was
+   (data-inert, prerender.mjs), until the page is drawn. :where() keeps a
+   button's own box at no weight, so a class's rule outranks it as it
+   outranks the browser's own on a button. */
+:where(#views[data-served] [data-inert="button"], #productTabs [data-inert="button"]) { display: inline-block; text-align: center; }
+/* A field, a select or a checkbox is an inline block too: a span is inline,
+   and a height the field's class gives it (.select-sm's 34px) was ignored —
+   the calculator's tables of selects stood 13px a row short. */
+:where(#views[data-served] [data-inert="field"], #views[data-served] [data-inert="choice"]) { display: inline-block; }
+#views[data-served] .subnav > [data-inert="button"] {
+  padding: 10px 1px 11px; font-size: 13px; font-weight: 500; color: var(--ink-3);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+#views[data-served] .subnav > [data-inert="button"][data-on] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
+#views[data-served] [data-inert="range"] { display: inline-block; width: 100%; height: 20px; vertical-align: middle; overflow: hidden; }
+/* A checkbox in a .checkline: 15px, no margin (20px to a finger). */
+#views[data-served] .checkline > [data-inert="choice"] {
+  display: inline-block; flex: none; width: 15px; height: 15px; margin: 0; overflow: hidden;
+  font-size: 13px; line-height: 15px; text-align: center;
+}
+@media (pointer: coarse), (max-width: 768px) {
+  #views[data-served] .subnav > [data-inert="button"] { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
+  #views[data-served] .chip[data-inert="button"] { min-height: 44px; min-width: 44px; }
+  #views[data-served] [data-inert="range"] { height: 44px; }
+  #views[data-served] .checkline > [data-inert="choice"] { width: 20px; height: 20px; line-height: 20px; }
+}
+/* The screener's results are a table above 768px and cards below, both in
+   the page, CSS choosing (40-views-discover.js). The render has the table
+   only — what 1280px shows — and on a phone it stood for the whole wait for
+   the filings, 3,600px of cut-off columns, and was then swapped for 56
+   cards, the page 2,500px longer under a reader looking at it. Below 768px
+   the served page shows no results until the page is drawn with its cards
+   (styles above: table.dt.screener-table); a reader with no script has only
+   the table, and is shown it (scripting: none, below). */
+
+/* THE SERVED TAB ROW SHOWS THE PAGE'S OWN TAB (2026-10-04). Where the row is
+   narrower than its tabs the app scrolls the current one to the middle
+   (wireSectionTabs, 35-ui.js); a served row cannot carry a scroll position,
+   and stood at its start with the current tab out of sight — the Scanner's
+   Settings 328px past the row's end — until the page was drawn. The browser
+   puts it where the app will (scroll-initial-target, centred). */
+:root[data-served] #productTabs .ptab[aria-current="page"] { scroll-initial-target: nearest; scroll-snap-align: none center; }
+
+/* NOW (35-ui.js). What the app marks data-now is served as what any reader
+   may be told there (prerender.mjs); while a script that will draw the page
+   is coming it is kept out of sight, its box held, and the page's own words
+   arrive in it — not words of the render's clock or browser replaced. An
+   empty one holds a line. */
+@media (scripting: enabled) {
+  #views[data-served] [data-now] { visibility: hidden; }
+}
+#views[data-served] [data-now=""]:empty::before { content: "\a0"; }
+
+/* While the served page stands for the filings after the script has run
+   (servedWaiting, 35-ui.js): its words are not yet controls. */
+#views[aria-busy="true"] [data-inert] { cursor: progress; }
+.served-wait { max-width: min(92vw, 34rem); text-align: center; }
+
+/* THE SERVED PAGE TO A READER WITH NO SCRIPT (2026-10-04). The page and its
+   navigation are served whole, so a reader whose browser runs no script
+   reads them — and met controls that did nothing: empty text fields,
+   dropdowns with carets, primary buttons that lifted under the pointer;
+   Products and Resources in the header, buttons opening nothing, with their
+   links in panels that stay hidden; the phone's menu; "Report a data
+   error"; and on a page with no render of its own (a company's, the 404, My
+   Workspace's) no footer at all, so 2 of the 37 links served could be
+   reached. With no script (scripting: none) a control made inert is shown as
+   the words it holds — no box, caret, lift or pointer — and an empty one not
+   at all; the chrome's controls that need the script are not shown; the
+   footer, every link of Products, Resources and the Company column in it,
+   is shown on every page; and below 1024px the header's own links (How it
+   works, Pricing) stand under the bar. */
+@media (scripting: none) {
+  #views *, #productTabs * { cursor: auto; }
+  #views :is(a[href], a[href] *, summary, summary *), #productTabs :is(a[href], a[href] *) { cursor: pointer; }
+  #views [data-inert], #productTabs [data-inert] {
+    background: none !important; border-color: transparent !important; box-shadow: none !important;
+    transform: none !important; transition: none !important; min-height: 0 !important; height: auto !important;
+  }
+  #views [data-inert="button"]:not([data-on]) { color: var(--ink-2) !important; }
+  #views [data-inert="button"][data-on] { color: var(--ink) !important; font-weight: 600; }
+  #views [data-inert="field"]:empty, #views [data-inert="range"]:empty, #views [data-inert="details"] { display: none !important; }
+  #views :is(.segmented, .subnav):has(> [data-inert]) { background: none; border-color: transparent; box-shadow: none; }
+  #views table.dt.screener-table { display: table; }
+  #views [data-now]:empty::before { content: none; }
+  #menuProductsBtn, #menuResourcesBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
+  #disclosureMore, #footResources li:has(> [data-action="report-error"]) { display: none !important; }
+  :root:not([data-chrome]) .disclosure, :root:not([data-chrome]) .footer { display: block; }
+  :root[data-chrome="app"] .footer-grid > :nth-child(2) { display: block; }
+}
+@media (scripting: none) and (max-width: 1023.98px) {
+  .pubbar .bar-in { flex-wrap: wrap; height: auto; padding-block: 8px; }
+  .pubbar .pubnav { display: block; order: 3; flex: 1 0 100%; }
 }
 /* ---- end prerender ---- */

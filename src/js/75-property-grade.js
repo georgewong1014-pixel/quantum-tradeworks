@@ -2428,9 +2428,11 @@ VIEWS.property = () => {
     EVIDENCE.filter(e => e.rank >= 0).forEach(e => evSel.append(el('option', { value:e.id, selected: e.id === 'user' ? '' : null }, e.label)));
     /* Today on the reader's calendar. The UTC date is yesterday's in Kuching
        until 08:00, and a record accepted with the default was dated a day
-       before it was observed. caseRaisedAt formats on the local clock. */
+       before it was observed. caseRaisedAt formats on the local clock — the
+       reader's, now: served, the page carried the render's fixed date as the
+       field's (data-now, NOW in 35-ui.js), so the field is served empty. */
     const dateInp = el('input', { class:'input input-sm', type:'date',
-      value: caseRaisedAt(new Date()).slice(0, 10), 'aria-label':'Date observed' });
+      value: caseRaisedAt(new Date()).slice(0, 10), 'aria-label':'Date observed', 'data-now': '' });
     /* The field that decides whether this is evidence or a note. Optional at
        capture, because a number nobody records is worth less than one recorded
        without its source — but the register says which it is, permanently. */

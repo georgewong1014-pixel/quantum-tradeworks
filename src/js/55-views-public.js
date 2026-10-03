@@ -746,7 +746,7 @@ VIEWS.launcher = () => {
     const filed = (typeof U !== 'undefined' ? U : []).filter(r => r.c.real && r.c.mkt === 'US')
       .sort((x, y) => String(x.c.name).localeCompare(String(y.c.name)));
     if (!filed.length) {
-      card.append(el('p', { class: 'body' }, `${COVERAGE_PENDING} — the audited set is still loading.`));
+      card.append(coverageCell('p', { class: 'body' }, `${COVERAGE_PENDING} — the audited set is still loading.`));
     } else {
       const cur = a.company || filed[0].c.id;
       const sel = el('select', { class: 'select', 'aria-label': 'Company',

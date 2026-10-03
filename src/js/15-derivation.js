@@ -451,6 +451,16 @@ function covText(fn, pending = COVERAGE_PENDING) {
   const k = coverage();
   return k.resolved ? fn(k) : pending;
 }
+/* AN ELEMENT HOLDING A COVERAGE FIGURE (2026-10-04). While the count waits
+   for the audited set, what it says is this tab's, now: "Checking coverage —
+   the audited US set is still loading" was served, drawn with nothing loaded
+   (prerender.mjs), to every crawler and to a reader with no script, for whom
+   it never loads. The element is marked so (data-now, NOW in 35-ui.js):
+   served, it says who counts it; drawn, the count or the wait. */
+const COVERAGE_SERVED = 'Counted by this page’s script once the audited set has loaded.';
+function coverageCell(tag, attrs, text) {
+  return el(tag, String(text).includes(COVERAGE_PENDING) ? { ...attrs, 'data-now': COVERAGE_SERVED } : attrs, text);
+}
 
 /* The same fact as a sentence, so two surfaces cannot word it differently.
    `axis` picks which split leads; both are always reachable from the other. */

@@ -371,7 +371,7 @@ function learnData() {
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
    'Up to ten fiscal years for each SEC-filed company — as many as it has filed in XBRL, and a few carry fewer; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
-   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
+   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(coverageCell('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
   const lack = el('div');
   lack.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Absent by design'));

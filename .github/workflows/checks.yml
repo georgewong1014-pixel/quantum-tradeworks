@@ -258,10 +258,14 @@ jobs:
       # reads the page itself. build --check holds the pages to the committed
       # renders; this holds the renders to the app. Each page is drawn again
       # here as prerender.mjs draws it — its first draw, or with the filings
-      # in for a page that waits for them — and its text, its chrome and its
-      # current links must be the committed render's, and the navigation the
-      # address is served must be the app's own drawing, node for node. A view
-      # changed without `node prerender.mjs` fails here, not in production.
+      # in for a page that waits for them — and its markup (every element,
+      # attribute and word, a chart's figures with them; only what fonts
+      # decide left out), its chrome and its current links must be the
+      # committed render's, and the navigation the address is served must be
+      # the app's own drawing, node for node. A view changed without
+      # `node prerender.mjs`, or a render edited by hand, fails here, not in
+      # production. On CI a failure prints only what the app draws now, never
+      # the committed render's side.
       - name: every served page is the app's own render of it
         run: node prerender.mjs --check http://localhost:8123
 

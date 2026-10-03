@@ -202,13 +202,30 @@ try {
         the skeleton never showed, and nothing shifted by more than the 0.1
         the sweep's first-load check allows.
      Drawn as prerender.mjs draws (1280×900, light, reduced motion, Kuala
-     Lumpur, en-MY, its fixed clock) so "the same page" can be exact; from
-     live.localhost, so the app is served as production serves it.
+     Lumpur, en-MY) so "the same page" can be exact; from live.localhost, so
+     the app is served as production serves it.
      The observer is in the document before it is parsed, and it reads #views
      inside replaceChildren itself: the app's first draw runs in a microtask
      straight after its script, before the document is interactive, so an
      observer added after the navigation — or a mutation record delivered
-     after the draw — would only ever see the drawn page. */
+     after the draw — would only ever see the drawn page.
+
+     2026-10-04, after the verifiers found what this did not see:
+     - It drew at the render's own clock, so it could not see a page served
+       with that clock in it: "Good morning" to a reader at 20:15, a record
+       "Prepared 2026-10-01 09:30". It draws at another (FRAMES_CLOCK, an
+       evening two days on). What a page marks as the tab's, now (data-now,
+       35-ui.js) is compared as served; every other word must be the same.
+     - The browser's layout-shift entries see nothing of a page replaced by
+       another — the nodes are new, not moved — so Learn's section tabs,
+       served as words, moved the page 21px when they came, and the Scanner's
+       tab row moved 328px sideways, at a shift of 0. Each run of text in the
+       tab row and #views is measured where it stands before the app's script
+       has run (the script is held) and where it stands once the page is
+       drawn; none may have moved.
+     - And the served page may stand only where it is the reader's page,
+       says so while it waits, and keeps focus: see the block after the
+       pages. */
   {
     const { readFileSync } = await import('node:fs');
     const { routePlan, prerenderScope } = await import('./build.mjs');
@@ -218,16 +235,21 @@ try {
     const plan = routePlan(read('src/index.template.html'));
     const manifest = JSON.parse(read('prerender/manifest.json'));
     const live = P.asLive(BASE);
-    /* The page's text as it may be served (prerender.mjs: servedCopy, then
-       servedText) — of the page the parser built and of the app's drawing
-       alike, so the two are measured the same way. */
+    /* Not the render's clock (prerender.mjs, CLOCK: a Thursday morning). */
+    const FRAMES_CLOCK = '2026-10-03T21:05:00+08:00';
+    /* The page's text and h1 as it may be served (prerender.mjs: servedCopy,
+       then servedText) — of the page the parser built and of the app's
+       drawing alike, so the two are measured the same way. */
     const textOf = `(root) => (${P.servedText})((${P.servedCopy})(root))`;
     const observer = `(() => {
-      const textOf = ${textOf};
+      const copyOf = ${P.servedCopy}, textIn = ${P.servedText};
       const snaps = window.__served = [];
-      const snap = (el, when) => snaps.push({ when, h1: (el.querySelector('h1')?.textContent || '').replace(/\\s+/g, ' ').trim() || null,
-        text: textOf(el), served: el.hasAttribute('data-served'), skeleton: el.textContent.includes(${JSON.stringify(P.SKELETON)}),
-        waiting: typeof realPending !== 'undefined' && realPending === true });
+      const snap = (el, when) => {
+        const c = copyOf(el), h = c.querySelector('h1');
+        snaps.push({ when, h1: h ? (h.textContent.replace(/\\s+/g, ' ').trim() || null) : null, text: textIn(c),
+          served: el.hasAttribute('data-served'), skeleton: el.textContent.includes(${JSON.stringify(P.SKELETON)}),
+          waiting: typeof realPending !== 'undefined' && realPending === true });
+      };
       const replace = Element.prototype.replaceChildren;
       Element.prototype.replaceChildren = function (...nodes) {
         const views = this.id === 'views';
@@ -243,12 +265,52 @@ try {
         window.__moved.push(e.value.toFixed(3) + (typeof realPending !== 'undefined' && realPending ? ' (filings on their way)' : '') + ': ' + (e.sources || []).slice(0, 3).map(s => said(s.node) + ' ' + Math.round(s.previousRect.y) + '→' + Math.round(s.currentRect.y)).join(', '));
       } }).observe({ type: 'layout-shift', buffered: true });
     })();`;
+    /* Where each run of text in the tab row and #views stands on the page,
+       keyed by its words and how many times they came before. Not an svg's
+       (a chart is drawn a frame after its page), not a screen reader's only
+       (.sr-only), not a served field's value (the field drawn in its place
+       holds it as a value, not as text: the controls' boxes are held by the
+       words around them), and not one in a line holding what is the tab's,
+       now: that line's words are the tab's own once drawn, and may run
+       longer. */
+    function positions() {
+      const out = {}, seen = new Map();
+      for (const r of [document.getElementById('productTabs'), document.getElementById('views')]) {
+        if (!r || r.hidden) continue;
+        const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+        for (let n = w.nextNode(); n; n = w.nextNode()) {
+          const t = n.data.replace(/\s+/g, ' ').trim();
+          const e = n.parentElement;
+          if (!t || !e || e.closest('svg, [data-now], .sr-only, [data-inert="field"], [data-inert="choice"], [data-inert="range"], select, textarea')) continue;
+          const line = e.closest('p, li, h1, h2, h3, h4, h5, h6, td, th, dt, dd, label, summary');
+          if (line && line.querySelector('[data-now]')) continue;
+          const range = document.createRange();
+          range.selectNodeContents(n);
+          const b = range.getBoundingClientRect();
+          if (!b.width || !b.height) continue;
+          const k = `${r.id}: ${t.slice(0, 50)}`, i = seen.get(k) || 0;
+          seen.set(k, i + 1);
+          out[`${k} #${i}`] = [Math.round(b.left + scrollX), Math.round(b.top + scrollY)];
+        }
+      }
+      return out;
+    }
+    const movedBetween = (a, b) => Object.entries(a || {}).flatMap(([k, [x, y]]) => {
+      const z = b?.[k];
+      return z && (Math.abs(z[0] - x) > 2 || Math.abs(z[1] - y) > 2) ? [{ k, dx: z[0] - x, dy: z[1] - y }] : [];
+    });
     const pages = prerenderScope(plan);
     const bad = [];
-    let held = [], holding = true, sid = null;
+    let held = [], holding = true, sid = null, holdScript = false, scriptHeld = [];
+    const APP_SCRIPT = /\/assets\/app\.[0-9a-f]+\.js$/;
     const onPause = (e) => {
       const m = JSON.parse(e.data);
       if (m.method !== 'Fetch.requestPaused' || m.sessionId !== sid) return;
+      if (APP_SCRIPT.test(new URL(m.params.request.url).pathname)) {
+        if (holdScript) scriptHeld.push(m.params.requestId);
+        else send('Fetch.continueRequest', { requestId: m.params.requestId }, sid);
+        return;
+      }
       if (holding) held.push(m.params.requestId);
       else send('Fetch.continueRequest', { requestId: m.params.requestId }, sid);
     };
@@ -262,6 +324,33 @@ try {
       }
       return false;
     };
+    const until = async (cond, ms = 15000) => { for (const t0 = Date.now(); Date.now() - t0 < ms;) { if (await value(`!!(${cond})`)) return true; await sleep(60); } return false; };
+    const releaseAll = async () => {
+      holding = false; holdScript = false;
+      for (const requestId of [...held, ...scriptHeld]) await send('Fetch.continueRequest', { requestId }, sid);
+      held = []; scriptHeld = [];
+    };
+    const releaseScript = async () => { holdScript = false; for (const requestId of scriptHeld) await send('Fetch.continueRequest', { requestId }, sid); scriptHeld = []; };
+    /* A first visit: storage and cache emptied, and — for a returning
+       reader — what their browser holds written first. */
+    const firstVisit = async ({ seed = null, script = false } = {}) => {
+      await releaseAll();
+      await send('Page.navigate', { url: 'about:blank' }, sid);
+      await sleep(150);
+      await send('Storage.clearDataForOrigin', { origin: live, storageTypes: 'all' }, sid);
+      await send('Network.clearBrowserCache', {}, sid);
+      if (seed) {
+        await send('Page.navigate', { url: `${live}/robots.txt` }, sid);
+        await sleep(300);
+        await value(`(() => { ${Object.entries(seed).map(([k, v]) => `localStorage.setItem(${JSON.stringify(`vl.${k}`)}, ${JSON.stringify(JSON.stringify(v))});`).join('')} return true; })()`);
+      }
+      held = []; holding = true; holdScript = script; scriptHeld = [];
+    };
+    /* The served page, painted, its script not yet run: the stylesheet in,
+       two frames drawn. */
+    const SERVED_PAINTED = `!!document.querySelector('#views[data-served]') && typeof State === 'undefined'
+      && [...document.styleSheets].some(s => { try { return s.href && /\\/assets\\/app\\./.test(s.href) && s.cssRules.length > 0; } catch { return false; } })`;
+    const painted = () => value('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))');
     let maxCls = 0;
     /* One tab in the browser's own context, emptied before every page: its
        storage and its cache cleared, so each load is a first visit's. (A new
@@ -276,9 +365,10 @@ try {
       ['Emulation.setDeviceMetricsOverride', { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }],
       ['Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }],
       ['Emulation.setTimezoneOverride', { timezoneId: P.ZONE }], ['Emulation.setLocaleOverride', { locale: P.LOCALE }],
-      ['Page.addScriptToEvaluateOnNewDocument', { source: P.clockScript(P.CLOCK) }],
+      ['Page.addScriptToEvaluateOnNewDocument', { source: P.clockScript(FRAMES_CLOCK) }],
       ['Page.addScriptToEvaluateOnNewDocument', { source: observer }],
-      ['Fetch.enable', { patterns: [{ urlPattern: '*', resourceType: 'Fetch', requestStage: 'Request' }, { urlPattern: '*', resourceType: 'XHR', requestStage: 'Request' }] }]]) {
+      ['Fetch.enable', { patterns: [{ urlPattern: '*', resourceType: 'Fetch', requestStage: 'Request' }, { urlPattern: '*', resourceType: 'XHR', requestStage: 'Request' },
+        { urlPattern: '*/assets/app.*.js', resourceType: 'Script', requestStage: 'Request' }] }]]) {
       await send(method, params, sid);
     }
     try {
@@ -286,21 +376,25 @@ try {
       const m = manifest.pages?.[s.file];
       if (!m) { bad.push(s.path); console.log(`FAIL served ${s.path}: no render committed`); continue; }
       const committedText = read(s.render).replace(/\n$/, '');
-      holding = false;
-      for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid);
-      await send('Page.navigate', { url: 'about:blank' }, sid);
-      await sleep(150);
-      await send('Storage.clearDataForOrigin', { origin: live, storageTypes: 'all' }, sid);
-      await send('Network.clearBrowserCache', {}, sid);
-      held = []; holding = true;
+      /* index.html carries the app inline: there is no moment before it runs. */
+      const measure = s.file !== 'index.html';
+      await firstVisit({ script: measure });
       const problems = [];
       try {
         await send('Page.navigate', { url: live + s.path }, sid);
+        /* 0. Before the script: where everything stands. */
+        let servedAt = null;
+        if (measure) {
+          if (!await until(SERVED_PAINTED)) problems.push('the served page was not painted before the script ran');
+          else { await painted(); servedAt = await value(`(${positions})()`); }
+          await releaseScript();
+        }
         /* 1. Every request held. */
         if (!await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`)) problems.push('the page never settled with its requests held');
         const want = await value(`(${P.textOfMarkup})(${P.servedText}, ${JSON.stringify(committedText)})`);
         const one = await value(`({ snaps: window.__served, waits: UNIVERSE_VIEWS.has(State.view), served: document.getElementById('views').hasAttribute('data-served'), text: (${textOf})(document.getElementById('views')) })`);
         const first = one.snaps[0];
+        let drawnAt = null;
         if (one.waits) {
           if (one.snaps.length) problems.push(`a page that waits for the filings was drawn before they landed (${one.snaps.length} draw${one.snaps.length === 1 ? '' : 's'})`);
           if (!one.served || one.text !== want) problems.push('the served page did not stand while the filings were on their way');
@@ -315,6 +409,7 @@ try {
             let i = 0; while (i < want.length && want[i] === one.text[i]) i++;
             problems.push(`its first draw is not the served page, from character ${i}: served …${want.slice(Math.max(0, i - 30), i + 60)}… drawn …${one.text.slice(Math.max(0, i - 30), i + 60)}…`);
           }
+          if (measure) drawnAt = await value(`(${positions})()`);
         }
         /* 2. Released. */
         holding = false;
@@ -330,6 +425,7 @@ try {
             let i = 0; while (i < want.length && want[i] === two.text[i]) i++;
             problems.push(`drawn with the filings in, it is not the committed render, from character ${i}: served …${want.slice(Math.max(0, i - 30), i + 60)}… drawn …${two.text.slice(Math.max(0, i - 30), i + 60)}…`);
           }
+          if (measure) drawnAt = await value(`(${positions})()`);
         }
         if (two.snaps.some(x => x.skeleton)) problems.push('the loading skeleton was drawn');
         const h1s = [...new Set([first?.h1 ?? m.h1, ...two.snaps.map(x => x.h1)])];
@@ -337,21 +433,142 @@ try {
         maxCls = Math.max(maxCls, two.cls || 0);
         if (!(two.cls <= 0.1)) problems.push(`it shifted by ${Number(two.cls).toFixed(3)}: ${(two.moved || []).join('; ')}`);
         if (VERBOSE && two.cls > 0) (two.moved || []).forEach(x => console.log(`       moved ${x}`));
+        const moved = servedAt && drawnAt ? movedBetween(servedAt, drawnAt) : [];
+        if (moved.length) problems.push(`${moved.length} run${moved.length === 1 ? '' : 's'} of text moved when the page was drawn over the served one, by up to ${Math.max(...moved.map(x => Math.max(Math.abs(x.dx), Math.abs(x.dy))))}px: ${moved.slice(0, 4).map(x => `"${x.k}" ${x.dx ? `${x.dx > 0 ? '+' : ''}${x.dx}px across` : ''}${x.dx && x.dy ? ', ' : ''}${x.dy ? `${x.dy > 0 ? '+' : ''}${x.dy}px down` : ''}`).join('; ')}`);
         if (problems.length) { bad.push(s.path); console.log(`FAIL served ${s.path}`); problems.forEach(p => console.log(`     ${p}`)); }
-        else console.log(`ok   served ${s.path.padEnd(28)} ${one.waits ? 'stood until the filings landed, then drawn once' : 'drawn over itself, the same page'}; h1 "${m.h1}"; shift ${Number(two.cls).toFixed(3)}`);
+        else console.log(`ok   served ${s.path.padEnd(28)} ${one.waits ? 'stood until the filings landed, then drawn once' : 'drawn over itself, the same page'}; h1 "${m.h1}"; ${measure ? `${Object.keys(servedAt || {}).length} runs of text where they stood; ` : ''}shift ${Number(two.cls).toFixed(3)}`);
       } catch (e) {
         bad.push(s.path); console.log(`FAIL served ${s.path}: ${e.message}`);
       }
     }
+
+    /* THE SERVED PAGE STANDS ONLY AS THE READER'S PAGE (2026-10-04). After
+       the script has run, a page that waits for the filings keeps the served
+       page only where it is the page this reader asked for, says it is
+       waiting, and — drawn over at last — gives focus back where it was:
+       - an address with a query is not the bare address's render (it compared
+         Maybank with Public Bank under ?companies=aapl,msft, and stood as the
+         screener under ?tab=heatmap);
+       - a browser that held the reader's own work is not a first visit's
+         (their watchlists were "sample watchlists … not yours");
+       - standing, it says so (it stood silent with dead controls);
+       - a link focused in it before the script ran keeps focus when the page
+         is drawn (it fell to <body>). */
+    {
+      const said = [];
+      const check = (ok, what, got) => { if (!ok) said.push(`${what} (${JSON.stringify(got)})`); };
+      const STATE = `({ served: document.getElementById('views').hasAttribute('data-served'), pending: typeof realPending !== 'undefined' && realPending,
+        wait: (document.querySelector('.served-wait[role="status"]')?.textContent || '').trim() || null, busy: document.getElementById('views').getAttribute('aria-busy') })`;
+      for (const path of ['/compare?companies=aapl,msft', '/discover?tab=heatmap']) {
+        await firstVisit();
+        await send('Page.navigate', { url: live + path }, sid);
+        await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
+        const st = await value(STATE);
+        check(st.pending && !st.served, `${path}: with the filings on their way, the served render of the bare address still stood`, st);
+      }
+      await firstVisit({ seed: { onboarding: { done: true, at: '2026-09-01T00:00:00Z' }, watchlists: [{ id: 'wl-frames-own', name: 'My banks', ids: ['MAYBANK', 'AAPL'], created: '2026-09-01' }] } });
+      await send('Page.navigate', { url: `${live}/app` }, sid);
+      await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
+      { const st = await value(STATE); check(st.pending && !st.served, '/app in a browser holding the reader\'s own watchlist: the first visit\'s render still stood once the script had read it', st); }
+      await firstVisit();
+      await send('Page.navigate', { url: `${live}/pricing` }, sid);
+      await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
+      { const st = await value(STATE); check(st.pending && st.served && /filed statements/i.test(st.wait || '') && st.busy === 'true', '/pricing standing for the filings after its script ran: no status saying it waits, or #views not busy', st); }
+      holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = [];
+      await quiet(`typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served')`);
+      { const st = await value(STATE); check(!st.wait && st.busy === null, '/pricing drawn: the waiting status or the busy mark stayed', st); }
+      for (const [path, waits] of [['/about', false], ['/pricing', true]]) {
+        await firstVisit({ script: true });
+        await send('Page.navigate', { url: live + path }, sid);
+        if (!await until(SERVED_PAINTED)) { said.push(`${path}: the served page was not painted before the script ran`); continue; }
+        const focused = await value(`(() => { const a = document.querySelector('#views a[href]'); if (!a) return null; a.focus(); return document.activeElement === a ? { href: a.getAttribute('href'), text: a.textContent.trim().slice(0, 60) } : null; })()`);
+        if (!focused) { said.push(`${path}: no link in the served page took focus`); continue; }
+        await releaseScript();
+        if (waits) {
+          await quiet(`typeof State !== 'undefined' && !!State.view`);
+          holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = [];
+        }
+        await quiet(`typeof State !== 'undefined' && !document.getElementById('views').hasAttribute('data-served')${waits ? ' && !realPending' : ''}`);
+        const now = await value(`(() => { const a = document.activeElement; return a && a !== document.body ? { tag: a.localName, inViews: !!a.closest('#views'), href: a.getAttribute('href'), text: (a.textContent || '').trim().slice(0, 60) } : { tag: 'body' }; })()`);
+        check(now.tag === 'a' && now.inViews && now.href === focused.href && now.text === focused.text, `${path}: "${focused.text}" (${focused.href}) had focus in the served page; once the page was drawn focus was on`, now);
+      }
+      await releaseAll();
+      if (said.length) { bad.push('the served page standing'); console.log('FAIL served pages standing for the filings'); said.forEach(x => console.log(`     ${x}`)); }
+      else console.log('ok   served pages: under an address with a query, or in a browser that held the reader\'s work, the served render does not stand once the script has run; standing for the filings it says so and marks #views busy, both gone once drawn; a link focused in it keeps focus through the draw (/about at once, /pricing when the filings land)');
+    }
+    /* A READER WITH NO SCRIPT (2026-10-04). The served page and its
+       navigation are all such a reader has, and they met controls that did
+       nothing — empty fields, dropdowns with carets, buttons that lifted
+       under the pointer, Products and Resources opening no panel, the
+       phone's menu — a disclosure opening on nothing, and on a page with no
+       render (a company's, the 404, My Workspace's) no footer, so 2 of the
+       37 links served could be reached. With the script switched off, at
+       1280 and on a 390px phone: no control the script makes work is shown
+       as one — no button anywhere on the page, no inert control in a box or
+       under a pointer, no empty field — and the products, Pricing and every
+       resource are links on screen, How it works too wherever the public
+       header is. */
+    {
+      const said = [];
+      const { result: { targetId: nid } } = await send('Target.createTarget', { url: 'about:blank' });
+      const nsid = (await send('Target.attachToTarget', { targetId: nid, flatten: true })).result.sessionId;
+      const nv = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true }, nsid)).result?.result?.value;
+      await send('Page.enable', {}, nsid); await send('Runtime.enable', {}, nsid);
+      await send('Emulation.setScriptExecutionDisabled', { value: true }, nsid);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, nsid);
+      const probe = `(() => {
+        const shown = (n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(n).visibility !== 'hidden'; };
+        const buttons = [...document.querySelectorAll('button')].filter(shown).map(b => (b.getAttribute('aria-label') || b.textContent).trim().replace(/\\s+/g, ' ').slice(0, 40));
+        /* What the script would make a control of: marked so by prerender.mjs,
+           or wearing a control's class — not a link, not a disclosure's
+           summary, which work without it. */
+        const controls = [...document.querySelectorAll('#views [data-inert], #productTabs [data-inert], #views :is(.btn, .select, .input):not(a, summary)')].filter(shown).flatMap(n => {
+          const c = getComputedStyle(n), bg = c.backgroundColor, img = c.backgroundImage;
+          const boxed = (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') || img !== 'none' || c.boxShadow !== 'none'
+            || ['Top', 'Right', 'Bottom', 'Left'].some(s => parseFloat(c['border' + s + 'Width']) > 0 && c['border' + s + 'Color'] !== 'rgba(0, 0, 0, 0)');
+          const empty = (/^(field|range)$/.test(n.dataset.inert) || n.matches('.select, .input')) && !n.textContent.trim();
+          return boxed || c.cursor === 'pointer' || empty || n.dataset.inert === 'details' ? [(n.dataset.inert || n.className) + ' "' + n.textContent.trim().slice(0, 30) + '"' + (boxed ? ' boxed' : '') + (c.cursor === 'pointer' ? ' pointer' : '') + (empty ? ' empty' : '')] : [];
+        });
+        /* A disclosure the script fills when it opens: shown, it opens on nothing. */
+        const emptyDetails = [...document.querySelectorAll('#views details')].filter(d => shown(d) && ![...d.childNodes].some(k => !(k.nodeType === 1 && k.localName === 'summary') && ((k.textContent || '').trim() || (k.nodeType === 1 && k.querySelector('img, svg, table')))))
+          .map(d => (d.querySelector('summary')?.textContent || '').trim().slice(0, 40));
+        const hrefs = new Set([...document.querySelectorAll('a[href]')].filter(shown).map(a => a.getAttribute('href')));
+        const footer = document.querySelector('body > .footer');
+        return { buttons, controls, emptyDetails, hrefs: [...hrefs], footer: !!footer && shown(footer), pubbar: !!document.querySelector('.pubbar') && shown(document.querySelector('.pubbar')), scripted: typeof State !== 'undefined' };
+      })()`;
+      const NEED = ['/research', '/app/scanner', '/property', '/pricing', '/methodology', '/data-sources', '/learn/glossary', '/status', '/about', '/contact'];
+      for (const [w, h, mobile] of [[1280, 900, false], [390, 844, true]]) {
+        await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, nsid);
+        await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 1 }, nsid);
+        for (const path of ['/about', '/research', '/discover/screener', '/app', '/app/scanner/setups', '/status', '/company/aapl-apple-inc', '/nope-for-coverage-frames', '/my/portfolio']) {
+          await send('Page.navigate', { url: live + path }, nsid);
+          for (let i = 0; i < 60 && await nv('document.readyState') !== 'complete'; i++) await sleep(100);
+          await sleep(200);
+          const r = await nv(probe);
+          if (!r || r.scripted) { said.push(`${w} ${path}: the script ran`); continue; }
+          const p = [];
+          if (r.buttons.length) p.push(`${r.buttons.length} button${r.buttons.length === 1 ? '' : 's'} shown that need the script: ${r.buttons.slice(0, 5).join(' · ')}`);
+          if (r.controls.length) p.push(`${r.controls.length} inert control${r.controls.length === 1 ? '' : 's'} drawn as one: ${r.controls.slice(0, 4).join(' · ')}`);
+          if (r.emptyDetails.length) p.push(`a disclosure that opens on nothing: ${r.emptyDetails.join(' · ')}`);
+          if (!r.footer) p.push('no footer shown');
+          const missing = NEED.filter(x => !r.hrefs.includes(x));
+          if (r.pubbar && !r.hrefs.includes('/how-it-works')) missing.push('/how-it-works');
+          if (missing.length) p.push(`no link on screen to ${missing.join(', ')}`);
+          p.forEach(x => said.push(`${w} ${path}: ${x}`));
+        }
+      }
+      await send('Target.closeTarget', { targetId: nid });
+      if (said.length) { bad.push('a reader with no script'); console.log('FAIL served pages to a reader with no script'); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); if (said.length > 30) console.log(`     … and ${said.length - 30} more`); }
+      else console.log('ok   served pages to a reader with no script (1280 and a 390px phone; public, app, company, 404 and My Workspace pages): no button shown, no inert control boxed, under a pointer or empty, no disclosure opening on nothing, the footer on every page, and the products, Pricing and every resource linked on screen — How it works too under the public header');
+    }
     } finally {
-      holding = false;
-      for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid);
+      await releaseAll();
       await send('Target.closeTarget', { targetId: tid });
     }
     ws.removeEventListener('message', onPause);
     console.log(bad.length
-      ? `\nserved pages: ${bad.length} of ${pages.length} changed in their first frames beyond gaining content: ${bad.join(', ')}`
-      : `\nserved pages: all ${pages.length} carry their page from the first frame — the same text, the same h1, no skeleton, a shift of at most ${maxCls.toFixed(3)}`);
+      ? `\nserved pages: ${bad.length} failed — they changed in their first frames beyond gaining content, or stood where they should not: ${bad.join(', ')}`
+      : `\nserved pages: all ${pages.length} carry their page from the first frame — the same text and h1 at another clock than the render's, every run of text where it stood before the script, no skeleton, a shift of at most ${maxCls.toFixed(3)}`);
     failures += bad.length;
   }
   /* ---- end prerender ---- */

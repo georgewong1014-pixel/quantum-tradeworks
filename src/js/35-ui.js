@@ -882,10 +882,56 @@ const viewRoot = $('#views');
    reader without the script reads the page's heading and content, where it
    read an empty <main> under the same header on every address. The script
    draws the page live in its place on its first draw (drawPage). The address
-   it was served at, for as long as that draw has not happened. */
-let servedAt = viewRoot?.hasAttribute('data-served') ? location.pathname : null;
-const onServedPage = () => servedAt !== null
-  && (location.pathname === servedAt || (servedAt.endsWith('/index.html') && location.pathname === servedAt.slice(0, -'index.html'.length)));
+   it was served at (servedOn), and — for as long as that draw has not
+   happened — whether the served page may stand there (servedAt). */
+const servedOn = viewRoot?.hasAttribute('data-served') ? location.pathname : null;
+const atAddress = (p) => p !== null
+  && (location.pathname === p || (p.endsWith('/index.html') && location.pathname === p.slice(0, -'index.html'.length)));
+/* THE SERVED PAGE STANDS ONLY WHERE IT IS THE READER'S PAGE (2026-10-04).
+   It is the render of the bare address for a browser that holds nothing.
+   Under an address with a query it is not the page asked for: on
+   /compare?companies=aapl,msft it compared Maybank with Public Bank, for
+   three seconds after the script had chosen Apple and Microsoft, and
+   /discover?tab=heatmap stood as the screener. In a browser that held the
+   reader's own work before the app ran (READER_HELD_AT_START, 00-core.js) it
+   is a stranger's. There the page is drawn as soon as the script runs, as
+   before pages were served — the skeleton while the filings load. */
+let servedAt = servedOn !== null && !location.search && !READER_HELD_AT_START ? servedOn : null;
+const onServedPage = () => atAddress(servedAt);
+/* The served page, still on screen under its own address, whether or not it
+   may stand: what the first draw replaces with a page, not a new page. */
+const overServedPage = () => !!viewRoot?.hasAttribute('data-served') && atAddress(servedOn);
+/* NOW (2026-10-04). Some of what a page draws is true only of the tab
+   drawing it, at the moment it draws: the reader's clock ("Good evening",
+   "Prepared 2026-10-03 21:05"), a check run in the tab and how long it took,
+   something still loading, what this browser was given. A served page is
+   drawn once, by prerender.mjs, at a fixed clock with every request held —
+   and those words were served as current to every reader, and to one with no
+   script for good. Such an element carries data-now: its value is what any
+   reader, at any time, may be told in its place (empty for nothing).
+   prerender.mjs serves that value instead of what was drawn (servedCopy);
+   the stylesheet keeps it out of sight while a script that will draw the
+   page is coming (styles.css, prerender), so the drawn words take its place
+   rather than replacing others. */
+/* WHILE THE SERVED PAGE STANDS FOR THE FILINGS (2026-10-04), after the script
+   has run, the page looked finished and nothing on it answered: a tool's tab
+   pressed did nothing, no word said anything was loading, and with the file
+   unanswered it stayed so indefinitely. Where the skeleton said "Reading the
+   audited statements", a status says what is awaited — fixed at the foot of
+   the window, so nothing on the page moves — and #views is marked busy. */
+let servedWaitNote = null;
+function servedWaiting(on) {
+  if (!on) {
+    servedWaitNote?.remove(); servedWaitNote = null;
+    viewRoot?.removeAttribute('aria-busy');
+    return;
+  }
+  viewRoot?.setAttribute('aria-busy', 'true');
+  if (servedWaitNote) return;
+  servedWaitNote = el('p', { class: 'toast served-wait', role: 'status', data: { show: '1' } },
+    'Loading the filed statements. This page is drawn again when they arrive.');
+  document.body.append(servedWaitNote);
+}
 /* Some views draw part of themselves without render() — a market screen's
    or a simulation's result, "Evaluate now" on a setup — and a drawer can
    repaint its own body. Each brings headings at the level they were written
@@ -2762,8 +2808,12 @@ function giveFocusBack(h) {
 function render() {
   const samePage = renderedPage === pageOnScreen();
   /* Before anything is replaced, and on a redraw of the page on screen only
-     — see noteFocusForRedraw above. */
-  const note = !focusNote && samePage ? (focusNote = noteFocusForRedraw()) : null;
+     — see noteFocusForRedraw above. The served page drawn over by the app is
+     the page on screen too (2026-10-04): a link focused in it, by a reader
+     who had Tabbed into the page before the script ran, lost focus to
+     <body> when the app drew the same page in its place, and the next Tab
+     started again from the top. */
+  const note = !focusNote && (samePage || overServedPage()) ? (focusNote = noteFocusForRedraw()) : null;
   /* Handed back once the page is drawn — AFTER the microtasks the page's
      views queued as they drew. The valuation tab draws its three charts in
      microtasks (50-views-studio.js); handed back before them, a control
@@ -2789,9 +2839,12 @@ function drawPage(samePage) {
      them, before anything has loaded, so the same page replaces itself. Not
      as an entrance either way — the page was on screen already — and a move
      to another address draws that page as usual. */
-  const served = onServedPage();
-  if (served && realPending && UNIVERSE_VIEWS.has(State.view)) return;
+  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view)) { servedWaiting(true); return; }
+  /* The served page is replaced here, whether it stood or not (servedAt):
+     not an entrance either way. */
+  const served = overServedPage();
   servedAt = null;
+  servedWaiting(false);
   if (viewRoot.hasAttribute('data-served')) viewRoot.removeAttribute('data-served');
   renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))

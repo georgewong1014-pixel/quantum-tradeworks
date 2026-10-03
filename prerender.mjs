@@ -7,12 +7,18 @@
  *   node prerender.mjs --worktree      the same from the working tree's tracked files, for
  *                                      a change not yet committed — still no personal file
  *   node prerender.mjs --check <url>   render every page at <url> again and fail if a page's
- *                                      text, its chrome, its current links or its served
+ *                                      markup, its chrome, its current links or its served
  *                                      navigation differ from what is committed
  *
+ *   node prerender.mjs --self-test     the guards that keep a run to its own clean copy, its
+ *                                      own server and its own browser, held (SELF-TEST, below)
+ *
  *   --only /pricing,/about    just these pages (a write keeps every other render)
- *   --port <n>                the clean copy's server (default 8125, or PRERENDER_PORT)
- *   CDP_PORT                  Chrome's debugging port, as for every harness
+ *   --port <n>                the clean copy's server (or PRERENDER_PORT; by default a port
+ *                             the system says is free). It must be free: nothing is drawn
+ *                             from a server this run did not start.
+ *   CDP_PORT                  Chrome's debugging port (by default one Chrome picks). It must
+ *                             be free: nothing is drawn in a browser this run did not start.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS
@@ -80,18 +86,23 @@
  * the app's stylesheet only). servedCopy, below, is the one place this is
  * done; the manifest counts each kind per page.
  *
- * --check compares TEXT, not bytes: a chart's geometry and the labels it
- * fits by measuring them are the machine's fonts', and the harnesses hold
- * its numbers; svg text is left out for the same reason.
+ * --check compares the MARKUP, not the bytes (servedSignature, below): every
+ * element, attribute and word, a chart's words and figures with them — only
+ * where a chart's marks sit and whether a scrolling strip is faded, which the
+ * machine's fonts decide, are left out. (It compared the text outside svg
+ * only until 2026-10-04, and a link sent elsewhere, a heading's level, an
+ * attribute or a chart's figures could change without it failing.)
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, copyFileSync, readdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { routePlan, prerenderScope, NAV_SLOTS, siteOrigin } from './build.mjs';
+import { routePlan, prerenderScope, NAV_SLOTS, siteOrigin, renderDigest } from './build.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -99,8 +110,15 @@ const flag = (n) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i 
 const CHECK = argv.includes('--check');
 const WORKTREE = argv.includes('--worktree');
 const ONLY = (flag('only') || '').split(',').map(s => s.trim()).filter(Boolean);
-const PORT = Number(flag('port') || process.env.PRERENDER_PORT || 8125);
-const CDP = Number(process.env.CDP_PORT) || 9450 + (process.pid % 150);
+/* No default port: the clean copy is served on one the system says is free
+   (freePort), and a port that is named must be free — prerender never draws
+   from a server it did not start (serve, below). 8125, the default this had,
+   is the port the owner's own server, personal data and all, is run on. */
+const PORT = Number(flag('port') || process.env.PRERENDER_PORT || 0);
+/* Chrome's debugging port: by default one Chrome picks for itself, read back
+   from the profile it was started with (startBrowser), so the browser drawn
+   in is always the one started here. */
+const CDP = Number(process.env.CDP_PORT) || 0;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const lf = (t) => t.split('\r\n').join('\n');
 
@@ -130,17 +148,71 @@ const CANDIDATES = [
 ].filter(Boolean);
 const CI_FLAGS = process.env.CI ? ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] : [];
 
-async function startBrowser() {
+/* Whether anything answers HTTP at an address — a server, a browser's
+   devtools — within a second. */
+async function answers(url) {
+  try { const r = await fetch(url, { signal: AbortSignal.timeout(1000) }); await r.arrayBuffer().catch(() => {}); return true; } catch { return false; }
+}
+/* A port nothing listens on, as the system hands one out. */
+function freePort() {
+  return new Promise((res, rej) => {
+    const s = createServer();
+    s.once('error', rej);
+    s.listen(0, () => { const { port } = s.address(); s.close(() => res(port)); });
+  });
+}
+
+/* THE BROWSER IS PRERENDER'S OWN (2026-10-03). It connected to whatever
+   answered on its debugging port: a Chrome already there — another
+   harness's, or autoshot's, whose profile holds the owner's signed-in
+   session — was drawn in instead of the fresh one started here, its own
+   window and scrollbars and all, and the run said nothing. So the Chrome is
+   started with a profile made for it, and it is reached at the address it
+   writes into that profile (DevToolsActivePort) — never at a port that
+   merely answers. A port named in CDP_PORT must be free first. */
+export async function startBrowser({ cdpPort = CDP } = {}) {
   const bin = CANDIDATES.find(existsSync);
   if (!bin) throw new Error('no Chrome or Edge found — set CHROME_PATH');
-  const profile = join(tmpdir(), `cdp-prerender-${process.pid}`);
-  const proc = spawn(bin, [`--remote-debugging-port=${CDP}`, `--user-data-dir=${profile}`, '--headless=new', '--no-first-run',
-    '--no-default-browser-check', '--disable-extensions', '--disable-gpu', '--hide-scrollbars', 'about:blank', ...CI_FLAGS], { stdio: 'ignore' });
+  if (cdpPort && await answers(`http://127.0.0.1:${cdpPort}/json/version`))
+    throw new Error(`port ${cdpPort} (CDP_PORT) already has a browser's devtools on it — prerender draws only in a Chrome it starts itself, in a fresh profile; close that one or leave CDP_PORT unset`);
+  const profile = join(tmpdir(), `cdp-prerender-${process.pid}-${randomBytes(4).toString('hex')}`);
+  rmSync(profile, { recursive: true, force: true });
+  mkdirSync(profile, { recursive: true });
+  /* With a scrollbar, as a reader's Windows or Linux browser has one
+     (2026-10-04). Drawn with --hide-scrollbars, the page was 15px wider than
+     at the same window in such a browser, and a chart the app sizes to its
+     box was served 568px across where the reader's page draws it at 553:
+     served scaled down, then drawn again at its own size, and the property
+     calculator's sensitivity chart grew 8px under the reader, moving
+     everything after it. (An overlay scrollbar — a Mac's trackpad — takes no
+     width; a render can be the same as one kind of browser, and is the
+     same as the kind every harness here and CI's runner draws with.) */
+  /* Its first page is one only this run knows the address of: on a port
+     named in CDP_PORT — where Chrome writes no DevToolsActivePort — the
+     browser answering is known as this one by that page among its own. */
+  const mark = `data:text/plain,prerender-${randomBytes(8).toString('hex')}`;
+  const proc = spawn(bin, [`--remote-debugging-port=${cdpPort}`, `--user-data-dir=${profile}`, '--headless=new', '--no-first-run',
+    '--no-default-browser-check', '--disable-extensions', '--disable-gpu', mark, ...CI_FLAGS], { stdio: 'ignore' });
   let url = null;
-  for (let i = 0; i < 80 && !url; i++) {
-    try { url = (await (await fetch(`http://127.0.0.1:${CDP}/json/version`)).json()).webSocketDebuggerUrl; } catch { await sleep(250); }
+  for (let i = 0; i < 200 && !url; i++) {
+    if (!cdpPort) {
+      try {
+        const [port, path] = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split(/\r?\n/).map(s => s.trim());
+        if (/^\d+$/.test(port) && path?.startsWith('/devtools/browser/')) url = `ws://127.0.0.1:${port}${path}`;
+      } catch { /* not written yet */ }
+    } else {
+      try {
+        const list = await (await fetch(`http://127.0.0.1:${cdpPort}/json/list`, { signal: AbortSignal.timeout(1000) })).json();
+        if (list.some(t => t.url === mark)) url = (await (await fetch(`http://127.0.0.1:${cdpPort}/json/version`, { signal: AbortSignal.timeout(1000) })).json()).webSocketDebuggerUrl;
+      } catch { /* not up yet */ }
+    }
+    if (!url) { if (proc.exitCode !== null) break; await sleep(100); }
   }
-  if (!url) { proc.kill(); throw new Error(`devtools never came up on port ${CDP}`); }
+  if (!url) {
+    proc.kill();
+    await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(() => {});
+    throw new Error(`the Chrome started here never opened its devtools${cdpPort ? ` on port ${cdpPort}` : ''}`);
+  }
   const ws = new WebSocket(url);
   await new Promise((res, rej) => { ws.addEventListener('open', res, { once: true }); ws.addEventListener('error', () => rej(new Error('could not connect to devtools')), { once: true }); });
   let id = 0;
@@ -301,9 +373,21 @@ async function settle(tab, { filings }) {
      contenteditable and autofocus are removed, and so are <script>,
      <template>, <noscript>, <canvas>, <iframe>, <object>, <embed> and
      <datalist>; a <form> becomes a <div> with what was in it.
-   counts says how many of each. servedText(root) is the text --check and
-   coverage-frames.mjs compare: every text node outside an <svg>, its
-   whitespace collapsed. */
+   2026-10-04:
+   - every control made inert is marked data-inert (its kind), so the
+     stylesheet can show a reader with no script text where a control was
+     (styles.css, prerender: scripting none), and a slider is its stated
+     value (aria-valuetext) or nothing — never its position ("As of 9");
+   - what the app marks data-now (NOW, 35-ui.js: the reader's clock, a check
+     run in the tab, a load in progress) is served as the value it gives —
+     what any reader may be told there at any time — not as it was drawn;
+   - a table cell keeps no tab stop (the grid's arrow keys are the script's),
+     a disclosure whose body the script fills is marked data-inert, and an
+     inline cursor:pointer goes: before the script, nothing is clickable but
+     a link.
+   counts says how many of each. servedText(root) is the text coverage-frames
+   compares: every text node outside an <svg>, its whitespace collapsed;
+   servedSignature(root) is what --check compares (below). */
 export function servedCopy(live, counts = {}) {
   const KEEP = ['id', 'class', 'style', 'hidden'];
   const INTERACTIVE = new Set(['button', 'link', 'checkbox', 'radio', 'switch', 'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
@@ -332,17 +416,42 @@ export function servedCopy(live, counts = {}) {
        draws it by (data-on: styles.css, prerender), not its state. */
     if (tag === 'button') {
       const s = span(c);
+      s.setAttribute('data-inert', 'button');
       if (o.getAttribute('aria-pressed') === 'true' || o.getAttribute('aria-selected') === 'true') s.setAttribute('data-on', '');
       s.append(...c.childNodes); c.replaceWith(s); add('buttons'); continue;
     }
-    if (tag === 'select') { const s = span(c); s.textContent = [...o.selectedOptions].map(x => x.textContent.trim()).join(', '); c.replaceWith(s); add('fields'); continue; }
-    if (tag === 'textarea') { const s = span(c); s.textContent = o.value; c.replaceWith(s); add('fields'); continue; }
+    if (tag === 'select') {
+      const s = span(c); s.setAttribute('data-inert', 'field'); s.textContent = [...o.selectedOptions].map(x => x.textContent.trim()).join(', ');
+      /* A select is as wide as its widest choice, a span as its chosen one:
+         where nothing sets the select's width, that width is held (the
+         calculator's demand table's first column took the difference, and
+         its rows grew 18px each when the selects came). */
+      const r = o.getBoundingClientRect(), was = o.getAttribute('style');
+      o.style.width = 'auto'; o.style.minWidth = '0'; o.style.maxWidth = 'none'; o.style.flex = 'none'; o.style.justifySelf = 'start'; o.style.alignSelf = 'start';
+      const own = o.getBoundingClientRect().width;
+      if (was === null) o.removeAttribute('style'); else o.setAttribute('style', was);
+      if (r.width && Math.abs(own - r.width) < 1) s.style.minWidth = `${Math.round(r.width)}px`;
+      c.replaceWith(s); add('fields'); continue;
+    }
+    /* A textarea's height is its rows', which a span cannot carry: it is
+       held, as drawn (the Trading Index's notes field moved the page 27px). */
+    if (tag === 'textarea') { const s = span(c); s.setAttribute('data-inert', 'field'); s.style.minHeight = `${Math.round(o.getBoundingClientRect().height)}px`; s.style.whiteSpace = 'pre-wrap'; s.textContent = o.value; c.replaceWith(s); add('fields'); continue; }
     const type = String(o.type || 'text').toLowerCase();
     if (type === 'hidden' || type === 'file') { c.remove(); add('removed'); continue; }
     const s = span(c);
-    if (type === 'checkbox' || type === 'radio') { s.textContent = o.checked ? '☑' : '☐'; add('choices'); }
-    else { s.textContent = o.value; add('fields'); }
+    if (type === 'checkbox' || type === 'radio') { s.setAttribute('data-inert', 'choice'); s.textContent = o.checked ? '☑' : '☐'; add('choices'); }
+    /* A slider's value is a position ("9" of 5 to 9), not what it means. */
+    else if (type === 'range') { s.setAttribute('data-inert', 'range'); s.textContent = o.getAttribute('aria-valuetext') || ''; add('fields'); }
+    else { s.setAttribute('data-inert', 'field'); s.textContent = o.value; add('fields'); }
+    if (o.hasAttribute('data-now')) s.setAttribute('data-now', o.getAttribute('data-now'));
     c.replaceWith(s);
+  }
+  /* What is this tab's, now (NOW, 35-ui.js): what any reader may be told. */
+  for (const n of root.querySelectorAll('[data-now]')) if (root.contains(n)) { n.textContent = n.getAttribute('data-now'); add('now'); }
+  /* A disclosure whose body the script fills when it opens. */
+  for (const d of root.querySelectorAll('details')) {
+    const body = [...d.childNodes].filter(k => !(k.nodeType === 1 && k.localName === 'summary'));
+    if (!body.some(k => (k.textContent || '').trim() || (k.nodeType === 1 && k.querySelector('img, svg, table')))) { d.setAttribute('data-inert', 'details'); add('emptyDetails'); }
   }
   for (const n of root.querySelectorAll('script, template, noscript, canvas, iframe, object, embed, datalist')) { n.remove(); add('removed'); }
   for (const n of root.querySelectorAll('form')) {
@@ -353,6 +462,14 @@ export function servedCopy(live, counts = {}) {
   for (const n of [root, ...root.querySelectorAll('*')]) {
     for (const at of [...n.attributes]) if (/^on/i.test(at.name) || ['contenteditable', 'autofocus', 'aria-activedescendant'].includes(at.name)) n.removeAttribute(at.name);
     if (n.getAttribute('tabindex') === '-1') n.removeAttribute('tabindex');
+    /* A grid's first cell is its tab stop for the arrow keys (gridKeyboard,
+       35-ui.js): served, a stop where no key does anything. */
+    if (/^(th|td|tr)$/.test(n.localName) && n.hasAttribute('tabindex')) { n.removeAttribute('tabindex'); add('cellStops'); }
+    const style = n.getAttribute('style');
+    if (style && n.localName !== 'summary' && /cursor\s*:\s*pointer/i.test(style)) {
+      const kept = style.split(';').filter(d => d.trim() && !/^\s*cursor\s*:\s*pointer\s*$/i.test(d)).join(';');
+      if (kept) n.setAttribute('style', kept); else n.removeAttribute('style');
+    }
     if (n.localName === 'label') n.removeAttribute('for');
     const role = n.getAttribute('role');
     if (role && INTERACTIVE.has(role) && n.localName !== 'a') {
@@ -376,6 +493,56 @@ export function textOfMarkup(servedText, html) {
   t.innerHTML = html;
   return servedText(t.content);
 }
+/* WHAT --check COMPARES (2026-10-04). It compared the text outside <svg>
+   only, so a render whose links went elsewhere than the app's, whose
+   headings were other levels, which carried an attribute or a link the app
+   does not draw — a figure in a title, an aria-label, a data- attribute —
+   or whose chart printed other figures than the app's, passed: a view
+   changed without rendering again (the About page's contact link pointed at
+   /privacy; its card headings made h4) and a render edited by hand (an
+   off-site link, a canary symbol and price in an attribute and in a chart)
+   were each "the app's own render as committed". The markup is compared
+   instead, element by element, every attribute and every word, the words
+   of a chart included: they are the app's figures, the same on any machine.
+   Only what the machine's fonts decide is left out — where a chart's marks
+   and labels sit (an svg's coordinates, sizes, paths and transforms) and
+   whether a scrolling strip is faded at an end (data-fade) — so the result
+   is the same on CI's Linux as here. One token per element and one per run
+   of text. */
+export function servedSignature(root) {
+  const GEOMETRY = new Set(['x', 'y', 'x1', 'x2', 'y1', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'd', 'points', 'transform', 'viewbox', 'dx', 'dy', 'textlength']);
+  const out = [];
+  let text = '';
+  const flush = () => { const t = text.replace(/\s+/g, ' ').trim(); if (t) out.push(t); text = ''; };
+  const walk = (n, svg) => {
+    for (const k of n.childNodes) {
+      if (k.nodeType === 3) { text += k.data; continue; }
+      if (k.nodeType !== 1) continue;
+      flush();
+      const inSvg = svg || k.localName === 'svg';
+      const attrs = [...k.attributes].filter(a => a.name !== 'data-fade' && !(inSvg && GEOMETRY.has(a.name.toLowerCase())))
+        .map(a => `${a.name}="${a.value.replace(/\s+/g, ' ').trim()}"`).sort();
+      out.push(`<${k.localName}${attrs.length ? ` ${attrs.join(' ')}` : ''}>`);
+      walk(k, inSvg);
+      flush();
+      out.push(`</${k.localName}>`);
+    }
+  };
+  walk(root, false);
+  flush();
+  return out;
+}
+/* Committed markup and markup drawn now, compared by servedSignature: the
+   first token where they part, with a few either side. */
+export function compareMarkup(servedSignature, committed, drawn) {
+  const sig = (html) => { const t = document.createElement('template'); t.innerHTML = html; return servedSignature(t.content); };
+  const a = sig(committed), b = sig(drawn);
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (i === a.length && i === b.length) return null;
+  const around = (x) => x.slice(Math.max(0, i - 3), i + 4).join(' ').slice(0, 400);
+  return { at: i, of: Math.max(a.length, b.length), committed: around(a), drawn: around(b) };
+}
 /* What a page is served with, and what --check compares: #views and the
    tab row as servedCopy makes them, the page's first h1, its chrome, the
    links the navigation marks current, and the text. */
@@ -394,7 +561,8 @@ function capturePage(servedCopy, servedText, { origin, site }) {
   return {
     path: location.pathname, view: State.view, waits: !!(UNIVERSE_VIEWS.has(State.view)),
     chrome: document.documentElement.dataset.chrome || null,
-    h1: (viewRoot.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() || null,
+    /* As served: what is the tab's, now, is not the page's heading. */
+    h1: (views.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() || null,
     views: local(views.innerHTML), tabs: tabs ? local(tabs.innerHTML) : null,
     text: servedText(views),
     nav: { pubnav: indices('#pubnav a'), resources: resBtn?.hasAttribute('data-current') ? resBtn.getAttribute('aria-description') : null, appnav: indices('#appnav a') },
@@ -456,54 +624,236 @@ async function render(browser, base, s, site) {
 }
 
 /* ─── THE CLEAN COPY ──────────────────────────────────────────────────────── */
-function cleanCopy() {
+/* THE COPY IS CHECKED BEFORE IT IS MADE, AND NEVER LEFT BEHIND (2026-10-03).
+   A personal file among the tracked ones was found only once the copy held
+   it, and the refusal then left that copy — the personal file in it — in
+   the system's temporary folder, under a name no later run reuses. The list
+   of what would be copied is read from git first, and a personal file in it
+   stops the run with nothing written; anything that fails once the copy
+   exists removes it. */
+export function cleanCopy({ root = ROOT, worktree = WORKTREE } = {}) {
+  const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const files = (worktree ? git('ls-files', '-z') : git('ls-tree', '-r', '--name-only', '-z', 'HEAD')).split('\0').filter(Boolean);
+  const tracked = files.filter(PERSONAL_FILES);
+  if (tracked.length) throw new Error(`personal data is tracked, and would be rendered from: ${tracked.join(', ')} — nothing was copied`);
   const dir = join(tmpdir(), `qt-prerender-${process.pid}`);
   rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   mkdirSync(dir, { recursive: true });
-  const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  let from;
-  if (WORKTREE) {
-    const files = git('ls-files', '-z').split('\0').filter(Boolean);
-    for (const f of files) {
-      if (!existsSync(join(ROOT, f))) continue;          /* deleted, not yet committed */
-      mkdirSync(dirname(join(dir, f)), { recursive: true });
-      copyFileSync(join(ROOT, f), join(dir, f));
+  try {
+    let from;
+    if (worktree) {
+      for (const f of files) {
+        if (!existsSync(join(root, f))) continue;          /* deleted, not yet committed */
+        mkdirSync(dirname(join(dir, f)), { recursive: true });
+        copyFileSync(join(root, f), join(dir, f));
+      }
+      from = `the working tree's ${files.length} tracked files`;
+    } else {
+      /* Through a pipe: GNU tar reads "C:\…" as a remote host's file name. */
+      const archive = execFileSync('git', ['archive', '--format=tar', 'HEAD'], { cwd: root, maxBuffer: 1024 * 1024 * 1024 });
+      execFileSync('tar', ['-xf', '-', '-C', dir], { input: archive, stdio: ['pipe', 'ignore', 'pipe'] });
+      from = `HEAD (${git('rev-parse', '--short=12', 'HEAD').trim()})`;
     }
-    from = `the working tree's ${files.length} tracked files`;
-  } else {
-    /* Through a pipe: GNU tar reads "C:\…" as a remote host's file name. */
-    const archive = execFileSync('git', ['archive', '--format=tar', 'HEAD'], { cwd: ROOT, maxBuffer: 1024 * 1024 * 1024 });
-    execFileSync('tar', ['-xf', '-', '-C', dir], { input: archive, stdio: ['pipe', 'ignore', 'pipe'] });
-    from = `HEAD (${git('rev-parse', '--short=12', 'HEAD').trim()})`;
+    /* And the copy itself, as it stands: a personal file in it is a tracked one. */
+    const all = [];
+    const list = (rel) => { for (const d of readdirSync(join(dir, rel), { withFileTypes: true })) { const r = rel ? `${rel}/${d.name}` : d.name; if (d.isDirectory()) list(r); else all.push(r); } };
+    list('');
+    const personal = all.filter(PERSONAL_FILES);
+    if (personal.length) throw new Error(`personal data is tracked, and would be rendered from: ${personal.join(', ')}`);
+    rmSync(join(dir, 'prerender'), { recursive: true, force: true });
+    execFileSync(process.execPath, ['build.mjs', '--bare'], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'] });
+    return { dir, from };
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+    throw e;
   }
-  /* A personal file in the copy is a tracked one. */
-  const all = [];
-  const list = (rel) => { for (const d of readdirSync(join(dir, rel), { withFileTypes: true })) { const r = rel ? `${rel}/${d.name}` : d.name; if (d.isDirectory()) list(r); else all.push(r); } };
-  list('');
-  const personal = all.filter(PERSONAL_FILES);
-  if (personal.length) throw new Error(`personal data is tracked, and would be rendered from: ${personal.join(', ')}`);
-  rmSync(join(dir, 'prerender'), { recursive: true, force: true });
-  execFileSync(process.execPath, ['build.mjs', '--bare'], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'] });
-  return { dir, from };
 }
 
-async function serve(dir) {
-  const proc = spawn(process.execPath, ['serve.mjs', '--port', String(PORT), '--root', '.'], { cwd: dir, stdio: 'ignore' });
-  for (let i = 0; i < 80; i++) {
-    try { const r = await fetch(`http://localhost:${PORT}/`); if (r.ok) return proc; } catch { /* not yet */ }
+/* WHAT HEAD DOES NOT HAVE (2026-10-03). A render is drawn from HEAD unless
+   --worktree is given, so a view edited and not yet committed was rendered
+   as it was, and the run said "Now: node build.mjs" — the old page,
+   committed under the new code, passing build --check. What the working
+   tree changes that the app is made from: every tracked file but the
+   renders and what build.mjs writes, and any new file under src/ or data/. */
+const OUTPUTS = (f) => /^(prerender\/|pages\/|assets\/|index\.html$|404\.html$|vercel\.json$|health\/)/.test(f);
+export function unrendered({ root = ROOT } = {}) {
+  const out = execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const said = [];
+  const parts = out.split('\0').filter(Boolean);
+  for (let i = 0; i < parts.length; i++) {
+    const code = parts[i].slice(0, 2), file = parts[i].slice(3);
+    if (code[0] === 'R' || code[0] === 'C') i++;          /* the old name follows */
+    if (OUTPUTS(file)) continue;
+    if (code === '??' && !/^(src|data)\//.test(file)) continue;
+    said.push(file);
+  }
+  return said;
+}
+
+/* THE SERVER IS PRERENDER'S OWN (2026-10-03). The copy's server was taken
+   to be up as soon as anything answered on its port: a server already
+   there — the owner's own checkout, personal files and uncommitted edits
+   and all, on the port this used to default to — was drawn from instead,
+   while the copy's serve.mjs died on the taken port unseen, and the run
+   reported a clean render of HEAD. So a port that answers before the copy
+   is served stops the run, and the server is known as the copy's by a file
+   only the copy holds (a name and contents made up for this run), read
+   back on both loopback addresses and, before any page is drawn, by the
+   browser at the address it draws from (main). */
+export async function serve(dir, port = PORT) {
+  if (!port) port = await freePort();
+  else if (await answers(`http://127.0.0.1:${port}/`) || await answers(`http://[::1]:${port}/`))
+    throw new Error(`port ${port} is answered by a server prerender did not start — it draws only the clean copy it serves itself, never a server already running (the owner's own may be); stop that one or leave --port out`);
+  const nonce = randomBytes(16).toString('hex');
+  const proof = `/prerender-copy-${nonce}.txt`;
+  writeFileSync(join(dir, proof.slice(1)), nonce);
+  const proc = spawn(process.execPath, ['serve.mjs', '--port', String(port), '--root', '.'], { cwd: dir, stdio: 'ignore' });
+  const read = async (u) => { try { const r = await fetch(u, { signal: AbortSignal.timeout(1000) }); return r.ok ? await r.text() : `${r.status}`; } catch { return null; } };
+  for (let i = 0; i < 100; i++) {
     if (proc.exitCode !== null) break;
+    const four = await read(`http://127.0.0.1:${port}${proof}`), six = await read(`http://[::1]:${port}${proof}`);
+    if ((four !== null && four !== nonce) || (six !== null && six !== nonce)) {
+      proc.kill();
+      throw new Error(`port ${port} is answered by a server that does not serve the clean copy — prerender draws only its own`);
+    }
+    if (four === nonce || six === nonce) return { proc, port, proof, nonce };
     await sleep(150);
   }
   proc.kill();
-  throw new Error(`the clean copy's server did not answer on port ${PORT} (another server there? use --port)`);
+  throw new Error(`the clean copy's server never answered on port ${port}`);
 }
 
 /* An address on the owner's machine is drawn as production serves it. */
 export const asLive = (u) => { const x = new URL(u); if (['localhost', '127.0.0.1', '[::1]'].includes(x.hostname)) x.hostname = 'live.localhost'; return x.origin; };
 
+/* ─── SELF-TEST ───────────────────────────────────────────────────────────────
+   node prerender.mjs --self-test [--commit <sha>]
+
+   The tool's own guards, held where they failed (2026-10-03), by running the
+   tool — the copy's own prerender.mjs — in a throwaway git copy of a commit
+   (HEAD, or --commit to show a commit before the guards failing them). Every
+   run names its ports, so nothing here ever reaches a server or a browser it
+   did not start for the test:
+   1. a personal file is tracked: the run refuses, and leaves no copy of the
+      site — that file in it — in the system's temporary folder;
+   2. the owner's checkout is already served on the port named, with a view
+      edited and not committed: the run refuses, writes nothing, and names
+      the uncommitted source it would not have rendered;
+   3. a Chrome is already listening on CDP_PORT: the run refuses and writes
+      nothing, rather than drawing in that browser's profile;
+   4. free ports named for both: the run draws the page from the copy, the
+      same bytes as committed.
+   Needs Chrome (3, 4), and one render's time for 4 and for a commit that
+   fails 2 or 3. */
+async function selfTest() {
+  const commit = flag('commit') || 'HEAD';
+  const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024, ...opts });
+  const dir = join(tmpdir(), `qt-prerender-selftest-${process.pid}`);
+  const procs = [];
+  let bad = 0;
+  const say = (ok, msg, detail = []) => { console.log(`${ok ? 'ok  ' : 'FAIL'}  ${msg}`); detail.forEach(d => console.log(`      ${d}`)); if (!ok) bad++; };
+  /* The tool under test, run in the copy, its output kept. */
+  const run = (args, env = {}) => new Promise((res) => {
+    const p = spawn(process.execPath, ['prerender.mjs', ...args], { cwd: dir, env: { ...process.env, CDP_PORT: '', PRERENDER_PORT: '', ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; }); p.stderr.on('data', d => { out += d; });
+    const timer = setTimeout(() => p.kill(), 240000);
+    p.on('exit', (code) => { clearTimeout(timer); res({ code, out }); });
+  });
+  const leftovers = () => readdirSync(tmpdir()).filter(n => /^qt-prerender-\d+$/.test(n));
+  const about = () => (existsSync(join(dir, 'prerender', 'about.html')) ? readFileSync(join(dir, 'prerender', 'about.html'), 'utf8') : null);
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    const archive = execFileSync('git', ['archive', '--format=tar', commit], { cwd: ROOT, maxBuffer: 1024 * 1024 * 1024 });
+    execFileSync('tar', ['-xf', '-', '-C', dir], { input: archive, stdio: ['pipe', 'ignore', 'pipe'] });
+    const git = (...a) => sh('git', ['-c', 'core.autocrlf=false', '-c', 'user.name=prerender self-test', '-c', 'user.email=self-test@example.invalid', ...a], { cwd: dir });
+    git('init', '-q'); git('add', '-A'); git('commit', '-qm', `copy of ${commit}`);
+    console.log(`prerender --self-test  the tool at ${commit} (${git('rev-parse', '--short=12', 'HEAD').trim()} in a copy at ${dir})\n`);
+    const committed = about();
+
+    /* 1. A personal file tracked. */
+    {
+      writeFileSync(join(dir, 'data', 'scan-alerts.json'), JSON.stringify({ engine: 'synthetic, prerender --self-test', alerts: [{ symbol: 'QTSELFTEST', setupName: 'not anyone\'s' }] }));
+      git('add', '-f', 'data/scan-alerts.json');
+      const before = new Set(leftovers());
+      const r = await run(['--worktree', '--only', '/about', '--port', String(await freePort())]);
+      const left = leftovers().filter(n => !before.has(n) && existsSync(join(tmpdir(), n, 'data', 'scan-alerts.json')));
+      left.forEach(n => rmSync(join(tmpdir(), n), { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }));
+      git('rm', '-q', '--cached', 'data/scan-alerts.json'); rmSync(join(dir, 'data', 'scan-alerts.json'));
+      say(r.code !== 0 && /personal data is tracked/.test(r.out) && !left.length,
+        'a tracked personal file stops the run, and no copy of the site is left behind with it',
+        [`exit ${r.code}; ${left.length ? `left in the temporary folder, the personal file in it: ${left.join(', ')} (removed now)` : 'nothing left in the temporary folder'}`, ...r.out.trim().split('\n').slice(-2)]);
+    }
+
+    /* 2. The owner's checkout, served on the port named: a view edited and
+          not committed, built, and served by its own serve.mjs. */
+    {
+      const view = join(dir, 'src', 'js', '55-views-public.js');
+      writeFileSync(view, readFileSync(view, 'utf8').replace("'What Quantum Tradeworks is',", "'What Quantum Tradeworks is SELFTEST-UNCOMMITTED',"));
+      sh(process.execPath, ['build.mjs'], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'] });
+      const port = await freePort();
+      const owner = spawn(process.execPath, ['serve.mjs', '--port', String(port)], { cwd: dir, stdio: 'ignore' });
+      procs.push(owner);
+      for (let i = 0; i < 60 && !await answers(`http://127.0.0.1:${port}/about`); i++) await sleep(150);
+      const r = await run(['--port', String(port), '--only', '/about'], { CDP_PORT: String(await freePort()) });
+      owner.kill();
+      const now = about();
+      git('checkout', '-q', '--', '.'); git('clean', '-fdq');
+      say(r.code !== 0 && now === committed && !/SELFTEST-UNCOMMITTED/.test(now || '') && /src\/js\/55-views-public\.js/.test(r.out),
+        'a server already on the port named (the owner\'s checkout, an uncommitted edit served) stops the run: nothing is drawn from it, nothing is written, and the uncommitted view is named',
+        [`exit ${r.code}; prerender/about.html ${now === committed ? 'as committed' : /SELFTEST-UNCOMMITTED/.test(now || '') ? 'WRITTEN FROM THAT SERVER, the uncommitted edit in it' : 'changed'}; the uncommitted view ${/src\/js\/55-views-public\.js/.test(r.out) ? 'named' : 'never named'}`, ...r.out.trim().split('\n').filter(l => /prerender|WARNING|port/.test(l)).slice(0, 3)]);
+    }
+
+    /* 3. A Chrome already on CDP_PORT, in a profile of its own (as
+          autoshot's, which holds the owner's signed-in session, would be). */
+    {
+      const bin = CANDIDATES.find(existsSync);
+      if (!bin) say(false, 'no Chrome to start as the one already there — set CHROME_PATH');
+      else {
+        const cdp = await freePort();
+        const profile = join(tmpdir(), `qt-prerender-selftest-chrome-${process.pid}`);
+        rmSync(profile, { recursive: true, force: true });
+        const other = spawn(bin, [`--remote-debugging-port=${cdp}`, `--user-data-dir=${profile}`, '--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-gpu', 'about:blank', ...CI_FLAGS], { stdio: 'ignore' });
+        procs.push(other);
+        for (let i = 0; i < 80 && !await answers(`http://127.0.0.1:${cdp}/json/version`); i++) await sleep(150);
+        const r = await run(['--port', String(await freePort()), '--only', '/about'], { CDP_PORT: String(cdp) });
+        other.kill();
+        await new Promise(res => { if (other.exitCode !== null) return res(); other.once('exit', res); setTimeout(res, 5000); });
+        await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(() => {});
+        const now = about();
+        git('checkout', '-q', '--', '.'); git('clean', '-fdq');
+        say(r.code !== 0 && now === committed && /already has a browser/.test(r.out),
+          'a Chrome already on CDP_PORT stops the run: no page is drawn in another browser\'s profile',
+          [`exit ${r.code}; ${r.code === 0 ? 'the run drew its pages in the browser that was already there' : 'refused'}`, ...r.out.trim().split('\n').filter(l => /prerender|CDP|devtools|ok |FAIL/.test(l)).slice(0, 3)]);
+      }
+    }
+    /* 4. And free ports named for both: the page is drawn, from the copy,
+          as committed — the same bytes. (Chrome writes no DevToolsActivePort
+          for a port it is told, and a run given CDP_PORT never started.) */
+    {
+      const r = await run(['--port', String(await freePort()), '--only', '/about'], { CDP_PORT: String(await freePort()) });
+      const now = about();
+      git('checkout', '-q', '--', '.'); git('clean', '-fdq');
+      say(r.code === 0 && now === committed,
+        'free ports named for the server and for Chrome: the page is drawn from the clean copy, byte for byte as committed',
+        [`exit ${r.code}; prerender/about.html ${now === committed ? 'as committed' : 'not as committed'}`, ...r.out.trim().split('\n').filter(l => /prerender|ok |FAIL/.test(l)).slice(0, 3)]);
+    }
+  } catch (e) {
+    say(false, `the self-test could not run: ${e.message}`);
+  } finally {
+    procs.forEach(p => { try { p.kill(); } catch { /* gone */ } });
+    await rm(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch(() => {});
+  }
+  console.log(bad ? `\n${bad} of 4 checks fail` : '\nself-test: the run refuses a tracked personal file and leaves no copy, refuses a server it did not start and names what HEAD lacks, refuses a browser it did not start, and with free ports named draws the page as committed');
+  process.exit(bad ? 1 : 0);
+}
+
 /* ─── RUN ─────────────────────────────────────────────────────────────────── */
 /* Only when run: coverage-frames.mjs reads the drawing conditions above. */
-if (process.argv[1] && /prerender\.mjs$/.test(process.argv[1])) await main();
+if (process.argv[1] && /prerender\.mjs$/.test(process.argv[1])) {
+  if (argv.includes('--self-test')) await selfTest(); else await main();
+}
 
 async function main() {
   const template = readFileSync(join(ROOT, 'src', 'index.template.html'), 'utf8');
@@ -532,20 +882,21 @@ async function main() {
         let r;
         try { r = await render(browser, base, s, SITE); } catch (e) { say(false, `${s.path}: ${e.message}`); continue; }
         const problems = [...r.problems];
+        /* Where they part. The committed side is said only off CI: a render
+           that should never have been committed (one carrying the owner's
+           figures) would be printed into a public log by its own failure. */
+        const parted = (what, d) => [`${what} is not the committed render's, from token ${d.at} of ${d.of}:`,
+          ...(process.env.CI ? [] : [`  committed  …${d.committed}…`]), `  drawn now  …${d.drawn}…`];
         try {
-          const want = await r.tab.eval(`(${textOfMarkup})(${servedText}, ${JSON.stringify(committed)})`);
-          if (want !== r.text) {
-            let i = 0; while (i < want.length && want[i] === r.text[i]) i++;
-            problems.push(`its text is not the committed render's, from character ${i}:`, `  committed  …${want.slice(Math.max(0, i - 40), i + 80)}…`, `  drawn now  …${r.text.slice(Math.max(0, i - 40), i + 80)}…`);
-          }
+          const diff = await r.tab.eval(`(${compareMarkup})(${servedSignature}, ${JSON.stringify(committed)}, ${JSON.stringify(r.views)})`);
+          if (diff) problems.push(...parted('its markup', diff));
           if (r.chrome !== m.chrome) problems.push(`it wears the ${r.chrome} chrome, the committed render the ${m.chrome}`);
           if (JSON.stringify(r.nav) !== JSON.stringify(m.nav)) problems.push(`the navigation marks ${JSON.stringify(r.nav)} current, the committed render ${JSON.stringify(m.nav)}`);
           if (r.h1 !== m.h1) problems.push(`its h1 is ${JSON.stringify(r.h1)}, the committed render's ${JSON.stringify(m.h1)}`);
           if (!!r.tabs !== !!m.tabs) problems.push(r.tabs ? 'it draws a tab row the committed render does not have' : 'the committed render has a tab row it does not draw');
           else if (r.tabs) {
-            const tabsWant = await r.tab.eval(`(${textOfMarkup})(${servedText}, ${JSON.stringify(lf(readFileSync(join(ROOT, s.tabs), 'utf8')).replace(/\n$/, ''))})`);
-            const tabsNow = await r.tab.eval(`(${textOfMarkup})(${servedText}, ${JSON.stringify(r.tabs)})`);
-            if (tabsWant !== tabsNow) problems.push(`its tab row reads ${JSON.stringify(tabsNow.slice(0, 120))}, the committed one ${JSON.stringify(tabsWant.slice(0, 120))}`);
+            const tabsDiff = await r.tab.eval(`(${compareMarkup})(${servedSignature}, ${JSON.stringify(lf(readFileSync(join(ROOT, s.tabs), 'utf8')).replace(/\n$/, ''))}, ${JSON.stringify(r.tabs)})`);
+            if (tabsDiff) problems.push(...parted('its tab row', tabsDiff));
           }
           /* And the navigation the address is served with is the app's own
              drawing, node for node, once the app has drawn the page. */
@@ -557,15 +908,34 @@ async function main() {
           }
           problems.push(...await r.tab.eval(`(${sameNavigation})(${JSON.stringify(served)})`));
         } finally { await r.tab.close(); }
-        say(!problems.length, `${s.path}  ${r.state}, "${r.h1}"${problems.length ? '' : ` — the committed render's text (${r.text.length} characters), chrome and current links, and the served navigation is the app's drawing`}`, problems);
+        say(!problems.length, `${s.path}  ${r.state}, "${r.h1}"${problems.length ? '' : ` — the committed render's markup (every element, attribute and word, a chart's figures with them; ${r.text.length} characters of text), chrome and current links, and the served navigation is the app's drawing`}`, problems);
       }
       console.log(`\n${scope.length - failed} of ${scope.length} pages are the app's own render as committed${failed ? `; ${failed} are not — run node prerender.mjs, then node build.mjs` : ''}`);
     } else {
+      const notRendered = WORKTREE ? [] : unrendered();
+      const warnUnrendered = () => {
+        if (!notRendered.length) return;
+        console.error(`\nWARNING  rendered from HEAD: the working tree changes ${notRendered.length} file${notRendered.length === 1 ? '' : 's'} the app is made from, which these renders do not have —`);
+        notRendered.slice(0, 12).forEach(f => console.error(`           ${f}`));
+        if (notRendered.length > 12) console.error(`           and ${notRendered.length - 12} more`);
+        console.error('         commit them and run this again, or run node prerender.mjs --worktree to render them as they stand.');
+      };
+      warnUnrendered();
       copy = cleanCopy();
       server = await serve(copy.dir);
-      const base = `http://live.localhost:${PORT}`;
+      const base = `http://live.localhost:${server.port}`;
       console.log(`prerender  ${scope.length} pages from ${copy.from}, served at ${base}; ${VIEWPORT.width}×${VIEWPORT.height}, light, reduced motion, ${ZONE}, ${LOCALE}, clock ${CLOCK}\n`);
       browser = await startBrowser();
+      /* The address the pages are drawn from serves the copy: its own file,
+         read by the browser there. */
+      {
+        const tab = await openPage(browser, base + server.proof, { hold: false });
+        try {
+          await sleep(300);
+          const said = await tab.eval('document.body ? document.body.innerText.trim() : ""').catch(() => null);
+          if (said !== server.nonce) throw new Error(`${base} does not serve the clean copy in the browser — prerender draws only its own server`);
+        } finally { await tab.close(); }
+      }
       const results = [];
       for (const s of scope) {
         let r;
@@ -574,7 +944,8 @@ async function main() {
         const c = r.counts;
         const n = (k, one, many) => c[k] ? `${c[k]} ${c[k] === 1 ? one : many}` : null;
         const inertSaid = [n('buttons', 'button', 'buttons'), n('fields', 'field', 'fields'), n('choices', 'choice', 'choices'), n('roles', 'control role', 'control roles'),
-          n('forms', 'form', 'forms'), n('removed', 'removed', 'removed'), n('notShown', 'not shown at this width', 'not shown at this width')].filter(Boolean).join(', ');
+          n('forms', 'form', 'forms'), n('removed', 'removed', 'removed'), n('notShown', 'not shown at this width', 'not shown at this width'),
+          n('now', 'of the tab’s own now', 'of the tab’s own now'), n('cellStops', 'cell tab stop', 'cell tab stops'), n('emptyDetails', 'empty disclosure', 'empty disclosures')].filter(Boolean).join(', ');
         say(!r.problems.length, `${s.path.padEnd(28)} ${r.state.padEnd(10)} ${String(Math.round(Buffer.byteLength(r.views) / 1024)).padStart(3)}kB  "${r.h1}"${r.tabs ? ' + tab row' : ''}${inertSaid ? `  inert: ${inertSaid}` : ''}${r.personal ? `  (${r.personal} personal-lane request${r.personal === 1 ? '' : 's'} answered 404 here)` : ''}`, r.problems);
         if (!r.problems.length) results.push({ s, r });
       }
@@ -588,7 +959,8 @@ async function main() {
         writeFileSync(join(ROOT, s.render), `${r.views}\n`);
         if (r.tabs) writeFileSync(join(ROOT, s.tabs), `${r.tabs}\n`); else rmSync(join(ROOT, s.tabs), { force: true });
         pages[s.file] = { path: s.path, view: r.view, state: r.state, chrome: r.chrome, h1: r.h1, tabs: !!r.tabs, nav: r.nav,
-          inert: Object.fromEntries(['buttons', 'fields', 'choices', 'roles', 'forms', 'removed', 'notShown'].map(k => [k, r.counts[k] || 0])) };
+          inert: Object.fromEntries(['buttons', 'fields', 'choices', 'roles', 'forms', 'removed', 'notShown', 'now', 'cellStops', 'emptyDetails'].map(k => [k, r.counts[k] || 0])),
+          digest: renderDigest(r.views, r.tabs) };
       }
       const ordered = Object.fromEntries(Object.keys(pages).sort((a, b) => (a === 'index.html' ? -1 : b === 'index.html' ? 1 : a.localeCompare(b))).map(k => [k, pages[k]]));
       const manifest = {
@@ -604,14 +976,15 @@ async function main() {
         for (const f of under('prerender')) if (!keep.has(f)) { rmSync(join(ROOT, f)); console.log(`removed     ${f} — no page in scope reads it`); }
       }
       const total = results.reduce((n, { r }) => n + Buffer.byteLength(r.views) + Buffer.byteLength(r.tabs || ''), 0);
-      console.log(`\nwrote ${results.length} renders (${(total / 1024).toFixed(0)}kB) and ${MANIFEST}. Now: node build.mjs`);
+      console.log(`\nwrote ${results.length} renders (${(total / 1024).toFixed(0)}kB) and ${MANIFEST} from ${copy.from}. Now: node build.mjs`);
+      warnUnrendered();
     }
   } catch (e) {
     console.error(`\nprerender: ${e.message}`);
     failed = failed || 1;
   } finally {
     if (browser) await browser.close();
-    if (server) { server.kill(); await new Promise(r => { if (server.exitCode !== null) return r(); server.once('exit', r); setTimeout(r, 3000); }); }
+    if (server) { const p = server.proc; p.kill(); await new Promise(r => { if (p.exitCode !== null) return r(); p.once('exit', r); setTimeout(r, 3000); }); }
     if (copy) rmSync(copy.dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
   process.exit(failed ? 1 : 0);
