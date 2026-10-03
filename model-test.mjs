@@ -3310,7 +3310,8 @@ try {
             saved in another, and printing reads it again first;
        PP8  each figure's words say what it is: a cash purchase is described
             with no loan, a sentence that says how the price is met adds up,
-            what a scenario changes is in words and as entered, money keeps
+            what a scenario changes — and the name it is offered — is in
+            words and as entered, money keeps
             its sen, the growth rate is credited to whoever set it, the
             calculator's "Monthly commitment" is the loan section's.
      PP1–PP5 fail before the proposal existed (no view, no figures); PP6–PP8
@@ -3826,6 +3827,14 @@ try {
           doc = document.getElementById('cp-doc');
           out.words = { doc: [...doc.querySelectorAll('[data-cp-what], .cp-sc-what td')].map(txt), rail: [...document.querySelectorAll('.cp-pick-what')].map(txt),
             exitNote: [...doc.querySelectorAll('#cp-h-exit ~ .cp-note')].map(txt).join(' '), registry: [...doc.querySelectorAll('.cp-points li')].map(txt).find(x => /^Every figure/.test(x)) || '' };
+          /* A scenario saved under the name it is offered: that name heads
+             its column on the proposal. */
+          const recS = ppMake('PP offered name', { price: 520000, rent: 2100 });
+          openPropertyModel(recS.id, { show: false });
+          const chS = { selfManaged: false, mgmtPct: 8, bankValuation: 540000, valuationRule: 'valuation_only', disposerCategory: 'company' };
+          Object.assign(State.deal, chS); Object.keys(chS).forEach(k => markTouched(State.deal, k)); saveDeal(); window.__ppP = [];
+          out.offered = saveAsScenario()?.name ?? null;
+          openPropertyModel(recS.id, { show: false });
           doc = await open(ppMake('PP growth set', { price: 520000, apprecPct: 4 }));
           out.growthSet = [...doc.querySelectorAll('#cp-h-exit ~ .cp-note')].map(txt).join(' ');
           doc = await open(ppMake('PP quote', { mrtaPremium: 4200 }));
@@ -3859,6 +3868,10 @@ try {
           if (/\b(true|false)\b|_/.test(s)) p8.push(`"${s.slice(0, 90)}" prints a raw value`);
           if (/\bI will\b/.test(s)) p8.push(`"${s.slice(0, 90)}" speaks as the calculator's user`);
         }
+        /* The name a scenario is offered: the same words, whole changes only. */
+        const on = r.offered || '';
+        if (!on || on.length > 80 || /\((RM|%)|\b(true|false)\b|_|\bI will\b/.test(on) || !on.replace(/; and \d+ more$/, '').split('; ').every(b => /^[^:]+: \S/.test(b)))
+          p8.push(`a scenario saved under the name it is offered is called "${on}"`);
         if (!all.some(s => /4\.375%/.test(s))) p8.push(`an entered rate of 4.375 is not printed as entered: ${JSON.stringify(all).slice(0, 200)}`);
         /* Whose the growth rate is. */
         if (/preparer’s assumption/.test(r.words.exitNote) || !/Sample/.test(r.words.exitNote)) p8.push(`with the growth rate untouched the sale note reads "${r.words.exitNote.slice(0, 200)}"`);
@@ -3867,7 +3880,7 @@ try {
         if (!/fee registry/.test(r.words.registry)) p8.push(`the disclosure credits every figure to the listed inputs alone: "${r.words.registry.slice(0, 160)}"`);
         if (/your quote/i.test(r.quote)) p8.push('a quoted premium prints as "your quote" on the client\'s page');
         if (p8.length) fail('property-proposal PP8: each figure\'s words say what it is', p8.slice(0, 20));
-        else ok('property-proposal PP8: a cash purchase is described with no loan, rate or repayment; "the price is met by" a loan and a deposit that add up to it, and a loan on a valuation above the price is flagged instead; a rent of 1850.5 prints RM1,850.50 and 572000.755 as entered; what a scenario changes is in words, as entered (4.375%), with no input hint, raw value or first person; the growth rate is credited to whoever set it; the fee registry is named; a quote is not "your quote"');
+        else ok(`property-proposal PP8: a cash purchase is described with no loan, rate or repayment; "the price is met by" a loan and a deposit that add up to it, and a loan on a valuation above the price is flagged instead; a rent of 1850.5 prints RM1,850.50 and 572000.755 as entered; what a scenario changes is in words, as entered (4.375%), with no input hint, raw value or first person, and the name a scenario is offered is in the same words, whole ("${r.offered}"); the growth rate is credited to whoever set it; the fee registry is named; a quote is not "your quote"`);
       });
     } finally {
       await evaluate(`(() => { const k = ${ppKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});

@@ -365,7 +365,10 @@ function saveAsScenario() {
   /* A snapshot saved since this page loaded, by the saved-work store's own
      save, has no list yet until the next load gives it one. */
   if (!Array.isArray(rec.scenarios)) rec.scenarios = [];
-  const suggested = pmOverrideLine(overrides, 2) || `Scenario ${rec.scenarios.length + 1}`;
+  /* Offered in the client proposal's words, whole (cpScenarioName,
+     72-property-proposal.js): a name accepted as offered heads the
+     scenario's column on a proposal handed to a client. */
+  const suggested = cpScenarioName(overrides, pmInputsOf(rec)) || `Scenario ${rec.scenarios.length + 1}`;
   const typed = prompt(`Name this scenario of “${rec.name}”`, suggested);
   if (typed === null) return null;
   const at = new Date().toISOString();

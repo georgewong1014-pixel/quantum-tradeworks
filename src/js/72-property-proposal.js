@@ -384,7 +384,7 @@ const cpInText = (k, v) => (CP_IN[k] ? CP_IN[k](v) : typeof v === 'boolean' ? (v
    interest rate (%) 4.38" for an entered 4.375, "I will manage this
    property myself false", "valuation_only" — and it was printed here. */
 const CP_RECORD_WORDS = { evidence: 'how its figures were established', checks: 'the checklist answers', checkEvidence: 'how the checklist answers were established' };
-function cpChangeLine(ov, base) {
+function cpChangeBits(ov, base) {
   const merged = pmMerge(base, ov);
   const keys = Object.keys(ov || {}).filter(k => !PM_POINTERS.includes(k) && k !== 'touched' && k !== 'userStarted');
   const place = keys.includes('city') || keys.includes('district');
@@ -395,7 +395,25 @@ function cpChangeLine(ov, base) {
     if (isRecord(ov[k])) { bits.push(cpCap(CP_RECORD_WORDS[k] || k)); return; }
     bits.push(`${cpLabel(k)}: ${cpInText(k, merged[k])}`);
   });
-  return bits.join('; ');
+  return bits;
+}
+const cpChangeLine = (ov, base) => cpChangeBits(ov, base).join('; ');
+/* The name a new scenario is offered (saveAsScenario, 71-property-models.js):
+   what it changes in the same words, as many whole changes as fit in the 80
+   characters a name keeps. The calculator's shorthand was offered, cut at
+   80 — "…; I will manage this property myself fal" — and, accepted as
+   offered, it headed the scenario's column on a client's proposal. */
+function cpScenarioName(ov, base, max = 80) {
+  const bits = cpChangeBits(ov, base);
+  for (let n = bits.length; n > 0; n--) {
+    const s = `${bits.slice(0, n).join('; ')}${n < bits.length ? `; and ${bits.length - n} more` : ''}`;
+    if (s.length <= max) return s;
+  }
+  if (!bits.length) return '';
+  /* One change too long to name whole: cut at a word, and say so. */
+  const room = bits.length > 1 ? max - `…; and ${bits.length - 1} more`.length : max - 1;
+  const cut = bits[0].slice(0, room).replace(/[\s;:,]+\S*$/, '');
+  return `${cut}…${bits.length > 1 ? `; and ${bits.length - 1} more` : ''}`;
 }
 
 /* The inputs every figure rests on, in the calculator's own groups and
