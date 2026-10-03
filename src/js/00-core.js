@@ -308,6 +308,9 @@ const STORE_SHAPES = {
   savedScreens: SHAPE_RECORDS, savedWork: SHAPE_RECORDS, runs: SHAPE_RECORDS, sarawakExposure: SHAPE_RECORDS, comparisons: SHAPE_RECORDS,
   areaProfiles: SHAPE_RECORD, demand: SHAPE_RECORD, deal: SHAPE_RECORD, wheelPlan: SHAPE_RECORD, qttiPlan: SHAPE_RECORD,
   manualPrices: SHAPE_RECORD, userData: SHAPE_RECORD, wht: SHAPE_RECORD, reviews: SHAPE_RECORD, borrowerProfile: SHAPE_RECORD,
+  /* The name, agency, contact and logo a client proposal prints
+     (72-property-proposal.js), which reads each field again as it uses it. */
+  proposalDetails: SHAPE_RECORD,
   valuation: SHAPE_RECORD, scanSetups: SHAPE_RECORD, scanAlertState: SHAPE_RECORD, scanPrefs: SHAPE_RECORD,
   registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
   baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
@@ -414,6 +417,9 @@ const PORTABLE_KEYS = [
   { k:'reviews',           label:'Decision reviews' },
   { k:'runs',              label:'Saved valuation runs' },
   { k:'borrowerProfile',   label:'Borrower profile' },
+  /* What a client proposal prints as Prepared by, the logo with it. The
+     client's own name is never stored, so nothing about a client travels. */
+  { k:'proposalDetails',   label:'Your details for client proposals' },
   { k:'sarawakExposure',   label:'Sarawak exposure records' },
   /* The two saved kinds the research workspace added: assumptions edited in
      the Valuation Studio (kept per company across reloads), and named

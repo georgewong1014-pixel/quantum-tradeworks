@@ -932,6 +932,8 @@ VIEWS.propertyModels = () => {
     const acts = el('div', { class: 'pm-acts-row' });
     acts.append(el('button', { class: 'btn btn-ghost btn-sm pm-open', id: `pm-open-${rec.id}`, 'aria-label': `Open ${rec.name}`,
       onclick: () => openPropertyModel(rec.id) }, 'Open'));
+    /* Its client proposal, made from it as saved (72-property-proposal.js). */
+    acts.append(cpLink(rec, { id: `pm-cp-${rec.id}` }));
     const kept = (act, done, refocus) => { const refused = store.failed; act(); render(); refocus(); toast(store.failed !== refused ? STORE_REFUSED : done); };
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-dup-${rec.id}`, 'aria-label': `Duplicate ${rec.name}`,
       onclick: () => kept(() => duplicatePropertyModel(rec.id), 'Duplicated', () => focusAfterRedraw(`#pm-dup-${rec.id}`)) }, 'Duplicate'));

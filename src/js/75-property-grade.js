@@ -2231,7 +2231,7 @@ VIEWS.property = () => {
     calculates: 'up to three scenarios side by side — monthly position, cash required, yield, break-even rent and grade — which inputs move the rate of return most, the rate, vacancy and overrun at which it stops working, and the return and the tax on the rent over the hold.' });
   const rpt = propertySection('report', {
     provide: 'the state of each demand source you record for the district, your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
-    calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it.' });
+    calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it, and a saved property’s client proposal sets it out for a client.' });
 
   /* ---------- inputs ---------- */
   const rail = acq.inputs;
@@ -3713,7 +3713,7 @@ VIEWS.property = () => {
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
-  rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), regNote);
+  rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };
