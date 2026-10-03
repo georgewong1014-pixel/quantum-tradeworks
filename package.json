@@ -14,6 +14,8 @@
     "renders": "node renders.mjs",
     "deploy-check": "node deploy-check.mjs --wait",
     "served": "node served-check.mjs http://localhost:8123",
+    "prerender": "node prerender.mjs",
+    "prerender-check": "node prerender.mjs --check http://localhost:8123",
     "register": "node register-test.mjs http://localhost:8123",
     "model": "node model-test.mjs http://localhost:8123",
     "equity": "node equity-test.mjs http://localhost:8123",

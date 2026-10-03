@@ -391,7 +391,7 @@ for (const route of ROUTES) {
   if (folder?.view !== 'notfound' || folder.base !== '') p.push(`/foo/index.html/bar: ${folder?.view}, BASE ${JSON.stringify(folder?.base)}, not the not-found card at the site's own base`);
   if (astray.length) p.push(`/foo/index.html/bar asked for ${astray.slice(0, 3).join(', ')} — files under a folder that is not the app's`);
   /* Every parameter route, loaded cold from the address the host now
-     rewrites to index.html one pattern at a time (there is no catch-all to
+     rewrites to the generic page one pattern at a time (there is no catch-all to
      fall back on), opens its own view — read from the page's ROUTES. */
   const rows = await evalValue(`ROUTES.filter(r => r.path.includes(':')).map(r => ({ path: r.path, view: r.view }))`) || [];
   const SAMPLE = { id: 'aapl-apple-inc', tab: 'financials', setup: 'no-such-setup-for-the-sweep', alert: 'a-no-such-alert' };
@@ -410,8 +410,10 @@ for (const route of ROUTES) {
 /* THE APP LOADED WHERE IT WAS INLINE. Every page under pages/ and 404.html
    now loads the app's script and stylesheet from assets/app.<hash>.js and
    .css (build.mjs, THE APP ONCE) instead of carrying 3.3MB of both inline;
-   index.html, and every parameter route it answers, still carries them
-   inline — but a company's own address has had a page of its own since
+   index.html still carries them inline. Every parameter route was served
+   index.html too, until index.html came to carry the homepage itself in
+   #views (2026-10-03, prerender.mjs): it is served pages/generic.app.html
+   now, a page like the others. A company's own address has had a page of its own since
    Release B (build.mjs, ONE HEAD PER COMPANY), so a ticker (/company/aapl)
    is the parameter route's sample here, and Apple's own address a page's.
    Both must run under the one policy vercel.json sends: the inline
@@ -439,7 +441,7 @@ for (const route of ROUTES) {
     srcs: [...document.scripts].filter(s => s.src).map(s => new URL(s.src).pathname),
     sheets: [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => new URL(l.href).pathname),
     rules: [...document.styleSheets].reduce((n, s) => { try { return n + s.cssRules.length; } catch { return n; } }, 0) })`);
-  const kinds = [['/', 'inline'], ['/company/aapl', 'inline'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/company/aapl-apple-inc', 'file'], ['/nope-for-the-slim-sweep', 'file']];
+  const kinds = [['/', 'inline'], ['/company/aapl', 'file'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/company/aapl-apple-inc', 'file'], ['/nope-for-the-slim-sweep', 'file']];
   const rules = new Set();
   for (const [path, how] of kinds) {
     bucket = [];
@@ -493,7 +495,7 @@ for (const route of ROUTES) {
   ws.removeEventListener('message', hold);
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   if (p.length) { bad++; console.log('FAIL slim: the app is not loaded as each page should load it'); p.forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   slim: / and a parameter route run the app inline, a route page, a company's own page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
+  else console.log(`ok   slim: / runs the app inline, a parameter route, a route page, a company's own page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
 }
 /* ---- end audit: slim ---- */
 /* ---- audit1: health ---- */

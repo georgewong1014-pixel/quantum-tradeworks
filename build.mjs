@@ -61,7 +61,9 @@
  *                       else answers, and the app draws its not-found card.
  *   vercel.json         one rewrite per route, generated from ROUTES in place
  *                       of the catch-all: a static route to its page, a
- *                       parameter route (/company/:id …) to index.html.
+ *                       parameter route (/company/:id …) to the generic
+ *                       page (pages/generic.app.html since 2026-10-03:
+ *                       index.html carries the homepage itself now).
  *
  * Parameter routes keep the generic page: which company an :id names is the
  * router's to resolve, after the filings load — except each company's own
@@ -462,6 +464,284 @@ export function routePlan(template) {
   return { origin, pages, params, companies, skippedFilers: skipped, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES };
 }
 
+/* ─── THE NAVIGATION, IN EVERY PAGE (2026-10-03) ─────────────────────────────
+   The public header's links, the sidebar's and the footer's Products and
+   Resources were drawn only by the script, into elements every page was
+   served empty: a reader, a crawler or a link preview that runs no script
+   saw "Products" and "Resources" with no link under either. The markup is
+   now made by the app's own NAV_MARKUP (35-ui.js) — the functions buildShell
+   draws with, over PRODUCTS, RESOURCES and the sidebar's tables — cut out of
+   src/js and run here against a document that records what is made, the way
+   the router is run above. So the links a page is served are the links its
+   script draws in their place, from the same tables, with no second list to
+   fall out of step; Business Intelligence, which has no path, is text in
+   both. The phone's sheet is not served (NAV_MARKUP says why).
+
+   The page's own current item — the header link, the Resources menu, the
+   sidebar item buildNav marks once the page is drawn — is marked as the
+   page's render marked it (prerender/manifest.json), so the served header is
+   the drawn one; a page with no render committed is served unmarked. */
+const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+/* As a browser serialises: an attribute escapes &, " and the no-break space;
+   text escapes &, <, > and the no-break space. */
+const serialAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/ /g, '&nbsp;');
+const serialText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/ /g, '&nbsp;');
+/* Just enough of a document for el() (00-core.js): elements with ordered
+   attributes, dataset, className, hidden, innerHTML (kept as the markup it
+   was given — an icon's SVG), text, append, and listeners that are never
+   called. Anything else el() or a NAV_MARKUP function reaches for throws,
+   so a change that needs more of the DOM stops the build by name. */
+function markupDocument() {
+  const text = (t) => ({ nodeType: 3, data: String(t), get outerHTML() { return serialText(this.data); } });
+  const raw = (h) => ({ nodeType: 1, raw: true, get outerHTML() { return String(h); } });
+  const kebab = (k) => k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+  const element = (tag) => {
+    const attrs = new Map();
+    let kids = [];
+    const node = {
+      nodeType: 1, localName: String(tag).toLowerCase(), attrs,
+      get children() { return kids.filter(k => k.nodeType === 1 && !k.raw); },
+      setAttribute: (k, v) => { attrs.set(String(k), String(v)); },
+      getAttribute: (k) => (attrs.has(k) ? attrs.get(k) : null),
+      hasAttribute: (k) => attrs.has(k),
+      removeAttribute: (k) => { attrs.delete(k); },
+      toggleAttribute: (k, on) => { if (on ?? !attrs.has(k)) attrs.set(k, ''); else attrs.delete(k); },
+      append: (...xs) => { for (const x of xs) kids.push(typeof x === 'string' ? text(x) : x); },
+      addEventListener() {},
+      set className(v) { attrs.set('class', String(v)); },
+      get className() { return attrs.get('class') || ''; },
+      set hidden(v) { if (v) attrs.set('hidden', ''); else attrs.delete('hidden'); },
+      get hidden() { return attrs.has('hidden'); },
+      set innerHTML(h) { kids = h === '' ? [] : [raw(h)]; },
+      get innerHTML() { return kids.map(k => k.outerHTML).join(''); },
+      set textContent(t) { kids = t === '' ? [] : [text(t)]; },
+      get outerHTML() {
+        const a = [...attrs].map(([k, v]) => ` ${k}="${serialAttr(v)}"`).join('');
+        return VOID.has(node.localName) ? `<${node.localName}${a}>` : `<${node.localName}${a}>${node.innerHTML}</${node.localName}>`;
+      },
+    };
+    node.dataset = new Proxy({}, {
+      set: (_, k, v) => { attrs.set(`data-${kebab(String(k))}`, String(v)); return true; },
+      get: (_, k) => attrs.get(`data-${kebab(String(k))}`),
+    });
+    return node;
+  };
+  return { createElement: element, createTextNode: text };
+}
+/* Every element of a tree, in document order. */
+const walk = (n, out = []) => { if (n?.nodeType === 1 && !n.raw) { out.push(n); n.children.forEach(k => walk(k, out)); } return out; };
+/* The four lists the page is served with, each with what the template
+   carries empty around it. */
+export const NAV_SLOTS = {
+  pubnav:        ['<nav class="pubnav" id="pubnav" aria-label="Primary">', '</nav>'],
+  appnav:        ['<nav class="sb-nav" id="appnav" aria-label="Primary">', '</nav>'],
+  footProducts:  ['<ul id="footProducts">', '</ul>'],
+  footResources: ['<ul id="footResources">', '</ul>'],
+};
+export function navMarkup() {
+  const CORE = js('00-core.js'), UI = js('35-ui.js');
+  const ctx = vm.createContext({ document: markupDocument() });
+  const api = vm.runInContext([
+    "const BASE = '';",
+    cut(CORE, '00-core.js', 'const el = ', '\n};\n'),
+    cut(UI, '35-ui.js', 'const ICON = {', '\n};'),
+    cut(UI, '35-ui.js', 'const icon = ', ';\n'),
+    cut(UI, '35-ui.js', 'const href = ', ';\n'),
+    cut(UI, '35-ui.js', 'const PRODUCTS = [', '\n];'),
+    cut(UI, '35-ui.js', 'const PRODUCT_STATUS = ', ';\n'),
+    cut(UI, '35-ui.js', 'const SHOW_UNBUILT = ', ';\n'),
+    cut(UI, '35-ui.js', 'const SHOW_REPORTS = ', ';\n'),
+    cut(UI, '35-ui.js', 'const productById = ', ';\n'),
+    cut(UI, '35-ui.js', 'function productBadge(', '\n}\n'),
+    cut(UI, '35-ui.js', 'const productNote = ', ';\n'),
+    cut(UI, '35-ui.js', 'const RESOURCES = [', '\n];'),
+    cut(UI, '35-ui.js', 'const APP_NAV_WORKSPACE = [', '\n];'),
+    cut(UI, '35-ui.js', 'const APP_NAV_FOOT = [', '\n];'),
+    cut(UI, '35-ui.js', 'const PRODUCT_ICON = ', ';\n'),
+    cut(UI, '35-ui.js', 'const shellLink = ', ';\n'),
+    cut(UI, '35-ui.js', 'const shellIcon = ', ';\n'),
+    cut(UI, '35-ui.js', 'function productRows(', '\n}\n'),
+    cut(UI, '35-ui.js', 'const productsLegendLink = ', ';\n'),
+    cut(UI, '35-ui.js', 'function resourceLists(', '\n}\n'),
+    cut(UI, '35-ui.js', 'function pubMenu(', '\n}\n'),
+    cut(UI, '35-ui.js', 'function sidebarItem(', '\n}\n'),
+    cut(UI, '35-ui.js', 'const NAV_MARKUP = {', '\n};'),
+    '({ NAV_MARKUP, PRODUCTS })',
+  ].join('\n'), ctx, { filename: 'src/js (navigation)' });
+  /* Business Intelligence is never a link, wherever it is drawn: a product
+     with no path is text (productRows, NAV_MARKUP). Held here as well, so a
+     table that gave it a path, or a list that drew it as a link anyway,
+     stops the build rather than serving a link to nothing. */
+  const unbuilt = api.PRODUCTS.filter(p => !p.path).map(p => p.name);
+  /* marks: what buildNav marked on the page's render — the indices of the
+     current links among #pubnav's and #appnav's links, in document order,
+     and the Resources menu's mark — or null for none. */
+  return (marks = null) => {
+    const pubnav = api.NAV_MARKUP.pubnav(), appnav = [...api.NAV_MARKUP.appnav()];
+    const footProducts = [...api.NAV_MARKUP.footProducts()], footResources = [...api.NAV_MARKUP.footResources()];
+    if (marks) {
+      const mark = (roots, at, where) => {
+        const links = roots.flatMap(r => walk(r)).filter(n => n.localName === 'a');
+        for (const i of at || []) {
+          if (!links[i]) throw new Error(`prerender/manifest.json marks link ${i} of ${where}, which has ${links.length} — run node prerender.mjs`);
+          links[i].setAttribute('aria-current', 'page');
+        }
+      };
+      mark([pubnav], marks.pubnav, '#pubnav');
+      mark(appnav, marks.appnav, '#appnav');
+      if (marks.resources) {
+        const btn = walk(pubnav).find(n => n.getAttribute('id') === 'menuResourcesBtn');
+        if (!btn) throw new Error('the public header has no Resources menu to mark');
+        btn.toggleAttribute('data-current', true);
+        btn.setAttribute('aria-description', marks.resources);
+      }
+    }
+    const out = {
+      pubnav: pubnav.outerHTML,
+      appnav: appnav.map(n => n.outerHTML).join(''),
+      footProducts: footProducts.map(n => n.outerHTML).join(''),
+      footResources: footResources.map(n => n.outerHTML).join(''),
+    };
+    for (const [slot, html] of Object.entries(out)) {
+      if (!/<a\b[^>]*\bhref="\/[^"]*"/.test(html)) throw new Error(`the ${slot} the page is served carries no link`);
+      for (const name of unbuilt) {
+        const asLink = new RegExp(`<a\\b[^>]*>(?:(?!</a>)[\\s\\S])*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
+        if (asLink.test(html)) throw new Error(`${name} is drawn as a link in the ${slot} — a product that is not built is text`);
+      }
+    }
+    return out;
+  };
+}
+/* The served lists, put where the template carries each empty. */
+export function withNav(html, nav) {
+  for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) {
+    const at = html.split(open + close).length - 1;
+    if (at !== 1) throw new Error(`the page carries ${at} of ${open}${close}, where the build fills exactly one`);
+    html = html.replace(open + close, () => open + nav[slot] + close);
+  }
+  return html;
+}
+
+/* ─── THE PAGE ITSELF, IN THE PAGE (2026-10-03) ──────────────────────────────
+   Every page above was its head and an empty <main>: a fetch that runs no
+   script — a crawler that does not render, a link preview, an assistant, an
+   auditor's curl — read the same header, strapline and footer disclosure at
+   every address, and nothing of the page. The app drew each page into
+   <div id="views"> only once its script ran.
+
+   prerender.mjs renders each page in Chrome against a clean copy of the site
+   — the app's own render, the personal lane blocked — and commits what it
+   drew into #views, and the product's tab row above it, under prerender/,
+   with a manifest of how each was drawn. Here, with no browser, each is put
+   into its page:
+
+     <html data-chrome>   the chrome the page wears (chromeOf), so the frame
+                          before the script shows the page in its own header
+                          and column, footer and disclosure where they end up
+     #productTabs         the tab row, shown, where the page has one
+     #views data-served   the page; the script replaces it with the same page
+                          drawn live (drawPage, 35-ui.js)
+
+   for every page written for a static route — index.html for / — but My
+   Workspace's (pages/my/: one reader's own, robots-disallowed, where a fresh
+   visitor sees only sample data). Not the 404 page, the parameter routes'
+   page, or a company's: those are served as before. --check fails if a page
+   does not carry its committed render exactly, if one is missing, or if one
+   is left for a page that no longer has a route; prerender.mjs --check says
+   whether a render is still the app's. */
+const PRERENDER = 'prerender';
+const MANIFEST = `${PRERENDER}/manifest.json`;
+/* The page every parameter route is served (/company/:id …): the site root's
+   head and the app, with no page in it, because which page it is waits for
+   the router. It was index.html, which now carries the homepage. A name no
+   route can have (a route's segments are letters, digits and hyphens), so no
+   route's page can be written over it. */
+export const GENERIC = `${PAGES}/generic.app.html`;
+/* The pages written for the static routes: the site root's index.html, then
+   one file per head — routes whose heads are identical (the wheel's five
+   aliases) share one, named after the route among them that is its own
+   canonical address, else after the first. */
+export function routePages(plan) {
+  const groups = new Map();
+  for (const p of plan.pages) {
+    if (p.path === '/') continue;
+    const key = JSON.stringify(p.head);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(p);
+  }
+  const root = plan.pages.find(p => p.path === '/');
+  return [{ file: 'index.html', named: root, routes: [root] },
+    ...[...groups.values()].map(group => {
+      const named = group.find(p => plan.origin + p.path === p.head.canonical) || group[0];
+      return { file: `${PAGES}${named.path}.html`, named, routes: group };
+    })];
+}
+/* Which pages carry a render, and where each render is committed. */
+export function prerenderScope(plan) {
+  return routePages(plan).filter(p => !p.file.startsWith(`${PAGES}/my/`)).map(({ file, named }) => {
+    const stem = file === 'index.html' ? 'index' : file.slice(PAGES.length + 1, -'.html'.length);
+    return { file, path: named.path, view: named.view, render: `${PRERENDER}/${stem}.html`, tabs: `${PRERENDER}/${stem}.tabs.html` };
+  });
+}
+/* The committed renders: the manifest, and each page's #views and tab row. */
+export function readRenders(scope) {
+  const manifest = existsSync(join(ROOT, MANIFEST)) ? JSON.parse(lf(readFileSync(join(ROOT, MANIFEST), 'utf8'))) : null;
+  const renders = new Map(), missing = [];
+  for (const s of scope) {
+    const m = manifest?.pages?.[s.file];
+    const has = existsSync(join(ROOT, s.render));
+    if (!m || !has) { missing.push(`${s.file} (${s.path}): ${!m ? `no entry in ${MANIFEST}` : `no ${s.render}`}`); continue; }
+    if (m.path !== s.path) { missing.push(`${s.file}: ${MANIFEST} has it rendered at ${m.path}, not ${s.path}`); continue; }
+    /* Each file ends with the one newline prerender.mjs writes, which is
+       not part of the render. */
+    const read = (f) => lf(readFileSync(join(ROOT, f), 'utf8')).replace(/\n$/, '');
+    const views = read(s.render);
+    const tabs = m.tabs ? (existsSync(join(ROOT, s.tabs)) ? read(s.tabs) : null) : null;
+    if (m.tabs && tabs === null) { missing.push(`${s.file}: ${MANIFEST} says it has a tab row, and ${s.tabs} is not there`); continue; }
+    renders.set(s.file, { ...s, tabsFile: s.tabs, manifest: m, views, tabs });
+  }
+  /* What is under prerender/ that no page in scope reads. */
+  const want = new Set([MANIFEST, ...[...renders.values()].flatMap(r => [r.render, ...(r.tabs !== null ? [r.tabsFile] : [])])]);
+  const extra = filesUnder(PRERENDER).filter(f => !want.has(f));
+  const unknown = Object.keys(manifest?.pages || {}).filter(f => !scope.some(s => s.file === f));
+  return { manifest, renders, missing, extra, unknown };
+}
+/* The render put into its page. Each place is the template's own, exactly
+   once; the render may carry no script and no stylesheet of its own. */
+export function withRender(html, r) {
+  const put = (from, to, what) => {
+    const n = html.split(from).length - 1;
+    if (n !== 1) throw new Error(`the page carries ${n} of ${from}, where the build puts ${what} exactly once`);
+    html = html.replace(from, () => to);
+  };
+  for (const [part, body] of [['#views', r.views], ['#productTabs', r.tabs || '']]) {
+    if (/<script[\s>]|<style[\s>]|<link\b/i.test(body)) throw new Error(`${r.render}: its ${part} carries a <script>, <style> or <link>, which a render may not`);
+  }
+  const chrome = r.manifest.chrome;
+  if (chrome !== 'public' && chrome !== 'app') throw new Error(`${r.file}: ${MANIFEST} gives its chrome as ${JSON.stringify(chrome)}`);
+  /* data-served: the page before its script has run, which the script takes
+     off as it starts (buildShell, 35-ui.js) — the stylesheet lays the page's
+     size containers out by the window until then (styles.css, prerender). */
+  put('<html lang="en">', `<html lang="en" data-chrome="${chrome}" data-served>`, 'the chrome');
+  if (r.tabs) put('<div class="ptabs-host" id="productTabs" hidden></div>', `<div class="ptabs-host" id="productTabs">${r.tabs}</div>`, 'the tab row');
+  put('<div id="views"></div>', `<div id="views" data-served="${escAttr(r.path)}">${r.views}</div>`, 'the page');
+  return html;
+}
+/* A served page less everything that is its own beyond the head: its
+   chrome, its navigation's marks, its tab row and its render. What is left
+   is the same in every page — served-check.mjs compares it with index.html's. */
+export function unserved(html) {
+  let out = html.replace(/^(<!DOCTYPE html>\n<html lang="en") data-chrome="[a-z]+" data-served>/, '$1>');
+  for (const [open, close] of Object.values(NAV_SLOTS)) {
+    const i = out.indexOf(open), j = i < 0 ? -1 : out.indexOf(close, i + open.length);
+    if (i > -1 && j > -1) out = out.slice(0, i + open.length) + out.slice(j);
+  }
+  out = out.replace(/<div class="ptabs-host" id="productTabs">[\s\S]*?<\/div>(?=\n\s*<div id="views")/, '<div class="ptabs-host" id="productTabs" hidden></div>');
+  const v0 = out.indexOf('<div id="views"'), v1 = out.indexOf('\n  <!-- What a page says about a change', v0);
+  if (v0 > -1 && v1 > -1) out = out.slice(0, v0) + '<div id="views"></div>' + out.slice(v1);
+  return out;
+}
+
 /* ─── THE HEAD, REWRITTEN ────────────────────────────────────────────────────
    Eight tags, each of which the template carries exactly once in its <head>;
    if one goes missing or appears twice the build fails, rather than shipping
@@ -536,7 +816,10 @@ export function linked(page, files) {
     + `<script src="/${files.script.file}"></script>` + page.slice(j1 + 9);
 }
 
-export function build() {
+/* bare: every page without its render and its chrome — only prerender.mjs
+   asks for this, of the clean copy it renders from, so that what it reads
+   back is the app's drawing and never a render committed before it. */
+export function build({ bare = false } = {}) {
   const template = lf(readFileSync(src('index.template.html'), 'utf8'));
   if (!template.includes(STYLE_MARKER)) throw new Error('template lost its style marker');
   if (!template.includes(SCRIPT_MARKER)) throw new Error('template lost its script marker');
@@ -585,23 +868,35 @@ export function build() {
      index.html carries the app inline; every other page loads it from the
      two files (appFiles, linked — THE APP ONCE, above). */
   const plan = routePlan(template);
-  const html = withHead(shell, plan.pages.find(p => p.path === '/').head);
-  const files = appFiles(html);
-  const notFound = linked(withHead(shell, plan.notFound, { notFound: true }), files);
-  const groups = new Map();
-  for (const p of plan.pages) {
-    if (p.path === '/') continue;
-    const key = JSON.stringify(p.head);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(p);
+  /* Every page carries the navigation (navMarkup); a page in prerender's
+     scope carries its render as well, and its navigation marked as the
+     render marked it (withRender, readRenders). */
+  const nav = navMarkup();
+  const scope = prerenderScope(plan);
+  const stems = new Map();
+  for (const s of scope) {
+    if (stems.has(s.render)) throw new Error(`${s.file} and ${stems.get(s.render)} would both be rendered to ${s.render}`);
+    stems.set(s.render, s.file);
   }
-  const pages = new Map();
-  const fileOfHead = new Map();
-  for (const [key, group] of groups) {
-    const named = group.find(p => plan.origin + p.path === p.head.canonical) || group[0];
-    const file = `${PAGES}${named.path}.html`;
-    fileOfHead.set(key, file);
-    pages.set(file, linked(withHead(shell, named.head), files));
+  const rendered = bare ? { manifest: null, renders: new Map(), missing: [], extra: [], unknown: [] } : readRenders(scope);
+  const page = (head, file, opts) => {
+    const r = rendered.renders.get(file);
+    const p = withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null));
+    return r ? withRender(p, r) : p;
+  };
+  const rootHead = plan.pages.find(p => p.path === '/').head;
+  const html = page(rootHead, 'index.html');
+  const files = appFiles(html);
+  const notFound = linked(page(plan.notFound, NOT_FOUND, { notFound: true }), files);
+  /* The parameter routes' page: index.html's head and the app, no page in
+     it (GENERIC). */
+  const pages = new Map([[GENERIC, linked(page(rootHead, GENERIC), files)]]);
+  const fileOfRoute = new Map();
+  for (const g of routePages(plan)) {
+    g.routes.forEach(p => fileOfRoute.set(p.path, g.file));
+    if (g.file === 'index.html') continue;
+    if (pages.has(g.file)) throw new Error(`${g.file} would be written for ${g.named.path} and is already written`);
+    pages.set(g.file, linked(page(g.named.head, g.file), files));
   }
   /* A page per company, at its own address under pages/, made as a route
      page is — so everything below that holds a page (no inline script, the
@@ -609,12 +904,9 @@ export function build() {
   for (const co of plan.companies) {
     const file = `${PAGES}${co.path}.html`;
     if (pages.has(file)) throw new Error(`${file} would be written both for a route and for ${co.id}`);
-    pages.set(file, linked(withHead(shell, co.head), files));
+    pages.set(file, linked(page(co.head, file), files));
   }
-  const rewrites = plan.pages.map(p => ({
-    source: p.path,
-    destination: p.path === '/' ? '/index.html' : `/${fileOfHead.get(JSON.stringify(p.head))}`,
-  }));
+  const rewrites = plan.pages.map(p => ({ source: p.path, destination: `/${fileOfRoute.get(p.path)}` }));
   /* Each company's own address, to its page: exact like the routes above
      (none of which is a company's), and before the parameter routes, where
      /company/:id would answer it with the generic page. */
@@ -622,7 +914,7 @@ export function build() {
   /* After every exact path, so no :param can answer an address a page is
      written for (matchRoute has already decided each of those). They all go
      to one file, so their order among themselves cannot matter. */
-  for (const path of plan.params) rewrites.push({ source: path, destination: '/index.html' });
+  for (const path of plan.params) rewrites.push({ source: path, destination: `/${GENERIC}` });
 
   /* The CSP hash covers the inline script EXACTLY as the browser will see it —
      taken back out of the assembled document rather than from the pieces, so a
@@ -640,7 +932,10 @@ export function build() {
     if (inlineLeft) throw new Error(`${file} carries ${inlineLeft} inline <script> or <style>, which only index.html may`);
     if (loads !== 2 || !want.every(tag => page.split(tag).length === 2)) throw new Error(`${file} does not load exactly /${files.script.file} and /${files.styles.file}`);
     const size = Buffer.byteLength(page, 'utf8');
-    if (size > PAGE_LIMIT) throw new Error(`${file} is ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — is the app inline in it again?`);
+    const rd = rendered.renders.get(file);
+    if (size > PAGE_LIMIT) throw new Error(`${file} is ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — ${rd
+      ? `${(Buffer.byteLength(rd.views) / 1024).toFixed(0)}kB of it is its render (${rd.render}): the page has grown past what may be served whole, and what prerender.mjs serves of it (servedCopy) must shrink`
+      : 'is the app inline in it again?'}`);
   }
   const cspHash = 'sha256-' + createHash('sha256').update(inline, 'utf8').digest('base64');
 
@@ -680,7 +975,7 @@ export function build() {
   const vercel = JSON.stringify(stripComments(parsed), null, 2) + String.fromCharCode(10);
   if (vercel.includes('"$comment')) throw new Error('a $comment survived into vercel.json');
 
-  return { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash };
+  return { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash, scope, rendered };
 }
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -745,8 +1040,18 @@ function servingProblems({ rewrites, plan }) {
 }
 
 if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
-  const built = build();
-  const { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash } = built;
+  const bare = process.argv.includes('--bare');
+  if (bare && process.argv.includes('--check')) { console.error('--bare writes pages without their renders, for prerender.mjs; it has nothing to check'); process.exit(2); }
+  const built = build({ bare });
+  const { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash, scope, rendered } = built;
+  /* What prerender/ does not hold for the pages in scope, and what it holds
+     for none: --check fails on either; a build says so and writes the page
+     without a render. */
+  const renderProblems = [
+    ...rendered.missing.map(m => `no render committed for ${m} — run node prerender.mjs, then node build.mjs`),
+    ...rendered.extra.map(f => `${f} is stale — no page in scope reads it (node prerender.mjs removes it)`),
+    ...rendered.unknown.map(f => `${MANIFEST} lists ${f}, which is not a page in scope (node prerender.mjs rewrites it)`),
+  ];
   const CFG = join(ROOT, 'vercel.json');
   const kb = (n) => `${(n / 1024).toFixed(0)}kB`;
   const outputs = [['index.html', html], ['vercel.json', vercel], [NOT_FOUND, notFound], ...pages,
@@ -762,8 +1067,9 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);
   const companySizes = [...pages].filter(([f]) => isCompanyPage(f)).map(([, p]) => Buffer.byteLength(p, 'utf8'));
-  const routePages = pages.size - companySizes.length;
-  const shared = plan.pages.length - 1 - routePages;
+  /* The route pages, less the parameter routes' page beside them. */
+  const routeFiles = pages.size - companySizes.length - 1;
+  const shared = plan.pages.length - 1 - routeFiles;
   const filed = plan.companies.filter(c => c.company.real).length;
   const companiesSaid = `${plan.companies.length} company pages (${filed} filed with the SEC, ${plan.companies.length - filed} illustrative)`;
   plan.skippedFilers.forEach(s => console.error(`skipped      ${s} — the page's loader refuses this filer too, so it has no page`));
@@ -783,8 +1089,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
        with its name. */
     stale.forEach(f => drift.push(`${f} is stale — ${isCompanyPage(f) ? 'no company in the universe has that address any more' : f.startsWith(PAGES) ? 'no route writes it any more' : 'no page loads it any more'}`));
     problems.forEach(p => drift.push(p));
+    renderProblems.forEach(p => drift.push(p));
     if (!drift.length) {
-      console.log(`index.html, 404.html, ${routePages} route pages, ${companiesSaid}, the app's two files and vercel.json match src/ and data/us.json (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
+      console.log(`index.html, 404.html, ${routeFiles} route pages, the parameter routes' page, ${companiesSaid}, the app's two files and vercel.json match src/ and data/us.json (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
+      console.log(`every page carries the navigation NAV_MARKUP draws; ${rendered.renders.size} of them (${scope.length} in scope) carry their committed render of the page in #views exactly, under prerender/.`);
       console.log(`every page but index.html loads /${files.script.file} and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}).`);
       console.log(`sitemap.xml lists only canonical addresses that are served their own page.`);
     } else {
@@ -809,10 +1117,12 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     console.log(`index.html   ${modules.length} modules  ${kb(html.length)}  ${sha(html).slice(0, 12)}`);
     console.log(`assets/      ${files.script.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.script.body))}, ${files.styles.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.styles.body))} — index.html's inline script and stylesheet`);
     console.log(`404.html     the not-found head, noindex  ${kb(Buffer.byteLength(notFound))}`);
-    console.log(`pages/       ${routePages} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''}, the largest of every page ${kb(largest)}`);
+    console.log(`pages/       ${routeFiles} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''} and ${GENERIC.slice(PAGES.length + 1)} for the ${plan.params.length} parameter routes, the largest of every page ${kb(largest)}`);
+    console.log(`prerender/   ${bare ? 'not read (--bare): no page carries a render' : `${rendered.renders.size} of the ${scope.length} pages in scope carry their render of the page, ${rendered.renders.size ? `${kb([...rendered.renders.values()].reduce((n, r) => n + Buffer.byteLength(r.views) + Buffer.byteLength(r.tabs || ''), 0))} of renders` : 'none committed'}`}`);
+    renderProblems.forEach(p => console.error(`WARNING  ${p}`));
     console.log(`pages/company/  ${companiesSaid}, one per company at its own address, the largest ${kb(Math.max(0, ...companySizes))}, ${(companySizes.reduce((a, b) => a + b, 0) / 1048576).toFixed(2)}MB in all`);
     if (stale.length) console.log(`stale        ${stale.join(', ')} — removed`);
-    console.log(`vercel.json  ${rewrites.length} rewrites (${plan.companies.length} company addresses to their pages, ${plan.params.length} parameter routes to index.html)  csp ${cspHash.slice(0, 19)}…`);
+    console.log(`vercel.json  ${rewrites.length} rewrites (${plan.companies.length} company addresses to their pages, ${plan.params.length} parameter routes to /${GENERIC})  csp ${cspHash.slice(0, 19)}…`);
     Object.entries(versions).forEach(([f, v]) => console.log(`  data/${f.padEnd(18)} v=${v}`));
     if (problems.length) {
       problems.forEach(p => console.error(`WARNING  ${p}`));

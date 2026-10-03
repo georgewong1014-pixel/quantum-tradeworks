@@ -3962,3 +3962,65 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   .search-clear { min-height: 44px; }
 }
 /* ---- end releaseB: search-recent ---- */
+
+/* ---- prerender ---- */
+/* THE SERVED PAGE BEFORE ITS SCRIPT HAS RUN (2026-10-03). Every static
+   route's page is served with the app's own render of it in #views
+   (prerender.mjs, build.mjs), on an <html data-served> the script takes off
+   the moment it runs (buildShell, 35-ui.js). On a first visit the page
+   stands on screen while the app's script comes down, and there Chrome drew
+   the contents of a size container — the product's tab row, the screener's
+   layout — without the page's custom properties: the row's name at 16px
+   and its shell with no padding, 32px too tall, then 32px shorter when the
+   script ran (a layout shift of 0.05 to 0.07), and the screener's rail and
+   results thrown about by 0.48. Not a container until the script runs, the
+   two are laid out by the window instead: the container's width is the
+   window's less a 15px scrollbar and, from 1024px on an app page, the
+   264px sidebar, so each @container rule below is its rule from above at
+   the window widths that give that container width. Once the script runs
+   the containers answer as they always have, and the layout is the same. */
+:root[data-served] .ptabs-host, :root[data-served] .screener-layout { container-type: normal; }
+/* The tab row: @container (max-width: 940px) — a window up to 955px, and
+   beside the app's sidebar one up to 1219px. */
+@media (max-width: 955px) {
+  :root[data-served] .ptabs { flex-direction: column; align-items: stretch; gap: 0; }
+  :root[data-served] .ptabs-name { border-right: 0; padding: 12px 0 0; height: auto; }
+  :root[data-served] .ptabs-list { gap: 20px; }
+  :root[data-served] .ptab { height: 44px; }
+}
+@media (min-width: 1024px) and (max-width: 1219px) {
+  :root[data-served][data-chrome="app"] .ptabs { flex-direction: column; align-items: stretch; gap: 0; }
+  :root[data-served][data-chrome="app"] .ptabs-name { border-right: 0; padding: 12px 0 0; height: auto; }
+  :root[data-served][data-chrome="app"] .ptabs-list { gap: 20px; }
+  :root[data-served][data-chrome="app"] .ptab { height: 44px; }
+}
+/* The screener: @container screener-layout (max-width: 999.98px), its
+   width the shell's less its 32px padding each side. */
+@media (max-width: 1342.98px) {
+  :root[data-served] .screener-layout > * { grid-column: 1 / -1; }
+  :root[data-served] .screener-layout > .card:first-child { position: static !important; }
+}
+/* And (min-width: 600px) and (max-width: 999.98px): 24px of padding a side
+   below 900px. */
+@media (min-width: 663px) and (max-width: 1342.98px) {
+  :root[data-served] .scr-rail-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--xl); align-items: start; }
+  :root[data-served] .scr-rail-hd .segmented { max-width: 26rem; }
+  :root[data-served] .scr-rail-foot .btn { max-width: 14rem; }
+}
+/* A segmented choice in the served page. Until the script draws the page a
+   button is only its words (prerender.mjs makes every control inert), and
+   every rule of the strip's look is a button's: the screener's four tools
+   stood as one run-on line of text on a phone, half the strip's height, and
+   the page under them jumped when the buttons came. So the words keep a
+   button's box and the chosen one its mark (data-on) for as long as the
+   served page stands — #views[data-served], which the app's first draw of
+   the page takes off. */
+#views[data-served] .segmented > span {
+  display: inline-flex; align-items: center; padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
+  font-size: 13px; font-weight: 500; color: var(--ink-2);
+}
+#views[data-served] .segmented > span[data-on] { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1); }
+@media (pointer: coarse), (max-width: 768px) {
+  #views[data-served] .segmented > span { min-height: 44px; min-width: 44px; justify-content: center; }
+}
+/* ---- end prerender ---- */

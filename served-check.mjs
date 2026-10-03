@@ -60,7 +60,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT } from './build.mjs';
+import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, unserved, GENERIC } from './build.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -152,8 +152,12 @@ function headOf(html) {
     return [k, all.length === 1 ? decode(all[0][1]) : (all.length ? `(${all.length} ${k} tags)` : null)];
   }));
 }
-/* The page less the tags a route may change: what must be index.html's. */
+/* The page less the tags a route may change: what must be index.html's.
+   Less, too, what a page carries of its own since 2026-10-03 (unserved,
+   build.mjs): its chrome, its navigation and its marks, its tab row and its
+   render in #views — group 12 holds each of those to what it must be. */
 const skeleton = (html) => {
+  html = unserved(html);
   const end = html.indexOf('</head>');
   let top = html.slice(0, end);
   for (const re of Object.values(HEAD_TAGS)) top = top.replace(new RegExp(re.source.replace('([^<]*)', '[^<]*').replace('([^"]*)', '[^"]*') + '\\n?', 'g'), '');
@@ -242,14 +246,21 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   const paths = [...params.map(r => r.replace(/:([A-Za-z]+)/g, (_, n) => SAMPLE[n] || `sample-${n}`)), '/company/1155.KL', '/app/equities/1155.KL/financials'];
   const got = await getAll(paths);
   const p = [];
+  /* The generic page is pages/generic.app.html since 2026-10-03: index.html
+     carries the homepage itself in #views now, which a parameter route —
+     whose page the router decides — must not be served. It is index.html's
+     head and the app, with nothing in #views. */
+  const GENERIC_PAGE = read(GENERIC);
+  if (skeleton(GENERIC_PAGE) !== PAGE_SKELETON || headOf(GENERIC_PAGE).canonical !== headOf(INDEX).canonical) p.push(`${GENERIC}: not index.html's head and the app`);
+  if (!GENERIC_PAGE.includes('<div id="views"></div>')) p.push(`${GENERIC}: carries a page in #views`);
   for (const path of paths) {
     const r = got.get(path);
     if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
-    if (r.body !== root.body) p.push(`${path}: not the generic page (index.html)`);
+    if (r.body !== GENERIC_PAGE) p.push(`${path}: not the generic page (${GENERIC})`);
     p.push(...headerProblems(r));
   }
   if (root.status !== 200 || root.body !== indexFile.body) p.push(`/: ${described(root)}, ${root.body === indexFile.body ? 'index.html' : 'not index.html'}`);
-  judge(p, `every parameter route (${params.length}), a dotted company id and / are served the generic page, 200, with the headers`,
+  judge(p, `every parameter route (${params.length}) and a dotted company id are served the generic page (${GENERIC}: index.html's head, nothing in #views), 200, with the headers; / is index.html`,
     'a parameter route is not served the generic page');
 }
 
@@ -596,7 +607,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   for (const path of OTHER) {
     const r = more.get(path);
     if (r.status !== 200) { p.push(`${path}: ${described(r)}, not the generic page with 200`); continue; }
-    if (r.body !== root.body) p.push(`${path}: not the generic page (index.html), but one titled "${headOf(r.body).title}"`);
+    if (r.body !== read(GENERIC)) p.push(`${path}: not the generic page (${GENERIC}), but one titled "${headOf(r.body).title}"`);
     p.push(...headerProblems(r));
   }
   for (const [a, b] of QUERY) if (more.get(a).status !== 200 || more.get(a).body !== more.get(b).body) p.push(`${a}: ${described(more.get(a))}, not the page ${b} is served`);
@@ -605,6 +616,118 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     'a company\'s own address is not served its own head, or another form of it is not the generic page');
 }
 /* ---- end releaseB: D ---- */
+
+/* ---- prerender ---- */
+/* 12. EVERY PAGE'S OWN CONTENT AND NAVIGATION IN ITS HTML (2026-10-03).
+       Fetched with no script run, every address gave the same body: the
+       header, the strapline and the footer's disclosure, with an empty
+       <div id="views"> and the header's and footer's lists empty. Held here
+       as served:
+       - every static route whose page carries a render (prerender/, every
+         page but My Workspace's) is served it in #views exactly — the
+         committed render, marked data-served with the address it was drawn
+         at — with its tab row exactly where it has one and the chrome it was
+         drawn in on <html>; and the #views served there holds an h1 whose
+         words are the page's own (its render's, and different from every
+         other page's but those drawn as the same page);
+       - every other page — My Workspace's, the generic page, the 404 page
+         and each company's — is served with #views empty and no chrome;
+       - every page's header, sidebar and footer lists are the app's own
+         markup (NAV_MARKUP, as build.mjs makes it), marked as the page's
+         render marked them: a link for each product with a path and each
+         resource, Business Intelligence as text and never a link;
+       - no page carries the search box's keys as text: they are written by
+         the script that makes them work (95-boot.js), and a fetch with no
+         script read them as the body text of every page. */
+{
+  const { routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS } = await import('./build.mjs');
+  const plan = routePlan(read('src/index.template.html'));
+  const scope = prerenderScope(plan);
+  const { renders, missing } = readRenders(scope);
+  const nav = navMarkup();
+  const p = [];
+  missing.forEach(m => p.push(`no render committed for ${m}`));
+  const entity = (s) => s.replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const words = (html) => entity(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  /* The parts of a served page that are its own. */
+  const parts = (html) => {
+    const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<!-- What a page says/.exec(html);
+    const t = /<div class="ptabs-host" id="productTabs"( hidden)?>([\s\S]*?)<\/div>\n {2}<div id="views"/.exec(html);
+    const chrome = /^<!DOCTYPE html>\n<html lang="en"(?: data-chrome="([a-z]+)" data-served)?>/.exec(html);
+    const slots = Object.fromEntries(Object.entries(NAV_SLOTS).map(([k, [open, close]]) => {
+      const i = html.indexOf(open), j = i < 0 ? -1 : html.indexOf(close, i + open.length);
+      return [k, i < 0 || j < 0 ? null : html.slice(i + open.length, j)];
+    }));
+    return { views: v ? v[3] : null, served: v ? v[2] ?? null : null, tabs: t ? (t[1] ? null : t[2]) : undefined, chrome: chrome ? chrome[1] ?? null : undefined, slots };
+  };
+  const fileOf = new Map();
+  for (const s of scope) fileOf.set(s.path, s.file);
+  /* Every static route, by the file its rewrite names. */
+  const rewrites = new Map((VERCEL.rewrites || []).map(x => [x.source, x.destination.replace(/^\//, '')]));
+  const got = await getAll(statics);
+  const h1s = new Map();
+  let carrying = 0, empty = 0;
+  for (const path of statics) {
+    const r = got.get(path);
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    const file = rewrites.get(path);
+    const rd = renders.get(file);
+    const x = parts(r.body);
+    if (x.views === null) { p.push(`${path}: no <div id="views"> where the template has it`); continue; }
+    if (rd) {
+      carrying++;
+      if (x.views !== rd.views) p.push(`${path}: #views is not ${rd.render} exactly`);
+      if (x.served !== rd.path) p.push(`${path}: #views is marked data-served=${JSON.stringify(x.served)}, not ${rd.path}`);
+      if ((x.tabs ?? null) !== (rd.tabs ?? null)) p.push(`${path}: its tab row is ${x.tabs ? 'not' : 'missing, where it is'} ${rd.tabsFile} exactly`);
+      if (x.chrome !== rd.manifest.chrome) p.push(`${path}: <html> says chrome ${JSON.stringify(x.chrome)}, where its render was drawn in the ${rd.manifest.chrome} chrome`);
+      const h = /<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(x.views);
+      const said = h ? words(h[1]) : null;
+      if (!said) p.push(`${path}: its #views holds no h1`);
+      else if (said !== rd.manifest.h1) p.push(`${path}: its h1 reads ${JSON.stringify(said)}, where the page's is ${JSON.stringify(rd.manifest.h1)}`);
+      else { if (!h1s.has(said)) h1s.set(said, new Set()); h1s.get(said).add(rd.manifest.view); }
+      const want = nav(rd.manifest.nav);
+      for (const k of Object.keys(NAV_SLOTS)) if (x.slots[k] !== want[k]) p.push(`${path}: its ${k} is not NAV_MARKUP's${k === 'pubnav' || k === 'appnav' ? ', marked as its render marked it' : ''}`);
+    } else {
+      empty++;
+      if (x.views !== '' || x.served !== null || x.tabs !== null || x.chrome !== null) p.push(`${path}: carries no render, but its #views, tab row or chrome is not the template's`);
+      if (!file.startsWith('pages/my/')) p.push(`${path}: is in no render's scope, and only My Workspace's pages are left out`);
+      const want = nav();
+      for (const k of Object.keys(NAV_SLOTS)) if (x.slots[k] !== want[k]) p.push(`${path}: its ${k} is not NAV_MARKUP's`);
+    }
+  }
+  /* One page, one h1: two pages share one only when they are one view drawn
+     at two addresses (the screener's tabs, research's aliases). */
+  for (const [h, views] of h1s) if (views.size > 1) p.push(`the h1 ${JSON.stringify(h)} is served on ${views.size} different views' pages`);
+  /* The pages that are never a render's: empty, unmarked navigation. */
+  const others = await getAll(['/company/aapl', '/company/aapl-apple-inc', '/nope-for-served-check']);
+  for (const [path, r] of others) {
+    const x = parts(r.body), want = nav();
+    if (x.views !== '' || x.chrome !== null) p.push(`${path}: carries a render or a chrome`);
+    for (const k of Object.keys(NAV_SLOTS)) if (x.slots[k] !== want[k]) p.push(`${path}: its ${k} is not NAV_MARKUP's`);
+  }
+  /* Crawlable: real links, from the tables; Business Intelligence is text. */
+  const sample = parts(got.get('/pricing').body).slots;
+  const links = (html) => [...(html || '').matchAll(/<a\b[^>]*\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(m => ({ href: m[1], text: words(m[2]) }));
+  const pub = links(sample.pubnav), foot = links(sample.footProducts), res = links(sample.footResources), side = links(sample.appnav);
+  for (const [where, list, wantText] of [['#pubnav', pub, true], ['#footProducts', foot, true], ['#appnav', side, true]]) {
+    for (const [name, href] of [['Equities Research', '/research'], ['Quantum Scanner', '/app/scanner'], ['Property Intelligence', '/property']]) {
+      if (!list.some(l => l.href === href && (!wantText || l.text.startsWith(name)))) p.push(`${where} has no link to ${name} (${href})`);
+    }
+    if (list.some(l => /Business Intelligence/.test(l.text))) p.push(`${where} links Business Intelligence, which is not built`);
+  }
+  if (!/Business Intelligence/.test(words(sample.pubnav)) || !/Business Intelligence/.test(words(sample.footProducts))) p.push('Business Intelligence is not in the header\'s and the footer\'s Products as text');
+  for (const href of ['/how-it-works', '/pricing', '/methodology', '/data-sources', '/learn/glossary', '/status', '/about', '/contact', '/privacy', '/terms'])
+    if (!pub.some(l => l.href === href)) p.push(`#pubnav has no link to ${href}`);
+  for (const href of ['/methodology', '/data-sources', '/learn/glossary', '/learn', '/corrections', '/status'])
+    if (!res.some(l => l.href === href)) p.push(`#footResources has no link to ${href}`);
+  /* The search's keys are not served. */
+  const SEARCH_WORDS = /The down arrow moves into the results|<span class="kbd">Enter<\/span> open/;
+  /* As text: index.html's inline script, which writes them, may name them. */
+  for (const [path, r] of [...got, ...others]) if (SEARCH_WORDS.test(r.body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ''))) p.push(`${path}: carries the search box's keys as text`);
+  judge(p, `${carrying} static routes are served their page's own render in #views exactly (each with its own h1, its tab row and its chrome) and ${empty} (My Workspace's) none; every page's header, sidebar and footer lists are NAV_MARKUP's links — every product with a path and every resource a link, Business Intelligence text — marked as the page's render marked them; no page carries the search box's keys`,
+    'a page is not served its own content or its navigation');
+}
+/* ---- end prerender ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

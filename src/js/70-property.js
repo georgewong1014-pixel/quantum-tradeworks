@@ -1798,8 +1798,12 @@ const AREA_LAYERS = [
 
   /* WHEN, not how much — the map shades by how stale the newest transaction is.
      An area whose last recorded sale was in 2019 is not comparable to one that
-     transacted last month, and a price column alone hides that entirely. */
-  { id:'lastSoldAge', label:'Age of the last transacted price', kind:'quantity', invert:true,
+     transacted last month, and a price column alone hides that entirely.
+     Named for what it measures, the newest transaction the reader recorded:
+     its label was the phrase the extraction specification bans (section 13,
+     wording-check.mjs), which the served area screen now carries as text
+     (prerender, 2026-10-03), where no disclaimer stands beside it. */
+  { id:'lastSoldAge', label:'Age of the newest recorded transaction', kind:'quantity', invert:true,
     unit:'months', why:'Months since the most recent transaction you have recorded, by the date it happened rather than the date it was keyed in. Nothing recorded means unexamined, not current.',
     value:(c, a) => { const m = areaMetrics(c, a); const l = m.lastTransaction;
       return l ? monthsSince(l.date) : null; },

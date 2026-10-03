@@ -1,0 +1,1213 @@
+{
+  "$comment": "Written by prerender.mjs: how each page in prerender/ was drawn. build.mjs puts each render into its page; node prerender.mjs --check says whether each is still the app's.",
+  "drawn": {
+    "viewport": "1280x900",
+    "theme": "light",
+    "motion": "reduce",
+    "clock": "2026-10-01T09:30:00+08:00",
+    "timeZone": "Asia/Kuala_Lumpur",
+    "locale": "en-MY",
+    "storage": "none",
+    "personalLane": "404"
+  },
+  "pages": {
+    "index.html": {
+      "path": "/",
+      "view": "marketing",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Make financial decisions with greater clarity.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/about.html": {
+      "path": "/about",
+      "view": "about",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "About",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          13
+        ],
+        "resources": "Current page: About",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/admin/scanner.html": {
+      "path": "/admin/scanner",
+      "view": "scannerAdmin",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Scanner operations",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 7,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/admin/scanner/data.html": {
+      "path": "/admin/scanner/data",
+      "view": "scannerAdminData",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Data health",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/admin/scanner/delivery.html": {
+      "path": "/admin/scanner/delivery",
+      "view": "scannerAdminDelivery",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Delivery",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/admin/scanner/jobs.html": {
+      "path": "/admin/scanner/jobs",
+      "view": "scannerAdminJobs",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Runs",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/app.html": {
+      "path": "/app",
+      "view": "home",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "My Dashboard: Good morning",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          0
+        ]
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/app/equities.html": {
+      "path": "/app/equities",
+      "view": "researchHome",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Start from a company, a market or a question",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 3,
+        "choices": 0,
+        "roles": 6,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/app/equities/compare.html": {
+      "path": "/app/equities/compare",
+      "view": "compare",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Economically comparable, not just same-sector",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 146,
+        "fields": 2,
+        "choices": 0,
+        "roles": 16,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/app/equities/explore.html": {
+      "path": "/app/equities/explore",
+      "view": "researchHome",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Start from a company, a market or a question",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 3,
+        "choices": 0,
+        "roles": 6,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/app/scanner.html": {
+      "path": "/app/scanner",
+      "view": "scannerDashboard",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Scanner dashboard",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/app/scanner/alerts.html": {
+      "path": "/app/scanner/alerts",
+      "view": "scannerAlerts",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Alerts",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/app/scanner/backtest.html": {
+      "path": "/app/scanner/backtest",
+      "view": "scannerBacktest",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Historical matches — simulation",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 3,
+        "fields": 5,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/app/scanner/market.html": {
+      "path": "/app/scanner/market",
+      "view": "scannerMarket",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Market screening — your series",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 3,
+        "fields": 4,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/app/scanner/settings.html": {
+      "path": "/app/scanner/settings",
+      "view": "scannerSettings",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Scanner settings",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 3,
+        "choices": 1,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/app/scanner/setups.html": {
+      "path": "/app/scanner/setups",
+      "view": "scannerSetups",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Your setups",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/app/scanner/setups/new.html": {
+      "path": "/app/scanner/setups/new",
+      "view": "scannerSetupNew",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "New setup",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 9,
+        "fields": 15,
+        "choices": 5,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 2
+      }
+    },
+    "pages/app/scanner/watchlists.html": {
+      "path": "/app/scanner/watchlists",
+      "view": "scannerWatchlists",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Watchlist scanner",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 4,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/compare.html": {
+      "path": "/compare",
+      "view": "compare",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Economically comparable, not just same-sector",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 146,
+        "fields": 2,
+        "choices": 0,
+        "roles": 16,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/contact.html": {
+      "path": "/contact",
+      "view": "contact",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Contact",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          14
+        ],
+        "resources": "Current page: Contact",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/corrections.html": {
+      "path": "/corrections",
+      "view": "learn",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Corrections & model changes",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          10
+        ],
+        "resources": "Current page: Corrections",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/data-sources.html": {
+      "path": "/data-sources",
+      "view": "learn",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Data, rights & point-in-time",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          7
+        ],
+        "resources": "Current page: Data sources",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/decision-record.html": {
+      "path": "/decision-record",
+      "view": "decisionRecord",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Condominium — Tabuan, Kuching",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/discover.html": {
+      "path": "/discover",
+      "view": "discover",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Narrow the universe to what is worth reading",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 135,
+        "fields": 82,
+        "choices": 3,
+        "roles": 504,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/discover/sarawak.html": {
+      "path": "/discover/sarawak",
+      "view": "sarawak",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Companies with material exposure to the Sarawak economy",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 2,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/discover/screener.html": {
+      "path": "/discover/screener",
+      "view": "discover",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Narrow the universe to what is worth reading",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 135,
+        "fields": 82,
+        "choices": 3,
+        "roles": 504,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1
+      }
+    },
+    "pages/discover/value-map.html": {
+      "path": "/discover/value-map",
+      "view": "discover",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Narrow the universe to what is worth reading",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 16,
+        "fields": 1,
+        "choices": 0,
+        "roles": 19,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/how-it-works.html": {
+      "path": "/how-it-works",
+      "view": "howItWorks",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "From your question to a saved answer",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          4
+        ],
+        "resources": null,
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 3,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/learn.html": {
+      "path": "/learn",
+      "view": "learn",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Metric dictionary",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          9
+        ],
+        "resources": "Current page: Learn",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 50,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/learn/glossary.html": {
+      "path": "/learn/glossary",
+      "view": "learn",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Metric dictionary",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          8
+        ],
+        "resources": "Current page: Glossary",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 50,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/learn/product-boundaries.html": {
+      "path": "/learn/product-boundaries",
+      "view": "boundaries",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "What this product will not do",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          11
+        ],
+        "resources": "Current page: What this product will not do",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/learn/trading-index.html": {
+      "path": "/learn/trading-index",
+      "view": "tradingIndex",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "QT Trading Index",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 43,
+        "choices": 16,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/methodology.html": {
+      "path": "/methodology",
+      "view": "learn",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Valuation model router",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          6
+        ],
+        "resources": "Current page: Methodology",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/methodology/ips.html": {
+      "path": "/methodology/ips",
+      "view": "ips",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Investment Policy Statement",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/pricing.html": {
+      "path": "/pricing",
+      "view": "plans",
+      "state": "filings in",
+      "chrome": "public",
+      "h1": "Proposed plans — not on sale yet",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          5
+        ],
+        "resources": null,
+        "appnav": [
+          9
+        ]
+      },
+      "inert": {
+        "buttons": 2,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/privacy.html": {
+      "path": "/privacy",
+      "view": "privacy",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Privacy",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          15
+        ],
+        "resources": "Current page: Privacy",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/property.html": {
+      "path": "/property",
+      "view": "property",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Turn a property into a financial model",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 54,
+        "fields": 78,
+        "choices": 13,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 5
+      }
+    },
+    "pages/property/areas.html": {
+      "path": "/property/areas",
+      "view": "areas",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Area screen",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 59,
+        "fields": 4,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/property/calculator.html": {
+      "path": "/property/calculator",
+      "view": "property",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Turn a property into a financial model",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 54,
+        "fields": 78,
+        "choices": 13,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 5
+      }
+    },
+    "pages/property/comparables.html": {
+      "path": "/property/comparables",
+      "view": "comparables",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Sarawak comparables register",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 7,
+        "fields": 1,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/property/models.html": {
+      "path": "/property/models",
+      "view": "propertyModels",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "My properties",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 4,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/property/opportunities.html": {
+      "path": "/property/opportunities",
+      "view": "opportunities",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Opportunity register",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 3,
+        "fields": 7,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/research.html": {
+      "path": "/research",
+      "view": "researchHome",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Start from a company, a market or a question",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 3,
+        "choices": 0,
+        "roles": 6,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/research/queue.html": {
+      "path": "/research/queue",
+      "view": "researchQueue",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Research queue",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 51,
+        "fields": 1,
+        "choices": 1,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/research/trading-index.html": {
+      "path": "/research/trading-index",
+      "view": "tradingIndex",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "QT Trading Index",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 43,
+        "choices": 16,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/start.html": {
+      "path": "/start",
+      "view": "launcher",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Start with your goal",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          0
+        ]
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/status.html": {
+      "path": "/status",
+      "view": "status",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "What is built, what is gated, and what is holding it",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          12
+        ],
+        "resources": "Current page: Build status",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 1,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/terms.html": {
+      "path": "/terms",
+      "view": "terms",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Terms",
+      "tabs": false,
+      "nav": {
+        "pubnav": [
+          16
+        ],
+        "resources": "Current page: Terms",
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/us-options/wheel.html": {
+      "path": "/us-options/wheel",
+      "view": "wheel",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Options Cash Wheel",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 17,
+        "choices": 5,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    },
+    "pages/welcome.html": {
+      "path": "/welcome",
+      "view": "onboarding",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "What would you like Quantum Tradeworks to help you with?",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          0
+        ]
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0
+      }
+    }
+  }
+}

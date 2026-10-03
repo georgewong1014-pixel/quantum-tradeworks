@@ -875,6 +875,17 @@ const SCANNER_VIEWS = ['scanner', 'scannerDashboard', 'scannerMarket', 'scannerS
 
 const VIEWS = {};
 const viewRoot = $('#views');
+/* THE PAGE THE SERVER SENT (2026-10-03). Every static route's page is served
+   with its page already in it: build.mjs splices this app's own render of the
+   address (prerender.mjs) into #views, marked data-served, and the product's
+   tab row into #productTabs — so a crawler, a link preview, an assistant or a
+   reader without the script reads the page's heading and content, where it
+   read an empty <main> under the same header on every address. The script
+   draws the page live in its place on its first draw (drawPage). The address
+   it was served at, for as long as that draw has not happened. */
+let servedAt = viewRoot?.hasAttribute('data-served') ? location.pathname : null;
+const onServedPage = () => servedAt !== null
+  && (location.pathname === servedAt || (servedAt.endsWith('/index.html') && location.pathname === servedAt.slice(0, -'index.html'.length)));
 /* Some views draw part of themselves without render() — a market screen's
    or a simulation's result, "Evaluate now" on a setup — and a drawer can
    repaint its own body. Each brings headings at the level they were written
@@ -1806,6 +1817,55 @@ function pubMenu(id, label, panelKids, cls) {
   return li;
 }
 
+/* One item of the sidebar: its icon, its words, and anything after them (a
+   product's badge). */
+function sidebarItem(n, extra = []) {
+  return el('li', { class: `sb-item${n.acc ? ` pub-acc-${n.acc}` : ''}`, 'data-item': n.id }, [
+    shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id, 'aria-description': n.note || null }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
+  ]);
+}
+
+/* THE NAVIGATION IN THE SERVED PAGE (2026-10-03). The public header's links,
+   the sidebar's and the footer's Products and Resources were drawn only by
+   this script, into elements the page was served empty: a crawler, a link
+   preview, an assistant or a reader without the script found the column
+   headings and no link under any of them. So the markup of each is made
+   here, from PRODUCTS, RESOURCES and the sidebar's tables and nothing else —
+   no listener it needs, no lookup of the page, no state — and build.mjs runs
+   these same functions over the same tables and writes what they make into
+   every page it serves (navMarkup, build.mjs), the page's own current item
+   marked. buildShell draws them in place of what was served, never beside
+   it, and buildNav marks the current item again: the same links, so nothing
+   moves. The phone's sheet is not served: it is hidden until the script
+   opens it, and every link in it is in the header's menus and the footer.
+   Business Intelligence, which is not built, is text in all of them. */
+const NAV_MARKUP = {
+  /* The public header: Products, How it works, Pricing, Resources. */
+  pubnav: () => el('ul', { class: 'pubnav-list' }, [
+    pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
+    el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
+    el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Pricing')),
+    pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
+  ]),
+  /* The sidebar: My Workspace, Products, then the reader's data and plans. */
+  appnav: () => [
+    el('p', { class: 'sb-label', id: 'sb-ws' }, 'My workspace'),
+    el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => sidebarItem(n))),
+    el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
+    el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
+      PRODUCTS.filter(p => SHOW_UNBUILT || p.path).map(p => sidebarItem({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
+    el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => sidebarItem(n))),
+  ],
+  /* The footer's Products and Resources, from the same tables. */
+  footProducts: () => PRODUCTS.map(p => el('li', {}, p.path
+    ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
+    : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
+  footResources: () => [
+    ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
+    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
+  ],
+};
+
 let openMenuLi = null, sheetOpen = false, navDrawerOpen = false, navDrawerTimer = null;
 function openMenu(li, { focusFirst = false } = {}) {
   if (openMenuLi && openMenuLi !== li) closeMenu({ restore: false });
@@ -1914,15 +1974,9 @@ let shellBuilt = false;
 function buildShell() {
   if (shellBuilt) return;
   shellBuilt = true;
-  /* The public header: Products, How it works, Pricing, Resources. */
-  if (shellEl.pubnav) {
-    shellEl.pubnav.append(el('ul', { class: 'pubnav-list' }, [
-      pubMenu('menuProducts', 'Products', [el('ul', { class: 'pp-list' }, productRows()), productsLegendLink()], 'pubpanel-products'),
-      el('li', {}, shellLink('/how-it-works', { class: 'publink', 'data-pub': 'howItWorks' }, 'How it works')),
-      el('li', {}, shellLink('/pricing', { class: 'publink', 'data-pub': 'plans' }, 'Pricing')),
-      pubMenu('menuResources', 'Resources', resourceLists('menu'), 'pubpanel-resources'),
-    ]));
-  }
+  /* The public header: Products, How it works, Pricing, Resources — drawn
+     in place of the served copy of the same markup (NAV_MARKUP). */
+  if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());
   /* The same items, as the phone's sheet. The theme lives here below 1024px,
      where the header has room only for the brand and the one action. */
   if (shellEl.sheet) {
@@ -1949,18 +2003,7 @@ function buildShell() {
   }
   /* The sidebar: My Workspace, Products, then the reader's data and plans. */
   if (shellEl.appnav) {
-    const item = (n, extra = []) => el('li', { class: `sb-item${n.acc ? ` pub-acc-${n.acc}` : ''}`, 'data-item': n.id }, [
-      shellLink(n.path, { class: 'sb-link', 'data-nav-id': n.id, 'aria-description': n.note || null }, [shellIcon(n.icon), el('span', { class: 'sb-text' }, n.label), ...extra]),
-    ]);
-    const products = PRODUCTS.filter(p => SHOW_UNBUILT || p.path);
-    shellEl.appnav.append(
-      el('p', { class: 'sb-label', id: 'sb-ws' }, 'My workspace'),
-      el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-ws' }, APP_NAV_WORKSPACE.map(n => item(n))),
-      el('p', { class: 'sb-label', id: 'sb-products' }, 'Products'),
-      el('ul', { class: 'sb-list', 'aria-labelledby': 'sb-products' },
-        products.map(p => item({ id: p.id, label: p.name, icon: PRODUCT_ICON[p.id], path: p.path, note: productNote(p.id), acc: p.id }, [productBadge(p.id)]))),
-      el('ul', { class: 'sb-list sb-list-foot' }, APP_NAV_FOOT.map(n => item(n))),
-    );
+    shellEl.appnav.replaceChildren(...NAV_MARKUP.appnav());
     shellEl.navOpen?.addEventListener('click', openNavDrawer);
     shellEl.navClose?.addEventListener('click', () => closeNavDrawer());
     shellEl.navScrim?.addEventListener('click', () => closeNavDrawer());
@@ -1975,12 +2018,8 @@ function buildShell() {
   }
   /* The footer's Products and Resources, from the same tables. */
   const footP = $('#footProducts'), footR = $('#footResources');
-  if (footP) footP.append(...PRODUCTS.map(p => el('li', {}, p.path
-    ? shellLink(p.path, { class: 'foot-product', 'aria-description': productNote(p.id) }, [p.name, productBadge(p.id)])
-    : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))));
-  if (footR) footR.append(
-    ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
-    el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')));
+  if (footP) footP.replaceChildren(...NAV_MARKUP.footProducts());
+  if (footR) footR.replaceChildren(...NAV_MARKUP.footResources());
   /* A click outside an open menu or the sheet closes it. */
   document.addEventListener('click', (e) => {
     if (openMenuLi && !openMenuLi.contains(e.target)) closeMenu({ restore: false });
@@ -1990,6 +2029,10 @@ function buildShell() {
      after the rest of the modules load: an app page otherwise showed the
      public header for as long as that took. */
   document.documentElement.dataset.chrome = chromeOf(matchRoute(location.pathname)?.view || 'notfound');
+  /* The script runs: the page is no longer only the one the server sent, and
+     the stylesheet's size containers answer again (styles.css, prerender —
+     until now they were laid out by the window). */
+  document.documentElement.removeAttribute('data-served');
 }
 
 /* The current page, in both chromes, on every render. */
@@ -2734,6 +2777,22 @@ function drawPage(samePage) {
      it is on is replaced — see the strip, below. */
   const stripWasStuck = samePage && !!viewRoot.querySelector('.ticker-sticky.is-stuck');
   buildNav();
+  /* The served page (servedAt, above) on its own address. A page that waits
+     for the filings (realPending && UNIVERSE_VIEWS) would draw the loading
+     skeleton over it, and then the page again once they land — the served
+     page, a skeleton, the same page: the flash the skeleton exists to
+     prevent. So the served page stands until they land (or fail), with its
+     tab row, which is drawn from the same load; boot routes again then, and
+     this draws the page once. prerender.mjs renders these pages with the
+     filings in, so what stands is what is drawn. Any other page replaces
+     what was served now: prerender.mjs renders those as the first draw has
+     them, before anything has loaded, so the same page replaces itself. Not
+     as an entrance either way — the page was on screen already — and a move
+     to another address draws that page as usual. */
+  const served = onServedPage();
+  if (served && realPending && UNIVERSE_VIEWS.has(State.view)) return;
+  servedAt = null;
+  if (viewRoot.hasAttribute('data-served')) viewRoot.removeAttribute('data-served');
   renderProductTabs();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
     ? bootSkeleton()
@@ -2755,7 +2814,7 @@ function drawPage(samePage) {
      6px off where it came to rest (stayPut). A new page still enters. */
   /* Above the page, in its column: the product's Start here panel, until the
      reader hides it (Release B, B6; 36-layouts.js). */
-  const section = el('section', { class: 'view', data: samePage ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, [startHereNode(), node]));
+  const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' } }, el('div', { class: 'shell' }, [startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);

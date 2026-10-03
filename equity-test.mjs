@@ -2795,20 +2795,26 @@ try {
     await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
     const paused = async () => { for (let i = 0; i < 40; i++) { const m = events.find(x => x.method === 'Fetch.requestPaused' && !x.seen); if (m) { m.seen = true; return m; } await sleep(250); } return null; };
     try {
-      /* Held: the skeleton, not the sample. */
+      /* Held: the page the server sent, or the skeleton — never the sample.
+         Since 2026-10-03 the screener's page is served with the app's own
+         render of it, filings in (prerender.mjs), and the app keeps that
+         page on screen until the file lands rather than drawing the skeleton
+         over it (drawPage): so while it is held the page is the served one,
+         still marked data-served, and no row the app drew is on it. A page
+         reached in-app, with nothing served, still waits on the skeleton. */
       await send('Page.navigate', { url: `${BASE}/discover/screener` }, sessionId);
       const held = await paused();
       await sleep(800);
-      const during = held ? await evaluate(`({ pending: realPending, skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
+      const during = held ? await evaluate(`({ pending: realPending, skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), served: !!document.querySelector('#views[data-served]'), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
       if (held) await send('Fetch.continueRequest', { requestId: held.params.requestId }, sessionId);
       const arrived = held && await waitFiled();
-      const after = arrived ? await evaluate(`({ skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
+      const after = arrived ? await evaluate(`({ skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), served: !!document.querySelector('#views[data-served]'), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
       const p = [];
       if (!held) p.push('the page never requested data/us.json');
-      else if (!during.pending || !during.skeleton || during.rows) p.push(`while the file was held: ${JSON.stringify(during)}`);
-      if (held && (!after || after.skeleton || !after.rows)) p.push(`after it arrived: ${JSON.stringify(after)}`);
+      else if (!during.pending || !(during.skeleton || during.served) || (during.rows && !during.served)) p.push(`while the file was held: ${JSON.stringify(during)}`);
+      if (held && (!after || after.skeleton || after.served || !after.rows)) p.push(`after it arrived: ${JSON.stringify(after)}`);
       if (p.length) fail('the skeleton holds the page while the filings load', p);
-      else ok(`the skeleton holds the page while the filings load — no sample row is painted while the file is in flight, and the screener's ${after.rows} rows replace it when it lands`);
+      else ok(`the skeleton holds the page while the filings load — or, served, the page the server sent (its ${during.rows} rows its render, filings in): no sample row is painted while the file is in flight, and the screener's ${after.rows} rows are drawn when it lands`);
 
       /* Failed: the sample, and the banner saying so. */
       events.length = 0;
