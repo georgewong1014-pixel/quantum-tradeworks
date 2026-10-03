@@ -2177,7 +2177,7 @@ for (const w of [360, 390]) {
       return cpPath(rec.id);
     })()`);
     const open = async (client = 'Mr and Mrs Tan Wei Ming, and their family trust') => ev(`(async () => { navigate(${JSON.stringify(path)}); await new Promise(r => setTimeout(r, 450));
-      for (const cb of document.querySelectorAll('.cp-pick input[type=checkbox]')) if (!cb.checked) { cb.click(); await new Promise(r => setTimeout(r, 250)); }
+      for (let i = 0, cb; i < 6 && (cb = [...document.querySelectorAll('.cp-pick input[type=checkbox]')].find(x => !x.checked)); i++) { cb.click(); await new Promise(r => setTimeout(r, 250)); }
       const c = document.getElementById('cp-client'); c.value = ${JSON.stringify(client)}; c.dispatchEvent(new Event('change', { bubbles: true }));
       await new Promise(r => setTimeout(r, 300));
       const d = document.getElementById('cp-details'); if (d && !d.open) { d.open = true; await new Promise(r => setTimeout(r, 80)); }

@@ -3411,7 +3411,7 @@ try {
         openPropertyModel(rec.id, { show: false }); render(); await w(200);
         navigate(cpPath(rec.id)); await w(500);
         /* Every scenario ticked beside the property, as a preparer would. */
-        for (const cb of document.querySelectorAll('.cp-pick input[type=checkbox]')) if (!cb.checked) { cb.click(); await w(300); }
+        for (let i = 0, cb; i < 6 && (cb = [...document.querySelectorAll('.cp-pick input[type=checkbox]')].find(x => !x.checked)); i++) { cb.click(); await w(300); }
         const doc = document.getElementById('cp-doc');
         const prop = { view: State.view,
           figs: [...document.querySelectorAll('#views [data-cp]')].map(n => ({ key: n.dataset.cp, text: txt(n), col: n.dataset.cpCol || null, line: n.dataset.cpLine || null, group: n.dataset.cpGroup || null, sign: n.dataset.cpSign || null })),
@@ -3822,7 +3822,7 @@ try {
             openPropertyModel(rec.id, { show: false }); Object.assign(State.deal, ch); Object.keys(ch).forEach(k => markTouched(State.deal, k)); saveDeal(); window.__ppP = [nm]; saveAsScenario(); }
           openPropertyModel(rec.id, { show: false });
           doc = await open(rec);
-          for (const cb of document.querySelectorAll('.cp-pick input[type=checkbox]')) if (!cb.checked) { cb.click(); await w(300); }
+          for (let i = 0, cb; i < 6 && (cb = [...document.querySelectorAll('.cp-pick input[type=checkbox]')].find(x => !x.checked)); i++) { cb.click(); await w(300); }
           doc = document.getElementById('cp-doc');
           out.words = { doc: [...doc.querySelectorAll('[data-cp-what], .cp-sc-what td')].map(txt), rail: [...document.querySelectorAll('.cp-pick-what')].map(txt),
             exitNote: [...doc.querySelectorAll('#cp-h-exit ~ .cp-note')].map(txt).join(' '), registry: [...doc.querySelectorAll('.cp-points li')].map(txt).find(x => /^Every figure/.test(x)) || '' };
