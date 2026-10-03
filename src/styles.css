@@ -4162,6 +4162,9 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   .cp-doc .cp-tablewrap { overflow: visible !important; border: 0 !important; border-radius: 0 !important; }
   .cp-doc table.dt th, .cp-doc table.dt td { padding: 3px 6px; font-size: 9pt; line-height: 1.35; }
   .cp-doc table.dt.cp-table tbody th { min-width: 0; }
+  /* The scenarios' row labels on one line: with the columns' figures short
+     and the page wide, "Monthly instalment" broke over two lines. */
+  .cp-doc table.dt.cp-sc-table tbody th { white-space: nowrap; }
   .cp-head { grid-template-columns: minmax(0, 1fr) fit-content(45%) !important; }
   .cp-for { text-align: right !important; }
   .cp-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
