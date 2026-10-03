@@ -2487,18 +2487,30 @@ for (const route of ROUTES) {
       return true; })()`);
     const PAGE_W = 595.3;
     for (let k = 0; k < 12; k++) {
-      const placed = await ev(`(() => {
-        const doc = document.getElementById('cp-doc'); if (!doc) return 0;
-        document.getElementById('cp-sweep-spacer')?.remove();
-        const sp = document.createElement('div'); sp.id = 'cp-sweep-spacer'; sp.style.height = '${k * 34}px';
-        doc.querySelector('.cp-assume')?.before(sp);
-        /* Each heading and row in a colour of its own, to be found on paper. */
-        doc.querySelectorAll('.cp-assume-grp').forEach((g, i) => { const e = g.querySelector('.cp-eyebrow'); if (e) e.style.color = 'rgb(250,' + i + ',0)'; });
-        let j = 0;
-        doc.querySelectorAll('.cp-assume dt').forEach(dt => { dt.style.color = 'rgb(251,' + j + ',0)'; if (dt.nextElementSibling) dt.nextElementSibling.style.color = 'rgb(252,' + j + ',0)'; dt.dataset.sweepRow = j; dt.dataset.sweepGrp = [...doc.querySelectorAll('.cp-assume-grp')].indexOf(dt.closest('.cp-assume-grp')); j++; });
-        return j; })()`);
+      /* Each heading and row in a colour of its own, to be found on paper,
+         and the assumptions pushed down — by a style sheet, not on the
+         nodes: the page draws itself again as it prints (cpRefresh), and a
+         colour or a spacer set on a node is gone by the time it is printed.
+         A row is a dt and its dd in the <dl>, or in a row of their own. */
+      const groupOf = await ev(`(() => {
+        const doc = document.getElementById('cp-doc'); if (!doc) return [];
+        document.getElementById('cp-sweep-style')?.remove();
+        const css = ['#cp-doc .cp-assume { padding-top: ${k * 34}px !important; }'];
+        const of = [];
+        [...doc.querySelectorAll('.cp-assume > .cp-assume-grp')].forEach((g, gi) => {
+          const G = '#cp-doc .cp-assume > .cp-assume-grp:nth-child(' + (gi + 1) + ')';
+          css.push(G + ' > .cp-eyebrow { color: rgb(250,' + gi + ',0) !important; }');
+          g.querySelectorAll('dt').forEach((dt, ri) => {
+            const j = of.length, R = [G + ' dl > .cp-kv-row:nth-child(' + (ri + 1) + ')', G + ' dl'];
+            css.push(R[0] + ' > dt, ' + R[1] + ' > dt:nth-of-type(' + (ri + 1) + ') { color: rgb(251,' + j + ',0) !important; }');
+            css.push(R[0] + ' > dd, ' + R[0] + ' > dd *, ' + R[1] + ' > dd:nth-of-type(' + (ri + 1) + '), ' + R[1] + ' > dd:nth-of-type(' + (ri + 1) + ') * { color: rgb(252,' + j + ',0) !important; }');
+            of.push(gi);
+          });
+        });
+        const st = document.createElement('style'); st.id = 'cp-sweep-style'; st.textContent = css.join('\\n'); document.head.append(st);
+        return of; })()`);
+      const placed = groupOf.length;
       if (!placed) { p.push('no assumptions to place on paper'); break; }
-      const groupOf = await ev(`[...document.querySelectorAll('#cp-doc .cp-assume dt')].map(dt => Number(dt.dataset.sweepGrp))`);
       const runs = [];
       for (let pg = 1; pg <= 3; pg++) {
         const one = await send('Page.printToPDF', { preferCSSPageSize: true, pageRanges: String(pg) }, sessionId);
@@ -2531,7 +2543,7 @@ for (const route of ROUTES) {
       });
       placements++;
     }
-    await ev(`(() => { document.getElementById('cp-sweep-spacer')?.remove(); render(); return true; })()`);
+    await ev(`(() => { document.getElementById('cp-sweep-style')?.remove(); render(); return true; })()`);
 
     /* The page's text width on A4 with its 14mm margins: 182mm, 688px. */
     await send('Emulation.setDeviceMetricsOverride', { width: 688, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
