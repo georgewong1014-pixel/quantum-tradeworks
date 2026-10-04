@@ -3178,8 +3178,37 @@ function giveFocusBack(h) {
   if (caret) putCaret(n, caret);
 }
 
+/* A REDRAW NOBODY ASKED FOR, HELD WHILE A FINGER IS ON A SLIDER (the
+   Scenario Lab, 82-property-lab.js). render() replaces the whole page, and
+   a range input replaced under the pointer ends the drag: the filings
+   landing (95-boot.js routes again), a theme change, the back-forward
+   cache's pageshow — each would have dropped the slider out from under the
+   reader mid-drag. While held, a redraw of the page on screen (samePage,
+   below) is noted and not drawn; renderRelease draws it once, if one was
+   asked for. A navigation to another page is never held, and ends the
+   hold: the gesture belonged to the page it leaves. A hold nobody releases
+   (a pointerup the browser never delivered) lets go after 15 seconds. */
+let renderHeld = false, renderPending = false, renderHoldTimer = 0;
+function renderHold() {
+  renderHeld = true;
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = setTimeout(renderRelease, 15000);
+}
+function renderRelease() {
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = 0;
+  if (!renderHeld) return;
+  renderHeld = false;
+  if (renderPending) { renderPending = false; render(); }
+}
+
 function render() {
   const samePage = renderedPage === pageOnScreen();
+  if (renderHeld) {
+    if (samePage) { renderPending = true; return; }
+    clearTimeout(renderHoldTimer);
+    renderHeld = false; renderPending = false; renderHoldTimer = 0;
+  }
   /* Before anything is replaced, and on a redraw of the page on screen only
      — see noteFocusForRedraw above. The served page drawn over by the app is
      the page on screen too (2026-10-04): a link focused in it, by a reader

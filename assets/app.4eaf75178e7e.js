@@ -15043,8 +15043,37 @@ function giveFocusBack(h) {
   if (caret) putCaret(n, caret);
 }
 
+/* A REDRAW NOBODY ASKED FOR, HELD WHILE A FINGER IS ON A SLIDER (the
+   Scenario Lab, 82-property-lab.js). render() replaces the whole page, and
+   a range input replaced under the pointer ends the drag: the filings
+   landing (95-boot.js routes again), a theme change, the back-forward
+   cache's pageshow — each would have dropped the slider out from under the
+   reader mid-drag. While held, a redraw of the page on screen (samePage,
+   below) is noted and not drawn; renderRelease draws it once, if one was
+   asked for. A navigation to another page is never held, and ends the
+   hold: the gesture belonged to the page it leaves. A hold nobody releases
+   (a pointerup the browser never delivered) lets go after 15 seconds. */
+let renderHeld = false, renderPending = false, renderHoldTimer = 0;
+function renderHold() {
+  renderHeld = true;
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = setTimeout(renderRelease, 15000);
+}
+function renderRelease() {
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = 0;
+  if (!renderHeld) return;
+  renderHeld = false;
+  if (renderPending) { renderPending = false; render(); }
+}
+
 function render() {
   const samePage = renderedPage === pageOnScreen();
+  if (renderHeld) {
+    if (samePage) { renderPending = true; return; }
+    clearTimeout(renderHoldTimer);
+    renderHeld = false; renderPending = false; renderHoldTimer = 0;
+  }
   /* Before anything is replaced, and on a redraw of the page on screen only
      — see noteFocusForRedraw above. The served page drawn over by the app is
      the page on screen too (2026-10-04): a link focused in it, by a reader
@@ -33419,15 +33448,36 @@ function saveActiveProperty({ name = null } = {}) {
     toast(`Saved “${rec.name}” — it is listed in My properties`);
     return rec;
   }
-  const rec = list.find(r => r.id === st.rec.id);
   if (st.sc) {
-    const sc = rec.scenarios.find(s => s.id === st.sc.id);
-    sc.overrides = pmDiff(d, pmInputsOf(rec));
-    sc.updatedAt = at;
-  } else rec.payload = { ...rec.payload, deal: pmNormalInputs(d) };
+    const rec = pmWriteScenario(st.rec.id, st.sc.id, pmDiff(d, pmInputsOf(st.rec)));
+    if (!rec) { toast(STORE_REFUSED); return null; }
+    toast(`Saved the scenario “${st.sc.name}” of “${rec.name}”`);
+    return rec;
+  }
+  const rec = list.find(r => r.id === st.rec.id);
+  rec.payload = { ...rec.payload, deal: pmNormalInputs(d) };
   pmStampRecord(rec, at);
   if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
-  toast(st.sc ? `Saved the scenario “${st.sc.name}” of “${rec.name}”` : `Saved “${rec.name}”`);
+  toast(`Saved “${rec.name}”`);
+  return rec;
+}
+
+/* A SCENARIO'S CHANGES, WRITTEN. One writer for the calculator's "Save
+   this scenario" (above) and the Scenario Lab's "Update scenario"
+   (82-property-lab.js): the scenario keeps the overrides given and the
+   time, the property is stamped, and the record is returned only if the
+   browser kept it (store.failed) — null otherwise, and the caller says so. */
+function pmWriteScenario(recId, scId, overrides) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === recId && pmIsProperty(r));
+  const sc = pmScenario(rec, scId);
+  if (!rec || !sc) return null;
+  const at = new Date().toISOString();
+  sc.overrides = overrides;
+  sc.updatedAt = at;
+  pmStampRecord(rec, at);
+  const refused = store.failed;
+  if (!persistWork(list) || store.failed !== refused) return null;
   return rec;
 }
 
@@ -33452,18 +33502,34 @@ function saveAsScenario() {
   const suggested = cpScenarioName(overrides, pmInputsOf(rec)) || `Scenario ${rec.scenarios.length + 1}`;
   const typed = prompt(`Name this scenario of “${rec.name}”`, suggested);
   if (typed === null) return null;
-  const at = new Date().toISOString();
-  const sc = { id: `sc-${Date.now().toString(36)}-${(PM_SC_SEQ++).toString(36)}`, name: (typed.trim() || suggested).slice(0, 80),
-    overrides, createdAt: at, updatedAt: at };
-  rec.scenarios.push(sc);
-  pmStampRecord(rec, at);
-  const refused = store.failed;
-  if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+  const sc = pmAddScenario(rec.id, overrides, typed.trim() || suggested);
+  if (!sc) { toast(STORE_REFUSED); return null; }
   d.scenarioId = sc.id;
   saveDeal();
   /* Compared at once beside the property as saved. */
   pmCompareSelect(rec.id, ['base', sc.id]);
   toast(`Saved the scenario “${sc.name}” of “${rec.name}”`);
+  return sc;
+}
+
+/* A NEW SCENARIO, WRITTEN. One writer for the calculator's "Save as a
+   scenario" (above, which asks for the name) and the Scenario Lab's "Save B
+   as a scenario" (82-property-lab.js, which asks in a field of its own):
+   the property's list gains the scenario, the property is stamped, and the
+   scenario is returned only if the browser kept it — null otherwise, and
+   the caller says so. */
+function pmAddScenario(recId, overrides, name) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === recId && pmIsProperty(r));
+  if (!rec) return null;
+  if (!Array.isArray(rec.scenarios)) rec.scenarios = [];
+  const at = new Date().toISOString();
+  const sc = { id: `sc-${Date.now().toString(36)}-${(PM_SC_SEQ++).toString(36)}`,
+    name: String(name || `Scenario ${rec.scenarios.length + 1}`).slice(0, 80), overrides, createdAt: at, updatedAt: at };
+  rec.scenarios.push(sc);
+  pmStampRecord(rec, at);
+  const refused = store.failed;
+  if (!persistWork(list) || store.failed !== refused) return null;
   return sc;
 }
 
@@ -33571,15 +33637,24 @@ function openOpportunityProperty(o, modelled) {
    page did not show (dealDistrict, 70-property.js). The project follows the
    town, as choosing the town on the calculator does. */
 const propertyPlaceListed = (city, area) => listedDistrict(city, area);
-function usePlaceInCalculator(city, area) {
+/* The place, put on the deal given — and only on it: the calculator's
+   (below), or a Scenario Lab column's copy (82-property-lab.js), which must
+   never reach the calculator's deal. The district as the town lists it, or
+   null where the town does not list it and nothing is changed. */
+function setDealPlace(d, city, area) {
   const district = listedDistrict(city, area);
-  if (!district) return false;
-  const d = State.deal;
+  if (!district) return null;
   if (d.city !== city) {
     d.city = city;
     if (!projectsForCity(city).some(x => x.id === d.projectId)) d.projectId = customProjectId(city);
   }
   d.district = district;
+  return district;
+}
+function usePlaceInCalculator(city, area) {
+  const d = State.deal;
+  const district = setDealPlace(d, city, area);
+  if (!district) return false;
   saveDeal();
   navigate('/property/calculator');
   const st = propertyStatus(d);
@@ -33817,10 +33892,34 @@ function pmOverrideLine(ov, max = 6) {
   });
   return bits.length > max ? `${bits.slice(0, max).join('; ')}; and ${bits.length - max} more` : bits.join('; ');
 }
+/* ONE RUN OF THE MODEL AND THE GRADE FOR A SET OF INPUTS, KEPT.
+   The comparison here and the Scenario Lab's columns (82-property-lab.js)
+   each run the calculator's own model on a column's inputs; the lab runs
+   them again on every frame a slider moves, and a column not being moved
+   has the same inputs each time. So a run is kept by the inputs it was
+   given (pmCanon), for the 24 sets last asked about. A caller reads the
+   result and never changes it: it is handed to the next caller as it is.
+   The grade also reads the comparables recorded for the deal's district
+   (comparableSupport, through the day's 24-month window), which are not
+   among the inputs — so they are part of what a run is kept by, and a
+   comparable recorded or edited is a new run, not the kept one. */
+const PM_RUNS = new Map();
+const pmRunKey = (d) => `${pmCanon(d)}\u0000${localDay()}\u0000${JSON.stringify((State.observations || [])
+  .filter(o => o && o.city === d?.city && o.area === d?.district))}`;
+function pmCompareRun(inputs) {
+  const key = pmRunKey(inputs);
+  const had = PM_RUNS.get(key);
+  if (had) { PM_RUNS.delete(key); PM_RUNS.set(key, had); return had; }
+  const m = dealModel(inputs), g = propertyGrade(inputs, m);
+  const run = { m, g };
+  PM_RUNS.set(key, run);
+  while (PM_RUNS.size > 24) PM_RUNS.delete(PM_RUNS.keys().next().value);
+  return run;
+}
 /* The five figures the comparison sets side by side, from the calculator's
    own model and grade — the same engine the page reads, never a second one. */
-function pmCompareFigures(d) {
-  const m = dealModel(d), g = propertyGrade(d, m);
+function pmCompareFigures(d, run = pmCompareRun(d)) {
+  const { m, g } = run;
   const short = (m.missingCostLines || []).length;
   return [
     ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—', isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? 'neg' : ''],
@@ -33829,6 +33928,19 @@ function pmCompareFigures(d) {
     ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—', ''],
     ['Grade', `${g.grade}${g.verdict ? ` — ${g.verdict}` : ''}`, ''],
   ];
+}
+/* THE COLUMNS A SAVED PROPERTY OFFERS: the property as saved, each
+   scenario, and — while the calculator holds changes to it not saved
+   (st.dirty, for the deal d that is this property's working copy) — those
+   changes as they stand. Read by the comparison below and by the Scenario
+   Lab (82-property-lab.js), so the two offer the same columns under the
+   same names. */
+function pmColumns(rec, d, st) {
+  const base = pmInputsOf(rec);
+  const cols = [{ id: 'base', name: `${rec.name} as saved`, short: 'As saved', inputs: base, what: 'Every input as the property is saved — what each scenario changes is measured against it' }];
+  (rec.scenarios || []).forEach(s => cols.push({ id: s.id, name: s.name, short: s.name, inputs: pmMerge(base, s.overrides), what: pmOverrideLine(s.overrides) || 'Nothing changed', sc: s }));
+  if (st && st.dirty && st.rec?.id === rec.id) cols.push({ id: 'current', name: 'On the calculator now, unsaved', short: 'Unsaved changes', inputs: pmBare(d), what: pmOverrideLine(pmDiff(d, base)) || 'Nothing changed' });
+  return cols;
 }
 function propertyScenariosPanel(d = State.deal) {
   const st = propertyStatus(d);
@@ -33844,12 +33956,8 @@ function propertyScenariosPanel(d = State.deal) {
       onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#pm-sc-title'); } } }, 'Save this property first'));
     return card;
   }
-  const rec = st.rec, base = pmInputsOf(rec);
-  /* The columns on offer: the property as saved, each scenario, and — while
-     the calculator holds changes not saved — those changes as they stand. */
-  const cols = [{ id: 'base', name: `${rec.name} as saved`, short: 'As saved', inputs: base, what: 'Every input as the property is saved — what each scenario changes is measured against it' }];
-  (rec.scenarios || []).forEach(s => cols.push({ id: s.id, name: s.name, short: s.name, inputs: pmMerge(base, s.overrides), what: pmOverrideLine(s.overrides) || 'Nothing changed', sc: s }));
-  if (st.dirty) cols.push({ id: 'current', name: 'On the calculator now, unsaved', short: 'Unsaved changes', inputs: pmBare(d), what: pmOverrideLine(pmDiff(d, base)) || 'Nothing changed' });
+  const rec = st.rec;
+  const cols = pmColumns(rec, d, st);
   const valid = new Set(cols.map(c => c.id));
   let chosen = (PM_COMPARE[rec.id] || []).filter(id => valid.has(id));
   if (!PM_COMPARE[rec.id]) chosen = cols.slice(0, 3).map(c => c.id);
@@ -36751,12 +36859,18 @@ function dealModel(d) {
     const debtY = debtInYear(y);
     const cfPreTax = debtUnknown ? null : effY - opexY - debtY;
     const cf = debtUnknown ? null : cfPreTax - taxY.tax;
+    /* VALUE LESS LOAN, the row's own two figures set against each other —
+       what the property would be worth in year y less what is still owed on
+       it, before any cost of selling. Not "equity": that word already means
+       the equities comparison (m.equity) and the cash committed (equityOut)
+       on these pages. Unknown with the balance (a loan with no schedule). */
+    const value = exitValueAt(y), balance = balanceAt(y * 12);
     return { y, rent: effY, opex: opexY, debt: debtY,
              interest: interestY, principal: debtUnknown ? null : Math.max(0, debtY - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
              cfPreTax, cf,
-             value: exitValueAt(y),
-             balance: balanceAt(y * 12) };
+             value, balance,
+             valueLessLoan: isNum(balance) ? value - balance : null };
   };
   let cumCash = 0, cumTax = 0, cumPreTax = 0;
   const path = [];
@@ -37084,7 +37198,17 @@ function dealModel(d) {
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
            propertyClass, propertyClassSrc, letsToTenant, strataCharges,
-           stress, exits, holdVsSell, renoRecovered, equity };
+           stress, exits, holdVsSell, renoRecovered, equity,
+           /* Two figures the Scenario Lab names (82-property-lab.js), each
+              from figures above and nothing new. The value at the sale less
+              the loan still owed then, before agent, legal, gains tax and
+              the months carried while selling — unknown with the balance;
+              and the growth on the price alone at the reader's rate, which
+              with the price and the renovation recovered makes up the value
+              at the sale. Neither is called equity, for the reason at
+              yearFlow. */
+           valueLessLoanAtExit: debtUnknown ? null : exitValue - outstanding,
+           priceGrowthAtExit: exitValue - renoRecovered - d.price };
 }
 
 /* The calculator's "Monthly commitment": what the owner funds from their
