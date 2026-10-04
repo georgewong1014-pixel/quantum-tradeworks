@@ -4568,6 +4568,283 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   display: flex; align-items: center; justify-content: center; text-align: center;
 }
 /* ---- end integration-reverify ---- */
+/* ---- scenario-lab ---- */
+/* THE SCENARIO LAB (82-property-lab.js). A panel that sizes itself by its
+   own width (container: lab), so the page and a map's side sheet draw it by
+   the same rules: the phone's layout is the base — one knob at a time,
+   picked above it — and a browser without container queries (Safari before
+   16) keeps that layout, which works whole. From 600px of panel all five
+   knobs stand and the chain is two-up; from 960px the knobs are a column of
+   their own beside the figures, stuck under the topbar, so a bar is in view
+   while its slider moves. Tokens only; the depth is the cards'. Only a
+   bar's transform and a control's colour and shadow move, and nothing at
+   all while a slider is held or where motion is reduced. */
+.lab { container: lab / inline-size; min-width: 0; }
+/* What the panel hides it hides: a tag, a button or a note drawn as a box of its
+   own class is still out of sight while it carries [hidden]. */
+.lab [hidden] { display: none !important; }
+.lab-hd { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--md); }
+.lab-claim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink-2); }
+.lab-status { font-size: 13px; line-height: 20px; color: var(--ink-2); max-width: 82ch; }
+.lab-status strong { color: var(--ink); }
+.lab-moved-line { font-size: 12px; font-weight: 600; color: var(--bronze); }
+.lab-note-warn { color: var(--bronze); font-weight: 600; }
+.lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
+.lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
+.lab-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+
+/* The pickers: a legend beside a strip of choices, one 44px line on a
+   phone. The radio itself is out of sight; its whole label is the target,
+   and the label carries the ring when the radio has the keyboard. */
+.lab-pick { border: 0; margin: 0; padding: 0; min-width: 0; }
+.lab-legend { float: left; margin-right: 8px; padding: 0; line-height: 44px; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.lab-seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; min-width: 0;
+  background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--r-md); }
+.lab-seg-opt { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; min-width: 44px;
+  padding: 0 10px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+.lab-seg-opt:hover { color: var(--ink); }
+.lab-seg-opt.is-on { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1); }
+.lab-seg-opt.is-off { color: var(--ink-3); cursor: not-allowed; }
+.lab-seg-opt:has(.lab-radio:focus-visible) { outline: 2px solid var(--brand); outline-offset: 1px; }
+.lab-radio { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+/* A column's name beside its letter from 600px; on a phone the letter, and
+   the name in the radio's own name (the chain's heading shows it). */
+.lab-seg-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lab-off-why { clear: both; margin-top: 4px; }
+.lab-pick-by { margin-top: var(--sm); }
+.lab-pick-by .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 6px; }
+.lab-seg-by { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* A, B and C keep --s1, --s2 and --s3 in both themes, and the letter
+   always travels with the colour. The letter's ink is the series colour
+   taken toward the page's ink, which holds 4.5:1 on every surface it
+   stands on in either theme. */
+.lab-c-A { --lab-c: var(--s1); --lab-t: color-mix(in srgb, var(--s1) 72%, var(--ink)); }
+.lab-c-B { --lab-c: var(--s2); --lab-t: color-mix(in srgb, var(--s2-text) 72%, var(--ink)); }
+.lab-c-C { --lab-c: var(--s3); --lab-t: color-mix(in srgb, var(--s3) 72%, var(--ink)); }
+.lab-letter { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--lab-c); color: var(--lab-t); font-size: 12px; font-weight: 700; line-height: 1; background: var(--surface-2); }
+
+/* A knob: its label and box, the slider, what its figure rests on, and
+   the span the slider covers, with the span's basis. */
+.lab-knob { padding: 6px 0 2px; border-top: 1px solid var(--line); min-width: 0; }
+.lab-knob:not(.is-on) { display: none; }
+.lab-knob-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lab-knob-label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); }
+.lab-knob-ctl { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.lab-range-wrap { flex: 1 1 auto; min-width: 0; }
+.lab-num { flex: none; width: 6.25rem; text-align: right; }
+/* The way back to the figure as saved: an icon the width of a target, its
+   words its name (and its title), holding its place at the end of the
+   slider's line from the first drawing — so the slider never narrows, and
+   nothing below moves, when it comes into sight with the first move. */
+.lab-reset { flex: none; width: 40px; min-width: 40px; padding: 0; justify-content: center; }
+/* Out of sight and out of reach, its room kept. */
+.lab .is-idle { visibility: hidden; }
+.lab-range { display: block; width: 100%; margin: 0; touch-action: pan-y; }
+/* The track filled to the thumb. Written as input.lab-range[type="range"]:
+   the global input[type="range"] rules above outweigh a bare class. */
+input.lab-range[type="range"]::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--brand) var(--pos, 0%), var(--surface-sunk) var(--pos, 0%)); }
+input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--brand); }
+.lab-range:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.lab-ticks { position: relative; height: 6px; margin: 0 8px 2px; }
+.lab-tick { position: absolute; top: 0; left: calc(var(--at) * 100%); width: 1px; height: 6px; background: var(--line-2); }
+.lab-knob-ft { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-top: 2px; }
+/* The evidence tag and the what-if tag in one cell, one of them in sight:
+   the cell is as tall as the taller, moved or not. */
+.lab-tags { display: grid; min-width: 0; flex: 1 1 12rem; }
+.lab-tags > .lab-tag { grid-area: 1 / 1; justify-self: start; }
+.lab-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 18px;
+  background: var(--surface-sunk); color: var(--ink-2); border: 1px solid var(--line); }
+.lab-tag.is-default, .lab-tag-whatif { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+.lab-tag-whatif { border-style: dashed; }
+.lab-span { margin-top: 2px; line-height: 1.45; }
+.lab-span-why { display: none; }
+.lab-knob-note { margin-top: 4px; line-height: 1.45; }
+.lab-reno { margin-top: 6px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-sunk); }
+
+/* The chain: a row a figure, its formula a tap away. */
+.lab-chain-card { padding: var(--xs) var(--md) var(--sm); min-width: 0; }
+.lab-chain-hd { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 8px; margin-bottom: 0; }
+.lab-chain-h { display: flex; align-items: center; gap: 6px; }
+.lab-chain { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--lg); }
+/* The rule between rows is a shadow, not a border, so a row is its 44px. */
+.lab-row { box-shadow: inset 0 1px 0 var(--grid); min-width: 0; }
+.lab-sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; min-height: 44px;
+  padding: 4px 0; cursor: pointer; list-style: none; }
+.lab-sum::-webkit-details-marker { display: none; }
+.lab-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.lab-row-label { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--ink); }
+/* The chevron is drawn, not said: with no text alternative every row's name
+   began "›" (the second content line; a browser without the syntax keeps
+   the first and shows the same mark). */
+.lab-row-label::before { content: "›"; content: "›" / ""; display: inline-block; width: 12px; color: var(--ink-3); transition: transform 160ms ease; }
+.lab-row[open] .lab-row-label::before { transform: rotate(90deg); }
+.lab-row-label { grid-column: 1; grid-row: 1; }
+.lab-row-fig { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.lab-val { font-size: 15px; line-height: 19px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.lab-val.neg { color: var(--dn-text); }
+.lab-delta { font-size: 11px; line-height: 14px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+.lab-row-note { grid-column: 1; grid-row: 2; padding-left: 12px; font-size: 11px; line-height: 15px; color: var(--ink-3); }
+.lab-row-note:empty { display: none; }
+.lab-row-body { padding: 0 0 10px 12px; }
+.lab-formula { font-size: 13px; line-height: 1.55; color: var(--ink-2); max-width: 70ch; }
+.lab-help { margin-top: 6px; }
+.lab-paid-figs { grid-column: 1 / -1; grid-row: 3; display: flex; flex-wrap: wrap; gap: 2px 12px; padding-left: 12px; font-size: 12px; color: var(--ink-2); }
+.lab-paid-k { color: var(--ink-3); }
+.lab-paid-figs .lab-val { font-size: 12px; line-height: 16px; }
+.lab-grade { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.lab-grade-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lab-grade-letter { font-size: 22px; font-weight: 700; color: var(--ink); }
+.lab-grade-verdict { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.lab-grade-gate { margin-top: 4px; line-height: 1.5; }
+.lab-movedby, .lab-context, .lab-rests { margin-top: 6px; line-height: 1.5; }
+.lab-movedby { color: var(--ink-2); }
+
+/* The comparison: a row a column, its figure as text and a bar beneath it
+   that is decoration only. A bar starts at nought, wherever nought falls
+   on the panel's own scale, and is scaled, never resized. */
+.lab-cmp-card { padding: var(--md); min-width: 0; }
+.lab-cmp-body { margin-top: var(--sm); min-width: 0; }
+.lab-cmp-panels { display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
+.lab-cmp { width: 100%; border-collapse: collapse; table-layout: auto; }
+.lab-cmp caption { caption-side: top; text-align: left; padding: 0 0 6px; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.lab-cmp-row th { text-align: left; padding: 8px 8px 4px 0; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); vertical-align: middle; }
+.lab-cmp-row th .lab-letter { margin-right: 2px; vertical-align: -6px; }
+.lab-cmp-row.is-active .lab-letter { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand); }
+.lab-cmp-chip { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; color: var(--ink-3); }
+.lab-cmp-v { text-align: right; padding: 8px 0 4px; font-size: 14px; line-height: 18px; font-weight: 700; color: var(--ink); white-space: nowrap; vertical-align: middle; }
+.lab-cmp-barrow td { padding: 0 0 10px; }
+/* The track is the card's brightest surface, ringed: brass (--s2) holds
+   3:1 against it in light, where it measured 2.7:1 on the sunk surface. */
+.lab-track { position: relative; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line); }
+.lab-zero { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: var(--ink-3); z-index: 1; }
+.lab-bar-fill, .lab-bar-seg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: left center;
+  background: var(--lab-c); transform: scaleX(0); transition: transform 180ms ease; }
+/* A STACK'S PARTS, TOLD APART THE SAME WAY IN EITHER THEME. The second part
+   is the series colour taken toward the page's ink — darker in light,
+   lighter in dark: always the stronger shade against the track. The third
+   is outlined: a wash of the colour, edged top and bottom in the colour
+   itself, so its extent holds 3:1 against the track and the card wherever
+   the colour does. Called "darker" and "lighter", the parts were the
+   reverse in dark (--ink is light there), and the lighter part's wash was
+   under 3:1 in both themes (the verification of 4 Oct 2026, F4 and F9).
+   The edges are inset shadows: a bar is scaled sideways only, so they keep
+   their height at any scale. */
+.lab-seg-2 { background: color-mix(in srgb, var(--lab-c) 62%, var(--ink)); }
+.lab-seg-3 { background: color-mix(in srgb, var(--lab-c) 22%, var(--surface-2));
+  box-shadow: inset 0 2px 0 var(--lab-c), inset 0 -2px 0 var(--lab-c); }
+.lab-ref, .lab-mark { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 2; }
+.lab-ref { background: var(--ink-2); }
+.lab-mark { background: var(--ink); box-shadow: 0 0 0 1px var(--surface-2); }
+.lab-cmp-note { display: block; margin-top: 4px; }
+.lab-cmp-words { margin-top: var(--sm); display: flex; flex-direction: column; gap: 4px; }
+.lab-facts { display: grid; gap: var(--sm); grid-template-columns: minmax(0, 1fr); margin-top: var(--sm); }
+.lab-fact .h-card { font-size: 14px; }
+.lab-fact-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.lab-twin { margin-top: var(--sm); }
+
+/* The columns and the commits. */
+.lab-cols-card, .lab-commit { padding: var(--md); }
+.lab-cols { list-style: none; margin: var(--xs) 0 var(--sm); padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lab-col-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; padding: 6px 8px;
+  border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); }
+.lab-col-row.is-active { outline: 2px solid var(--brand); outline-offset: -1px; }
+.lab-col-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; font-size: 13px; }
+.lab-col-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; flex: 0 0 auto; max-width: 100%; margin-left: auto; }
+.lab-commit-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--xs); }
+.lab-commit-acts .btn { white-space: normal; text-align: center; }
+.lab-commit-why { margin-top: var(--sm); line-height: 1.5; max-width: 80ch; }
+.lab-name-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: var(--sm); padding: var(--sm);
+  border-radius: var(--r-md); background: var(--surface-sunk); }
+.lab-name-label { flex: 1 0 100%; font-size: 13px; font-weight: 600; color: var(--ink); }
+.lab-name-form .input { flex: 1 1 16rem; min-width: 0; }
+.lab-name-acts { display: flex; gap: 6px; }
+
+@container lab (min-width: 600px) {
+  /* Out of sight and out of reach (visibility), not display:none, so the
+     page served at 1280 still carries it, and a phone shows it from the
+     first frame instead of gaining it when the script runs. */
+  .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
+  .lab-knob:not(.is-on) { display: block; }
+  .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .lab-seg-by { display: flex; }
+  .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lab-facts { grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+  .lab-span-why { display: inline; }
+  /* Names beside the letters need the strip's whole width: the legend
+     stands over it. */
+  .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+}
+@container lab (min-width: 960px) {
+  .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
+  /* A box that scrolls clips what passes its padding, and a focus ring is
+     drawn 4px outside its control (2px wide, 2px off): 2px of padding cut
+     the ring's left side off every slider (the verification of 4 Oct 2026,
+     F15). The padding holds the whole ring; the margin keeps the column's
+     edge where it was. */
+  .lab-inputs { position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) + 12px);
+    max-height: calc(100vh - var(--topbar-live, var(--topbar-h)) - 24px); overflow-y: auto; padding: 6px; margin: -4px -6px 0; }
+}
+/* A served page lays its panel out by the window until the script runs,
+   as the tab row and the screener do (prerender, above): the panel is the
+   window less the 15px scrollbar, the shell's padding and, from 1024px,
+   the 264px sidebar — 600px of it from a 663px window, 960px from 1303px. */
+:root[data-served] .lab { container-type: normal; }
+@media (min-width: 663px) {
+  :root[data-served] .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
+  :root[data-served] .lab-knob:not(.is-on) { display: block; }
+  :root[data-served] .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  :root[data-served] .lab-seg-by { display: flex; }
+  :root[data-served] .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-served] .lab-span-why { display: inline; }
+  :root[data-served] .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+}
+@media (min-width: 1303px) {
+  :root[data-served] .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
+}
+/* A served slider is its stated value in a slider's box (prerender.mjs),
+   on a line of its own as the slider is. */
+#views[data-served] .lab-range[data-inert] { display: block; }
+
+@media (pointer: coarse), (max-width: 768px) {
+  .lab-seg-opt { min-height: 44px; }
+  /* A row's "what this means" is the only thing on its line, not a word in
+     a sentence: it takes the whole target. */
+  .lab-help .metric-label { min-height: 44px; }
+  /* The strip is its choices' 44px and a hairline: on a phone the two
+     pickers, the knob and the seven results share one screen. */
+  .lab-pick-cols .lab-seg, .lab-pick-input .lab-seg { padding: 0; border-color: transparent; }
+  .lab-sum { min-height: 44px; }
+  .lab-reset { width: 44px; min-width: 44px; }
+}
+@media (pointer: coarse) {
+  input.lab-range[type="range"]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -13px; }
+  input.lab-range[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
+}
+/* No motion while a slider is held, or where motion is reduced. */
+.lab.is-dragging .lab-bar-fill, .lab.is-dragging .lab-bar-seg { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lab-bar-fill, .lab-bar-seg, .lab-row-label::before { transition: none !important; }
+}
+/* With no script the lab is a page of the sample's figures: the pickers,
+   the boxes and the commits need the script, and are not offered. */
+@media (scripting: none) {
+  .lab .lab-pick, .lab .lab-num, .lab .lab-ticks, .lab .lab-cols-card, .lab .lab-commit { display: none !important; }
+  /* With no picker, every knob is shown, at every width. */
+  .lab .lab-knob { display: block !important; }
+}
+
+/* EVERY SLIDER'S FOCUS, IN EVERY BROWSER. The thumb's 24% ring alone was
+   too faint to find, and Firefox drew none at all: its thumb had no focus
+   rule. The slider itself carries the product's ring, and Firefox's thumb
+   the same ring WebKit's has. */
+input[type="range"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 24%, transparent); }
+/* ---- end scenario-lab ---- */
 </style>
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
@@ -4982,9 +5259,19 @@ const NA = '<span class="caption" title="Not available or not meaningful for thi
    per-share rate across that boundary would measure the split. */
 const NA_SPLIT = '<span class="caption" title="Withheld: the share count moves by a corporate action inside this window, so a growth rate over a per-share line would measure the split, not the company.">withheld</span>';
 
+/* One formatter a precision, made once. toLocaleString with options builds
+   an Intl.NumberFormat on every call — about 10µs, which the Scenario Lab
+   (82-property-lab.js) paid fifty times a frame while a slider moved. The
+   same formatter, kept, prints the same digits. */
+const NUM_FORMATS = new Map();
+const numFormat = (dp) => {
+  let f = NUM_FORMATS.get(dp);
+  if (!f) { f = new Intl.NumberFormat('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp }); NUM_FORMATS.set(dp, f); }
+  return f;
+};
 function fmtNum(v, dp = 1) {
   if (!isNum(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return numFormat(dp).format(v);
 }
 function fmtPct(v, dp = 1) {
   if (!isNum(v)) return '—';
@@ -5030,8 +5317,7 @@ function fmtMoney(v, ccy, dp = 2) {
      prints "$0.00" rather than "−$0.00" — the payoff crosses zero at the
      break-even by construction, and floating point put it a hair below. */
   const r = Math.abs(v) < 0.5 / 10 ** dp ? 0 : v;
-  return `${r < 0 ? '−' : ''}${sym}${Math.abs(r).toLocaleString('en-US',
-    { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
+  return `${r < 0 ? '−' : ''}${sym}${numFormat(dp).format(Math.abs(r))}`;
 }
 function signClass(v) { return !isNum(v) || Math.abs(v) < 0.005 ? '' : (v > 0 ? 'pos' : 'neg'); }
 
@@ -5095,6 +5381,37 @@ const METRIC_HELP = {
     simple: 'Rent left after running costs, as a percentage of the purchase price.',
     context: 'Closer to the truth than gross yield because it subtracts what the property costs to hold. Still before the loan.',
     technical: 'Net operating income ÷ purchase price, where NOI is effective rent less operating costs.' },
+  /* The Scenario Lab's chain (82-property-lab.js), one key a figure. The
+     prop prefix keeps them apart from the screener's measures, which the
+     metric registry adds to this table as it loads. */
+  propInstalment: { label: 'Monthly repayment',
+    simple: 'What the loan costs each month, paying off the loan and its interest together.',
+    context: 'Set by three things: how much is borrowed, the interest rate and how many years the loan runs. A deposit or a lower price borrows less; a higher rate or a shorter loan costs more each month.',
+    technical: 'Loan × r ÷ (1 − (1 + r)^−n), where r is the annual rate ÷ 12 and n is the tenure in months (a reducing-balance loan). The loan is the margin of finance × the lender’s value basis: the price, or the lower of the price and the bank’s valuation where one is entered. At a 0% rate it is the loan ÷ n.' },
+  propSafeCash: { label: 'Cash required',
+    simple: 'All the cash the purchase takes: what you pay to complete, the renovation, and a reserve kept untouched afterwards.',
+    context: 'A buyer can meet the completion figure and still be one vacancy away from trouble, which is why the reserve is counted. Lines the fee table cannot price yet are listed as missing, and the total then reads “so far”.',
+    technical: 'Transaction cash (deposit, any valuation gap, stamp duties, legal fees, disbursements, service tax, loan costs, mortgage protection) + improvement cash (renovation and utility deposits) + the reserve (months of instalment and owner-paid running costs). Each group is the sum of its priced lines.' },
+  propCashflow: { label: 'Monthly position',
+    simple: 'Rent left each month after running costs and the loan repayment. Negative means you pay the difference from your own income.',
+    context: 'Before tax on the rent unless a marginal tax rate is entered. A figure below zero is not a verdict on its own — it is what holding the property costs each month while it is held.',
+    technical: '(Effective rent − operating costs) ÷ 12 − the monthly instalment, where effective rent is a year’s rent less the vacancy allowance and operating costs include maintenance, sinking fund, assessment, quit rent, insurance, management and the repair reserve.' },
+  propBreakEvenOccupancy: { label: 'Break-even occupancy',
+    simple: 'How full the property must be, over a year, for the rent to cover its running costs and the loan.',
+    context: 'Lower leaves more room for empty months. Above 100% the property cannot cover its costs at this rent however full it is, which is one of the grade’s hard gates.',
+    technical: '(Fixed operating costs + annual debt service) ÷ (gross annual rent × (1 − variable cost rate)) × 100. Above 100% the property cannot cover its costs at this rent however full it is.' },
+  propValueLessLoan: { label: 'Value less loan, before selling costs',
+    simple: 'What the property would be worth at the end of the hold, less what would still be owed on the loan then. Nothing for the costs of selling is taken off yet.',
+    context: 'The value rests on one growth rate — an assumption, not a forecast: this product holds no price history to test it against. It is not the cash a sale returns; the agent, the lawyers, the gains tax and the months carried while selling all come off it first.',
+    technical: 'Price × (1 + growth rate)^years + the share of the renovation a buyer pays for at the sale − the loan balance after years × 12 monthly payments. Unknown where the loan’s schedule cannot be computed.' },
+  propNetExit: { label: 'Net sale proceeds',
+    simple: 'The cash a sale at the end of the hold would return after the loan is repaid and every cost of selling is paid.',
+    context: 'Smaller than value less loan by the agent’s commission, the legal costs, the real property gains tax and the instalments and running costs carried while the property sells.',
+    technical: 'Value less loan at the sale − agent commission − legal costs on exit − real property gains tax − (instalments due and operating costs over the months to sell).' },
+  propIrr: { label: 'Rate of return if sold',
+    simple: 'The yearly return on the cash committed at the start, counting every year’s cash flow and the sale at the end, each at the time it arrives.',
+    context: 'Measured on all the cash committed, the reserve included — which comes back at the sale. Where the cash flow changes direction more than once, more than one rate can fit, and the page says so rather than choosing one.',
+    technical: 'The rate r at which −cash committed + Σ (after-tax cash flow in year t) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
 };
 
 /* Remembered so a reader who wants the technical depth is not returned to the
@@ -16801,6 +17118,8 @@ const ICON = {
   database:'<ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M4 11.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
   tag:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
   chev:'<path d="m6 9 6 6 6-6"/>',
+  /* The Scenario Lab's way back to a figure as saved (82-property-lab.js). */
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -17279,6 +17598,9 @@ const TOOLS = [
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     action: { label: 'Analyse a property', path: '/property/calculator' } },
+  { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
+    status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
+    action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     action: { label: 'Screen a town', path: '/property/areas' } },
@@ -17887,6 +18209,9 @@ const ROUTES = [
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
+  /* The Scenario Lab (82-property-lab.js). Its ?model=, ?cols= and ?by= are
+     read by the view itself, on arrival; no row of their own. */
+  { path: '/property/lab',        view: 'propertyLab', title: 'Scenario Lab' },
   { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
   /* The paths a reader actually types. All five rendered the not-found card
      while the workspace sat behind a URL nobody would guess, and the workspace
@@ -17961,6 +18286,7 @@ const META = {
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
+  propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
@@ -18529,7 +18855,7 @@ const SECTION_OF = {
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
-  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
+  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', propertyLab: 'property',
   propertyModels: 'property',
   /* A document of one saved property, not a tool of its own: Property's
      page with no tab current, as the decision record is. */
@@ -19231,7 +19557,16 @@ window.addEventListener('resize', queueScrollStops);
    writes some, and a change it makes must not call it back. The drawer's
    body the same way: openDrawer replaces it, and some drawers redraw in
    place. */
-const scrollStopWatch = new MutationObserver(queueScrollStops);
+/* Except the Scenario Lab's figures (82-property-lab.js), whose words it
+   rewrites in place every frame of a drag: no box of its scrolls with them
+   (a table it draws again is a childList change, and still heard), and a
+   fitting a frame walked the whole page and measured its boxes while the
+   slider moved — half a millisecond a frame on a desktop, four times that
+   on a slow phone. */
+const scrollStopWatch = new MutationObserver((recs) => {
+  if (recs.every(r => r.type === 'characterData' && r.target.parentElement?.closest('.lab'))) return;
+  queueScrollStops();
+});
 scrollStopWatch.observe(viewRoot, { childList: true, subtree: true, characterData: true });
 scrollStopWatch.observe(drawerBody, { childList: true, subtree: true, characterData: true });
 /* The topbar's real height, for scroll-padding-top and everything that sticks
@@ -19493,6 +19828,13 @@ const SERVED_READS = {
   propertyModels: ['deal', 'dealBeforeLink', 'savedWork', 'startHere'],
   property: ['deal', 'dealBeforeLink', 'savedWork', 'startHere', 'observations', 'areaProfiles', 'demand', 'borrowerProfile',
     'lang', 'plan', 'propertyReportsBought'],
+  /* /property/lab: the calculator's deal and whether it is a saved property
+     (its columns come from it), the labels in the reader's language, the
+     report a figure is withheld behind and the plan that may include it,
+     the comparables the grade reads, and the Start here panel. Its
+     ?model=, ?cols= and ?by= are read by the app as it draws (a page that
+     does not wait: its first draw replaces the served page at once). */
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'startHere'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -19951,8 +20293,37 @@ function giveFocusBack(h) {
   if (caret) putCaret(n, caret);
 }
 
+/* A REDRAW NOBODY ASKED FOR, HELD WHILE A FINGER IS ON A SLIDER (the
+   Scenario Lab, 82-property-lab.js). render() replaces the whole page, and
+   a range input replaced under the pointer ends the drag: the filings
+   landing (95-boot.js routes again), a theme change, the back-forward
+   cache's pageshow — each would have dropped the slider out from under the
+   reader mid-drag. While held, a redraw of the page on screen (samePage,
+   below) is noted and not drawn; renderRelease draws it once, if one was
+   asked for. A navigation to another page is never held, and ends the
+   hold: the gesture belonged to the page it leaves. A hold nobody releases
+   (a pointerup the browser never delivered) lets go after 15 seconds. */
+let renderHeld = false, renderPending = false, renderHoldTimer = 0;
+function renderHold() {
+  renderHeld = true;
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = setTimeout(renderRelease, 15000);
+}
+function renderRelease() {
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = 0;
+  if (!renderHeld) return;
+  renderHeld = false;
+  if (renderPending) { renderPending = false; render(); }
+}
+
 function render() {
   const samePage = renderedPage === pageOnScreen();
+  if (renderHeld) {
+    if (samePage) { renderPending = true; return; }
+    clearTimeout(renderHoldTimer);
+    renderHeld = false; renderPending = false; renderHoldTimer = 0;
+  }
   /* Before anything is replaced, and on a redraw of the page on screen only
      — see noteFocusForRedraw above. The served page drawn over by the app is
      the page on screen too (2026-10-04): a link focused in it, by a reader
@@ -38327,15 +38698,36 @@ function saveActiveProperty({ name = null } = {}) {
     toast(`Saved “${rec.name}” — it is listed in My properties`);
     return rec;
   }
-  const rec = list.find(r => r.id === st.rec.id);
   if (st.sc) {
-    const sc = rec.scenarios.find(s => s.id === st.sc.id);
-    sc.overrides = pmDiff(d, pmInputsOf(rec));
-    sc.updatedAt = at;
-  } else rec.payload = { ...rec.payload, deal: pmNormalInputs(d) };
+    const rec = pmWriteScenario(st.rec.id, st.sc.id, pmDiff(d, pmInputsOf(st.rec)));
+    if (!rec) { toast(STORE_REFUSED); return null; }
+    toast(`Saved the scenario “${st.sc.name}” of “${rec.name}”`);
+    return rec;
+  }
+  const rec = list.find(r => r.id === st.rec.id);
+  rec.payload = { ...rec.payload, deal: pmNormalInputs(d) };
   pmStampRecord(rec, at);
   if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
-  toast(st.sc ? `Saved the scenario “${st.sc.name}” of “${rec.name}”` : `Saved “${rec.name}”`);
+  toast(`Saved “${rec.name}”`);
+  return rec;
+}
+
+/* A SCENARIO'S CHANGES, WRITTEN. One writer for the calculator's "Save
+   this scenario" (above) and the Scenario Lab's "Update scenario"
+   (82-property-lab.js): the scenario keeps the overrides given and the
+   time, the property is stamped, and the record is returned only if the
+   browser kept it (store.failed) — null otherwise, and the caller says so. */
+function pmWriteScenario(recId, scId, overrides) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === recId && pmIsProperty(r));
+  const sc = pmScenario(rec, scId);
+  if (!rec || !sc) return null;
+  const at = new Date().toISOString();
+  sc.overrides = overrides;
+  sc.updatedAt = at;
+  pmStampRecord(rec, at);
+  const refused = store.failed;
+  if (!persistWork(list) || store.failed !== refused) return null;
   return rec;
 }
 
@@ -38360,18 +38752,34 @@ function saveAsScenario() {
   const suggested = cpScenarioName(overrides, pmInputsOf(rec)) || `Scenario ${rec.scenarios.length + 1}`;
   const typed = prompt(`Name this scenario of “${rec.name}”`, suggested);
   if (typed === null) return null;
-  const at = new Date().toISOString();
-  const sc = { id: `sc-${Date.now().toString(36)}-${(PM_SC_SEQ++).toString(36)}`, name: (typed.trim() || suggested).slice(0, 80),
-    overrides, createdAt: at, updatedAt: at };
-  rec.scenarios.push(sc);
-  pmStampRecord(rec, at);
-  const refused = store.failed;
-  if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+  const sc = pmAddScenario(rec.id, overrides, typed.trim() || suggested);
+  if (!sc) { toast(STORE_REFUSED); return null; }
   d.scenarioId = sc.id;
   saveDeal();
   /* Compared at once beside the property as saved. */
   pmCompareSelect(rec.id, ['base', sc.id]);
   toast(`Saved the scenario “${sc.name}” of “${rec.name}”`);
+  return sc;
+}
+
+/* A NEW SCENARIO, WRITTEN. One writer for the calculator's "Save as a
+   scenario" (above, which asks for the name) and the Scenario Lab's "Save B
+   as a scenario" (82-property-lab.js, which asks in a field of its own):
+   the property's list gains the scenario, the property is stamped, and the
+   scenario is returned only if the browser kept it — null otherwise, and
+   the caller says so. */
+function pmAddScenario(recId, overrides, name) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === recId && pmIsProperty(r));
+  if (!rec) return null;
+  if (!Array.isArray(rec.scenarios)) rec.scenarios = [];
+  const at = new Date().toISOString();
+  const sc = { id: `sc-${Date.now().toString(36)}-${(PM_SC_SEQ++).toString(36)}`,
+    name: String(name || `Scenario ${rec.scenarios.length + 1}`).slice(0, 80), overrides, createdAt: at, updatedAt: at };
+  rec.scenarios.push(sc);
+  pmStampRecord(rec, at);
+  const refused = store.failed;
+  if (!persistWork(list) || store.failed !== refused) return null;
   return sc;
 }
 
@@ -38479,15 +38887,24 @@ function openOpportunityProperty(o, modelled) {
    page did not show (dealDistrict, 70-property.js). The project follows the
    town, as choosing the town on the calculator does. */
 const propertyPlaceListed = (city, area) => listedDistrict(city, area);
-function usePlaceInCalculator(city, area) {
+/* The place, put on the deal given — and only on it: the calculator's
+   (below), or a Scenario Lab column's copy (82-property-lab.js), which must
+   never reach the calculator's deal. The district as the town lists it, or
+   null where the town does not list it and nothing is changed. */
+function setDealPlace(d, city, area) {
   const district = listedDistrict(city, area);
-  if (!district) return false;
-  const d = State.deal;
+  if (!district) return null;
   if (d.city !== city) {
     d.city = city;
     if (!projectsForCity(city).some(x => x.id === d.projectId)) d.projectId = customProjectId(city);
   }
   d.district = district;
+  return district;
+}
+function usePlaceInCalculator(city, area) {
+  const d = State.deal;
+  const district = setDealPlace(d, city, area);
+  if (!district) return false;
   saveDeal();
   navigate('/property/calculator');
   const st = propertyStatus(d);
@@ -38570,7 +38987,10 @@ function propertyModelBar(d = State.deal) {
   acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-reset', onclick: () => { newPropertyDeal({ show: false }); renderKeepFocus(); } }, 'New property'));
   const link = (path, label, id) => el('a', { class: 'btn btn-quiet btn-sm', id, href: href(path),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
-  acts.append(el('span', { class: 'pm-links' }, [link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
+  /* The Scenario Lab opens on the property here, as saved and with its
+     scenarios (82-property-lab.js); the calculator's deal is not changed
+     by opening it. */
+  acts.append(el('span', { class: 'pm-links' }, [link('/property/lab', 'Scenario Lab', 'wb-property-lab'), link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
   return bar;
 }
@@ -38725,10 +39145,34 @@ function pmOverrideLine(ov, max = 6) {
   });
   return bits.length > max ? `${bits.slice(0, max).join('; ')}; and ${bits.length - max} more` : bits.join('; ');
 }
+/* ONE RUN OF THE MODEL AND THE GRADE FOR A SET OF INPUTS, KEPT.
+   The comparison here and the Scenario Lab's columns (82-property-lab.js)
+   each run the calculator's own model on a column's inputs; the lab runs
+   them again on every frame a slider moves, and a column not being moved
+   has the same inputs each time. So a run is kept by the inputs it was
+   given (pmCanon), for the 24 sets last asked about. A caller reads the
+   result and never changes it: it is handed to the next caller as it is.
+   The grade also reads the comparables recorded for the deal's district
+   (comparableSupport, through the day's 24-month window), which are not
+   among the inputs — so they are part of what a run is kept by, and a
+   comparable recorded or edited is a new run, not the kept one. */
+const PM_RUNS = new Map();
+const pmRunKey = (d) => `${pmCanon(d)}\u0000${localDay()}\u0000${JSON.stringify((State.observations || [])
+  .filter(o => o && o.city === d?.city && o.area === d?.district))}`;
+function pmCompareRun(inputs) {
+  const key = pmRunKey(inputs);
+  const had = PM_RUNS.get(key);
+  if (had) { PM_RUNS.delete(key); PM_RUNS.set(key, had); return had; }
+  const m = dealModel(inputs), g = propertyGrade(inputs, m);
+  const run = { m, g };
+  PM_RUNS.set(key, run);
+  while (PM_RUNS.size > 24) PM_RUNS.delete(PM_RUNS.keys().next().value);
+  return run;
+}
 /* The five figures the comparison sets side by side, from the calculator's
    own model and grade — the same engine the page reads, never a second one. */
-function pmCompareFigures(d) {
-  const m = dealModel(d), g = propertyGrade(d, m);
+function pmCompareFigures(d, run = pmCompareRun(d)) {
+  const { m, g } = run;
   const short = (m.missingCostLines || []).length;
   return [
     ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—', isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? 'neg' : ''],
@@ -38737,6 +39181,19 @@ function pmCompareFigures(d) {
     ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—', ''],
     ['Grade', `${g.grade}${g.verdict ? ` — ${g.verdict}` : ''}`, ''],
   ];
+}
+/* THE COLUMNS A SAVED PROPERTY OFFERS: the property as saved, each
+   scenario, and — while the calculator holds changes to it not saved
+   (st.dirty, for the deal d that is this property's working copy) — those
+   changes as they stand. Read by the comparison below and by the Scenario
+   Lab (82-property-lab.js), so the two offer the same columns under the
+   same names. */
+function pmColumns(rec, d, st) {
+  const base = pmInputsOf(rec);
+  const cols = [{ id: 'base', name: `${rec.name} as saved`, short: 'As saved', inputs: base, what: 'Every input as the property is saved — what each scenario changes is measured against it' }];
+  (rec.scenarios || []).forEach(s => cols.push({ id: s.id, name: s.name, short: s.name, inputs: pmMerge(base, s.overrides), what: pmOverrideLine(s.overrides) || 'Nothing changed', sc: s }));
+  if (st && st.dirty && st.rec?.id === rec.id) cols.push({ id: 'current', name: 'On the calculator now, unsaved', short: 'Unsaved changes', inputs: pmBare(d), what: pmOverrideLine(pmDiff(d, base)) || 'Nothing changed' });
+  return cols;
 }
 function propertyScenariosPanel(d = State.deal) {
   const st = propertyStatus(d);
@@ -38752,12 +39209,8 @@ function propertyScenariosPanel(d = State.deal) {
       onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#pm-sc-title'); } } }, 'Save this property first'));
     return card;
   }
-  const rec = st.rec, base = pmInputsOf(rec);
-  /* The columns on offer: the property as saved, each scenario, and — while
-     the calculator holds changes not saved — those changes as they stand. */
-  const cols = [{ id: 'base', name: `${rec.name} as saved`, short: 'As saved', inputs: base, what: 'Every input as the property is saved — what each scenario changes is measured against it' }];
-  (rec.scenarios || []).forEach(s => cols.push({ id: s.id, name: s.name, short: s.name, inputs: pmMerge(base, s.overrides), what: pmOverrideLine(s.overrides) || 'Nothing changed', sc: s }));
-  if (st.dirty) cols.push({ id: 'current', name: 'On the calculator now, unsaved', short: 'Unsaved changes', inputs: pmBare(d), what: pmOverrideLine(pmDiff(d, base)) || 'Nothing changed' });
+  const rec = st.rec;
+  const cols = pmColumns(rec, d, st);
   const valid = new Set(cols.map(c => c.id));
   let chosen = (PM_COMPARE[rec.id] || []).filter(id => valid.has(id));
   if (!PM_COMPARE[rec.id]) chosen = cols.slice(0, 3).map(c => c.id);
@@ -38835,6 +39288,14 @@ function propertyScenariosPanel(d = State.deal) {
     ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:8rem' }, c.id === 'base' ? '—' : c.what))]));
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  /* The same columns, moved live: the Scenario Lab opens on them. A link
+     on a line of its own, not a word in a sentence, so on a phone it is a
+     44px target as the row's own "Scenario Lab" is (btn-sm; it measured
+     16px tall as a bare link — the verification of 4 Oct 2026). */
+  const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, el('a', { href: href(labPath), id: 'pm-sc-lab', class: 'btn btn-ghost btn-sm',
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
+    'Open these in the Scenario Lab')));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the underwriting grade. Scenarios, not forecasts — and nothing here is ranked.'));
   return card;
@@ -38951,6 +39412,10 @@ VIEWS.propertyModels = () => {
         focusAfterRedraw(opens[Math.min(idx, opens.length - 1)], '#pm-new');
         toast(store.failed !== refused ? STORE_UNDELETED : 'Deleted');
       } }, 'Delete'));
+    /* Its scenarios moved live, after the row's own actions. */
+    const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}`;
+    acts.append(el('a', { class: 'btn btn-quiet btn-sm', id: `pm-lab-${rec.id}`, href: href(labPath), 'aria-label': `Scenario Lab — ${rec.name}`,
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } }, 'Scenario Lab'));
     ul.append(el('li', { class: `pm-row${onCalc ? ' is-open' : ''}` }, [
       el('div', { class: 'pm-row-main' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
@@ -41659,12 +42124,18 @@ function dealModel(d) {
     const debtY = debtInYear(y);
     const cfPreTax = debtUnknown ? null : effY - opexY - debtY;
     const cf = debtUnknown ? null : cfPreTax - taxY.tax;
+    /* VALUE LESS LOAN, the row's own two figures set against each other —
+       what the property would be worth in year y less what is still owed on
+       it, before any cost of selling. Not "equity": that word already means
+       the equities comparison (m.equity) and the cash committed (equityOut)
+       on these pages. Unknown with the balance (a loan with no schedule). */
+    const value = exitValueAt(y), balance = balanceAt(y * 12);
     return { y, rent: effY, opex: opexY, debt: debtY,
              interest: interestY, principal: debtUnknown ? null : Math.max(0, debtY - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
              cfPreTax, cf,
-             value: exitValueAt(y),
-             balance: balanceAt(y * 12) };
+             value, balance,
+             valueLessLoan: isNum(balance) ? value - balance : null };
   };
   let cumCash = 0, cumTax = 0, cumPreTax = 0;
   const path = [];
@@ -41992,7 +42463,17 @@ function dealModel(d) {
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
            propertyClass, propertyClassSrc, letsToTenant, strataCharges,
-           stress, exits, holdVsSell, renoRecovered, equity };
+           stress, exits, holdVsSell, renoRecovered, equity,
+           /* Two figures the Scenario Lab names (82-property-lab.js), each
+              from figures above and nothing new. The value at the sale less
+              the loan still owed then, before agent, legal, gains tax and
+              the months carried while selling — unknown with the balance;
+              and the growth on the price alone at the reader's rate, which
+              with the price and the renovation recovered makes up the value
+              at the sale. Neither is called equity, for the reason at
+              yearFlow. */
+           valueLessLoanAtExit: debtUnknown ? null : exitValue - outstanding,
+           priceGrowthAtExit: exitValue - renoRecovered - d.price };
 }
 
 /* The calculator's "Monthly commitment": what the owner funds from their
@@ -45987,6 +46468,9 @@ const CAPABILITY_REGISTER = [
     now:'Title, valuation gap, tenure, condition and marketability, scored separately from the borrower.' },
   { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
     now:'A/B/C/D/U with hard gates and evidence caps.' },
+  { name:'Scenario Lab', status:'beta', path:'/property/lab',
+    now:'Five inputs moved live; seven results from the calculator’s model; up to three scenarios compared six ways.',
+    gate:'Moves are kept in this tab until saved as a scenario. Appreciation is your assumption; no price history is held.' },
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
     now:'Records real candidates with source, availability date, four separate prices, grade and a next action with an owner.',
     gate:'Holds nothing until you add cases. This product sources no listings and republishes none.' },
@@ -47296,6 +47780,1707 @@ function officialBenchmarkPanel(city, area) {
     + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`));
   return card;
 }
+/* ==========================================================================
+   THE SCENARIO LAB — /property/lab (the owner's decision, 3 Oct 2026)
+   --------------------------------------------------------------------------
+   "As the user moves a slider, everything changes immediately: monthly
+   repayment → cash required → cash flow → yield → break-even occupancy →
+   projected equity → exit outcome. No Calculate button." Five sliders —
+   price, deposit, rate, rent and renovation — over up to three columns, A,
+   B and C, set side by side six ways.
+
+   WHAT IT IS MADE OF, AND WHAT IT IS NOT.
+   - One model. Every figure is the calculator's own (dealModel and
+     propertyGrade, 75-property-grade.js), run on a column's inputs. The
+     lab's own arithmetic is the change against a baseline, the scaling of a
+     bar and the assumed occupancy tick (100 less the vacancy entered); it
+     names none of the model's functions (model-test L3 holds it to that).
+   - "Projected equity" is "Value less loan, year N (before selling costs)":
+     equity already means the equities comparison and the cash committed on
+     these pages (the owner's answer, 3 Oct 2026). Net sale proceeds and the
+     total profit are the full report's, as on the calculator: shown only
+     where the report is unlocked.
+   - Moves are what-ifs. They are kept in this tab's memory, per column, and
+     nothing is written — no store key, no address, no saveDeal — until the
+     reader commits one: Save as a scenario, Update the scenario, or Open in
+     the calculator. A commit is the reader typing those figures, so it
+     marks them theirs exactly as the calculator does (markTouched) — and
+     only then.
+   - Nothing is ranked. The columns stay in the order A, B, C whatever is
+     compared, no colour marks one as preferable, and changing what is
+     compared changes the chart's form and scale, never its order.
+
+   A PANEL, SO THE MAP CAN MOUNT IT. scenarioLabPanel draws the whole lab
+   into any box, every id under its own prefix, so the Kuching map's side
+   sheet can mount a compact one beside the page's (phase 3). labOpen is how
+   anything opens a subject; labSubscribe is how anything hears a paint.
+   LAB_FIGURES is global for the client proposal (phase 4), so the proposal
+   and the lab cannot word or compute a figure differently.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ formats */
+/* Money to the ringgit, never fmtAmount's "RM2.4k": one 0.05pp step of the
+   rate moves the repayment by about RM16, which "RM2.4k" hides. A figure the
+   model withholds prints as a dash, never 0. */
+const LAB_FORMATS = {
+  money0: (v) => fmtMoney(v, 'MYR', 0),
+  pct2: (v) => fmtPct(v, 2),
+  pct1: (v) => fmtPct(v, 1),
+  x2: (v) => fmtX(v, 2),
+  grade: (v) => (v == null || v === '' ? '—' : String(v)),
+};
+const labMoney = (v) => LAB_FORMATS.money0(v);
+/* An entered percentage as entered: 90%, 4.3%, 89.65% — not a fixed scale. */
+const labPctIn = (v) => (isNum(v) ? `${+Number(v).toFixed(2)}%` : '—');
+const labYears = (n) => `${n} year${Number(n) === 1 ? '' : 's'}`;
+/* A figure as printed, read back: "−RM1,197" is −1197, "2.47%" 2.47. */
+const labPrinted = (s) => { const t = String(s); const n = Number(t.replace(/[^0-9.]/g, '')); return /^[−-]/.test(t) ? -n : n; };
+/* The change between two figures in a format, in words for the ear and in
+   a mark for the eye. Two figures that print the same are unchanged, so a
+   change no reader could see is not announced as one. THE CHANGE BETWEEN THE
+   FIGURES AS PRINTED: worked from the raw values it was rounded on its own,
+   and disagreed with the two figures beside it — RM130,142 less RM106,245
+   marked "▼ RM23,896", and a net yield that printed 2.47% then 2.46% marked
+   "▼ 0.00 pp" (the verification of 4 Oct 2026). */
+function labDelta(fmt, now, was) {
+  if (!isNum(now) || !isNum(was)) return null;
+  const f = LAB_FORMATS[fmt];
+  const a = f(now), b = f(was);
+  if (a === b) return { same: true, mark: 'unchanged', words: 'unchanged' };
+  const dp = fmt === 'money0' ? 0 : fmt === 'pct1' ? 1 : 2;
+  const d = +(labPrinted(a) - labPrinted(b)).toFixed(dp), up = d > 0;
+  const size = fmt === 'money0' ? labMoney(Math.abs(d)) : fmt === 'x2' ? `${Math.abs(d).toFixed(2)}×` : `${Math.abs(d).toFixed(dp)} pp`;
+  return { same: false, up, mark: `${up ? '▲' : '▼'} ${size}`, words: `${up ? 'up' : 'down'} ${size}` };
+}
+
+/* ------------------------------------------------------------------- inputs */
+/* THE FIVE KNOBS. Each span is a setting of this page, not market data:
+   anchored on the column's own figure as saved (or as opened), stated with
+   its basis beside the slider, and widened to take any figure typed into
+   the box, so the thumb is never pinned at an end it does not belong at. */
+const labSnap = (v, step) => +(Math.round(v / step) * step).toFixed(step < 1 ? 2 : 0);
+const LAB_INPUTS = [
+  { k: 'price', label: () => ptr('in.price', 'Purchase price (RM)'), say: 'Purchase price', short: 'Price', step: 1000,
+    span: (a) => [Math.max(0, labSnap(a * 0.75, 1000)), labSnap(a * 1.25, 1000)],
+    basis: '±25% of as saved', why: ', to RM1,000 — five of the sensitivity panel’s 5% steps',
+    shown: (v) => labMoney(v), spoken: (v) => `${fmtNum(v, 0)} ringgit` },
+  { k: 'downPct', label: () => ptr('in.downPct', 'Deposit (%)'), say: 'Deposit', short: 'Deposit', step: 1,
+    span: () => [0, 100], basis: 'the model’s own limits on a deposit',
+    shown: (v) => labPctIn(v), spoken: (v, m) => `${fmtNum(v, 0)} percent${isNum(m?.deposit) ? `, ${fmtNum(m.deposit, 0)} ringgit` : ''}`,
+    ticks: [10, 20, 30] },
+  { k: 'ratePct', label: () => ptr('in.ratePct', 'Loan interest rate (%)'), say: 'Interest rate', short: 'Rate', step: 0.05,
+    span: (a) => [Math.max(0, labSnap(a - 3, 0.05)), labSnap(a + 3, 0.05)],
+    basis: '±3 pp of as saved, never below 0', why: ' — the model’s stress rows',
+    shown: (v) => `${fmtNum(v, 2)}% a year`, spoken: (v) => `${fmtNum(v, 2)} percent a year` },
+  { k: 'rent', label: () => ptr('in.rent', 'Expected monthly rent (RM)'), say: 'Rent', short: 'Rent', step: 50,
+    span: (a) => [Math.max(0, labSnap(a * 0.5, 50)), labSnap(a * 1.5, 50)],
+    basis: '±50% of as saved', why: ', to RM50 — five 10% rent steps',
+    shown: (v) => `${labMoney(v)} a month`, spoken: (v) => `${fmtNum(v, 0)} ringgit a month` },
+  { k: 'renovation', label: () => ptr('in.renovation', 'Renovation and furnishing (RM)'), say: 'Renovation', short: 'Reno', step: 500,
+    span: (a) => [0, labSnap(a * 2, 500)], basis: 'nothing to twice as saved', why: ' — the model’s +100% overrun row',
+    shown: (v) => labMoney(v), spoken: (v) => `${fmtNum(v, 0)} ringgit` },
+];
+const LAB_INPUT_BY_K = Object.fromEntries(LAB_INPUTS.map(x => [x.k, x]));
+/* An end of a span, as the span note prints it. */
+const labEdge = (inp, v) => (inp.k === 'downPct' || inp.k === 'ratePct' ? `${fmtNum(v, inp.k === 'ratePct' ? 2 : 0)}%` : labMoney(v));
+/* Whether a knob means anything for this column's class: a parcel has no
+   tenancy, so nothing uses a rent (propertyInputApplies, 70-property.js). */
+const labApplies = (d, k) => propertyInputApplies(d, k);
+const LAB_NOT_APPLY = { rent: 'A parcel has no tenancy, so nothing uses a rent.' };
+
+/* ------------------------------------------------------------------ figures */
+/* THE CHAIN, IN THE OWNER'S ORDER. Each row reads one field of the model's
+   result and words its formula from the model's own fields and the
+   formatters — never from a figure the lab worked out. `help` is a
+   METRIC_HELP key (00-core.js). Global: the client proposal will read it. */
+const labWhose = (d, k) => (isTouched(d, k) ? 'your assumption' : 'sample assumption — chosen by nobody');
+const LAB_FIGURES = [
+  { key: 'instalment', label: () => 'Monthly repayment', fmt: 'money0', help: 'propInstalment',
+    read: (m) => m.instalment,
+    note: (m) => (!(m.loan > 0) ? 'No loan' : !isNum(m.instalment) ? 'Not computable — the tenure is 0' : null),
+    formula: (d, m) => {
+      if (!(m.loan > 0)) return 'No loan: the deposit is the whole of the value the lender lends against, so nothing is repaid.';
+      if (!isNum(m.instalment)) return `Not computable — the loan tenure is ${labYears(num0(d.tenureYears))}, and a loan with no years has no schedule of repayments.`;
+      const basis = m.financingBasisConfirmed
+        ? `${m.valuationRule === 'valuation_only' ? 'the valuation' : 'the lower of the price and the valuation'} — a valuation of ${labMoney(m.bankValuation)} is entered`
+        : 'the price — no valuation entered';
+      return `Loan ${labMoney(m.loan)} = ${labPctIn(m.marginOfFinancePct)} of the lender’s value basis ${labMoney(m.lenderValueBasis)} (${basis}), at ${fmtNum(num0(d.ratePct), 2)}% a year over ${labYears(num0(d.tenureYears))}, reducing balance → ${labMoney(m.instalment)} a month.`
+        + (m.financingBasisConfirmed && m.valuationRule !== 'valuation_only'
+          ? ` Under the lower-of rule the loan stops following the price above the valuation of ${labMoney(m.bankValuation)}.` : '');
+    } },
+  { key: 'safeCashRequired', label: () => 'Cash required', fmt: 'money0', help: 'propSafeCash',
+    read: (m) => m.safeCashRequired,
+    note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
+      `${labMoney(m.unconfirmedCost)} on unverified fees`].filter(Boolean).join(' · '),
+    formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
+      + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
+      + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
+      + `${labMoney(m.unconfirmedCost)} of it rests on fee lines not yet verified against their schedules, ${(m.placeholderCostLines || []).length} of them placeholders (fee table ${FEE_TABLE.version}).` },
+  { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
+    read: (m) => m.cashflowMonthly,
+    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan has no schedule'
+      : m.taxComputed && isNum(m.path?.[0]?.cf) ? `after tax on the rent: ${labMoney(m.path[0].cf / 12)}` : 'before tax on the rent'),
+    formula: (d, m) => (!isNum(m.cashflowMonthly)
+      ? 'Not computable: with no repayment schedule the loan’s monthly cost is unknown, and so is what is left of the rent.'
+      : m.letsToTenant
+        ? `NOI ${labMoney(m.noi)} a year ÷ 12 − repayment ${labMoney(m.instalment)} = ${labMoney(m.cashflowMonthly)} a month, before tax on the rent.`
+        : `No rent for this class: running costs of ${labMoney(m.opex)} a year ÷ 12 − repayment ${labMoney(m.instalment)} = ${labMoney(m.cashflowMonthly)} a month.`) },
+  { key: 'netYield', label: () => 'Net yield', fmt: 'pct2', help: 'netYield',
+    read: (m) => m.netYield,
+    note: (m) => (m.letsToTenant === false ? 'not a quantity this asset has' : isNum(m.grossYield) ? `gross ${fmtPct(m.grossYield, 2)}` : null),
+    formula: (d, m) => (m.letsToTenant === false
+      ? 'Not a quantity this asset has: a class with no tenancy earns no rent to measure against the price.'
+      : `NOI ${labMoney(m.noi)} a year ÷ price ${labMoney(num0(d.price))} = ${fmtPct(m.netYield, 2)}. Before the loan, so the deposit and the rate do not move it.`) },
+  { key: 'breakEvenOccupancy', label: () => 'Break-even occupancy', fmt: 'pct1', help: 'propBreakEvenOccupancy',
+    read: (m) => m.breakEvenOccupancy,
+    note: (m) => (m.letsToTenant === false ? 'not a quantity this asset has'
+      : !isNum(m.breakEvenOccupancy) ? 'Not computable'
+      : m.breakEvenOccupancy > 100 ? 'cannot break even at this rent, however full' : null),
+    formula: (d, m) => (!isNum(m.breakEvenOccupancy)
+      ? (m.letsToTenant === false ? 'Not a quantity this asset has: there is no rent to fill.' : 'Not computable: the loan’s annual cost is unknown, or there is no rent to divide by.')
+      : `(${labMoney(m.fixedOperatingCosts)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct(m.variableCostRate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
+        + (m.breakEvenOccupancy > 100 ? ' Above 100% the property cannot cover its costs at this rent however full it is.' : '')) },
+  { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
+    read: (m) => m.valueLessLoanAtExit,
+    note: (m) => (isNum(m.valueLessLoanAtExit) ? null : 'Not computable — the loan has no schedule'),
+    formula: (d, m) => {
+      const n = normHoldYears(d.holdYears);
+      return `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
+    } },
+  { key: 'irrPct', label: (d) => `If sold in year ${normHoldYears(d?.holdYears)}`, fmt: 'pct2', help: 'propIrr',
+    read: (m) => m.irrPct,
+    note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed` : (m.irrWhy || 'Not computable')),
+    formula: (d, m) => {
+      const n = normHoldYears(d.holdYears), rr = m.rpgtResult;
+      return (isNum(m.irrPct) ? `The rate of return that sets every year’s cash flow after tax, and a sale in year ${n}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `
+        : `No rate of return: ${m.irrWhy || 'the flows do not give one'}. `)
+        + (rr ? `Selling in year ${n}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
+          + 'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current schedule or any exemption order in force. Confirm before relying on the figure.' : '');
+    } },
+];
+/* The report's two figures, in row 7 where it is unlocked (75-property-grade.js,
+   propertyReportUnlocked — the calculator's own test). */
+const LAB_PAID = [
+  { key: 'netExitProceeds', label: 'Net sale proceeds', fmt: 'money0', help: 'propNetExit',
+    formula: (d, m) => `${labMoney(m.valueLessLoanAtExit)} value less loan − agent ${labMoney(m.agentFee)} − legal ${labMoney(m.exitLegal)} − gains tax ${labMoney(m.rpgt)} − months carried while selling ${labMoney(m.carryWhileSelling)} = ${labMoney(m.netExitProceeds)}.` },
+  { key: 'totalProfit', label: 'Total profit', fmt: 'money0', help: null,
+    formula: (d, m) => `Every year’s cash flow after tax, plus the net sale proceeds, less the ${labMoney(m.acquisitionCost)} of cash the purchase took (everything paid out but the reserve): ${labMoney(m.totalProfit)}.` },
+];
+const labPaid = (d) => !!d && propertyReportUnlocked(d.projectId);
+
+/* -------------------------------------------------------------- comparison */
+/* THE SIX WAYS TO COMPARE. Each names the model's field its headline reads
+   (data-field on its table) and draws a form of its own: bars, bars about
+   nought, a stack, three panels on their own axes, or facts with no bars. */
+const LAB_METRICS = [
+  { id: 'yield', label: 'Yield', say: 'net yield' },
+  { id: 'cashflow', label: 'Cash flow', say: 'the monthly position' },
+  { id: 'entry', label: 'Entry cash', say: 'cash required' },
+  { id: 'appreciation', label: 'Appreciation', say: 'the value at the sale' },
+  { id: 'risk', label: 'Risk', say: 'break-even occupancy' },
+  { id: 'location', label: 'Location', say: 'location' },
+];
+const LAB_METRIC_IDS = LAB_METRICS.map(x => x.id);
+
+/* -------------------------------------------------------------------- state */
+/* LAB[subject] = { key, model, cols: [{ key, source, name, of, baseInputs,
+   moves, work, ref, cur }], active, input, metric, gesture, naming }, in
+   module memory: kept while the tab lives, gone on a reload, as the header
+   says. `moves` holds exactly the figures whose pmCanon differs from the
+   column's baseInputs — what pmDiff would save — and `work` is baseInputs
+   with them, written one key a tick. */
+const LAB = {};
+const LAB_LETTERS = ['A', 'B', 'C'];
+const LAB_SOURCE_CHIP = { deal: 'On the calculator', current: 'On the calculator', base: 'As saved', sc: 'Scenario', variant: 'Lab variant — not saved' };
+let labSubject = null;          /* the page's subject */
+let labUrlSeen = null;          /* the address last read on arrival */
+let labArrivalNote = null;      /* said for the arrival that needed it */
+const LAB_LISTENERS = new Set();
+const LAB_PANELS = new Set();
+
+const labKeyOf = (spec) => (spec?.kind === 'model' ? `m:${spec.id}` : 'deal');
+const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : c.source);
+/* The figures run: none without a price, which the model cannot carry
+   (an emptied price box is not nought — 75-property-grade.js). */
+const labRun = (d) => (d && num0(d.price) > 0 ? pmCompareRun(d) : null);
+/* `inherited`: the moves a copy was made with — the figures the column it
+   copied had moved in the lab — which a commit marks as the reader's with
+   the copy's own (labMarked). */
+function labCol(key, source, name, baseInputs, extra = {}) {
+  const base = pmBare(pmCopy(baseInputs || {}));
+  return { key, source, name, of: null, inherited: {}, baseInputs: base, moves: {}, work: pmCopy(base), ref: labRun(base), cur: null, ...extra };
+}
+/* One figure of a column moved: the work takes it, and it is a move only
+   while it differs from the column's base. The column's run is then not its
+   figures' any more: it is dropped, and the next paint runs them (the
+   active column, in labPaint) or takes the kept run (any other). A run kept
+   past a change of its column's figures is how the lab came to show the old
+   figures under new inputs (the verification of 4 Oct 2026, F1). */
+function labWrite(col, k, v) {
+  col.work[k] = v;
+  if (pmCanon(v) === pmCanon(col.baseInputs[k])) delete col.moves[k]; else col.moves[k] = v;
+  col.cur = null;
+  /* The work's edition, for what is worked out from it once and kept
+     (labBaseline). A new work object is a new edition by itself. */
+  col.ver = (col.ver || 0) + 1;
+}
+const labMoveCount = (col) => Object.keys(col.moves).length;
+/* The figures a commit of this column marks as the reader's: its own moves
+   and the moves it was copied with. */
+const labMarked = (col) => [...new Set([...Object.keys(col.inherited || {}), ...Object.keys(col.moves)])];
+/* The name of the column that is the calculator's deal, as that deal is
+   now: the sample until the reader changes a figure of it. */
+const labDealName = () => (propertyStatus(State.deal).kind === 'sample' ? 'Sample deal' : 'On the calculator');
+/* The subject a plain /property/lab opens: the calculator's deal, which is
+   a saved property's once one is open there. */
+const labDealSubject = () => { const st = propertyStatus(State.deal); return st.kind === 'model' ? `m:${st.rec.id}` : 'deal'; };
+
+/* The inputs a column's source holds now, from where they are kept. */
+function labSourceInputs(lab, col) {
+  const k = labSourceKind(col);
+  if (k === 'deal') return pmBare(State.deal);
+  if (!lab.model) return null;
+  const rec = pmFind(lab.model);
+  if (!rec) return null;
+  if (k === 'base') return pmInputsOf(rec);
+  if (k === 'sc') { const sc = pmScenario(rec, col.source.slice(3)); return sc ? pmSavedInputs(rec, sc) : null; }
+  if (k === 'current') return State.deal?.modelId === rec.id ? pmBare(State.deal) : null;
+  return null;
+}
+/* WHAT IS KEPT ELSEWHERE MAY HAVE CHANGED SINCE: the calculator edited, a
+   scenario saved again, renamed or deleted. Each drawing of the page reads
+   each column's source again; a column keeps its moves on its new base (a
+   move the base now holds is no longer a move), and one whose source is
+   gone is kept as a lab variant, said so by its name. */
+function labRebase(lab) {
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (lab.model && !rec) return false;
+  for (const col of lab.cols) {
+    if (col.source === 'variant') continue;
+    const now = labSourceInputs(lab, col);
+    if (!now) { col.name = `${col.name} — ${labSourceKind(col) === 'sc' ? 'no longer saved' : 'no longer on the calculator'}`; col.source = 'variant'; continue; }
+    const base = pmBare(pmCopy(now));
+    if (labSourceKind(col) === 'sc') { const sc = pmScenario(rec, col.source.slice(3)); if (sc) col.name = sc.name; }
+    /* The calculator's deal is named as it is now: "Sample deal" is not the
+       name of a deal the reader has since changed (F2). */
+    if (labSourceKind(col) === 'deal') col.name = labDealName();
+    if (pmCanon(base) === pmCanon(col.baseInputs)) continue;
+    col.baseInputs = base;
+    const moves = col.moves;
+    col.moves = {};
+    col.work = pmCopy(base);
+    col.cur = null;
+    for (const [k, v] of Object.entries(moves)) labWrite(col, k, v);
+    col.ref = labRun(base);
+  }
+  return true;
+}
+
+/* THE COLUMNS A SUBJECT OPENS ON (the brief's §4.1). A saved property: as
+   saved, then what the calculator's own comparison has chosen this visit
+   (PM_COMPARE) or its scenarios, from pmColumns; with nothing for B, a copy
+   of A that moves apart from it at the first touch. The sample deal or an
+   unsaved one: the calculator's deal, and a copy of it. */
+function labBuild(spec) {
+  if (spec.kind === 'model') {
+    const rec = pmFind(spec.id);
+    if (!rec) return null;
+    const st = propertyStatus(State.deal);
+    const offered = pmColumns(rec, State.deal, st);
+    const byId = new Map(offered.map(c => [c.id, c]));
+    let ids = Array.isArray(spec.cols) ? spec.cols.filter(id => byId.has(id)) : [];
+    if (!ids.length) {
+      const chosen = (PM_COMPARE[rec.id] || []).filter(id => byId.has(id) && id !== 'base');
+      const rest = offered.map(c => c.id).filter(id => id !== 'base' && !chosen.includes(id));
+      const first = spec.scenarioId && byId.has(spec.scenarioId) ? [spec.scenarioId] : [];
+      ids = ['base', ...new Set([...first, ...chosen, ...rest])].slice(0, 3);
+    }
+    ids = [...new Set(ids)].slice(0, 3);
+    const cols = ids.map((id, i) => {
+      const o = byId.get(id);
+      const source = id === 'base' ? 'base' : id === 'current' ? 'current' : `sc:${id}`;
+      return labCol(LAB_LETTERS[i], source, id === 'base' ? 'As saved' : o.short, o.inputs);
+    });
+    if (cols.length === 1) cols.push(labCol('B', 'variant', 'Copy of A', cols[0].work, { of: 'A' }));
+    return { key: `m:${rec.id}`, model: rec.id, cols, active: 'B', input: 'price', metric: 'yield', gesture: null, naming: null };
+  }
+  const a = labCol('A', 'deal', labDealName(), pmBare(State.deal));
+  const b = labCol('B', 'variant', 'Copy of A', a.work, { of: 'A' });
+  return { key: 'deal', model: null, cols: [a, b], active: 'B', input: 'price', metric: 'yield', gesture: null, naming: null };
+}
+/* A subject's state, made the first time it is asked for. The calculator's
+   deal, when it is a saved property, opens as that property — its columns,
+   and the scenario the calculator has open beside it. */
+function labEnsure(spec) {
+  if (spec.kind === 'deal') {
+    const st = propertyStatus(State.deal);
+    if (st.kind === 'model') spec = { kind: 'model', id: st.rec.id, scenarioId: st.sc?.id || null };
+  }
+  const key = labKeyOf(spec);
+  const fresh = spec.cols && LAB[key] && pmCanon(spec.cols) !== pmCanon(labSavedIds(LAB[key]));
+  if (!LAB[key] || fresh) { const made = labBuild(spec); if (!made) return null; LAB[key] = made; }
+  else if (!labRebase(LAB[key])) { delete LAB[key]; return null; }
+  if (spec.metric && LAB_METRIC_IDS.includes(spec.metric)) LAB[key].metric = spec.metric;
+  return LAB[key];
+}
+const labSavedIds = (lab) => lab.cols.filter(c => c.source !== 'variant' && c.source !== 'deal')
+  .map(c => (c.source === 'base' ? 'base' : c.source === 'current' ? 'current' : c.source.slice(3)));
+const labColOf = (lab, key) => lab.cols.find(c => c.key === key) || lab.cols[0];
+const labActive = (lab) => labColOf(lab, lab.active);
+
+/* --------------------------------------------------------------- the API */
+/* OPEN A SUBJECT. { kind: 'deal' } — the calculator's deal; { kind:
+   'model', id, scenarioId?, cols? } — a saved property; { kind: 'place',
+   city, district } — the page's active column moved to a listed district
+   (setDealPlace, on that column's own copy, never the calculator's deal);
+   phase 3 adds { kind: 'scheme' }. Opens nothing in the address: the page
+   writes its own, and only for a saved column or the comparison. */
+function labOpen(subject) {
+  if (subject?.kind === 'place') {
+    const lab = labSubject && LAB[labSubject];
+    if (!lab) return { ok: false, why: 'No scenario is open in the lab.' };
+    const col = labActive(lab);
+    const town = (SARAWAK_CITIES.find(c => c.id === subject.city) || {}).name || subject.city;
+    const copy = pmCopy(col.work);
+    const district = setDealPlace(copy, subject.city, subject.district);
+    if (!district) {
+      const why = `${subject.district} is not one of ${town}'s listed districts, so the calculator cannot model it by name.`;
+      toast(why);
+      return { ok: false, why };
+    }
+    /* labWrite drops the column's run, so the redraw runs the moved column
+       — its grade too: a custom project's grade has a gate the sample
+       project's has not (F1). */
+    for (const k of ['city', 'district', 'projectId']) labWrite(col, k, copy[k]);
+    labRefresh();
+    return { ok: true, key: lab.key, district };
+  }
+  const lab = labEnsure(subject?.kind === 'model' ? subject : { kind: 'deal' });
+  if (!lab) return { ok: false, why: 'That property is not saved in this browser.' };
+  labSubject = lab.key;
+  labRefresh();
+  return { ok: true, key: lab.key };
+}
+/* Told after each paint, with what the lab holds. A listener whose node has
+   left the page takes itself off. */
+function labSubscribe(fn, node = null) {
+  const entry = { fn, node };
+  LAB_LISTENERS.add(entry);
+  return () => LAB_LISTENERS.delete(entry);
+}
+/* WHAT A LISTENER IS GIVEN IS ITS OWN: copies, never the lab's objects. A
+   listener handed the live work saw it change under it mid-drag, and one
+   that wrote to it moved a column with no move recorded (F9). And only the
+   figures the page shows — the chain's, the grade, and net sale proceeds and
+   total profit only where the report is unlocked — never the whole run, so
+   a map's side sheet cannot show what the page withholds. */
+function labFiguresOf(c) {
+  const m = c.cur?.m;
+  if (!m) return null;
+  const out = {};
+  for (const f of LAB_FIGURES) out[f.key] = f.read(m, c.work);
+  out.grade = c.cur.g?.grade ?? null;
+  if (labPaid(c.work)) for (const f of LAB_PAID) out[f.key] = m[f.key];
+  return out;
+}
+function labNotify(lab) {
+  if (!LAB_LISTENERS.size) return;
+  const snap = { key: lab.key, active: lab.active, metric: lab.metric,
+    cols: lab.cols.map(c => ({ key: c.key, source: c.source, name: c.name, moves: pmCopy(c.moves), work: pmCopy(c.work), figures: labFiguresOf(c) })) };
+  for (const e of [...LAB_LISTENERS]) {
+    if (e.node && !e.node.isConnected) { LAB_LISTENERS.delete(e); continue; }
+    try { e.fn(snap); } catch { /* a listener's own fault */ }
+  }
+}
+
+/* ---------------------------------------------------------------- the address */
+/* READ ON ARRIVAL, as arrivePropertyUrl reads the calculator's: when the
+   address is new — a link, a bookmark, Back — and not at every drawing,
+   which would undo the reader's columns. ?model=<id>&cols=<ids>&by=<metric>.
+   A property not saved here is said so, and the deal on the calculator is
+   shown in its place. */
+function labArrive() {
+  const key = location.pathname + location.search;
+  const q = new URLSearchParams(location.search);
+  const model = q.get('model');
+  /* The same address: the same columns, each read again from where its
+     figures are kept (labRebase) — while the address still opens the same
+     subject. A plain /property/lab opens the calculator's deal, and that
+     is another subject once another property is open there: the lab went
+     on showing the last one, its deal column moved onto the new figures
+     under the old name (the verification of 4 Oct 2026, F2). A property
+     deleted since is gone from the lab too, and the address is read
+     afresh. */
+  const want = model && pmFind(model) ? `m:${model}` : labDealSubject();
+  if (labUrlSeen === key && labSubject === want && LAB[labSubject]) {
+    if (labRebase(LAB[labSubject])) return;
+    delete LAB[labSubject];
+    labSubject = null;
+  }
+  labUrlSeen = key;
+  labArrivalNote = null;
+  const by = q.get('by');
+  const metric = LAB_METRIC_IDS.includes(by) ? by : null;
+  let lab = null;
+  if (model) {
+    const cols = (q.get('cols') || '').split(',').map(s => s.trim()).filter(Boolean);
+    lab = pmFind(model) ? labEnsure({ kind: 'model', id: model, cols: cols.length ? cols : null, metric }) : null;
+    if (!lab) labArrivalNote = 'That property is not saved in this browser — showing the deal on the calculator.';
+  }
+  if (!lab) lab = labEnsure({ kind: 'deal', metric });
+  /* The comparison is the address's: none named is Yield. */
+  lab.metric = metric || 'yield';
+  labSubject = lab.key;
+}
+/* WRITTEN ONLY FOR A SAVED COLUMN OR THE COMPARISON, a moment after the
+   change and never on a tick (Safari refuses after about 100 replaceState
+   calls in 30 seconds), by the page's own panel only, and only while the
+   page is the lab. Variants and moves are not in it: a link opens the saved
+   columns, never a reader's unsaved what-ifs. */
+let labAddressTimer = 0;
+function labAddressSoon(lab) {
+  clearTimeout(labAddressTimer);
+  labAddressTimer = setTimeout(() => {
+    if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
+    const q = new URLSearchParams(location.search);
+    ['model', 'cols', 'by'].forEach(k => q.delete(k));
+    if (lab.model) { q.set('model', lab.model); const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
+    if (lab.metric && lab.metric !== 'yield') q.set('by', lab.metric);
+    const s = q.toString().replace(/%2C/g, ',');
+    const next = location.pathname + (s ? `?${s}` : '');
+    if (next === location.pathname + location.search) return;
+    history.replaceState(history.state, '', next);
+    labUrlSeen = location.pathname + location.search;
+  }, 300);
+}
+
+/* ------------------------------------------------------------------ drawing */
+const labId = (P, s) => `${P.idPrefix}-${s}`;
+/* Text written only when it differs: a frame writes twenty figures, and a
+   node rewritten with its own words is a mutation every observer hears. */
+/* What each wrote last is kept on the node, so a frame compares strings it
+   holds instead of reading the page's text and attributes back — the
+   larger part of a paint's time once the model's run was its only run
+   (the verification of 4 Oct 2026: a paint's median sat within 10% of its
+   8ms limit on a 4× slower processor). Only these write these nodes. */
+function labText(node, s) {
+  if (!node) return;
+  s = String(s ?? '');
+  if (node.labWrote === s) return;
+  node.labWrote = s;
+  if (node.childNodes.length === 1 && node.firstChild.nodeType === 3) { if (node.firstChild.data !== s) node.firstChild.data = s; }
+  else if (node.textContent !== s) node.textContent = s;
+}
+const labAttr = (node, k, v) => {
+  if (!node) return;
+  const s = v == null ? null : String(v);
+  const was = (node.labAttrs ||= {});
+  if (Object.hasOwn(was, k) && was[k] === s) return;
+  was[k] = s;
+  if (node.getAttribute(k) !== s) { if (s == null) node.removeAttribute(k); else node.setAttribute(k, s); }
+};
+const labClass = (node, k, on) => {
+  if (!node) return;
+  const was = (node.labClasses ||= {});
+  on = !!on;
+  if (was[k] === on) return;
+  was[k] = on;
+  node.classList.toggle(k, on);
+};
+const labStyle = (node, k, v) => {
+  if (!node) return;
+  const was = (node.labStyles ||= {});
+  if (was[k] === v) return;
+  was[k] = v;
+  if (k.startsWith('--')) node.style.setProperty(k, v); else node.style[k] = v;
+};
+const labLetter = (key) => el('span', { class: `lab-letter lab-c-${key}`, 'aria-hidden': 'true' }, key);
+const labBaseline = (lab, col) => {
+  const k = labSourceKind(col);
+  if (k === 'variant') {
+    const of = labColOf(lab, col.of || 'A');
+    /* Whether the column copied still holds what was copied: two whole
+       deals compared, so the answer is kept until either changes — the
+       copied column's work (a new object, or a new edition of it), or this
+       column's base. Worked out every frame, it was a twelfth of a paint. */
+    const c = col.blKept;
+    let same;
+    if (c && c.work === of?.work && c.ver === of?.ver && c.base === col.baseInputs) same = c.same;
+    else {
+      same = !!of && pmCanon(of.work) === pmCanon(col.baseInputs);
+      col.blKept = { work: of?.work, ver: of?.ver, base: col.baseInputs, same };
+    }
+    return { label: same ? `vs ${col.of || 'A'}` : `vs ${col.of || 'A'} as copied`,
+      back: `Back to ${col.of || 'A'} as copied` };
+  }
+  if (k === 'deal' || k === 'current') return { label: 'vs when you opened the lab', back: 'Back to as opened' };
+  return { label: 'vs as saved', back: 'Back to as saved' };
+};
+
+/* THE PANEL. Draws the lab for a subject into a box of its own; the page
+   mounts one, and the map's side sheet will mount a compact one. Every id
+   carries the panel's prefix, so two can stand on one page. */
+function scenarioLabPanel(container, { subject = null, compact = false, idPrefix = 'lab', address = true } = {}) {
+  /* The subject given, else the page's, else the calculator's deal. */
+  let key = subject ? labEnsure(subject)?.key || null : null;
+  if (!key) key = labSubject && LAB[labSubject] ? labSubject : labEnsure({ kind: 'deal' })?.key || null;
+  if (address && !labSubject) labSubject = key;
+  const P = { idPrefix, compact, address, key, node: null, els: null, shape: null };
+  P.node = el('div', { class: `lab${compact ? ' lab-compact' : ''}`, id: labId(P, 'root') });
+  labDraw(P);
+  P.refresh = () => labDraw(P);
+  LAB_PANELS.add(P);
+  if (container) container.append(P.node);
+  return { node: P.node, refresh: P.refresh };
+}
+
+/* Draws the panel's whole contents again from LAB, keeping the control in
+   focus by its id — for a change of structure (another column, the input
+   picked on a phone, a commit). A slider's tick never comes here. `focusId`
+   may name several, the first that can take the keyboard taking it: a
+   commit's button is disabled once what it saved is saved, and focus handed
+   to it fell to <body> (the verification of 4 Oct 2026). */
+function labDraw(P, focusId = null) {
+  const lab = LAB[P.key];
+  const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null };
+  if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
+  /* Every column's figures run again from its inputs as they are (the kept
+     runs, pmCompareRun): a drawing never shows a run kept from before. */
+  for (const col of lab.cols) col.cur = labRun(col.work);
+  const grid = el('div', { class: 'lab-grid' });
+  const inputs = el('div', { class: 'lab-inputs', id: labId(P, 'inputs') });
+  const outputs = el('div', { class: 'lab-outputs' });
+  grid.append(inputs, outputs);
+  inputs.append(labColumnPicker(P, lab), labInputPicker(P, lab));
+  const col = labActive(lab);
+  LAB_INPUTS.forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
+  P.els.colsCard = labColumnsCard(P, lab);
+  P.els.commitCard = labCommits(P, lab, col);
+  P.cardSig = labCardSig(lab);
+  outputs.append(labChain(P, lab, col), labCompare(P, lab), P.els.colsCard, P.els.commitCard);
+  P.node.replaceChildren(labHeader(P, lab), grid);
+  labPaintPanel(P, { initial: true });
+  for (const id of [].concat(had || [])) {
+    const n = document.getElementById(id);
+    if (!n || !P.node.contains(n) || n.disabled || !n.getClientRects().length) continue;
+    n.focus({ preventScroll: true });
+    if (document.activeElement === n) break;
+  }
+}
+
+/* The fixed header, at every width, and the status of what is open. */
+function labHeader(P, lab) {
+  const hd = el('div', { class: 'lab-hd' });
+  hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
+    el('span', {}, 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.')]));
+  const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
+  if (P.idPrefix === 'lab' && labArrivalNote && lab.key === labSubject) status.append(el('span', { class: 'lab-note-warn' }, labArrivalNote), ' ');
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
+  /* Reached only by a panel given the deal as its subject while the
+     calculator holds a saved property: the page itself opens that property
+     (labArrive). */
+  else {
+    const st = propertyStatus(State.deal);
+    if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
+      ' — illustrative figures, not a real listing. Every driving figure is the tool’s illustrative default until you change it.');
+    else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
+    else status.append('The deal on the calculator — not saved as a property.');
+  }
+  hd.append(status);
+  const moved = el('p', { class: 'lab-moved-line', id: labId(P, 'unsaved') });
+  P.els.unsaved = moved;
+  hd.append(moved);
+  return hd;
+}
+
+/* "Sliders move": which column the knobs set. Radios, so the arrow keys
+   move between them and a screen reader hears one group. Each is named by
+   its letter and its name, "B — Copy of A" (aria-label): the drawn letter
+   is a badge the ear skips, and named by the name alone two copies were
+   "Copy of A" and "Copy of B", with no way to tell which radio was B, though
+   every button and delta speaks in letters. */
+function labColumnPicker(P, lab) {
+  const fs = el('fieldset', { class: 'lab-pick lab-pick-cols' });
+  fs.append(el('legend', { class: 'lab-legend' }, 'Sliders move'));
+  const row = el('div', { class: 'lab-seg', role: 'presentation' });
+  for (const c of lab.cols) {
+    const id = labId(P, `col-${c.key}`);
+    const on = c.key === lab.active;
+    row.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'col'), id, value: c.key, checked: on ? '' : null, 'aria-label': `${c.key} — ${c.name}`,
+        onchange: () => { lab.active = c.key; lab.naming = null; labDraw(P, id); labAfterStructure(P, lab, {}); } }),
+      labLetter(c.key), el('span', { class: 'lab-seg-name' }, c.name),
+    ]));
+  }
+  fs.append(row);
+  return fs;
+}
+/* "Input": on a phone one knob at a time, chosen here; from 600px wide all
+   five stand and this is not drawn (styles.css, scenario-lab). */
+function labInputPicker(P, lab) {
+  const col = labActive(lab);
+  const fs = el('fieldset', { class: 'lab-pick lab-pick-input' });
+  fs.append(el('legend', { class: 'lab-legend' }, 'Input'));
+  const row = el('div', { class: 'lab-seg', role: 'presentation' });
+  for (const inp of LAB_INPUTS) {
+    const id = labId(P, `in-${inp.k}`);
+    const off = !labApplies(col.work, inp.k);
+    const on = lab.input === inp.k;
+    row.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}${off ? ' is-off' : ''}`, for: id, title: off ? LAB_NOT_APPLY[inp.k] : null }, [
+      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'in'), id, value: inp.k, checked: on ? '' : null, disabled: off ? '' : null,
+        'aria-describedby': off ? labId(P, `off-${inp.k}`) : null,
+        onchange: () => { lab.input = inp.k; labDraw(P, id); } }),
+      el('span', {}, inp.short),
+    ]));
+  }
+  fs.append(row);
+  for (const inp of LAB_INPUTS) if (!labApplies(col.work, inp.k)) fs.append(el('p', { class: 'metaline lab-off-why', id: labId(P, `off-${inp.k}`) }, `${inp.short}: ${LAB_NOT_APPLY[inp.k]}`));
+  return fs;
+}
+
+/* ONE KNOB: the calculator's own label, a slider and a box beside it. */
+function labSpan(col, inp) {
+  const anchor = num0(col.baseInputs[inp.k]);
+  let [lo, hi] = inp.span(anchor);
+  const v = num0(col.work[inp.k]);
+  if (v < lo) lo = Math.floor(v / inp.step) * inp.step;
+  if (v > hi) hi = Math.ceil(v / inp.step) * inp.step;
+  if (!(hi > lo)) hi = lo + inp.step;
+  return [+lo.toFixed(2), +hi.toFixed(2)];
+}
+function labEvidenceWords(d, k) {
+  const ev = shownEvidence(d, k);
+  return ev === 'illustrative_default' ? 'Illustrative default — not yours, and not from any market' : `Evidence: ${evidenceOf(ev).label}`;
+}
+function labKnob(P, lab, col, inp) {
+  const k = inp.k;
+  const applies = labApplies(col.work, k);
+  const noSlider = k === 'renovation' && !(num0(col.baseInputs.renovation) > 0) && !(num0(col.work.renovation) > 0);
+  const row = el('div', { class: `lab-knob${lab.input === k ? ' is-on' : ''}${applies ? '' : ' is-off'}`, id: labId(P, `knob-${k}`), data: { k } });
+  const rid = labId(P, `r-${k}`), nid = labId(P, `n-${k}`), lid = labId(P, `l-${k}`), sid = labId(P, `span-${k}`), eid = labId(P, `ev-${k}`);
+  const hd = el('div', { class: 'lab-knob-hd' });
+  hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label()));
+  const num = el('input', { type: 'number', inputmode: 'decimal', class: 'input input-inline lab-num', id: nid, step: inp.step,
+    value: String(col.work[k] ?? ''), 'aria-label': `${inp.label()} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
+    disabled: applies ? null : '' });
+  row.append(hd);
+  /* The slider, its box and its way back on one line: on a phone the knob,
+     its figure and the seven results it moves fit one screen. NOTHING IN A
+     KNOB COMES OR GOES WHILE IT MOVES. The first tick of a drag used to add
+     a line for "What-if" and a 44px line for "Back to…" between the slider
+     and the results, so every result jumped 75px under a moving thumb and
+     the last ones left a 360×640 screen (the verification of 4 Oct 2026,
+     F5). Now the way back holds its place on the slider's line from the
+     first drawing, out of sight and reach until a move (is-idle), and the
+     what-if tag takes the evidence tag's place, the two drawn in one cell. */
+  const ctl = el('div', { class: 'lab-knob-ctl' });
+  row.append(ctl);
+  const knob = { row, num, range: null, reset: null, whatIf: null, span: null, ev: null, ticks: null };
+  if (!applies) {
+    ctl.append(num);
+    row.append(el('p', { class: 'metaline lab-span', id: sid }, LAB_NOT_APPLY[k] || 'Not used by this class.'));
+    row.append(el('span', { class: 'lab-tag', id: eid, hidden: '' }, ''));
+    P.els.knobs[k] = knob;
+    return row;
+  }
+  knob.ids = { sid, eid, wid: labId(P, `wi-${k}`) };
+  if (!noSlider) {
+    const [lo, hi] = labSpan(col, inp);
+    const range = el('input', { type: 'range', class: 'lab-range', id: rid, min: lo, max: hi, step: inp.step, value: String(num0(col.work[k])),
+      'aria-describedby': `${sid} ${eid}` });
+    knob.range = range;
+    const track = el('div', { class: 'lab-range-wrap' }, range);
+    ctl.append(track);
+    if (inp.ticks) {
+      const t = el('div', { class: 'lab-ticks', 'aria-hidden': 'true' });
+      inp.ticks.forEach(x => t.append(el('span', { class: 'lab-tick', style: `--at:${(x - lo) / (hi - lo)}` })));
+      knob.ticks = t;
+      track.append(t);
+    }
+    labWireRange(P, lab, range, k);
+  }
+  ctl.append(num);
+  const bl = labBaseline(lab, col);
+  const back = `${bl.back} (${inp.shown(num0(col.baseInputs[k]))})`;
+  knob.reset = el('button', { type: 'button', class: 'btn btn-ghost lab-reset is-idle', id: labId(P, `back-${k}`), 'aria-label': back, title: back,
+    html: icon('undo', 18),
+    onclick: () => {
+      const c = labActive(lab);
+      labWrite(c, k, c.baseInputs[k]);
+      labSchedule(); labSay(P, lab, k);
+      if (!labKnobShapeHolds(P, lab, k)) return;
+      (knob.range || knob.num).focus({ preventScroll: true });
+    } });
+  ctl.append(knob.reset);
+  const ft = el('div', { class: 'lab-knob-ft' });
+  const tags = el('div', { class: 'lab-tags' });
+  knob.ev = el('span', { class: 'lab-tag', id: eid }, labEvidenceWords(col.work, k));
+  knob.whatIf = el('span', { class: 'lab-tag lab-tag-whatif is-idle', id: knob.ids.wid }, 'What-if — not saved, no evidence attached');
+  tags.append(knob.ev, knob.whatIf);
+  ft.append(tags);
+  row.append(ft);
+  knob.span = el('p', { class: 'metaline lab-span', id: sid });
+  /* The span's ends and its basis, and why that basis — the last left out
+     on a phone, where the knob has one line for it. */
+  knob.spanEdges = el('span', {}, '');
+  knob.span.append(knob.spanEdges, el('span', { class: 'lab-span-why' }, inp.why || ''), '.');
+  row.append(knob.span);
+  if (noSlider) row.append(el('p', { class: 'metaline lab-knob-note' }, 'No renovation entered — type a budget to explore.'));
+  if (k === 'downPct') row.append(el('p', { class: 'metaline lab-knob-note' }, 'Lender limits on the margin of finance are not modelled: computed, not approved.'));
+  if (k === 'ratePct') { knob.zero = el('p', { class: 'metaline lab-knob-note lab-note-warn', hidden: '' }, 'The rate is 0%. If that was intended, the repayment is right; if not, it is roughly half what it should be — the model cannot tell the two apart.'); row.append(knob.zero); }
+  if (k === 'renovation') {
+    knob.recover = el('p', { class: 'metaline lab-knob-note' });
+    row.append(knob.recover);
+    knob.card = el('div', { class: 'lab-reno', id: labId(P, 'reno'), hidden: '' });
+    row.append(knob.card);
+  }
+  num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); labTyped(P, lab, k, num); } });
+  num.addEventListener('change', () => labTyped(P, lab, k, num));
+  P.els.knobs[k] = knob;
+  return row;
+}
+/* A FIGURE TYPED, on change or Enter — never on each keystroke, so a
+   half-typed "5" never prices a RM5 flat. An emptied box keeps its figure,
+   as the calculator's does: an empty box is not zero. */
+function labTyped(P, lab, k, num) {
+  const col = labActive(lab), inp = LAB_INPUT_BY_K[k];
+  if (String(num.value).trim() === '') {
+    num.value = String(col.work[k] ?? '');
+    toast(`An empty box is not zero — “${inp.label()}” stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}. Type 0 if you mean nought.`);
+    return;
+  }
+  let v = num0(num.value);
+  if (k === 'downPct') v = clamp(v, 0, 100);
+  /* The box shows the figure the model is given: a deposit typed as 150
+     is 100, and the box said 150 while every figure used 100 (F7). */
+  if (String(num.value) !== String(v)) num.value = String(v);
+  if (pmCanon(v) === pmCanon(col.work[k])) return;
+  labWrite(col, k, v);
+  labSchedule();
+  labSay(P, lab, k);
+  /* The keyboard stays in the box it typed into; a change heard as it
+     left the box leaves it where it went. */
+  labKnobShapeHolds(P, lab, k, document.activeElement === num ? [num.id] : null);
+}
+/* Whether a knob as drawn still has the shape its column's figures call
+   for: the renovation knob has a slider only where there is a renovation
+   to span. Where it has not, the panels on this subject are drawn again,
+   the keyboard kept on the knob — a budget typed into an empty renovation
+   drew no slider, and still said "No renovation entered", until something
+   else redrew the page (F12). */
+function labKnobShapeHolds(P, lab, k, focus = undefined) {
+  if (k !== 'renovation') return true;
+  const col = labActive(lab), kn = P.els.knobs[k];
+  const want = num0(col.baseInputs.renovation) > 0 || num0(col.work.renovation) > 0;
+  if (!kn || !!kn.range === want) return true;
+  for (const Q of [...LAB_PANELS]) {
+    if (Q.key !== P.key || !Q.node.isConnected) continue;
+    labDraw(Q, Q === P && focus !== null ? (focus || [labId(P, 'r-renovation'), labId(P, 'n-renovation')]) : null);
+  }
+  return false;
+}
+/* THE SLIDER. One keydown handler, so every browser steps alike; a drag
+   holds any redraw nobody asked for until the finger lifts (renderHold,
+   35-ui.js); every step paints in the next frame and nothing is written. */
+function labWireRange(P, lab, range, k) {
+  const inp = LAB_INPUT_BY_K[k];
+  const startGesture = () => { if (!lab.gesture || lab.gesture.k !== k || lab.gesture.col !== lab.active) lab.gesture = { col: lab.active, k, v: labActive(lab).work[k] }; };
+  range.addEventListener('focus', startGesture);
+  range.addEventListener('input', () => {
+    const col = labActive(lab);
+    const v = labSnap(num0(range.value), inp.step);
+    if (pmCanon(v) === pmCanon(col.work[k])) return;
+    labWrite(col, k, v);
+    labSchedule();
+  });
+  range.addEventListener('change', () => labSay(P, lab, k));
+  range.addEventListener('pointerdown', (e) => {
+    range.focus({ preventScroll: true });
+    renderHold();
+    P.node.classList.add('is-dragging');
+    lab.gesture = { col: lab.active, k, v: labActive(lab).work[k], touch: e.pointerType === 'touch', x: e.clientX, dx: 0 };
+  });
+  range.addEventListener('pointermove', (e) => { const g = lab.gesture; if (g && g.k === k && isNum(g.x)) g.dx = Math.max(g.dx, Math.abs(e.clientX - g.x)); });
+  const end = () => { P.node.classList.remove('is-dragging'); renderRelease(); };
+  ['pointerup', 'lostpointercapture'].forEach(t => range.addEventListener(t, end));
+  /* A FINGER THAT SCROLLS THE PAGE MOVES NO FIGURE. A touch on the track
+     sets the slider where it lands; when the finger then goes up or down
+     the page, the browser takes the gesture as a scroll (touch-action:
+     pan-y) and cancels the pointer — and the figure stayed where the touch
+     had put it (the verification of 4 Oct 2026, F14). A cancelled touch
+     that never slid sideways puts the figure back where the gesture began.
+     One that slid sideways was a drag, and keeps its figure. */
+  range.addEventListener('pointercancel', () => {
+    const g = lab.gesture;
+    end();
+    if (!g || !g.touch || g.k !== k || g.col !== lab.active || g.dx > 10) return;
+    const col = labActive(lab);
+    if (pmCanon(col.work[k]) === pmCanon(g.v)) return;
+    labWrite(col, k, g.v);
+    labSchedule();
+    labSay(P, lab, k);
+  });
+  range.addEventListener('blur', () => { end(); lab.gesture = null; });
+  range.addEventListener('keydown', (e) => {
+    const lo = Number(range.min), hi = Number(range.max), now = num0(range.value);
+    const by = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1, PageUp: 10, PageDown: -10 }[e.key];
+    let v = null;
+    if (by != null) v = now + by * (e.shiftKey && Math.abs(by) === 1 ? 10 : 1) * inp.step;
+    else if (e.key === 'Home') v = lo;
+    else if (e.key === 'End') v = hi;
+    else if (e.key === 'Escape' && lab.gesture && lab.gesture.k === k && lab.gesture.col === lab.active) {
+      if (pmCanon(labActive(lab).work[k]) === pmCanon(lab.gesture.v)) return;
+      e.preventDefault();
+      labWrite(labActive(lab), k, lab.gesture.v);
+      labSchedule();
+      labSay(P, lab, k);
+      return;
+    } else return;
+    e.preventDefault();
+    startGesture();
+    range.value = String(labSnap(clamp(v, lo, hi), inp.step));
+    range.dispatchEvent(new Event('input', { bubbles: true }));
+    range.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
+/* THE CHAIN: seven rows in the owner's order, and the grade. */
+function labChain(P, lab, col) {
+  const card = el('section', { class: 'card lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
+  const bl = labBaseline(lab, col);
+  card.append(el('div', { class: 'lab-chain-hd' }, [
+    el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${col.name}`]),
+    (P.els.baseline = el('span', { class: 'metaline lab-baseline' }, `Changes ${bl.label}`)),
+  ]));
+  const list = el('div', { class: 'lab-chain' });
+  const d = col.work;
+  for (const f of LAB_FIGURES) {
+    const det = el('details', { class: 'lab-row', data: { row: f.key } });
+    const value = el('span', { class: 'lab-val num', data: { lab: f.key, labFmt: f.fmt }, 'data-value': '' }, '—');
+    const deltaEye = el('span', { class: 'lab-delta-mark', 'aria-hidden': 'true' }, '');
+    const deltaEar = el('span', { class: 'sr-only' }, '');
+    const note = el('span', { class: 'lab-row-note' }, '');
+    const label = el('span', { class: 'lab-row-label' }, f.label(d));
+    const sum = el('summary', { class: 'lab-sum' }, [label, el('span', { class: 'lab-row-fig' }, [value, el('span', { class: 'lab-delta' }, [deltaEye, deltaEar])]), note]);
+    det.append(sum);
+    const body = el('div', { class: 'lab-row-body' });
+    const formula = el('p', { class: 'lab-formula' }, '');
+    body.append(formula);
+    const paidBox = f.key === 'irrPct' ? el('div', { class: 'lab-paid' }) : null;
+    if (paidBox) body.append(paidBox);
+    body.append(el('p', { class: 'lab-help' }, [metricLabel(f.help, `What ${f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/^if sold/, 'the rate of return if sold')} means`)]));
+    const where = labWhereEntered(lab, col, f.key);
+    if (where) { body.append(where); (P.els.where ||= []).push(where); }
+    det.append(body);
+    list.append(det);
+    P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det };
+    /* A row's formula is written while it is open, and when it opens. */
+    det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
+  }
+  card.append(list);
+  if (labPaid(d)) {
+    const paid = el('div', { class: 'lab-paid-figs', id: labId(P, 'paid') });
+    for (const f of LAB_PAID) {
+      const v = el('span', { class: 'lab-val num', data: { lab: f.key, labFmt: f.fmt }, 'data-value': '' }, '—');
+      paid.append(el('span', { class: 'lab-paid-fig' }, [el('span', { class: 'lab-paid-k' }, `${f.label} `), v]));
+      P.els.paid[f.key] = { value: v };
+    }
+    P.els.chain.irrPct.sum.append(paid);
+  }
+  const grade = el('div', { class: 'lab-grade', id: labId(P, 'grade') });
+  const letter = el('span', { class: 'lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
+  const verdict = el('span', { class: 'lab-grade-verdict' }, '');
+  const gate = el('p', { class: 'metaline lab-grade-gate' }, '');
+  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate);
+  card.append(grade);
+  P.els.grade = { letter, verdict, gate };
+  /* What the figures rest on (§6.3), from the column's own inputs. */
+  const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
+  const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
+  const movedBy = el('p', { class: 'metaline lab-movedby', id: labId(P, 'movedby') }, '');
+  card.append(movedBy, ctx, rests);
+  P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
+  return card;
+}
+/* Where a figure is entered, only while the column IS the calculator's
+   deal and unmoved: a plain link from any other column would open a
+   different deal than the one on screen. */
+function labWhereEntered(lab, col, key) {
+  if (labSourceKind(col) !== 'deal') return null;
+  const sec = { instalment: 'financing', safeCashRequired: 'acquisition', cashflowMonthly: 'rental', netYield: 'rental',
+    breakEvenOccupancy: 'rental', valueLessLoanAtExit: 'scenarios', irrPct: 'scenarios' }[key];
+  const label = (PC_SECTIONS.find(s => s.id === sec) || {}).label || 'the calculator';
+  const path = `/property/calculator#${sec}`;
+  return el('p', { class: 'metaline' }, [el('a', { href: href(path), onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path);
+  } }, `Entered in the calculator’s ${label} section`)]);
+}
+
+/* THE COMPARISON. One table a panel, A, B, C in that order whatever is
+   compared; the switch changes the form and the scale. */
+function labCompare(P, lab) {
+  const card = el('section', { class: 'card lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'A, B and C side by side'));
+  const fs = el('fieldset', { class: 'lab-pick lab-pick-by' });
+  fs.append(el('legend', { class: 'lab-legend' }, 'Compare by'));
+  const seg = el('div', { class: 'lab-seg lab-seg-by', role: 'presentation' });
+  for (const mt of LAB_METRICS) {
+    const id = labId(P, `by-${mt.id}`);
+    const on = lab.metric === mt.id;
+    seg.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'by'), id, value: mt.id, checked: on ? '' : null,
+        onchange: () => {
+          lab.metric = mt.id;
+          seg.querySelectorAll('.lab-seg-opt').forEach(o => o.classList.toggle('is-on', o.getAttribute('for') === id));
+          P.shape = null;
+          labPaintPanel(P);
+          labSayMetric(lab);
+          if (P.address) labAddressSoon(lab);
+        } }),
+      el('span', {}, mt.label),
+    ]));
+  }
+  fs.append(seg);
+  card.append(fs);
+  const body = el('div', { class: 'lab-cmp-body', id: labId(P, 'cmp') });
+  card.append(body);
+  P.els.cmpBody = body;
+  return card;
+}
+
+/* What a metric shows for the columns, as figures: the view the comparison
+   is drawn from, and redrawn from in place while its shape holds. */
+function labMetricView(metric, lab) {
+  const cols = lab.cols;
+  const row = (c) => ({ key: c.key, name: c.name, chip: LAB_SOURCE_CHIP[labSourceKind(c)], active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
+  const rows = cols.map(row);
+  const vm = { metric, tables: [], words: [], twin: null, caption: `Compared by ${(LAB_METRICS.find(x => x.id === metric) || {}).say}. Order: ${cols.map(c => c.key).join(', ')}.` };
+  const one = (field, fmt, value, extra = {}) => ({ field, fmt, rows: rows.map(r => {
+    const v = r.m ? value(r) : null;
+    return { ...r, value: v, text: !r.m ? 'not computed yet' : isNum(v) ? LAB_FORMATS[fmt](v) : (extra.missing ? extra.missing(r) : '—'),
+      ticks: r.m && extra.ticks ? extra.ticks(r).filter(t => isNum(t.value)) : [], parts: r.m && extra.parts ? extra.parts(r) : null,
+      note: r.m && extra.note ? extra.note(r) : null };
+  }), ...extra.table });
+  if (metric === 'yield') {
+    vm.tables.push(one('netYield', 'pct2', r => r.m.netYield, {
+      missing: r => (r.m.letsToTenant === false ? 'does not apply' : '—'),
+      ticks: r => [{ value: r.m.grossYield, label: 'gross' }],
+      note: r => (r.m.letsToTenant === false ? 'A parcel has no rent: yield does not apply.' : `gross ${fmtPct(r.m.grossYield, 2)}`),
+      table: { form: 'bars', title: 'Net yield, with gross yield marked' } }));
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Net yield', 'Gross yield', 'Cash-on-cash'],
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? fmtPct(r.m.netYield, 2) : 'not computed yet', r.m ? fmtPct(r.m.grossYield, 2) : '—', r.m ? fmtPct(r.m.cashOnCash, 2) : '—']) };
+  } else if (metric === 'cashflow') {
+    const anyTax = rows.some(r => r.m?.taxComputed);
+    vm.tables.push(one('cashflowMonthly', 'money0', r => r.m.cashflowMonthly, {
+      ticks: r => (r.m.taxComputed && isNum(r.m.path?.[0]?.cf) ? [{ value: r.m.path[0].cf / 12, label: 'after tax' }] : []),
+      note: r => (r.m.taxComputed ? `after tax on the rent ${labMoney(r.m.path[0].cf / 12)}` : 'before tax on the rent'),
+      table: { form: 'diverging', title: 'Monthly position, about nought' } }));
+    if (!anyTax) vm.words.push('Every column is before tax on the rent: no marginal tax rate is entered.');
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Monthly position', 'After tax on the rent'],
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? labMoney(r.m.cashflowMonthly) : 'not computed yet', r.m?.taxComputed ? labMoney(r.m.path[0].cf / 12) : 'no tax rate entered']) };
+  } else if (metric === 'entry') {
+    vm.tables.push(one('safeCashRequired', 'money0', r => r.m.safeCashRequired, {
+      parts: r => [{ part: 'transactionCash', value: r.m.transactionCash, label: 'to complete' },
+        { part: 'improvementCash', value: r.m.improvementCash, label: 'renovation and set-up' },
+        ...(isNum(r.m.reserveCash) ? [{ part: 'reserveCash', value: r.m.reserveCash, label: 'reserve' }] : [])],
+      note: r => [(r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
+        `${labMoney(r.m.unconfirmedCost)} on unverified fee lines`].filter(Boolean).join(' · '),
+      table: { form: 'stacked', title: 'Cash required: to complete, renovation and set-up, and the reserve' } }));
+    vm.words.push('Each bar, from nought: what completion takes, then renovation and set-up (the stronger shade), then the reserve (outlined).');
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified fee lines'],
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(r.m.transactionCash), labMoney(r.m.improvementCash), isNum(r.m.reserveCash) ? labMoney(r.m.reserveCash) : 'cannot be priced',
+        `${labMoney(r.m.safeCashRequired)}${(r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
+  } else if (metric === 'appreciation') {
+    vm.tables.push(one('exitValue', 'money0', r => r.m.exitValue, {
+      parts: r => [{ part: 'price', value: num0(r.d.price), label: 'price' }, { part: 'priceGrowthAtExit', value: r.m.priceGrowthAtExit, label: 'growth on the price' },
+        { part: 'renoRecovered', value: r.m.renoRecovered, label: 'renovation recovered' }],
+      ticks: r => [{ value: r.m.valueLessLoanAtExit, label: 'value less loan' }],
+      note: r => `at ${fmtNum(num0(r.d.apprecPct), 1)}% a year for ${labYears(normHoldYears(r.d.holdYears))} — ${labWhose(r.d, 'apprecPct')}`,
+      table: { form: 'stacked', title: 'Value at the sale: the price, the growth on it and the renovation recovered, with value less loan marked' } }));
+    vm.words.push('Each bar, from nought: the price, then the growth on it (the stronger shade), then the renovation recovered (outlined); the mark is value less loan.');
+    const live = rows.filter(r => r.m);
+    const holds = [...new Set(live.map(r => normHoldYears(r.d.holdYears)))];
+    if (holds.length > 1) vm.words.push(live.map(r => `${r.key} holds ${labYears(normHoldYears(r.d.holdYears))}`).join(', ') + '.');
+    if (live.length > 1 && new Set(live.map(r => num0(r.d.apprecPct))).size === 1 && holds.length === 1)
+      vm.words.push('Every column grows at the same rate for the same years, so the bars differ only by price and renovation recovered.');
+    vm.words.push('No price history is held to test this: NAPIC’s H1 2025 files carry no transaction dates.');
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Price', 'Growth on the price', 'Renovation recovered', 'Value at the sale', 'Value less loan'],
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(num0(r.d.price)), labMoney(r.m.priceGrowthAtExit), labMoney(r.m.renoRecovered), labMoney(r.m.exitValue), labMoney(r.m.valueLessLoanAtExit)]
+        : ['not computed yet', '—', '—', '—', '—'])]) };
+  } else if (metric === 'risk') {
+    const worst = (m) => { const xs = [m.stress?.rate?.at(-1)?.monthly, m.letsToTenant === false ? null : m.stress?.vacancy?.at(-1)?.monthly].filter(isNum); return xs.length ? Math.min(...xs) : null; };
+    vm.tables.push(one('breakEvenOccupancy', 'pct1', r => r.m.breakEvenOccupancy, {
+      missing: r => (r.m.letsToTenant === false ? 'does not apply' : '—'),
+      ticks: r => [{ value: 100 - num0(r.d.vacancyPct), label: 'occupancy assumed' }],
+      note: r => `${r.g?.grade ? `grade ${r.g.grade}, ${r.g.gates.length} gate${r.g.gates.length === 1 ? '' : 's'}` : ''}`,
+      table: { form: 'bars', title: 'Break-even occupancy, against 100%', refs: [{ value: 100, label: '100%' }] } }));
+    vm.tables.push(one('dscr', 'x2', r => r.m.dscr, {
+      missing: r => (!(r.m.loan > 0) ? 'no loan' : r.m.letsToTenant === false ? 'does not apply' : '—'),
+      table: { form: 'bars', title: 'Debt-service cover, against 1.00×', refs: [{ value: 1, label: '1.00×' }] } }));
+    vm.tables.push(one('worstMonth', 'money0', r => worst(r.m), {
+      note: r => (isNum(r.m.breakEvenRate) ? `rate headroom ${fmtNum(r.m.breakEvenRate - num0(r.d.ratePct), 2)} pp` : r.m.breakEvenRateWhy === 'never-positive' ? 'negative at any rate' : r.m.breakEvenRateWhy === 'always-positive' ? 'positive at any rate to 25%' : 'rate headroom unknown'),
+      table: { form: 'diverging', title: 'Worst stressed month (+3 pp, or 40% vacant), about nought' } }));
+    vm.words.push('Room before the monthly position turns negative — not a probability. Each panel is on its own scale, and nothing combines them.');
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Break-even occupancy', 'Occupancy assumed', 'Debt-service cover', 'Worst stressed month', 'Break-even rate', 'Grade'],
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [fmtPct(r.m.breakEvenOccupancy, 1), fmtPct(100 - num0(r.d.vacancyPct), 0), fmtX(r.m.dscr, 2), labMoney(worst(r.m)),
+        isNum(r.m.breakEvenRate) ? fmtPct(r.m.breakEvenRate, 2) : esc(r.m.breakEvenRateWhy || '—'), esc(`${r.g?.grade || '—'} — ${r.g?.verdict || ''}`)] : ['not computed yet', '—', '—', '—', '—', '—'])]) };
+  } else {
+    const place = (r) => `${r.d.district || '—'}, ${(SARAWAK_CITIES.find(c => c.id === r.d.city) || {}).name || r.d.city || '—'}`;
+    const facts = (r) => {
+      const proj = r.m?.proj;
+      const cmp = comparableSupport(r.d), am = areaMetrics(r.d.city, r.d.district);
+      const lr = landRiskProfile(r.d.city, r.d.district), dt = demandTest(r.d.city, r.d.district);
+      return [
+        proj && !proj.custom ? `${proj.name}: synthetic sample project — sample transaction data for demonstration` : 'Custom — no comparable held',
+        `${cmp.price.verified} verified transacted price${cmp.price.verified === 1 ? '' : 's'} and ${cmp.rent.verified} verified achieved rent${cmp.rent.verified === 1 ? '' : 's'} recorded for this district and type${isNum(cmp.priceVsMedian) ? `; the price is ${fmtPct(Math.abs(cmp.priceVsMedian), 0)} ${cmp.priceVsMedian > 0 ? 'above' : 'below'} their middle figure` : ''}`,
+        `${am.total} record${am.total === 1 ? '' : 's'} for the district${am.sampleN ? `, ${am.sampleN} of them worked-example figures` : ''}`,
+        lr.sentence,
+        `Demand test: ${dt.verdict}`,
+      ];
+    };
+    const tbl = { field: 'district', fmt: null, form: 'facts', title: 'Where each column is',
+      rows: rows.map(r => ({ ...r, value: r.d.district || null, text: place(r), ticks: [], parts: null, note: null })) };
+    vm.tables.push(tbl);
+    const same = new Set(rows.map(r => `${r.d.city}|${r.d.district}`)).size === 1;
+    vm.facts = same ? [{ title: `${cols.map(c => c.key).join(', ').replace(/, ([^,]*)$/, ' and $1')} are the same place — location does not separate them`, lines: facts(rows[0]) }]
+      : rows.map(r => ({ title: `${r.key} — ${place(r)}`, lines: facts(r) }));
+    const verified = rows.filter(r => comparableSupport(r.d).hasVerifiedPrice && isNum(comparableSupport(r.d).priceVsMedian));
+    if (verified.length >= 2) vm.tables.push(one('priceVsMedian', 'pct1', r => comparableSupport(r.d).priceVsMedian,
+      { table: { form: 'diverging', title: 'The price against the middle of the verified transacted comparables' } }));
+    vm.words.push('Facts recorded for each place, never scored. No range from NAPIC is shown here.');
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Place', 'What is recorded'],
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, esc(place(r)), esc(facts(r).join(' · '))]) };
+  }
+  /* The scale: from the least to the most of the values and the reference
+     marks, nought always inside it, on clean ticks (niceTicks), so the axis
+     is never cut. */
+  for (const t of vm.tables) {
+    if (t.form === 'facts') continue;
+    const xs = [0];
+    for (const r of t.rows) {
+      if (isNum(r.value)) xs.push(r.value);
+      (r.ticks || []).forEach(x => xs.push(x.value));
+      if (r.parts) { let s = 0; for (const p of r.parts) { if (isNum(p.value)) { s += p.value; xs.push(s); } } }
+    }
+    (t.refs || []).forEach(x => xs.push(x.value));
+    const nt = niceTicks(Math.min(...xs), Math.max(...xs));
+    t.lo = nt.lo; t.hi = nt.hi > nt.lo ? nt.hi : nt.lo + 1;
+    /* A reference line is drawn inside the scale, never on its end: with
+       every column under 1.00× the debt-service scale ended at 1.00, and the
+       line sat on the track's rounded end, one pixel of it in sight (the
+       verification of 4 Oct 2026, F13). The scale runs a step past it. */
+    const step = nt.ticks.length > 1 ? nt.ticks[1] - nt.ticks[0] : (t.hi - t.lo);
+    if ((t.refs || []).some(x => x.value >= t.hi)) t.hi += step;
+    if ((t.refs || []).some(x => x.value <= t.lo && x.value !== 0)) t.lo -= step;
+  }
+  vm.shape = JSON.stringify([metric, vm.tables.map(t => [t.field, t.form, t.rows.map(r => [r.key, !!r.m, (r.parts || []).map(p => p.part), (r.ticks || []).length, r.active])]),
+    vm.words, vm.facts || null, vm.twin.headers]);
+  return vm;
+}
+const labX = (t, v) => (v - t.lo) / (t.hi - t.lo);
+/* Where a line `w` px wide is centred on the track, kept whole inside it:
+   nought at the track's end (every month below it) drew half a pixel. */
+const labLineAt = (t, v, w) => `clamp(${w / 2}px, ${(labX(t, v) * 100).toFixed(3)}%, calc(100% - ${w / 2}px))`;
+function labDrawCompare(P, lab, vm) {
+  const body = P.els.cmpBody;
+  const parts = [];
+  const tableEls = [];
+  const panels = el('div', { class: `lab-cmp-panels${vm.tables.length > 1 ? ' is-multi' : ''}` });
+  vm.tables.forEach((t, ti) => {
+    const table = el('table', { class: `lab-cmp lab-form-${t.form}`, data: { field: t.field, form: t.form } });
+    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? `${vm.caption} ${t.title}.` : `${t.title}.`));
+    const tb = el('tbody');
+    const rowEls = [];
+    t.rows.forEach(r => {
+      const valueTd = el('td', { class: 'lab-cmp-v num' }, r.text);
+      const tr = el('tr', { class: `lab-cmp-row lab-c-${r.key}${r.active ? ' is-active' : ''}`, data: { labCol: r.key }, 'data-value': isNum(r.value) || typeof r.value === 'string' ? String(r.value) : '' }, [
+        el('th', { scope: 'row' }, [labLetter(r.key), el('span', { class: 'lab-cmp-name' }, ` ${r.key} — ${r.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, r.chip)]),
+        valueTd,
+      ]);
+      tb.append(tr);
+      const re = { tr, valueTd, fill: null, segs: [], ticks: [], refs: [], zero: null, note: null };
+      if (t.form !== 'facts') {
+        const bar = el('tr', { class: `lab-cmp-barrow lab-c-${r.key}`, 'aria-hidden': 'true' });
+        const track = el('div', { class: 'lab-track' });
+        re.zero = el('span', { class: 'lab-zero' });
+        track.append(re.zero);
+        /* Placed with the scale, a frame at a time (labUpdateCompare): drawn
+           once, the 100% line stayed where the first scale put it. */
+        (t.refs || []).forEach(() => { const s = el('span', { class: 'lab-ref' }); re.refs.push(s); track.append(s); });
+        if (r.parts) r.parts.forEach((p, i) => { const s = el('span', { class: `lab-bar-seg lab-seg-${i + 1}`, data: { part: p.part }, 'data-value': isNum(p.value) ? String(p.value) : '' }); re.segs.push(s); track.append(s); });
+        else if (r.m) { re.fill = el('span', { class: 'lab-bar-fill' }); track.append(re.fill); }
+        (r.ticks || []).forEach(() => { const s = el('span', { class: 'lab-mark' }); re.ticks.push(s); track.append(s); });
+        bar.append(el('td', { colspan: '2' }, [track, r.note ? (re.note = el('span', { class: 'metaline lab-cmp-note' }, r.note)) : null]));
+        tb.append(bar);
+      }
+      rowEls.push(re);
+    });
+    table.append(tb);
+    panels.append(el('div', { class: 'lab-cmp-panel' }, table));
+    tableEls.push({ table, rows: rowEls });
+  });
+  parts.push(panels);
+  if (vm.facts) {
+    const f = el('div', { class: 'lab-facts' });
+    vm.facts.forEach(x => f.append(el('div', { class: 'panel lab-fact' }, [el('h3', { class: 'h-card' }, x.title), el('ul', { class: 'lab-fact-list' }, x.lines.map(l => el('li', {}, l)))])));
+    parts.push(f);
+  }
+  const words = el('div', { class: 'lab-cmp-words' }, vm.words.map(w => el('p', { class: 'metaline' }, w)));
+  parts.push(words);
+  const twin = tableTwin(vm.twin.caption, vm.twin.headers, vm.twin.rows());
+  twin.addEventListener('toggle', () => { if (twin.open) labPaintPanel(P); });
+  twin.classList.add('lab-twin');
+  parts.push(twin);
+  body.replaceChildren(...parts);
+  P.els.cmp = { tables: tableEls, words, twin };
+  P.shape = vm.shape;
+  labUpdateCompare(P, vm);
+}
+/* In place, while the view's shape holds: figures, marks and the scale. */
+function labUpdateCompare(P, vm) {
+  const E = P.els.cmp;
+  vm.tables.forEach((t, ti) => {
+    const te = E.tables[ti];
+    t.rows.forEach((r, ri) => {
+      const re = te.rows[ri];
+      labText(re.valueTd, r.text);
+      labAttr(re.tr, 'data-value', isNum(r.value) || typeof r.value === 'string' ? String(r.value) : '');
+      labClass(re.tr, 'is-active', r.active);
+      if (t.form === 'facts') return;
+      const z = labX(t, 0) * 100;
+      if (re.zero) labStyle(re.zero, 'left', labLineAt(t, 0, 1));
+      (t.refs || []).forEach((x, i) => { if (re.refs[i]) labStyle(re.refs[i], 'left', labLineAt(t, x.value, 2)); });
+      if (re.fill) labStyle(re.fill, 'transform', isNum(r.value) ? `translateX(${z.toFixed(3)}%) scaleX(${(r.value / (t.hi - t.lo)).toFixed(5)})` : 'scaleX(0)');
+      if (r.parts) {
+        let at = 0;
+        r.parts.forEach((p, i) => {
+          const s = re.segs[i];
+          const v = isNum(p.value) ? p.value : 0;
+          labAttr(s, 'data-value', isNum(p.value) ? String(p.value) : '');
+          labStyle(s, 'transform', `translateX(${(labX(t, at) * 100).toFixed(3)}%) scaleX(${(v / (t.hi - t.lo)).toFixed(5)})`);
+          at += v;
+        });
+      }
+      (r.ticks || []).forEach((x, i) => { if (re.ticks[i]) labStyle(re.ticks[i], 'left', labLineAt(t, x.value, 2)); });
+      if (re.note) labText(re.note, r.note || '');
+    });
+  });
+  /* The twin's rows, written while it is open (and once, for the first
+     drawing): closed, not even worked out a frame. */
+  if (!(E.twin.open || !E.twinAt)) return;
+  const html = vm.twin.rows().map(row => `<tr>${row.map((c, i) => `<td${i === 0 ? ' class="ident"' : ''}>${c}</td>`).join('')}</tr>`).join('');
+  const tbody = E.twin.querySelector('tbody');
+  if (tbody && E.twinAt !== html) { tbody.innerHTML = html; E.twinAt = html; }
+}
+
+/* The columns: which saved figures each shows, a copy added, one removed. */
+function labColumnsCard(P, lab) {
+  const card = el('section', { class: 'card lab-cols-card', 'aria-labelledby': labId(P, 'cols-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cols-h') }, 'Columns'));
+  const rec = lab.model ? pmFind(lab.model) : null;
+  const offered = rec ? pmColumns(rec, State.deal, propertyStatus(State.deal)) : [];
+  const list = el('ul', { class: 'lab-cols' });
+  for (const c of lab.cols) {
+    const li = el('li', { class: `lab-col-row lab-c-${c.key}${c.key === lab.active ? ' is-active' : ''}` });
+    li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, LAB_SOURCE_CHIP[labSourceKind(c)]),
+      labMoveCount(c) ? el('span', { class: 'lab-tag lab-tag-whatif' }, `${labMoveCount(c)} move${labMoveCount(c) === 1 ? '' : 's'} not saved`) : null]));
+    const acts = el('span', { class: 'lab-col-acts' });
+    if (rec) {
+      const sid = labId(P, `shows-${c.key}`);
+      const sel = el('select', { class: 'select select-sm', id: sid, 'aria-label': `What column ${c.key} shows`, onchange: (e) => {
+        const o = offered.find(x => x.id === e.target.value);
+        if (!o) return;
+        const i = lab.cols.indexOf(c);
+        lab.cols[i] = labCol(c.key, o.id === 'base' ? 'base' : o.id === 'current' ? 'current' : `sc:${o.id}`, o.id === 'base' ? 'As saved' : o.short, o.inputs);
+        pmCompareSelect(rec.id, labSavedIds(lab));
+        labDraw(P, sid);
+        labAfterStructure(P, lab, { address: true, say: `Column ${c.key} shows ${lab.cols[i].name}.` });
+      } });
+      const now = c.source === 'base' ? 'base' : c.source === 'current' ? 'current' : String(c.source).startsWith('sc:') ? c.source.slice(3) : '';
+      if (!now) sel.append(el('option', { value: '', selected: '' }, `${c.name} (not saved)`));
+      offered.forEach(o => sel.append(el('option', { value: o.id, selected: o.id === now ? '' : null }, o.id === 'base' ? 'As saved' : o.short)));
+      acts.append(el('label', { class: 'sr-only', for: sid }, `What column ${c.key} shows`), sel);
+    }
+    if (labMoveCount(c)) acts.append(el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, `clear-${c.key}`),
+      onclick: () => labClear(P, lab, c) }, `Clear ${c.key}’s moves`));
+    if (c.key !== 'A') acts.append(el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, `remove-${c.key}`),
+      onclick: () => {
+        lab.cols = lab.cols.filter(x => x !== c);
+        if (lab.active === c.key) lab.active = lab.cols[lab.cols.length - 1].key;
+        if (rec && c.source !== 'variant') pmCompareSelect(rec.id, labSavedIds(lab));
+        labDraw(P, labId(P, 'add'));
+        labAfterStructure(P, lab, { address: c.source !== 'variant', say: `Column ${c.key} removed.`, focus: labId(P, 'cols-h') });
+      } }, `Remove ${c.key}`));
+    li.append(acts);
+    list.append(li);
+  }
+  card.append(list);
+  if (lab.cols.length < 3) {
+    const act = labActive(lab);
+    const free = LAB_LETTERS.find(x => !lab.cols.some(c => c.key === x));
+    card.append(el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: labId(P, 'add'), onclick: () => {
+      /* The copy carries the moves it was made with, so a commit of it marks
+         them as the reader's as a commit of the column it copied would. */
+      const c = labCol(free, 'variant', `Copy of ${act.key}`, act.work, { of: act.key, inherited: pmCopy({ ...(act.inherited || {}), ...act.moves }) });
+      lab.cols.push(c);
+      lab.cols.sort((a, b) => LAB_LETTERS.indexOf(a.key) - LAB_LETTERS.indexOf(b.key));
+      lab.active = c.key;
+      labDraw(P, labId(P, `col-${c.key}`));
+      labAfterStructure(P, lab, { say: `Column ${c.key} added, a copy of ${act.key}. Sliders move ${c.key}.` });
+    } }, `Add a column — a copy of ${act.key}`));
+  }
+  return card;
+}
+function labClear(P, lab, c) {
+  c.moves = {};
+  c.work = pmCopy(c.baseInputs);
+  c.cur = null;
+  labDraw(P);
+  labAfterStructure(P, lab, { say: `${c.key}’s moves cleared.`, focus: labId(P, `col-${c.key}`) });
+}
+
+/* COMMITS — THE ONLY WRITES. Each says what it does to whose figures. */
+function labCommits(P, lab, col) {
+  const card = el('section', { class: 'card lab-commit', 'aria-labelledby': labId(P, 'commit-h'), id: labId(P, 'commit') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'commit-h') }, `Keep ${col.key}`));
+  const rec = lab.model ? pmFind(lab.model) : null;
+  const n = labMoveCount(col);
+  const kind = labSourceKind(col);
+  const acts = el('div', { class: 'lab-commit-acts' });
+  /* A new scenario is offered where it would differ from the property and
+     from the column's own saved figures: a column with moves, or a lab
+     variant or the calculator's unsaved changes that differ from the
+     property. A saved scenario unmoved is saved already. */
+  const differs = rec ? Object.keys(pmDiff(pmBare(col.work), pmInputsOf(rec))).length > 0 : false;
+  const canSave = differs && (n > 0 || kind === 'variant' || kind === 'current');
+  /* EACH COMMIT SAYS WHAT IT DOES TO WHOSE FIGURES (the brief's §8), the
+     button and its toast alike — where it marks any: a column with nothing
+     moved in the lab commits figures already as they were marked. */
+  const yours = labMarked(col).length ? ' — the moved figures become yours' : '';
+  if (rec) {
+    acts.append(el('button', { type: 'button', class: 'btn btn-primary', id: labId(P, 'save'), disabled: canSave ? null : '',
+      onclick: () => labNaming(P, lab, { kind: 'scenario', value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(pmFind(lab.model))), pmInputsOf(pmFind(lab.model))) || `Scenario ${(pmFind(lab.model).scenarios || []).length + 1}` }) },
+      `Save ${col.key} as a scenario${yours}`));
+    if (kind === 'sc' && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
+      `Update scenario “${col.name}”${yours}`));
+  } else {
+    acts.append(el('button', { type: 'button', class: 'btn btn-primary', id: labId(P, 'save-first'),
+      onclick: () => labNaming(P, lab, { kind: 'property', value: pmNameOf(State.deal) }) }, 'Save this property first'));
+  }
+  acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
+    `Open ${col.key} in the calculator${yours}`));
+  acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: labId(P, 'clear'), disabled: n ? null : '', onclick: () => labClear(P, lab, col) },
+    `Clear ${col.key}’s moves`));
+  card.append(acts);
+  if (lab.naming) card.append(labNameForm(P, lab, col));
+  const why = [];
+  if (!rec) why.push(`A scenario belongs to a saved property. “Save this property first” saves the deal on the calculator as a property — then ${col.key} can be saved as its scenario.`);
+  else if (!canSave) why.push(differs ? `${col.key} is saved already, as “${col.name}” — move a figure to save a new scenario, or to update this one.`
+    : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
+  why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
+    + 'Until then nothing moved here is saved or marked as yours. The grade stays U while any figure that drives it — the built-up area and the maintenance too — is still the tool’s starting figure.');
+  card.append(el('p', { class: 'metaline lab-commit-why' }, why.join(' ')));
+  return card;
+}
+/* The column's figures as a commit writes them: the moved ones marked as
+   the reader's (markTouched) on a copy, BEFORE anything stores it —
+   propertyLoad saves the deal at once. The moved ones are the column's own
+   and those it was copied with: a copy of a moved column, saved, stored
+   the copied price unmarked, and the calculator would have called it the
+   tool's illustrative default (the verification of 4 Oct 2026, F5). */
+function labNext(col) {
+  const next = pmCopy(col.work);
+  for (const k of labMarked(col)) markTouched(next, k);
+  return next;
+}
+/* What a commit's toast says of the figures it marked, and of the grade:
+   committing turns the illustrative markers into the reader's own, as
+   typing does, but the grade stays U while any figure that drives it is
+   still the tool's — the built-up area and the maintenance too, which no
+   knob moves (the brief's §13.9). */
+const LAB_DRIVER_WORDS = { price: 'the price', rent: 'the rent', maintenance: 'the maintenance', sqft: 'the built-up area' };
+const labList = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+function labYoursWords(col) {
+  const words = [...new Set(labMarked(col).map(k => LAB_INPUT_BY_K[k]?.say.toLowerCase() || (['city', 'district', 'projectId'].includes(k) ? 'the place' : k)))];
+  if (!words.length) return '';
+  return ` — ${labList(words)} ${words.length === 1 ? 'is' : 'are'} now yours, as if typed in the calculator`;
+}
+function labGateWords(d) {
+  const left = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
+  if (!left.length) return '';
+  return ` The grade stays U while ${labList(left.map(k => LAB_DRIVER_WORDS[k] || k))} ${left.length === 1 ? 'is' : 'are'} still the tool’s starting figure${left.length === 1 ? '' : 's'}.`;
+}
+function labNaming(P, lab, naming) {
+  lab.naming = naming;
+  labDraw(P, labId(P, naming.kind === 'property' ? 'property-name' : 'scenario-name'));
+  const f = document.getElementById(labId(P, naming.kind === 'property' ? 'property-name' : 'scenario-name'));
+  if (f) { f.focus(); f.select?.(); }
+}
+/* THE NAME, ASKED FOR IN THE PAGE — not prompt(), which a phone draws over
+   everything and a screen reader announces out of place. */
+function labNameForm(P, lab, col) {
+  const isProp = lab.naming.kind === 'property';
+  const fid = labId(P, isProp ? 'property-name' : 'scenario-name');
+  const form = el('form', { class: 'lab-name-form', onsubmit: (e) => { e.preventDefault(); isProp ? labSaveProperty(P, lab, input.value) : labCommitScenario(P, lab, input.value); } });
+  const input = el('input', { type: 'text', class: 'input', id: fid, maxlength: '80', value: lab.naming.value || '', autocomplete: 'off',
+    oninput: (e) => { lab.naming.value = e.target.value; } });
+  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${pmFind(lab.model)?.name || ''}”`), input,
+    el('div', { class: 'lab-name-acts' }, [
+      el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
+      el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
+        const back = isProp ? 'save-first' : 'save';
+        lab.naming = null; labDraw(P, labId(P, back));
+      } }, 'Cancel'),
+    ]));
+  return form;
+}
+/* "Save this property first": the deal on the calculator saved as a
+   property (saveActiveProperty), and the lab opens it — the columns move
+   onto it with their moves. The deal's column becomes the property as
+   saved, its moves kept as moves; a copy keeps the figures it was copied
+   with as well as its own moves. Rebuilt on the property's figures, a
+   copy of a moved column lost what it had copied and went on calling
+   itself "Copy of A" (the verification of 4 Oct 2026, F4). */
+function labSaveProperty(P, lab, name) {
+  const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
+  if (!rec) return;
+  const moved = lab.cols.map(c => ({ key: c.key, moves: { ...c.moves }, name: c.name, source: c.source, of: c.of, baseInputs: c.baseInputs, inherited: c.inherited || {} }));
+  delete LAB[lab.key];
+  const next = labEnsure({ kind: 'model', id: rec.id, cols: ['base'] });
+  next.cols = moved.map(m => {
+    const c = m.source === 'deal' ? labCol(m.key, 'base', 'As saved', pmInputsOf(rec))
+      : labCol(m.key, 'variant', m.name, m.baseInputs, { of: m.of, inherited: pmCopy(m.inherited) });
+    for (const [k, v] of Object.entries(m.moves)) labWrite(c, k, v);
+    return c;
+  });
+  next.active = lab.active;
+  if (P.key === lab.key) P.key = next.key;
+  if (labSubject === lab.key) labSubject = next.key;
+  /* The keyboard on the next thing to do with the column, which the
+     property's save leaves enabled. */
+  labDraw(P, [labId(P, 'save'), labId(P, 'open')]);
+  labAfterStructure(P, next, { address: true });
+}
+function labCommitScenario(P, lab, name) {
+  const rec = pmFind(lab.model);
+  const col = labActive(lab);
+  if (!rec) { toast('That property is no longer saved in this browser'); return null; }
+  const next = labNext(col);
+  const overrides = pmDiff(next, pmInputsOf(rec));
+  if (!Object.keys(overrides).filter(k => k !== 'touched').length) { toast(`${col.key} holds the inputs “${rec.name}” is saved with — move a figure first.`); return null; }
+  const yours = labYoursWords(col);
+  const sc = pmAddScenario(rec.id, overrides, String(name || '').trim() || `Scenario ${(rec.scenarios || []).length + 1}`);
+  if (!sc) { toast(STORE_REFUSED); return null; }
+  /* The calculator's comparison shows it beside the columns already here. */
+  const shown = labSavedIds(lab);
+  const fresh = pmFind(rec.id);
+  const i = lab.cols.indexOf(col);
+  lab.cols[i] = labCol(col.key, `sc:${sc.id}`, sc.name, pmSavedInputs(fresh, pmScenario(fresh, sc.id)));
+  pmCompareSelect(rec.id, [...shown, sc.id]);
+  lab.naming = null;
+  /* Saved, the button that saved it is disabled: the keyboard goes to the
+     next thing to do with the column, not to <body>. */
+  labDraw(P, [labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labAfterStructure(P, lab, { address: true });
+  toast(`Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
+  return sc;
+}
+function labUpdateScenario(P, lab) {
+  const rec = pmFind(lab.model);
+  const col = labActive(lab);
+  if (!rec || labSourceKind(col) !== 'sc') return null;
+  const scId = col.source.slice(3);
+  const next = labNext(col), yours = labYoursWords(col);
+  const out = pmWriteScenario(rec.id, scId, pmDiff(next, pmInputsOf(rec)));
+  if (!out) { toast(STORE_REFUSED); return null; }
+  const fresh = pmFind(rec.id), sc = pmScenario(fresh, scId);
+  const i = lab.cols.indexOf(col);
+  lab.cols[i] = labCol(col.key, col.source, sc.name, pmSavedInputs(fresh, sc));
+  labDraw(P, [labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labAfterStructure(P, lab, {});
+  toast(`Updated the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
+  return sc;
+}
+/* OPEN IN THE CALCULATOR: the calculator is given the column's figures,
+   marked as the reader's first (propertyLoad saves at once), and the deal
+   it had is kept aside where it was the reader's own work. */
+function labOpenInCalculator(P, lab) {
+  const col = labActive(lab);
+  const k = labSourceKind(col);
+  const next = labNext(col), yours = labYoursWords(col);
+  const scId = k === 'sc' ? col.source.slice(3) : k === 'current' ? State.deal?.scenarioId || null : null;
+  const kept = propertyLoad(next, { modelId: lab.model || null, scenarioId: scId });
+  /* With the calculator's own deal as the subject, the column's moves are
+     the calculator's now: it starts from the figures it handed over, with
+     nothing left to call "not saved", and the deal's column — read again on
+     the way back — is the calculator's deal as it is now. Kept as moves,
+     Back found them still "not saved" beside a deal column named "Sample
+     deal" that held them (the verification of 4 Oct 2026, F2). */
+  if (!lab.model) {
+    col.baseInputs = pmNormalInputs(next);
+    col.moves = {}; col.inherited = {};
+    col.work = pmCopy(col.baseInputs);
+    col.ref = labRun(col.baseInputs);
+    col.cur = null;
+  }
+  navigate('/property/calculator');
+  toast(`The calculator now holds ${col.key}${yours}.${labGateWords(next)}${pmKeptNote(kept)}`);
+}
+
+/* ------------------------------------------------------------------ painting */
+/* ONE FRAME. Requests within a frame coalesce into one paint; a position
+   passed over between frames is dropped, not queued. */
+let labFrame = 0, labPaints = 0;
+function labSchedule() {
+  if (labFrame) return;
+  labFrame = requestAnimationFrame(() => { labFrame = 0; labPaint(); });
+}
+function labPaint() {
+  performance.mark('lab-paint-start');
+  const fresh = new Set();
+  for (const P of [...LAB_PANELS]) {
+    if (!P.node.isConnected) { LAB_PANELS.delete(P); continue; }
+    const lab = LAB[P.key];
+    if (!lab) continue;
+    /* The active column's model and grade — the only model runs a frame —
+       outside the kept runs, so a drag does not fill them. */
+    if (!fresh.has(lab.key)) {
+      fresh.add(lab.key);
+      const col = labActive(lab);
+      if (num0(col.work.price) > 0) { const m = dealModel(col.work); col.cur = { m, g: propertyGrade(col.work, m) }; }
+      else col.cur = null;
+    }
+    labPaintPanel(P);
+  }
+  for (const key of fresh) labNotify(LAB[key]);
+  performance.measure('lab-paint', 'lab-paint-start');
+  performance.clearMarks('lab-paint-start');
+  if (++labPaints % 600 === 0) performance.clearMeasures('lab-paint');
+}
+const labCardSig = (lab) => JSON.stringify([lab.active, lab.naming?.kind || null, lab.cols.map(c => [c.key, c.source, labMoveCount(c)])]);
+/* Every figure on the panel, from the columns' current runs. */
+function labPaintPanel(P, { initial = false } = {}) {
+  const lab = LAB[P.key];
+  if (!lab || !P.els) return;
+  const col = labActive(lab);
+  /* The other columns from their runs as last made (pmCompareRun's, kept
+     on the column until a figure of it changes — labWrite drops it): no
+     model call, and no reading of a whole deal to find its kept run, a
+     frame. The active one was run this frame. */
+  for (const c of lab.cols) if (!c.cur) c.cur = labRun(c.work);
+  const m = col.cur?.m || null, g = col.cur?.g || null, ref = col.ref?.m || null, d = col.work;
+  /* What the changes are against, once a paint: worked out for each row,
+     it compared two whole deals seven times a frame. */
+  const bl = labBaseline(lab, col);
+  const focused = document.activeElement;
+  /* The knobs. */
+  for (const inp of LAB_INPUTS) {
+    const kn = P.els.knobs[inp.k];
+    if (!kn) continue;
+    const v = num0(d[inp.k]);
+    const box = String(d[inp.k] ?? '');
+    if (kn.num && focused !== kn.num && kn.boxAt !== box) { if (String(kn.num.value) !== box) kn.num.value = box; kn.boxAt = box; }
+    const moved = Object.hasOwn(col.moves, inp.k);
+    if (kn.range) {
+      const [lo, hi] = labSpan(col, inp);
+      labAttr(kn.range, 'min', lo); labAttr(kn.range, 'max', hi);
+      if (Math.abs(num0(kn.range.value) - v) > inp.step / 2) kn.range.value = String(v);
+      /* The value as it is said, worked out again only when what it says
+         has changed (the deposit says its ringgit, which the price moves). */
+      const sayAt = `${v}|${inp.k === 'downPct' ? m?.deposit : ''}`;
+      if (kn.sayAt !== sayAt) { kn.sayAt = sayAt; labAttr(kn.range, 'aria-valuetext', inp.spoken(v, m)); }
+      labStyle(kn.range, '--pos', `${(clamp((v - lo) / (hi - lo), 0, 1) * 100).toFixed(2)}%`);
+      if (kn.ticks) [...kn.ticks.children].forEach((t, i) => labStyle(t, '--at', String((inp.ticks[i] - lo) / (hi - lo))));
+      if (kn.spanEdges && kn.spanAt !== `${lo}|${hi}`) { kn.spanAt = `${lo}|${hi}`; labText(kn.spanEdges, `${labEdge(inp, lo)} to ${labEdge(inp, hi)}: ${inp.basis}`); }
+    } else if (kn.spanEdges) labText(kn.spanEdges, `Typed into the box; ${inp.basis}`);
+    /* Moved: the what-if tag in the evidence tag's place, and the way back
+       in sight — each in the room it held from the first drawing. */
+    if (kn.whatIf) {
+      labClass(kn.whatIf, 'is-idle', !moved);
+      labClass(kn.ev, 'is-idle', moved);
+      labClass(kn.reset, 'is-idle', !moved);
+      const desc = `${kn.ids.sid} ${moved ? kn.ids.wid : kn.ids.eid}`;
+      labAttr(kn.range, 'aria-describedby', desc);
+      labAttr(kn.num, 'aria-describedby', desc);
+    }
+    if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', shownEvidence(d, inp.k) === 'illustrative_default'); }
+    if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
+    if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0
+      ? `Moves the cash required and, through the ${labPctIn(num0(d.renoValueRecoveryPct))} of it recovered at the sale, the sale value — not the rent you entered.`
+      : 'Moves the cash required, and the gains tax it is allowed against — none of it is recovered at the sale (0%, set in the calculator), and it does not change the rent you entered.');
+  }
+  /* The chain. */
+  const empty = !(num0(d.price) > 0);
+  for (const f of LAB_FIGURES) {
+    const ce = P.els.chain[f.key];
+    if (!ce) continue;
+    const v = m ? f.read(m, d) : null;
+    labText(ce.value, LAB_FORMATS[f.fmt](v));
+    labAttr(ce.value, 'data-value', isNum(v) ? String(v) : '');
+    labClass(ce.value, 'neg', !!f.neg && isNum(v) && v < 0);
+    labText(ce.label, f.label(d));
+    /* The change, worked out again only when either figure has changed. */
+    const rv = m && ref ? f.read(ref, col.baseInputs) : null;
+    if (!(ce.dlAt && ce.dlAt[0] === v && ce.dlAt[1] === rv && ce.dlAt[2] === !!(m && ref))) ce.dlAt = [v, rv, !!(m && ref), m && ref ? labDelta(f.fmt, v, rv) : null];
+    const dl = ce.dlAt[3];
+    labText(ce.deltaEye, empty ? '' : dl ? dl.mark : '');
+    labText(ce.deltaEar, empty ? '' : dl ? (dl.same ? 'unchanged' : `${dl.words} ${bl.label}`) : '');
+    labText(ce.note, empty ? 'Needs a purchase price' : m ? (f.note(m, d) || '') : '');
+    /* Formulas of closed rows wait until they open, except in the page's
+       first draw — served whole, with no script to open them. */
+    if (initial || ce.det.open) labText(ce.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
+  }
+  if (P.els.chain.irrPct?.paidBox && (initial || P.els.chain.irrPct.det.open)) {
+    const box = P.els.chain.irrPct.paidBox;
+    const words = !m ? '' : labPaid(d)
+      ? LAB_PAID.map(f => f.formula(d, m)).join(' ')
+      : 'The net proceeds of that sale and the total profit are part of the full investor report, which is a preview: the calculator’s Report section shows it in this browser. Nothing is on sale.';
+    if (box.textContent !== words) box.replaceChildren(el('p', { class: 'lab-formula' }, words));
+  }
+  for (const f of LAB_PAID) {
+    const pe = P.els.paid[f.key];
+    if (!pe) continue;
+    const v = m ? m[f.key] : null;
+    labText(pe.value, LAB_FORMATS[f.fmt](v));
+    labAttr(pe.value, 'data-value', isNum(v) ? String(v) : '');
+  }
+  /* The grade: the letter, the verdict and the worst gate, every frame. */
+  if (P.els.grade) {
+    const worst = g ? ['critical', 'serious', 'warning'].map(s => g.gates.find(x => x.severity === s)).find(Boolean) : null;
+    labText(P.els.grade.letter, LAB_FORMATS.grade(g?.grade));
+    labAttr(P.els.grade.letter, 'data-value', g?.grade || '');
+    labText(P.els.grade.verdict, g ? g.verdict : 'Needs a purchase price');
+    labText(P.els.grade.gate, worst ? `${g.gates.length} gate${g.gates.length === 1 ? '' : 's'}; the most serious: ${worst.text}` : g ? 'No gate is open.' : '');
+  }
+  /* What moved, what the figures rest on. */
+  if (P.els.movedBy) {
+    const moves = Object.keys(col.moves).filter(k => LAB_INPUT_BY_K[k]).map(k => LAB_INPUT_BY_K[k].say.toLowerCase());
+    const placeMoved = ['city', 'district'].some(k => Object.hasOwn(col.moves, k));
+    if (placeMoved) moves.push('the place');
+    let s = '';
+    if (m && ref && moves.length) {
+      /* The rows the moves moved, found by comparing the figures as printed
+         — never a list written by hand — set apart by semicolons, as a row's
+         name can carry a comma ("value less loan, year 10"). The report's
+         two figures join them where it is unlocked. */
+      const moved = (f) => LAB_FORMATS[f.fmt](f.read(m, d)) !== LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs));
+      const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase());
+      if (labPaid(d)) LAB_PAID.forEach(f => { if (LAB_FORMATS[f.fmt](m[f.key]) !== LAB_FORMATS[f.fmt](ref[f.key])) movedRows.push(f.label.toLowerCase()); });
+      s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the seven'}.`;
+      /* WHAT RENOVATION DOES NOT MOVE, said and nothing more. "Renovation
+         moves only the cash required and the rate of return" was false
+         wherever any of it is recovered at the sale (value less loan and
+         the sale move too) or the gains tax changes with it — it is
+         allowed against the gain — and the list above already says what
+         moved (the verification of 4 Oct 2026, F3). */
+      if (lab.input === 'renovation' || Object.hasOwn(col.moves, 'renovation'))
+        s += ' Renovation does not change the rent you entered.';
+    }
+    labText(P.els.movedBy, s);
+    P.els.movedBy.hidden = !s;
+  }
+  if (P.els.context) labText(P.els.context, `Hold ${labYears(normHoldYears(d.holdYears))} · tenure ${labYears(num0(d.tenureYears))} · rent growth ${fmtNum(num0(d.rentGrowthPct), 1)}% · appreciation ${fmtNum(num0(d.apprecPct), 1)}% a year — change these in the calculator.`);
+  if (P.els.rests) {
+    const q = propertyReviewQueue(d);
+    labText(P.els.rests, q.length ? `These figures rest on ${q.length} of the tool’s starting figures: ${q.map(x => x.label.toLowerCase()).join(', ')}.` : 'None of these figures rests on a starting figure of the tool’s.');
+  }
+  if (P.els.unsaved) {
+    const withMoves = lab.cols.filter(c => labMoveCount(c));
+    const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.` : '';
+    labText(P.els.unsaved, s);
+    P.els.unsaved.hidden = !s;
+  }
+  /* What follows the moves: the baseline's name, the links to where a
+     figure is entered (only while the column is the calculator's deal as
+     it is), and the column and commit cards — drawn again only when a
+     column's count of moves, its source or the column moved changes, not
+     at every frame. */
+  if (P.els.baseline) labText(P.els.baseline, `Changes ${bl.label}`);
+  (P.els.where || []).forEach(n => { n.hidden = labMoveCount(col) > 0; });
+  const sig = labCardSig(lab);
+  if (!initial && sig !== P.cardSig && P.els.colsCard?.isConnected) {
+    const had = document.activeElement && (P.els.colsCard.contains(document.activeElement) || P.els.commitCard.contains(document.activeElement)) ? document.activeElement.id : null;
+    const cc = labColumnsCard(P, lab), cm = labCommits(P, lab, col);
+    P.els.colsCard.replaceWith(cc); P.els.commitCard.replaceWith(cm);
+    P.els.colsCard = cc; P.els.commitCard = cm; P.cardSig = sig;
+    if (had) document.getElementById(had)?.focus({ preventScroll: true });
+  }
+  /* The comparison: in place while its shape holds, drawn again when not. */
+  if (P.els.cmpBody) {
+    const vm = labMetricView(lab.metric, lab);
+    if (initial || vm.shape !== P.shape || !P.els.cmp) labDrawCompare(P, lab, vm); else labUpdateCompare(P, vm);
+  }
+}
+
+/* ------------------------------------------------------------------- speech */
+/* ONE SENTENCE, A MOMENT AFTER THE CHANGE — never on each tick, which would
+   talk over the reader the whole length of a drag. */
+let labSayTimer = 0;
+function labSay(P, lab, k) {
+  clearTimeout(labSayTimer);
+  labSayTimer = setTimeout(() => {
+    const col = labActive(lab), inp = LAB_INPUT_BY_K[k];
+    const m = col.cur?.m, ref = col.ref?.m;
+    if (!inp) return;
+    if (!m) { liveSay(`${inp.say} ${inp.shown(num0(col.work[k]))}. ${col.key} needs a purchase price; nothing is computed.`); return; }
+    const dl = ref ? labDelta('money0', m.instalment, ref.instalment) : null;
+    const bl = labBaseline(lab, col).label.replace(/^vs /, 'on ');
+    liveSay(`${inp.say} ${inp.shown(num0(col.work[k]))}. Repayment ${isNum(m.instalment) ? `${labMoney(m.instalment)} a month` : 'not computable'}${dl ? (dl.same ? `, unchanged ${bl}` : `, ${dl.words} ${bl}`) : ''}. Monthly position ${labMoney(m.cashflowMonthly)}.`);
+    if (k === 'renovation') labRenoCard(P, lab);
+  }, 500);
+}
+/* With the renovation knob let go: what the renovation buys, by the
+   calculator's own with-and-without run (renovationReturn) — one model run
+   more, on release only. */
+function labRenoCard(P, lab) {
+  for (const Q of LAB_PANELS) {
+    if (Q.key !== lab.key) continue;
+    const card = Q.els?.knobs?.renovation?.card;
+    const col = labActive(lab);
+    if (!card || !col.cur) continue;
+    const r = renovationReturn(col.work, col.cur.m);
+    card.hidden = false;
+    card.replaceChildren(el('p', { class: 'metaline' }, r.applicable
+      ? `With and without the renovation (the calculator’s renovation return): rate of return ${fmtPct(r.irrWith, 2)} with it, ${fmtPct(r.irrWithout, 2)} without; cash required ${labMoney(r.cashWith)} with it, ${labMoney(r.cashWithout)} without. The share of the rent that depends on it is ${labPctIn(r.rentUpliftPct)} — set in the calculator, never by this knob.`
+      : r.why));
+  }
+}
+function labSayMetric(lab) {
+  const mt = LAB_METRICS.find(x => x.id === lab.metric);
+  const vm = labMetricView(lab.metric, lab);
+  const t = vm.tables[0];
+  liveSay(`Comparing by ${mt.say}: ${t.rows.map(r => `${r.key} ${r.text}`).join(', ')}. Order ${lab.cols.map(c => c.key).join(', ')}.`);
+}
+/* After a change of structure: the listeners told, the address written
+   where a saved column changed, and the change said. */
+function labAfterStructure(P, lab, { address = false, say = null, focus = null } = {}) {
+  labNotify(lab);
+  if (address && P.address) labAddressSoon(lab);
+  if (say) liveSay(say);
+  if (focus) { const n = document.getElementById(focus); if (n) focusAfterRedraw(n); }
+}
+/* Every panel drawn again from LAB: for a subject opened from outside. */
+function labRefresh() {
+  for (const P of [...LAB_PANELS]) {
+    if (!P.node.isConnected) { LAB_PANELS.delete(P); continue; }
+    if (P.address && labSubject) P.key = labSubject;
+    labDraw(P);
+  }
+}
+
+/* ---------------------------------------------------------------- the page */
+VIEWS.propertyLab = () => {
+  labArrive();
+  const wrap = el('div', { class: 'lab-page' });
+  wrap.append(pageHead({ title: 'Scenario Lab',
+    lede: 'Move price, deposit, rate, rent and renovation, and every figure below is worked out again by the calculator’s own model — for up to three scenarios side by side.',
+    note: 'Moves are what-ifs, kept in this tab until you save one as a scenario or open it in the calculator.' }));
+  for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
+  wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
+  return wrap;
+};
 /* ==========================================================================
    QT TRADING INDEX — specification qt-trading-index-1.0.0, 9 August 2026
 

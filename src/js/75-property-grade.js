@@ -959,12 +959,18 @@ function dealModel(d) {
     const debtY = debtInYear(y);
     const cfPreTax = debtUnknown ? null : effY - opexY - debtY;
     const cf = debtUnknown ? null : cfPreTax - taxY.tax;
+    /* VALUE LESS LOAN, the row's own two figures set against each other —
+       what the property would be worth in year y less what is still owed on
+       it, before any cost of selling. Not "equity": that word already means
+       the equities comparison (m.equity) and the cash committed (equityOut)
+       on these pages. Unknown with the balance (a loan with no schedule). */
+    const value = exitValueAt(y), balance = balanceAt(y * 12);
     return { y, rent: effY, opex: opexY, debt: debtY,
              interest: interestY, principal: debtUnknown ? null : Math.max(0, debtY - interestY),
              taxable: taxY.taxable, tax: taxY.tax, taxComputed: taxY.computed,
              cfPreTax, cf,
-             value: exitValueAt(y),
-             balance: balanceAt(y * 12) };
+             value, balance,
+             valueLessLoan: isNum(balance) ? value - balance : null };
   };
   let cumCash = 0, cumTax = 0, cumPreTax = 0;
   const path = [];
@@ -1292,7 +1298,17 @@ function dealModel(d) {
            irrPct, irrWhy: irrResult.why, irrSignChanges: irrResult.signChanges,
            npvAtHurdle, hurdlePct, annualisedMultiplePct, equityOut, flows,
            propertyClass, propertyClassSrc, letsToTenant, strataCharges,
-           stress, exits, holdVsSell, renoRecovered, equity };
+           stress, exits, holdVsSell, renoRecovered, equity,
+           /* Two figures the Scenario Lab names (82-property-lab.js), each
+              from figures above and nothing new. The value at the sale less
+              the loan still owed then, before agent, legal, gains tax and
+              the months carried while selling — unknown with the balance;
+              and the growth on the price alone at the reader's rate, which
+              with the price and the renovation recovered makes up the value
+              at the sale. Neither is called equity, for the reason at
+              yearFlow. */
+           valueLessLoanAtExit: debtUnknown ? null : exitValue - outstanding,
+           priceGrowthAtExit: exitValue - renoRecovered - d.price };
 }
 
 /* The calculator's "Monthly commitment": what the owner funds from their

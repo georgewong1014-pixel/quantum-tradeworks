@@ -1298,6 +1298,47 @@ try {
     failures += bad.length;
   }
   /* ---- end prerender ---- */
+  /* ---- scenario-lab ---- */
+  /* THE SCENARIO LAB GIVES ONE ANSWER FROM ITS FIRST FRAME (3 Oct 2026).
+     Its page is served as the app drew it (prerender, above) and drawn at
+     once over itself, every figure from the calculator's model on the
+     sample deal. Sampled from navigation for six seconds, each of its
+     questions — every result in the chain, the grade, each column's
+     figure in the comparison and the line that says what is open — must
+     have one answer: never a nought, a dash or another deal's figure for a
+     frame before the page's own. Fails before the lab existed: the address
+     drew the not-found card, and none of its questions was ever answered. */
+  {
+    const labCollector = `(async () => {
+      const seen = {};
+      const t0 = performance.now();
+      while (performance.now() - t0 < 6000) {
+        const q = {};
+        document.querySelectorAll('#views .lab-chain [data-lab], #views .lab-grade [data-lab]').forEach(n => { q['figure ' + n.dataset.lab] = n.textContent.trim(); });
+        document.querySelectorAll('#views .lab-cmp tr[data-lab-col]').forEach(n => { q['comparison ' + n.closest('table').dataset.field + ' ' + n.dataset.labCol] = (n.querySelector('.lab-cmp-v')?.textContent || '').trim(); });
+        const st = document.querySelector('#views .lab-status');
+        if (st) q.status = st.textContent.replace(/\\s+/g, ' ').trim();
+        for (const [k, v] of Object.entries(q)) { (seen[k] ||= {}); if (!(v in seen[k])) seen[k][v] = Math.round(performance.now() - t0); }
+        await new Promise(r => setTimeout(r, ${SAMPLE_MS}));
+      }
+      return JSON.stringify(seen);
+    })()`;
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Page.navigate', { url: BASE + '/property/lab' }, sessionId);
+    const r = await send('Runtime.evaluate', { expression: labCollector, returnByValue: true, awaitPromise: true }, sessionId);
+    const seen = r.result?.exceptionDetails ? null : JSON.parse(r.result.result.value);
+    const qs = seen ? Object.keys(seen) : [];
+    const two = seen ? Object.entries(seen).filter(([, a]) => Object.keys(a).length > 1) : [];
+    if (!seen || qs.filter(k => k.startsWith('figure ')).length < 8 || !qs.some(k => k.startsWith('comparison '))) {
+      failures++;
+      console.log(`FAIL /property/lab — the Scenario Lab's questions were never answered (${qs.length} seen${seen ? '' : ': the collector threw'})`);
+    } else if (two.length) {
+      failures++;
+      console.log('FAIL /property/lab — the Scenario Lab contradicted itself');
+      two.slice(0, 8).forEach(([q, a]) => console.log(`     ${q}: ${Object.entries(a).sort((x, y) => x[1] - y[1]).map(([v, ms]) => `+${ms}ms ${v}`).join(' | ')}`));
+    } else console.log(`ok   /property/lab          ${qs.length} questions — every result, the grade, each column's comparison and the status — one answer each from the first frame`);
+  }
+  /* ---- end scenario-lab ---- */
   process.exitCode = failures ? 1 : 0;
 } finally {
   try { ws?.close(); } catch { /* already gone */ }

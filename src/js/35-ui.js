@@ -28,6 +28,8 @@ const ICON = {
   database:'<ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M4 11.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
   tag:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
   chev:'<path d="m6 9 6 6 6-6"/>',
+  /* The Scenario Lab's way back to a figure as saved (82-property-lab.js). */
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -506,6 +508,9 @@ const TOOLS = [
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
     action: { label: 'Analyse a property', path: '/property/calculator' } },
+  { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
+    status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
+    action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     action: { label: 'Screen a town', path: '/property/areas' } },
@@ -1114,6 +1119,9 @@ const ROUTES = [
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
+  /* The Scenario Lab (82-property-lab.js). Its ?model=, ?cols= and ?by= are
+     read by the view itself, on arrival; no row of their own. */
+  { path: '/property/lab',        view: 'propertyLab', title: 'Scenario Lab' },
   { path: '/us-options/wheel',    view: 'wheel',     title: 'US Options Cash Wheel' },
   /* The paths a reader actually types. All five rendered the not-found card
      while the workspace sat behind a URL nobody would guess, and the workspace
@@ -1188,6 +1196,7 @@ const META = {
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
+  propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
@@ -1756,7 +1765,7 @@ const SECTION_OF = {
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
-  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
+  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', propertyLab: 'property',
   propertyModels: 'property',
   /* A document of one saved property, not a tool of its own: Property's
      page with no tab current, as the decision record is. */
@@ -2458,7 +2467,16 @@ window.addEventListener('resize', queueScrollStops);
    writes some, and a change it makes must not call it back. The drawer's
    body the same way: openDrawer replaces it, and some drawers redraw in
    place. */
-const scrollStopWatch = new MutationObserver(queueScrollStops);
+/* Except the Scenario Lab's figures (82-property-lab.js), whose words it
+   rewrites in place every frame of a drag: no box of its scrolls with them
+   (a table it draws again is a childList change, and still heard), and a
+   fitting a frame walked the whole page and measured its boxes while the
+   slider moved — half a millisecond a frame on a desktop, four times that
+   on a slow phone. */
+const scrollStopWatch = new MutationObserver((recs) => {
+  if (recs.every(r => r.type === 'characterData' && r.target.parentElement?.closest('.lab'))) return;
+  queueScrollStops();
+});
 scrollStopWatch.observe(viewRoot, { childList: true, subtree: true, characterData: true });
 scrollStopWatch.observe(drawerBody, { childList: true, subtree: true, characterData: true });
 /* The topbar's real height, for scroll-padding-top and everything that sticks
@@ -2720,6 +2738,13 @@ const SERVED_READS = {
   propertyModels: ['deal', 'dealBeforeLink', 'savedWork', 'startHere'],
   property: ['deal', 'dealBeforeLink', 'savedWork', 'startHere', 'observations', 'areaProfiles', 'demand', 'borrowerProfile',
     'lang', 'plan', 'propertyReportsBought'],
+  /* /property/lab: the calculator's deal and whether it is a saved property
+     (its columns come from it), the labels in the reader's language, the
+     report a figure is withheld behind and the plan that may include it,
+     the comparables the grade reads, and the Start here panel. Its
+     ?model=, ?cols= and ?by= are read by the app as it draws (a page that
+     does not wait: its first draw replaces the served page at once). */
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'startHere'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -3178,8 +3203,37 @@ function giveFocusBack(h) {
   if (caret) putCaret(n, caret);
 }
 
+/* A REDRAW NOBODY ASKED FOR, HELD WHILE A FINGER IS ON A SLIDER (the
+   Scenario Lab, 82-property-lab.js). render() replaces the whole page, and
+   a range input replaced under the pointer ends the drag: the filings
+   landing (95-boot.js routes again), a theme change, the back-forward
+   cache's pageshow — each would have dropped the slider out from under the
+   reader mid-drag. While held, a redraw of the page on screen (samePage,
+   below) is noted and not drawn; renderRelease draws it once, if one was
+   asked for. A navigation to another page is never held, and ends the
+   hold: the gesture belonged to the page it leaves. A hold nobody releases
+   (a pointerup the browser never delivered) lets go after 15 seconds. */
+let renderHeld = false, renderPending = false, renderHoldTimer = 0;
+function renderHold() {
+  renderHeld = true;
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = setTimeout(renderRelease, 15000);
+}
+function renderRelease() {
+  clearTimeout(renderHoldTimer);
+  renderHoldTimer = 0;
+  if (!renderHeld) return;
+  renderHeld = false;
+  if (renderPending) { renderPending = false; render(); }
+}
+
 function render() {
   const samePage = renderedPage === pageOnScreen();
+  if (renderHeld) {
+    if (samePage) { renderPending = true; return; }
+    clearTimeout(renderHoldTimer);
+    renderHeld = false; renderPending = false; renderHoldTimer = 0;
+  }
   /* Before anything is replaced, and on a redraw of the page on screen only
      — see noteFocusForRedraw above. The served page drawn over by the app is
      the page on screen too (2026-10-04): a link focused in it, by a reader

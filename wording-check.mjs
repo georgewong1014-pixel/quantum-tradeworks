@@ -293,6 +293,42 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end prerender ---- */
 
+/* ---- scenario-lab ---- */
+/* THE SCENARIO LAB'S OWN WORDS (the owner's decision, 3 Oct 2026). Up to
+   three scenarios side by side, compared six ways, in the order A, B, C:
+   nothing in it is ranked, recommended or forecast. No word that names one
+   column over another, or a figure as a prediction, may be used as a claim
+   in its module — text and comments both, as the scanner's are held above —
+   except in a sentence that denies it ("not a forecast — nothing here is
+   ranked"). Matched at word boundaries, a word's endings with it
+   ("recommended", "forecasts"). Absent, the module is said to be: the check
+   cannot pass on a lab that is not there. */
+{
+  const LAB_BANNED = ['recommend', 'best', 'winner', 'top pick', 'you should', 'better deal', 'outperform', 'forecast'];
+  const LAB_DENIAL = new RegExp(`${DENIAL.source}|not a |nothing here is|no price history`, 'i');
+  let labSrc = null;
+  try { labSrc = readFileSync(join(ROOT, 'src', 'js', '82-property-lab.js'), 'utf8'); } catch { labSrc = null; }
+  if (labSrc === null) {
+    bad++;
+    console.error('FAIL  the Scenario Lab module is missing (src/js/82-property-lab.js), so its words cannot be checked');
+  } else {
+    let labBad = 0;
+    for (const phrase of LAB_BANNED) {
+      const re = new RegExp(`\\b${phrase.replace(/ /g, '\\s+')}(?:ed|s|ing|ers?)?\\b`, 'gi');
+      for (const m of labSrc.matchAll(re)) {
+        const ctx = labSrc.slice(Math.max(0, m.index - 200), m.index + 200).replace(/\s+/g, ' ');
+        if (LAB_DENIAL.test(ctx)) continue;
+        labBad++;
+        console.error(`FAIL  "${m[0]}" used as a claim in 82-property-lab.js`);
+        console.error(`      …${ctx.slice(110, 330)}…`);
+      }
+    }
+    bad += labBad;
+    if (!labBad) console.log(`ok    none of the ${LAB_BANNED.length} ranking and forecast words is used as a claim in the Scenario Lab (82-property-lab.js)`);
+  }
+}
+/* ---- end scenario-lab ---- */
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);
