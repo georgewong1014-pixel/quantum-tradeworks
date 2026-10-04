@@ -87,26 +87,65 @@ function cpUrlHead(url) {
 }
 /* Whether an image ends where its format says it does. A file cut short
    past its header still loads as the part that came, and printed as a blank
-   box or half a logo under "Logo added". A PNG ends with its IEND chunk, a
-   JPEG with its end-of-image marker (FF D9, allowed a little trailing
-   padding), a WebP where its RIFF container's size says. head: the first 16
-   bytes; tail: the last 32; size: the whole in bytes. */
+   box or half a logo under "Logo added". Read by the format's own structure
+   from its start, every byte of the file (b) — within the 200 KB cap, which
+   is held first: a PNG's chunks, each by its stated length, as far as its
+   IEND chunk; a JPEG's segments, each by its stated length, and the coded
+   data after each start of scan, as far as its end-of-image marker (FF D9);
+   a WebP as far as its RIFF container's size says. What follows an image's
+   end is no part of it, and a browser draws the image whole without it.
+   (2026-10-04: the end was looked for in the file's last bytes only, so a
+   PNG with one byte after IEND, a JPEG with 40 after FF D9 and a PNG padded
+   out to 200 KB — each drawn whole — were refused as "cut short".) A file
+   whose structure cannot be followed — damaged rather than short — is
+   whole here where its end marker is in it at all: whether it draws decides
+   (cpReadLogo), and "cut short" is never said of it. */
 const CP_PNG_END = [0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82];
-function cpWhole(kind, head, tail, size) {
-  if (kind === 'image/png') return tail.length >= 8 && CP_PNG_END.every((x, i) => tail[tail.length - 8 + i] === x);
-  if (kind === 'image/jpeg') { for (let i = tail.length - 2; i >= 0; i--) if (tail[i] === 0xff && tail[i + 1] === 0xd9) return true; return false; }
-  if (kind === 'image/webp') return head.length >= 8 && ((head[4] | head[5] << 8 | head[6] << 16 | head[7] << 24) >>> 0) + 8 <= size;
+function cpWhole(kind, b) {
+  const n = b.length;
+  const has = (marker, from) => { for (let i = Math.max(0, from); i + marker.length <= n; i++) if (marker.every((x, j) => b[i + j] === x)) return true; return false; };
+  if (kind === 'image/png') {
+    /* A chunk: its data's length (4 bytes), its type (4 letters), the data, a CRC (4). */
+    for (let i = 8; i + 12 <= n;) {
+      const len = ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+      const type = [4, 5, 6, 7].map(k => b[i + k]);
+      if (!type.every(c => (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a))) return has(CP_PNG_END, i);
+      if (i + 12 + len > n) return false;
+      if (type[0] === 0x49 && type[1] === 0x45 && type[2] === 0x4e && type[3] === 0x44) return true;
+      i += 12 + len;
+    }
+    return false;
+  }
+  if (kind === 'image/jpeg') {
+    for (let i = 2; i + 1 < n;) {
+      if (b[i] !== 0xff) return has([0xff, 0xd9], i);
+      const m = b[i + 1];
+      if (m === 0xff) { i++; continue; }                       /* fill */
+      if (m === 0xd9) return true;                              /* end of image */
+      if ((m >= 0xd0 && m <= 0xd7) || m === 0x01) { i += 2; continue; }
+      if (i + 3 >= n) return false;
+      const len = (b[i + 2] << 8) | b[i + 3];
+      if (len < 2) return has([0xff, 0xd9], i);
+      i += 2 + len;
+      /* After a start of scan, its coded data, to the next marker: a coded
+         FF is followed by 00, or by a restart marker. */
+      if (m === 0xda) while (i + 1 < n && !(b[i] === 0xff && b[i + 1] !== 0 && !(b[i + 1] >= 0xd0 && b[i + 1] <= 0xd7))) i++;
+    }
+    return false;
+  }
+  if (kind === 'image/webp') return n >= 12 && ((b[4] | b[5] << 8 | b[6] << 16 | b[7] << 24) >>> 0) + 8 <= n;
   return false;
 }
-/* The last bytes a data URL holds, and its size in bytes. */
-function cpUrlTail(url) {
-  try {
-    const b64 = url.slice(url.indexOf(',') + 1), pad = (b64.match(/=*$/) || [''])[0].length;
-    const size = Math.floor(b64.length * 3 / 4) - pad;
-    const from = Math.max(0, b64.length - 44 - (b64.length % 4));
-    const bytes = Uint8Array.from(atob(b64.slice(from)), c => c.charCodeAt(0));
-    return { tail: bytes.slice(-32), size };
-  } catch { return { tail: new Uint8Array(0), size: 0 }; }
+/* Every byte a data URL holds — the last one asked for kept, as the page's
+   draws ask for the same stored logo again and again. */
+let cpUrlBytesLast = { url: null, bytes: null };
+function cpUrlBytes(url) {
+  if (cpUrlBytesLast.url === url) return cpUrlBytesLast.bytes;
+  let bytes;
+  try { bytes = Uint8Array.from(atob(url.slice(url.indexOf(',') + 1)), c => c.charCodeAt(0)); }
+  catch { bytes = new Uint8Array(0); }
+  cpUrlBytesLast = { url, bytes };
+  return bytes;
 }
 /* A size as a refusal states it: up to the next tenth of a kilobyte, so a
    file one byte over the cap is never called "200 KB" — "That image is 200
@@ -124,8 +163,7 @@ function cpLogoFault(v) {
   }
   const head = cpUrlHead(v), kind = CP_LOGO_URL.test(v) ? cpSniff(head) : null;
   if (!kind) return 'is not a PNG, JPEG or WebP image';
-  const { tail, size } = cpUrlTail(v);
-  if (!cpWhole(kind, head, tail, size)) return `is a ${CP_LOGO_TYPES[kind]} image cut short — its end is missing, so it cannot print whole`;
+  if (!cpWhole(kind, cpUrlBytes(v))) return `is a ${CP_LOGO_TYPES[kind]} image cut short — its end is missing, so it cannot print whole`;
   return null;
 }
 /* The restore's rule for the details (STORE_SHAPES, 00-core.js). A file
@@ -167,8 +205,11 @@ function cpSaveDetails(patch) {
 }
 
 /* A file chosen for the logo: read, or refused with the reason. What it
-   holds decides, and then whether it draws as a picture at all — a damaged
-   file can start as an image does. */
+   holds decides; then its size, against the cap the page states; then
+   whether it draws as a picture at all — a damaged file can start as an
+   image does — and whether it is whole. The size comes before the rest
+   (2026-10-04): a file over the cap was told it was cut short where it was
+   only too large, and the cap is the reason the page states. */
 async function cpReadLogo(file) {
   if (!file) return { ok: false, why: 'No file was chosen.' };
   let head;
@@ -179,13 +220,11 @@ async function cpReadLogo(file) {
     const named = CP_LOGO_TYPES[file.type];
     return { ok: false, why: `That file is not a PNG, JPEG or WebP image${named ? ` — its name says ${named}, but what it holds is not one` : file.type ? ` (it is ${file.type})` : ''}, so it cannot be the logo.` };
   }
-  let tail;
-  try { tail = new Uint8Array(await file.slice(-32).arrayBuffer()); }
-  catch { return { ok: false, why: 'That file could not be read.' }; }
-  if (!cpWhole(kind, head, tail, file.size))
-    return { ok: false, why: `That file starts as a ${CP_LOGO_TYPES[kind]} image does, but its end is missing — it was cut short, so only part of the picture would print.` };
   if (file.size > CP_LOGO_MAX)
     return { ok: false, why: `That image is ${cpKb(file.size)}. The logo can be at most 200 KB — this browser keeps it with everything else you save here. An image about 600 pixels wide is plenty for print.` };
+  let bytes;
+  try { bytes = new Uint8Array(await file.arrayBuffer()); }
+  catch { return { ok: false, why: 'That file could not be read.' }; }
   const read = await new Promise((resolve) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result || ''));
@@ -202,6 +241,8 @@ async function cpReadLogo(file) {
     img.src = url;
   });
   if (!draws) return { ok: false, why: `That file starts as a ${CP_LOGO_TYPES[kind]} image does, but the picture in it could not be drawn — it may be damaged or cut short.` };
+  if (!cpWhole(kind, bytes))
+    return { ok: false, why: `That file starts as a ${CP_LOGO_TYPES[kind]} image does, but its end is missing — it was cut short, so only part of the picture would print.` };
   const fault = cpLogoFault(url);
   return fault ? { ok: false, why: `That image ${fault}.` } : { ok: true, url };
 }

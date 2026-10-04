@@ -11217,6 +11217,66 @@ try {
     }
   }
   /* ---- end property-proposal ---- */
+  /* ---- integration-final ---- */
+  /* A WHOLE LOGO IS NEVER CALLED CUT SHORT (the integration's final
+     verification, 2026-10-04). Whether a logo was whole was read from its
+     last bytes only, and before its size: a PNG with bytes after its IEND
+     chunk, and a JPEG with bytes after FF D9 — each drawn whole by the
+     browser — were refused as "cut short, so only part of the picture would
+     print", and so were CP3's and CP5's files over the cap, whose reason,
+     the cap, was never reached. CP9: whole images with 1, 16 and 40 bytes
+     after their end, and a PNG padded out to exactly 200 KB, are taken —
+     chosen as a file and held as a stored value; a whole PNG over the cap is
+     refused by its size; a PNG and a JPEG cut short are still refused. */
+  {
+    try {
+      const r = await evaluate(`(async () => {
+        const out = {};
+        const cv = document.createElement('canvas'); cv.width = 120; cv.height = 40;
+        const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 120, 40); g.fillStyle = '#c9a86a'; g.fillRect(10, 10, 60, 20);
+        const blobOf = (c, type) => new Promise(res => c.toBlob(res, type, 0.9));
+        const png = new Uint8Array(await (await blobOf(cv, 'image/png')).arrayBuffer());
+        const jpg = new Uint8Array(await (await blobOf(cv, 'image/jpeg')).arrayBuffer());
+        const pad = (b, n) => { const x = new Uint8Array(b.length + n); x.set(b); return x; };
+        const said = async (b, name, type) => { const r = await cpReadLogo(new File([b], name, { type })); return r.ok ? 'taken' : r.why; };
+        const urlOf = (b, type) => 'data:' + type + ';base64,' + btoa(Array.from(b, c => String.fromCharCode(c)).join(''));
+        out.png1 = await said(pad(png, 1), 'one.png', 'image/png');
+        out.png16 = await said(pad(png, 16), 'sixteen.png', 'image/png');
+        out.jpg40 = await said(pad(jpg, 40), 'forty.jpg', 'image/jpeg');
+        out.pngCap = await said(pad(png, 200 * 1024 - png.length), 'cap.png', 'image/png');
+        out.png1Stored = cpLogoFault(urlOf(pad(png, 1), 'image/png'));
+        out.jpg40Stored = cpLogoFault(urlOf(pad(jpg, 40), 'image/jpeg'));
+        /* Whole and over the cap: noise, which a PNG cannot shrink. */
+        const nv = document.createElement('canvas'); nv.width = 400; nv.height = 300;
+        const ng = nv.getContext('2d'), px = ng.createImageData(400, 300);
+        let s = 2463534242;
+        for (let i = 0; i < px.data.length; i++) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; px.data[i] = i % 4 === 3 ? 255 : s & 255; }
+        ng.putImageData(px, 0, 0);
+        const big = new Uint8Array(await (await blobOf(nv, 'image/png')).arrayBuffer());
+        out.bigBytes = big.length;
+        out.bigEnds = big.length > 8 && String.fromCharCode(...big.slice(-8, -4)) === 'IEND';
+        out.big = await said(big, 'whole-big.png', 'image/png');
+        const cut = (b) => b.slice(0, Math.floor(b.length * 0.6));
+        out.pngCut = await said(cut(png), 'cut.png', 'image/png');
+        out.jpgCut = await said(cut(jpg), 'cut.jpg', 'image/jpeg');
+        out.pngCutStored = cpLogoFault(urlOf(cut(png), 'image/png'));
+        out.jpgCutStored = cpLogoFault(urlOf(cut(jpg), 'image/jpeg'));
+        return out;
+      })()`);
+      const p9 = [];
+      for (const k of ['png1', 'png16', 'jpg40', 'pngCap']) if (r[k] !== 'taken') p9.push(`${k}: a whole image ${k === 'pngCap' ? 'padded to exactly 200 KB' : 'with bytes after its end'} was refused — "${r[k]}"`);
+      for (const k of ['png1Stored', 'jpg40Stored']) if (r[k] !== null) p9.push(`${k}: stored, a whole image with bytes after its end reads as a logo that "${r[k]}"`);
+      if (!r.bigEnds || r.bigBytes <= 200 * 1024) p9.push(`the whole PNG over the cap was not one (${r.bigBytes} bytes, ends in IEND: ${r.bigEnds})`);
+      else if (!/^That image is [\d.]+ KB\. The logo can be at most 200 KB/.test(r.big)) p9.push(`a whole PNG of ${r.bigBytes} bytes was refused with "${r.big}", not by its size`);
+      for (const k of ['pngCut', 'jpgCut']) if (r[k] === 'taken' || !/cut short|could not be drawn/.test(r[k])) p9.push(`${k}: an image cut short was ${r[k] === 'taken' ? 'taken' : `refused with "${r[k]}"`}`);
+      for (const k of ['pngCutStored', 'jpgCutStored']) if (!/cut short/.test(r[k] || '')) p9.push(`${k}: stored, an image cut short reads as ${JSON.stringify(r[k])}`);
+      if (p9.length) fail('integration-final CP9: a whole logo is taken whatever follows its end, the cap is said before anything else, and a logo cut short is still refused', p9);
+      else ok(`integration-final CP9: whole PNGs with 1 and 16 bytes after IEND, a JPEG with 40 after FF D9 and a PNG padded to exactly 200 KB are taken, as files and as stored values; a whole ${Math.round(r.bigBytes / 1024)} KB PNG is refused as "${r.big.slice(0, 60)}…"; a PNG and a JPEG cut short are refused ("${r.pngCut.slice(0, 70)}…")`);
+    } catch (e) {
+      fail('integration-final CP9: the check could not run', e.message);
+    }
+  }
+  /* ---- end integration-final ---- */
 
 } catch (e) {
   fail('harness error', e.message);
