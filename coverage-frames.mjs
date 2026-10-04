@@ -707,6 +707,50 @@ try {
       if (said.length) { bad.push('a reader with no script'); console.log('FAIL served pages to a reader with no script'); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); if (said.length > 30) console.log(`     … and ${said.length - 30} more`); }
       else console.log('ok   served pages to a reader with no script (1280 and a 390px phone; public, app, company, 404 and My Workspace pages): no button shown, no inert control boxed, under a pointer or empty, no disclosure opening on nothing, the footer on every page, and the products, Pricing and every resource linked on screen — How it works too under the public header');
     }
+    /* THE SERVED PAGE FITS ITS WINDOW (2026-10-04). Drawn pages are held to
+       no sideways scroll at every width (mobile.mjs); a served page was held
+       to nothing, and /discover/sarawak's served pickers, sized by their
+       choices' unseen lines, took 379px and 261px of a row of 1fr columns at
+       1024px — the page scrolled sideways by 7px, 91px in Verdana, until the
+       script drew it. Every rendered page (prerender/manifest.json), with the
+       script switched off, at 390 and 1024 in the page's font, and in Verdana
+       (as wide as CI's Linux fallback) where a served field stands in for a
+       control: its width, no more. */
+    {
+      const said = [];
+      let n = 0;
+      const { result: { targetId: fid } } = await send('Target.createTarget', { url: 'about:blank' });
+      const fsid = (await send('Target.attachToTarget', { targetId: fid, flatten: true })).result.sessionId;
+      const fv = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, fsid)).result?.result?.value;
+      await send('Page.enable', {}, fsid); await send('Runtime.enable', {}, fsid);
+      await send('Emulation.setScriptExecutionDisabled', { value: true }, fsid);
+      const paths = Object.values(manifest.pages).map(p => p.path);
+      /* Verdana only where a served field stands in for a control: its width
+         is the one thing a font moves (the choices' unseen lines). */
+      const fielded = new Set();
+      for (const font of [null, 'Verdana']) {
+        for (const [w, h, mobile] of [[390, 844, true], [1024, 900, false]]) {
+          await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, fsid);
+          for (const path of font ? [...fielded] : paths) {
+            await send('Page.navigate', { url: live + path }, fsid);
+            for (let i = 0; i < 60 && await fv('document.readyState') !== 'complete'; i++) await sleep(100);
+            /* With the script switched off the page runs no timer, so nothing
+               waits inside it — a promise on setTimeout never settled, and the
+               first version of this hung the harness: the font goes in, Node
+               waits, then one read. */
+            if (font) await fv(`(() => { const s = document.createElement('style'); s.textContent = ':root{--sans: ${font}, sans-serif !important}'; document.head.append(s); return true; })()`);
+            await sleep(120);
+            const over = await fv(`(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth, fields: !!document.querySelector('#views [data-inert="field"]') }))()`);
+            n++;
+            if (!font && over?.fields) fielded.add(path);
+            if (over?.over > 1) said.push(`${path} at ${w}${font ? ` in ${font}` : ''}: served, it scrolls sideways by ${over.over}px`);
+          }
+        }
+      }
+      await send('Target.closeTarget', { targetId: fid });
+      if (said.length) { bad.push('a served page wider than its window'); console.log('FAIL served pages wider than their window'); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
+      else console.log(`ok   served pages fit their window: all ${paths.length} rendered pages with the script off at 390 and 1024, and the ${fielded.size} with served fields in Verdana too — ${n} loads, none scrolling sideways`);
+    }
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });

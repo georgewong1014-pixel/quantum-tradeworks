@@ -11103,6 +11103,13 @@ try {
         const real = await pngOf(160, 48);
         out.cutPng = await pick(new File([real.slice(0, 40)], 'cut.png', { type: 'image/png' }));
         out.cutPngStored = logoNow();
+        /* Cut past its header: it still loads as the part that came, and was
+           taken under "Logo added" (the integration verifier, 4 Oct 2026). */
+        out.cutLatePng = await pick(new File([real.slice(0, Math.floor(real.length * 0.6))], 'cut-late.png', { type: 'image/png' }));
+        out.cutLatePngStored = logoNow();
+        /* And as a stored value — a restored backup holding one. */
+        out.cutLateFault = typeof cpLogoFault === 'function' ? cpLogoFault('data:image/png;base64,' + btoa(String.fromCharCode(...real.slice(0, Math.floor(real.length * 0.6))))) : 'no cpLogoFault';
+        out.wholeFault = typeof cpLogoFault === 'function' ? cpLogoFault('data:image/png;base64,' + btoa(String.fromCharCode(...real))) : 'no cpLogoFault';
         const cv = document.createElement('canvas'); cv.width = 90; cv.height = 30; cv.getContext('2d').fillRect(0, 0, 90, 30);
         const jpg = new Uint8Array(await (await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9))).arrayBuffer());
         out.jpgPng = await pick(new File([jpg], 'photo.png', { type: 'image/png' }));
@@ -11162,7 +11169,8 @@ try {
         return out;
       })()`);
       const p4 = [];
-      for (const [k, toast, stored] of [['a text file named .png', q.textPng, q.textPngStored], ['an SVG with a script named .png', q.svgPng, q.svgPngStored], ['a PNG cut short', q.cutPng, q.cutPngStored]]) {
+      if (!/cut short/.test(q.cutLateFault || '') || q.wholeFault !== null) p4.push(`a stored PNG cut past its header reads as ${JSON.stringify(q.cutLateFault)} (whole: ${JSON.stringify(q.wholeFault)}) — not refused as cut short`);
+      for (const [k, toast, stored] of [['a text file named .png', q.textPng, q.textPngStored], ['an SVG with a script named .png', q.svgPng, q.svgPngStored], ['a PNG cut short', q.cutPng, q.cutPngStored], ['a PNG cut past its header', q.cutLatePng, q.cutLatePngStored]]) {
         if (stored) p4.push(`${k} was stored as the logo (${String(stored).slice(0, 40)}…)`);
         if (/Logo added/.test(toast) || !toast) p4.push(`${k}: the page said "${toast}"`);
       }

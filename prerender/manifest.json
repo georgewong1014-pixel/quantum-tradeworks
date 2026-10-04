@@ -1015,7 +1015,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ae0760d7ea019b4b"
+      "digest": "44ed5db8206f90d2"
     },
     "pages/property.html": {
       "path": "/property",
@@ -1032,7 +1032,7 @@
         ]
       },
       "inert": {
-        "buttons": 54,
+        "buttons": 55,
         "fields": 78,
         "choices": 13,
         "roles": 0,
@@ -1043,7 +1043,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "b389a104797b3e26"
+      "digest": "38abcb939592d544"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1088,7 +1088,7 @@
         ]
       },
       "inert": {
-        "buttons": 54,
+        "buttons": 55,
         "fields": 78,
         "choices": 13,
         "roles": 0,
@@ -1099,7 +1099,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "b389a104797b3e26"
+      "digest": "38abcb939592d544"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1150,12 +1150,12 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 0,
+        "notShown": 1,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c04ce2c70b19c864"
+      "digest": "57339baf17f461ad"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",

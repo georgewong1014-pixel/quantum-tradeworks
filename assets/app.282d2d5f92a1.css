@@ -3962,7 +3962,6 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   .search-clear { min-height: 44px; }
 }
 /* ---- end releaseB: search-recent ---- */
-<<<<<<<< HEAD:assets/app.ad57839b59b0.css
 
 /* ---- prerender ---- */
 /* THE SERVED PAGE BEFORE ITS SCRIPT HAS RUN (2026-10-03). Every static
@@ -4069,7 +4068,11 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    class sets the select's width (the Trading Index's 78px state pickers)
    its words ran on to three lines on a phone, the field 18px taller until
    the page was drawn. clip, not hidden: the span keeps its words' baseline. */
-#views[data-served] [data-inert="field"]:has(> [data-label]) { white-space: nowrap; overflow: clip; }
+#views[data-served] [data-inert="field"]:has(> [data-label]) { white-space: nowrap; overflow: clip; min-width: 0; }
+/* min-width 0: a select gives a grid track no minimum of its own, and its
+   choices' unseen lines did — /discover/sarawak's 1fr pickers at 1024px took
+   379px and 261px for 289px each (the longest company name), and the page
+   scrolled sideways by 7px (91px in Verdana) until it was drawn. */
 /* A textarea: textarea.input's box, and its rows (data-rows, --rows) as lines
    of its own line height — 8px of padding and 1px of border above and below. */
 #views[data-served] .input[data-rows] {
@@ -4165,7 +4168,6 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   .pubbar .pubnav { display: block; order: 3; flex: 1 0 100%; }
 }
 /* ---- end prerender ---- */
-========
 /* ---- property-proposal ---- */
 /* THE CLIENT PROPOSAL (72-property-proposal.js): the controls in a column
    beside the document, the document laid out as the A4 page it prints as.
@@ -4419,4 +4421,3 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   }
 }
 /* ---- end property-proposal ---- */
->>>>>>>> worktree-wf_430a1322-7ed-7:assets/app.cbcdff246e4b.css

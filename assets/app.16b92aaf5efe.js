@@ -33911,6 +33911,29 @@ function cpUrlHead(url) {
   try { const i = url.indexOf(','); return Uint8Array.from(atob(url.slice(i + 1, i + 17)), c => c.charCodeAt(0)); }
   catch { return new Uint8Array(0); }
 }
+/* Whether an image ends where its format says it does. A file cut short
+   past its header still loads as the part that came, and printed as a blank
+   box or half a logo under "Logo added". A PNG ends with its IEND chunk, a
+   JPEG with its end-of-image marker (FF D9, allowed a little trailing
+   padding), a WebP where its RIFF container's size says. head: the first 16
+   bytes; tail: the last 32; size: the whole in bytes. */
+const CP_PNG_END = [0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82];
+function cpWhole(kind, head, tail, size) {
+  if (kind === 'image/png') return tail.length >= 8 && CP_PNG_END.every((x, i) => tail[tail.length - 8 + i] === x);
+  if (kind === 'image/jpeg') { for (let i = tail.length - 2; i >= 0; i--) if (tail[i] === 0xff && tail[i + 1] === 0xd9) return true; return false; }
+  if (kind === 'image/webp') return head.length >= 8 && ((head[4] | head[5] << 8 | head[6] << 16 | head[7] << 24) >>> 0) + 8 <= size;
+  return false;
+}
+/* The last bytes a data URL holds, and its size in bytes. */
+function cpUrlTail(url) {
+  try {
+    const b64 = url.slice(url.indexOf(',') + 1), pad = (b64.match(/=*$/) || [''])[0].length;
+    const size = Math.floor(b64.length * 3 / 4) - pad;
+    const from = Math.max(0, b64.length - 44 - (b64.length % 4));
+    const bytes = Uint8Array.from(atob(b64.slice(from)), c => c.charCodeAt(0));
+    return { tail: bytes.slice(-32), size };
+  } catch { return { tail: new Uint8Array(0), size: 0 }; }
+}
 /* A size as a refusal states it: up to the next tenth of a kilobyte, so a
    file one byte over the cap is never called "200 KB" — "That image is 200
    KB. The logo can be at most 200 KB" refused a file in its own words. */
@@ -33925,7 +33948,10 @@ function cpLogoFault(v) {
     const b64 = v.length - v.indexOf(',') - 1;
     return `is ${cpKb(Math.floor(b64 * 3 / 4))}, over the 200 KB a logo can be`;
   }
-  if (!CP_LOGO_URL.test(v) || !cpSniff(cpUrlHead(v))) return 'is not a PNG, JPEG or WebP image';
+  const head = cpUrlHead(v), kind = CP_LOGO_URL.test(v) ? cpSniff(head) : null;
+  if (!kind) return 'is not a PNG, JPEG or WebP image';
+  const { tail, size } = cpUrlTail(v);
+  if (!cpWhole(kind, head, tail, size)) return `is a ${CP_LOGO_TYPES[kind]} image cut short — its end is missing, so it cannot print whole`;
   return null;
 }
 /* The restore's rule for the details (STORE_SHAPES, 00-core.js). A file
@@ -33979,6 +34005,11 @@ async function cpReadLogo(file) {
     const named = CP_LOGO_TYPES[file.type];
     return { ok: false, why: `That file is not a PNG, JPEG or WebP image${named ? ` — its name says ${named}, but what it holds is not one` : file.type ? ` (it is ${file.type})` : ''}, so it cannot be the logo.` };
   }
+  let tail;
+  try { tail = new Uint8Array(await file.slice(-32).arrayBuffer()); }
+  catch { return { ok: false, why: 'That file could not be read.' }; }
+  if (!cpWhole(kind, head, tail, file.size))
+    return { ok: false, why: `That file starts as a ${CP_LOGO_TYPES[kind]} image does, but its end is missing — it was cut short, so only part of the picture would print.` };
   if (file.size > CP_LOGO_MAX)
     return { ok: false, why: `That image is ${cpKb(file.size)}. The logo can be at most 200 KB — this browser keeps it with everything else you save here. An image about 600 pixels wide is plenty for print.` };
   const read = await new Promise((resolve) => {
