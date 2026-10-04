@@ -348,8 +348,15 @@ const healthTally = (k, of) => `${k.pass} of ${of} pass${k.degraded ? `, ${k.deg
 
 /* Redraws whichever parts are on the page, in place: the lists and the
    sentences that count them. The button and the headings are left alone, so
-   a reader's focus is not moved by a result arriving. */
+   a reader's focus is not moved by a result arriving — nor, since
+   2026-10-04, a reader's place: the journeys' record arriving put its rows
+   above a reader who had scrolled on, and the page moved 347px under them
+   (notePlace, 35-ui.js). */
 function healthPaint() {
+  const place = notePlace();
+  try { healthPaintNow(); } finally { keepPlace(place); }
+}
+function healthPaintNow() {
   const q = document.getElementById('health-quick');
   if (q) {
     q.replaceChildren(...HEALTH_QUICK.map(c => { const r = HEALTH.quick.get(c.id); return healthRow({ status: r?.status, title: c.title, detail: r ? r.detail : (c.waits ? 'Waiting for the files this check reads…' : 'Running…'), meta: r ? healthMs(r.ms) : null }); }));

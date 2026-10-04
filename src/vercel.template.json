@@ -7,7 +7,10 @@
     "the failure that would otherwise take the whole site down in production",
     "while every local check still passed. index.html is the one page with the",
     "script inline; every other page loads the same bytes from",
-    "assets/app.<hash>.js, which 'self' allows."
+    "assets/app.<hash>.js, which 'self' allows. The second hash names the",
+    "small script every page carries in its head (build.mjs, FIRST_SCRIPT),",
+    "which runs before the first paint: the theme kept, and whether the page",
+    "served is this reader's."
   ],
   "$comment-rewrites": [
     "One rewrite per route in ROUTES (src/js/35-ui.js), written by build.mjs in",
@@ -127,7 +130,7 @@
         { "key": "Cache-Control", "value": "no-cache" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' '@CSP_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },

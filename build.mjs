@@ -166,6 +166,8 @@ const STYLE_MARKER = '/*@INJECT:styles*/\n';
 const SCRIPT_MARKER = '//@INJECT:scripts\n';
 const VERSIONS_MARKER = '/*@INJECT:dataversions*/';
 const CSP_MARKER = '@CSP_HASH';
+/* The first-paint script's hash (BEFORE THE FIRST PAINT, below). */
+const CSP_FIRST_MARKER = '@CSP_FIRST_HASH';
 const REWRITES_MARKER = '@ROUTE_REWRITES';
 /* vercel.json's header sources for the two app files, filled in with their
    current names: each file's own rule, and the pages' rule, which must not
@@ -717,7 +719,7 @@ export function readRenders(scope) {
     const tabs = m.tabs ? (existsSync(join(ROOT, s.tabs)) ? read(s.tabs) : null) : null;
     if (m.tabs && tabs === null) { missing.push(`${s.file}: ${MANIFEST} says it has a tab row, and ${s.tabs} is not there`); continue; }
     if (m.digest !== renderDigest(views, tabs)) edited.push(`${s.render}${tabs !== null ? ` and ${s.tabs}` : ''} (${s.path}) are not what prerender.mjs wrote (${m.digest ? 'the digest in' : 'no digest in'} ${MANIFEST}) — a render is written only by node prerender.mjs`);
-    renders.set(s.file, { ...s, tabsFile: s.tabs, manifest: m, views, tabs });
+    renders.set(s.file, { ...s, tabsFile: s.tabs, manifest: m, views, tabs, drawn: manifest.drawn || null });
   }
   /* What is under prerender/ that no page in scope reads. */
   const want = new Set([MANIFEST, ...[...renders.values()].flatMap(r => [r.render, ...(r.tabs !== null ? [r.tabsFile] : [])])]);
@@ -740,11 +742,122 @@ export function withRender(html, r) {
   if (chrome !== 'public' && chrome !== 'app') throw new Error(`${r.file}: ${MANIFEST} gives its chrome as ${JSON.stringify(chrome)}`);
   /* data-served: the page before its script has run, which the script takes
      off as it starts (buildShell, 35-ui.js) — the stylesheet lays the page's
-     size containers out by the window until then (styles.css, prerender). */
-  put('<html lang="en">', `<html lang="en" data-chrome="${chrome}" data-served>`, 'the chrome');
+     size containers out by the window until then (styles.css, prerender).
+     data-served-reads: what the render's draw read, for the head's script
+     (BEFORE THE FIRST PAINT, below). */
+  put('<html lang="en">', servedHtmlTag(r), 'the chrome');
   if (r.tabs) put('<div class="ptabs-host" id="productTabs" hidden></div>', `<div class="ptabs-host" id="productTabs">${r.tabs}</div>`, 'the tab row');
   put('<div id="views"></div>', `<div id="views" data-served="${escAttr(r.path)}">${r.views}</div>`, 'the page');
   return html;
+}
+
+/* ─── BEFORE THE FIRST PAINT ──────────────────────────────────────────────────
+   (2026-10-04, the integration's final verification.) A served page is a
+   fresh visitor's, drawn in Kuala Lumpur, and it stood for every reader until
+   the app's script came down — after a deploy, seconds even for a returning
+   reader: "No properties saved yet" over their saved property, the sample
+   deal's figures on the calculator, "0 of 4 done" on their own dashboard,
+   totals in ringgit to a reader whose page is in dollars, and every page in
+   the light theme for one who chose the dark. Every page build.mjs writes
+   carries one small script in its head (FIRST_SCRIPT), which runs before the
+   first paint, the same bytes on every page so the CSP names it by one hash:
+   - it applies the theme this browser keeps, as applyTheme (95-boot.js)
+     does, so a dark choice never paints light;
+   - on a page with a render, where the render's draw read something this
+     reader holds otherwise, it marks the page data-served-hidden, and the
+     served #views is out of sight, out of the tab order and out of the
+     accessibility tree (styles.css, integration-final) — the page as it was
+     before pages were served — until the app draws the reader's own.
+   What the render read is on <html> as data-served-reads (servedReadsOf),
+   taken from its data-drawn-from (SERVED_READS, 35-ui.js — the one table,
+   for the pages that wait and those that do not): a name this browser keeps
+   with the render's digest of it, which the script holds to the app's own
+   digest of the reader's (servedReads, keepServedReads); the base currency
+   with the render's (defaultCcy, from the manifest's time zone and locale),
+   which the script holds to the reader's kept one or their own default; the
+   product whose Start here panel the render shows; and, on a page that waits
+   for the filings, the owner's machine. What the address says is left to the
+   app. A reader with no script, and a fresh visitor in Malaysia, get the
+   whole page as served. */
+/* The base currency of a browser that keeps none: ringgit where its time
+   zone or language is Malaysia's, dollars otherwise — State.baseCcy's rule
+   (05-plans.js), for the render's (servedReadsOf, which holds it to the
+   render's own digest) and for the head's script. */
+export function defaultCcy(tz, langs) {
+  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs) ? 'MYR' : 'USD';
+}
+/* servedHash (35-ui.js): FNV-1a, 32 bits — a digest that names a value. */
+export const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
+export const FIRST_SCRIPT = `(function () {
+var d = document.documentElement, s = null;
+try { s = window.localStorage; } catch (e) { s = null; }
+function raw(k) { try { return s ? s.getItem('vl.' + k) : null; } catch (e) { return null; } }
+function val(k) { try { return JSON.parse(raw(k)); } catch (e) { return null; } }
+var theme = val('theme');
+if (theme === 'dark' || theme === 'light') d.setAttribute('data-theme', theme);
+var reads = d.getAttribute('data-served-reads');
+if (!reads) return;
+function hash(t) { var h = 0x811c9dc5; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return ('0000000' + (h >>> 0).toString(16)).slice(-8); }
+var kept = val('servedReads'), own = kept && kept.v === 1 && kept.d && typeof kept.d === 'object' ? kept.d : {};
+var list = reads.split(' ');
+for (var i = 0; i < list.length; i++) {
+  var at = list[i].indexOf(':'), name = list[i].slice(0, at), was = list[i].slice(at + 1), mine;
+  if (name === 'ownerMachine') mine = !/^(localhost|127\\.0\\.0\\.1|\\[::1\\]|::1)$/.test(location.hostname);
+  else if (name === 'baseCcy') {
+    var c = val('baseCcy'), tz = '';
+    if (typeof c !== 'string') {
+      try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
+      c = (${defaultCcy})(tz, [navigator.language].concat(navigator.languages || []).join(' '));
+    }
+    mine = c === was;
+  } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
+  else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
+  if (!mine) { d.setAttribute('data-served-hidden', ''); return; }
+}
+})();`;
+export const FIRST_TAG = `<script data-first-paint>${FIRST_SCRIPT}</script>`;
+export const firstHash = () => 'sha256-' + createHash('sha256').update(FIRST_SCRIPT, 'utf8').digest('base64');
+/* Into the head, before anything that loads: straight after the viewport. */
+const FIRST_AFTER = '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n';
+export function withFirst(html) {
+  const n = html.split(FIRST_AFTER).length - 1;
+  if (n !== 1) throw new Error(`the page carries ${n} of the viewport tag the first-paint script follows, where the build puts it exactly once`);
+  return html.replace(FIRST_AFTER, () => `${FIRST_AFTER}${FIRST_TAG}\n`);
+}
+/* What a render's draw read, as the head's script reads it: from the render's
+   data-drawn-from, the names it keeps with their digests; the base currency
+   as the render's (held here to the render's own digest of it, so this rule
+   and the app's cannot part); the product whose Start here panel the render
+   shows (held likewise); the owner's machine, on a page that waits; and
+   nothing of the address (?tab=, ?saved=…), which the app reads. Null where
+   the render names nothing. */
+export function servedReadsOf(views, { waits, drawn, render = 'the render' }) {
+  const m = /^<section\b[^>]*\bdata-drawn-from="([^"]*)"/.exec(views);
+  if (!m) return null;
+  const panel = /<[a-z]+\b[^>]*\bclass="start-here(?: [^"]*)?"[^>]*\bdata-product="([a-z-]+)"/.exec(views)?.[1] || null;
+  const ccy = defaultCcy(drawn?.timeZone, drawn?.locale);
+  const out = [];
+  for (const pair of m[1].split(' ').filter(Boolean)) {
+    const at = pair.indexOf(':'), name = pair.slice(0, at), digest = pair.slice(at + 1);
+    if (name === 'discoverTab' || name.startsWith('?')) continue;
+    if (name === 'ownerMachine') { if (waits) out.push('ownerMachine:'); continue; }
+    if (name === 'baseCcy') {
+      if (digest !== servedHash(JSON.stringify(ccy))) throw new Error(`${render}: drawn in ${drawn?.timeZone} (${drawn?.locale}), its base currency is not ${ccy} — defaultCcy (build.mjs) and State.baseCcy (05-plans.js) part`);
+      out.push(`baseCcy:${ccy}`); continue;
+    }
+    if (name === 'startHere') {
+      if (digest !== servedHash(JSON.stringify(panel))) throw new Error(`${render}: its Start here panel is ${JSON.stringify(panel)}, where its draw read ${digest}`);
+      if (panel) out.push(`startHere:${panel}`);
+      continue;
+    }
+    out.push(pair);
+  }
+  return out.join(' ') || null;
+}
+/* The <html> a page with a render is served with. */
+export function servedHtmlTag(r) {
+  const reads = servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render });
+  return `<html lang="en" data-chrome="${r.manifest.chrome}" data-served${reads ? ` data-served-reads="${escAttr(reads)}"` : ''}>`;
 }
 
 /* ─── THE HEAD, REWRITTEN ────────────────────────────────────────────────────
@@ -884,9 +997,10 @@ export function build({ bare = false } = {}) {
     stems.set(s.render, s.file);
   }
   const rendered = bare ? { manifest: null, renders: new Map(), missing: [], edited: [], extra: [], unknown: [] } : readRenders(scope);
+  /* Every page carries the first-paint script (BEFORE THE FIRST PAINT). */
   const page = (head, file, opts) => {
     const r = rendered.renders.get(file);
-    const p = withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null));
+    const p = withFirst(withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null)));
     return r ? withRender(p, r) : p;
   };
   const rootHead = plan.pages.find(p => p.path === '/').head;
@@ -938,8 +1052,15 @@ export function build({ bare = false } = {}) {
      two files, and weigh what a page does, not what the app does. */
   const inline = inlineScript(html);
   const want = [`<link rel="stylesheet" href="/${files.styles.file}">`, `<script src="/${files.script.file}"></script>`];
+  /* Every page, index.html too, carries the first-paint script once, in its
+     head before anything it loads, the same bytes (BEFORE THE FIRST PAINT). */
+  for (const [file, page] of [['index.html', html], [NOT_FOUND, notFound], ...pages]) {
+    const at = page.indexOf(FIRST_TAG), head = page.indexOf('</head>');
+    const loads = Math.min(...['<style>', '<link rel="stylesheet"'].map(t => page.indexOf(t)).filter(i => i >= 0));
+    if (page.split(FIRST_TAG).length !== 2 || at < 0 || at > head || at > loads) throw new Error(`${file} does not carry the first-paint script once, in its head before what it loads`);
+  }
   for (const [file, page] of [[NOT_FOUND, notFound], ...pages]) {
-    const inlineLeft = (page.match(/<script(?![^>]*\bsrc=)[^>]*>|<style[\s>]/g) || []).length;
+    const inlineLeft = (page.replace(FIRST_TAG, '').match(/<script(?![^>]*\bsrc=)[^>]*>|<style[\s>]/g) || []).length;
     const loads = (page.match(/<script\b[^>]*\bsrc=|<link\b[^>]*\brel="stylesheet"/g) || []).length;
     if (inlineLeft) throw new Error(`${file} carries ${inlineLeft} inline <script> or <style>, which only index.html may`);
     if (loads !== 2 || !want.every(tag => page.split(tag).length === 2)) throw new Error(`${file} does not load exactly /${files.script.file} and /${files.styles.file}`);
@@ -964,7 +1085,8 @@ export function build({ bare = false } = {}) {
     : (v && typeof v === 'object'
         ? Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('$comment')).map(([k, x]) => [k, stripComments(x)]))
         : v);
-  const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash));
+  if (!cfgTemplate.includes(CSP_FIRST_MARKER)) throw new Error('vercel template lost its first-paint CSP marker');
+  const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash).replace(CSP_FIRST_MARKER, () => firstHash()));
   if (parsed.rewrites !== REWRITES_MARKER) throw new Error(`vercel template's "rewrites" must be "${REWRITES_MARKER}" — the build writes them from ROUTES`);
   parsed.rewrites = rewrites;
   /* The app files' header rules name the current files exactly, not a
@@ -1107,6 +1229,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
       console.log(`index.html, 404.html, ${routeFiles} route pages, the parameter routes' page, ${companiesSaid}, the app's two files and vercel.json match src/ and data/us.json (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
       console.log(`every page carries the navigation NAV_MARKUP draws; ${rendered.renders.size} of them (${scope.length} in scope) carry their committed render of the page in #views exactly, under prerender/.`);
       console.log(`every page but index.html loads /${files.script.file} and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}).`);
+      console.log(`every page, index.html too, carries the first-paint script once in its head before what it loads, named in the CSP (${firstHash().slice(0, 19)}…); ${[...rendered.renders.values()].filter(r => servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render })).length} pages with a render say on <html> what it read.`);
       console.log(`sitemap.xml lists only canonical addresses that are served their own page.`);
     } else {
       drift.forEach(d => console.error(d));

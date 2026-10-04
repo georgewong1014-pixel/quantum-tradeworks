@@ -751,6 +751,305 @@ try {
       if (said.length) { bad.push('a served page wider than its window'); console.log('FAIL served pages wider than their window'); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
       else console.log(`ok   served pages fit their window: all ${paths.length} rendered pages with the script off at 390 and 1024, and the ${fielded.size} with served fields in Verdana too — ${n} loads, none scrolling sideways`);
     }
+    /* ---- integration-final ---- */
+    /* THE INTEGRATION'S FINAL VERIFICATION (2026-10-04), held from the first
+       frame, each part failing on fe8d65f:
+       1. A SERVED PAGE THAT IS NOT THIS READER'S IS NEVER SHOWN TO THEM.
+          The script in every page's head (FIRST_SCRIPT, build.mjs) runs
+          before the first paint. With the app's script held — a returning
+          reader's cached copy is stale after every deploy — each frame is
+          recorded as it is painted:
+          - a returning reader whose browser holds their own saved property
+            and watchlist, kept by the app before this release (no digest
+            of them kept: servedReads) and after it: /property/models,
+            /property/calculator and /app are out of sight before the script
+            (no frame shows them, nothing in them takes focus, the heading is
+            out of the accessibility tree) and then drawn as the reader's —
+            the dashboard by way of the skeleton, as before pages were served;
+            a page that reads none of it (/about, the screener) is shown;
+          - a returning reader whose browser holds only what a first visit
+            gives it is shown /app and /research/queue as served;
+          - a reader in New York is not shown /compare, the screener or
+            /research/queue (their totals are in dollars) and is shown
+            /about and /pricing; one in New York whose language is en-MY,
+            and one in Kuala Lumpur, are shown /compare;
+          - a reader who chose the dark theme gets it from the first frame
+            (/about, /app): no frame is painted in the light one;
+          - a fresh visitor in Kuala Lumpur is shown every rendered page.
+       2. A READER WHO SCROLLED STAYS WHERE THEY WERE. A fresh visitor wheels
+          into the served page before the script runs; the words at the top
+          of their window do not move when the app draws or when its data
+          lands (/status, the calculator, the screener on a phone, /app,
+          /pricing), and the layout shift is at most 0.05.
+       3. The dashboard's heading is on screen through the wait for the
+          filings; to a reader with no script no action is offered that does
+          nothing ("Hide ×", "Reset", "Save this property", "New property");
+          the Sarawak screen's "none yet" keeps its words whole at 1280.
+       4. THE SERVED PAGE SHOWS WHAT THE DRAWN ONE DOES AT EVERY WIDTH. A
+          render leaves out what is hidden at 1280 (servedCopy), and a rule
+          that counts children (:last-child) then matched another: My
+          properties' served head lost "Updated" between 901 and 1322px. At
+          1024 and 1440, on every page whose render left something out, no
+          run of text is on the drawn page that the served page did not
+          show, nor the other way. */
+    {
+      const said = { first: [], scroll: [], minor: [], widths: [] };
+      const say = (k, ok, what, got) => { if (!ok) said[k].push(`${what}${got === undefined ? '' : ` — ${JSON.stringify(got).slice(0, 300)}`}`); };
+      const W1280 = { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }, W390 = { width: 390, height: 844, deviceScaleFactor: 1, mobile: true };
+      const size = async (m) => { await send('Emulation.setDeviceMetricsOverride', m, sid); await send('Emulation.setTouchEmulationEnabled', { enabled: !!m.mobile, maxTouchPoints: m.mobile ? 5 : 1 }, sid); };
+      const releaseData = async () => { holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = []; };
+      const SETTLED = `typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view && !document.getElementById('views').hasAttribute('data-served')`;
+      const openFree = async (path) => { await releaseAll(); await send('Page.navigate', { url: live + path }, sid); await quiet(SETTLED); };
+      const DUMP = `Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('vl.')).sort().map(k => [k.slice(3), localStorage.getItem(k)]))`;
+      /* Each frame as it is about to be painted: served or drawn, kept out of
+         sight or shown, the skeleton, and the page's background. */
+      const FRAMES = `(() => { const f = window.__fp = []; let last = '';
+        const tick = () => { const v = document.getElementById('views'), d = document.documentElement;
+          if (v && document.body) { const first = v.firstElementChild;
+            const k = [v.hasAttribute('data-served') ? 'served' : 'drawn', d.hasAttribute('data-served-hidden') ? 'hidden' : '',
+              v.hasAttribute('data-served') && first && getComputedStyle(first).display !== 'none' ? 'shown' : '',
+              v.textContent.includes(${JSON.stringify(P.SKELETON)}) ? 'skeleton' : '', getComputedStyle(document.body).backgroundColor].join('|');
+            if (k !== last) { f.push(k); last = k; } }
+          requestAnimationFrame(tick); };
+        requestAnimationFrame(tick); })();`;
+      const framesId = (await send('Page.addScriptToEvaluateOnNewDocument', { source: FRAMES }, sid)).result?.identifier;
+      await send('Accessibility.enable', {}, sid).catch(() => {});
+      const NOW = `(() => { const d = document.documentElement, v = document.getElementById('views'), first = v.firstElementChild;
+        const stops = [...v.querySelectorAll('a[href], [tabindex], summary, button, input, select, textarea')].filter(n => n.getClientRects().length).length;
+        return { hidden: d.hasAttribute('data-served-hidden'), shown: !!first && getComputedStyle(first).display !== 'none' && !!v.innerText.trim(), stops,
+          theme: d.getAttribute('data-theme'), bg: getComputedStyle(document.body).backgroundColor,
+          /* The heading's words on screen: not a screen reader's only, not held out of sight. */
+          h1: (() => { const h = v.querySelector('h1'); if (!h) return ''; let t = ''; const w = document.createTreeWalker(h, NodeFilter.SHOW_TEXT);
+            for (let n = w.nextNode(); n; n = w.nextNode()) { const e = n.parentElement; if (e.closest('.sr-only') || getComputedStyle(e).visibility !== 'visible' || !e.getClientRects().length) continue; t += n.data; }
+            return t.replace(/\\s+/g, ' ').trim(); })(),
+          script: typeof State !== 'undefined', served: v.hasAttribute('data-served'), skeleton: v.textContent.includes(${JSON.stringify(P.SKELETON)}) }; })()`;
+      /* Whether the served page's heading is in the accessibility tree. */
+      const headingIgnored = async () => {
+        const doc = await send('DOM.getDocument', { depth: 0 }, sid);
+        const q = await send('DOM.querySelector', { nodeId: doc.result?.root?.nodeId, selector: '#views h1' }, sid);
+        if (!q.result?.nodeId) return null;
+        const ax = await send('Accessibility.getPartialAXTree', { nodeId: q.result.nodeId, fetchRelatives: false }, sid);
+        const n = ax.result?.nodes?.[0];
+        return n ? !!n.ignored : null;
+      };
+      /* A page with the app's script held: what the first frames show, then
+         the script let through and what it draws, then the data. */
+      const heldVisit = async (path, { raw = null, metrics = W1280, data = true } = {}) => {
+        await size(metrics);
+        await firstVisit({ raw, script: true });
+        await send('Page.navigate', { url: live + path }, sid);
+        if (!await until(SERVED_PAINTED)) return { path, painted: false };
+        await painted();
+        const before = await value(NOW);
+        const ignored = before.hidden ? await headingIgnored() : null;
+        await releaseScript();
+        await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete'`);
+        await painted();
+        const script = await value(NOW);
+        if (data) { await releaseData(); await quiet(SETTLED); }
+        const after = await value(`({ ...${NOW}, frames: window.__fp || [], text: (${textOf})(document.getElementById('views')) })`);
+        return { path, painted: true, before, ignored, script, after, frames: after.frames };
+      };
+      try {
+        /* The returning reader's own: a saved property and a watchlist, by the
+           app's own hand, then left so the app keeps its digest of them. */
+        await size(W1280);
+        await firstVisit();
+        await openFree('/property/calculator');
+        await value(`(() => { newPropertyDeal({ show: false }); State.deal.price = 777000; markTouched(State.deal, 'price'); saveDeal(); saveActiveProperty({ name: 'Frames own property' });
+          const r = wlCreate('Frames own list'); if (r.ok) wlAdd(r.watchlist.id, 'MAYBANK'); return true; })()`);
+        await openFree('/about');
+        await send('Page.navigate', { url: `${live}/robots.txt` }, sid); await sleep(400);
+        const kept = await value(DUMP) || {};
+        const old = Object.fromEntries(Object.entries(kept).filter(([k]) => k !== 'servedReads'));
+        if (!kept.savedWork || !/Frames own property/.test(kept.savedWork)) say('first', false, 'the returning reader\'s saved property was not made', Object.keys(kept));
+        /* And a reader who holds only what a first visit gives. */
+        await firstVisit();
+        await openFree('/about');
+        await send('Page.navigate', { url: `${live}/robots.txt` }, sid); await sleep(400);
+        const firstOnly = await value(DUMP) || {};
+        const never = (r) => r.frames.some(k => /^served\|[^|]*\|shown/.test(k));
+        for (const [label, raw] of [['before this release (no digest kept)', old], ['since this release', kept]]) {
+          for (const metrics of [W1280, W390]) {
+            for (const path of ['/property/models', '/property/calculator', '/app']) {
+              const r = await heldVisit(path, { raw, metrics });
+              const at = `${path} at ${metrics.width}, a returning reader ${label}`;
+              if (!r.painted) { say('first', false, `${at}: the served page was not painted before the script`); continue; }
+              say('first', r.before.hidden && !r.before.shown && r.before.stops === 0, `${at}: the fresh visitor's page was on screen before the script (or took focus)`, r.before);
+              say('first', r.ignored !== false, `${at}: the served page's heading was in the accessibility tree while out of sight`);
+              say('first', !never(r), `${at}: a frame showed the served page`, r.frames);
+              say('first', !r.after.served && r.after.text !== read(pages.find(s => s.path === path).render).replace(/\n$/, '') && (path === '/app' ? !/0 of 4 done/.test(r.after.text) : /Frames own property/.test(r.after.text)),
+                `${at}: the page drawn is not the reader's own`, r.after.text.slice(0, 160));
+            }
+          }
+          /* A page that reads none of it is shown. */
+          for (const path of ['/about', '/discover/screener']) {
+            const r = await heldVisit(path, { raw, data: false });
+            say('first', r.painted && !r.before.hidden && r.before.shown, `${path}, a returning reader ${label}: a page that reads none of what they keep was kept out of sight`, r.before);
+          }
+        }
+        for (const path of ['/app', '/research/queue']) {
+          const r = await heldVisit(path, { raw: firstOnly, data: false });
+          say('first', r.painted && !r.before.hidden && r.before.shown && r.script.served && r.script.shown, `${path}, a reader holding only what a first visit gives: not shown as served, or not standing once the script ran`, { before: r.before, script: r.script });
+        }
+        /* Time zones and languages. */
+        const ua = (await send('Browser.getVersion', {})).result?.userAgent || '';
+        const zone = async (tz, lang) => {
+          await send('Emulation.setTimezoneOverride', { timezoneId: tz }, sid);
+          await send('Emulation.setUserAgentOverride', { userAgent: ua, acceptLanguage: lang }, sid);
+          await send('Emulation.setLocaleOverride', { locale: '' }, sid).catch(() => {});
+          await send('Emulation.setLocaleOverride', { locale: lang }, sid).catch(() => {});
+        };
+        try {
+          for (const [tz, lang, path, hide] of [['America/New_York', 'en-US', '/compare', true], ['America/New_York', 'en-US', '/discover/screener', true], ['America/New_York', 'en-US', '/research/queue', true],
+            ['America/New_York', 'en-US', '/about', false], ['America/New_York', 'en-US', '/pricing', false], ['Europe/London', 'en-GB', '/compare', true],
+            ['America/New_York', 'en-MY', '/compare', false], [P.ZONE, P.LOCALE, '/compare', false]]) {
+            await zone(tz, lang);
+            const r = await heldVisit(path, { data: false });
+            const lng = await value('navigator.language');
+            say('first', r.painted && r.before.hidden === hide && r.before.shown === !hide, `${path} to a fresh visitor in ${tz} (${lang}, navigator.language ${lng}): ${hide ? 'shown, in another currency than theirs' : 'kept out of sight'}`, r.before);
+            if (hide) say('first', !(r.script.served && r.script.shown) && !never(r), `${path} to a fresh visitor in ${tz}: the served page was shown, or stood once the script had run`, { script: r.script, frames: r.frames });
+          }
+        } finally { await zone(P.ZONE, P.LOCALE); }
+        /* The theme kept, from the first frame. */
+        for (const path of ['/about', '/app']) {
+          const r = await heldVisit(path, { raw: { theme: '"dark"' } });
+          const bgs = [...new Set(r.frames.map(k => k.split('|')[4]))];
+          say('first', r.painted && r.before.theme === 'dark' && r.before.bg === r.after.bg && bgs.length === 1, `${path}, the dark theme kept: a frame was painted in another background (${bgs.join(' then ')})`, r.before);
+        }
+        /* A fresh visitor in Kuala Lumpur: every rendered page, shown. */
+        const hiddenFresh = [];
+        for (const s of pages) {
+          if (s.file === 'index.html') continue;
+          await firstVisit({ script: true });
+          await send('Page.navigate', { url: live + s.path }, sid);
+          if (!await until(SERVED_PAINTED)) { hiddenFresh.push(`${s.path} (not painted)`); continue; }
+          const n = await value(NOW);
+          if (n.hidden || !n.shown) hiddenFresh.push(s.path);
+        }
+        say('first', !hiddenFresh.length, `a fresh visitor in Kuala Lumpur was not shown ${hiddenFresh.join(', ')}`);
+
+        /* 2. The scrolled reader. */
+        const ANCHOR = `(() => { const v = document.getElementById('views'), w = document.createTreeWalker(v, NodeFilter.SHOW_TEXT); const seen = new Map(); let best = null;
+          for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.data.replace(/\\s+/g, ' ').trim(); if (t.length < 6 || n.parentElement.closest('svg, [data-now]')) continue;
+            const k = seen.get(t) || 0; seen.set(t, k + 1); const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect();
+            if (b.height && b.top >= 100 && b.top < innerHeight - 60 && (!best || b.top < best.y)) best = { t, k, y: b.top }; }
+          return best; })()`;
+        const FIND = (a) => `(() => { const w = document.createTreeWalker(document.getElementById('views'), NodeFilter.SHOW_TEXT); let k = 0;
+          for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.data.replace(/\\s+/g, ' ').trim() !== ${JSON.stringify(a.t)} || k++ !== ${a.k}) continue;
+            const r = document.createRange(); r.selectNodeContents(n); return r.getBoundingClientRect().top; } return null; })()`;
+        for (const [path, metrics, at] of [['/status', W1280, 0.5], ['/status', W390, 0.5], ['/property/calculator', W1280, 0.5], ['/property/calculator', W390, 0.3],
+          ['/discover/screener', W390, 1618], ['/discover/screener', W1280, 0.5], ['/app', W1280, 0.6], ['/pricing', W390, 0.5], ['/research/queue', W1280, 0.5]]) {
+          await size(metrics);
+          await firstVisit({ script: true });
+          await send('Page.navigate', { url: live + path }, sid);
+          if (!await until(SERVED_PAINTED)) { say('scroll', false, `${path} at ${metrics.width}: the served page was not painted before the script`); continue; }
+          await painted();
+          const docH = await value('document.documentElement.scrollHeight');
+          const target = at < 1 ? Math.round((docH - metrics.height) * at) : at;
+          for (let i = 0; i < 60; i++) {
+            const y = await value('scrollY');
+            if (y >= target - 30) break;
+            await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: metrics.width / 2, y: 400, deltaX: 0, deltaY: Math.min(1200, target - y) }, sid);
+            await sleep(40);
+          }
+          await sleep(700);
+          const a = await value(ANCHOR);
+          if (!a) { say('scroll', false, `${path} at ${metrics.width}: no words at the top of the window to hold`); continue; }
+          await releaseScript();
+          await until(`typeof State !== 'undefined' && !!State.view`); await painted(); await sleep(300);
+          const y1 = await value(FIND(a));
+          await releaseData();
+          await quiet(`typeof realPending !== 'undefined' && !realPending`); await sleep(600);
+          const y2 = await value(FIND(a));
+          const cls = await value('window.__cls');
+          const moved = [y1, y2].map(y => (y == null ? null : Math.round(y - a.y)));
+          say('scroll', moved.every(m => m !== null && Math.abs(m) <= 4) && cls <= 0.05, `${path} at ${metrics.width}, scrolled to ${target}: "${a.t.slice(0, 50)}" at ${Math.round(a.y)}px moved ${moved.map(m => (m === null ? 'out of the page' : `${m > 0 ? '+' : ''}${m}px`)).join(' when drawn, then ')} when the data landed; layout shift ${Number(cls).toFixed(3)}`);
+        }
+        await size(W1280);
+
+        /* 3. The dashboard's heading through the wait. */
+        for (const metrics of [W1280, W390]) {
+          const r = await heldVisit('/app', { metrics, data: false });
+          say('minor', r.painted && !!r.before.h1 && !!r.script.h1 && r.script.served, `/app at ${metrics.width}: the served heading's words were not on screen (before the script: ${JSON.stringify(r.before?.h1)}; standing for the filings: ${JSON.stringify(r.script?.h1)})`);
+        }
+        await size(W1280);
+        /* "none yet", whole. */
+        await firstVisit();
+        await openFree('/discover/sarawak');
+        const broken = await value(`[...document.querySelectorAll('#views .card .row > span.metaline')].filter(s => s.textContent.trim() === 'none yet').map(s => { const r = document.createRange(); r.selectNodeContents(s); return r.getClientRects().length; })`);
+        say('minor', broken.length > 0 && broken.every(n => n === 1), `/discover/sarawak at 1280: "none yet" broken over lines in ${broken.filter(n => n !== 1).length} of ${broken.length} cards`);
+        /* With no script: no action that does nothing. */
+        {
+          const { result: { targetId: nid } } = await send('Target.createTarget', { url: 'about:blank' });
+          const nsid = (await send('Target.attachToTarget', { targetId: nid, flatten: true })).result.sessionId;
+          const nv = async (expression) => (await send('Runtime.evaluate', { expression, returnByValue: true }, nsid)).result?.result?.value;
+          await send('Page.enable', {}, nsid); await send('Runtime.enable', {}, nsid);
+          await send('Emulation.setScriptExecutionDisabled', { value: true }, nsid);
+          for (const metrics of [W1280, W390]) {
+            await send('Emulation.setDeviceMetricsOverride', metrics, nsid);
+            for (const path of ['/discover/screener', '/property/models', '/property/calculator', '/app/scanner', '/discover/sarawak']) {
+              await send('Page.navigate', { url: live + path }, nsid);
+              for (let i = 0; i < 60 && await nv('document.readyState') !== 'complete'; i++) await sleep(100);
+              await sleep(200);
+              const r = await nv(`(() => { const shown = (n) => n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+                const acts = [...document.querySelectorAll('#views [data-inert="button"], #productTabs [data-inert="button"]')].filter(shown)
+                  .map(n => n.textContent.replace(/\\s+/g, ' ').trim()).filter(t => /^(Hide|Reset|Save this property|New property)\\b/.test(t));
+                const marked = [...document.querySelectorAll('#views [data-act], #productTabs [data-act]')].filter(shown).map(n => n.textContent.trim().slice(0, 30));
+                const broken = path => [...document.querySelectorAll('#views .card .row > span.metaline')].filter(s => s.textContent.trim() === 'none yet').filter(s => { const r = document.createRange(); r.selectNodeContents(s); return r.getClientRects().length !== 1; }).length;
+                return { acts, marked, broken: broken(), scripted: typeof State !== 'undefined' }; })()`);
+              if (!r || r.scripted) { say('minor', false, `${path} at ${metrics.width} with no script: the script ran`); continue; }
+              say('minor', !r.acts.length && !r.marked.length, `${path} at ${metrics.width} with no script: actions that do nothing are offered`, [...new Set([...r.acts, ...r.marked])].slice(0, 6));
+              if (path === '/discover/sarawak' && metrics.width === 1280) say('minor', !r.broken, `/discover/sarawak at 1280 with no script: "none yet" broken over lines in ${r.broken} cards`);
+            }
+          }
+          await send('Target.closeTarget', { targetId: nid });
+        }
+
+        /* 4. At other widths than the render's. */
+        /* Each run of text on screen, counted: a word shown twice is two. */
+        const RUNS = `(() => { const out = {}; for (const r of [document.getElementById('productTabs'), document.getElementById('views')]) { if (!r || r.hidden) continue;
+          const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+          for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.data.replace(/\\s+/g, ' ').trim(); const e = n.parentElement;
+            if (!t || !e || e.closest('svg, [data-now], .sr-only, [data-inert="field"], [data-inert="choice"], [data-inert="range"], select, textarea, option')) continue;
+            const line = e.closest('p, li, h1, h2, h3, h4, h5, h6, td, th, dt, dd, label, summary'); if (line && line.querySelector('[data-now]')) continue;
+            const range = document.createRange(); range.selectNodeContents(n); const b = range.getBoundingClientRect(); if (!b.width || !b.height) continue;
+            const k = r.id + ': ' + t.slice(0, 50); out[k] = (out[k] || 0) + 1; } } return out; })()`;
+        for (const s of pages.filter(x => manifest.pages[x.file]?.inert?.notShown > 0)) {
+          const waits = manifest.pages[s.file].state === 'filings in';
+          for (const width of [1024, 1280, 1440]) {
+            await size({ width, height: 900, deviceScaleFactor: 1, mobile: false });
+            await firstVisit({ script: true });
+            await send('Page.navigate', { url: live + s.path }, sid);
+            if (!await until(SERVED_PAINTED)) { say('widths', false, `${s.path} at ${width}: the served page was not painted before the script`); continue; }
+            await painted();
+            const served = await value(RUNS) || {};
+            await releaseScript();
+            await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`);
+            if (waits) { await releaseData(); await quiet(SETTLED); }
+            const drawn = await value(RUNS) || {};
+            const appeared = Object.keys(drawn).filter(t => drawn[t] > (served[t] || 0)), went = Object.keys(served).filter(t => served[t] > (drawn[t] || 0));
+            say('widths', !appeared.length && !went.length, `${s.path} at ${width}: ${appeared.length ? `on the drawn page and not the served one: ${appeared.slice(0, 4).map(t => JSON.stringify(t)).join(', ')}` : ''}${appeared.length && went.length ? '; ' : ''}${went.length ? `on the served page and not the drawn one: ${went.slice(0, 4).map(t => JSON.stringify(t)).join(', ')}` : ''}`);
+          }
+        }
+        await size(W1280);
+      } catch (e) {
+        say('first', false, `the checks could not run: ${e.message}`);
+      } finally {
+        await releaseAll();
+        await size(W1280);
+        if (framesId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: framesId }, sid);
+      }
+      const parts = [['first', 'served pages to readers the render is not for: a returning reader\'s own (before this release and since), a reader in New York or London, the dark theme — never shown a fresh visitor\'s page or a light frame, kept out of sight and out of reach, then drawn as theirs; a reader holding only a first visit\'s samples, a reader whose language is Malaysian, and every fresh visitor in Kuala Lumpur shown the page as served'],
+        ['scroll', 'a reader who scrolled before the script stays where they were when the page is drawn and when its data lands (/status, the calculator, the screener, /app, /pricing, /research/queue; 1280 and 390), the layout shift at most 0.05'],
+        ['minor', 'the dashboard\'s heading on screen through the wait; no action that does nothing offered to a reader with no script; "none yet" whole on the Sarawak screen'],
+        ['widths', 'at 1024, 1280 and 1440, every page whose render left something out shows on its served page every run of text the drawn page shows, and no other']];
+      for (const [k, what] of parts) {
+        if (said[k].length) { bad.push(`integration-final: ${k}`); console.log(`FAIL ${what}`); said[k].slice(0, 30).forEach(x => console.log(`     ${x}`)); if (said[k].length > 30) console.log(`     … and ${said[k].length - 30} more`); }
+        else console.log(`ok   ${what}`);
+      }
+    }
+    /* ---- end integration-final ---- */
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });

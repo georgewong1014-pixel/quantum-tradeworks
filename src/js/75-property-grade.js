@@ -1447,7 +1447,9 @@ VIEWS.sarawak = () => {
     const card = el('div', { class: 'card' });
     card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
       el('h3', { class: 'h-card' }, t.label),
-      el('span', { class: 'metaline', style: 'margin-left:auto' },
+      /* Whole words, the heading taking the wrap: squeezed beside a long
+         heading at 1280, "none yet" broke as "non" over "e yet". */
+      el('span', { class: 'metaline', style: 'margin-left:auto;flex:none;white-space:nowrap' },
         n ? `${n} recorded` : 'none yet'),
     ]));
     card.append(el('p', { class: 'body', style: 'font-size:13px' }, t.note));

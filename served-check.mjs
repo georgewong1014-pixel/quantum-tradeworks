@@ -60,7 +60,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace } from './build.mjs';
+import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash } from './build.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -177,7 +178,9 @@ function withoutOwn(html, file) {
   const nav = NAV(rd ? rd.manifest.nav : null);
   let out = html;
   const take = (from, to) => { out = out.replace(from, () => to); };
-  if (rd) take(`<html lang="en" data-chrome="${rd.manifest.chrome}" data-served>`, '<html lang="en">');
+  /* With what its render read, for the head's script (build.mjs, BEFORE THE
+     FIRST PAINT; 2026-10-04). */
+  if (rd) take(servedHtmlTag(rd), '<html lang="en">');
   for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) take(open + nav[slot] + close, open + close);
   if (rd && rd.tabs !== null) take(`<div class="ptabs-host" id="productTabs">${rd.tabs}</div>`, '<div class="ptabs-host" id="productTabs" hidden></div>');
   if (rd) take(`<div id="views" data-served="${attrEsc(rd.path)}">${rd.views}</div>`, '<div id="views"></div>');
@@ -487,7 +490,9 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     const size = Buffer.byteLength(r.body, 'utf8');
     if (size > largest[1]) largest = [path, size];
     if (size > PAGE_LIMIT) p.push(`${path}: ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — the app is in it again`);
-    const inline = inlineScripts(r.body).length + (r.body.match(/<style[\s>]/g) || []).length;
+    /* But the first-paint script every page carries in its head (build.mjs,
+       BEFORE THE FIRST PAINT), held in group 13. */
+    const inline = inlineScripts(r.body).filter(code => code !== FIRST_SCRIPT).length + (r.body.match(/<style[\s>]/g) || []).length;
     if (inline) p.push(`${path}: carries ${inline} inline <script> or <style>, which only index.html may`);
     const srcs = scriptSrcs(r.body), css = stylesheets(r.body);
     if (srcs.length !== 1 || srcs[0] !== `/${APP.script.file}`) p.push(`${path}: loads the scripts ${JSON.stringify(srcs)}, not /${APP.script.file} alone`);
@@ -496,7 +501,8 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   }
   /* index.html is the app whole, as every tool that reads it expects. */
   const index = (await getAll(['/index.html'])).get('/index.html');
-  if (scriptSrcs(index.body).length || stylesheets(index.body).length || inlineScripts(index.body).length !== 1 || inlineScripts(index.body)[0] !== APP.script.body)
+  const indexInline = inlineScripts(index.body).filter(code => code !== FIRST_SCRIPT);
+  if (scriptSrcs(index.body).length || stylesheets(index.body).length || indexInline.length !== 1 || indexInline[0] !== APP.script.body)
     p.push(`/index.html: does not carry the app inline and alone (${inlineScripts(index.body).length} inline, loads ${JSON.stringify([...scriptSrcs(index.body), ...stylesheets(index.body)])})`);
   /* A name the build does not write, and the folder itself. */
   const gone = await getAll(['/assets/app.000000000000.js', '/assets/app.000000000000.css', '/assets/', '/assets']);
@@ -714,7 +720,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   const parts = (html) => {
     const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<!-- What a page says/.exec(html);
     const t = /<div class="ptabs-host" id="productTabs"( hidden)?>([\s\S]*?)<\/div>\n {2}<div id="views"/.exec(html);
-    const chrome = /^<!DOCTYPE html>\n<html lang="en"(?: data-chrome="([a-z]+)" data-served)?>/.exec(html);
+    const chrome = /^<!DOCTYPE html>\n<html lang="en"(?: data-chrome="([a-z]+)" data-served(?: data-served-reads="[^"]*")?)?>/.exec(html);
     const slots = Object.fromEntries(Object.entries(NAV_SLOTS).map(([k, [open, close]]) => {
       const i = html.indexOf(open), j = i < 0 ? -1 : html.indexOf(close, i + open.length);
       return [k, i < 0 || j < 0 ? null : html.slice(i + open.length, j)];
@@ -806,6 +812,57 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     'a page is not served its own content or its navigation');
 }
 /* ---- end prerender ---- */
+/* ---- integration-final ---- */
+/* 13. BEFORE THE FIRST PAINT (2026-10-04, the integration's final
+       verification). A served page is a fresh visitor's, drawn in Kuala
+       Lumpur; until the app's script came down — seconds, after a deploy —
+       a returning reader was shown it over their own work, a reader in New
+       York its ringgit, a reader who chose the dark theme its light one.
+       Every page now carries one script in its head (build.mjs, FIRST_SCRIPT)
+       that applies the theme kept and, where the render read what this
+       reader holds otherwise, keeps the served page out of sight until the
+       app draws theirs. Held here as served:
+       - every address that serves a page — each static route, company pages,
+         the parameter routes' page and the 404 page — carries it once, in its
+         head before anything it loads, the same bytes as build.mjs's, and its
+         Content-Security-Policy names its hash;
+       - every page with a render says on <html> exactly what its render read
+         (servedReadsOf), every other page says nothing, and what is said
+         names nothing the address carries. */
+{
+  const p = [];
+  const { renders } = readRenders(prerenderScope(routePlan(read('src/index.template.html'))));
+  const hash = ` '${firstHash()}' `;
+  const generic = params[0].replace(/:[A-Za-z]+/g, 'frames-check');
+  const paths = [...statics, '/company/aapl-apple-inc', '/company/1155-malayan-banking', generic, '/nope-for-served-check'];
+  const got = await getAll(paths);
+  let said = 0;
+  for (const path of paths) {
+    const r = got.get(path);
+    if (!r.status) { p.push(`${path}: ${described(r)}`); continue; }
+    const body = r.body, at = body.indexOf(FIRST_TAG), head = body.indexOf('</head>');
+    const loads = Math.min(...['<style>', '<link rel="stylesheet"'].map(t => body.indexOf(t)).filter(i => i >= 0));
+    if (body.split(FIRST_TAG).length !== 2) p.push(`${path}: carries the first-paint script ${body.split(FIRST_TAG).length - 1} times, not once`);
+    else if (at > head || at > loads) p.push(`${path}: its first-paint script is not in its head before what it loads`);
+    if (inlineScripts(body).filter(code => code === FIRST_SCRIPT).length !== 1) p.push(`${path}: no inline script is the first-paint script byte for byte`);
+    const csp = ` ${((r.headers.get('content-security-policy') || '').match(/(?:^|;)\s*script-src\s([^;]*)/) || [])[1] || ''} `;
+    if (!csp.includes(hash)) p.push(`${path}: its Content-Security-Policy does not name the first-paint script's hash`);
+    const tag = /<html\b[^>]*>/.exec(body)?.[0] || '';
+    const reads = /\bdata-served-reads="([^"]*)"/.exec(tag)?.[1] ?? null;
+    const rd = renders.get(path === '/' ? 'index.html' : FILE_OF.get(path));
+    const want = rd ? servedReadsOf(rd.views, { waits: rd.manifest.state === 'filings in', drawn: rd.drawn, render: rd.render }) : null;
+    if (reads !== want) p.push(`${path}: <html> says it read ${JSON.stringify(reads)}, where its render read ${JSON.stringify(want)}`);
+    if (reads) {
+      said++;
+      const names = reads.split(' ').map(x => x.slice(0, x.indexOf(':')));
+      const address = names.filter(n => n.startsWith('?') || n === 'discoverTab');
+      if (address.length) p.push(`${path}: <html> names what the address carries (${address.join(', ')})`);
+    }
+  }
+  judge(p, `${paths.length} addresses (every static route, company pages, the parameter routes' page and the 404) carry the first-paint script once in their head before what they load, the same bytes as build.mjs's, its hash in their Content-Security-Policy; the ${said} pages whose render read what a browser keeps say on <html> exactly what it read, and no other page says anything`,
+    'a page does not carry the first-paint script, or says other than what its render read');
+}
+/* ---- end integration-final ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

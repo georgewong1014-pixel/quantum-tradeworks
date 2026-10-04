@@ -10563,6 +10563,7 @@ try {
       registerActor: /name or initials you give the register log/, registerLog: /register records/, reportLog: /company reports you opened this month/,
       requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
       savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/, startHere: /Start here panels you have hidden/,
+      servedReads: /a digest of what the pages read/,
       scanPrefs: /scanner notification and display preferences/, scanSetups: /scanner setups with every version/, screen: /screener’s current filters/,
       screenCcy: /currency the Compare and screener pages total in/, sensAxes: /valuation sensitivity grid/, theme: /theme/, theses: /investment cases/,
       valuation: /valuation assumptions you edit/, watchlist: /watchlists/, watchlists: /watchlists/, wheelLegs: /Cash Wheel plan and its legs/,

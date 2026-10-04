@@ -2627,6 +2627,27 @@ const SERVED_READ = {
   /* From the address, beyond its path: the tab and the companies as the
      router took them, and a parameter a page reads for itself as it is. */
   discoverTab: () => State.discoverTab,
+  /* What the pages that do not wait read of what this browser keeps
+     (2026-10-04, below SERVED_READS). Each is named by the key it is kept
+     under, as every name above that this browser keeps is: the script in a
+     served page's head reads the key by its name (build.mjs, FIRST_SCRIPT). */
+  observations: () => State.observations,
+  areaProfiles: () => State.areaProfiles,
+  demand: () => State.demand,
+  borrowerProfile: () => State.borrower,
+  lang: () => State.lang,
+  propertyReportsBought: () => State.propertyReportsBought,
+  dealBeforeLink: () => !!store.read('dealBeforeLink', null),
+  registerActor: () => registerActor(),
+  registerLog: () => store.read('registerLog', []),
+  opportunities: () => State.opportunities,
+  qttiPlan: () => State.qtti,
+  wheelPlan: () => State.wheel,
+  wheelLegs: () => State.wheelLegs,
+  corrections: () => State.corrections,
+  launcherAnswers: () => State.launcher?.a ?? null,
+  rateUnitBuilt: () => State.rateUnits?.built ?? null,
+  rateUnitLand: () => State.rateUnits?.land ?? null,
 };
 /* A parameter of the address, as a page reads it ('?saved'). */
 const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1)) : SERVED_READ[name]());
@@ -2684,7 +2705,53 @@ const SERVED_READS = {
   scannerSettings: ['scanPrefs', 'scanSetups', 'startHere'],
   /* The operations pages read only the worker's files (ownerMachine). */
   scannerAdmin: [], scannerAdminData: [], scannerAdminJobs: [], scannerAdminDelivery: [],
+  /* THE PAGES THAT DO NOT WAIT (2026-10-04, the integration's final
+     verification). Their first draw replaces the served page the moment the
+     script runs, so nothing here held them — and until it ran, a returning
+     reader was served a fresh visitor's page: "No properties saved yet" over
+     their saved property, the sample deal's figures on the calculator. What
+     each one's draw reads of what this browser keeps, found by logging every
+     read a draw of each served page makes (State's fields, store.read and
+     localStorage itself), so that the script in the served page's head can
+     keep the page out of sight before the first paint where the reader's
+     differs (build.mjs, FIRST_SCRIPT). A name a page reads is enough: it
+     costs a reader only the served page while the script comes, and only
+     where they hold their own value for it. */
+  propertyModels: ['deal', 'dealBeforeLink', 'savedWork', 'startHere'],
+  property: ['deal', 'dealBeforeLink', 'savedWork', 'startHere', 'observations', 'areaProfiles', 'demand', 'borrowerProfile',
+    'lang', 'plan', 'propertyReportsBought'],
+  areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
+  comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
+  opportunities: ['opportunities', 'startHere'],
+  tradingIndex: ['qttiPlan', 'savedWork', 'startHere'],
+  wheel: ['wheelPlan', 'wheelLegs', 'savedWork', 'startHere'],
+  decisionRecord: ['deal', 'observations', 'qttiPlan', 'wheelPlan'],
+  learn: ['corrections'],
+  launcher: ['launcherAnswers', 'observations'],
+  howItWorks: ['deal'],
+  status: [],
 };
+/* What the page holds in memory of each name this browser keeps, where a
+   name's value is drawn from that copy rather than read from storage afresh
+   (keepServedReads, below): a digest is kept only while the copy is what
+   storage holds. A name not here is read from storage itself. */
+const SERVED_HELD = {
+  plan: () => State.plan, screenCcy: () => State.screenCcy, compareCcy: () => State.compareCcy, density: () => State.density,
+  reportLog: () => State.reportLog, onboarding: () => State.onboarding, dash: () => State.dash, watchlists: () => State.watchlists,
+  wlActive: () => State.watchlists?.[State.wlIdx]?.id ?? null, portfolios: () => State.portfolios, theses: () => State.theses,
+  priceAlerts: () => State.priceAlerts, recentCompanies: () => State.recentCompanies, compare: () => State.compare,
+  screen: () => State.screen, savedScreens: () => State.savedScreens, manualPrices: () => manualPrices, wht: () => State.wht,
+  sarawakExposure: () => State.sarawakExposure, deal: () => State.deal, observations: () => State.observations,
+  areaProfiles: () => State.areaProfiles, demand: () => State.demand, borrowerProfile: () => State.borrower, lang: () => State.lang,
+  propertyReportsBought: () => State.propertyReportsBought, opportunities: () => State.opportunities, qttiPlan: () => State.qtti,
+  wheelPlan: () => State.wheel, wheelLegs: () => State.wheelLegs, corrections: () => State.corrections,
+  launcherAnswers: () => State.launcher?.a, rateUnitBuilt: () => State.rateUnits?.built, rateUnitLand: () => State.rateUnits?.land,
+};
+/* Read by the head's script itself, not from a digest: whether this is the
+   owner's machine, the base currency (its default is the reader's time zone
+   and language), which Start here panels are hidden; and what the address
+   says, which is not kept at all. */
+const SERVED_NOT_KEPT = new Set(['ownerMachine', 'baseCcy', 'startHere', 'discoverTab']);
 /* FNV-1a, 32 bits: a digest that names a value, not a secret. */
 const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 /* What a draw of this view reads now, as "name:digest …"; null for a view
@@ -2704,6 +2771,63 @@ const servedIsReaders = () => {
   const said = viewRoot?.querySelector(':scope > section.view')?.getAttribute('data-drawn-from');
   return !!said && said === servedFrom();
 };
+
+/* WHOSE PAGE IT IS, BEFORE THE SCRIPT HAS COME (2026-10-04, the
+   integration's final verification). The served page is a fresh visitor's,
+   and it stood for every reader until the 3.5MB script had come down — after
+   a deploy, a returning reader's cached copy is stale, and that took seconds:
+   "No properties saved yet" over a saved property, the sample deal's figures
+   on the calculator, "0 of 4 done" on a dashboard of their own, prices in
+   ringgit to a reader whose page is in dollars, a page in the light theme
+   for a reader who chose the dark; and then the page drawn over it, or the
+   skeleton, and the focus lost. So each page build.mjs writes carries, in
+   its head, a small script (FIRST_SCRIPT, build.mjs) that runs before the
+   first paint. It applies the theme kept, as applyTheme does; and where the
+   served page reads something (data-served-reads on <html>: its render's
+   data-drawn-from, below) that this reader holds otherwise — what this
+   browser keeps, the currency their time zone gives them — it marks the page
+   (data-served-hidden), and the served #views is out of sight, out of the
+   tab order and out of the accessibility tree, as the page was before pages
+   were served, until the script draws this reader's. A reader with no
+   script, and a fresh visitor in Malaysia, have the whole page as served.
+   The script cannot run the app, so it reads what the app keeps for it: for
+   each name this browser keeps, a digest of the stored text and the name's
+   digest as servedFrom takes it (servedReads), kept while what the page holds
+   in memory is what storage holds (SERVED_HELD). A name kept and not in that
+   record, or kept otherwise since, is not a fresh visitor's: the page waits
+   for the script. */
+const SERVED_RECORD_VALUE = { realData: () => store.read('realData', true) };
+function keepServedReads() {
+  const prior = store.read('servedReads', null);
+  const was = prior && prior.v === 1 && isRecord(prior.d) ? prior.d : {};
+  const d = {};
+  for (const name of Object.keys(SERVED_READ)) {
+    if (SERVED_NOT_KEPT.has(name) || name === 'ownerMachine') continue;
+    let raw;
+    try { raw = localStorage.getItem(STORE_PREFIX + name); } catch { return; }
+    if (raw === null) continue;
+    const h = servedHash(raw);
+    let mirrors = true;
+    try { if (SERVED_HELD[name]) mirrors = JSON.stringify(SERVED_HELD[name]() ?? null) === raw; } catch { mirrors = false; }
+    if (mirrors) {
+      try { d[name] = [h, servedHash(JSON.stringify((SERVED_RECORD_VALUE[name] || SERVED_READ[name])() ?? null))]; continue; }
+      catch { /* not readable now: as below */ }
+    }
+    if (Array.isArray(was[name]) && was[name][0] === h) d[name] = was[name];
+  }
+  const next = Object.keys(d).length ? JSON.stringify({ v: 1, d }) : null;
+  if (next === (prior ? JSON.stringify(prior) : null)) return;
+  /* Refused, the next served page waits for the script: nothing worse. */
+  if (next) store.write('servedReads', { v: 1, d });
+  else try { localStorage.removeItem(STORE_PREFIX + 'servedReads'); } catch { /* as refused */ }
+}
+let servedReadsTimer = 0;
+const keepServedReadsSoon = () => { clearTimeout(servedReadsTimer); servedReadsTimer = setTimeout(keepServedReads, 400); };
+addEventListener('pagehide', () => { clearTimeout(servedReadsTimer); keepServedReads(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { clearTimeout(servedReadsTimer); keepServedReads(); } });
+/* The served page, kept out of sight by the head's script, shown: it is
+   this reader's after all (a page that waits, standing for the filings). */
+const servedShown = () => document.documentElement.removeAttribute('data-served-hidden');
 
 /* THE CONTROL IN USE SURVIVES A REDRAW OF ITS OWN PAGE.
    ---------------------------------------------------------------------------
@@ -2944,6 +3068,59 @@ function stayPut(h, n) {
      frame after a redraw, and following them crept a control 1px a redraw. */
   if (Math.abs(moved) > 2) window.scrollBy({ top: moved, behavior: 'instant' });
 }
+/* THE READER'S PLACE STAYS WHERE IT WAS (2026-10-04, the integration's
+   final verification). stayPut holds the control in use; a reader who had
+   only scrolled was held by nothing. The browser's scroll anchoring keeps
+   what is on screen still while something above it grows — but not across
+   a redraw, which replaces the very node it was holding, and not after one,
+   until the reader scrolls again. So a reader who scrolled the served page
+   while the script came was moved by what the page drew above them: /status
+   by 347px at 1280 and 507px on a phone when the journeys' record arrived,
+   the calculator by 415px when the locality map came, the screener on a
+   phone by 155px when the filings did. The words at the top of the window
+   are noted before such a change — by what they say and which of the
+   page's runs saying it they are — and where they are drawn again the
+   window is scrolled by what they moved. */
+function notePlace() {
+  if (!viewRoot || scrollY < 1) return null;
+  const head = Math.max(0, ...['#pubbar', '#appbar'].map(s => document.querySelector(s)).filter(Boolean)
+    .map(n => n.getBoundingClientRect()).filter(r => r.height && r.top <= 0 + 1).map(r => r.bottom));
+  const box = viewRoot.getBoundingClientRect();
+  /* Not in a box that sticks to the window (the calculator's strip of
+     sections): it does not move with the page, so holding it holds nothing. */
+  const stuck = (n) => { for (let e = n; e && e !== viewRoot; e = e.parentElement) if (/^(sticky|fixed)$/.test(getComputedStyle(e).position)) return true; return false; };
+  let found = null;
+  for (let y = head + 8; y < innerHeight * 0.6 && !found; y += 24) {
+    for (const f of [0.5, 0.3, 0.7, 0.15]) {
+      const at = document.elementFromPoint(box.left + box.width * f, y);
+      if (!at || !viewRoot.contains(at) || stuck(at)) continue;
+      const w = document.createTreeWalker(at, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const t = n.data.replace(/\s+/g, ' ').trim();
+        if (t.length < 3 || n.parentElement?.closest('svg, [data-now]')) continue;
+        const r = document.createRange(); r.selectNodeContents(n);
+        const b = r.getBoundingClientRect();
+        if (b.height && b.bottom > head && b.top < innerHeight) { found = { node: n, t, top: b.top }; break; }
+      }
+      if (found) break;
+    }
+  }
+  if (!found) return null;
+  let nth = 0;
+  const w = document.createTreeWalker(viewRoot, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n && n !== found.node; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === found.t) nth++;
+  return { t: found.t, nth, top: found.top };
+}
+function keepPlace(p) {
+  if (!p || !viewRoot) return;
+  let nth = 0, n;
+  const w = document.createTreeWalker(viewRoot, NodeFilter.SHOW_TEXT);
+  for (n = w.nextNode(); n; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === p.t && nth++ === p.nth) break;
+  if (!n) return;
+  const r = document.createRange(); r.selectNodeContents(n);
+  const moved = r.getBoundingClientRect().top - p.top;
+  if (Math.abs(moved) > 2) window.scrollBy({ top: moved, behavior: 'instant' });
+}
 /* The scrollers round the control, as far along as they were (see scrolled). */
 function scrollBack(h, n) {
   for (const [up, left, top] of h.scrolled) {
@@ -2989,15 +3166,30 @@ function render() {
      who had Tabbed into the page before the script ran, lost focus to
      <body> when the app drew the same page in its place, and the next Tab
      started again from the top. */
-  const note = !focusNote && (samePage || overServedPage()) ? (focusNote = noteFocusForRedraw()) : null;
+  const outer = !focusNote && !placeNote;
+  const note = outer && (samePage || overServedPage()) ? (focusNote = noteFocusForRedraw()) : null;
+  /* And the reader's place, where no control in use on screen holds it
+     (notePlace): put back after the focus is, the page's own microtasks
+     drawn. Where one task redraws twice, the first note stands. */
+  const place = outer && (samePage || overServedPage()) && !(note && note.top !== null) ? (placeNote = notePlace()) : null;
+  const was = document.activeElement;
   /* Handed back once the page is drawn — AFTER the microtasks the page's
      views queued as they drew. The valuation tab draws its three charts in
      microtasks (50-views-studio.js); handed back before them, a control
      below the charts was focused while their boxes were still empty, and
      scroll anchoring held it where the empty boxes had put it. */
-  try { drawPage(samePage); }
-  finally { if (note) queueMicrotask(() => { focusNote = null; giveFocusBack(note); }); }
+  try { drawPage(samePage); keepServedReadsSoon(); }
+  finally {
+    if (note || place) queueMicrotask(() => {
+      /* A caller that moved focus once the page was drawn — to the page's
+         heading, a new record — has put the reader where it meant to. */
+      const at = document.activeElement, callerMoved = !!at && at !== document.body && at !== was;
+      if (note) { focusNote = null; giveFocusBack(note); }
+      if (place) { placeNote = null; if (!callerMoved) keepPlace(place); }
+    });
+  }
 }
+let placeNote = null;
 function drawPage(samePage) {
   /* Whether the company page's ticker strip is stuck, read before the page
      it is on is replaced — see the strip, below. */
@@ -3017,17 +3209,23 @@ function drawPage(samePage) {
      to another address draws that page as usual. It stands only while it is
      this reader's page: while what their draw would read is what the
      render's read (SERVED_READS, servedIsReaders). */
-  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view) && servedIsReaders()) { servedWaiting(true); return; }
+  /* Kept out of sight by the head's script (FIRST_SCRIPT, build.mjs) and
+     this reader's after all: shown, standing. */
+  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view) && servedIsReaders()) { servedShown(); servedWaiting(true); return; }
   /* The served page is replaced here, whether it stood or not (servedAt):
      not an entrance either way. */
   const served = overServedPage();
   servedAt = null;
   servedWaiting(false);
   if (viewRoot.hasAttribute('data-served')) viewRoot.removeAttribute('data-served');
+  servedShown();
   renderProductTabs();
   /* What the page is drawn from, read before it draws: a view may keep
-     something as it draws (the dashboard notes the visit). */
-  const drawnFrom = !realPending && UNIVERSE_VIEWS.has(State.view) ? servedFrom() : null;
+     something as it draws (the dashboard notes the visit). A page that does
+     not wait says it too (2026-10-04): its render's is what the head's script
+     holds a reader to (FIRST_SCRIPT, build.mjs). */
+  const waits = UNIVERSE_VIEWS.has(State.view);
+  const drawnFrom = waits ? (!realPending ? servedFrom() : null) : servedFrom();
   const node = (realPending && UNIVERSE_VIEWS.has(State.view))
     ? bootSkeleton()
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));

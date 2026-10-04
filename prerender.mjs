@@ -447,6 +447,17 @@ export function servedCopy(live, counts = {}) {
       const s = span(c);
       s.setAttribute('data-inert', 'button');
       if (o.getAttribute('aria-pressed') === 'true' || o.getAttribute('aria-selected') === 'true') s.setAttribute('data-on', '');
+      /* AN ACTION, NOT A CHOICE (2026-10-04, the integration's final
+         verification). A button that is one of a set of choices — pressed or
+         not, a tab, one of a segmented group — says which is chosen, and its
+         words are worth reading with no script. One that only does something
+         ("Hide ×", "Reset", "Save this property", "New property") read to a
+         reader with no script as an action that did nothing: marked here, it
+         is not shown to them (styles.css, integration-final). */
+      const choice = ['aria-pressed', 'aria-selected', 'aria-checked'].some(k => o.hasAttribute(k))
+        || /^(tab|radio|switch|checkbox|option|menuitemradio|menuitemcheckbox)$/.test(o.getAttribute('role') || '')
+        || !!o.parentElement?.matches('.segmented, .subnav, [role="tablist"], [role="radiogroup"], [role="group"], [role="toolbar"]');
+      if (!choice) s.setAttribute('data-act', '');
       s.append(...c.childNodes); c.replaceWith(s); add('buttons'); continue;
     }
     /* NOTHING MEASURED (2026-10-04). A select is as wide as its widest

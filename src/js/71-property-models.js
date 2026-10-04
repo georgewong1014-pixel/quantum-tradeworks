@@ -933,7 +933,7 @@ VIEWS.propertyModels = () => {
   ])));
   const ul = el('ul', { class: 'pm-list', 'aria-label': 'Saved properties' });
   ul.append(el('li', { class: 'pm-row pm-head', 'aria-hidden': 'true' }, [el('span', {}, 'Property'), el('span', {}, 'Price'),
-    el('span', {}, 'Monthly position'), el('span', {}, 'Updated'), el('span', {}, '')]));
+    el('span', {}, 'Monthly position'), el('span', {}, 'Updated'), el('span', { class: 'pm-head-acts' }, '')]));
   props.forEach((rec, idx) => {
     const d = pmInputsOf(rec), f = pmRowFigures(d);
     const onCalc = st.rec?.id === rec.id;

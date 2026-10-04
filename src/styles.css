@@ -4416,7 +4416,42 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
     .pm-saved .pm-list { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
     .pm-saved .pm-row { row-gap: var(--sm); }
     .pm-saved .pm-acts-row { grid-column: 1 / -1; justify-content: flex-start; }
-    .pm-saved .pm-head > :last-child { display: none; }
+    /* The actions' empty head cell, by its class: the served page leaves
+       out what this hides at the render's width, and ":last-child" then
+       hid "Updated" (the integration's final verification, 2026-10-04). */
+    .pm-saved .pm-head > .pm-head-acts { display: none; }
   }
 }
 /* ---- end property-proposal ---- */
+/* ---- integration-final ---- */
+/* THE SERVED PAGE THAT IS NOT THIS READER'S (2026-10-04). Marked before the
+   first paint by the script in the page's head (FIRST_SCRIPT, build.mjs;
+   keepServedReads, 35-ui.js), the served page is out of sight, out of the
+   tab order and out of the accessibility tree — the page as it was before
+   pages were served, its header, tab row and footer in place — until the
+   app draws the reader's own. A screen tall, as the skeleton is, so the
+   footer waits below the fold and does not move when the page comes. */
+:root[data-served-hidden] #views[data-served] > * { display: none !important; }
+:root[data-served-hidden] #views[data-served] { min-height: 100vh; }
+
+/* A HEADING'S WORDS OF NOW, FROM THE FIRST PAINT (2026-10-04). What is the
+   tab's own (data-now, 35-ui.js) is held out of sight while the script that
+   draws it is coming — and the dashboard's heading is "Welcome", the
+   reader's greeting once drawn: a fresh visitor read no heading at all for
+   the whole wait for the filings, about six seconds on a slow line, and a
+   screen reader only "My Dashboard:". A heading shows the words any reader
+   may be told there; and once the script has run and the page stands for
+   the filings (#views busy, servedWaiting), so does every such line. */
+@media (scripting: enabled) {
+  #views[data-served] :is(h1, h2, h3) [data-now], #views[data-served][aria-busy="true"] [data-now] { visibility: visible; }
+}
+
+/* AN ACTION THAT DOES NOTHING IS NOT OFFERED (2026-10-04). With no script a
+   control made inert is shown as its words; a choice's words say what is
+   chosen, but an action's — "Hide ×", "Reset", "Save this property", "New
+   property" — offered something that was not there. Marked data-act by
+   prerender.mjs (servedCopy), an action is not shown to such a reader. */
+@media (scripting: none) {
+  #views [data-inert="button"][data-act], #productTabs [data-inert="button"][data-act] { display: none !important; }
+}
+/* ---- end integration-final ---- */

@@ -3,6 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script data-first-paint>(function () {
+var d = document.documentElement, s = null;
+try { s = window.localStorage; } catch (e) { s = null; }
+function raw(k) { try { return s ? s.getItem('vl.' + k) : null; } catch (e) { return null; } }
+function val(k) { try { return JSON.parse(raw(k)); } catch (e) { return null; } }
+var theme = val('theme');
+if (theme === 'dark' || theme === 'light') d.setAttribute('data-theme', theme);
+var reads = d.getAttribute('data-served-reads');
+if (!reads) return;
+function hash(t) { var h = 0x811c9dc5; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return ('0000000' + (h >>> 0).toString(16)).slice(-8); }
+var kept = val('servedReads'), own = kept && kept.v === 1 && kept.d && typeof kept.d === 'object' ? kept.d : {};
+var list = reads.split(' ');
+for (var i = 0; i < list.length; i++) {
+  var at = list[i].indexOf(':'), name = list[i].slice(0, at), was = list[i].slice(at + 1), mine;
+  if (name === 'ownerMachine') mine = !/^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
+  else if (name === 'baseCcy') {
+    var c = val('baseCcy'), tz = '';
+    if (typeof c !== 'string') {
+      try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
+      c = (function defaultCcy(tz, langs) {
+  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs) ? 'MYR' : 'USD';
+})(tz, [navigator.language].concat(navigator.languages || []).join(' '));
+    }
+    mine = c === was;
+  } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
+  else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
+  if (!mine) { d.setAttribute('data-served-hidden', ''); return; }
+}
+})();</script>
 <!-- These are the '/' route's title, description and canonical, for
      index.html. Every other page build.mjs writes (pages/*.html, the company
      pages and 404.html) carries its own, as the router sets them on that
@@ -34,7 +63,7 @@
      at 16px they turn to mush, and the ring plus tail is what reads. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.282d2d5f92a1.css">
+<link rel="stylesheet" href="/assets/app.2dcf15fa46f8.css">
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
   stood here, and Web Analytics was never switched on for the deployment, so
@@ -225,7 +254,7 @@
        carry the app's own render of that page (prerender/, prerender.mjs),
        which the script replaces with the same page drawn live. -->
   <div class="ptabs-host" id="productTabs" hidden></div>
-  <div id="views" data-served="/welcome"><section class="view" data-active="1" data-redrawn="1"><div class="shell"><div class="ob-wrap"><div class="ob-steps" role="progressbar" aria-valuemin="1" aria-valuemax="4" aria-valuenow="1" aria-label="Step 1 of 4"><div class="ob-dot" data-done="1"></div><div class="ob-dot" data-done="0"></div><div class="ob-dot" data-done="0"></div><div class="ob-dot" data-done="0"></div></div><p class="eyebrow">Step 1 of 4</p><h1 class="h-display" style="font-size:24px;margin:4px 0 6px">What would you like Quantum Tradeworks to help you with?</h1><p class="body">This decides where you land at the end, and nothing else.</p><div class="ob-options"><span class="ob-option" data-inert="button"><div class="ob-option-t">Research Bursa companies</div><div class="ob-option-n">Malaysian listed companies</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Research US companies</div><div class="ob-option-n">Filed with the SEC, audited annual statements</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Monitor my existing portfolio</div><div class="ob-option-n">Track what you already hold</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Analyse a property</div><div class="ob-option-n">Model a purchase to its monthly cash flow</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Learn investment fundamentals</div><div class="ob-option-n">Start with how the measures work</div></span></div><div class="row ob-foot" style="gap:10px;margin-top:var(--xl)"><span class="spacer"></span><span class="btn btn-quiet btn-sm" data-inert="button">Skip — take me to the app</span></div></div></div></section></div>
+  <div id="views" data-served="/welcome"><section class="view" data-active="1" data-redrawn="1"><div class="shell"><div class="ob-wrap"><div class="ob-steps" role="progressbar" aria-valuemin="1" aria-valuemax="4" aria-valuenow="1" aria-label="Step 1 of 4"><div class="ob-dot" data-done="1"></div><div class="ob-dot" data-done="0"></div><div class="ob-dot" data-done="0"></div><div class="ob-dot" data-done="0"></div></div><p class="eyebrow">Step 1 of 4</p><h1 class="h-display" style="font-size:24px;margin:4px 0 6px">What would you like Quantum Tradeworks to help you with?</h1><p class="body">This decides where you land at the end, and nothing else.</p><div class="ob-options"><span class="ob-option" data-inert="button"><div class="ob-option-t">Research Bursa companies</div><div class="ob-option-n">Malaysian listed companies</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Research US companies</div><div class="ob-option-n">Filed with the SEC, audited annual statements</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Monitor my existing portfolio</div><div class="ob-option-n">Track what you already hold</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Analyse a property</div><div class="ob-option-n">Model a purchase to its monthly cash flow</div></span><span class="ob-option" data-inert="button"><div class="ob-option-t">Learn investment fundamentals</div><div class="ob-option-n">Start with how the measures work</div></span></div><div class="row ob-foot" style="gap:10px;margin-top:var(--xl)"><span class="spacer"></span><span class="btn btn-quiet btn-sm" data-inert="button" data-act="">Skip — take me to the app</span></div></div></div></section></div>
   <!-- What a page says about a change the reader made, for a screen reader:
        a page is redrawn whole, and a live region drawn with it is a new
        node, which is not announced. This one stays put (the screener's
@@ -372,6 +401,6 @@
 <div class="viztip" id="viztip" role="status" aria-live="polite"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="/assets/app.4a829c86f35e.js"></script>
+<script src="/assets/app.ad2c3691f10d.js"></script>
 </body>
 </html>

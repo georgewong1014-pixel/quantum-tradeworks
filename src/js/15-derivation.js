@@ -282,6 +282,9 @@ function backupPayload() {
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (!k || !k.startsWith(STORE_PREFIX)) continue;
+    /* Not the reader's: digests of the rest, made again from them by the
+       page (servedReads, 35-ui.js). */
+    if (k === `${STORE_PREFIX}servedReads`) continue;
     try { data[k.slice(STORE_PREFIX.length)] = JSON.parse(localStorage.getItem(k)); }
     catch { /* a value this app did not write; skipped rather than corrupted */ }
   }
