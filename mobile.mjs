@@ -2416,7 +2416,8 @@ for (const w of [360, 390]) {
        five knobs: the slider and all seven results on the screen, and none
        of them moved by the first tick of a drag (the first tick added a
        what-if line and a 44px "Back to…" line, and every result jumped 75px
-       under the thumb);
+       under the thumb), with the scroll unanchored as in Safari (a line
+       added above the sliders moved them 43px, 7072826);
      - at 390, saving B as a scenario or the property leaves the keyboard in
        the panel and the page where it was (focus fell to <body>, and the
        page jumped 1,670px);
@@ -2461,6 +2462,9 @@ for (const w of [360, 390]) {
       if (view !== 'propertyLab') { fails.push(`360×640: /property/lab opened ${view}`); break; }
       const r = await ev(`(async () => {
         document.documentElement.style.scrollBehavior = 'auto';
+        /* As Safari, which anchors no scroll: Chrome's anchoring hid a line
+           added above the sliders at the first tick (43px at 360). */
+        document.documentElement.style.overflowAnchor = 'none'; document.body.style.overflowAnchor = 'none';
         const radio = document.getElementById('lab-in-${k}');
         if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await ${frames}; }
         const bar = [...document.querySelectorAll('.appbar, .topbar')].filter(n => n.getClientRects().length && getComputedStyle(n).position !== 'static').map(n => n.getBoundingClientRect().bottom);

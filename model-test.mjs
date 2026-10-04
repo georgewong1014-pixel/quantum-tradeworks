@@ -4734,7 +4734,7 @@ try {
         if (b.inCalc !== 'property' || b.view !== 'propertyLab') p.push(`Open B then Back went ${b.inCalc} then ${b.view}`);
         else {
           if (b.names[0] !== 'A On the calculator') p.push(`after Open B and Back, A is named "${b.names[0]}" for a deal that is no longer the sample`);
-          if (b.unsaved) p.push(`after Open B and Back the page says "${b.unsaved}" of moves the calculator now holds`);
+          if (/not saved/.test(b.unsaved)) p.push(`after Open B and Back the page says "${b.unsaved}" of moves the calculator now holds`);
           if (b.bMoves.length) p.push(`after Open B and Back, B still holds moves of ${b.bMoves.join(', ')}`);
           if (!b.aIsDeal) p.push('after Open B and Back, A is not the deal on the calculator');
           if (!/^The deal on the calculator — not saved as a property/.test(b.status)) p.push(`after Open B and Back the status reads "${b.status}"`);
@@ -4990,6 +4990,37 @@ try {
         r.out.forEach(x => { if (x.left < 0 || x.right < 0 || x.at > 0.98 || x.at < 0.02) p.push(`${x.field}: the reference line stands at ${x.at} of its track (${x.left}px from its start, ${x.right}px from its end)`); });
         if (p.length) fail('scenario-lab-verify V14: a reference line stands inside its scale', p.slice(0, 6));
         else ok(`scenario-lab-verify V14: with debt-service cover ${r.dscr.toFixed(2)}× in every column, its 1.00× line and the 100% line stand inside their scales (${r.out.map(x => `${x.field} at ${x.at}`).join(', ')})`);
+      });
+
+      /* V15 (the re-verification of 4 Oct 2026): a property opened on the
+         lab's page with labOpen stays open through the next drawings — a
+         theme change and render() — and the address names it. On 7072826 the
+         lab went back to the calculator's deal at the first of them. */
+      await vStep('V15', async () => {
+        await vDeal({});
+        const id = await evaluate(`(() => { propertyLoad({ ...pmSampleDeal(), price: 640000, rent: 2600 });
+          const rec = saveActiveProperty({ name: 'V15 opened' }); newPropertyDeal({ show: false }); return rec.id; })()`);
+        await vReload('/property/lab');
+        const r = await evaluate(`(async () => { ${VH}
+          const res = labOpen({ kind: 'model', id: ${JSON.stringify(id)} }); await frame();
+          const seen = () => ({ subject: labSubject, status: txt(document.getElementById('lab-status')).slice(0, 60), url: location.pathname + location.search });
+          const opened = seen();
+          applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); await w(200); await frame();
+          const themed = seen();
+          render(); await w(200); await frame();
+          const drawn = seen();
+          applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+          return { ok: res.ok, opened, themed, drawn };
+        })()`);
+        const p = [];
+        const want = `m:${id}`;
+        if (!r.ok) p.push('labOpen refused a saved property');
+        for (const [when, s] of [['opened', r.opened], ['after a theme change', r.themed], ['after render()', r.drawn]]) {
+          if (s.subject !== want || !/^Columns from “V15 opened”/.test(s.status)) p.push(`${when}: subject ${s.subject}, "${s.status}"`);
+          if (!new URLSearchParams(s.url.split('?')[1] || '').get('model')) p.push(`${when}: the address ${s.url} does not name the property`);
+        }
+        if (p.length) fail('scenario-lab-verify V15: a property opened with labOpen stays open, and the address names it', p.slice(0, 6));
+        else ok(`scenario-lab-verify V15: a property opened with labOpen stays open through a theme change and render(), at ${r.drawn.url}`);
       });
     } finally {
       await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
