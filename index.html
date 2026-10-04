@@ -4587,7 +4587,12 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-claim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink-2); }
 .lab-status { font-size: 13px; line-height: 20px; color: var(--ink-2); max-width: 82ch; }
 .lab-status strong { color: var(--ink); }
-.lab-moved-line { font-size: 12px; font-weight: 600; color: var(--bronze); }
+/* Said from the first drawing (labPaintPanel): what a move becomes, then the
+   moves not saved. Two lines' room below a 960px panel, where either can
+   wrap, so the line growing at the first tick moves nothing under it. */
+.lab-moved-line { font-size: 12px; line-height: 18px; color: var(--ink-2); }
+.lab-moved-line.is-unsaved { font-weight: 600; color: var(--bronze); }
+@container lab (max-width: 959px) { .lab-moved-line { min-height: 36px; } }
 .lab-note-warn { color: var(--bronze); font-weight: 600; }
 .lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
 .lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
@@ -48158,6 +48163,12 @@ function labOpen(subject) {
   const lab = labEnsure(subject?.kind === 'model' ? subject : { kind: 'deal' });
   if (!lab) return { ok: false, why: 'That property is not saved in this browser.' };
   labSubject = lab.key;
+  /* On the lab's own page the address names what is open, at once: a
+     property opened here with the page's address left plain was undone at
+     the next drawing (a theme change, the filings landing), which reads a
+     plain /property/lab as the calculator's deal (the re-verification of
+     4 Oct 2026). Another panel's opening writes no address. */
+  if (State.view === 'propertyLab') { clearTimeout(labAddressTimer); labWriteAddress(lab); }
   labRefresh();
   return { ok: true, key: lab.key };
 }
@@ -48238,20 +48249,21 @@ function labArrive() {
    page is the lab. Variants and moves are not in it: a link opens the saved
    columns, never a reader's unsaved what-ifs. */
 let labAddressTimer = 0;
+function labWriteAddress(lab) {
+  if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
+  const q = new URLSearchParams(location.search);
+  ['model', 'cols', 'by'].forEach(k => q.delete(k));
+  if (lab.model) { q.set('model', lab.model); const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
+  if (lab.metric && lab.metric !== 'yield') q.set('by', lab.metric);
+  const s = q.toString().replace(/%2C/g, ',');
+  const next = location.pathname + (s ? `?${s}` : '');
+  if (next === location.pathname + location.search) return;
+  history.replaceState(history.state, '', next);
+  labUrlSeen = location.pathname + location.search;
+}
 function labAddressSoon(lab) {
   clearTimeout(labAddressTimer);
-  labAddressTimer = setTimeout(() => {
-    if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
-    const q = new URLSearchParams(location.search);
-    ['model', 'cols', 'by'].forEach(k => q.delete(k));
-    if (lab.model) { q.set('model', lab.model); const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
-    if (lab.metric && lab.metric !== 'yield') q.set('by', lab.metric);
-    const s = q.toString().replace(/%2C/g, ',');
-    const next = location.pathname + (s ? `?${s}` : '');
-    if (next === location.pathname + location.search) return;
-    history.replaceState(history.state, '', next);
-    labUrlSeen = location.pathname + location.search;
-  }, 300);
+  labAddressTimer = setTimeout(() => labWriteAddress(lab), 300);
 }
 
 /* ------------------------------------------------------------------ drawing */
@@ -49386,11 +49398,18 @@ function labPaintPanel(P, { initial = false } = {}) {
     const q = propertyReviewQueue(d);
     labText(P.els.rests, q.length ? `These figures rest on ${q.length} of the tool’s starting figures: ${q.map(x => x.label.toLowerCase()).join(', ')}.` : 'None of these figures rests on a starting figure of the tool’s.');
   }
+  /* ALWAYS SAID, so nothing moves under the thumb. The line appeared at the
+     first tick of a drag, above the sliders: where the browser does not
+     anchor the scroll (Safari), the slider and all seven results dropped
+     43px under the finger at 360 (the re-verification of 4 Oct 2026). It now
+     stands from the first drawing, saying what happens to a move before
+     there is one, and holds two lines' room on a phone (styles.css). */
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
-    const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.` : '';
+    const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
+      : 'Moves you make here are kept until you close or reload this tab.';
     labText(P.els.unsaved, s);
-    P.els.unsaved.hidden = !s;
+    P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
   /* What follows the moves: the baseline's name, the links to where a
      figure is entered (only while the column is the calculator's deal as

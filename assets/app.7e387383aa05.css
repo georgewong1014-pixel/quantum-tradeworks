@@ -4513,7 +4513,12 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-claim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink-2); }
 .lab-status { font-size: 13px; line-height: 20px; color: var(--ink-2); max-width: 82ch; }
 .lab-status strong { color: var(--ink); }
-.lab-moved-line { font-size: 12px; font-weight: 600; color: var(--bronze); }
+/* Said from the first drawing (labPaintPanel): what a move becomes, then the
+   moves not saved. Two lines' room below a 960px panel, where either can
+   wrap, so the line growing at the first tick moves nothing under it. */
+.lab-moved-line { font-size: 12px; line-height: 18px; color: var(--ink-2); }
+.lab-moved-line.is-unsaved { font-weight: 600; color: var(--bronze); }
+@container lab (max-width: 959px) { .lab-moved-line { min-height: 36px; } }
 .lab-note-warn { color: var(--bronze); font-weight: 600; }
 .lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
 .lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
