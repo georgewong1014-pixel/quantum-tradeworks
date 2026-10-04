@@ -255,6 +255,44 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end audit3: monitor ---- */
 
+/* ---- prerender ---- */
+/* WHAT EVERY SERVED PAGE SAYS (2026-10-03). Each static route's page now
+   carries the app's own render of it (prerender/, prerender.mjs), and that
+   text is deployed and read by every crawler and link preview without the
+   script. It is assembled at run time — "median" from one string and
+   "price" from another — so a phrase the checks above cannot find in the
+   source can still stand whole on a page. The banned phrases are held to
+   every render's text, with the same two exemptions; the scanner's
+   performance and ranking words to its pages' renders, as SC-314 and
+   SC-316 hold them in its modules. */
+{
+  const dir = join(ROOT, 'prerender');
+  const files = [];
+  const walk = (rel) => { for (const d of readdirSync(join(dir, rel), { withFileTypes: true })) { const r = rel ? `${rel}/${d.name}` : d.name; if (d.isDirectory()) walk(r); else if (r.endsWith('.html')) files.push(r); } };
+  try { walk(''); } catch { /* no renders committed: build --check says so */ }
+  const textOf = (html) => html.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ');
+  let found = 0;
+  for (const f of files) {
+    const text = textOf(readFileSync(join(dir, f), 'utf8')), low = text.toLowerCase();
+    const scannerPage = /^(app\/scanner|admin\/scanner)/.test(f);
+    for (const [list, denial] of [[BANNED, DENIAL], ...(scannerPage ? [[SCANNER_BANNED, SCANNER_DENIAL]] : [])]) {
+      for (const phrase of list) {
+        for (let i = low.indexOf(phrase); i !== -1; i = low.indexOf(phrase, i + 1)) {
+          if (CONTINUATION.test(text.slice(i + phrase.length, i + phrase.length + 12))) continue;
+          const ctx = text.slice(Math.max(0, i - 200), i + 200);
+          if (denial.test(ctx)) continue;
+          found++;
+          console.error(`FAIL  "${phrase}" used as a claim in the served page prerender/${f}`);
+          console.error(`      …${ctx.slice(120, 320)}…`);
+        }
+      }
+    }
+  }
+  bad += found;
+  if (!found) console.log(`ok    none of the banned phrases is used as a claim in the ${files.length} render files the served pages carry (each page's #views and tab row), nor a scanner performance or ranking word on the scanner's`);
+}
+/* ---- end prerender ---- */
+
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
   : `ok    none of the ${BANNED.length} banned phrases is used as a claim`);

@@ -7,13 +7,18 @@
     "the failure that would otherwise take the whole site down in production",
     "while every local check still passed. index.html is the one page with the",
     "script inline; every other page loads the same bytes from",
-    "assets/app.<hash>.js, which 'self' allows."
+    "assets/app.<hash>.js, which 'self' allows. The second hash names the",
+    "small script every page carries in its head (build.mjs, FIRST_SCRIPT),",
+    "which runs before the first paint: the theme kept, and whether the page",
+    "served is this reader's."
   ],
   "$comment-rewrites": [
     "One rewrite per route in ROUTES (src/js/35-ui.js), written by build.mjs in",
     "place of the marker below. A route without a parameter goes to its own page",
     "(pages/<route>.html, the site root to index.html), whose <head> is the one",
-    "the router sets there; a parameter route (/company/:id …) to index.html.",
+    "the router sets there; a parameter route (/company/:id …) to the generic page,",
+    "pages/generic.app.html: the site root's head and the app, with no page in it",
+    "(index.html carries the homepage itself, in #views).",
     "Every exact path is listed before any :param, and each is explicit: nothing",
     "relies on Vercel checking its files before its rewrites.",
     "",
@@ -66,6 +71,20 @@
     },
     {
       "$comment": [
+        "The renders build.mjs puts into each page (prerender/, prerender.mjs) are",
+        "files of the repository, so the host serves them too, each at its own",
+        "address: a page's content as a document of its own, with no head, no",
+        "canonical and no disclosure, beside the page that carries it. Not for an",
+        "index (robots.txt disallows them as well). Its own header, so this rule",
+        "and the pages' rule below never set the same one."
+      ],
+      "source": "/prerender/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
+      "$comment": [
         "The app's script, written once by build.mjs for every page but",
         "index.html (which carries it inline): assets/app.<first 12 hex of its",
         "SHA-256>.js, index.html's inline script byte for byte. Its name changes",
@@ -111,7 +130,7 @@
         { "key": "Cache-Control", "value": "no-cache" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' '@CSP_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },

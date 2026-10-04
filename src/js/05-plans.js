@@ -70,7 +70,7 @@ const State = {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       const langs = [navigator.language, ...(navigator.languages || [])].join(' ');
-      if (tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs)) return 'MYR';
+      if (tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY\b/i.test(langs)) return 'MYR';
     } catch { /* locale unavailable — fall through */ }
     return 'USD';
   })()),

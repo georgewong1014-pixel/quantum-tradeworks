@@ -3,8 +3,9 @@
 
    Every report in the product is a page of the tool that makes it: a
    company's research report (/company/:id/report), a saved property's
-   investor report (the calculator's Report section) and its decision record,
-   and the Cash Wheel's and the Trading Index's decision records
+   investor report (the calculator's Report section), its decision record and
+   its client proposal (/property/models/:property/proposal, a preview), and
+   the Cash Wheel's and the Trading Index's decision records
    (/decision-record). Each was reached only from inside its tool, so a
    reader looking for a report had to remember which tool, which company,
    which property. This page lists them, from the reader's own work in this
@@ -163,7 +164,7 @@ VIEWS.reports = () => {
     const empty = el('section', { class: 'card rp-empty', id: 'rp-empty', 'aria-labelledby': 'rp-empty-hd' });
     empty.append(el('h2', { class: 'h-card', id: 'rp-empty-hd' }, 'No reports yet'));
     empty.append(el('p', { class: 'body' },
-      'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report and decision record, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
+      'A report is one page made from your own work, laid out to print or save as PDF: a company’s research report — its statements, its measures and your valuation assumptions, with where every figure came from — a saved property’s investor report, decision record and client proposal, or the decision record of a Cash Wheel contract or of Trading Index chart evidence.'));
     empty.append(el('p', { class: 'caption' },
       'Open a company’s page, save a property, enter a contract or record chart evidence, and its report is listed here.'));
     empty.append(reportLink(productById('equities')?.actionPath || '/research', { class: 'btn btn-primary' }, productById('equities')?.action || 'Start research'));
@@ -220,8 +221,8 @@ VIEWS.reports = () => {
   /* ---------- property reports ---------- */
   const st = propertyStatus(State.deal);
   const ps = reportsSection('rp-properties', `Property reports${props.length ? ` — ${props.length} ${props.length === 1 ? 'property' : 'properties'}` : ''}`,
-    'For each property saved in My properties: its investor report — the calculator’s Report section for it, with the grade, what the answer rests on and the gates still open — and its decision record, the one printable page of it, carried to a lender or a lawyer.');
-  if (!props.length) ps.append(reportsNone('No property saved yet. Save one on the calculator, and its investor report and decision record are listed here.',
+    'For each property saved in My properties: its investor report — the calculator’s Report section for it, with the grade, what the answer rests on and the gates still open — its decision record, the one printable page of it, carried to a lender or a lawyer, and its client proposal, the property and up to three of its scenarios set out for a client to read (a preview, in no plan).');
+  if (!props.length) ps.append(reportsNone('No property saved yet. Save one on the calculator, and its investor report, decision record and client proposal are listed here.',
     reportLink('/property/calculator', { class: 'btn btn-ghost btn-sm' }, productById('property')?.action || 'Analyse a property')));
   else {
     const ul = el('ul', { class: 'rp-list', 'aria-label': 'Property reports' });
@@ -239,12 +240,15 @@ VIEWS.reports = () => {
         ]),
         el('strong', { class: 'rp-name' }, rec.name),
         el('span', { class: 'metaline' }, `${pmPlace(d)} · ${d.propertyType || 'Property'} · saved ${pmWhen(pmUpdated(rec))}`),
-        onCalc ? el('span', { class: 'caption rp-said' }, `Its reports show what is on the calculator${st.sc ? `, the scenario “${st.sc.name}” open` : ''}${st.dirty ? ', the changes not yet saved included — each says so' : ''}.`) : null,
+        /* The proposal is the property as saved (72-property-proposal.js),
+           so only the two that show the calculator are said to. */
+        onCalc ? el('span', { class: 'caption rp-said' }, `Its investor report and decision record show what is on the calculator${st.sc ? `, the scenario “${st.sc.name}” open` : ''}${st.dirty ? ', the changes not yet saved included — each says so; its client proposal is the property as saved' : ''}.`) : null,
       ], [
         el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: `rp-inv-${rec.id}`, 'data-tool-path': '/property/calculator',
           'aria-label': `Investor report — ${rec.name}`, onclick: () => reportsOpenProperty(rec, 'report') }, 'Investor report'),
         el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: `rp-rec-${rec.id}`,
           'aria-label': `Decision record — ${rec.name}`, onclick: () => reportsOpenProperty(rec, 'record') }, 'Decision record'),
+        cpLink(rec, { id: `rp-cp-${rec.id}` }),
       ]));
     });
     ps.append(ul);

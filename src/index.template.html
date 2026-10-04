@@ -55,7 +55,11 @@
      chromeOf() in 35-ui.js and written to <html data-chrome>; the stylesheet
      shows one and hides the other, so the hidden one is out of the tab order
      and the accessibility tree. The navigation inside both is drawn from the
-     same tables (PRODUCTS, RESOURCES, APP_NAV), never written twice here.
+     same tables (PRODUCTS, RESOURCES, APP_NAV), never written twice here:
+     build.mjs fills #pubnav, #appnav and the footer's two lists in every page
+     it writes with what the app's own NAV_MARKUP (35-ui.js) makes of them,
+     so a reader that runs no script still finds the links, and the script
+     draws the same markup in their place.
 
      PUBLIC: the front door, How it works, pricing and the trust and method
      pages. Brand, Products, How it works, Pricing, Resources, the theme and
@@ -218,7 +222,10 @@
 </div>
 
 <main id="main">
-  <!-- An Equities or Property page's row of product tabs (renderProductTabs). -->
+  <!-- An Equities or Property page's row of product tabs (renderProductTabs).
+       In a page build.mjs writes for a static route, this row and #views
+       carry the app's own render of that page (prerender/, prerender.mjs),
+       which the script replaces with the same page drawn live. -->
   <div class="ptabs-host" id="productTabs" hidden></div>
   <div id="views"></div>
   <!-- What a page says about a change the reader made, for a screen reader:
@@ -344,7 +351,12 @@
          screen reader heard the box and silence, with no word that ten
          results had appeared under it or how to reach them. -->
     <input class="input search-input" id="searchInput" aria-label="Search companies, pages and tools, and your saved work" aria-describedby="searchHint" aria-controls="searchResults" placeholder="Companies, pages, saved work…" autocomplete="off" spellcheck="false">
-    <span class="kbd search-esc" aria-hidden="true">Esc</span>
+    <!-- The keys this box answers, here and below, are written by the script
+         that makes them work (95-boot.js, SEARCH_KEYS): served as text in
+         every page, the key legend and the paragraph saying it to a screen
+         reader were body text of every address to a reader that runs no
+         script, after the page's own content. -->
+    <span class="kbd search-esc" aria-hidden="true"></span>
     <!-- A way out that does not require knowing a key or finding the dimmed
          page behind the box. -->
     <button type="button" class="iconbtn search-close" id="closeSearch" aria-label="Close search">
@@ -352,13 +364,10 @@
     </button>
   </div>
   <div id="searchResults" class="search-results"></div>
-  <!-- The keys, to the eye; searchHint says them to a screen reader. -->
-  <div class="search-keys" aria-hidden="true">
-    <span><span class="kbd">↑</span><span class="kbd">↓</span> move</span>
-    <span><span class="kbd">Enter</span> open</span>
-    <span><span class="kbd">Esc</span> close</span>
-  </div>
-  <p class="sr-only" id="searchHint">Results are grouped under Companies, Pages and tools, and Your saved work; with nothing typed, Recent lists what you last opened in this browser. The down arrow moves into the results and on across the groups, Enter opens the one you are on, or the first from the box, and Escape closes the search.</p>
+  <!-- The keys, to the eye; searchHint says them to a screen reader. Both
+       written by the script (95-boot.js, SEARCH_KEYS). -->
+  <div class="search-keys" aria-hidden="true"></div>
+  <p class="sr-only" id="searchHint"></p>
   <p class="sr-only" id="searchStatus" role="status" aria-live="polite"></p>
 </div>
 

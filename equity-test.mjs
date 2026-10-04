@@ -2795,20 +2795,26 @@ try {
     await send('Fetch.enable', { patterns: [{ urlPattern: '*/data/us.json*', requestStage: 'Request' }] }, sessionId);
     const paused = async () => { for (let i = 0; i < 40; i++) { const m = events.find(x => x.method === 'Fetch.requestPaused' && !x.seen); if (m) { m.seen = true; return m; } await sleep(250); } return null; };
     try {
-      /* Held: the skeleton, not the sample. */
+      /* Held: the page the server sent, or the skeleton — never the sample.
+         Since 2026-10-03 the screener's page is served with the app's own
+         render of it, filings in (prerender.mjs), and the app keeps that
+         page on screen until the file lands rather than drawing the skeleton
+         over it (drawPage): so while it is held the page is the served one,
+         still marked data-served, and no row the app drew is on it. A page
+         reached in-app, with nothing served, still waits on the skeleton. */
       await send('Page.navigate', { url: `${BASE}/discover/screener` }, sessionId);
       const held = await paused();
       await sleep(800);
-      const during = held ? await evaluate(`({ pending: realPending, skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
+      const during = held ? await evaluate(`({ pending: realPending, skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), served: !!document.querySelector('#views[data-served]'), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
       if (held) await send('Fetch.continueRequest', { requestId: held.params.requestId }, sessionId);
       const arrived = held && await waitFiled();
-      const after = arrived ? await evaluate(`({ skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
+      const after = arrived ? await evaluate(`({ skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || ''), served: !!document.querySelector('#views[data-served]'), rows: document.querySelectorAll('main table.dt tbody tr').length })`) : null;
       const p = [];
       if (!held) p.push('the page never requested data/us.json');
-      else if (!during.pending || !during.skeleton || during.rows) p.push(`while the file was held: ${JSON.stringify(during)}`);
-      if (held && (!after || after.skeleton || !after.rows)) p.push(`after it arrived: ${JSON.stringify(after)}`);
+      else if (!during.pending || !(during.skeleton || during.served) || (during.rows && !during.served)) p.push(`while the file was held: ${JSON.stringify(during)}`);
+      if (held && (!after || after.skeleton || after.served || !after.rows)) p.push(`after it arrived: ${JSON.stringify(after)}`);
       if (p.length) fail('the skeleton holds the page while the filings load', p);
-      else ok(`the skeleton holds the page while the filings load — no sample row is painted while the file is in flight, and the screener's ${after.rows} rows replace it when it lands`);
+      else ok(`the skeleton holds the page while the filings load — or, served, the page the server sent (its ${during.rows} rows its render, filings in): no sample row is painted while the file is in flight, and the screener's ${after.rows} rows are drawn when it lands`);
 
       /* Failed: the sample, and the banner saying so. */
       events.length = 0;
@@ -9490,7 +9496,7 @@ try {
         const r = await evaluate(`(async () => { ${W}
           const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-29T00:00:00Z', data });
           const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons'];
-          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs'];
+          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails'];
           const bad = [];
           const accepted = (k, v) => { const x = importEverything(doc({ [k]: v })); return x.ok && x.incoming.includes(k); };
           LISTS.forEach(k => { if (accepted(k, { id: 'x' })) bad.push(k + ' as a record'); if (accepted(k, [1, 'x'])) bad.push(k + ' as a list of non-records'); });
@@ -9521,7 +9527,7 @@ try {
         const BAD1 = { portfolios: { name: 'x', holdings: [] }, theses: { id: 't' }, priceAlerts: { id: 'x' }, watchlists: {}, observations: {}, savedWork: {}, runs: {},
           dividendsReceived: {}, registerLog: {}, comparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
           deal: [], wheelPlan: [], qttiPlan: [], reviews: [], valuation: [], areaProfiles: [], demand: [], manualPrices: [], userData: [], wht: [],
-          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], registerActor: 5, baseCcy: 'EUR' };
+          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], registerActor: 5, baseCcy: 'EUR' };
         const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons',
           'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
         BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
@@ -10550,12 +10556,14 @@ try {
       manualPrices: /prices or statement lines you paste in/, observations: /prices and rents you record in the comparables register/,
       onboarding: /whether you dismissed the introduction/, opportunities: /saved property candidates/, plan: /the plan you are previewing/,
       portfolios: /portfolio holdings/, priceAlerts: /price alerts/, propertyReportLog: /included property reports you used this month/,
+      proposalDetails: /your details for proposals/,
       propertyReportsBought: /property reports you unlocked/, qttiPlan: /trading-index observations/, rateUnitBuilt: /units for property rates/,
       rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
       recent: /pages, tools and saved work you recently opened/,
       registerActor: /name or initials you give the register log/, registerLog: /register records/, reportLog: /company reports you opened this month/,
       requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
       savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/, startHere: /Start here panels you have hidden/,
+      servedReads: /a digest of what the pages read/,
       scanPrefs: /scanner notification and display preferences/, scanSetups: /scanner setups with every version/, screen: /screener’s current filters/,
       screenCcy: /currency the Compare and screener pages total in/, sensAxes: /valuation sensitivity grid/, theme: /theme/, theses: /investment cases/,
       valuation: /valuation assumptions you edit/, watchlist: /watchlists/, watchlists: /watchlists/, wheelLegs: /Cash Wheel plan and its legs/,
@@ -10932,6 +10940,344 @@ try {
     }
   }
   /* ---- end releaseB: alerts-reports ---- */
+  /* ---- property-proposal ---- */
+  /* YOUR DETAILS FOR PROPOSALS, AND NOTHING OF THE CLIENT'S (the client
+     proposal, 3 Oct 2026). The preparer's name, agency, contact and logo are
+     kept in this browser under one key, proposalDetails:
+       CP1  typed on the proposal page they are stored and printed; the
+            export (Your data's "Export everything") and the full backup carry
+            them, Your data lists them, a restore of the export puts them back
+            and refuses one in another shape, "Remove my details" removes
+            them, and clearing the site's storage leaves nothing; /privacy
+            names the key (the NAMED map above holds the page to every key);
+       CP2  the client's name prints on the proposal and is written nowhere —
+            not to storage, and not to the page's title, which a browser
+            keeps in its history;
+       CP3  the logo is an image read to a data URL, capped at 200 KB, and the
+            page says so: a larger file and an SVG are refused with the
+            reason and nothing stored; a PNG within the cap prints at the
+            head and is removed by "Remove the logo"; a stored value that is
+            not such an image reads as no logo;
+       CP4  a logo is taken by what the file holds, not by its name: a text
+            file and an SVG named .png, and a PNG cut short, are refused with
+            the reason; a JPEG named .png is stored as the JPEG it is; a
+            stored logo that cannot print is named on the page, not dropped
+            without a word;
+       CP5  a refusal states the file's size so it can be seen to be over the
+            cap — one byte over is "200.1 KB", never "200 KB" — and a file of
+            exactly 200 KB is taken;
+       CP6  details emptied by hand are removed, not kept and listed on Your
+            data as "saved"; whatever the key holds, "Remove my details" is
+            offered;
+       CP7  a restore — from an export or a backup — refuses details whose
+            logo is over the cap or not an image, and says so;
+       CP8  one name for each thing: "Your details for proposals" on the
+            page, on Your data and on /privacy; "Client proposal" on the
+            printed page; and "Remove my details" does not say there is no
+            other copy while the export carries one.
+     CP1–CP3 fail before the proposal existed: no page, no key. CP4–CP8 fail
+     on c8c9ca3, the proposal as first built. */
+  {
+    const cpThrown = [];
+    const cpListen = (e) => { const m = JSON.parse(e.data); if (m.method === 'Runtime.exceptionThrown') cpThrown.push(m.params.exceptionDetails?.exception?.description?.split('\n')[0]); };
+    ws.addEventListener('message', cpListen);
+    /* CP1 clears the site's storage, so all of it is kept and put back. */
+    const cpKept = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('vl.')).map(k => [k, localStorage.getItem(k)])))`);
+    const cpH = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      window.prompt = (m, d) => d; window.confirm = () => true;
+      const type = async (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(200); };
+      const pick = async (file) => { const inp = document.getElementById('cp-logo-file'); const dt = new DataTransfer(); dt.items.add(file);
+        inp.files = dt.files; inp.dispatchEvent(new Event('change', { bubbles: true })); await w(700); return txt(document.getElementById('toast')); };
+      const openDetails = async () => { const d = document.getElementById('cp-details'); if (d && !d.open) { d.open = true; await w(60); } };
+      const pngOf = async (wd, ht) => { const cv = document.createElement('canvas'); cv.width = wd; cv.height = ht; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, wd, ht);
+        return new Uint8Array(await (await new Promise(res => cv.toBlob(res, 'image/png'))).arrayBuffer()); };`;
+    try {
+      const r = await evaluate(`(async () => { ${cpH}
+        const out = {};
+        localStorage.removeItem('vl.proposalDetails');
+        newPropertyDeal({ show: false });
+        State.deal.price = 455000; markTouched(State.deal, 'price'); saveDeal();
+        const rec = saveActiveProperty({ name: 'CP details check' });
+        navigate(cpPath(rec.id)); await w(400);
+        out.view = State.view;
+        /* CP1 — typed, stored, printed. */
+        const long = 'Aisha binti Rahman, Registered Estate Agent, with a name long enough to be cut at eighty characters';
+        await type('cp-name', long); await type('cp-agency', 'Rahman Property Advisory'); await type('cp-contact', '+60 12-345 6789');
+        out.stored = store.read('proposalDetails', null);
+        out.head = { name: txt(document.querySelector('#cp-doc .cp-by-name')), agency: txt(document.querySelector('#cp-doc .cp-by-agency')), contact: txt(document.querySelector('#cp-doc .cp-by-contact')) };
+        out.exported = exportEverything().data.proposalDetails || null;
+        out.backup = backupPayload().data.proposalDetails || null;
+        out.label = (PORTABLE_KEYS.find(x => x.k === 'proposalDetails') || {}).label || null;
+        navigate('/my/data'); await w(400);
+        out.listed = [...document.querySelectorAll('#views dl.kv dt')].map(txt).includes(out.label);
+        const file = { format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: { name: 'Restored Preparer', agency: 'Restored Agency', contact: 'x@example.com' } } };
+        localStorage.removeItem('vl.proposalDetails');
+        const imp = importEverything(file);
+        out.restore = { ok: imp.ok, incoming: imp.incoming }; if (imp.ok) imp.apply();
+        out.restored = store.read('proposalDetails', null);
+        const bad = importEverything({ format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: 'just text' } });
+        out.badShape = { ok: bad.ok, err: bad.err || null };
+        navigate('/privacy'); await w(300);
+        out.privacy = /your details for proposals/i.test(document.getElementById('views').innerText);
+        /* Remove my details. */
+        navigate(cpPath(rec.id)); await w(400);
+        await openDetails();
+        document.getElementById('cp-details-remove')?.click(); await w(400);
+        out.removed = store.read('proposalDetails', null);
+        out.blank = !!document.querySelector('#cp-doc .cp-by .cp-blank') && !document.querySelector('#cp-doc .cp-by-name');
+        /* Cleared with the rest of the site's storage. */
+        store.write('proposalDetails', { name: 'Cleared Preparer' });
+        Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+        out.afterClear = cpDetails();
+        localStorage.setItem('vl.savedWork', JSON.stringify([rec]));
+        /* CP2 — the client's name. */
+        navigate(cpPath(rec.id)); await w(400);
+        const client = 'Encik Client Check Hamzah';
+        await type('cp-client', client);
+        out.client = { printed: txt(document.querySelector('#cp-doc .cp-for-name')), title: document.title,
+          stored: Object.keys(localStorage).filter(k => (localStorage.getItem(k) || '').includes('Client Check')) };
+        /* CP3 — the logo. */
+        out.capSaid = /at most 200 KB/.test(txt(document.getElementById('cp-details')));
+        const big = new Uint8Array(300 * 1024); big.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        out.bigToast = await pick(new File([big], 'big.png', { type: 'image/png' }));
+        out.afterBig = store.read('proposalDetails', null);
+        out.svgToast = await pick(new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], 'logo.svg', { type: 'image/svg+xml' }));
+        out.afterSvg = store.read('proposalDetails', null);
+        out.okToast = await pick(new File([await pngOf(120, 40)], 'logo.png', { type: 'image/png' }));
+        const st = store.read('proposalDetails', null);
+        out.logoStored = typeof st?.logo === 'string' ? st.logo.slice(0, 22) : null;
+        out.logoShown = document.querySelector('#cp-doc img.cp-logo')?.getAttribute('src')?.slice(0, 22) || null;
+        document.getElementById('cp-logo-remove')?.click(); await w(400);
+        out.logoGone = { stored: store.read('proposalDetails', null)?.logo ?? null, shown: !!document.querySelector('#cp-doc img.cp-logo') };
+        store.write('proposalDetails', { name: 'X', logo: 'data:image/svg+xml;base64,PHN2Zy8+' }); out.svgStored = cpDetails().logo;
+        store.write('proposalDetails', { name: 'X', logo: 'javascript:alert(1)' }); out.jsStored = cpDetails().logo;
+        deletePropertyModel(rec.id);
+        return out;
+      })()`);
+      const p1 = [];
+      if (r.view !== 'propertyProposal') p1.push(`a saved property's proposal opened as ${r.view}`);
+      if (!r.stored || r.stored.name !== r.stored.name.slice(0, 80) || r.stored.name.length !== 80 || r.stored.agency !== 'Rahman Property Advisory' || r.stored.contact !== '+60 12-345 6789')
+        p1.push(`typed on the page, the details stored as ${JSON.stringify(r.stored)}`);
+      if (r.head.name !== r.stored?.name || r.head.agency !== 'Rahman Property Advisory' || r.head.contact !== '+60 12-345 6789') p1.push(`the proposal's head prints ${JSON.stringify(r.head)}`);
+      if (JSON.stringify(r.exported) !== JSON.stringify(r.stored)) p1.push(`the export carries ${JSON.stringify(r.exported)}`);
+      if (JSON.stringify(r.backup) !== JSON.stringify(r.stored)) p1.push(`the backup carries ${JSON.stringify(r.backup)}`);
+      if (!r.listed) p1.push(`Your data does not list "${r.label}"`);
+      if (!r.restore.ok || !r.restore.incoming?.includes('proposalDetails') || r.restored?.name !== 'Restored Preparer') p1.push(`a restore of the export: ${JSON.stringify(r.restore)}, then ${JSON.stringify(r.restored)}`);
+      if (r.badShape.ok || !/proposal/i.test(r.badShape.err || '')) p1.push(`a file whose details are text was ${r.badShape.ok ? 'accepted' : `refused with "${r.badShape.err}"`}`);
+      if (!r.privacy) p1.push('/privacy does not name your details for proposals');
+      if (r.removed !== null || !r.blank) p1.push(`"Remove my details" left ${JSON.stringify(r.removed)}, the head ${r.blank ? 'blank' : 'still printing them'}`);
+      if (r.afterClear.name || r.afterClear.agency || r.afterClear.contact || r.afterClear.logo) p1.push(`after the site's storage was cleared the details read ${JSON.stringify(r.afterClear)}`);
+      if (p1.length) fail('property-proposal CP1: your details for proposals are kept in this browser, printed, exported, backed up, restored, removed and cleared with the rest', p1);
+      else ok('property-proposal CP1: your details for proposals, typed on the page, are stored under proposalDetails (the name cut at 80 characters) and printed at the head; the export and the backup carry them, Your data lists them, a restore puts them back and refuses them as text, "Remove my details" removes them, clearing the site\'s storage leaves none, and /privacy names them');
+      const p2 = [];
+      if (r.client.printed !== 'Encik Client Check Hamzah') p2.push(`the head prints "${r.client.printed}"`);
+      if (/Client Check/.test(r.client.title)) p2.push(`the page title names the client: "${r.client.title}"`);
+      if (r.client.stored.length) p2.push(`the client's name is in storage under ${r.client.stored.join(', ')}`);
+      if (p2.length) fail('property-proposal CP2: the client\'s name prints on the proposal and is written nowhere', p2);
+      else ok(`property-proposal CP2: the client's name prints on the proposal, is in no stored key, and is not in the title ("${r.client.title}")`);
+      const p3 = [];
+      if (!r.capSaid) p3.push('the details do not say the logo can be at most 200 KB');
+      if (!/at most 200 KB/.test(r.bigToast) || r.afterBig?.logo) p3.push(`a 300 KB PNG: "${r.bigToast}", stored ${JSON.stringify(r.afterBig?.logo ?? null).slice(0, 40)}`);
+      if (!/not a PNG, JPEG or WebP/.test(r.svgToast) || r.afterSvg?.logo) p3.push(`an SVG: "${r.svgToast}", stored ${JSON.stringify(r.afterSvg?.logo ?? null).slice(0, 40)}`);
+      if (r.logoStored !== 'data:image/png;base64,' || r.logoShown !== 'data:image/png;base64,') p3.push(`a small PNG: "${r.okToast}", stored ${r.logoStored}, shown ${r.logoShown}`);
+      if (r.logoGone.stored !== null || r.logoGone.shown) p3.push(`"Remove the logo" left ${JSON.stringify(r.logoGone)}`);
+      if (r.svgStored !== null || r.jsStored !== null) p3.push(`a stored logo that is not a PNG, JPEG or WebP data URL reads as ${r.svgStored ?? r.jsStored}`);
+      if (p3.length) fail('property-proposal CP3: the logo is an image within a stated 200 KB cap, refused otherwise with the reason', p3);
+      else ok('property-proposal CP3: the page states the 200 KB cap; a 300 KB PNG and an SVG are refused with the reason and nothing stored; a small PNG is stored as a data URL, prints at the head and is removed by "Remove the logo"; a stored SVG or script address reads as no logo');
+
+      /* CP4–CP8, on c8c9ca3's gaps. */
+      const q = await evaluate(`(async () => { ${cpH}
+        const out = {};
+        Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+        newPropertyDeal({ show: false });
+        State.deal.price = 455000; markTouched(State.deal, 'price'); saveDeal();
+        const rec = saveActiveProperty({ name: 'CP logo and names' });
+        navigate(cpPath(rec.id)); await w(400);
+        await openDetails();
+        const logoNow = () => (store.read('proposalDetails', null) || {}).logo || null;
+        /* CP4 — by what the file holds. */
+        out.textPng = await pick(new File(['This is a plain text file, not an image at all.'], 'notimage.png', { type: 'image/png' }));
+        out.textPngStored = logoNow();
+        out.svgPng = await pick(new File(['<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'], 'svg-as.png', { type: 'image/png' }));
+        out.svgPngStored = logoNow();
+        const real = await pngOf(160, 48);
+        out.cutPng = await pick(new File([real.slice(0, 40)], 'cut.png', { type: 'image/png' }));
+        out.cutPngStored = logoNow();
+        /* Cut past its header: it still loads as the part that came, and was
+           taken under "Logo added" (the integration verifier, 4 Oct 2026). */
+        out.cutLatePng = await pick(new File([real.slice(0, Math.floor(real.length * 0.6))], 'cut-late.png', { type: 'image/png' }));
+        out.cutLatePngStored = logoNow();
+        /* And as a stored value — a restored backup holding one. */
+        out.cutLateFault = typeof cpLogoFault === 'function' ? cpLogoFault('data:image/png;base64,' + btoa(String.fromCharCode(...real.slice(0, Math.floor(real.length * 0.6))))) : 'no cpLogoFault';
+        out.wholeFault = typeof cpLogoFault === 'function' ? cpLogoFault('data:image/png;base64,' + btoa(String.fromCharCode(...real))) : 'no cpLogoFault';
+        const cv = document.createElement('canvas'); cv.width = 90; cv.height = 30; cv.getContext('2d').fillRect(0, 0, 90, 30);
+        const jpg = new Uint8Array(await (await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.9))).arrayBuffer());
+        out.jpgPng = await pick(new File([jpg], 'photo.png', { type: 'image/png' }));
+        out.jpgStored = (logoNow() || '').slice(0, 23);
+        /* A stored logo the page cannot print is named. */
+        store.write('proposalDetails', { name: 'Named', logo: 'data:image/png;base64,' + btoa('This is not a picture, only text.') });
+        render(); await w(300); await openDetails();
+        out.faultSaid = txt(document.getElementById('cp-logo-fault'));
+        out.faultRemove = !!document.getElementById('cp-logo-remove');
+        /* CP5 — sizes as a refusal states them. */
+        localStorage.removeItem('vl.proposalDetails'); render(); await w(250); await openDetails();
+        const over = new Uint8Array(204801); over.set(real.slice(0, 8));
+        out.overToast = await pick(new File([over], 'over200k.png', { type: 'image/png' }));
+        const exact = new Uint8Array(204800); exact.set(real);
+        out.exactToast = await pick(new File([exact], 'exact200k.png', { type: 'image/png' }));
+        out.exactStored = !!logoNow();
+        /* CP6 — emptied by hand. */
+        localStorage.removeItem('vl.proposalDetails'); render(); await w(250); await openDetails();
+        await type('cp-name', 'Temporary Name'); await openDetails(); await type('cp-name', '');
+        out.emptiedRaw = localStorage.getItem('vl.proposalDetails');
+        out.emptiedListed = !!exportEverything().data.proposalDetails;
+        await openDetails();
+        await pick(new File([await pngOf(60, 20)], 'only.png', { type: 'image/png' }));
+        await openDetails();
+        document.getElementById('cp-logo-remove')?.click(); await w(350);
+        out.logoOnlyRaw = localStorage.getItem('vl.proposalDetails');
+        store.write('proposalDetails', { name: '', agency: '', contact: '', logo: null }); render(); await w(300); await openDetails();
+        out.blankRecordRemovable = !!document.getElementById('cp-details-remove');
+        /* CP7 — a restore holds the logo to the cap. */
+        const bigUrl = 'data:image/png;base64,iVBORw0KGgo' + 'A'.repeat(410000);
+        const imp = importEverything({ format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: { name: 'Restored With Big Logo', logo: bigUrl } } });
+        out.bigRestore = { ok: imp.ok, refused: (imp.refused || []).map(x => x.k + ': ' + x.why), err: imp.err || null };
+        const textUrl = 'data:image/png;base64,' + btoa('plain text here');
+        const imp2 = importEverything({ format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: { name: 'Text Logo', logo: textUrl } } });
+        out.textRestore = { ok: imp2.ok, refused: (imp2.refused || []).map(x => x.k + ': ' + x.why) };
+        const okUrl = 'data:image/png;base64,' + btoa(String.fromCharCode(...(await pngOf(40, 20))));
+        const imp3 = importEverything({ format: 'quantum-tradeworks/user-data', version: 1, data: { proposalDetails: { name: 'Fine Logo', logo: okUrl } } });
+        out.okRestore = { ok: imp3.ok, incoming: imp3.incoming };
+        const keep = localStorage.getItem('vl.proposalDetails');
+        const bk = restoreBackup(JSON.stringify({ format: 'quantum-tradeworks-backup', data: { proposalDetails: { name: 'Backup Big', logo: bigUrl } } }));
+        out.backupRestore = { ok: bk.ok, refused: bk.refused || null, kept: localStorage.getItem('vl.proposalDetails') === keep };
+        /* CP8 — one name for each thing. */
+        localStorage.removeItem('vl.proposalDetails'); render(); await w(300);
+        out.summaryEmpty = txt(document.querySelector('#cp-details > summary'));
+        out.headBlank = txt(document.querySelector('#cp-doc .cp-by .cp-blank'));
+        out.eyebrow = txt(document.querySelector('#cp-doc .cp-title .cp-eyebrow'));
+        out.railHead = txt(document.querySelector('.cp-rail .h-card'));
+        out.label = (PORTABLE_KEYS.find(x => x.k === 'proposalDetails') || {}).label || null;
+        store.write('proposalDetails', { name: 'Confirm Check' }); render(); await w(300); await openDetails();
+        let said = null; window.confirm = (m) => { said = m; return false; };
+        document.getElementById('cp-details-remove')?.click(); await w(200);
+        window.confirm = () => true;
+        out.confirm = said; out.panel = txt(document.getElementById('cp-details'));
+        navigate('/privacy'); await w(300);
+        out.privacy = document.getElementById('views').innerText;
+        deletePropertyModel(rec.id);
+        return out;
+      })()`);
+      const p4 = [];
+      if (!/cut short/.test(q.cutLateFault || '') || q.wholeFault !== null) p4.push(`a stored PNG cut past its header reads as ${JSON.stringify(q.cutLateFault)} (whole: ${JSON.stringify(q.wholeFault)}) — not refused as cut short`);
+      for (const [k, toast, stored] of [['a text file named .png', q.textPng, q.textPngStored], ['an SVG with a script named .png', q.svgPng, q.svgPngStored], ['a PNG cut short', q.cutPng, q.cutPngStored], ['a PNG cut past its header', q.cutLatePng, q.cutLatePngStored]]) {
+        if (stored) p4.push(`${k} was stored as the logo (${String(stored).slice(0, 40)}…)`);
+        if (/Logo added/.test(toast) || !toast) p4.push(`${k}: the page said "${toast}"`);
+      }
+      if (!/not a PNG, JPEG or WebP/.test(q.textPng)) p4.push(`a text file named .png was refused with "${q.textPng}"`);
+      if (q.jpgStored !== 'data:image/jpeg;base64,') p4.push(`a JPEG named .png was stored as ${q.jpgStored || 'nothing'} — "${q.jpgPng}"`);
+      if (!/does not print/.test(q.faultSaid) || !q.faultRemove) p4.push(`a stored logo that cannot print is not named on the page: "${q.faultSaid}", removable ${q.faultRemove}`);
+      if (p4.length) fail('property-proposal CP4: a logo is taken by what the file holds, and one that cannot print is said to', p4);
+      else ok(`property-proposal CP4: a text file and an SVG named .png and a PNG cut short are refused ("${q.textPng.slice(0, 80)}…") with nothing stored; a JPEG named .png is stored as a JPEG; a stored logo that cannot print is named — "${q.faultSaid.slice(0, 90)}…" — with a way to remove it`);
+      const p5 = [];
+      if (/That image is 200 KB\./.test(q.overToast) || !/200\.1 KB/.test(q.overToast)) p5.push(`a file one byte over the cap is refused with "${q.overToast.slice(0, 90)}"`);
+      if (!/Logo added/.test(q.exactToast) || !q.exactStored) p5.push(`a file of exactly 200 KB: "${q.exactToast}", stored ${q.exactStored}`);
+      if (p5.length) fail('property-proposal CP5: a refusal states the file\'s size against the cap', p5);
+      else ok(`property-proposal CP5: a file one byte over 200 KB is refused as "${q.overToast.match(/That image is [^.]+\.\d KB|That image is [\d.]+ KB/)?.[0]}", and a file of exactly 200 KB is taken`);
+      const p6 = [];
+      if (q.emptiedRaw !== null) p6.push(`a name typed and cleared left ${q.emptiedRaw}`);
+      if (q.emptiedListed) p6.push('the export carries details emptied by hand');
+      if (q.logoOnlyRaw !== null) p6.push(`a logo added then removed left ${q.logoOnlyRaw}`);
+      if (!q.blankRecordRemovable) p6.push('a record of blanks in storage is offered no "Remove my details"');
+      if (p6.length) fail('property-proposal CP6: details emptied by hand are removed, and whatever is stored can be removed', p6);
+      else ok('property-proposal CP6: a name typed then cleared, and a logo added then removed, leave no proposalDetails key and nothing in the export; a record of blanks stored by other means is offered "Remove my details"');
+      const p7 = [];
+      if (q.bigRestore.ok || !q.bigRestore.refused.some(x => /proposalDetails: .*logo.*200 KB/.test(x)) || !/logo/.test(q.bigRestore.err || '')) p7.push(`an export whose logo is ~400 KB: ${JSON.stringify(q.bigRestore).slice(0, 260)}`);
+      if (q.textRestore.ok || !q.textRestore.refused.some(x => /not a PNG, JPEG or WebP/.test(x))) p7.push(`an export whose logo is text: ${JSON.stringify(q.textRestore).slice(0, 200)}`);
+      if (!q.okRestore.ok || !q.okRestore.incoming?.includes('proposalDetails')) p7.push(`an export with a small PNG logo: ${JSON.stringify(q.okRestore)}`);
+      if (!(q.backupRestore.refused || []).includes('proposalDetails') || !q.backupRestore.kept) p7.push(`a backup whose logo is ~400 KB: ${JSON.stringify(q.backupRestore)}`);
+      if (p7.length) fail('property-proposal CP7: a restore holds the logo to the page\'s own rule and says so', p7);
+      else ok(`property-proposal CP7: a restore refuses details whose logo is over the cap or not an image — "${q.bigRestore.refused[0]}" — from an export or a backup, keeping what is here, and takes one with a small PNG`);
+      const p8 = [];
+      if (q.summaryEmpty !== 'Your details for proposals') p8.push(`the rail calls them "${q.summaryEmpty}"`);
+      if (!/Your details for proposals/.test(q.headBlank)) p8.push(`the head points to "${q.headBlank}"`);
+      if (q.label !== 'Your details for proposals') p8.push(`Your data and the export call them "${q.label}"`);
+      if (!/your details for proposals/i.test(q.privacy) || /details for client proposals/i.test(q.privacy)) p8.push('/privacy does not call them "your details for proposals"');
+      if (q.eyebrow !== 'Client proposal' || q.railHead !== 'Client proposal') p8.push(`the printed page is headed "${q.eyebrow}", the rail "${q.railHead}"`);
+      if (!q.confirm || /no copy anywhere/i.test(q.confirm) || !/export|backup/i.test(q.confirm)) p8.push(`"Remove my details" asks "${q.confirm}"${/export on Your data carries them/.test(q.panel) ? ' beside a panel that says the export carries them' : ''}`);
+      if (p8.length) fail('property-proposal CP8: one name for each thing, and the removal says what it removes', p8);
+      else ok('property-proposal CP8: "Your details for proposals" on the rail, the head, Your data and /privacy; "Client proposal" on the printed page and the rail; "Remove my details" says an export or backup keeps its own copy');
+      if (cpThrown.length) fail('property-proposal: the pages threw', cpThrown.slice(0, 5));
+    } catch (e) {
+      fail('property-proposal: the checks could not run', e.message);
+    } finally {
+      ws.removeEventListener('message', cpListen);
+      await evaluate(`(() => { const k = ${cpKept}; Object.keys(localStorage).filter(x => x.startsWith('vl.')).forEach(x => localStorage.removeItem(x));
+        Object.entries(k).forEach(([key, v]) => localStorage.setItem(key, v)); return true; })()`).catch(() => {});
+    }
+  }
+  /* ---- end property-proposal ---- */
+  /* ---- integration-final ---- */
+  /* A WHOLE LOGO IS NEVER CALLED CUT SHORT (the integration's final
+     verification, 2026-10-04). Whether a logo was whole was read from its
+     last bytes only, and before its size: a PNG with bytes after its IEND
+     chunk, and a JPEG with bytes after FF D9 — each drawn whole by the
+     browser — were refused as "cut short, so only part of the picture would
+     print", and so were CP3's and CP5's files over the cap, whose reason,
+     the cap, was never reached. CP9: whole images with 1, 16 and 40 bytes
+     after their end, and a PNG padded out to exactly 200 KB, are taken —
+     chosen as a file and held as a stored value; a whole PNG over the cap is
+     refused by its size; a PNG and a JPEG cut short are still refused. */
+  {
+    try {
+      const r = await evaluate(`(async () => {
+        const out = {};
+        const cv = document.createElement('canvas'); cv.width = 120; cv.height = 40;
+        const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 120, 40); g.fillStyle = '#c9a86a'; g.fillRect(10, 10, 60, 20);
+        const blobOf = (c, type) => new Promise(res => c.toBlob(res, type, 0.9));
+        const png = new Uint8Array(await (await blobOf(cv, 'image/png')).arrayBuffer());
+        const jpg = new Uint8Array(await (await blobOf(cv, 'image/jpeg')).arrayBuffer());
+        const pad = (b, n) => { const x = new Uint8Array(b.length + n); x.set(b); return x; };
+        const said = async (b, name, type) => { const r = await cpReadLogo(new File([b], name, { type })); return r.ok ? 'taken' : r.why; };
+        const urlOf = (b, type) => 'data:' + type + ';base64,' + btoa(Array.from(b, c => String.fromCharCode(c)).join(''));
+        out.png1 = await said(pad(png, 1), 'one.png', 'image/png');
+        out.png16 = await said(pad(png, 16), 'sixteen.png', 'image/png');
+        out.jpg40 = await said(pad(jpg, 40), 'forty.jpg', 'image/jpeg');
+        out.pngCap = await said(pad(png, 200 * 1024 - png.length), 'cap.png', 'image/png');
+        out.png1Stored = cpLogoFault(urlOf(pad(png, 1), 'image/png'));
+        out.jpg40Stored = cpLogoFault(urlOf(pad(jpg, 40), 'image/jpeg'));
+        /* Whole and over the cap: noise, which a PNG cannot shrink. */
+        const nv = document.createElement('canvas'); nv.width = 400; nv.height = 300;
+        const ng = nv.getContext('2d'), px = ng.createImageData(400, 300);
+        let s = 2463534242;
+        for (let i = 0; i < px.data.length; i++) { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; px.data[i] = i % 4 === 3 ? 255 : s & 255; }
+        ng.putImageData(px, 0, 0);
+        const big = new Uint8Array(await (await blobOf(nv, 'image/png')).arrayBuffer());
+        out.bigBytes = big.length;
+        out.bigEnds = big.length > 8 && String.fromCharCode(...big.slice(-8, -4)) === 'IEND';
+        out.big = await said(big, 'whole-big.png', 'image/png');
+        const cut = (b) => b.slice(0, Math.floor(b.length * 0.6));
+        out.pngCut = await said(cut(png), 'cut.png', 'image/png');
+        out.jpgCut = await said(cut(jpg), 'cut.jpg', 'image/jpeg');
+        out.pngCutStored = cpLogoFault(urlOf(cut(png), 'image/png'));
+        out.jpgCutStored = cpLogoFault(urlOf(cut(jpg), 'image/jpeg'));
+        return out;
+      })()`);
+      const p9 = [];
+      for (const k of ['png1', 'png16', 'jpg40', 'pngCap']) if (r[k] !== 'taken') p9.push(`${k}: a whole image ${k === 'pngCap' ? 'padded to exactly 200 KB' : 'with bytes after its end'} was refused — "${r[k]}"`);
+      for (const k of ['png1Stored', 'jpg40Stored']) if (r[k] !== null) p9.push(`${k}: stored, a whole image with bytes after its end reads as a logo that "${r[k]}"`);
+      if (!r.bigEnds || r.bigBytes <= 200 * 1024) p9.push(`the whole PNG over the cap was not one (${r.bigBytes} bytes, ends in IEND: ${r.bigEnds})`);
+      else if (!/^That image is [\d.]+ KB\. The logo can be at most 200 KB/.test(r.big)) p9.push(`a whole PNG of ${r.bigBytes} bytes was refused with "${r.big}", not by its size`);
+      for (const k of ['pngCut', 'jpgCut']) if (r[k] === 'taken' || !/cut short|could not be drawn/.test(r[k])) p9.push(`${k}: an image cut short was ${r[k] === 'taken' ? 'taken' : `refused with "${r[k]}"`}`);
+      for (const k of ['pngCutStored', 'jpgCutStored']) if (!/cut short/.test(r[k] || '')) p9.push(`${k}: stored, an image cut short reads as ${JSON.stringify(r[k])}`);
+      if (p9.length) fail('integration-final CP9: a whole logo is taken whatever follows its end, the cap is said before anything else, and a logo cut short is still refused', p9);
+      else ok(`integration-final CP9: whole PNGs with 1 and 16 bytes after IEND, a JPEG with 40 after FF D9 and a PNG padded to exactly 200 KB are taken, as files and as stored values; a whole ${Math.round(r.bigBytes / 1024)} KB PNG is refused as "${r.big.slice(0, 60)}…"; a PNG and a JPEG cut short are refused ("${r.pngCut.slice(0, 70)}…")`);
+    } catch (e) {
+      fail('integration-final CP9: the check could not run', e.message);
+    }
+  }
+  /* ---- end integration-final ---- */
 
 } catch (e) {
   fail('harness error', e.message);

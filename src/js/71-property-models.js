@@ -365,7 +365,10 @@ function saveAsScenario() {
   /* A snapshot saved since this page loaded, by the saved-work store's own
      save, has no list yet until the next load gives it one. */
   if (!Array.isArray(rec.scenarios)) rec.scenarios = [];
-  const suggested = pmOverrideLine(overrides, 2) || `Scenario ${rec.scenarios.length + 1}`;
+  /* Offered in the client proposal's words, whole (cpScenarioName,
+     72-property-proposal.js): a name accepted as offered heads the
+     scenario's column on a proposal handed to a client. */
+  const suggested = cpScenarioName(overrides, pmInputsOf(rec)) || `Scenario ${rec.scenarios.length + 1}`;
   const typed = prompt(`Name this scenario of “${rec.name}”`, suggested);
   if (typed === null) return null;
   const at = new Date().toISOString();
@@ -914,16 +917,23 @@ VIEWS.propertyModels = () => {
     wrap.append(lc);
   }
 
-  const lc = el('div', { class: 'card', style: 'padding:0' });
+  /* pm-saved: the list's own width decides when a row's actions go to a
+     line of their own (styles.css, property-proposal). */
+  const lc = el('div', { class: 'card pm-saved', style: 'padding:0' });
   lc.append(el('div', { class: 'card-hd pm-list-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'pm-list-hd', tabindex: '-1' }, props.length ? `${props.length} saved propert${props.length === 1 ? 'y' : 'ies'}` : 'No properties saved yet'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, props.length
       ? 'Newest change first. The order is when each was last saved, not how it compares.'
       : 'Open the sample deal or start a new property, change its figures to yours, and save it. Every property you save is listed here.'),
+    /* Each row's "Client proposal" is a preview, as the calculator's card
+       and /my/reports say it is (72-property-proposal.js). */
+    props.length ? el('p', { class: 'caption pm-cp-preview', id: 'pm-cp-preview', style: 'margin-top:2px' }, [
+      el('span', { class: 'chip chip-bronze', style: 'margin-right:6px' }, 'Preview'),
+      'Each property’s client proposal is a preview: it is part of no plan, nothing is on sale and nothing is charged.']) : null,
   ])));
   const ul = el('ul', { class: 'pm-list', 'aria-label': 'Saved properties' });
   ul.append(el('li', { class: 'pm-row pm-head', 'aria-hidden': 'true' }, [el('span', {}, 'Property'), el('span', {}, 'Price'),
-    el('span', {}, 'Monthly position'), el('span', {}, 'Updated'), el('span', {}, '')]));
+    el('span', {}, 'Monthly position'), el('span', {}, 'Updated'), el('span', { class: 'pm-head-acts' }, '')]));
   props.forEach((rec, idx) => {
     const d = pmInputsOf(rec), f = pmRowFigures(d);
     const onCalc = st.rec?.id === rec.id;
@@ -932,6 +942,8 @@ VIEWS.propertyModels = () => {
     const acts = el('div', { class: 'pm-acts-row' });
     acts.append(el('button', { class: 'btn btn-ghost btn-sm pm-open', id: `pm-open-${rec.id}`, 'aria-label': `Open ${rec.name}`,
       onclick: () => openPropertyModel(rec.id) }, 'Open'));
+    /* Its client proposal, made from it as saved (72-property-proposal.js). */
+    acts.append(cpLink(rec, { id: `pm-cp-${rec.id}` }));
     const kept = (act, done, refocus) => { const refused = store.failed; act(); render(); refocus(); toast(store.failed !== refused ? STORE_REFUSED : done); };
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: `pm-dup-${rec.id}`, 'aria-label': `Duplicate ${rec.name}`,
       onclick: () => kept(() => duplicatePropertyModel(rec.id), 'Duplicated', () => focusAfterRedraw(`#pm-dup-${rec.id}`)) }, 'Duplicate'));

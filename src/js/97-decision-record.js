@@ -45,6 +45,14 @@ function inputProvenance(d, k) {
   return { word: evidenceOf(ev).label, tone: null, why: evidenceOf(ev).note };
 }
 
+/* WHEN IT WAS PREPARED, ON THE READER'S CLOCK (2026-10-04). The record is
+   drawn when it is opened, so "Prepared" is the minute it was drawn — which,
+   on the page served with the record already in it (prerender.mjs), was the
+   render's fixed clock: "Prepared 2026-10-01 09:30" to every reader, for good
+   to one with no script, until the page was drawn again over it. Served, the
+   line says when it is prepared; drawn, the minute (data-now, NOW in 35-ui.js). */
+const preparedNow = () => el('span', { 'data-now': 'Prepared when this page is opened · ' }, `Prepared ${caseRaisedAt(new Date())} · `);
+
 function decisionRecordProperty() {
   const d = State.deal, m = dealModel(d), g = propertyGrade(d, m);
   const out = el('div', { class: 'decision-record' });
@@ -67,7 +75,7 @@ function decisionRecordProperty() {
     /* The record's own line, "Prepared …", stays the head's metaline: it is
        the one the date check and a reader look for under the heading. */
     el('p', { class: 'metaline' },
-      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
+      [preparedNow(), `${MODEL_VERSION} · research only, not advice`]),
     el('p', { class: 'caption dr-which' }, `Of ${which}.`),
   ]));
 
@@ -244,7 +252,7 @@ function decisionRecordWheel() {
     el('p', { class: 'eyebrow' }, 'Decision record · options cash wheel'),
     el('h1', {}, `${(p.symbol || '').trim() || 'Unnamed contract'} — cash-secured put and covered call`),
     el('p', { class: 'metaline' },
-      `Prepared ${caseRaisedAt(new Date())} · ${MODEL_VERSION} · research only, not advice`),
+      [preparedNow(), `${MODEL_VERSION} · research only, not advice`]),
   ]));
 
   if (p.isWorkedExample) out.append(el('p', { class: 'dr-warn' },
@@ -344,7 +352,7 @@ VIEWS.decisionRecord = () => {
       el('p', { class: 'eyebrow' }, 'Decision record · Trading Index'),
       el('h1', {}, `${State.qtti?.symbol || 'Instrument'} — trend evidence`),
       el('p', { class: 'metaline' },
-        `Prepared ${caseRaisedAt(new Date())} · research only, not advice`),
+        [preparedNow(), 'research only, not advice']),
     ]));
     const figs = el('div', { class: 'dr-figs' });
     /* Confidence is its own measure: a run is assessable before its five

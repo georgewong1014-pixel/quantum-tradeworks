@@ -3962,3 +3962,522 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   .search-clear { min-height: 44px; }
 }
 /* ---- end releaseB: search-recent ---- */
+
+/* ---- prerender ---- */
+/* THE SERVED PAGE BEFORE ITS SCRIPT HAS RUN (2026-10-03). Every static
+   route's page is served with the app's own render of it in #views
+   (prerender.mjs, build.mjs), on an <html data-served> the script takes off
+   the moment it runs (buildShell, 35-ui.js). On a first visit the page
+   stands on screen while the app's script comes down, and there Chrome drew
+   the contents of a size container — the product's tab row, the screener's
+   layout — without the page's custom properties: the row's name at 16px
+   and its shell with no padding, 32px too tall, then 32px shorter when the
+   script ran (a layout shift of 0.05 to 0.07), and the screener's rail and
+   results thrown about by 0.48. Not a container until the script runs, the
+   two are laid out by the window instead: the container's width is the
+   window's less a 15px scrollbar and, from 1024px on an app page, the
+   264px sidebar, so each @container rule below is its rule from above at
+   the window widths that give that container width. Once the script runs
+   the containers answer as they always have, and the layout is the same.
+   WITH AN OVERLAY SCROLLBAR (2026-10-04) — a Mac's trackpad, where the page
+   takes no 15px — the container is 15px wider than the window says, and in
+   a 15px band below each width below the served layout is the other one
+   until the script runs: the tab row at 941–955px (1205–1219px beside the
+   sidebar), the screener's columns at 1328–1342px and its rail at 648–662px
+   (measured: a layout shift of up to 0.22 there, none at any other width,
+   none with a classic scrollbar). Left so, measured against the other way:
+   the containers left to be containers, Chrome's first frame of a first
+   visit drew the tab row 32px too tall and corrected it by itself 150ms
+   later — a shift of 0.074 on the dashboard and 0.484 on the screener, for
+   every first visit at every width — where this costs a band of 15px at
+   four widths, for overlay scrollbars only. No rule a stylesheet can write
+   tells the two scrollbars apart. */
+:root[data-served] .ptabs-host, :root[data-served] .screener-layout { container-type: normal; }
+/* The tab row: @container (max-width: 940px) — a window up to 955px, and
+   beside the app's sidebar one up to 1219px. */
+@media (max-width: 955px) {
+  :root[data-served] .ptabs { flex-direction: column; align-items: stretch; gap: 0; }
+  :root[data-served] .ptabs-name { border-right: 0; padding: 12px 0 0; height: auto; }
+  :root[data-served] .ptabs-list { gap: 20px; }
+  :root[data-served] .ptab { height: 44px; }
+}
+@media (min-width: 1024px) and (max-width: 1219px) {
+  :root[data-served][data-chrome="app"] .ptabs { flex-direction: column; align-items: stretch; gap: 0; }
+  :root[data-served][data-chrome="app"] .ptabs-name { border-right: 0; padding: 12px 0 0; height: auto; }
+  :root[data-served][data-chrome="app"] .ptabs-list { gap: 20px; }
+  :root[data-served][data-chrome="app"] .ptab { height: 44px; }
+}
+/* The screener: @container screener-layout (max-width: 999.98px), its
+   width the shell's less its 32px padding each side. */
+@media (max-width: 1342.98px) {
+  :root[data-served] .screener-layout > * { grid-column: 1 / -1; }
+  :root[data-served] .screener-layout > .card:first-child { position: static !important; }
+}
+/* And (min-width: 600px) and (max-width: 999.98px): 24px of padding a side
+   below 900px. */
+@media (min-width: 663px) and (max-width: 1342.98px) {
+  :root[data-served] .scr-rail-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--xl); align-items: start; }
+  :root[data-served] .scr-rail-hd .segmented { max-width: 26rem; }
+  :root[data-served] .scr-rail-foot .btn { max-width: 14rem; }
+}
+/* A segmented choice in the served page. Until the script draws the page a
+   button is only its words (prerender.mjs makes every control inert), and
+   every rule of the strip's look is a button's: the screener's four tools
+   stood as one run-on line of text on a phone, half the strip's height, and
+   the page under them jumped when the buttons came. So the words keep a
+   button's box and the chosen one its mark (data-on) for as long as the
+   served page stands — #views[data-served], which the app's first draw of
+   the page takes off. */
+#views[data-served] .segmented > span {
+  /* Centred, as a button centres its words (the screener's "Absolute" stood
+     64px left of where the button put it, in a strip that stretches it). */
+  display: inline-flex; align-items: center; justify-content: center; padding: 6px 11px; border-radius: var(--r-sm); white-space: nowrap;
+  font-size: 13px; font-weight: 500; color: var(--ink-2);
+}
+#views[data-served] .segmented > span[data-on] { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1); }
+@media (pointer: coarse), (max-width: 768px) {
+  #views[data-served] .segmented > span { min-height: 44px; min-width: 44px; justify-content: center; }
+}
+
+/* EVERY INERT CONTROL KEEPS ITS CONTROL'S BOX (2026-10-04). The segmented
+   strip above was the one translated: the stylesheet draws other controls by
+   their element too, and the served page, its controls made words, drew them
+   by none of it. Learn's section tabs (.subnav button) stood as a run of
+   plain words 20px short, and every page under them moved 21px at 1280 and
+   64px on a phone when the tabs came; a filter chip (button.chip) is 44px on
+   a touch screen and was 22, and moved the screener and the comparison by up
+   to 180px; a slider (input[type=range]) was its bare value. Each rule is the
+   element's own, from above, for the word that stands where the control was
+   (data-inert, prerender.mjs), until the page is drawn. :where() keeps a
+   button's own box at no weight, so a class's rule outranks it as it
+   outranks the browser's own on a button. */
+:where(#views[data-served] [data-inert="button"], #productTabs [data-inert="button"]) { display: inline-block; text-align: center; }
+/* A field, a select or a checkbox is an inline block too: a span is inline,
+   and a height the field's class gives it (.select-sm's 34px) was ignored —
+   the calculator's tables of selects stood 13px a row short. */
+:where(#views[data-served] [data-inert="field"], #views[data-served] [data-inert="choice"]) { display: inline-block; }
+/* A select's width is its widest choice's where nothing sets it, and a span's
+   its words'. Its choices are served as data-label on empty spans before its
+   words (prerender.mjs, NOTHING MEASURED): each a line of no height, unseen,
+   as wide as its words — so the span is as wide as the widest, in the
+   reader's own font, as the select will be. The words come last, so they
+   stay the line the span's baseline is on. */
+#views[data-served] [data-inert="field"] > [data-label] { display: block; height: 0; overflow: hidden; visibility: hidden; white-space: pre; }
+#views[data-served] [data-inert="field"] > [data-label]::after { content: attr(data-label); }
+/* And its words are one line, cut at its edge, as a select's are: where a
+   class sets the select's width (the Trading Index's 78px state pickers)
+   its words ran on to three lines on a phone, the field 18px taller until
+   the page was drawn. clip, not hidden: the span keeps its words' baseline. */
+#views[data-served] [data-inert="field"]:has(> [data-label]) { white-space: nowrap; overflow: clip; min-width: 0; }
+/* min-width 0: a select gives a grid track no minimum of its own, and its
+   choices' unseen lines did — /discover/sarawak's 1fr pickers at 1024px took
+   379px and 261px for 289px each (the longest company name), and the page
+   scrolled sideways by 7px (91px in Verdana) until it was drawn. */
+/* A textarea: textarea.input's box, and its rows (data-rows, --rows) as lines
+   of its own line height — 8px of padding and 1px of border above and below. */
+#views[data-served] .input[data-rows] {
+  height: calc(var(--rows) * 1lh + 18px); padding: 8px 10px; min-height: 76px; line-height: 1.55;
+  white-space: pre-wrap; overflow: hidden;
+}
+#views[data-served] .subnav > [data-inert="button"] {
+  padding: 10px 1px 11px; font-size: 13px; font-weight: 500; color: var(--ink-3);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap;
+}
+#views[data-served] .subnav > [data-inert="button"][data-on] { color: var(--ink); border-bottom-color: var(--brand); font-weight: 600; }
+#views[data-served] [data-inert="range"] { display: inline-block; width: 100%; height: 20px; vertical-align: middle; overflow: hidden; }
+/* A checkbox in a .checkline: 15px, no margin (20px to a finger). */
+#views[data-served] .checkline > [data-inert="choice"] {
+  display: inline-block; flex: none; width: 15px; height: 15px; margin: 0; overflow: hidden;
+  font-size: 13px; line-height: 15px; text-align: center;
+}
+@media (pointer: coarse), (max-width: 768px) {
+  #views[data-served] .subnav > [data-inert="button"] { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
+  #views[data-served] .chip[data-inert="button"] { min-height: 44px; min-width: 44px; }
+  #views[data-served] [data-inert="range"] { height: 44px; }
+  #views[data-served] .checkline > [data-inert="choice"] { width: 20px; height: 20px; line-height: 20px; }
+  /* textarea.input's floor here (inputs, above). */
+  #views[data-served] .input[data-rows] { min-height: 44px; }
+}
+/* The screener's results are a table above 768px and cards below, both in
+   the page, CSS choosing (40-views-discover.js). The render has the table
+   only — what 1280px shows — and on a phone it stood for the whole wait for
+   the filings, 3,600px of cut-off columns, and was then swapped for 56
+   cards, the page 2,500px longer under a reader looking at it. Below 768px
+   the served page shows no results until the page is drawn with its cards
+   (styles above: table.dt.screener-table); a reader with no script has only
+   the table, and is shown it (scripting: none, below). */
+
+/* THE SERVED TAB ROW SHOWS THE PAGE'S OWN TAB (2026-10-04). Where the row is
+   narrower than its tabs the app scrolls the current one to the middle
+   (wireSectionTabs, 35-ui.js); a served row cannot carry a scroll position,
+   and stood at its start with the current tab out of sight — the Scanner's
+   Settings 328px past the row's end — until the page was drawn. The browser
+   puts it where the app will (scroll-initial-target, centred). */
+:root[data-served] #productTabs .ptab[aria-current="page"] { scroll-initial-target: nearest; scroll-snap-align: none center; }
+
+/* NOW (35-ui.js). What the app marks data-now is served as what any reader
+   may be told there (prerender.mjs); while a script that will draw the page
+   is coming it is kept out of sight, its box held, and the page's own words
+   arrive in it — not words of the render's clock or browser replaced. An
+   empty one holds a line. */
+@media (scripting: enabled) {
+  #views[data-served] [data-now] { visibility: hidden; }
+}
+#views[data-served] [data-now=""]:empty::before { content: "\a0"; }
+
+/* While the served page stands for the filings after the script has run
+   (servedWaiting, 35-ui.js): its words are not yet controls. */
+#views[aria-busy="true"] [data-inert] { cursor: progress; }
+.served-wait { max-width: min(92vw, 34rem); text-align: center; }
+
+/* THE SERVED PAGE TO A READER WITH NO SCRIPT (2026-10-04). The page and its
+   navigation are served whole, so a reader whose browser runs no script
+   reads them — and met controls that did nothing: empty text fields,
+   dropdowns with carets, primary buttons that lifted under the pointer;
+   Products and Resources in the header, buttons opening nothing, with their
+   links in panels that stay hidden; the phone's menu; "Report a data
+   error"; and on a page with no render of its own (a company's, the 404, My
+   Workspace's) no footer at all, so 2 of the 37 links served could be
+   reached. With no script (scripting: none) a control made inert is shown as
+   the words it holds — no box, caret, lift or pointer — and an empty one not
+   at all; the chrome's controls that need the script are not shown; the
+   footer, every link of Products, Resources and the Company column in it,
+   is shown on every page; and below 1024px the header's own links (How it
+   works, Pricing) stand under the bar. */
+@media (scripting: none) {
+  #views *, #productTabs * { cursor: auto; }
+  #views :is(a[href], a[href] *, summary, summary *), #productTabs :is(a[href], a[href] *) { cursor: pointer; }
+  #views [data-inert], #productTabs [data-inert] {
+    background: none !important; border-color: transparent !important; box-shadow: none !important;
+    transform: none !important; transition: none !important; min-height: 0 !important; height: auto !important;
+  }
+  #views [data-inert="button"]:not([data-on]) { color: var(--ink-2) !important; }
+  #views [data-inert="button"][data-on] { color: var(--ink) !important; font-weight: 600; }
+  #views [data-inert="field"]:empty, #views [data-inert="range"]:empty, #views [data-inert="details"] { display: none !important; }
+  #views [data-inert="field"] > [data-label] { display: none !important; }
+  #views :is(.segmented, .subnav):has(> [data-inert]) { background: none; border-color: transparent; box-shadow: none; }
+  #views table.dt.screener-table { display: table; }
+  #views [data-now]:empty::before { content: none; }
+  #menuProductsBtn, #menuResourcesBtn, #pubMenuBtn, #navOpen, #navClose, [data-open-search], [data-theme-toggle],
+  #disclosureMore, #footResources li:has(> [data-action="report-error"]) { display: none !important; }
+  :root:not([data-chrome]) .disclosure, :root:not([data-chrome]) .footer { display: block; }
+  :root[data-chrome="app"] .footer-grid > :nth-child(2) { display: block; }
+}
+@media (scripting: none) and (max-width: 1023.98px) {
+  .pubbar .bar-in { flex-wrap: wrap; height: auto; padding-block: 8px; }
+  .pubbar .pubnav { display: block; order: 3; flex: 1 0 100%; }
+}
+/* ---- end prerender ---- */
+/* ---- property-proposal ---- */
+/* THE CLIENT PROPOSAL (72-property-proposal.js): the controls in a column
+   beside the document, the document laid out as the A4 page it prints as.
+   Tokens only; nothing new in the palette. The document follows the theme
+   on screen and prints in light colours, as the decision record does. */
+.cp-page { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+/* Beside the document only while the layout has room for both: the rail,
+   the gap and a document about as wide as an A4 page's text (Release B's
+   rule for the screener's rail — the layout asks its own width). */
+.cp-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: var(--md); align-items: start;
+  container: cp-layout / inline-size; }
+@container cp-layout (max-width: 1079.98px) {
+  .cp-layout > * { grid-column: 1 / -1; }
+  .cp-layout > .cp-rail { position: static; }
+}
+/* Stacked across a tablet's width, the rail's groups stand side by side. */
+@container cp-layout (min-width: 640px) and (max-width: 1079.98px) {
+  .cp-rail-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--xl); align-items: start; }
+  .cp-rail-body > .cp-details { grid-column: 1 / -1; }
+}
+
+/* The controls. */
+.cp-rail { display: flex; flex-direction: column; gap: var(--md); padding: var(--lg); min-width: 0; }
+.cp-rail-hd { display: flex; flex-direction: column; gap: var(--xs); }
+.cp-rail-hd .caption { max-width: 46ch; }
+.cp-print { width: 100%; margin-top: 4px; }
+.cp-rail-warn {
+  margin: 0; padding: var(--sm) var(--md); border-radius: var(--r-md); font-size: var(--text-sm); line-height: 1.55;
+  color: var(--ink-2); background: var(--bronze-wash); border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
+}
+.cp-rail-warn a { color: var(--ink); text-underline-offset: 3px; }
+.cp-rail-body { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.cp-fs { margin: 0; padding: var(--md) 0 0; border: 0; border-top: 1px solid var(--line); min-width: 0;
+  display: flex; flex-direction: column; gap: var(--sm); }
+.cp-fs > legend { float: left; width: 100%; padding: 0; margin-bottom: var(--xs);
+  font-size: var(--text-label); font-weight: var(--weight-bold); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.cp-fs > legend + * { clear: both; }
+.cp-fs .field > label, .cp-fs-label { font-size: var(--text-sm); line-height: 20px; font-weight: var(--weight-semibold); color: var(--ink-2); }
+.cp-pick { align-items: flex-start; }
+.cp-pick input { margin-top: 3px; }
+.cp-pick strong { display: block; color: var(--ink); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.cp-pick-what { display: block; margin-top: 2px; overflow-wrap: anywhere; }
+.cp-details > summary {
+  cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 36px;
+  font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere;
+}
+.cp-details > summary::before { content: '+'; display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none;
+  border-radius: 999px; border: 1px solid var(--line-2); font-size: 12px; color: var(--ink-3); }
+.cp-details[open] > summary::before { content: '−'; }
+/* Its mark stays beside its words on a phone, where every summary wraps,
+   and it keeps the phone's 44px target over the 36px above. */
+.cp-details > summary { flex-wrap: nowrap; }
+@media (pointer: coarse), (max-width: 768px) { .cp-details > summary { min-height: 44px; } }
+.cp-details > summary:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; border-radius: var(--r-sm); }
+/* The details' fields in a box of their own: a <details> lays its content
+   out in one internal box, so the gap set on it never reached them and each
+   label sat flush under the field above it. */
+.cp-details-body { display: flex; flex-direction: column; gap: var(--sm); margin-top: var(--xs); min-width: 0; }
+.cp-details-remove { align-self: flex-start; }
+.cp-logo-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs); }
+.cp-logo-thumb { max-height: 44px; max-width: 132px; width: auto; object-fit: contain; padding: 4px;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.cp-rail-links { display: flex; flex-wrap: wrap; gap: 4px; padding-top: var(--sm); border-top: 1px solid var(--line); }
+.cp-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--md); }
+.cp-foot .metaline { flex: 1 1 280px; max-width: 72ch; }
+.cp-missing { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sm); padding: var(--xl) var(--lg); }
+.cp-missing .body { max-width: 70ch; }
+
+/* The document: an A4 page's proportions on screen — about 700px of text
+   between margins — set in the product's own type scale. */
+.cp-doc {
+  container: cp-doc / inline-size; min-width: 0;
+  background: var(--surface-2); color: var(--ink); border-radius: var(--r-lg); box-shadow: var(--lift-2);
+  padding: var(--xxl) 52px; font-size: var(--text-body); line-height: 1.55;
+}
+@container cp-layout (max-width: 1079.98px) { .cp-doc { padding: var(--xl); } }
+@container cp-layout (max-width: 560px) { .cp-doc { padding: var(--lg) var(--md); } }
+.cp-eyebrow { margin: 0 0 4px; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+/* Prepared for takes what its name needs up to 45% of the head and wraps
+   past that, so Prepared by keeps the rest. As "auto" it took the whole of
+   an 80-character name on one line: the preparer's block was left 48px,
+   a word a line, and the client's name was drawn over the logo. */
+.cp-head { display: grid; grid-template-columns: minmax(0, 1fr) fit-content(45%); gap: var(--lg); align-items: start;
+  padding-bottom: var(--lg); border-bottom: 1px solid var(--line); }
+.cp-by, .cp-for { min-width: 0; }
+.cp-for { text-align: right; }
+.cp-logo { display: block; max-height: 56px; max-width: min(200px, 100%); width: auto; object-fit: contain; object-position: left center; margin-bottom: var(--sm); }
+:root[data-theme="dark"] .cp-logo { background: #fff; padding: 6px; border-radius: var(--r-sm); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .cp-logo { background: #fff; padding: 6px; border-radius: var(--r-sm); } }
+.cp-by-name, .cp-for-name { margin: 0; font-size: var(--text-lead); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.cp-by-agency { margin: 0; font-size: var(--text-body); color: var(--ink-2); overflow-wrap: anywhere; }
+.cp-by-contact, .cp-for-date { margin: 0; font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.cp-blank { margin: 4px 0; max-width: 34ch; padding: 8px 10px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-3);
+  border: 1px dashed var(--line-2); border-radius: var(--r-sm); }
+.cp-for .cp-blank { margin-left: auto; text-align: left; }
+.cp-title { margin: var(--xl) 0 var(--lg); }
+.cp-title h1 { margin: 2px 0 6px; font-size: 26px; font-weight: var(--weight-bold); letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.cp-sub { margin: 0; font-size: var(--text-sm); color: var(--ink-2); max-width: 76ch; overflow-wrap: anywhere; }
+.cp-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sm); margin-bottom: var(--sm); }
+.cp-fig { padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); min-width: 0; }
+.cp-fig-k { margin: 0; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+.cp-fig-v { margin: 4px 0 2px; font-size: var(--text-card); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.cp-fig-s { margin: 0; font-size: var(--text-label); line-height: 1.45; color: var(--ink-3); }
+.cp-sec { margin-top: var(--xl); }
+.cp-sec > h2 { margin: 0 0 var(--md); padding-bottom: 6px; border-bottom: 1px solid var(--grid);
+  font-size: var(--text-lead); font-weight: var(--weight-semibold); letter-spacing: -.01em; }
+.cp-sec h3 { margin: var(--lg) 0 var(--sm); font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.cp-kv { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: 10px var(--lg); margin: 0; }
+.cp-kv dt { font-size: var(--text-sm); color: var(--ink-2); line-height: 1.5; }
+.cp-kv dd { margin: 0; font-size: var(--text-body); color: var(--ink); line-height: 1.5; font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+.cp-kv dd > .num { font-weight: var(--weight-semibold); }
+/* A label and its figure, together (72-property-proposal.js): on screen the
+   pair dissolves into the list's two columns; on paper it is one unbreakable
+   row (below). */
+.cp-kv > .cp-kv-row { display: contents; }
+.cp-kv-note { display: block; margin-top: 2px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-3); }
+.cp-kv-note .num { font-weight: var(--weight-semibold); color: var(--ink-2); }
+.cp-assume { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); }
+.cp-assume-grp { padding: var(--sm) var(--md) var(--md); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); min-width: 0; }
+/* The figure takes what it needs up to a little over half the row and wraps
+   past that; the label keeps the rest. As "auto" the column took the whole
+   width of its longest value — "An individual who is a Malaysian citizen or
+   permanent resident" — and every label in the box broke a word a line. */
+.cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
+.cp-kv-tight dt { font-size: var(--text-label); }
+.cp-kv-tight dd { font-size: var(--text-sm); text-align: right; }
+/* The sentence that opens a section, before its table. */
+.cp-note.cp-lead { margin: 0 0 var(--md); }
+/* A list after a note or a table stands apart from it. */
+.cp-sec > * + .cp-kv { margin-top: var(--md); }
+/* The rows' rules run under the row's label as well as its figure. */
+table.dt.cp-table tbody th, table.dt.cp-table tbody td { border-bottom: 1px solid var(--grid); }
+table.dt.cp-table tbody tr:last-child th, table.dt.cp-table tbody tr:last-child td { border-bottom: 0; }
+.cp-mark {
+  display: inline-flex; align-items: center; height: 18px; margin-left: 6px; padding: 0 6px; vertical-align: 1px;
+  border-radius: 999px; font-size: var(--text-micro); font-weight: var(--weight-semibold); white-space: nowrap;
+  background: var(--bronze-wash); color: var(--bronze); border: 1px solid color-mix(in srgb, var(--bronze) 30%, transparent);
+}
+.cp-mark-quiet { background: var(--surface-sunk); color: var(--ink-2); border-color: var(--line-2); }
+.cp-unpriced { font-size: var(--text-label); color: var(--bronze); font-weight: var(--weight-semibold); }
+.cp-tablewrap { margin: 0 0 var(--sm); }
+.cp-table { font-size: var(--text-sm); }
+table.dt.cp-table th, table.dt.cp-table td { padding: 8px 12px; }
+table.dt.cp-table tbody th { font-weight: var(--weight-medium); font-size: var(--text-sm); color: var(--ink-2); white-space: normal; min-width: 11rem; }
+table.dt.cp-table tbody td { color: var(--ink); }
+table.dt.cp-table tr.cp-grp th { padding-top: 12px; font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); background: var(--surface-sunk); }
+table.dt.cp-table tr.cp-sub th, table.dt.cp-table tr.cp-sub td { font-size: var(--text-label); color: var(--ink-3); }
+table.dt.cp-table tr.cp-total th, table.dt.cp-table tr.cp-total td { font-weight: var(--weight-bold); color: var(--ink); border-top: 2px solid var(--line-2); }
+table.dt.cp-exit tbody tr:nth-last-child(-n+4) th { font-weight: var(--weight-semibold); color: var(--ink); }
+table.dt.cp-exit tbody tr:nth-last-child(-n+4) td { font-weight: var(--weight-semibold); }
+/* The scenarios' names wrap; a figure keeps its line. What each scenario
+   changes is listed above the table, so its cells hold figures only. At
+   7.5rem a column beside a label column of 11rem, four columns came to
+   656px — wider than the document at 768 and 1024, and the last scenario
+   was cut at the box's edge. */
+table.dt.cp-sc-table thead th { white-space: normal; vertical-align: bottom; min-width: 5.5rem; }
+table.dt.cp-sc-table tbody th { min-width: 8rem; }
+.cp-sc-change { font-size: var(--text-sm); color: var(--ink-2); }
+.cp-sec > .cp-kv + .cp-tablewrap { margin-top: var(--md); }
+.cp-note { margin: var(--sm) 0 0; max-width: 82ch; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); }
+.cp-note .num { font-weight: var(--weight-semibold); color: var(--ink); }
+.cp-warn { padding-left: 10px; border-left: 2px solid var(--bronze); }
+.cp-sample { margin: 0 0 var(--md); }
+.cp-points { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.cp-points li { font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); max-width: 86ch; }
+.cp-stamp { margin: var(--lg) 0 0; padding-top: var(--sm); border-top: 1px solid var(--grid); font-size: var(--text-label); color: var(--ink-3); overflow-wrap: anywhere; }
+
+/* The document on a phone: its blocks stack, and a table scrolls in its own
+   box rather than the page sideways. */
+@container cp-doc (max-width: 600px) {
+  .cp-head { grid-template-columns: minmax(0, 1fr); }
+  .cp-for { text-align: left; }
+  .cp-for .cp-blank { margin-left: 0; }
+  .cp-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cp-assume { grid-template-columns: minmax(0, 1fr); }
+  .cp-kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .cp-kv dd { margin-bottom: 8px; }
+  .cp-kv-tight { grid-template-columns: minmax(0, 1fr) fit-content(56%); gap: 6px var(--md); }
+  .cp-kv-tight dd { margin-bottom: 0; }
+  .cp-title h1 { font-size: 22px; }
+}
+@container cp-doc (max-width: 380px) {
+  .cp-fig-v { font-size: var(--text-lead); }
+  .cp-fig { padding: 12px; }
+}
+
+/* On paper: the document alone, the page's width, on A4 — a named page, so
+   only the proposal asks a printer for A4 and every other record keeps the
+   printer's own paper. */
+@media print {
+  .cp-rail, .cp-screen-only, .cp-foot { display: none !important; }
+  .cp-layout { display: block !important; }
+  /* The page's margins are the @page rule's 14mm below; the shell's own
+     24px each side, kept on paper, made the text 48px narrower than A4's. */
+  .shell:has(> .cp-page) { padding-left: 0 !important; padding-right: 0 !important; max-width: none !important; }
+  .cp-doc { page: cp-proposal; padding: 0 !important; box-shadow: none !important; border-radius: 0 !important;
+    background: #fff !important; font-size: 10pt; }
+  .cp-doc .cp-tablewrap { overflow: visible !important; border: 0 !important; border-radius: 0 !important; }
+  .cp-doc table.dt th, .cp-doc table.dt td { padding: 3px 6px; font-size: 9pt; line-height: 1.35; }
+  .cp-doc table.dt.cp-table tbody th { min-width: 0; }
+  /* The scenarios' row labels on one line: with the columns' figures short
+     and the page wide, "Monthly instalment" broke over two lines. */
+  .cp-doc table.dt.cp-sc-table tbody th { white-space: nowrap; }
+  .cp-head { grid-template-columns: minmax(0, 1fr) fit-content(45%) !important; }
+  .cp-for { text-align: right !important; }
+  .cp-figs { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  /* The assumptions run as two columns of text that a page can break, not
+     a grid of boxes: a grid row cannot be split, so the first two boxes
+     went to the next page whole and left half of page one blank. */
+  .cp-assume { display: block !important; columns: 2; column-gap: 8mm; }
+  .cp-assume-grp { border: 0 !important; border-radius: 0 !important; padding: 0 0 4mm !important; }
+  .cp-assume-grp > .cp-eyebrow { break-after: avoid; }
+  /* Each label and its figure one row that a page or a column cannot split.
+     A grid's rows could: a label printed at the foot of page one with its
+     figure on page two, rows printed out of order, and a group's heading
+     left alone at the foot of a column with every row of the group in the
+     next. A heading stays with the row after it. */
+  .cp-kv { display: block !important; }
+  .cp-kv > .cp-kv-row { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); column-gap: var(--md); padding-bottom: 6px; break-inside: avoid; }
+  .cp-kv-tight > .cp-kv-row { grid-template-columns: minmax(0, 1fr) fit-content(56%); padding-bottom: 4px; }
+  .cp-fig, .cp-assume-grp { background: #fff !important; }
+  .cp-logo { background: none !important; padding: 0 !important; }
+  .cp-title { margin: var(--lg) 0 var(--md); }
+  .cp-sec { margin-top: var(--lg); }
+  .cp-sec > h2, .cp-sec h3 { break-after: avoid; }
+  .cp-fig, .cp-kv dd, .cp-note, .cp-points li, .cp-head { break-inside: avoid; }
+  /* A short table — the year's rent, the scenarios, the sale — is read
+     whole, so it moves to the next page whole; the ledger is long enough to
+     break, but never under a group's heading. */
+  .cp-tablewrap:not(:has(.cp-ledger)) { break-inside: avoid; }
+  table.dt.cp-table tr.cp-grp { break-after: avoid; }
+}
+@page cp-proposal { size: A4; margin: 14mm 14mm 16mm; }
+
+/* MY PROPERTIES, WITH THE PROPOSAL'S WAY IN. "Client proposal" made a row's
+   actions five buttons wide, and the actions' column, sized to them, took
+   the figures' room: from 1024 to 1180 the price ran into the monthly
+   position, that into "Updated", and the column heads over each other.
+   While the list is narrower than five buttons and four readable columns
+   need, the actions take a line of their own under the figures — the head
+   row's columns are the figures' alone. Above 900px only: below it the
+   rows stack already (audit1: property-model). */
+.pm-saved { container: pm-saved / inline-size; }
+@media (min-width: 900.02px) {
+  @container pm-saved (max-width: 979.98px) {
+    .pm-saved .pm-list { grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.1fr); }
+    .pm-saved .pm-row { row-gap: var(--sm); }
+    .pm-saved .pm-acts-row { grid-column: 1 / -1; justify-content: flex-start; }
+    /* The actions' empty head cell, by its class: the served page leaves
+       out what this hides at the render's width, and ":last-child" then
+       hid "Updated" (the integration's final verification, 2026-10-04). */
+    .pm-saved .pm-head > .pm-head-acts { display: none; }
+  }
+}
+/* ---- end property-proposal ---- */
+/* ---- integration-final ---- */
+/* THE SERVED PAGE THAT IS NOT THIS READER'S (2026-10-04). Marked before the
+   first paint by the script in the page's head (FIRST_SCRIPT, build.mjs;
+   keepServedReads, 35-ui.js), the served page is out of sight, out of the
+   tab order and out of the accessibility tree — the page as it was before
+   pages were served, its header, tab row and footer in place — until the
+   app draws the reader's own. A screen tall, as the skeleton is, so the
+   footer waits below the fold and does not move when the page comes. */
+:root[data-served-hidden] #views[data-served] > * { display: none !important; }
+:root[data-served-hidden] #views[data-served] { min-height: 100vh; }
+
+/* A HEADING'S WORDS OF NOW, FROM THE FIRST PAINT (2026-10-04). What is the
+   tab's own (data-now, 35-ui.js) is held out of sight while the script that
+   draws it is coming — and the dashboard's heading is "Welcome", the
+   reader's greeting once drawn: a fresh visitor read no heading at all for
+   the whole wait for the filings, about six seconds on a slow line, and a
+   screen reader only "My Dashboard:". A heading shows the words any reader
+   may be told there; and once the script has run and the page stands for
+   the filings (#views busy, servedWaiting), so does every such line. */
+@media (scripting: enabled) {
+  #views[data-served] :is(h1, h2, h3) [data-now], #views[data-served][aria-busy="true"] [data-now] { visibility: visible; }
+}
+
+/* AN ACTION THAT DOES NOTHING IS NOT OFFERED (2026-10-04). With no script a
+   control made inert is shown as its words; a choice's words say what is
+   chosen, but an action's — "Hide ×", "Reset", "Save this property", "New
+   property" — offered something that was not there. Marked data-act by
+   prerender.mjs (servedCopy), an action is not shown to such a reader. */
+@media (scripting: none) {
+  #views [data-inert="button"][data-act], #productTabs [data-inert="button"][data-act] { display: none !important; }
+}
+/* ---- end integration-final ---- */
+/* ---- integration-reverify ---- */
+/* THE MAP'S ROOM BEFORE ITS POINTS (2026-10-04). The box cityMap will draw
+   (cityMapHold, 70-property.js), at any width, before the locality
+   positions arrive and with no script to measure anything: the map's own
+   rule — --map-pad round the points, the width filled until the height
+   reaches --map-max, never under --map-min. The town's shape (--map-r, its
+   span north to south over its span east to west) gives the height from the
+   width: ::before is the points' area, the box's width less its padding and
+   --map-r of that tall, and the box stops widening where that area reaches
+   the ceiling, centred, as the map is. Every value is on the box itself, from
+   the script's own constants (CITY_MAP_BOX): no size container, whose
+   contents a first frame can draw without the page's custom properties
+   (prerender, above). The map's background, until the map is drawn on it. */
+.map-hold {
+  position: relative; box-sizing: border-box; margin: 0 auto; padding: var(--map-pad);
+  min-height: var(--map-min); max-height: var(--map-max); overflow: hidden;
+  max-width: calc((var(--map-max) - 2 * var(--map-pad)) / var(--map-r) + 2 * var(--map-pad));
+  border-radius: 10px; background: var(--surface-sunk);
+}
+.map-hold::before { content: ""; display: block; aspect-ratio: 1 / var(--map-r); }
+.map-hold-say {
+  position: absolute; inset: 0; margin: 0; padding: var(--md);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+}
+/* ---- end integration-reverify ---- */

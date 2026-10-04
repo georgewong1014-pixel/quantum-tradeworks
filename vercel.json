@@ -114,7 +114,7 @@
     },
     {
       "source": "/my/scanner",
-      "destination": "/pages/app/scanner.html"
+      "destination": "/pages/my/scanner.html"
     },
     {
       "source": "/app/scanner/setups",
@@ -198,11 +198,11 @@
     },
     {
       "source": "/my/wheel",
-      "destination": "/pages/us-options/wheel.html"
+      "destination": "/pages/my/wheel.html"
     },
     {
       "source": "/my/options",
-      "destination": "/pages/us-options/wheel.html"
+      "destination": "/pages/my/wheel.html"
     },
     {
       "source": "/trading-index",
@@ -826,35 +826,39 @@
     },
     {
       "source": "/company/:id",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/company/:id/report",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/app/equities/:id",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/app/equities/:id/report",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/app/equities/:id/:tab",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/app/scanner/setups/:setup",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/app/scanner/setups/:setup/edit",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
     },
     {
       "source": "/app/scanner/alerts/:alert",
-      "destination": "/index.html"
+      "destination": "/pages/generic.app.html"
+    },
+    {
+      "source": "/property/models/:property/proposal",
+      "destination": "/pages/generic.app.html"
     }
   ],
   "trailingSlash": false,
@@ -876,7 +880,16 @@
       ]
     },
     {
-      "source": "/assets/app.ebf59d6b87a2.js",
+      "source": "/prerender/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/assets/app.474156a54c34.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -893,7 +906,7 @@
       ]
     },
     {
-      "source": "/assets/app.683aaa46deed.css",
+      "source": "/assets/app.f7b1d58c84e2.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -910,7 +923,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.ebf59d6b87a2\\.js$|assets/app\\.683aaa46deed\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.474156a54c34\\.js$|assets/app\\.f7b1d58c84e2\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -918,7 +931,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-6/Wda4ei+vXKxSeParhbU5N28Wngcv6KNHu6KE9wfRg='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-R0FWpUw0m6h2PPXHh35BZi387cd5TqbJnNBbfHQ6aPY=' 'sha256-RsAoK35ok1LUsLFhjNhDaHBbwPx39kf7N2s1/Hyevxc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

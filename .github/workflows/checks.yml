@@ -252,6 +252,23 @@ jobs:
       - name: no route contradicts itself
         run: node coverage-frames.mjs http://localhost:8123
 
+      # Every static route is served the app's own render of its page in
+      # #views (prerender/, written by prerender.mjs, put into each page by
+      # build.mjs), so a crawler, a link preview or a reader with no script
+      # reads the page itself. build --check holds the pages to the committed
+      # renders; this holds the renders to the app. Each page is drawn again
+      # here as prerender.mjs draws it — its first draw, or with the filings
+      # in for a page that waits for them — and its markup (every element,
+      # attribute and word, a chart's figures with them; only what fonts
+      # decide left out), its chrome and its current links must be the
+      # committed render's, and the navigation the address is served must be
+      # the app's own drawing, node for node. A view changed without
+      # `node prerender.mjs`, or a render edited by hand, fails here, not in
+      # production. On CI a failure prints only what the app draws now, never
+      # the committed render's side.
+      - name: every served page is the app's own render of it
+        run: node prerender.mjs --check http://localhost:8123
+
       # Record, edit, undo and replay across every logged entity. The other
       # checks all look at a PAGE; this looks at a SEQUENCE, which is where one
       # feature meeting another written on a different day goes wrong. A demand

@@ -590,8 +590,15 @@ VIEWS.home = () => {
      named the page, so the heading says "My Dashboard: Good morning". The
      eyebrow is My workspace's, as on every workspace page (pageKicker), and
      the page's name — the current tab of the header above — is the
-     heading's first words for a screen reader. */
-  wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '), myDashGreeting()], lede, note: ledeNote }));
+     heading's first words for a screen reader.
+     The greeting is the reader's clock's (data-now, NOW, 35-ui.js): the page
+     is served drawn at a fixed clock (prerender.mjs), where it said "Good
+     morning" at any hour, to a reader with no script for good, and turned
+     into "Good evening" under the rest when the page was drawn. Served, it
+     says "Welcome", true at any hour (and is kept out of sight while the
+     script that greets at the hour it is comes down). */
+  wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '),
+    el('span', { 'data-now': 'Welcome' }, myDashGreeting())], lede, note: ledeNote }));
 
   /* -- first time: the checklist, and nothing else ------------------------ */
   if (!o.hasOwn) {
@@ -857,7 +864,11 @@ function myDashContinue(o) {
 function myDashSampleNote() {
   return el('div', { class: 'dash-note' }, [
     el('span', { class: 'chip chip-bronze' }, 'Sample data'),
-    el('p', { class: 'caption' }, 'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
+    /* What this browser was given is said by the page drawn in it (NOW,
+       35-ui.js): served to a reader whose browser runs no script, it was
+       given nothing. */
+    el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
+      'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear the sample data'),
   ]);
 }
@@ -1565,7 +1576,10 @@ function renderScreener() {
        stays: twelve columns genuinely do not fit a phone, and that scroll is
        one the reader initiates deliberately on the axis the content overflows. */
     const tw = el('div', { class: 'tablewrap', style: 'border:0;border-radius:0;overflow-x:auto' });
-    const table = el('table', { class: 'dt', data: { density: State.density || 'comfortable' } });
+    /* screener-table: the stylesheet's own name for it, which hides it below
+       768px whether or not the cards beside it are in the page — the served
+       page has the table only (styles.css, prerender). */
+    const table = el('table', { class: 'dt screener-table', data: { density: State.density || 'comfortable' } });
     const thead = el('thead'); const htr = el('tr');
     cols.forEach(c2 => {
       const sortBy = () => { if (sc.sort.k === c2.k) sc.sort.dir *= -1; else { sc.sort.k = c2.k; sc.sort.dir = -1; } render(); };
@@ -1791,7 +1805,13 @@ function renderScreener() {
 function scorePill(v, pct) {
   if (!isNum(v)) return NA;
   const t = v / 100;
-  const bg = cssVar(sequentialVar(t));
+  /* The ramp's step, not its colour: the stylesheet resolves it for the
+     theme on screen (2026-10-04). Resolved here, to the light or the dark
+     theme's hex as the page was drawn, the screener's markup was the
+     theme's — a page served in the light theme was not the page a reader in
+     the dark one would be drawn (SERVED_READS, 35-ui.js) — and a switch of
+     theme left every bar in the other theme's colour until a redraw. */
+  const bg = `var(${sequentialVar(t)})`;
   return `<span style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end">
     <span class="num" style="font-weight:600;color:var(--ink)">${v}</span>
     <span style="width:26px;height:6px;border-radius:999px;background:${bg};flex:none" title="${isNum(pct) ? ord(pct) + ' percentile' : ''}"></span></span>`;
@@ -3408,7 +3428,11 @@ VIEWS.discover = () => {
      names the product, and the page opens with the one head every product
      page wears (pageHead, 36-layouts.js; Release B) — it had an eyebrow of
      its own and no lede. */
-  wrap.append(pageHead({ title: 'Narrow the universe to what is worth reading',
+  /* The value map has an address, a title and a place in the sitemap of its
+     own (ROUTES: "Quality vs Value Map"), and was served under the
+     screener's heading — two indexed pages, one h1 (2026-10-04). It is
+     headed by its own name; the tools that ride on ?tab= keep the page's. */
+  wrap.append(pageHead({ title: State.discoverTab === 'radar' ? 'Quality vs Value Map' : 'Narrow the universe to what is worth reading',
     lede: 'Screen the companies held here on quality, financial strength and valuation.', cls: 'page-hd-tools' }));
   /* Through the address: /discover/screener and /discover/value-map have
      routes of their own, the other two ride on ?tab=. A segmented control,

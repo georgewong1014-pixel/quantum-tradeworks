@@ -4,6 +4,25 @@
 
 const searchModal = $('#searchModal'), searchInput = $('#searchInput'), searchResults = $('#searchResults');
 
+/* THE SEARCH'S KEYS, WRITTEN BY WHAT MAKES THEM WORK (2026-10-03). The box
+   is a dialog the script opens; with no script there is no search and no key
+   does anything. Written into the served page, the legend and the sentence
+   that says it to a screen reader were the body text of every address to a
+   reader that runs no script — under the page's own content, on every page,
+   "↑ ↓ move Enter open Esc close" and a paragraph on arrow keys. They are
+   the dialog's, so the dialog's script writes them, once, before it can
+   open: the same words, the same markup and the same description of the box
+   (aria-describedby="searchHint") as were in the page. */
+const SEARCH_KEYS = {
+  esc: 'Esc',
+  legend: [[['↑', '↓'], 'move'], [['Enter'], 'open'], [['Esc'], 'close']],
+  hint: 'Results are grouped under Companies, Pages and tools, and Your saved work; with nothing typed, Recent lists what you last opened in this browser. The down arrow moves into the results and on across the groups, Enter opens the one you are on, or the first from the box, and Escape closes the search.',
+};
+$('.search-esc', searchModal)?.replaceChildren(SEARCH_KEYS.esc);
+$('.search-keys', searchModal)?.replaceChildren(...SEARCH_KEYS.legend.map(([keys, what]) =>
+  el('span', {}, [...keys.map(k => el('span', { class: 'kbd' }, k)), ` ${what}`])));
+$('#searchHint')?.replaceChildren(SEARCH_KEYS.hint);
+
 /* Where focus was when the search opened, so closing it puts focus back —
    on the search button, or wherever "/" was pressed — rather than dropping it
    on the document body, where the next Tab starts from the top of the page. */
