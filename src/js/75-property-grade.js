@@ -1295,6 +1295,15 @@ function dealModel(d) {
            stress, exits, holdVsSell, renoRecovered, equity };
 }
 
+/* The calculator's "Monthly commitment": what the owner funds from their
+   own income each month — the monthly position's shortfall, and nothing
+   when the property pays for itself; null where the position is unknown.
+   One function, read by the equity card below and by the client proposal
+   (72-property-proposal.js), so the two print one figure. */
+function monthlyCommitment(m) {
+  return isNum(m?.cashflowMonthly) ? Math.max(0, -m.cashflowMonthly) : null;
+}
+
 /* WHAT THE RENOVATION RETURNS. Two runs of the model, not one: this deal as
    entered, and the same deal with no renovation, the rent reduced by the
    share that depends on it, and nothing recovered at exit. The difference in
@@ -2231,7 +2240,10 @@ VIEWS.property = () => {
     calculates: 'up to three scenarios side by side — monthly position, cash required, yield, break-even rent and grade — which inputs move the rate of return most, the rate, vacancy and overrun at which it stops working, and the return and the tax on the rent over the hold.' });
   const rpt = propertySection('report', {
     provide: 'the state of each demand source you record for the district, your answers to the ten questions that decide more than the price, how each was established, and where each driving figure came from.',
-    calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it.' });
+    /* The client proposal is named with what it holds. "Sets it out for a
+       client" followed the grade and the risk flags, which the proposal
+       leaves out on purpose (72-property-proposal.js). */
+    calculates: 'the grade against the methodology’s gates, the demand and environmental allowances recorded for the district, what the answer rests on, and — in the full report — the exits, the year-by-year path, the equity comparison and the risk flags; the decision record prints it. A saved property’s client proposal sets out its costs, loan, cash flow, scenarios and sale for a client, without the grade, the gates, the equity comparison or the risk flags.' });
 
   /* ---------- inputs ---------- */
   const rail = acq.inputs;
@@ -3666,7 +3678,7 @@ VIEWS.property = () => {
     eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
       { sub: 'Deposit, entry costs and the reserve — what the rate of return is measured on' })));
     eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment',
-      isNum(m.cashflowMonthly) ? fmtAmount(Math.max(0, -m.cashflowMonthly), 'MYR') : '—',
+      isNum(m.cashflowMonthly) ? fmtAmount(monthlyCommitment(m), 'MYR') : '—',
       { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
         : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
     eq2.append(eg);
@@ -3715,7 +3727,7 @@ VIEWS.property = () => {
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
-  rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), regNote);
+  rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };

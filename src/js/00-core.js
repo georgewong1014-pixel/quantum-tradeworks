@@ -308,6 +308,13 @@ const STORE_SHAPES = {
   savedScreens: SHAPE_RECORDS, savedWork: SHAPE_RECORDS, runs: SHAPE_RECORDS, sarawakExposure: SHAPE_RECORDS, comparisons: SHAPE_RECORDS,
   areaProfiles: SHAPE_RECORD, demand: SHAPE_RECORD, deal: SHAPE_RECORD, wheelPlan: SHAPE_RECORD, qttiPlan: SHAPE_RECORD,
   manualPrices: SHAPE_RECORD, userData: SHAPE_RECORD, wht: SHAPE_RECORD, reviews: SHAPE_RECORD, borrowerProfile: SHAPE_RECORD,
+  /* The name, agency, contact and logo a client proposal prints
+     (72-property-proposal.js), which reads each field again as it uses it.
+     A restore holds the logo to the page's own rule as well — a PNG, JPEG
+     or WebP image of at most 200 KB (`fault`, read only by a restore): a
+     file whose logo was over the cap was taken whole, the logo dropped
+     from the page without a word, and the export carried it on. */
+  proposalDetails: { ...SHAPE_RECORD, fault: (v) => proposalDetailsFault(v) },
   valuation: SHAPE_RECORD, scanSetups: SHAPE_RECORD, scanAlertState: SHAPE_RECORD, scanPrefs: SHAPE_RECORD,
   registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
   baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
@@ -324,7 +331,9 @@ function storedShapeFault(k, v) {
     const bad = v.filter(x => !s.item(x)).length;
     return bad ? `has ${bad} of ${v.length} entries that ${bad === 1 ? 'is not' : 'are not'} ${s.what}` : null;
   }
-  return s.ok(v) ? null : `holds ${kindOfValue(v)} where this app writes ${s.what}`;
+  /* A shape can refuse a value in the right form for a reason of its own
+     (`fault`): what a restore must not take, though the page could read it. */
+  return s.ok(v) ? (s.fault ? s.fault(v) : null) : `holds ${kindOfValue(v)} where this app writes ${s.what}`;
 }
 /* A stored value as the app can read it: itself, its readable entries, its
    emptied state, or undefined for absent. null is left as null — the app
@@ -414,6 +423,9 @@ const PORTABLE_KEYS = [
   { k:'reviews',           label:'Decision reviews' },
   { k:'runs',              label:'Saved valuation runs' },
   { k:'borrowerProfile',   label:'Borrower profile' },
+  /* What a client proposal prints as Prepared by, the logo with it. The
+     client's own name is never stored, so nothing about a client travels. */
+  { k:'proposalDetails',   label:'Your details for proposals' },
   { k:'sarawakExposure',   label:'Sarawak exposure records' },
   /* The two saved kinds the research workspace added: assumptions edited in
      the Valuation Studio (kept per company across reloads), and named

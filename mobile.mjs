@@ -2078,6 +2078,188 @@ for (const w of [360, 390]) {
   else console.log(`ok   releaseB search-recent: the search at 360 and 390 (light) and 390 (dark), ${measured} states — Recent with a company, a page, a tool and a long-named list, and "property" with a result in every group: no overflow, the box on screen, every result's words in its row, results, "Clear recent" and close 44px; by the keys alone at 390 the bar's button and "/" open it, the arrows walk all three groups keeping each result in sight, Enter opens a page, Escape gives focus back`);
 }
 /* ---- end releaseB: search-recent ---- */
+/* ---- property-proposal ---- */
+/* THE CLIENT PROPOSAL AT EVERY WIDTH (3 Oct 2026). A saved property with
+   three long-named scenarios, all ticked, the preparer's details and a wide
+   logo, and a client's name, its details panel open: at 360, 390, 430, 768,
+   1024 and 1440, and at 390 dark —
+     - no horizontal overflow: a table scrolls in its own box, never the
+       page, and from 768 up the scenarios table is not cut at all;
+     - the head keeps Prepared by readable beside a long client's name — at
+       least 45% of the head where the two stand side by side, the logo not
+       under the client's name, the preparer's email on one line — with a
+       name of 48, 60 and 80 characters at 768, 1024 and 1440;
+     - the details panel's fields stand apart, as the other fieldsets' do;
+     - at the three phone widths every control is a 44px target (a
+       checkbox's whole label is its target; a link inside a sentence is
+       exempt);
+     - at 390, by the Tab key alone, every stop on the page shows a focus
+       ring and is on screen.
+   And My properties, whose rows took a fifth action for the proposal: at
+   1024, 1100, 1180, 1280 and 1440 no figure or column head runs into the
+   next, and the page says the proposal is a preview. The proposal checks
+   fail before it existed; the head, the scenarios at 768 and 1024, the
+   details' gaps and My properties fail on c8c9ca3, the proposal as first
+   built. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(250);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(300);
+  };
+  /* The head: Prepared by keeps its share, the logo stays out from under the
+     client's name, and the preparer's email is not broken inside a word. */
+  const HEAD = `const head = doc.querySelector('.cp-head'), by = doc.querySelector('.cp-by'), fr = doc.querySelector('.cp-for'), logo = doc.querySelector('.cp-logo');
+    const hb = head.getBoundingClientRect(), bb = by.getBoundingClientRect(), fb = fr.getBoundingClientRect();
+    const side = fb.top < bb.bottom - 1 && fb.left > bb.left + 1;
+    if (side && bb.width < hb.width * 0.45) out.problems.push('Prepared by has ' + Math.round(bb.width) + 'px of the head\\'s ' + Math.round(hb.width) + 'px beside the client\\'s name');
+    if (logo && side && logo.getBoundingClientRect().right > fb.left + 1) out.problems.push('the logo runs ' + Math.round(logo.getBoundingClientRect().right - fb.left) + 'px under the client\\'s name');
+    const c = doc.querySelector('.cp-by-contact'), tn = c && c.firstChild, at = tn ? tn.nodeValue.indexOf('aisha.rahman@example.com') : -1;
+    if (at >= 0) { const rg = document.createRange(); rg.setStart(tn, at); rg.setEnd(tn, at + 'aisha.rahman@example.com'.length);
+      const tops = new Set([...rg.getClientRects()].map(x => Math.round(x.top))); if (tops.size > 1) out.problems.push('the preparer\\'s email is broken over ' + tops.size + ' lines'); }`;
+  const MEASURE = (phone, wide) => `(() => { const out = { problems: [] };
+    const de = document.documentElement;
+    if (de.scrollWidth > window.innerWidth + 1) out.problems.push('the page overflows by ' + (de.scrollWidth - window.innerWidth) + 'px');
+    const doc = document.getElementById('cp-doc');
+    if (!doc) { out.problems.push('no proposal on the page'); return out; }
+    if (doc.scrollWidth > doc.clientWidth + 1) out.problems.push('the document overflows its own box by ' + (doc.scrollWidth - doc.clientWidth) + 'px');
+    /* An assumption's label keeps at least 30% of its row: as "auto" the
+       value column took the width of its longest value and every label
+       broke a word a line. */
+    doc.querySelectorAll('dl.cp-kv-tight dt').forEach(dt => { const a = dt.getBoundingClientRect(), full = dt.nextElementSibling.getBoundingClientRect().right - a.left;
+      if (a.width < full * 0.3) out.problems.push('the assumption "' + dt.textContent.trim() + '" has ' + Math.round(a.width) + 'px of its ' + Math.round(full) + 'px row'); });
+    ${HEAD}
+    /* The scenarios side by side: cut at the box's edge from 768 up. */
+    const sc = [...doc.querySelectorAll('.cp-tablewrap')].find(x => x.querySelector('.cp-sc-table'));
+    out.cols = sc ? sc.querySelectorAll('thead th').length - 1 : 0;
+    if (${wide} && sc && sc.scrollWidth > sc.clientWidth + 1) out.problems.push('the scenarios table is ' + sc.scrollWidth + 'px in a ' + sc.clientWidth + 'px box');
+    /* The details panel's fields stand apart. */
+    const fields = [...document.querySelectorAll('#cp-details .field')].filter(f => f.getClientRects().length);
+    fields.slice(1).forEach((f, i) => { const gap = f.getBoundingClientRect().top - fields[i].getBoundingClientRect().bottom;
+      if (gap < 8) out.problems.push('in Your details, "' + (f.querySelector('label, .cp-fs-label')?.textContent || '').trim() + '" sits ' + Math.round(gap) + 'px under the field above it'); });
+    if (${phone}) {
+      const page = document.querySelector('.cp-page');
+      const ctl = [...page.querySelectorAll('a[href], button, input:not([type=hidden]):not([type=file]):not([type=checkbox]), select, summary, label.checkline, [tabindex="0"]')]
+        .filter(n => n.getClientRects().length && !n.closest('p'));
+      out.n = ctl.length;
+      ctl.forEach(n => { const b = n.getBoundingClientRect(); const wide2 = /^(A|BUTTON|SUMMARY)$/.test(n.tagName);
+        if (b.height < 43.5 || (wide2 && b.width < 43.5)) out.problems.push((n.id || n.tagName.toLowerCase()) + ' "' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '" is ' + Math.round(b.width) + '×' + Math.round(b.height) + 'px'); });
+    }
+    return out; })()`;
+  let measured = 0, stops = 0, targets = 0, heads = 0, rows = 0;
+  try {
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await load('/property/calculator');
+    const path = await ev(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
+      window.__pq = []; window.prompt = (m, d) => (window.__pq.length ? window.__pq.shift() : d); window.confirm = () => true;
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 538000, rent: 2250, bankValuation: 520000 }); ['price', 'rent', 'bankValuation'].forEach(k => markTouched(State.deal, k)); saveDeal();
+      const rec = saveActiveProperty({ name: 'A long property name for the phone check — Stutong Heights, block C' });
+      for (const [name, set] of [['A 20% deposit instead of 10%, with the valuation at the purchase price', { downPct: 20, bankValuation: 538000 }],
+        ['Rent at RM2,550 with the furnished unit', { rent: 2550 }], ['Rate up by about one percentage point', { ratePct: 5.2 }]]) {
+        openPropertyModel(rec.id, { show: false });
+        Object.assign(State.deal, set); Object.keys(set).forEach(k => markTouched(State.deal, k)); saveDeal(); window.__pq = [name]; saveAsScenario();
+      }
+      openPropertyModel(rec.id, { show: false });
+      const cv = document.createElement('canvas'); cv.width = 600; cv.height = 150; const g = cv.getContext('2d'); g.fillStyle = '#1f5c4a'; g.fillRect(0, 0, 600, 150);
+      store.write('proposalDetails', { name: 'Aisha binti Rahman', agency: 'Rahman Property Advisory Sdn Bhd', contact: '+60 12-345 6789 · aisha.rahman@example.com', logo: cv.toDataURL('image/png') });
+      return cpPath(rec.id);
+    })()`);
+    const open = async (client = 'Mr and Mrs Tan Wei Ming, and their family trust') => ev(`(async () => { navigate(${JSON.stringify(path)}); await new Promise(r => setTimeout(r, 450));
+      for (let i = 0, cb; i < 6 && (cb = [...document.querySelectorAll('.cp-pick input[type=checkbox]')].find(x => !x.checked)); i++) { cb.click(); await new Promise(r => setTimeout(r, 250)); }
+      const c = document.getElementById('cp-client'); c.value = ${JSON.stringify(client)}; c.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 300));
+      const d = document.getElementById('cp-details'); if (d && !d.open) { d.open = true; await new Promise(r => setTimeout(r, 80)); }
+      return State.view; })()`);
+    for (const [w, dark] of [[360, false], [390, false], [430, false], [768, false], [1024, false], [1440, false], [390, true]]) {
+      const at = `${w}px${dark ? ' dark' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 768 ? 844 : 900, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] }, sessionId);
+      const view = await open();
+      if (view !== 'propertyProposal') { fails.push(`${at}: the proposal opened as ${view}`); continue; }
+      const m = await ev(MEASURE(w <= 430, w >= 768));
+      m.problems.forEach(x => fails.push(`${at}: ${x}`));
+      if (m.cols !== 4) fails.push(`${at}: the scenarios table has ${m.cols} columns beside its labels, not the base case and three`);
+      if (w <= 430) { targets += m.n || 0; if (!(m.n > 15)) fails.push(`${at}: only ${m.n} controls were measured`); }
+      measured++;
+    }
+    /* A long client's name beside the preparer's, at three widths. */
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] }, sessionId);
+    for (const w of [768, 1024, 1440]) for (const name of ['Mr and Mrs Tan Wei Ming, and their family trust',
+      'Syarikat Perumahan Bumi Kenyalang Sdn Bhd, attn. Mr Lau Chee', 'Dato’ Sri Haji Mohammad Faizal bin Abdullah and Datin Sri Hajah Nurul Ain binti']) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await open(name);
+      const m = await ev(`(() => { const out = { problems: [] }; const doc = document.getElementById('cp-doc'); ${HEAD} return out; })()`);
+      m.problems.forEach(x => fails.push(`${w}px, a client's name of ${name.length} characters: ${x}`));
+      heads++;
+    }
+    /* The keyboard at 390: every stop on the page shows a ring, on screen. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    await open();
+    await ev(`document.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); document.activeElement?.blur(); true`);
+    const seen = new Set();
+    for (let i = 0; i < 140; i++) {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      const v = await ev(`(async () => { await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const n = document.activeElement; if (!n || n === document.body) return { end: true };
+        const page = document.querySelector('.cp-page'); if (!page || !page.contains(n)) return { outside: true, footer: !!n.closest('.footer') };
+        if (!n.dataset.cpf) n.dataset.cpf = String(Math.random()).slice(2);
+        const s = getComputedStyle(n), b = n.getBoundingClientRect();
+        const ring = n.matches(':focus-visible') && ((s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 1) || (s.boxShadow && s.boxShadow !== 'none'));
+        const onScreen = b.bottom > 0 && b.top < innerHeight && b.right > 0 && b.left < innerWidth;
+        return { id: n.dataset.cpf, ring, onScreen, who: (n.id || n.tagName.toLowerCase()) + ' "' + (n.getAttribute('aria-label') || n.textContent || '').trim().slice(0, 30) + '"' }; })()`);
+      if (!v || v.end || v.footer) break;
+      if (v.outside || seen.has(v.id)) continue;
+      seen.add(v.id);
+      if (!v.ring) fails.push(`390 keyboard: ${v.who} takes focus with no visible ring`);
+      if (!v.onScreen) fails.push(`390 keyboard: ${v.who} takes focus off screen`);
+    }
+    stops = seen.size;
+    if (stops < 12) fails.push(`390 keyboard: the Tab key reached only ${stops} stops on the proposal page`);
+    /* My properties: five actions a row, and nothing running into its
+       neighbour; and the proposal called a preview. */
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
+    for (const w of [1024, 1100, 1180, 1280, 1440]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await ev(`(async () => { navigate('/property/models'); await new Promise(r => setTimeout(r, 450)); return true; })()`);
+      const m = await ev(`(() => { const out = { problems: [], rows: 0 };
+        const list = document.querySelector('.pm-list:not(.pm-loose)');
+        const spill = (cell) => { const r = cell.getBoundingClientRect(); let right = r.right;
+          cell.querySelectorAll('*').forEach(k => { if (k.getClientRects().length && getComputedStyle(k).position !== 'absolute') right = Math.max(right, k.getBoundingClientRect().right); });
+          return Math.max(right - r.right, cell.scrollWidth - cell.clientWidth); };
+        const named = (c) => (c.querySelector('.pm-label')?.textContent || c.textContent || '').trim().slice(0, 24);
+        [...list.querySelectorAll(':scope > .pm-row:not(.pm-sample)')].forEach(row => {
+          out.rows++;
+          [...row.children].forEach(c => { const s = spill(c); if (s > 1) out.problems.push((row.classList.contains('pm-head') ? 'the column head "' : 'the cell "') + named(c) + '" runs ' + Math.round(s) + 'px past its column'); });
+        });
+        if (!/client proposal is a preview/i.test(document.querySelector('main')?.innerText || '')) out.problems.push('nothing on the page says the client proposal is a preview');
+        return out; })()`);
+      m.problems.forEach(x => fails.push(`My properties at ${w}px: ${x}`));
+      rows += m.rows;
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL property-proposal — the client proposal across widths: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   property-proposal: the client proposal (three scenarios ticked, the preparer's details and a wide logo, a client's name, the details open) at 360, 390, 430, 768, 1024 and 1440, and 390 dark — ${measured} widths with no overflow of the page or the document, the scenarios table whole from 768 up, every assumption's label keeping at least 30% of its row and the details' fields apart; in ${heads} heads with a client's name of 48 to 80 characters at 768, 1024 and 1440 Prepared by keeps at least 45%, the logo stays clear of the client's name and the email whole; on the phones all ${targets} controls measured are 44px targets; by the Tab key at 390 all ${stops} stops show a ring, on screen; on My properties at 1024 to 1440 no figure or head runs into the next (${rows} rows) and the proposal is called a preview`);
+}
+/* ---- end property-proposal ---- */
+
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);

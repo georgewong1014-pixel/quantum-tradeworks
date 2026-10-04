@@ -559,7 +559,7 @@ const TOOLS = [
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
   { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
-    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report and decision record, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
+    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
     action: { label: 'Open your reports', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
     status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
@@ -1108,6 +1108,9 @@ const ROUTES = [
   { path: '/property',            view: 'property',  title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/models',     view: 'propertyModels', title: 'My properties' },
+  /* A saved property's client proposal (72-property-proposal.js), under My
+     properties as the property is — and so kept out of crawlers with it. */
+  { path: '/property/models/:property/proposal', view: 'propertyProposal', title: 'Client proposal' },
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
@@ -1157,6 +1160,7 @@ const META = {
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
   propertyModels: 'The properties you have saved in this browser, each with its inputs and its scenarios. Open one and the calculator edits it.',
+  propertyProposal: 'A saved property set out for a client: who prepared it and for whom, the cost of buying it, the loan, the rent and the cash flow, its scenarios side by side and a sale at the end of the hold. A preview, printed or saved as PDF through your browser.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
   scanner:   'Conditions you define, evaluated on price history you supplied, recording which held on the last daily bar your history holds. Nothing ranked, nothing delivered.',
   /* Phase 3 — ops */
@@ -1180,7 +1184,7 @@ const META = {
   watchlists:  'Lists of companies you follow, each one usable as the scanner’s universe. Adding one implies no view on it.',
   thesis:      'What you believe about a company and what would prove you wrong, checked against the latest data.',
   alerts:      'Your alerts, each labelled by kind: the facts that changed in the research you follow, with their source period, and your scanner setups’ recorded matches. Nothing is sent outside this browser.',
-  reports:     'Every report your own work in this browser can print — company research reports, property investor reports and decision records — each saved as PDF through your browser’s print.',
+  reports:     'Every report your own work in this browser can print — company research reports, property investor reports, decision records and client proposals — each saved as PDF through your browser’s print.',
   tracked:     'Instruments followed by price and trend only — nothing valued, scored or ranked.',
   userdata:    'Bring your own prices: what you paste stays in this browser, and how it is used.',
   opportunities: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
@@ -1754,6 +1758,9 @@ const SECTION_OF = {
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
   property: 'property', opportunities: 'property', comparables: 'property', areas: 'property',
   propertyModels: 'property',
+  /* A document of one saved property, not a tool of its own: Property's
+     page with no tab current, as the decision record is. */
+  propertyProposal: 'property',
   tradingIndex: 'scanner',
   /* Preferences and the goal launcher are reached from My Dashboard's
      "Other ways in", so the dashboard is where a reader on them is; with
