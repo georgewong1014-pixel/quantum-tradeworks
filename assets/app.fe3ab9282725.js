@@ -50612,9 +50612,12 @@ function healthStart() {
 const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this page’s script.',
   quick: 'Run in your browser by this page’s script.',
   journeys: 'Read from the site by this page’s script.' };
+/* One width whatever it says (health-chip, styles.css): served it says
+   "Not run", drawn "Checking…" and then its result, and the check's name
+   beside it must not move between them. */
 const healthChip = (status) => {
   const s = HEALTH_STATE[status];
-  return el('span', { class: `chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip }, s ? s.label : 'Checking…');
+  return el('span', { class: `chip health-chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip }, s ? s.label : 'Checking…');
 };
 const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`) : null);
 /* The result, its name and its time on one line; what was checked below it.

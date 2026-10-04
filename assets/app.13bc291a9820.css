@@ -4124,6 +4124,19 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views[data-served] [data-now] { visibility: hidden; }
 }
 #views[data-served] [data-now=""]:empty::before { content: "\a0"; }
+/* A /status result chip (healthChip, 91-health.js) is as wide as the widest
+   thing it can say, in any font (2026-10-04). Served it says "Not run",
+   drawn "Checking…", then its result; at its 4.75rem floor "Checking…" fit
+   Windows' fonts but not CI's Linux ones, so the chip grew as the page was
+   drawn and the check's name beside it moved 16px. The two widest wordings,
+   "Checking…" and HEALTH_STATE's "Degraded", stand in its box out of sight
+   and with no height, so every state of it is one width. They go after the
+   words it says (order), whose baseline is the chip's: the row sets the chip
+   on the check's name by baseline. */
+.health-chip { flex-direction: column; gap: 0; }
+.health-chip::before, .health-chip::after { order: 1; height: 0; overflow: hidden; visibility: hidden; }
+.health-chip::before { content: "Checking\2026"; }
+.health-chip::after { content: "Degraded"; }
 
 /* While the served page stands for the filings after the script has run
    (servedWaiting, 35-ui.js): its words are not yet controls. */

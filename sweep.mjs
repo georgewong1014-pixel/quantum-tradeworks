@@ -573,6 +573,27 @@ for (const route of ROUTES) {
   if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`the placeholder: ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "not run yet"`);
   if (!s.asked) p.push('/status never asked the site for health/journeys.json');
   if (!s.modes.length || s.modes.some(m => m !== 'no-store')) p.push(`/status asks for health/journeys.json with cache ${JSON.stringify(s.modes)}, not no-store`);
+  /* One chip width whatever it says (health-chip, styles.css): served "Not
+     run", drawn "Checking…", then a result. In CI's Linux fonts "Checking…"
+     outgrew the chip and moved the check's name 16px as the page was drawn
+     (coverage-frames, ee173ce). Measured in the page's font, in Verdana and
+     with the letters spaced wide, never against a width in pixels. */
+  const chipW = await evalValue(`(() => {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:absolute;left:-9999px;top:0;display:flex;flex-direction:column;align-items:flex-start';
+    document.body.append(host);
+    const out = {};
+    for (const [face, extra] of [['the page font', ''], ['Verdana', 'font-family:Verdana,sans-serif'], ['spaced', 'letter-spacing:.3em']]) {
+      out[face] = [undefined, 'PASS', 'DEGRADED', 'FAIL', 'served'].map(st => {
+        const c = healthChip(st === 'served' ? undefined : st);
+        if (st === 'served') c.textContent = c.getAttribute('data-now');
+        c.style.cssText += ';' + extra; host.append(c);
+        return Math.round(c.getBoundingClientRect().width * 10) / 10;
+      });
+    }
+    host.remove(); return out;
+  })()`);
+  for (const [face, ws] of Object.entries(chipW || { 'not measured': [0, 1] })) if (Math.max(...ws) - Math.min(...ws) > 0.5) p.push(`a result chip changes width with what it says (${face}: Checking…, Pass, Degraded, Fail, Not run = ${ws.join(', ')}px), moving the check's name beside it`);
 
   /* The file as committed, whatever the last run recorded: either the
      placeholder or a dated run — never unreadable, never an invented result. */
@@ -658,7 +679,7 @@ for (const route of ROUTES) {
   if (modes?.result?.identifier) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: modes.result.identifier }, sessionId);
   ws.removeEventListener('message', intercept);
   if (p.length) { bad++; console.log('FAIL health: /status does not say truthfully whether each tool works'); p.forEach(x => console.log('     ' + x)); }
-  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it, and to Degraded, naming data/instruments.json, when that is served but unreadable, and does not degrade the data files when the reader switched the filed statements off; a Degraded journey with no note is not called within budget; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one — asked of the site on every visit, with no-store');
+  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it, and to Degraded, naming data/instruments.json, when that is served but unreadable, and does not degrade the data files when the reader switched the filed statements off; a Degraded journey with no note is not called within budget; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one — asked of the site on every visit, with no-store; a result chip one width whatever it says, in any font');
 }
 /* ---- end audit1: health ---- */
 /* ---- audit1: registry-ctas ---- */
