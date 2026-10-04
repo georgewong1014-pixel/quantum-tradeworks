@@ -7,7 +7,7 @@
    second and names the line.
 
    Run it before the sweep, not instead of it. */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -42,6 +42,9 @@ for (const [i, b] of blocks.entries()) {
     console.error(`FAIL  inline script #${i + 1}`);
     if (hit) console.error(`      index.html line ~${b.line + Number(hit[1]) - 1}`);
     console.error(err.split('\n').slice(0, 6).map(l => '      ' + l).join('\n'));
+  } finally {
+    /* Each run wrote 3.5 MB here and left it: 1.45 GB of them by 2026-10-04. */
+    await rm(tmp, { force: true });
   }
 }
 console.log(bad ? `\n${bad} script(s) failed to parse` : `\nall ${blocks.length} inline script(s) parse`);
