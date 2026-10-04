@@ -2409,6 +2409,225 @@ for (const w of [360, 390]) {
   else console.log(`ok   scenario-lab: the Scenario Lab draws its sliders; at 360, 390 and 430 all ${targets} controls measured are 44px targets; at 360×640 one knob, its slider (${said.oneScreen.range.join('–')}) and all seven results (the last ending at ${Math.max(...said.oneScreen.vals.map(v => v[2]))}) on one screen below the ${said.oneScreen.under}px topbar; no sideways scroll at 360 under any of the ${metrics} comparisons; all five knobs at 1024 and 1440; ${pairs} colour pairs held in light and dark (lowest: ${Object.entries(said).filter(([k]) => k.includes('min')).map(([k, v]) => `${k.replace(' min ', ' ')}:1 pairs ${v}`).join(', ')}), the focused slider ringed`);
 }
 /* ---- end scenario-lab ---- */
+/* ---- scenario-lab-verify ---- */
+/* THE SCENARIO LAB ON A PHONE AND A DESK, AS THE VERIFICATION OF 4 OCT 2026
+   FOUND IT. Each fails on the lab as first built (e91a64f):
+     - at 360×640, the Input picker just under the topbar, for each of the
+       five knobs: the slider and all seven results on the screen, and none
+       of them moved by the first tick of a drag (the first tick added a
+       what-if line and a 44px "Back to…" line, and every result jumped 75px
+       under the thumb);
+     - at 390, saving B as a scenario or the property leaves the keyboard in
+       the panel and the page where it was (focus fell to <body>, and the
+       page jumped 1,670px);
+     - light and dark: a stack's legend is true of what is drawn in that
+       theme ("darker" was lighter in dark), and every part of a stack holds
+       3:1 against its track and its card where it is told apart;
+     - at 390, the calculator's "Open these in the Scenario Lab" is a 44px
+       target (16px tall);
+     - at 390 by touch, a vertical swipe that starts on a slider's track
+       leaves the figure where it was (it jumped to where the finger landed),
+       and a sideways drag still moves it;
+     - at 1440, a focused slider's ring is whole inside the sticky column of
+       knobs (its left 2px were cut off). */
+{
+  const fails = [];
+  const said = {};
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev(`State.view`);
+  };
+  const frames = `new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))`;
+  const fresh = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); window.prompt = () => null; return true; })()`);
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* One screen at 360×640, and nothing moves under the thumb. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 640, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await load('/property/lab');
+    await fresh();
+    said.knobs = [];
+    for (const k of ['price', 'downPct', 'ratePct', 'rent', 'renovation']) {
+      const view = await load('/property/lab');
+      if (view !== 'propertyLab') { fails.push(`360×640: /property/lab opened ${view}`); break; }
+      const r = await ev(`(async () => {
+        document.documentElement.style.scrollBehavior = 'auto';
+        const radio = document.getElementById('lab-in-${k}');
+        if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await ${frames}; }
+        const bar = [...document.querySelectorAll('.appbar, .topbar')].filter(n => n.getClientRects().length && getComputedStyle(n).position !== 'static').map(n => n.getBoundingClientRect().bottom);
+        const under = Math.max(0, ...bar);
+        const pick = document.querySelector('.lab-pick-input');
+        window.scrollTo(0, pick.getBoundingClientRect().top + scrollY - under);
+        await ${frames};
+        const at = () => {
+          const range = document.getElementById('lab-r-${k}').getBoundingClientRect();
+          const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
+          return { range: [Math.round(range.top), Math.round(range.bottom)], vals };
+        };
+        const before = at();
+        const rg = document.getElementById('lab-r-${k}');
+        const step = Number(rg.step), v = Number(rg.value);
+        rg.value = String(v + step <= Number(rg.max) ? v + step : v - step);
+        rg.dispatchEvent(new Event('input', { bubbles: true }));
+        await ${frames};
+        return { under: Math.round(under), vh: innerHeight, before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves) };
+      })()`);
+      said.knobs.push([k, Math.max(...r.after.vals.map(v => v[2]))]);
+      if (!r.moved.includes(k)) fails.push(`360×640, ${k}: one tick moved nothing (${r.moved.join(', ')})`);
+      for (const [name, s] of [['unmoved', r.before], ['after one tick', r.after]]) {
+        if (s.range[0] < r.under || s.range[1] > r.vh) fails.push(`360×640, ${k} ${name}: the slider sits at ${s.range.join('–')}, the screen below the topbar is ${r.under}–${r.vh}`);
+        s.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([f, t, b]) => fails.push(`360×640, ${k} ${name}: ${f} sits at ${t}–${b}, off the screen`));
+      }
+      const shift = r.after.vals.map((v, i) => Math.abs(v[1] - r.before.vals[i][1])).concat([Math.abs(r.after.range[0] - r.before.range[0])]);
+      if (Math.max(...shift) > 1) fails.push(`360×640, ${k}: the first tick of a drag moved the slider or the results by ${Math.max(...shift)}px`);
+    }
+    /* The keyboard and the page after a save, at 390. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await fresh();
+    await load('/property/lab');
+    const id = await ev(`(() => { newPropertyDeal({ show: false }); return saveActiveProperty({ name: 'Mobile verify' }).id; })()`);
+    /* B moved and saved as a scenario; and A, unmoved, saved as the property —
+       after which A, the property as saved, has nothing to save. */
+    for (const [what, path, button] of [['Save B as a scenario', `/property/lab?model=${id}`, 'lab-save'], ['Save this property first', '/property/lab', 'lab-save-first']]) {
+      if (button === 'lab-save-first') await ev(`(() => { newPropertyDeal({ show: false }); return true; })()`);
+      await load(path);
+      const r = await ev(`(async () => {
+        document.documentElement.style.scrollBehavior = 'auto';
+        if (${JSON.stringify(button)} === 'lab-save') {
+          const radio = document.getElementById('lab-in-rent'); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await ${frames};
+          const n = document.getElementById('lab-n-rent'); n.value = '2300'; n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await ${frames};
+        } else { const a = document.getElementById('lab-col-A'); a.checked = true; a.dispatchEvent(new Event('change', { bubbles: true })); await ${frames}; }
+        const btn = document.getElementById('${button}');
+        btn.scrollIntoView({ block: 'center' }); await ${frames};
+        btn.focus(); btn.click(); await ${frames};
+        const field = document.activeElement?.id;
+        const y0 = scrollY;
+        document.getElementById('lab-name-save').click(); await ${frames}; await new Promise(r => setTimeout(r, 200));
+        const a = document.activeElement;
+        return { field, focus: a === document.body ? 'BODY' : a?.id || a?.tagName, inLab: !!a?.closest?.('.lab'), dy: Math.round(scrollY - y0) };
+      })()`);
+      said[what] = r;
+      if (r.focus === 'BODY' || !r.inLab) fails.push(`390: after "${what}" the keyboard is on ${r.focus}`);
+      if (Math.abs(r.dy) > 300) fails.push(`390: after "${what}" the page jumped ${r.dy}px`);
+    }
+    /* Each part of a stack, light and dark. */
+    for (const dark of [false, true]) {
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      await fresh();
+      await load('/property/lab');
+      for (const metric of ['entry', 'appreciation']) {
+        const r = await ev(`(async () => {
+          const n = document.getElementById('lab-n-renovation'); n.value = '40000'; n.dispatchEvent(new Event('change', { bubbles: true })); await ${frames};
+          const radio = document.getElementById('lab-by-${metric}'); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await ${frames};
+          const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+          const cx = cv.getContext('2d', { willReadFrequently: true });
+          const rgba = (c) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+          const over = (fg, bg) => fg[3] >= 1 ? fg : [0, 1, 2].map(i => fg[i] * fg[3] + bg[i] * (1 - fg[3])).concat(1);
+          const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+          const ratio = (a, b) => { const l1 = lum(a), l2 = lum(b); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); };
+          const bgOf = (n) => { for (let p = n; p; p = p.parentElement) { const c = rgba(getComputedStyle(p).backgroundColor); if (c[3] > 0) return over(c, [255, 255, 255, 1]); } return [255, 255, 255, 1]; };
+          const words = [...document.querySelectorAll('#lab-root .lab-cmp-words p')].map(p => p.textContent).find(t => /^Each bar/.test(t)) || '';
+          const out = { words, rows: [] };
+          for (const row of document.querySelectorAll('#lab-root .lab-cmp-barrow')) {
+            const segs = [...row.querySelectorAll('.lab-bar-seg')];
+            if (segs.length < 3) continue;
+            const track = segs[0].parentElement, tb = bgOf(track), card = bgOf(track.closest('.card'));
+            const fill = segs.map(s => over(rgba(getComputedStyle(s).backgroundColor), tb));
+            const edge = (getComputedStyle(segs[2]).boxShadow.match(/rgba?\\([^)]*\\)/) || [null])[0];
+            const e = edge ? over(rgba(edge), tb) : null;
+            out.rows.push({ col: row.className.match(/lab-c-(.)/)[1], lum: fill.map(f => +lum(f).toFixed(3)), track: fill.map(f => +ratio(f, tb).toFixed(2)), card: fill.map(f => +ratio(f, card).toFixed(2)),
+              edge: e ? [+ratio(e, tb).toFixed(2), +ratio(e, card).toFixed(2)] : null });
+          }
+          return out;
+        })()`);
+        const theme = dark ? 'dark' : 'light';
+        if (!r.rows.length) { fails.push(`${theme} ${metric}: no stack with three parts was drawn`); continue; }
+        for (const x of r.rows) {
+          if (/\(darker\)/.test(r.words) && !(x.lum[1] < x.lum[0])) fails.push(`${theme} ${metric} ${x.col}: the legend calls the second part darker, and it is lighter (luminance ${x.lum.join(', ')})`);
+          if (/\(lighter\)/.test(r.words) && !(x.lum[2] > x.lum[0])) fails.push(`${theme} ${metric} ${x.col}: the legend calls the third part lighter, and it is darker (luminance ${x.lum.join(', ')})`);
+          if (/stronger shade/.test(r.words) && !(x.track[1] > x.track[0])) fails.push(`${theme} ${metric} ${x.col}: the legend calls the second part the stronger shade, and it is the weaker against the track (${x.track.join(', ')})`);
+          if (/outlined/.test(r.words) && !x.edge) fails.push(`${theme} ${metric} ${x.col}: the legend calls the third part outlined, and it has no edge`);
+          const told = [[x.track[0], x.card[0]], [x.track[1], x.card[1]], x.edge || [x.track[2], x.card[2]]];
+          told.forEach(([t, c], i) => { if (!(t >= 3 && c >= 3)) fails.push(`${theme} ${metric} ${x.col}: part ${i + 1} is ${t}:1 against its track and ${c}:1 against its card, under 3:1`); });
+        }
+        said[`${theme} ${metric}`] = r.words;
+      }
+    }
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* The calculator's way into the lab, on a phone. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await fresh();
+    await load('/property/calculator');
+    await ev(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'Mobile link' }); pmAddScenario(rec.id, { rent: 2100, touched: { rent: true } }, 'Rent 2100'); return true; })()`);
+    await load('/property/calculator');
+    const link = await ev(`(() => { const a = document.getElementById('pm-sc-lab'); if (!a) return null; const b = a.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; })()`);
+    said.link = link;
+    if (!link) fails.push('390: the calculator draws no "Open these in the Scenario Lab"');
+    else if (link[0] < 43.5 || link[1] < 43.5) fails.push(`390: "Open these in the Scenario Lab" is ${link[0]}×${link[1]}px`);
+    /* A swipe up the page that starts on a slider, by touch. */
+    await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }, sessionId);
+    try {
+      await fresh();
+      await load('/property/lab');
+      const geom = () => ev(`(() => { document.documentElement.style.scrollBehavior = 'auto'; const r = document.getElementById('lab-r-price'); r.scrollIntoView({ block: 'center' }); const q = r.getBoundingClientRect();
+        return { x: q.left, y: q.top + q.height / 2, w: q.width, min: +r.min, max: +r.max, v: +r.value, price: labActive(LAB[labSubject]).work.price }; })()`);
+      const touch = async (type, x, y) => { await send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] }, sessionId); await ev(frames); };
+      const thumb = (g) => g.x + 14 + ((g.v - g.min) / (g.max - g.min)) * (g.w - 28);
+      let g = await geom(); await sleep(300); g = await geom();
+      const xs = Math.min(g.x + g.w - 6, thumb(g) + 40);
+      await touch('touchStart', xs, g.y);
+      for (let i = 1; i <= 8; i++) await touch('touchMove', xs + 2, g.y - i * 25);
+      await touch('touchEnd', xs + 2, g.y - 200);
+      await sleep(300);
+      const swiped = await ev(`labActive(LAB[labSubject]).work.price`);
+      said.swipe = [g.price, swiped];
+      if (swiped !== g.price) fails.push(`390 by touch: a swipe up the page that started on the price slider moved the price ${g.price} → ${swiped}`);
+      g = await geom(); await sleep(200); g = await geom();
+      const x0 = thumb(g);
+      await touch('touchStart', x0, g.y);
+      for (let i = 1; i <= 8; i++) await touch('touchMove', x0 + i * 8, g.y);
+      await touch('touchEnd', x0 + 64, g.y);
+      await sleep(300);
+      const dragged = await ev(`labActive(LAB[labSubject]).work.price`);
+      said.drag = [g.price, dragged];
+      if (dragged === g.price) fails.push(`390 by touch: a sideways drag on the price slider left the price at ${dragged}`);
+    } finally { await send('Emulation.setTouchEmulationEnabled', { enabled: false }, sessionId).catch(() => {}); }
+    /* The ring of a focused slider in the sticky column, at 1440. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await fresh();
+    await load('/property/lab');
+    await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    const ring = await ev(`(() => {
+      const r = document.getElementById('lab-r-price'); r.focus({ focusVisible: true });
+      const box = r.closest('.lab-inputs'), cs = getComputedStyle(r), bs = getComputedStyle(box);
+      const reach = parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset);
+      const rb = r.getBoundingClientRect(), bb = box.getBoundingClientRect();
+      const inner = { left: bb.left + parseFloat(bs.borderLeftWidth), right: bb.right - parseFloat(bs.borderRightWidth) };
+      const clips = bs.overflowX !== 'visible';
+      return { clips, outline: cs.outlineStyle, reach, leftRoom: +(rb.left - inner.left).toFixed(1), rightRoom: +(inner.right - rb.right).toFixed(1) };
+    })()`);
+    said.ring = ring;
+    if (ring.outline === 'none') fails.push('1440: the focused slider has no ring');
+    else if (ring.clips && (ring.leftRoom < ring.reach || ring.rightRoom < ring.reach)) fails.push(`1440: the column of knobs cuts the focused slider's ring — ${ring.leftRoom}px of room on the left and ${ring.rightRoom}px on the right for a ring reaching ${ring.reach}px`);
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL scenario-lab-verify — the Scenario Lab as the verification found it: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all seven results on one screen (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
+}
+/* ---- end scenario-lab-verify ---- */
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */

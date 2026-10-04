@@ -4545,9 +4545,16 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-knob:not(.is-on) { display: none; }
 .lab-knob-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .lab-knob-label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); }
-.lab-knob-ctl { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.lab-knob-ctl { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .lab-range-wrap { flex: 1 1 auto; min-width: 0; }
-.lab-num { flex: none; width: 7.25rem; text-align: right; }
+.lab-num { flex: none; width: 6.25rem; text-align: right; }
+/* The way back to the figure as saved: an icon the width of a target, its
+   words its name (and its title), holding its place at the end of the
+   slider's line from the first drawing — so the slider never narrows, and
+   nothing below moves, when it comes into sight with the first move. */
+.lab-reset { flex: none; width: 40px; min-width: 40px; padding: 0; justify-content: center; }
+/* Out of sight and out of reach, its room kept. */
+.lab .is-idle { visibility: hidden; }
 .lab-range { display: block; width: 100%; margin: 0; touch-action: pan-y; }
 /* The track filled to the thumb. Written as input.lab-range[type="range"]:
    the global input[type="range"] rules above outweigh a bare class. */
@@ -4557,12 +4564,14 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-ticks { position: relative; height: 6px; margin: 0 8px 2px; }
 .lab-tick { position: absolute; top: 0; left: calc(var(--at) * 100%); width: 1px; height: 6px; background: var(--line-2); }
 .lab-knob-ft { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-top: 2px; }
-.lab-tags { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; flex: 1 1 12rem; }
+/* The evidence tag and the what-if tag in one cell, one of them in sight:
+   the cell is as tall as the taller, moved or not. */
+.lab-tags { display: grid; min-width: 0; flex: 1 1 12rem; }
+.lab-tags > .lab-tag { grid-area: 1 / 1; justify-self: start; }
 .lab-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 18px;
   background: var(--surface-sunk); color: var(--ink-2); border: 1px solid var(--line); }
 .lab-tag.is-default, .lab-tag-whatif { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
 .lab-tag-whatif { border-style: dashed; }
-.lab-reset { flex: none; }
 .lab-span { margin-top: 2px; line-height: 1.45; }
 .lab-span-why { display: none; }
 .lab-knob-note { margin-top: 4px; line-height: 1.45; }
@@ -4580,7 +4589,10 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-sum::-webkit-details-marker { display: none; }
 .lab-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
 .lab-row-label { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--ink); }
-.lab-row-label::before { content: "›"; display: inline-block; width: 12px; color: var(--ink-3); transition: transform 160ms ease; }
+/* The chevron is drawn, not said: with no text alternative every row's name
+   began "›" (the second content line; a browser without the syntax keeps
+   the first and shows the same mark). */
+.lab-row-label::before { content: "›"; content: "›" / ""; display: inline-block; width: 12px; color: var(--ink-3); transition: transform 160ms ease; }
 .lab-row[open] .lab-row-label::before { transform: rotate(90deg); }
 .lab-row-label { grid-column: 1; grid-row: 1; }
 .lab-row-fig { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
@@ -4624,8 +4636,19 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-zero { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: var(--ink-3); z-index: 1; }
 .lab-bar-fill, .lab-bar-seg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: left center;
   background: var(--lab-c); transform: scaleX(0); transition: transform 180ms ease; }
+/* A STACK'S PARTS, TOLD APART THE SAME WAY IN EITHER THEME. The second part
+   is the series colour taken toward the page's ink — darker in light,
+   lighter in dark: always the stronger shade against the track. The third
+   is outlined: a wash of the colour, edged top and bottom in the colour
+   itself, so its extent holds 3:1 against the track and the card wherever
+   the colour does. Called "darker" and "lighter", the parts were the
+   reverse in dark (--ink is light there), and the lighter part's wash was
+   under 3:1 in both themes (the verification of 4 Oct 2026, F4 and F9).
+   The edges are inset shadows: a bar is scaled sideways only, so they keep
+   their height at any scale. */
 .lab-seg-2 { background: color-mix(in srgb, var(--lab-c) 62%, var(--ink)); }
-.lab-seg-3 { background: color-mix(in srgb, var(--lab-c) 55%, var(--surface-2)); }
+.lab-seg-3 { background: color-mix(in srgb, var(--lab-c) 22%, var(--surface-2));
+  box-shadow: inset 0 2px 0 var(--lab-c), inset 0 -2px 0 var(--lab-c); }
 .lab-ref, .lab-mark { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 2; }
 .lab-ref { background: var(--ink-2); }
 .lab-mark { background: var(--ink); box-shadow: 0 0 0 1px var(--surface-2); }
@@ -4670,8 +4693,13 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 }
 @container lab (min-width: 960px) {
   .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
+  /* A box that scrolls clips what passes its padding, and a focus ring is
+     drawn 4px outside its control (2px wide, 2px off): 2px of padding cut
+     the ring's left side off every slider (the verification of 4 Oct 2026,
+     F15). The padding holds the whole ring; the margin keeps the column's
+     edge where it was. */
   .lab-inputs { position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) + 12px);
-    max-height: calc(100vh - var(--topbar-live, var(--topbar-h)) - 24px); overflow-y: auto; padding: 2px 4px 4px 2px; }
+    max-height: calc(100vh - var(--topbar-live, var(--topbar-h)) - 24px); overflow-y: auto; padding: 6px; margin: -4px -6px 0; }
 }
 /* A served page lays its panel out by the window until the script runs,
    as the tab row and the screener do (prerender, above): the panel is the
@@ -4703,6 +4731,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
      pickers, the knob and the seven results share one screen. */
   .lab-pick-cols .lab-seg, .lab-pick-input .lab-seg { padding: 0; border-color: transparent; }
   .lab-sum { min-height: 44px; }
+  .lab-reset { width: 44px; min-width: 44px; }
 }
 @media (pointer: coarse) {
   input.lab-range[type="range"]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -13px; }

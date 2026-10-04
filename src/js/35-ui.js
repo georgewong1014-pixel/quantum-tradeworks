@@ -28,6 +28,8 @@ const ICON = {
   database:'<ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/><path d="M4 11.5v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
   tag:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
   chev:'<path d="m6 9 6 6 6-6"/>',
+  /* The Scenario Lab's way back to a figure as saved (82-property-lab.js). */
+  undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -2465,7 +2467,16 @@ window.addEventListener('resize', queueScrollStops);
    writes some, and a change it makes must not call it back. The drawer's
    body the same way: openDrawer replaces it, and some drawers redraw in
    place. */
-const scrollStopWatch = new MutationObserver(queueScrollStops);
+/* Except the Scenario Lab's figures (82-property-lab.js), whose words it
+   rewrites in place every frame of a drag: no box of its scrolls with them
+   (a table it draws again is a childList change, and still heard), and a
+   fitting a frame walked the whole page and measured its boxes while the
+   slider moved — half a millisecond a frame on a desktop, four times that
+   on a slow phone. */
+const scrollStopWatch = new MutationObserver((recs) => {
+  if (recs.every(r => r.type === 'characterData' && r.target.parentElement?.closest('.lab'))) return;
+  queueScrollStops();
+});
 scrollStopWatch.observe(viewRoot, { childList: true, subtree: true, characterData: true });
 scrollStopWatch.observe(drawerBody, { childList: true, subtree: true, characterData: true });
 /* The topbar's real height, for scroll-padding-top and everything that sticks

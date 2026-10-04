@@ -4592,6 +4592,410 @@ try {
     }
   }
   /* ---- end scenario-lab ---- */
+  /* ---- scenario-lab-verify ---- */
+  /* THE SCENARIO LAB'S ADVERSARIAL VERIFICATION (4 Oct 2026), each finding a
+     check that fails on the lab as first built (e91a64f) and holds after:
+       V1  a column's figures are its inputs' as they are now — after the
+           calculator changes the deal, a scenario is saved again, or a place
+           is opened (F1: the active column kept its old run);
+       V2  a plain /property/lab opens the property now on the calculator,
+           and Back from "Open B in the calculator" finds the deal column
+           named as it is and B with no moves the calculator now holds (F2);
+       V3  what renovation moves is said as the model moves it: no "only",
+           and a row's name with a comma in it whole (F3);
+       V4  "Save this property first" keeps a copy's copied figures (F4);
+       V5  a copy of a moved column, saved, stores the copied figures as the
+           reader's, and its toast names them (F5);
+       V6  a paint compares no whole deals (F6: a paint's median sat within
+           10% of L13's limit; the comparisons were a twelfth of it);
+       V7  the deposit box shows the deposit the model is given (F7);
+       V8  a change marked is the difference of the two figures as printed
+           (F8);
+       V9  a listener is handed copies, and no net sale proceeds while the
+           report is locked (F9);
+       V10 Open and Update say what they do to whose figures, and the toast
+           says the grade stays U while a driving figure is the tool's (F10);
+       V11 the unlocked total profit reads as a sentence (F11);
+       V12 a "Sliders move" radio is named by its letter, and a chain row's
+           name does not begin with its chevron (interaction F6, F7);
+       V13 a budget typed into an empty renovation draws its slider
+           (interaction F12);
+       V14 a reference line stands inside its scale (interaction F13). */
+  {
+    const VKEYS = ['savedWork', 'deal', 'dealBeforeLink', 'propertyReportsBought', 'plan', 'observations', 'lang', 'propertyReportLog', 'servedReads'];
+    const vKept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(VKEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
+    const vStep = async (name, fn) => {
+      try { await fn(); } catch (e) { fail(`scenario-lab-verify ${name}: the check could not run`, String(e.message).split('\n')[0]); }
+    };
+    const VH = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      window.prompt = () => null; window.confirm = () => true;
+      const L = () => LAB[labSubject];
+      const A = () => labActive(L());
+      const near = (a, b) => (a === null && b === null) || (isNum(a) && isNum(b) && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b)));
+      /* Every [data-lab] in the page's panel against the model run on d. */
+      const figs = (d) => {
+        const m = dealModel(d), g = propertyGrade(d, m), bad = [];
+        const nodes = [...document.querySelectorAll('#lab-root [data-lab]')];
+        for (const n of nodes) {
+          const k = n.dataset.lab, want = k === 'grade' ? g.grade : m[k], dv = n.getAttribute('data-value');
+          const got = dv === '' || dv === null ? null : k === 'grade' ? dv : Number(dv);
+          const ok = k === 'grade' ? got === (want ?? null) : near(got, isNum(want) ? want : null);
+          if (!ok || txt(n) !== LAB_FORMATS[n.dataset.labFmt](want)) bad.push(k + ' shows ' + txt(n) + ', the model ' + LAB_FORMATS[n.dataset.labFmt](want));
+        }
+        const gate = txt(document.querySelector('#lab-root .lab-grade-gate'));
+        if (g.gates.length && !gate.startsWith(g.gates.length + ' gate')) bad.push('the grade says "' + gate.slice(0, 40) + '…", the grade has ' + g.gates.length + ' gates');
+        return { n: nodes.length, bad };
+      };
+      const pick = async (key) => { const r = document.getElementById('lab-col-' + key); if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); await frame(); } };
+      const setRange = async (k, v) => { const r = document.getElementById('lab-r-' + k); r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true })); await frame(); return r; };
+      const typeBox = async (k, v) => { const n = document.getElementById('lab-n-' + k); n.value = String(v); n.dispatchEvent(new Event('change', { bubbles: true })); await frame(); return n; };`;
+    const vReload = async (path) => {
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      await sleep(300);
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(100)) {
+        const r = await send('Runtime.evaluate', { expression: `typeof propertyPagesSettled === 'function' && propertyPagesSettled() && State.view !== undefined`, returnByValue: true }, sessionId);
+        if (r.result?.result?.value === true) break;
+      }
+      await sleep(300);
+      return evaluate(`State.view`);
+    };
+    const vDeal = async (set, path = '/property/lab') => {
+      await evaluate(`(() => { const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null, ...${JSON.stringify(set)} };
+        localStorage.setItem('vl.deal', JSON.stringify(d)); localStorage.removeItem('vl.dealBeforeLink');
+        State.propertyReportsBought = (State.propertyReportsBought || []).filter(x => x !== d.projectId); return true; })()`);
+      return vReload(path);
+    };
+    try {
+      await vStep('V1', async () => {
+        const p = [];
+        await vDeal({});
+        const a = await evaluate(`(async () => { ${VH}
+          await pick('A');
+          navigate('/property/calculator'); await w(300);
+          State.deal.ratePct = 5.5; markTouched(State.deal, 'ratePct'); saveDeal();
+          navigate('/property/lab'); await w(400); await frame();
+          return { view: State.view, active: L().active, f: figs(pmBare(State.deal)) };
+        })()`);
+        if (a.view !== 'propertyLab' || a.active !== 'A') p.push(`the calculator's deal changed: back on ${a.view}, column ${a.active} active`);
+        a.f.bad.slice(0, 4).forEach(b => p.push(`the calculator's rate set to 5.5 with A active: ${b}`));
+        const id = await evaluate(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'V1 stale' });
+          pmAddScenario(rec.id, { ratePct: 5.1, touched: { ratePct: true } }, 'V1 rate 5.1'); return rec.id; })()`);
+        await vReload(`/property/lab?model=${id}`);
+        const b = await evaluate(`(async () => { ${VH}
+          const before = { active: L().active, source: A().source };
+          const rec = pmFind(${JSON.stringify(id)});
+          openPropertyModel(rec.id, { scenarioId: rec.scenarios[0].id }); await w(300);
+          State.deal.ratePct = 6.2; markTouched(State.deal, 'ratePct'); saveDeal(); saveActiveProperty();
+          navigate(${JSON.stringify(`/property/lab?model=${id}`)}); await w(400); await frame();
+          const fresh = pmFind(${JSON.stringify(id)});
+          return { before, active: L().active, source: A().source, saved: pmSavedInputs(fresh, fresh.scenarios[0]).ratePct, f: figs(pmSavedInputs(fresh, fresh.scenarios[0])) };
+        })()`);
+        if (b.saved !== 6.2) p.push(`the scenario was not saved again at 6.2 (${b.saved})`);
+        if (!String(b.source).startsWith('sc:')) p.push(`the active column after the scenario was saved again is ${b.source}`);
+        b.f.bad.slice(0, 4).forEach(x => p.push(`a scenario saved again at 6.2%: ${x}`));
+        await vDeal({});
+        const c = await evaluate(`(async () => { ${VH}
+          const res = labOpen({ kind: 'place', city: 'serian', district: 'Tebedu' }); await frame();
+          return { ok: res.ok, why: res.why || null, district: A().work.district, f: figs(pmMerge(A().baseInputs, A().moves)) };
+        })()`);
+        if (!c.ok || c.district !== 'Tebedu') p.push(`labOpen place: ${JSON.stringify({ ok: c.ok, why: c.why, district: c.district })}`);
+        c.f.bad.slice(0, 4).forEach(x => p.push(`a place opened (Serian, Tebedu): ${x}`));
+        if (p.length) fail('scenario-lab-verify V1: a column\'s figures are its inputs\' as they are now', p.slice(0, 14));
+        else ok(`scenario-lab-verify V1: with A active and the calculator's rate set to 5.5, A shows the model's figures for the deal now (${a.f.n} figures); a scenario saved again at 6.2% shows its new figures; a place opened (Serian, Tebedu) shows the moved column's figures and its grade, the custom project's gate among its gates`);
+      });
+
+      await vStep('V2', async () => {
+        const p = [];
+        await vDeal({});
+        const id = await evaluate(`(() => { propertyLoad({ ...pmSampleDeal(), price: 800000, rent: 3000 });
+          const rec = saveActiveProperty({ name: 'V2 other' }); pmAddScenario(rec.id, { ratePct: 5.1, touched: { ratePct: true } }, 'V2 rate 5.1');
+          newPropertyDeal({ show: false }); return rec.id; })()`);
+        await vReload('/property/lab');
+        const a = await evaluate(`(async () => { ${VH}
+          await setRange('rent', labSnap(Number(document.getElementById('lab-r-rent').max) - 200, 50));
+          const was = labSubject;
+          openPropertyModel(${JSON.stringify(id)}); await w(300);
+          navigate('/property/lab'); await w(400); await frame();
+          return { was, subject: labSubject, status: txt(document.getElementById('lab-status')), cols: L().cols.map(c => c.source + ' ' + c.name), price: A().work.price };
+        })()`);
+        if (a.subject !== `m:${id}` || !/^Columns from “V2 other”/.test(a.status)) p.push(`another property opened, then the lab: subject ${a.subject}, columns ${JSON.stringify(a.cols)}, "${a.status.slice(0, 110)}"`);
+        await vDeal({});
+        const b = await evaluate(`(async () => { ${VH}
+          await setRange('rent', 2100); await setRange('ratePct', 4.8);
+          document.getElementById('lab-open').click(); await w(400);
+          const inCalc = State.view;
+          history.back(); await w(700); await frame();
+          const lab = L();
+          return { inCalc, view: State.view, names: lab.cols.map(c => c.key + ' ' + c.name), unsaved: txt(document.getElementById('lab-unsaved')),
+            status: txt(document.getElementById('lab-status')), aIsDeal: pmCanon(lab.cols[0].work) === pmCanon(pmBare(State.deal)), bMoves: Object.keys(lab.cols[1].moves) };
+        })()`);
+        if (b.inCalc !== 'property' || b.view !== 'propertyLab') p.push(`Open B then Back went ${b.inCalc} then ${b.view}`);
+        else {
+          if (b.names[0] !== 'A On the calculator') p.push(`after Open B and Back, A is named "${b.names[0]}" for a deal that is no longer the sample`);
+          if (b.unsaved) p.push(`after Open B and Back the page says "${b.unsaved}" of moves the calculator now holds`);
+          if (b.bMoves.length) p.push(`after Open B and Back, B still holds moves of ${b.bMoves.join(', ')}`);
+          if (!b.aIsDeal) p.push('after Open B and Back, A is not the deal on the calculator');
+          if (!/^The deal on the calculator — not saved as a property/.test(b.status)) p.push(`after Open B and Back the status reads "${b.status}"`);
+        }
+        if (p.length) fail('scenario-lab-verify V2: the lab opens the deal as it is on the calculator, under its own name', p);
+        else ok(`scenario-lab-verify V2: with another property opened in the calculator, a plain /property/lab opens it ("${a.status.slice(0, 40)}…"); after Open B in the calculator and Back, A is "On the calculator" and holds B's figures, and B holds no moves`);
+      });
+
+      await vStep('V3', async () => {
+        const p = [];
+        const said = [];
+        for (const [label, set] of [['50% recovered at the sale', { renoValueRecoveryPct: 50 }], ['a 4-year hold at 6%', { holdYears: 4, apprecPct: 6 }]]) {
+          await vDeal(set);
+          const r = await evaluate(`(async () => { ${VH}
+            await typeBox('renovation', 40000); await frame();
+            const col = A(), d = col.work, m = dealModel(d), ref = col.ref.m;
+            const rows = LAB_FIGURES.filter(f => LAB_FORMATS[f.fmt](f.read(m, d)) !== LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs))).map(f => f.label(d).replace(/ \\(before selling costs\\)$/, '').toLowerCase());
+            return { s: txt(document.getElementById('lab-movedby')), rows, rpgt: [ref.rpgt, m.rpgt] };
+          })()`);
+          said.push(r.s);
+          const list = ((r.s.match(/\): (.*?)\.(?: |$)/) || [])[1] || '').split('; ');
+          if (JSON.stringify([...list].sort()) !== JSON.stringify([...r.rows].sort())) p.push(`${label}: the rows named, ${JSON.stringify(list)}, are not the rows that moved, ${JSON.stringify(r.rows)}`);
+          if (/\bonly\b/.test(r.s) && (r.rows.some(x => !/^(cash required|if sold in year \d+)$/.test(x)) || r.rpgt[0] !== r.rpgt[1])) p.push(`${label}: "${r.s}" — and the gains tax went ${r.rpgt.map(x => Math.round(x)).join(' → ')}`);
+        }
+        if (p.length) fail('scenario-lab-verify V3: what renovation moves is said as the model moves it', p);
+        else ok(`scenario-lab-verify V3: with renovation moved, the rows named are those whose figures moved, each whole ("${said[0]}")`);
+      });
+
+      await vStep('V4', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          await pick('A'); await typeBox('price', 600000);
+          document.getElementById('lab-add').click(); await frame();
+          await typeBox('rent', 2100);
+          const vals = () => [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].map(n => n.dataset.lab + ' ' + n.getAttribute('data-value'));
+          const c0 = { key: A().key, name: A().name, price: A().work.price, rent: A().work.rent, vals: vals() };
+          document.getElementById('lab-save-first').click(); await frame();
+          const f = document.getElementById('lab-property-name'); f.value = 'V4 saved'; f.dispatchEvent(new Event('input', { bubbles: true }));
+          document.getElementById('lab-name-save').click(); await w(200); await frame();
+          const c = L().cols.find(x => x.key === c0.key);
+          return { c0, c1: { key: c.key, name: c.name, price: c.work.price, rent: c.work.rent, vals: vals(), active: L().active, model: L().model } };
+        })()`);
+        const p = [];
+        if (!r.c1.model) p.push('the property was not saved');
+        if (r.c1.price !== r.c0.price || r.c1.rent !== r.c0.rent) p.push(`${r.c0.key} ("${r.c0.name}") held price ${r.c0.price} and rent ${r.c0.rent}; saved, it holds ${r.c1.price} and ${r.c1.rent}`);
+        if (JSON.stringify(r.c1.vals) !== JSON.stringify(r.c0.vals)) p.push(`${r.c0.key}'s figures changed with the save: ${r.c0.vals.join(', ')} → ${r.c1.vals.join(', ')}`);
+        if (p.length) fail('scenario-lab-verify V4: "Save this property first" keeps a copy\'s copied figures', p);
+        else ok(`scenario-lab-verify V4: a copy of A moved to RM600,000, its rent moved to 2,100, keeps price ${r.c1.price}, rent ${r.c1.rent} and every figure through "Save this property first"`);
+      });
+
+      await vStep('V5', async () => {
+        await vDeal({});
+        const id = await evaluate(`(() => { newPropertyDeal({ show: false }); return saveActiveProperty({ name: 'V5 copy' }).id; })()`);
+        await vReload(`/property/lab?model=${id}`);
+        const r = await evaluate(`(async () => { ${VH}
+          await pick('A'); await typeBox('price', 600000);
+          document.getElementById('lab-add').click(); await frame();
+          const btn = txt(document.getElementById('lab-save'));
+          document.getElementById('lab-save').click(); await frame();
+          document.getElementById('lab-name-save').click(); await w(200); await frame();
+          const rec = pmFind(${JSON.stringify(id)}); const sc = (rec.scenarios || []).at(-1);
+          return { btn, sc: sc && { price: sc.overrides.price, touched: sc.overrides.touched || null }, shown: sc ? shownEvidence(pmSavedInputs(rec, sc), 'price') : null, toast: txt(document.getElementById('toast')) };
+        })()`);
+        const p = [];
+        if (!r.sc || r.sc.price !== 600000) p.push(`the scenario saved: ${JSON.stringify(r.sc)}`);
+        else if (r.sc.touched?.price !== true || r.shown === 'illustrative_default') p.push(`the copied price is stored without the reader's mark (touched ${JSON.stringify(r.sc.touched)}, shown as ${r.shown})`);
+        if (/— +(is|are) now yours/.test(r.toast) || !/purchase price is now yours/.test(r.toast)) p.push(`the toast reads "${r.toast}"`);
+        if (!/become yours/.test(r.btn)) p.push(`the button reads "${r.btn}"`);
+        if (p.length) fail('scenario-lab-verify V5: a copy of a moved column, saved, marks the copied figures as the reader\'s', p);
+        else ok(`scenario-lab-verify V5: a copy of A moved to RM600,000, saved as a scenario, stores the price marked as the reader's ("${r.toast.slice(0, 120)}…")`);
+      });
+
+      await vStep('V6', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          await frame();
+          const real = window.pmCanon; let depth = 0, n = 0;
+          const paints0 = performance.getEntriesByName('lab-paint').length;
+          window.pmCanon = function (v) { if (depth === 0 && v && typeof v === 'object' && !Array.isArray(v)) n++; depth++; try { return real.call(this, v); } finally { depth--; } };
+          try {
+            const rg = document.getElementById('lab-r-ratePct');
+            for (let i = 0; i < 20; i++) { rg.value = String(labSnap(Number(rg.min) + (i + 1) * 0.05, 0.05)); rg.dispatchEvent(new Event('input', { bubbles: true })); await new Promise(res => requestAnimationFrame(res)); }
+            await frame();
+          } finally { window.pmCanon = real; }
+          return { n, paints: performance.getEntriesByName('lab-paint').length - paints0 };
+        })()`);
+        const p = [];
+        if (!(r.paints >= 15)) p.push(`only ${r.paints} paints`);
+        if (r.n > r.paints) p.push(`${r.n} whole deals were compared over ${r.paints} paints of a moved rate`);
+        if (p.length) fail('scenario-lab-verify V6: a paint compares no whole deals', p);
+        else ok(`scenario-lab-verify V6: ${r.paints} paints of a moved rate compared ${r.n} whole deal${r.n === 1 ? '' : 's'}`);
+      });
+
+      await vStep('V7', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          /* Typed as a reader types: the box has the keyboard (on a phone
+             layout, the deposit picked first). */
+          const radio = document.getElementById('lab-in-downPct');
+          if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frame(); }
+          const n = document.getElementById('lab-n-downPct');
+          n.focus();
+          const focused = document.activeElement === n;
+          n.value = '150'; n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await frame();
+          const shown = n.value;
+          n.blur(); await frame();
+          return { focused, shown, after: document.getElementById('lab-n-downPct').value, work: A().work.downPct };
+        })()`);
+        if (!r.focused || r.work !== 100 || r.shown !== '100' || r.after !== '100') fail('scenario-lab-verify V7: the deposit box shows the deposit the model is given', r);
+        else ok('scenario-lab-verify V7: a deposit typed as 150 is 100 in the box and in every figure');
+      });
+
+      await vStep('V8', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          const bad = []; let n = 0;
+          const num = (s) => { const t = String(s); const x = Number(t.replace(/[^0-9.]/g, '')); return /^[−-]/.test(t) ? -x : x; };
+          const check = (tag) => {
+            const col = A(), d = col.work, m = dealModel(d), ref = col.ref.m;
+            for (const f of LAB_FIGURES) {
+              const a = LAB_FORMATS[f.fmt](f.read(m, d)), b = LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs));
+              if (a === '—' || b === '—') continue;
+              n++;
+              const dp = f.fmt === 'money0' ? 0 : f.fmt === 'pct1' ? 1 : 2;
+              const diff = +(num(a) - num(b)).toFixed(dp);
+              const want = a === b ? 'unchanged' : (diff > 0 ? '▲ ' : '▼ ') + (f.fmt === 'money0' ? fmtMoney(Math.abs(diff), 'MYR', 0) : Math.abs(diff).toFixed(dp) + ' pp');
+              const mark = txt(document.querySelector('#lab-root .lab-row[data-row="' + f.key + '"] .lab-delta-mark'));
+              if (mark !== want) bad.push(tag + ', ' + f.key + ': ' + b + ' to ' + a + ' is marked "' + mark + '"; the printed difference is "' + want + '"');
+            }
+          };
+          for (const [k, v] of [['price', 429000], ['price', 573000], ['rent', 1900], ['ratePct', 4.35], ['renovation', 25500]]) { await typeBox(k, v); await frame(); check(k + ' ' + v); }
+          return { bad, n };
+        })()`);
+        if (r.bad.length || r.n < 20) fail('scenario-lab-verify V8: a change is marked as the difference of the two figures printed', r.bad.slice(0, 10).concat(r.n < 20 ? [`only ${r.n} rows compared`] : []));
+        else ok(`scenario-lab-verify V8: over five moves, every one of ${r.n} marks is the difference between the two figures as printed (RM130,142 to RM106,245 is ▼ RM23,897)`);
+      });
+
+      await vStep('V9', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          const kept = [];
+          const off = labSubscribe(s => kept.push(s));
+          await setRange('rent', 2100);
+          off();
+          const s = kept.at(-1), lab = L(), live = A();
+          const b = s && s.cols.find(c => c.key === lab.active);
+          const same = !!b && b.work === live.work;
+          if (b && b.work) b.work.rent = 1;
+          const leaked = live.work.rent === 1;
+          const m = dealModel(live.work);
+          return { n: kept.length, same, leaked, paid: labPaid(live.work), net: !!s && JSON.stringify(s).includes(JSON.stringify(m.netExitProceeds)) };
+        })()`);
+        const p = [];
+        if (!r.n) p.push('the listener heard nothing');
+        if (r.same || r.leaked) p.push(`a listener is handed the lab's own work (the same object: ${r.same}; a write to it moved the column: ${r.leaked})`);
+        if (!r.paid && r.net) p.push('a listener is handed net sale proceeds while the report is locked');
+        if (p.length) fail('scenario-lab-verify V9: a listener is handed copies of what the page shows', p);
+        else ok('scenario-lab-verify V9: a listener is handed copies — a write to one moves nothing — and no net sale proceeds while the report is locked');
+      });
+
+      await vStep('V10', async () => {
+        const p = [];
+        await vDeal({});
+        const o = await evaluate(`(async () => { ${VH}
+          await setRange('rent', 2100); await setRange('ratePct', 4.8); await frame();
+          const btn = txt(document.getElementById('lab-open'));
+          document.getElementById('lab-open').click(); await w(300);
+          return { btn, toast: txt(document.getElementById('toast')) };
+        })()`);
+        if (!/become yours/.test(o.btn)) p.push(`the Open button reads "${o.btn}"`);
+        if (!/now yours/.test(o.toast) || !/grade stays U while/.test(o.toast)) p.push(`Open's toast reads "${o.toast}"`);
+        const id = await evaluate(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'V10 update' });
+          pmAddScenario(rec.id, { rent: 2000, touched: { rent: true } }, 'V10 rent'); return rec.id; })()`);
+        await vReload(`/property/lab?model=${id}`);
+        const u = await evaluate(`(async () => { ${VH}
+          await setRange('ratePct', 4.8); await frame();
+          const btn = txt(document.getElementById('lab-update'));
+          document.getElementById('lab-update').click(); await frame();
+          return { btn, toast: txt(document.getElementById('toast')) };
+        })()`);
+        if (!/become yours/.test(u.btn)) p.push(`the Update button reads "${u.btn}"`);
+        if (!/now yours/.test(u.toast) || !/grade stays U while/.test(u.toast)) p.push(`Update's toast reads "${u.toast}"`);
+        if (p.length) fail('scenario-lab-verify V10: every commit says what it does to whose figures', p);
+        else ok(`scenario-lab-verify V10: "${o.btn}" and "${u.btn}"; their toasts say the moved figures are the reader's and the grade stays U ("${o.toast.slice(0, 140)}…")`);
+      });
+
+      await vStep('V11', async () => {
+        await vDeal({});
+        const s = await evaluate(`(async () => { ${VH}
+          State.propertyReportsBought = [...State.propertyReportsBought, State.deal.projectId];
+          render(); await frame();
+          const det = document.querySelector('#lab-root .lab-row[data-row="irrPct"]'); det.open = true; await frame();
+          const out = txt(det.querySelector('.lab-paid'));
+          State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== State.deal.projectId); render(); await frame();
+          return out;
+        })()`);
+        if (!/Every year’s cash flow after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
+        else ok(`scenario-lab-verify V11: "${(s.match(/Every year’s cash flow[^.]*\./) || [s])[0]}"`);
+      });
+
+      await vStep('V12', async () => {
+        await vDeal({});
+        await send('DOM.enable', {}, sessionId);
+        await send('Accessibility.enable', {}, sessionId);
+        const axName = async (sel) => {
+          const doc = await send('DOM.getDocument', { depth: 0 }, sessionId);
+          const q = await send('DOM.querySelector', { nodeId: doc.result.root.nodeId, selector: sel }, sessionId);
+          if (!q.result?.nodeId) return null;
+          const ax = await send('Accessibility.getPartialAXTree', { nodeId: q.result.nodeId, fetchRelatives: false }, sessionId);
+          const n = (ax.result?.nodes || []).find(x => !x.ignored) || ax.result?.nodes?.[0];
+          return n?.name?.value ?? null;
+        };
+        const radios = { A: await axName('#lab-col-A'), B: await axName('#lab-col-B') };
+        const sums = [];
+        for (const k of ['instalment', 'netYield', 'irrPct']) sums.push(await axName(`#lab-root .lab-row[data-row="${k}"] > summary`));
+        const p = [];
+        for (const [k, n] of Object.entries(radios)) if (!new RegExp(`^${k} — `).test(n || '')) p.push(`the "Sliders move" radio ${k} is named "${n}"`);
+        sums.forEach(s => { if (!s || /^\s*›/.test(s)) p.push(`a chain row is named "${s}"`); });
+        if (p.length) fail('scenario-lab-verify V12: a column\'s radio says its letter, and a row its words', p);
+        else ok(`scenario-lab-verify V12: the radios are named "${radios.A}" and "${radios.B}"; a row is named "${sums[0]}"`);
+      });
+
+      await vStep('V13', async () => {
+        await vDeal({ renovation: 0 });
+        const r = await evaluate(`(async () => { ${VH}
+          const before = !!document.getElementById('lab-r-renovation');
+          const n = document.getElementById('lab-n-renovation');
+          n.value = '20000'; n.dispatchEvent(new Event('change', { bubbles: true })); await frame();
+          const knob = document.getElementById('lab-knob-renovation');
+          return { before, after: !!document.getElementById('lab-r-renovation'), work: A().work.renovation, note: /No renovation entered/.test(txt(knob)), span: txt(knob.querySelector('.lab-span')) };
+        })()`);
+        const p = [];
+        if (r.before) p.push('a renovation of nought drew a slider');
+        if (r.work !== 20000) p.push(`the box set ${r.work}`);
+        if (!r.after || r.note) p.push(`a budget typed: slider ${r.after}, "No renovation entered" still said ${r.note}, span "${r.span}"`);
+        if (p.length) fail('scenario-lab-verify V13: a budget typed into an empty renovation draws its slider', p);
+        else ok(`scenario-lab-verify V13: RM20,000 typed into an empty renovation draws its slider ("${r.span}")`);
+      });
+
+      await vStep('V14', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          const radio = document.getElementById('lab-by-risk'); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frame();
+          const out = [];
+          for (const t of document.querySelectorAll('#lab-root .lab-cmp')) for (const ref of t.querySelectorAll('.lab-ref')) {
+            const tr = ref.parentElement.getBoundingClientRect(), b = ref.getBoundingClientRect();
+            out.push({ field: t.dataset.field, left: +(b.left - tr.left).toFixed(1), right: +(tr.right - b.right).toFixed(1), at: +((b.left + b.width / 2 - tr.left) / tr.width).toFixed(3) });
+          }
+          return { out, dscr: dealModel(A().work).dscr };
+        })()`);
+        const p = [];
+        if (!r.out.some(x => x.field === 'dscr')) p.push('no reference line on debt-service cover');
+        r.out.forEach(x => { if (x.left < 0 || x.right < 0 || x.at > 0.98 || x.at < 0.02) p.push(`${x.field}: the reference line stands at ${x.at} of its track (${x.left}px from its start, ${x.right}px from its end)`); });
+        if (p.length) fail('scenario-lab-verify V14: a reference line stands inside its scale', p.slice(0, 6));
+        else ok(`scenario-lab-verify V14: with debt-service cover ${r.dscr.toFixed(2)}× in every column, its 1.00× line and the 100% line stand inside their scales (${r.out.map(x => `${x.field} at ${x.at}`).join(', ')})`);
+      });
+    } finally {
+      await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
+    }
+  }
+  /* ---- end scenario-lab-verify ---- */
 
 } catch (e) {
   fail('harness error', e.message);

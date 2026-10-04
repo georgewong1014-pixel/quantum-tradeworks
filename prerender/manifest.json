@@ -1144,18 +1144,18 @@
         ]
       },
       "inert": {
-        "buttons": 14,
+        "buttons": 19,
         "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 16,
+        "notShown": 6,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e15f5a260e8e5ba6"
+      "digest": "2a67e48f8618adf8"
     },
     "pages/property/models.html": {
       "path": "/property/models",

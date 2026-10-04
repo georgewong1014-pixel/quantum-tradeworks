@@ -928,9 +928,12 @@ function propertyScenariosPanel(d = State.deal) {
     ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:8rem' }, c.id === 'base' ? '—' : c.what))]));
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
-  /* The same columns, moved live: the Scenario Lab opens on them. */
+  /* The same columns, moved live: the Scenario Lab opens on them. A link
+     on a line of its own, not a word in a sentence, so on a phone it is a
+     44px target as the row's own "Scenario Lab" is (btn-sm; it measured
+     16px tall as a bare link — the verification of 4 Oct 2026). */
   const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
-  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, el('a', { href: href(labPath), id: 'pm-sc-lab',
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, el('a', { href: href(labPath), id: 'pm-sc-lab', class: 'btn btn-ghost btn-sm',
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
     'Open these in the Scenario Lab')));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
