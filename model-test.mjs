@@ -3887,6 +3887,711 @@ try {
     }
   }
   /* ---- end property-proposal ---- */
+  /* ---- scenario-lab ---- */
+  /* THE SCENARIO LAB (the owner's decision, 3 Oct 2026): /property/lab, five
+     sliders moved live over up to three columns, every figure the
+     calculator's own model. Each check is a definition, not an expected
+     value, and each fails before the lab existed (d381b5e, ee173ce): the
+     route drew the not-found card, the model's two new fields were
+     undefined and 82-property-lab.js was absent.
+       L1  every [data-lab] figure is dealModel's (or propertyGrade's) field
+           for the column's base with its moves, and prints as its format
+           — six deals, every slider at its ends, its quarters and ten
+           random places, by `input` alone;
+       L2  value less loan and the growth on the price are the quantities
+           their names say, and net sale proceeds is value less loan less
+           the costs of selling;
+       L3  one engine: the lab names none of the model's functions;
+       L4  one model run a frame, however many inputs arrive in it;
+       L5  exploring writes nothing — no storage, no address, no deal, and
+           no figure marked as the reader's;
+       L6  a commit writes exactly the moved figure, marked as the reader's,
+           and Open in the calculator stores the mark with it;
+       L7  the keyboard: steps, big steps, the ends and Escape, focus kept,
+           a ring shown;
+       L8  every control named, every summary saying its label and value;
+       L9  the live region: silent on input, one sentence on change, the
+           comparison said in A, B, C order;
+       L10 the six comparisons are the model's, always A, B, C, never
+           ranked;
+       L11 the sample's figures are labelled as the tool's;
+       L12 the paywall holds: net sale proceeds only with the report;
+       L13 a paint takes under a frame on a 4× slower processor;
+       L14 no motion under reduced motion, and no transition: all;
+       L15 a column with no price runs no model and prints no NaN;
+       L16 a redraw nobody asked for waits for the finger, a navigation
+           does not;
+       L17 the address opens its columns and comparison, an unknown
+           property says so, a second panel mounts beside the first, and a
+           place opened moves the active column only. */
+  {
+    const { readFileSync } = await import('node:fs');
+    const LKEYS = ['savedWork', 'deal', 'dealBeforeLink', 'propertyReportsBought', 'plan', 'observations', 'lang', 'propertyReportLog', 'servedReads'];
+    const lKept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(LKEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
+    const lStep = async (name, fn) => {
+      try { await fn(); } catch (e) { fail(`scenario-lab ${name}: the check could not run`, String(e.message).split('\n')[0]); }
+    };
+    /* The page's own helpers. */
+    const LH = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      window.prompt = () => null; window.confirm = () => true;
+      const L = () => LAB[labSubject];
+      const A = () => labActive(L());
+      const near = (a, b) => (a === null && b === null) || (isNum(a) && isNum(b) && Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b)));
+      /* Every [data-lab] on the page against the model run on the active
+         column's base with its moves. */
+      const labFigs = () => {
+        const col = A(), d = pmMerge(col.baseInputs, col.moves);
+        const run = num0(d.price) > 0 ? (() => { const m = dealModel(d); return { m, g: propertyGrade(d, m) }; })() : null;
+        const bad = [];
+        const nodes = [...document.querySelectorAll('#views [data-lab]')];
+        for (const n of nodes) {
+          const k = n.dataset.lab, fmt = n.dataset.labFmt;
+          const want = !run ? null : k === 'grade' ? run.g.grade : run.m[k];
+          const dv = n.getAttribute('data-value');
+          const got = dv === '' || dv === null ? null : k === 'grade' ? dv : Number(dv);
+          const ok = k === 'grade' ? got === (want ?? null) : near(got, isNum(want) ? want : null);
+          const shown = LAB_FORMATS[fmt] ? LAB_FORMATS[fmt](want) : '(no format ' + fmt + ')';
+          if (!ok || txt(n) !== shown) bad.push(k + ': data-value ' + dv + ' text "' + txt(n) + '", the model ' + want + ' prints "' + shown + '"');
+        }
+        return { n: nodes.length, bad, run: !!run };
+      };
+      const setRange = async (k, v) => { const r = document.getElementById('lab-r-' + k); r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true })); await frame(); return r; };
+      const typeBox = async (k, v) => { const n = document.getElementById('lab-n-' + k); n.value = String(v); n.dispatchEvent(new Event('change', { bubbles: true })); await frame(); return n; };`;
+    const lReload = async (path) => {
+      await send('Page.navigate', { url: `${BASE}${path}` }, sessionId);
+      await sleep(300);
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(100)) {
+        const r = await send('Runtime.evaluate', { expression: `typeof propertyPagesSettled === 'function' && propertyPagesSettled() && State.view !== undefined`, returnByValue: true }, sessionId);
+        if (r.result?.result?.value === true) break;
+      }
+      await sleep(300);
+      return evaluate(`State.view`);
+    };
+    /* A deal on the calculator, and the lab opened on it from a fresh load. */
+    const lDeal = async (set, path = '/property/lab') => {
+      await evaluate(`(() => { const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null, ...${JSON.stringify(set)} };
+        localStorage.setItem('vl.deal', JSON.stringify(d)); localStorage.removeItem('vl.dealBeforeLink'); return true; })()`);
+      return lReload(path);
+    };
+    try {
+      await lStep('L1', async () => {
+        const deals = [['the sample', {}], ['a 30-year hold', { holdYears: 30 }], ['a taxed deal', { marginalTaxPct: 24, rent: 3400 }],
+          ['a land class', { propertyType: 'Land', landSqft: 4000 }], ['tenure 0', { tenureYears: 0 }]];
+        const problems = [];
+        let checked = 0, figures = 0;
+        const sweep = async (label) => evaluate(`(async () => { ${LH}
+          const out = { checked: 0, figures: 0, bad: [], ranges: [] };
+          let seed = 7;
+          const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+          for (const inp of LAB_INPUTS) {
+            const r = document.getElementById('lab-r-' + inp.k);
+            if (!r) continue;
+            out.ranges.push(inp.k);
+            const lo = Number(r.min), hi = Number(r.max);
+            const at = [0, .25, .5, .75, 1, ...Array.from({ length: 10 }, rnd)].map(f => labSnap(lo + (hi - lo) * f, inp.step));
+            for (const v of at) {
+              await setRange(inp.k, v);
+              const col = A();
+              if (pmMerge(col.baseInputs, col.moves)[inp.k] !== v) out.bad.push(inp.k + ' at ' + v + ': the column holds ' + pmMerge(col.baseInputs, col.moves)[inp.k]);
+              const f = labFigs();
+              out.checked++; out.figures += f.n;
+              f.bad.slice(0, 2).forEach(b => out.bad.push(inp.k + ' at ' + v + ': ' + b));
+              if (f.n < 8) out.bad.push(inp.k + ' at ' + v + ': only ' + f.n + ' figures carry data-lab');
+            }
+          }
+          /* The edge cases, in words. */
+          const row = (k) => txt(document.querySelector('#views .lab-row[data-row="' + k + '"] summary'));
+          out.rows = { netYield: row('netYield'), breakEvenOccupancy: row('breakEvenOccupancy'), instalment: row('instalment') };
+          out.view = State.view;
+          return out;
+        })()`);
+        for (const [label, set] of deals) {
+          const view = await lDeal(set);
+          if (view !== 'propertyLab') { problems.push(`${label}: /property/lab opened ${view}`); continue; }
+          const r = await sweep(label);
+          checked += r.checked; figures += r.figures;
+          r.bad.slice(0, 4).forEach(b => problems.push(`${label}: ${b}`));
+          if (r.checked < 15) problems.push(`${label}: only ${r.checked} slider positions were set (sliders: ${r.ranges.join(', ') || 'none'})`);
+          if (label === 'a land class') {
+            if (!/Net yield\s*—/.test(r.rows.netYield) || !/not a quantity this asset has/.test(r.rows.netYield)) problems.push(`a land class: the yield row reads "${r.rows.netYield}"`);
+            if (!/Break-even occupancy\s*—/.test(r.rows.breakEvenOccupancy)) problems.push(`a land class: the occupancy row reads "${r.rows.breakEvenOccupancy}"`);
+            if (r.ranges.includes('rent')) problems.push('a land class: the rent slider is offered');
+          }
+          if (label === 'tenure 0' && (!/Monthly repayment\s*—/.test(r.rows.instalment) || !/tenure is 0/.test(r.rows.instalment))) problems.push(`tenure 0: the repayment row reads "${r.rows.instalment}"`);
+        }
+        /* A saved property with two scenarios: B is the first scenario. */
+        const id = await evaluate(`(async () => { ${LH}
+          newPropertyDeal({ show: false });
+          const rec = saveActiveProperty({ name: 'L1 two scenarios' });
+          pmAddScenario(rec.id, { rent: 2300, touched: { rent: true } }, 'L1 rent 2300');
+          pmAddScenario(rec.id, { ratePct: 5.1, touched: { ratePct: true } }, 'L1 rate 5.1');
+          return rec.id; })()`);
+        const view = await lReload(`/property/lab?model=${id}`);
+        if (view !== 'propertyLab') problems.push(`a saved property: /property/lab?model= opened ${view}`);
+        else {
+          const r = await sweep('a saved property');
+          const cols = await evaluate(`LAB[labSubject].cols.map(c => c.source)`);
+          if (cols.length !== 3 || cols[0] !== 'base' || !String(cols[1]).startsWith('sc:') || !String(cols[2]).startsWith('sc:')) problems.push(`a saved property with two scenarios opened the columns ${JSON.stringify(cols)}`);
+          checked += r.checked; figures += r.figures;
+          r.bad.slice(0, 4).forEach(b => problems.push(`a saved property: ${b}`));
+        }
+        if (problems.length) fail('scenario-lab L1: every live figure is the model’s for the column’s base and moves', problems.slice(0, 20));
+        else ok(`scenario-lab L1: ${checked} slider positions over six deals (the sample, a 30-year hold, a taxed deal, a land class, tenure 0, a saved property with two scenarios), ${figures} [data-lab] figures each the model’s field and its own format; land prints — for yield and occupancy, tenure 0 a — with its reason`);
+      });
+
+      await lStep('L2', async () => {
+        const r = await evaluate(`(() => {
+          const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {} };
+          const out = [];
+          for (const [label, d] of [['default', base], ['taxed', { ...base, marginalTaxPct: 24, rent: 3400 }], ['30-year', { ...base, holdYears: 30 }],
+            ['renovation recovered 50%', { ...base, renoValueRecoveryPct: 50 }], ['tenure 0', { ...base, tenureYears: 0 }]]) {
+            const m = dealModel(d), H = m.path.length, bad = [];
+            const close = (a, b, t = 1e-6) => isNum(a) && isNum(b) && Math.abs(a - b) <= t;
+            if (!isNum(m.outstanding)) {
+              if (m.valueLessLoanAtExit !== null) bad.push('valueLessLoanAtExit is ' + m.valueLessLoanAtExit + ' with the debt unknown');
+              if (m.path.some(p => p.valueLessLoan !== null)) bad.push('a year carries a value less loan with the debt unknown');
+              if (m.netExitProceeds !== null) bad.push('netExitProceeds is ' + m.netExitProceeds + ' with the debt unknown');
+            } else {
+              if (!isNum(m.valueLessLoanAtExit) || m.valueLessLoanAtExit !== m.exitValue - m.outstanding) bad.push('valueLessLoanAtExit ' + m.valueLessLoanAtExit + ' is not exitValue − outstanding ' + (m.exitValue - m.outstanding));
+              if (m.path[H - 1].valueLessLoan !== m.valueLessLoanAtExit) bad.push('path[H−1].valueLessLoan ' + m.path[H - 1].valueLessLoan + ' is not valueLessLoanAtExit');
+              m.path.forEach(p => { if (p.valueLessLoan !== p.value - p.balance) bad.push('year ' + p.y + ': valueLessLoan is not value − balance'); });
+              if (!close(m.netExitProceeds, m.valueLessLoanAtExit - m.agentFee - m.exitLegal - m.rpgt - m.carryWhileSelling)) bad.push('netExitProceeds ' + m.netExitProceeds + ' is not value less loan less the costs of selling');
+            }
+            if (!close(num0(d.price) + m.priceGrowthAtExit + m.renoRecovered, m.exitValue)) bad.push('price + priceGrowthAtExit + renoRecovered ' + (num0(d.price) + m.priceGrowthAtExit + m.renoRecovered) + ' is not exitValue ' + m.exitValue);
+            out.push({ label, bad, vll: m.valueLessLoanAtExit, growth: m.priceGrowthAtExit, H });
+          }
+          return out;
+        })()`);
+        const bad = r.flatMap(x => x.bad.map(b => `${x.label}: ${b}`));
+        if (bad.length) fail('scenario-lab L2: the new fields hold their definitions', bad.slice(0, 12));
+        else ok(`scenario-lab L2: value less loan is the value at the sale less the loan then, in every year's row and at the exit, null with the debt unknown; price + growth on the price + renovation recovered is the value at the sale; net sale proceeds is value less loan less agent, legal, gains tax and the carry — default, taxed, 30-year, 50% recovered, tenure 0 (${r.map(x => `${x.label} ${Number.isFinite(x.vll) ? x.vll.toFixed(0) : 'null'}`).join(', ')})`);
+      });
+
+      await lStep('L3', async () => {
+        const BANNED = ['monthlyInstalment', 'balanceAfter', 'interestInYear', 'irrOf', 'npvAt', 'rpgtCharge', 'resolveFee', 'stampDutyMOT', 'legalFeesBuy', 'loanStampDuty', 'Math.pow'];
+        let src = '';
+        try { src = readFileSync(new URL('./src/js/82-property-lab.js', import.meta.url), 'utf8'); } catch { /* absent */ }
+        if (!src) { fail('scenario-lab L3: one engine — src/js/82-property-lab.js is absent'); return; }
+        const names = [...new Set([...src.matchAll(/(?:function|const|let)\s+((?:lab|scenarioLab)\w*)/g)].map(m => m[1]))];
+        const r = await evaluate(`(() => { const out = {}; ${names.map(n => `if (typeof ${n} === 'function') out[${JSON.stringify(n)}] = Function.prototype.toString.call(${n});`).join(' ')} return out; })()`);
+        const hits = [];
+        BANNED.forEach(b => { if (src.includes(b)) hits.push(`82-property-lab.js names ${b}`); });
+        Object.entries(r).forEach(([n, body]) => BANNED.forEach(b => { if (body.includes(b)) hits.push(`${n} names ${b}`); }));
+        if (Object.keys(r).length < 20) hits.push(`only ${Object.keys(r).length} lab functions were found in the page`);
+        if (hits.length) fail('scenario-lab L3: the lab carries no second copy of the model', hits);
+        else ok(`scenario-lab L3: neither 82-property-lab.js nor any of its ${Object.keys(r).length} lab functions in the page names ${BANNED.join(', ')}`);
+      });
+
+      await lStep('L4', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          await frame();
+          const real = window.dealModel; let n = 0;
+          window.dealModel = function (...a) { n++; return real.apply(this, a); };
+          try {
+            const rg = document.getElementById('lab-r-ratePct');
+            for (let i = 0; i < 50; i++) { rg.value = String(labSnap(Number(rg.min) + (i % 40) * 0.05, 0.05)); rg.dispatchEvent(new Event('input', { bubbles: true })); }
+            await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+            return { n, rate: A().work.ratePct };
+          } finally { window.dealModel = real; }
+        })()`);
+        if (!(r.n >= 1 && r.n <= 2)) fail('scenario-lab L4: fifty inputs in a frame make one model run', r);
+        else ok(`scenario-lab L4: fifty input events in one frame ran the model ${r.n} time${r.n === 1 ? '' : 's'}`);
+      });
+
+      await lStep('L5', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const calls = [];
+          const rs = history.replaceState, ps = history.pushState, si = Storage.prototype.setItem;
+          history.replaceState = function (...a) { calls.push('replaceState'); return rs.apply(this, a); };
+          history.pushState = function (...a) { calls.push('pushState'); return ps.apply(this, a); };
+          Storage.prototype.setItem = function (k, v) { calls.push('setItem ' + k); return si.call(this, k, v); };
+          const before = { deal: pmCanon(State.deal), stored: localStorage.getItem('vl.deal'), href: location.href, work: JSON.stringify(loadWork()),
+            marks: JSON.stringify([State.deal.touched, State.deal.evidence]) };
+          try {
+            let n = 0;
+            for (const key of ['B', 'A', 'B']) {
+              const radio = document.getElementById('lab-col-' + key);
+              if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frame(); }
+              for (const inp of LAB_INPUTS) {
+                const r = document.getElementById('lab-r-' + inp.k);
+                if (!r) continue;
+                for (let i = 0; i < 7 && n < 100; i++, n++) {
+                  r.value = String(labSnap(Number(r.min) + (Number(r.max) - Number(r.min)) * ((i * 37 + n) % 10) / 10, inp.step));
+                  r.dispatchEvent(new Event('input', { bubbles: true }));
+                  r.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                await frame();
+              }
+            }
+            await w(800);
+            const lab = L();
+            return { n, calls, cols: lab.cols.map(c => ({ key: c.key, moves: Object.keys(c.moves).length, marks: JSON.stringify([c.work.touched, c.work.evidence]), base: JSON.stringify([c.baseInputs.touched, c.baseInputs.evidence]) })),
+              same: { deal: pmCanon(State.deal) === before.deal, stored: localStorage.getItem('vl.deal') === before.stored, href: location.href === before.href,
+                work: JSON.stringify(loadWork()) === before.work, marks: JSON.stringify([State.deal.touched, State.deal.evidence]) === before.marks } };
+          } finally { history.replaceState = rs; history.pushState = ps; Storage.prototype.setItem = si; }
+        })()`);
+        const p = [];
+        if (r.n < 100) p.push(`only ${r.n} moves were made`);
+        if (r.calls.length) p.push(`${r.calls.length} writes: ${[...new Set(r.calls)].join(', ')}`);
+        Object.entries(r.same).forEach(([k, v]) => { if (!v) p.push(`${k} changed`); });
+        r.cols.forEach(c => { if (c.marks !== c.base) p.push(`column ${c.key}'s touched or evidence changed: ${c.marks}`); });
+        if (!r.cols.some(c => c.moves)) p.push('no column holds a move');
+        if (p.length) fail('scenario-lab L5: exploring writes nothing and marks nothing as the reader’s', p);
+        else ok(`scenario-lab L5: ${r.n} input and change events over every slider and both columns wrote nothing — no replaceState, pushState or setItem; the calculator's deal, its stored copy, the address and the saved work unchanged; no column's touched or evidence moved`);
+      });
+
+      await lStep('L6', async () => {
+        await lDeal({});
+        const id = await evaluate(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'L6 commits' }); return rec.id; })()`);
+        await lReload(`/property/lab?model=${id}`);
+        const r = await evaluate(`(async () => { ${LH}
+          const out = {};
+          out.cols = L().cols.map(c => c.source);
+          const rent = labSnap(Number(document.getElementById('lab-r-rent').max) - 150, 50);
+          await setRange('rent', rent);
+          out.rent = rent;
+          document.getElementById('lab-save').click(); await frame();
+          const f = document.getElementById('lab-scenario-name');
+          out.field = !!f && document.activeElement === f;
+          f.value = 'L6 rent moved'; f.dispatchEvent(new Event('input', { bubbles: true }));
+          document.getElementById('lab-name-save').click(); await frame(); await w(100);
+          const rec = pmFind(${JSON.stringify(id)});
+          const sc = (rec.scenarios || []).at(-1);
+          out.sc = sc && { id: sc.id, name: sc.name, keys: Object.keys(sc.overrides).filter(k => !['touched', 'evidence'].includes(k)), rent: sc.overrides.rent, touched: sc.overrides.touched?.rent };
+          out.compare = PM_COMPARE[rec.id];
+          out.b = { source: L().cols[1].source, moves: Object.keys(L().cols[1].moves).length };
+          /* Update scenario. */
+          const rent2 = labSnap(rent - 100, 50);
+          await setRange('rent', rent2);
+          document.getElementById('lab-update').click(); await frame();
+          const rec2 = pmFind(${JSON.stringify(id)});
+          out.updated = pmSavedInputs(rec2, pmScenario(rec2, sc.id)).rent;
+          out.rent2 = rent2;
+          /* Open in the calculator. */
+          const rent3 = labSnap(rent2 - 100, 50);
+          await setRange('rent', rent3);
+          out.rent3 = rent3;
+          document.getElementById('lab-open').click(); await w(300);
+          out.open = { rent: State.deal.rent, storedTouched: store.read('deal', {}).touched?.rent, modelId: State.deal.modelId, dirty: propertyStatus().dirty, view: State.view };
+          return out;
+        })()`);
+        const p = [];
+        if (!r.field) p.push('Save B as a scenario did not put the keyboard in its name field');
+        if (!r.sc || JSON.stringify(r.sc.keys) !== '["rent"]' || r.sc.rent !== r.rent) p.push(`the new scenario's overrides: ${JSON.stringify(r.sc)} (moved rent ${r.rent})`);
+        if (r.sc && r.sc.touched !== true) p.push('the new scenario does not mark the rent as the reader’s');
+        if (!r.compare || !r.sc || !r.compare.includes(r.sc.id)) p.push(`PM_COMPARE: ${JSON.stringify(r.compare)}`);
+        if (!r.sc || r.b.source !== `sc:${r.sc.id}` || r.b.moves) p.push(`B after the save: ${JSON.stringify(r.b)}`);
+        if (r.updated !== r.rent2) p.push(`Update scenario left the rent at ${r.updated}, not ${r.rent2}`);
+        if (r.open.rent !== r.rent3) p.push(`Open B in the calculator: the deal's rent is ${r.open.rent}, not ${r.rent3}`);
+        if (r.open.storedTouched !== true) p.push('Open B in the calculator: the stored deal does not mark the rent as the reader’s');
+        if (r.open.modelId !== id) p.push(`Open B in the calculator: the deal is of ${r.open.modelId}`);
+        if (!r.open.dirty) p.push('Open B in the calculator: the calculator does not say it has unsaved changes');
+        if (r.open.view !== 'property') p.push(`Open B in the calculator opened ${r.open.view}`);
+        if (p.length) fail('scenario-lab L6: a commit writes exactly what moved, marked as the reader’s', p);
+        else ok(`scenario-lab L6: Save B as a scenario (the name asked in the page) wrote overrides of the rent alone, ${r.rent}, marked as the reader's, added to the comparison, and B became the scenario with no moves; Update scenario wrote ${r.rent2}; Open B in the calculator put ${r.rent3} on the calculator's deal and stored it marked as the reader's, of the same property, unsaved`);
+      });
+
+      await lStep('L7', async () => {
+        await lDeal({});
+        await evaluate(`(() => { const r = document.getElementById('lab-r-ratePct'); r.scrollIntoView({ block: 'center' }); r.focus(); return document.activeElement === r; })()`);
+        const key = async (k, code, vk, mods = 0) => {
+          await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: k, code, windowsVirtualKeyCode: vk, modifiers: mods }, sessionId);
+          await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk, modifiers: mods }, sessionId);
+          return evaluate(`(async () => { await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            const n = document.getElementById('lab-r-ratePct');
+            return { v: LAB[labSubject] && labActive(LAB[labSubject]).work.ratePct, min: Number(n?.min), max: Number(n?.max), focus: document.activeElement?.id,
+              text: document.querySelector('#views [data-lab="instalment"]')?.textContent, outline: n ? getComputedStyle(n).outlineStyle : null }; })()`);
+        };
+        const s0 = await evaluate(`({ v: labActive(LAB[labSubject]).work.ratePct, text: document.querySelector('#views [data-lab="instalment"]').textContent })`);
+        const p = [];
+        const r1 = await key('ArrowRight', 'ArrowRight', 39); await key('ArrowRight', 'ArrowRight', 39); const r3 = await key('ArrowRight', 'ArrowRight', 39);
+        if (Math.abs(r3.v - (s0.v + 0.15)) > 1e-9) p.push(`ArrowRight ×3 took ${s0.v} to ${r3.v}`);
+        if (r1.text === s0.text) p.push('the repayment did not change a frame after the key');
+        const r4 = await key('ArrowRight', 'ArrowRight', 39, 8);
+        if (Math.abs(r4.v - (r3.v + 0.5)) > 1e-9) p.push(`Shift+ArrowRight took ${r3.v} to ${r4.v}`);
+        const r5 = await key('PageUp', 'PageUp', 33);
+        if (Math.abs(r5.v - (r4.v + 0.5)) > 1e-9) p.push(`PageUp took ${r4.v} to ${r5.v}`);
+        const r6 = await key('PageDown', 'PageDown', 34);
+        if (Math.abs(r6.v - r4.v) > 1e-9) p.push(`PageDown took ${r5.v} to ${r6.v}`);
+        const r7 = await key('Home', 'Home', 36);
+        if (r7.v !== r7.min) p.push(`Home gave ${r7.v}, the span starts at ${r7.min}`);
+        const r8 = await key('End', 'End', 35);
+        if (r8.v !== r8.max) p.push(`End gave ${r8.v}, the span ends at ${r8.max}`);
+        const r9 = await key('Escape', 'Escape', 27);
+        if (r9.v !== s0.v) p.push(`Escape left the rate at ${r9.v}, not the gesture's start ${s0.v}`);
+        for (const r of [r1, r3, r4, r5, r6, r7, r8, r9]) if (r.focus !== 'lab-r-ratePct') { p.push(`focus moved to ${r.focus}`); break; }
+        if (!r9.outline || r9.outline === 'none') p.push(`the focused slider's outline is ${r9.outline}`);
+        if (p.length) fail('scenario-lab L7: the keyboard steps, jumps, reaches the ends and undoes, focus kept', p);
+        else ok(`scenario-lab L7: on the rate, ArrowRight ×3 is +0.15, Shift+ArrowRight, PageUp and PageDown ±0.50, Home and End the span's ends (${r7.min} and ${r8.max}), Escape back to ${s0.v}; the repayment moved a frame after the key; focus stayed on the slider, ringed (${r9.outline})`);
+      });
+
+      await lStep('L8', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const out = { unnamed: [], valuetext: [], summaries: [], legends: [] };
+          const named = (n) => (n.labels && n.labels.length) || n.getAttribute('aria-label') || n.getAttribute('aria-labelledby');
+          const inputs = [...document.querySelectorAll('#views .lab input[type=range], #views .lab input[type=number]')];
+          inputs.forEach(n => { if (!named(n)) out.unnamed.push(n.id); });
+          out.inputs = inputs.length;
+          const col = A();
+          for (const inp of LAB_INPUTS) {
+            const r = document.getElementById('lab-r-' + inp.k);
+            if (!r) continue;
+            const v = col.work[inp.k], t = r.getAttribute('aria-valuetext') || '';
+            const want = inp.k === 'ratePct' ? fmtNum(v, 2) + ' percent a year' : inp.k === 'downPct' ? fmtNum(v, 0) + ' percent' : fmtNum(v, 0) + ' ringgit';
+            if (!t.startsWith(want)) out.valuetext.push(inp.k + ': "' + t + '", not "' + want + '…"');
+          }
+          document.querySelectorAll('#views .lab-row').forEach(d => {
+            const s = txt(d.querySelector('summary')), label = txt(d.querySelector('.lab-row-label')), value = txt(d.querySelector('[data-lab]'));
+            if (!s.includes(label) || !s.includes(value)) out.summaries.push(d.dataset.row + ': "' + s + '"');
+          });
+          out.rows = document.querySelectorAll('#views .lab-row').length;
+          out.legends = [...document.querySelectorAll('#views .lab fieldset')].map(f => txt(f.querySelector(':scope > legend')));
+          return out;
+        })()`);
+        const p = [];
+        if (r.inputs < 9) p.push(`only ${r.inputs} sliders and boxes`);
+        if (r.unnamed.length) p.push(`unnamed: ${r.unnamed.join(', ')}`);
+        r.valuetext.forEach(x => p.push(`aria-valuetext ${x}`));
+        r.summaries.forEach(x => p.push(`a summary without its label and value: ${x}`));
+        if (r.rows !== 7) p.push(`${r.rows} chain rows`);
+        for (const want of ['Sliders move', 'Input', 'Compare by']) if (!r.legends.includes(want)) p.push(`no "${want}" legend (${JSON.stringify(r.legends)})`);
+        if (p.length) fail('scenario-lab L8: every control and row is named', p);
+        else ok(`scenario-lab L8: all ${r.inputs} sliders and boxes are labelled, every slider's aria-valuetext is its value as formatted, all ${r.rows} summaries say their label and value, and the three groups have their legends`);
+      });
+
+      await lStep('L9', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const live = document.getElementById('liveStatus');
+          live.textContent = '';
+          const said = [];
+          const mo = new MutationObserver(() => { const t = live.textContent.trim(); if (t) said.push(t); });
+          mo.observe(live, { childList: true, characterData: true, subtree: true });
+          const rg = document.getElementById('lab-r-ratePct');
+          for (let i = 1; i <= 20; i++) { rg.value = String(labSnap(Number(rg.min) + i * 0.05, 0.05)); rg.dispatchEvent(new Event('input', { bubbles: true })); await frame(); }
+          await w(200);
+          const onInput = said.length;
+          const t0 = performance.now();
+          rg.dispatchEvent(new Event('change', { bubbles: true }));
+          while (performance.now() - t0 < 700 && said.length === onInput) await w(20);
+          const after = said.slice(onInput); const at = Math.round(performance.now() - t0);
+          await w(300);
+          const total = said.length - onInput;
+          const radio = document.getElementById('lab-by-cashflow');
+          radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true }));
+          await w(50);
+          const metric = said.at(-1);
+          mo.disconnect();
+          return { onInput, after, at, total, metric };
+        })()`);
+        const p = [];
+        if (r.onInput) p.push(`${r.onInput} announcement(s) during 20 input events`);
+        if (r.total !== 1 || !r.after.length) p.push(`${r.total} announcement(s) after the change`);
+        else if (!/Interest rate/.test(r.after[0]) || !/Repayment/.test(r.after[0])) p.push(`the change said "${r.after[0]}"`);
+        if (!/Comparing by .*: A .*, B .*Order A, B/.test(r.metric || '')) p.push(`the metric switch said "${r.metric}"`);
+        if (p.length) fail('scenario-lab L9: the live region says one sentence a change and the comparison in order', p);
+        else ok(`scenario-lab L9: silent through 20 input events; one sentence ${r.at}ms after the change ("${r.after[0]}"); the switch to cash flow said "${r.metric}"`);
+      });
+
+      await lStep('L10', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          /* B moved apart from A first, so the two columns differ. */
+          await setRange('rent', labSnap(Number(document.getElementById('lab-r-rent').max) - 200, 50));
+          await setRange('ratePct', labSnap(Number(document.getElementById('lab-r-ratePct').min) + 1, 0.05));
+          const out = { metrics: [], bad: [] };
+          const lab = L();
+          const runOf = (c) => (c.key === lab.active ? (() => { const m = dealModel(c.work); return { m, g: propertyGrade(c.work, m) }; })() : pmCompareRun(c.work));
+          const want = (field, c) => {
+            const { m } = runOf(c);
+            if (field === 'district') return c.work.district;
+            if (field === 'worstMonth') { const xs = [m.stress?.rate?.at(-1)?.monthly, m.letsToTenant === false ? null : m.stress?.vacancy?.at(-1)?.monthly].filter(isNum); return xs.length ? Math.min(...xs) : null; }
+            if (field === 'priceVsMedian') return comparableSupport(c.work).priceVsMedian;
+            return m[field];
+          };
+          for (const id of LAB_METRIC_IDS) {
+            const radio = document.getElementById('lab-by-' + id);
+            radio.focus(); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true }));
+            await frame();
+            const tables = [...document.querySelectorAll('#views .lab-cmp')];
+            const m = { id, tables: tables.length, fields: tables.map(t => t.dataset.field) };
+            out.metrics.push(m);
+            if (!tables.length) out.bad.push(id + ': no table');
+            for (const t of tables) {
+              const rows = [...t.querySelectorAll('tr[data-lab-col]')];
+              const order = rows.map(x => x.dataset.labCol).join('');
+              if (order !== lab.cols.map(c => c.key).join('')) out.bad.push(id + ' ' + t.dataset.field + ': rows in the order ' + order);
+              for (const row of rows) {
+                const c = lab.cols.find(x => x.key === row.dataset.labCol);
+                const w0 = want(t.dataset.field, c), dv = row.getAttribute('data-value');
+                const got = typeof w0 === 'string' ? dv : dv === '' ? null : Number(dv);
+                if (typeof w0 === 'string' ? got !== w0 : !near(got, isNum(w0) ? w0 : null)) out.bad.push(id + ' ' + t.dataset.field + ' ' + c.key + ': ' + dv + ', the model ' + w0);
+              }
+            }
+            const checked = [...document.querySelectorAll('#views input[name="lab-by"]')].filter(x => x.checked).map(x => x.value);
+            if (checked.length !== 1 || checked[0] !== id) out.bad.push(id + ': checked ' + JSON.stringify(checked));
+            if (document.activeElement !== document.getElementById('lab-by-' + id)) out.bad.push(id + ': focus went to ' + (document.activeElement?.id || document.activeElement?.tagName));
+            if (id === 'entry') for (const row of document.querySelectorAll('#views .lab-cmp[data-field="safeCashRequired"] tr[data-lab-col]')) {
+              const c = lab.cols.find(x => x.key === row.dataset.labCol), { m: mm } = runOf(c);
+              const segs = [...row.nextElementSibling.querySelectorAll('[data-part]')];
+              const parts = Object.fromEntries(segs.map(s => [s.dataset.part, Number(s.getAttribute('data-value'))]));
+              for (const k of ['transactionCash', 'improvementCash', 'reserveCash']) if (!near(parts[k], mm[k])) out.bad.push('entry ' + c.key + ': ' + k + ' segment ' + parts[k] + ', the model ' + mm[k]);
+              if (Math.abs(Object.values(parts).reduce((a, b) => a + b, 0) - mm.safeCashRequired) > 1e-6) out.bad.push('entry ' + c.key + ': the segments do not sum to cash required');
+            }
+            if (id === 'appreciation') for (const row of document.querySelectorAll('#views .lab-cmp[data-field="exitValue"] tr[data-lab-col]')) {
+              const parts = Object.fromEntries([...row.nextElementSibling.querySelectorAll('[data-part]')].map(s => [s.dataset.part, Number(s.getAttribute('data-value'))]));
+              if (Math.abs(parts.price + parts.priceGrowthAtExit + parts.renoRecovered - Number(row.getAttribute('data-value'))) > 1e-6) out.bad.push('appreciation ' + row.dataset.labCol + ': price + growth + renovation recovered is not the value at the sale');
+            }
+            if (id === 'location' && !/are the same place — location does not separate them/.test(txt(document.getElementById('lab-cmp')))) out.bad.push('location: no same-place card for two columns in one district');
+            const words = txt(document.querySelector('#views .lab'));
+            const banned = words.match(/\\b(recommend(ed)?|best|winner|top pick|you should|better deal|outperform)\\b/i);
+            if (banned) out.bad.push(id + ': the page says "' + banned[0] + '"');
+          }
+          return out;
+        })()`);
+        if (r.bad.length) fail('scenario-lab L10: the six comparisons are the model’s, in the order A, B, C', r.bad.slice(0, 16));
+        else ok(`scenario-lab L10: all six comparisons (${r.metrics.map(m => `${m.id} ${m.fields.join('+')}`).join('; ')}) carry the model's figure for each column, rows always A, B, one radio checked and focus kept on it; entry cash is completion, renovation and reserve summing to cash required; appreciation is price, growth and renovation recovered summing to the value at the sale; one place said once; no ranking word`);
+      });
+
+      await lStep('L11', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const out = {};
+          out.status = txt(document.getElementById('lab-status'));
+          out.price = txt(document.getElementById('lab-ev-price')); out.rent = txt(document.getElementById('lab-ev-rent'));
+          out.row6 = txt(document.querySelector('#views .lab-row[data-row="valueLessLoanAtExit"] .lab-formula'));
+          out.row7 = txt(document.querySelector('#views .lab-row[data-row="irrPct"] .lab-formula'));
+          const radio = document.getElementById('lab-by-appreciation'); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frame();
+          out.apprec = txt(document.getElementById('lab-cmp'));
+          const before = { work: JSON.stringify(A().work.evidence), deal: JSON.stringify(State.deal.evidence) };
+          await setRange('rent', labSnap(Number(document.getElementById('lab-r-rent').min) + 100, 50));
+          const knob = document.getElementById('lab-knob-rent');
+          out.whatIf = [...knob.querySelectorAll('.lab-tag-whatif')].some(t => !t.hidden && t.getClientRects().length && /What-if — not saved/.test(t.textContent));
+          out.touched = A().work.touched?.rent === true;
+          out.evidence = JSON.stringify(A().work.evidence) === before.work && JSON.stringify(State.deal.evidence) === before.deal;
+          return out;
+        })()`);
+        const p = [];
+        if (!/^Sample deal/.test(r.status)) p.push(`the status reads "${r.status}"`);
+        for (const k of ['price', 'rent']) if (r[k] !== 'Illustrative default — not yours, and not from any market') p.push(`the ${k} chip reads "${r[k]}"`);
+        for (const k of ['row6', 'row7', 'apprec']) if (!/sample assumption/.test(r[k])) p.push(`${k} does not say "sample assumption"`);
+        if (!r.whatIf) p.push('a moved rent does not show “What-if — not saved”');
+        if (r.touched) p.push('a moved rent is marked as the reader’s');
+        if (!r.evidence) p.push('a moved rent changed an evidence grade');
+        if (p.length) fail('scenario-lab L11: the sample is labelled as the tool’s, and a move is a what-if', p);
+        else ok('scenario-lab L11: on the sample the status says Sample deal, the price and rent chips say Illustrative default — not yours, and not from any market, and rows 6 and 7 and the Appreciation view say sample assumption; a moved rent shows What-if — not saved and is neither touched nor regraded');
+      });
+
+      await lStep('L12', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const out = {};
+          localStorage.removeItem('vl.plan'); State.plan = 'free';
+          State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== State.deal.projectId);
+          render(); await frame();
+          const col = A(), m = dealModel(col.work);
+          const panel = document.querySelector('#views .lab');
+          const net = fmtMoney(m.netExitProceeds, 'MYR', 0);
+          out.locked = { irr: txt(document.querySelector('#views [data-lab="irrPct"]')) === fmtPct(m.irrPct, 2),
+            text: panel.textContent.includes(net), values: [...panel.querySelectorAll('[data-value]')].some(n => n.getAttribute('data-value') === String(m.netExitProceeds)),
+            figs: !!panel.querySelector('[data-lab="netExitProceeds"]') };
+          State.propertyReportsBought = [...State.propertyReportsBought, State.deal.projectId];
+          render(); await frame();
+          const node = (k) => document.querySelector('#views [data-lab="' + k + '"]');
+          out.open = { net: node('netExitProceeds') && Number(node('netExitProceeds').getAttribute('data-value')) === m.netExitProceeds && txt(node('netExitProceeds')) === net,
+            profit: node('totalProfit') && Number(node('totalProfit').getAttribute('data-value')) === m.totalProfit };
+          State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== State.deal.projectId);
+          render(); await frame();
+          return out;
+        })()`);
+        const p = [];
+        if (!r.locked.irr) p.push('locked: row 7 does not show the rate of return');
+        if (r.locked.text || r.locked.values || r.locked.figs) p.push(`locked: net sale proceeds reach the panel (${JSON.stringify(r.locked)})`);
+        if (!r.open.net || !r.open.profit) p.push(`unlocked: ${JSON.stringify(r.open)}`);
+        if (p.length) fail('scenario-lab L12: net sale proceeds and total profit only with the report unlocked', p);
+        else ok('scenario-lab L12: with the report locked row 7 shows the rate of return and neither the text nor any data-value carries net sale proceeds; with it unlocked row 7 shows net sale proceeds and total profit, the model’s');
+      });
+
+      await lStep('L13', async () => {
+        const measure = async () => evaluate(`(async () => { ${LH}
+          const rg = document.getElementById('lab-r-ratePct');
+          performance.clearMeasures('lab-paint');
+          for (let i = 0; i < 200; i++) {
+            rg.value = String(labSnap(Number(rg.min) + (i % 120) * 0.05, 0.05));
+            rg.dispatchEvent(new Event('input', { bubbles: true }));
+            await new Promise(r => requestAnimationFrame(r));
+          }
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const xs = performance.getEntriesByName('lab-paint').map(e => e.duration).sort((a, b) => a - b);
+          const q = (f) => xs[Math.min(xs.length - 1, Math.floor(f * xs.length))];
+          return { n: xs.length, median: q(0.5), p95: q(0.95), max: xs.at(-1) };
+        })()`);
+        await lDeal({});
+        await send('Emulation.setCPUThrottlingRate', { rate: 4 }, sessionId);
+        let ten, thirty;
+        try {
+          ten = await measure();
+          await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId);
+          await lDeal({ holdYears: 30 });
+          await send('Emulation.setCPUThrottlingRate', { rate: 4 }, sessionId);
+          thirty = await measure();
+        } finally { await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId); }
+        const p = [];
+        if (!(ten.n >= 150)) p.push(`only ${ten.n} paints were measured at a 10-year hold`);
+        if (!(ten.median <= 8) || !(ten.p95 <= 16)) p.push(`10-year hold, 4× slower: median ${ten.median?.toFixed(2)}ms, 95th percentile ${ten.p95?.toFixed(2)}ms`);
+        if (!(thirty.p95 <= 33)) p.push(`30-year hold, 4× slower: 95th percentile ${thirty.p95?.toFixed(2)}ms`);
+        const said = `lab-paint at 4× CPU — 10-year hold: median ${ten.median?.toFixed(2)}ms, p95 ${ten.p95?.toFixed(2)}ms, max ${ten.max?.toFixed(2)}ms (${ten.n} paints); 30-year hold: median ${thirty.median?.toFixed(2)}ms, p95 ${thirty.p95?.toFixed(2)}ms, max ${thirty.max?.toFixed(2)}ms (${thirty.n} paints)`;
+        console.log(`      ${said}`);
+        if (p.length) fail('scenario-lab L13: a paint fits a frame on a 4× slower processor', p);
+        else ok(`scenario-lab L13: ${said}`);
+      });
+
+      await lStep('L14', async () => {
+        await lDeal({});
+        await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+        let r;
+        try {
+          r = await evaluate(`(() => { const n = document.querySelector('#views .lab-bar-fill'); return n ? getComputedStyle(n).transitionDuration : null; })()`);
+        } finally { await send('Emulation.setEmulatedMedia', { features: [] }, sessionId); }
+        const normal = await evaluate(`(() => { const n = document.querySelector('#views .lab-bar-fill'); return n ? getComputedStyle(n).transitionDuration : null; })()`);
+        const css = readFileSync(new URL('./src/styles.css', import.meta.url), 'utf8');
+        const all = /transition\s*:\s*all\b/i.test(css);
+        const p = [];
+        if (r !== '0s') p.push(`under reduced motion a bar's transition lasts ${r}`);
+        if (normal === '0s' || normal === null) p.push(`with motion a bar's transition lasts ${normal}`);
+        if (all) p.push('src/styles.css carries transition: all');
+        if (p.length) fail('scenario-lab L14: bars hold still under reduced motion, and nothing transitions all', p);
+        else ok(`scenario-lab L14: a bar's transition is ${normal} with motion and 0s under reduced motion; src/styles.css has no transition: all`);
+      });
+
+      await lStep('L15', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const real = window.dealModel; let n = 0;
+          window.dealModel = function (...a) { n++; return real.apply(this, a); };
+          let out;
+          try {
+            await typeBox('price', 0); await frame();
+            const panel = document.querySelector('#views .lab');
+            const vals = [...document.querySelectorAll('#views .lab-chain [data-lab]')].map(x => txt(x));
+            const notes = [...document.querySelectorAll('#views .lab-row-note')].map(x => txt(x));
+            out = { n, active: A().key, price: A().work.price, vals, notes, nan: /NaN|Infinity/.test(panel.textContent), cmp: txt(document.querySelector('#views tr[data-lab-col="B"] .lab-cmp-v')) };
+          } finally { window.dealModel = real; }
+          return out;
+        })()`);
+        const p = [];
+        if (r.price !== 0) p.push(`the box did not set B's price (${r.price})`);
+        if (r.n) p.push(`B ran the model ${r.n} time(s) with no price`);
+        if (!r.vals.length || r.vals.some(v => v !== '—')) p.push(`values: ${r.vals.join(', ')}`);
+        if (r.notes.some(v => v !== 'Needs a purchase price')) p.push(`notes: ${[...new Set(r.notes)].join(' | ')}`);
+        if (r.nan) p.push('the panel prints NaN or Infinity');
+        if (r.cmp !== 'not computed yet') p.push(`B's comparison row reads "${r.cmp}"`);
+        if (p.length) fail('scenario-lab L15: a column with no price runs no model', p);
+        else ok(`scenario-lab L15: 0 typed as B's price runs no model; all ${r.vals.length} figures read — with "Needs a purchase price", B's comparison row "not computed yet", and nothing prints NaN or Infinity`);
+      });
+
+      await lStep('L16', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const views = document.getElementById('views');
+          let replaced = 0;
+          const mo = new MutationObserver(recs => { for (const x of recs) if (x.target === views && x.type === 'childList') replaced++; });
+          mo.observe(views, { childList: true });
+          const out = {};
+          const down = (n) => n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }));
+          const r0 = document.getElementById('lab-r-price');
+          down(r0); render(); await w(30);
+          out.held = { connected: r0.isConnected, replaced };
+          r0.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); await w(30);
+          out.up = replaced;
+          const r1 = document.getElementById('lab-r-price');
+          down(r1); render(); await w(30); const heldBlur = replaced;
+          r1.blur(); await w(30); out.blur = replaced - heldBlur;
+          const r2 = document.getElementById('lab-r-price');
+          down(r2); render(); await w(30); const heldCancel = replaced;
+          r2.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 })); await w(30); out.cancel = replaced - heldCancel;
+          const r3 = document.getElementById('lab-r-price');
+          down(r3); navigate('/property/calculator'); await w(200);
+          out.nav = { view: State.view, drawn: !!document.querySelector('#views #acquisition') };
+          render(); await w(30);
+          out.afterNav = State.view === 'property';
+          mo.disconnect();
+          navigate('/property/lab'); await w(200);
+          return out;
+        })()`);
+        const p = [];
+        if (!r.held.connected || r.held.replaced) p.push(`a render() during a drag replaced the page (${JSON.stringify(r.held)})`);
+        if (r.up !== 1) p.push(`pointerup drew the held redraw ${r.up} time(s)`);
+        if (r.blur !== 1) p.push(`blur drew the held redraw ${r.blur} time(s)`);
+        if (r.cancel !== 1) p.push(`pointercancel drew the held redraw ${r.cancel} time(s)`);
+        if (r.nav.view !== 'property' || !r.nav.drawn) p.push(`a navigation during a drag was held: ${JSON.stringify(r.nav)}`);
+        if (p.length) fail('scenario-lab L16: a redraw nobody asked for waits for the finger; a navigation does not', p);
+        else ok('scenario-lab L16: render() during a pointer on the price slider left the slider in place and drew nothing; pointerup, blur and pointercancel each drew the held redraw once; a navigation during the hold went at once');
+      });
+
+      await lStep('L17', async () => {
+        await lDeal({});
+        const ids = await evaluate(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'L17 address' });
+          const sc = pmAddScenario(rec.id, { rent: 2100, touched: { rent: true } }, 'L17 rent'); return { id: rec.id, sc: sc.id }; })()`);
+        const r = await evaluate(`(async () => { ${LH}
+          const out = {};
+          navigate(${JSON.stringify(`/property/lab?model=${ids.id}&cols=base,${ids.sc}&by=risk`)}); await w(300);
+          out.open = { view: State.view, cols: L().cols.map(c => c.source), metric: L().metric, risk: !!document.querySelector('#views .lab-cmp[data-field="dscr"]') };
+          const rs = history.replaceState; let n = 0;
+          history.replaceState = function (...a) { n++; return rs.apply(this, a); };
+          try {
+            const radio = document.getElementById('lab-by-cashflow'); radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true }));
+            await w(500);
+            out.write = { n, by: new URLSearchParams(location.search).get('by'), model: new URLSearchParams(location.search).get('model') };
+            /* A second panel, compact, beside the page's. */
+            const box = document.createElement('div'); box.style.width = '420px'; document.getElementById('views').append(box);
+            const p2 = scenarioLabPanel(box, { idPrefix: 'map-lab', compact: true, address: false });
+            const all = [...document.querySelectorAll('[id]')].map(x => x.id);
+            out.dupes = [...new Set(all.filter((x, i) => all.indexOf(x) !== i))];
+            const r2 = document.getElementById('map-lab-r-price');
+            const before = A().work.price;
+            r2.value = String(labSnap(Number(r2.min) + 3000, 1000)); r2.dispatchEvent(new Event('input', { bubbles: true })); await frame();
+            out.second = { node: !!p2.node, moved: A().work.price !== before && A().work.price === Number(r2.value), panelShows: txt(box.querySelector('[data-lab="instalment"]')) === txt(document.querySelector('#lab-root [data-lab="instalment"]')) };
+            box.remove();
+            /* A place opened: the active column only. */
+            const dealBefore = pmCanon(State.deal);
+            const d0 = A().work.district;
+            const other = SARAWAK_CITIES.find(c => c.id === 'kuching').districts.find(x => x !== d0);
+            n = 0;
+            const res = labOpen({ kind: 'place', city: 'kuching', district: other });
+            await w(450);
+            out.place = { ok: res.ok, district: A().work.district, want: other, deal: pmCanon(State.deal) === dealBefore, writes: n };
+            const refused = labOpen({ kind: 'place', city: 'kuching', district: 'Nowhere in particular' });
+            out.refused = refused;
+          } finally { history.replaceState = rs; }
+          navigate('/property/lab?model=nope'); await w(300);
+          out.nope = { view: State.view, subject: labSubject, want: State.deal.modelId ? 'm:' + State.deal.modelId : 'deal', note: txt(document.getElementById('lab-status')) };
+          return out;
+        })()`);
+        const p = [];
+        if (r.open.view !== 'propertyLab' || JSON.stringify(r.open.cols) !== JSON.stringify(['base', `sc:${ids.sc}`]) || r.open.metric !== 'risk' || !r.open.risk)
+          p.push(`?model=&cols=base,<scenario>&by=risk opened ${JSON.stringify(r.open)}`);
+        if (r.write.n !== 1 || r.write.by !== 'cashflow' || r.write.model !== ids.id) p.push(`a metric switch wrote the address ${r.write.n} time(s), by=${r.write.by}, model=${r.write.model}`);
+        if (r.dupes?.length) p.push(`duplicate ids with a second panel: ${r.dupes.slice(0, 5).join(', ')}`);
+        if (!r.second?.moved) p.push(`the second panel's slider did not move its column (${JSON.stringify(r.second)})`);
+        if (!r.place?.ok || r.place.district !== r.place.want || !r.place.deal || r.place.writes) p.push(`labOpen place: ${JSON.stringify(r.place)}`);
+        if (r.refused?.ok !== false || !/not one of Kuching's listed districts/.test(r.refused?.why || '')) p.push(`an unlisted district: ${JSON.stringify(r.refused)}`);
+        if (r.nope.view !== 'propertyLab' || r.nope.subject !== r.nope.want || !/That property is not saved in this browser/.test(r.nope.note)) p.push(`?model=nope: ${JSON.stringify(r.nope)}`);
+        if (p.length) fail('scenario-lab L17: the address, an unknown property, a second panel and a place', p);
+        else ok(`scenario-lab L17: ?model=&cols=base,<scenario>&by=risk opens those columns and the Risk view; a switch to cash flow wrote the address once (by=cashflow); a compact second panel (map-lab) mounted with no duplicate id and its slider moved its column; a place opened moved the active column to ${r.place.district} with the calculator's deal unchanged and no address written, and an unlisted district was refused; ?model=nope says the property is not saved and shows the deal on the calculator`);
+      });
+    } finally {
+      await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId).catch(() => {});
+      await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+      await evaluate(`(() => { const k = ${lKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
+    }
+  }
+  /* ---- end scenario-lab ---- */
 
 } catch (e) {
   fail('harness error', e.message);

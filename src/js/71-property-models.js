@@ -627,7 +627,10 @@ function propertyModelBar(d = State.deal) {
   acts.append(el('button', { class: 'btn btn-quiet btn-sm', id: 'wb-property-reset', onclick: () => { newPropertyDeal({ show: false }); renderKeepFocus(); } }, 'New property'));
   const link = (path, label, id) => el('a', { class: 'btn btn-quiet btn-sm', id, href: href(path),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
-  acts.append(el('span', { class: 'pm-links' }, [link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
+  /* The Scenario Lab opens on the property here, as saved and with its
+     scenarios (82-property-lab.js); the calculator's deal is not changed
+     by opening it. */
+  acts.append(el('span', { class: 'pm-links' }, [link('/property/lab', 'Scenario Lab', 'wb-property-lab'), link('/property/models', 'My properties', 'wb-property-list'), link('/my/data', 'Back up everything', 'wb-property-backup')]));
   bar.append(acts);
   return bar;
 }
@@ -925,6 +928,11 @@ function propertyScenariosPanel(d = State.deal) {
     ...shown.map(c => el('td', { class: 'caption', style: 'white-space:normal;min-width:8rem' }, c.id === 'base' ? '—' : c.what))]));
   t.append(tb);
   card.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, t));
+  /* The same columns, moved live: the Scenario Lab opens on them. */
+  const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}&cols=${shown.map(c => encodeURIComponent(c.id)).join(',')}`;
+  card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, el('a', { href: href(labPath), id: 'pm-sc-lab',
+    onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } },
+    'Open these in the Scenario Lab')));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     'Each column is the calculator’s own model run on that column’s inputs: monthly position after vacancy, costs and the loan; cash required including the reserve; net yield on the price; the rent at which the monthly position is nil; and the underwriting grade. Scenarios, not forecasts — and nothing here is ranked.'));
   return card;
@@ -1041,6 +1049,10 @@ VIEWS.propertyModels = () => {
         focusAfterRedraw(opens[Math.min(idx, opens.length - 1)], '#pm-new');
         toast(store.failed !== refused ? STORE_UNDELETED : 'Deleted');
       } }, 'Delete'));
+    /* Its scenarios moved live, after the row's own actions. */
+    const labPath = `/property/lab?model=${encodeURIComponent(rec.id)}`;
+    acts.append(el('a', { class: 'btn btn-quiet btn-sm', id: `pm-lab-${rec.id}`, href: href(labPath), 'aria-label': `Scenario Lab — ${rec.name}`,
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(labPath); } }, 'Scenario Lab'));
     ul.append(el('li', { class: `pm-row${onCalc ? ' is-open' : ''}` }, [
       el('div', { class: 'pm-row-main' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [

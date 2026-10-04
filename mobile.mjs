@@ -79,7 +79,10 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    and the operations pages a phone is likely to open — the runs
                    table and the data-health tables are the widest. */
                 '/app/scanner', '/app/scanner/market', '/app/scanner/backtest',
-                '/admin/scanner', '/admin/scanner/jobs', '/admin/scanner/data'];
+                '/admin/scanner', '/admin/scanner/jobs', '/admin/scanner/data',
+                /* The Scenario Lab (3 Oct 2026): its sample, and the Location
+                   comparison, the one view of facts in sentences. */
+                '/property/lab', '/property/lab?by=location'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -2259,6 +2262,153 @@ for (const w of [360, 390]) {
   else console.log(`ok   property-proposal: the client proposal (three scenarios ticked, the preparer's details and a wide logo, a client's name, the details open) at 360, 390, 430, 768, 1024 and 1440, and 390 dark — ${measured} widths with no overflow of the page or the document, the scenarios table whole from 768 up, every assumption's label keeping at least 30% of its row and the details' fields apart; in ${heads} heads with a client's name of 48 to 80 characters at 768, 1024 and 1440 Prepared by keeps at least 45%, the logo stays clear of the client's name and the email whole; on the phones all ${targets} controls measured are 44px targets; by the Tab key at 390 all ${stops} stops show a ring, on screen; on My properties at 1024 to 1440 no figure or head runs into the next (${rows} rows) and the proposal is called a preview`);
 }
 /* ---- end property-proposal ---- */
+/* ---- scenario-lab ---- */
+/* THE SCENARIO LAB ON A PHONE AND A DESK (the owner's decision, 3 Oct
+   2026). The lab's two addresses are in ROUTES above (no overflow at all
+   seven widths); this holds the rest of the brief's phone and colour rules:
+     - the lab draws its sliders — the block fails on a page with none, so
+       it cannot pass on a build without the lab;
+     - at 360, 390 and 430 every control the reader can reach in the panel
+       is a 44px target both ways (a radio's whole label is its target);
+     - at 360×640, the panel's inputs at the top of the screen, the slider
+       being moved and all seven results sit on that one screen, below the
+       topbar, with one knob drawn; at 1024 and 1440 all five;
+     - at 360, under each of the six comparisons, nothing scrolls sideways;
+     - in light and in dark, every bar's fill is 3:1 against its track and
+       its card, every figure 4.5:1 against its card, a column's letter
+       4.5:1 against its badge, and the slider's focus ring 3:1 against the
+       page behind it.
+   Fails before the lab existed: /property/lab drew the not-found card. */
+{
+  const fails = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev(`({ view: State.view, ranges: document.querySelectorAll('.lab input[type=range]').length })`);
+  };
+  let targets = 0, pairs = 0, metrics = 0;
+  const said = {};
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* 44px targets on the phones. */
+    for (const w of [360, 390, 430]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+      const v = await load('/property/lab');
+      if (v.view !== 'propertyLab' || !v.ranges) { fails.push(`${w}px: /property/lab opened ${v.view} with ${v.ranges} slider(s)`); continue; }
+      const r = await ev(`(() => {
+        const lab = document.querySelector('.lab');
+        const shown = (n) => n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden';
+        const ctl = [...lab.querySelectorAll('a[href], button, input:not([type=radio]):not([type=hidden]), select, summary, label.lab-seg-opt')].filter(shown);
+        return { n: ctl.length, small: ctl.map(n => { const b = n.getBoundingClientRect(); return { who: (n.id || n.tagName.toLowerCase()) + ' "' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '"', w: b.width, h: b.height }; })
+          .filter(x => x.w < 43.5 || x.h < 43.5).map(x => x.who + ' ' + Math.round(x.w) + '×' + Math.round(x.h)) };
+      })()`);
+      targets += r.n;
+      if (r.n < 12) fails.push(`${w}px: only ${r.n} controls in the panel were measured`);
+      r.small.forEach(x => fails.push(`${w}px: ${x}px`));
+    }
+    /* One screen at 360×640. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 640, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await load('/property/lab');
+    {
+      const r = await ev(`(() => {
+        document.documentElement.style.scrollBehavior = 'auto';
+        const inputs = document.querySelector('.lab-inputs');
+        window.scrollTo(0, inputs.getBoundingClientRect().top + scrollY);
+        const bar = [...document.querySelectorAll('.appbar, .topbar')].filter(n => n.getClientRects().length && getComputedStyle(n).position !== 'static').map(n => n.getBoundingClientRect().bottom);
+        const under = Math.max(0, ...bar);
+        const knobs = [...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length);
+        const range = document.querySelector('.lab-knob.is-on .lab-range');
+        const rb = range ? range.getBoundingClientRect() : null;
+        const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect() }));
+        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: innerHeight };
+      })()`);
+      said.oneScreen = r;
+      if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
+      if (!r.range || r.range[0] < r.under || r.range[1] > r.vh) fails.push(`360×640: the slider sits at ${JSON.stringify(r.range)}, the screen below the topbar is ${r.under}–${r.vh}`);
+      if (r.vals.length !== 7) fails.push(`360×640: ${r.vals.length} results, not seven`);
+      r.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([k, t, b]) => fails.push(`360×640: ${k} sits at ${t}–${b}, off the screen`));
+    }
+    /* No sideways scroll at 360 under any comparison. */
+    for (const id of ['yield', 'cashflow', 'entry', 'appreciation', 'risk', 'location']) {
+      const over = await ev(`(async () => { const r = document.getElementById('lab-by-${id}'); r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))); return document.documentElement.scrollWidth - innerWidth; })()`);
+      metrics++;
+      if (over > 2) fails.push(`360px, compared by ${id}: the page scrolls sideways by ${over}px`);
+    }
+    /* All five knobs on a desk. */
+    for (const w of [1024, 1440]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await load('/property/lab');
+      const n = await ev(`[...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length).length`);
+      if (n !== 5) fails.push(`${w}px: ${n} knobs drawn, not five`);
+    }
+    /* Colour, light and dark. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    for (const dark of [false, true]) {
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      await load('/property/lab');
+      /* A key pressed first, so the focus given below is a keyboard
+         reader's (:focus-visible) whatever the blocks before did with the
+         pointer. */
+      await send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+      const r = await ev(`(() => {
+        const cv = document.createElement('canvas'); cv.width = cv.height = 1;
+        const cx = cv.getContext('2d', { willReadFrequently: true });
+        const rgba = (c) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+        const over = (fg, bg) => fg[3] >= 1 ? fg : [0, 1, 2].map(i => fg[i] * fg[3] + bg[i] * (1 - fg[3])).concat(1);
+        const lum = (c) => { const f = (x) => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+        const ratio = (a, b) => { const l1 = lum(a), l2 = lum(b); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); };
+        const bgOf = (n) => { for (let p = n; p; p = p.parentElement) { const c = rgba(getComputedStyle(p).backgroundColor); if (c[3] > 0) return over(c, [255, 255, 255, 1]); } return [255, 255, 255, 1]; };
+        const out = [];
+        const add = (what, fg, bg, min) => out.push({ what, r: +ratio(fg, bg).toFixed(2), min });
+        for (const f of document.querySelectorAll('.lab-bar-fill')) {
+          const track = f.parentElement, card = f.closest('.card');
+          const fill = over(rgba(getComputedStyle(f).backgroundColor), bgOf(track));
+          add('bar ' + f.closest('[class*=lab-c-]').className.match(/lab-c-./)[0] + ' / track', fill, bgOf(track), 3);
+          add('bar ' + f.closest('[class*=lab-c-]').className.match(/lab-c-./)[0] + ' / card', fill, bgOf(card), 3);
+        }
+        for (const n of document.querySelectorAll('.lab-val, .lab-cmp-v, .lab-grade-letter')) {
+          if (!n.getClientRects().length) continue;
+          add('figure ' + (n.dataset.lab || n.className), over(rgba(getComputedStyle(n).color), bgOf(n)), bgOf(n), 4.5);
+        }
+        for (const n of document.querySelectorAll('.lab-letter')) {
+          if (!n.getClientRects().length) continue;
+          add('letter ' + n.textContent, over(rgba(getComputedStyle(n).color), bgOf(n)), bgOf(n), 4.5);
+        }
+        const range = document.querySelector('.lab-knob.is-on .lab-range');
+        range.focus({ focusVisible: true });
+        const cs = getComputedStyle(range);
+        out.push({ what: 'focus ring style', style: cs.outlineStyle, width: cs.outlineWidth });
+        add('focus ring / page', over(rgba(cs.outlineColor), bgOf(range.parentElement)), bgOf(range.parentElement), 3);
+        range.blur();
+        return out;
+      })()`);
+      const ring = r.find(x => x.style !== undefined);
+      if (!ring || ring.style === 'none' || parseFloat(ring.width) < 2) fails.push(`${dark ? 'dark' : 'light'}: the focused slider shows ${ring ? `${ring.style} ${ring.width}` : 'no'} outline`);
+      for (const x of r.filter(y => y.min)) {
+        pairs++;
+        if (!(x.r >= x.min)) fails.push(`${dark ? 'dark' : 'light'}: ${x.what} ${x.r}:1, under ${x.min}:1`);
+        said[`${dark ? 'dark' : 'light'} min ${x.min}`] = Math.min(said[`${dark ? 'dark' : 'light'} min ${x.min}`] ?? 99, x.r);
+      }
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL scenario-lab — the Scenario Lab across widths and themes: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   scenario-lab: the Scenario Lab draws its sliders; at 360, 390 and 430 all ${targets} controls measured are 44px targets; at 360×640 one knob, its slider (${said.oneScreen.range.join('–')}) and all seven results (the last ending at ${Math.max(...said.oneScreen.vals.map(v => v[2]))}) on one screen below the ${said.oneScreen.under}px topbar; no sideways scroll at 360 under any of the ${metrics} comparisons; all five knobs at 1024 and 1440; ${pairs} colour pairs held in light and dark (lowest: ${Object.entries(said).filter(([k]) => k.includes('min')).map(([k, v]) => `${k.replace(' min ', ' ')}:1 pairs ${v}`).join(', ')}), the focused slider ringed`);
+}
+/* ---- end scenario-lab ---- */
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */

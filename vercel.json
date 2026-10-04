@@ -181,6 +181,10 @@
       "destination": "/pages/property/areas.html"
     },
     {
+      "source": "/property/lab",
+      "destination": "/pages/property/lab.html"
+    },
+    {
       "source": "/us-options/wheel",
       "destination": "/pages/us-options/wheel.html"
     },
@@ -889,7 +893,7 @@
       ]
     },
     {
-      "source": "/assets/app.4eaf75178e7e.js",
+      "source": "/assets/app.8e865405b89d.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -906,7 +910,7 @@
       ]
     },
     {
-      "source": "/assets/app.f7b1d58c84e2.css",
+      "source": "/assets/app.b79482802610.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -923,7 +927,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.4eaf75178e7e\\.js$|assets/app\\.f7b1d58c84e2\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.8e865405b89d\\.js$|assets/app\\.b79482802610\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -931,7 +935,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-Tq91F45+QBA9mTt/wDpj+S6XzU05y4pkugV2HTzbMb4=' 'sha256-RsAoK35ok1LUsLFhjNhDaHBbwPx39kf7N2s1/Hyevxc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-joZUBbidJS8UNTfk8uwTXIrcI+lIP91/JYBPtcXOnqU=' 'sha256-RsAoK35ok1LUsLFhjNhDaHBbwPx39kf7N2s1/Hyevxc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

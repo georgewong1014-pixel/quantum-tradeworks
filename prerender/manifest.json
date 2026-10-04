@@ -791,7 +791,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "59ef5a72025e87b3"
+      "digest": "bb613699e37b6251"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -1043,7 +1043,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "31ed68cb0d314b87"
+      "digest": "ce6873401f4b1443"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1071,7 +1071,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "54e4833ab5fcf6af"
+      "digest": "22d380924e2c136b"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -1099,7 +1099,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "31ed68cb0d314b87"
+      "digest": "ce6873401f4b1443"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1127,7 +1127,35 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "63e632e5e270f440"
+      "digest": "880a19522f9b56e6"
+    },
+    "pages/property/lab.html": {
+      "path": "/property/lab",
+      "view": "propertyLab",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Scenario Lab",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 14,
+        "fields": 10,
+        "choices": 13,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 16,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "e15f5a260e8e5ba6"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -1155,7 +1183,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5f5715cdd1a29205"
+      "digest": "9bce34d0599d9efd"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -1183,7 +1211,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5819c8eee09c5dab"
+      "digest": "e684289e538ac098"
     },
     "pages/research.html": {
       "path": "/research",
@@ -1323,7 +1351,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3030a97350a49114"
+      "digest": "d94f6bdd29a775b9"
     },
     "pages/terms.html": {
       "path": "/terms",

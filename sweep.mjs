@@ -2597,6 +2597,45 @@ for (const route of ROUTES) {
   else console.log(`ok   property-proposal: a saved property's client proposal opens from the calculator's Report section, My properties and /my/reports — each a link to its own address, called a preview where it stands, with no price; an unsaved deal is told to save it first, with that one action, which then leads on; an address naming no saved property says so with one action; robots.txt keeps it out of an index; the Report section says the proposal holds no grade; on paper it asks for A4 (${pdfBox?.join(' × ')} pt) and prints the document alone, within the page's width, its assumptions label and figure, dark on white under a dark screen — and with the assumptions of ${PAPER_N} properties started at ${placements} heights, every group's heading prints with its first row and all ${rowsHeld} rows print whole and in order`);
 }
 /* ---- end property-proposal ---- */
+/* ---- scenario-lab ---- */
+/* THE SCENARIO LAB'S ADDRESSES (the owner's decision, 3 Oct 2026). Its own
+   path, the Risk and Location comparisons by ?by=, and a property this
+   browser does not hold (?model=nope, which must say so and show the deal
+   on the calculator): each opens the lab — not the not-found card — with
+   no console error, exception, failed request or CSP violation, no NaN or
+   undefined printed as a figure, and no sideways scroll. Fails before the
+   lab existed: every one drew the not-found card. */
+{
+  const p = [];
+  const LAB_PATHS = ['/property/lab', '/property/lab?by=risk', '/property/lab?by=location', '/property/lab?model=nope'];
+  for (const path of LAB_PATHS) {
+    bucket = [];
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    let st = null;
+    for (let i = 0; i < 60; i++) {
+      await sleep(150);
+      const r = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof State !== 'undefined' && document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending
+        ? ({ view: State.view, metric: typeof labSubject !== 'undefined' && labSubject && LAB[labSubject] ? LAB[labSubject].metric : null,
+             status: (document.getElementById('lab-status')?.textContent || '').trim(), text: document.body.innerText,
+             over: document.documentElement.scrollWidth - innerWidth }) : null` }, sessionId);
+      st = r.result?.result?.value;
+      if (st) break;
+    }
+    await sleep(400);
+    if (!st) { p.push(`${path}: the page never settled`); continue; }
+    if (st.view !== 'propertyLab') { p.push(`${path}: opened ${st.view}, not the lab`); continue; }
+    const want = (new URLSearchParams(path.split('?')[1] || '')).get('by') || 'yield';
+    if (st.metric !== want) p.push(`${path}: compares by ${st.metric}, not ${want}`);
+    if (path.includes('model=nope') && !/That property is not saved in this browser/.test(st.status)) p.push(`${path}: the status reads "${st.status.slice(0, 120)}"`);
+    if (/RM\s*NaN|NaN\s*%|\bNaN\b|RM\s*undefined|undefined\s*%|Infinity/.test(st.text)) p.push(`${path}: prints NaN, Infinity or undefined as a figure`);
+    if (st.over > 2) p.push(`${path}: scrolls sideways by ${st.over}px`);
+    bucket.filter(x => !/data\/(prices|personal-[a-z-]+|price-history|price-adjustments|scan-[a-z-]+|ingest-runs|sarawak-income|watchlists)\.json/.test(x))
+      .forEach(x => p.push(`${path}: ${x}`));
+  }
+  if (p.length) { bad++; console.log(`FAIL scenario-lab: the lab's addresses (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   scenario-lab: ${LAB_PATHS.join(', ')} each open the Scenario Lab on the comparison the address names, ?model=nope saying the property is not saved here — no error, exception, failed request, NaN or sideways scroll`);
+}
+/* ---- end scenario-lab ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

@@ -100,6 +100,7 @@ page of its own, with the company's own head (see Company pages, below).
 | `/property/opportunities` | opportunities | app | Property Intelligence (product) | canonical |
 | `/property/comparables` | comparables | app | Property Intelligence (product) | canonical |
 | `/property/areas` | areas | app | Property Intelligence (product) | canonical |
+| `/property/lab` | propertyLab | app | Property Intelligence (product) | canonical — the Scenario Lab (3 Oct 2026); reads `?model=`, `?cols=` and `?by=` on arrival; not in the sitemap, as it opens on the sample deal |
 | `/us-options/wheel` | wheel | app | Equities Research (product) | canonical |
 | `/wheel` | wheel | app | Equities Research (product) | alias of `/us-options/wheel` |
 | `/cash-wheel` | wheel | app | Equities Research (product) | alias of `/us-options/wheel` |
@@ -217,7 +218,9 @@ Left out on purpose: every alias above; `/my/*`, `/app/watchlists`,
 `robots.txt` disallows (personal or one machine's); `/app` — My Dashboard, the visitor's
 own counts and saved work — which `robots.txt` also disallows, by that
 address alone (`Disallow: /app$`); `/welcome` and `/start`, which are
-application shells rather than destinations; parameterised pages. The
+application shells rather than destinations; `/property/lab`, the Scenario
+Lab, which opens on the sample deal (the owner's answer, 3 Oct 2026);
+parameterised pages. The
 company pages above are not listed either: whether search engines should be
 invited to index them — 19 of them show synthetic figures under a real
 listed company's name — is the owner's decision, not the build's, and
@@ -303,7 +306,8 @@ badge and the page's one primary action (`pageHead`, 36-layouts.js):
   Value map is not a product tab as well, where it repeated the strip
   beneath it, and it stays one click away.
 - **Property Intelligence** — My properties (`/property/models`) · Calculator
-  (`/property/calculator`, current on `/property` too) · Area screen
+  (`/property/calculator`, current on `/property` too) · Scenario Lab
+  (`/property/lab`, beta) · Area screen
   (`/property/areas`) · Comparables (`/property/comparables`) · Opportunities
   (`/property/opportunities`). The calculator's five sections (Acquisition,
   Financing, Rental & expenses, Scenarios, Report) are anchors on its page,

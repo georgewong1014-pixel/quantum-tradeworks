@@ -73,9 +73,19 @@ const NA = '<span class="caption" title="Not available or not meaningful for thi
    per-share rate across that boundary would measure the split. */
 const NA_SPLIT = '<span class="caption" title="Withheld: the share count moves by a corporate action inside this window, so a growth rate over a per-share line would measure the split, not the company.">withheld</span>';
 
+/* One formatter a precision, made once. toLocaleString with options builds
+   an Intl.NumberFormat on every call — about 10µs, which the Scenario Lab
+   (82-property-lab.js) paid fifty times a frame while a slider moved. The
+   same formatter, kept, prints the same digits. */
+const NUM_FORMATS = new Map();
+const numFormat = (dp) => {
+  let f = NUM_FORMATS.get(dp);
+  if (!f) { f = new Intl.NumberFormat('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp }); NUM_FORMATS.set(dp, f); }
+  return f;
+};
 function fmtNum(v, dp = 1) {
   if (!isNum(v)) return '—';
-  return v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return numFormat(dp).format(v);
 }
 function fmtPct(v, dp = 1) {
   if (!isNum(v)) return '—';
@@ -121,8 +131,7 @@ function fmtMoney(v, ccy, dp = 2) {
      prints "$0.00" rather than "−$0.00" — the payoff crosses zero at the
      break-even by construction, and floating point put it a hair below. */
   const r = Math.abs(v) < 0.5 / 10 ** dp ? 0 : v;
-  return `${r < 0 ? '−' : ''}${sym}${Math.abs(r).toLocaleString('en-US',
-    { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
+  return `${r < 0 ? '−' : ''}${sym}${numFormat(dp).format(Math.abs(r))}`;
 }
 function signClass(v) { return !isNum(v) || Math.abs(v) < 0.005 ? '' : (v > 0 ? 'pos' : 'neg'); }
 
@@ -186,6 +195,37 @@ const METRIC_HELP = {
     simple: 'Rent left after running costs, as a percentage of the purchase price.',
     context: 'Closer to the truth than gross yield because it subtracts what the property costs to hold. Still before the loan.',
     technical: 'Net operating income ÷ purchase price, where NOI is effective rent less operating costs.' },
+  /* The Scenario Lab's chain (82-property-lab.js), one key a figure. The
+     prop prefix keeps them apart from the screener's measures, which the
+     metric registry adds to this table as it loads. */
+  propInstalment: { label: 'Monthly repayment',
+    simple: 'What the loan costs each month, paying off the loan and its interest together.',
+    context: 'Set by three things: how much is borrowed, the interest rate and how many years the loan runs. A deposit or a lower price borrows less; a higher rate or a shorter loan costs more each month.',
+    technical: 'Loan × r ÷ (1 − (1 + r)^−n), where r is the annual rate ÷ 12 and n is the tenure in months (a reducing-balance loan). The loan is the margin of finance × the lender’s value basis: the price, or the lower of the price and the bank’s valuation where one is entered. At a 0% rate it is the loan ÷ n.' },
+  propSafeCash: { label: 'Cash required',
+    simple: 'All the cash the purchase takes: what you pay to complete, the renovation, and a reserve kept untouched afterwards.',
+    context: 'A buyer can meet the completion figure and still be one vacancy away from trouble, which is why the reserve is counted. Lines the fee table cannot price yet are listed as missing, and the total then reads “so far”.',
+    technical: 'Transaction cash (deposit, any valuation gap, stamp duties, legal fees, disbursements, service tax, loan costs, mortgage protection) + improvement cash (renovation and utility deposits) + the reserve (months of instalment and owner-paid running costs). Each group is the sum of its priced lines.' },
+  propCashflow: { label: 'Monthly position',
+    simple: 'Rent left each month after running costs and the loan repayment. Negative means you pay the difference from your own income.',
+    context: 'Before tax on the rent unless a marginal tax rate is entered. A figure below zero is not a verdict on its own — it is what holding the property costs each month while it is held.',
+    technical: '(Effective rent − operating costs) ÷ 12 − the monthly instalment, where effective rent is a year’s rent less the vacancy allowance and operating costs include maintenance, sinking fund, assessment, quit rent, insurance, management and the repair reserve.' },
+  propBreakEvenOccupancy: { label: 'Break-even occupancy',
+    simple: 'How full the property must be, over a year, for the rent to cover its running costs and the loan.',
+    context: 'Lower leaves more room for empty months. Above 100% the property cannot cover its costs at this rent however full it is, which is one of the grade’s hard gates.',
+    technical: '(Fixed operating costs + annual debt service) ÷ (gross annual rent × (1 − variable cost rate)) × 100. Above 100% the property cannot cover its costs at this rent however full it is.' },
+  propValueLessLoan: { label: 'Value less loan, before selling costs',
+    simple: 'What the property would be worth at the end of the hold, less what would still be owed on the loan then. Nothing for the costs of selling is taken off yet.',
+    context: 'The value rests on one growth rate — an assumption, not a forecast: this product holds no price history to test it against. It is not the cash a sale returns; the agent, the lawyers, the gains tax and the months carried while selling all come off it first.',
+    technical: 'Price × (1 + growth rate)^years + the share of the renovation a buyer pays for at the sale − the loan balance after years × 12 monthly payments. Unknown where the loan’s schedule cannot be computed.' },
+  propNetExit: { label: 'Net sale proceeds',
+    simple: 'The cash a sale at the end of the hold would return after the loan is repaid and every cost of selling is paid.',
+    context: 'Smaller than value less loan by the agent’s commission, the legal costs, the real property gains tax and the instalments and running costs carried while the property sells.',
+    technical: 'Value less loan at the sale − agent commission − legal costs on exit − real property gains tax − (instalments due and operating costs over the months to sell).' },
+  propIrr: { label: 'Rate of return if sold',
+    simple: 'The yearly return on the cash committed at the start, counting every year’s cash flow and the sale at the end, each at the time it arrives.',
+    context: 'Measured on all the cash committed, the reserve included — which comes back at the sale. Where the cash flow changes direction more than once, more than one rate can fit, and the page says so rather than choosing one.',
+    technical: 'The rate r at which −cash committed + Σ (after-tax cash flow in year t) ÷ (1 + r)^t + (net sale proceeds + the reserve) ÷ (1 + r)^N equals zero, N being the holding period.' },
 };
 
 /* Remembered so a reader who wants the technical depth is not returned to the
