@@ -23,14 +23,23 @@ for (var i = 0; i < list.length; i++) {
     if (typeof c !== 'string') {
       try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
       c = (function defaultCcy(tz, langs) {
-  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs) ? 'MYR' : 'USD';
+  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY\b/i.test(langs) ? 'MYR' : 'USD';
 })(tz, [navigator.language].concat(navigator.languages || []).join(' '));
     }
     mine = c === was;
   } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
   else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
-  if (!mine) { d.setAttribute('data-served-hidden', ''); return; }
+  if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
 }
+if (!d.hasAttribute('data-served-hidden')) return;
+function served() { var v = document.getElementById('views'); return !!v && v.hasAttribute('data-served'); }
+function app(u) { return /\/assets\/app\.[0-9a-f]+\.js(?:[?#]|$)/.test(String(u || '')); }
+function show() { d.removeAttribute('data-served-hidden'); }
+addEventListener('error', function (e) {
+  var t = e.target;
+  if ((t && t.tagName === 'SCRIPT' ? app(t.src) : app(e.filename)) && served()) show();
+}, true);
+setTimeout(function () { if (d.hasAttribute('data-served') && served()) show(); }, 8000);
 })();</script>
 <!-- These are the '/' route's title, description and canonical, for
      index.html. Every other page build.mjs writes (pages/*.html, the company
@@ -63,7 +72,7 @@ for (var i = 0; i < list.length; i++) {
      at 16px they turn to mush, and the ring plus tail is what reads. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/assets/app.2dcf15fa46f8.css">
+<link rel="stylesheet" href="/assets/app.f7b1d58c84e2.css">
 <!--
   NO ANALYTICS. The Vercel Web Analytics tag (/_vercel/insights/script.js)
   stood here, and Web Analytics was never switched on for the deployment, so
@@ -603,6 +612,6 @@ for (var i = 0; i < list.length; i++) {
 <div class="viztip" id="viztip" role="status" aria-live="polite"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="/assets/app.ad2c3691f10d.js"></script>
+<script src="/assets/app.474156a54c34.js"></script>
 </body>
 </html>

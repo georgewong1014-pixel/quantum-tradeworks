@@ -568,7 +568,7 @@ const State = {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       const langs = [navigator.language, ...(navigator.languages || [])].join(' ');
-      if (tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs)) return 'MYR';
+      if (tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY\b/i.test(langs)) return 'MYR';
     } catch { /* locale unavailable — fall through */ }
     return 'USD';
   })()),
@@ -14945,7 +14945,27 @@ function stayPut(h, n) {
    phone by 155px when the filings did. The words at the top of the window
    are noted before such a change — by what they say and which of the
    page's runs saying it they are — and where they are drawn again the
-   window is scrolled by what they moved. */
+   window is scrolled by what they moved.
+   ONLY WORDS ON THE PAGE (2026-10-04, the integration's re-verification).
+   Every text node counted, and a choice inside a select is one: the noted
+   "Bursa Malaysia" (the served page's first) was found again as the market
+   select's new <option>, which has no box, and /research and /app/equities
+   scrolled a reader 27px when the filings landed; on a phone deep in the
+   calculator the noted words were a served field's value, "Illustrative
+   default", found again as an option, and the reader moved 341px. A run of
+   words is noted, counted and found only where it is laid out and is words
+   on the page (placeRun); where none is found again, nothing is scrolled. */
+const PLACE_SKIP = 'svg, [data-now], option, optgroup, select, textarea, template, datalist, [data-inert="field"], [data-inert="choice"], [data-inert="range"]';
+/* Words a reader can see that the page drawn draws as words again: laid out
+   (a box, not hidden), not a chart's, not the tab's own (data-now), not a
+   choice in a select or a template's, and not a served field's value — the
+   field drawn in its place holds it as a value. */
+function placeRun(n) {
+  const e = n.parentElement;
+  if (!e || e.closest(PLACE_SKIP)) return false;
+  const r = document.createRange(); r.selectNodeContents(n);
+  return r.getClientRects().length > 0 && getComputedStyle(e).visibility === 'visible';
+}
 function notePlace() {
   if (!viewRoot || scrollY < 1) return null;
   const head = Math.max(0, ...['#pubbar', '#appbar'].map(s => document.querySelector(s)).filter(Boolean)
@@ -14962,7 +14982,7 @@ function notePlace() {
       const w = document.createTreeWalker(at, NodeFilter.SHOW_TEXT);
       for (let n = w.nextNode(); n; n = w.nextNode()) {
         const t = n.data.replace(/\s+/g, ' ').trim();
-        if (t.length < 3 || n.parentElement?.closest('svg, [data-now]')) continue;
+        if (t.length < 3 || !placeRun(n)) continue;
         const r = document.createRange(); r.selectNodeContents(n);
         const b = r.getBoundingClientRect();
         if (b.height && b.bottom > head && b.top < innerHeight) { found = { node: n, t, top: b.top }; break; }
@@ -14973,14 +14993,14 @@ function notePlace() {
   if (!found) return null;
   let nth = 0;
   const w = document.createTreeWalker(viewRoot, NodeFilter.SHOW_TEXT);
-  for (let n = w.nextNode(); n && n !== found.node; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === found.t) nth++;
+  for (let n = w.nextNode(); n && n !== found.node; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === found.t && placeRun(n)) nth++;
   return { t: found.t, nth, top: found.top };
 }
 function keepPlace(p) {
   if (!p || !viewRoot) return;
   let nth = 0, n;
   const w = document.createTreeWalker(viewRoot, NodeFilter.SHOW_TEXT);
-  for (n = w.nextNode(); n; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === p.t && nth++ === p.nth) break;
+  for (n = w.nextNode(); n; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === p.t && placeRun(n) && nth++ === p.nth) break;
   if (!n) return;
   const r = document.createRange(); r.selectNodeContents(n);
   const moved = r.getBoundingClientRect().top - p.top;
@@ -32169,6 +32189,44 @@ redrawFocusClaims.push((a) => {
   cityMapFocus = { city: map.dataset.city, name: a.dataset.area };
   return true;
 });
+/* The map's box: 40px round the points, at most 460px tall and at least
+   200px. */
+const CITY_MAP_BOX = { pad: 40, maxH: 460, minH: 200 };
+/* Where a town's points lie, on one scale for both axes: longitude shortened
+   by the cosine of the middle latitude, latitude downwards. */
+function cityMapSpan(areas) {
+  const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
+  const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const kx = Math.cos(midLat * Math.PI / 180);
+  const xs = lons.map(l => l * kx), ys = lats.map(l => -l);
+  const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+  const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+  return { kx, x0, x1, y0, y1, spanX: (x1 - x0) || 0.01, spanY: (y1 - y0) || 0.01 };
+}
+/* THE MAP'S ROOM, BEFORE ITS POINTS ARRIVE (2026-10-04, the integration's
+   re-verification). A page is served as its first draw, and the area
+   screen's first draw comes before the locality positions do: its map card
+   was a 120px "Loading" card, and when the positions landed it became the
+   645px map (492px on a phone) — under a reader who had scrolled to it, the
+   table below dropped 525px, keeping their place by the words at the top of
+   the window held nothing below them (notePlace, 35-ui.js). The map's
+   height follows from its town's shape (cityMap, below: the width fills the
+   box until the height reaches its ceiling), so each town with positions
+   has its shape here — its span north to south over its span east to west,
+   cityMapSpan's — and while they are on their way the card is drawn whole,
+   its heading, legend and notes as they will be, round a box the map's size
+   at any width (cityMapHold; styles.css, integration-reverify), with no
+   script needed to size it. build.mjs --check holds these to
+   data/sarawak-geo.json (mapShapeProblems). A town not here is drawn without
+   a map once the positions say so, as before. */
+const CITY_MAP_SHAPE = { kuching: 0.678, sibu: 1.0084, miri: 2.973, bintulu: 1.0975 };
+function cityMapHold(cityId, waiting) {
+  const r = CITY_MAP_SHAPE[cityId];
+  const { pad, maxH, minH } = CITY_MAP_BOX;
+  return el('div', { class: 'map-hold', style: `--map-r:${r};--map-pad:${pad}px;--map-min:${minH}px;--map-max:${maxH}px` },
+    el('p', { class: 'caption map-hold-say',
+      'data-now': 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.' }, waiting));
+}
 function cityMap(cityId, selectedArea, onPick, paint) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
@@ -32184,24 +32242,19 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     const focusBack = held && host.contains(held) && held.dataset?.area ? held.dataset.area
       : cityMapFocus && cityMapFocus.city === cityId ? cityMapFocus.name : null;
     cityMapFocus = null;
-    const pad = 40;
-    const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
-    const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-    const kx = Math.cos(midLat * Math.PI / 180);
-    const xs = lons.map(l => l * kx), ys = lats.map(l => -l);
-    const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
-    const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
-    const spanX = (x1 - x0) || 0.01, spanY = (y1 - y0) || 0.01;
+    const { pad, maxH: MAXH, minH } = CITY_MAP_BOX;
+    const { kx, x0, x1, y0, y1, spanX, spanY } = cityMapSpan(areas);
     /* One scale for both axes — a map with two is not a map — with the height
        following from the data rather than a chosen ratio, so a city that is
        long north-to-south gets a tall box instead of a wide empty one. */
     const inner = w - pad * 2;
-    const MAXH = 460;
     /* Fit width first, then shrink if the resulting height would exceed the
        ceiling — a clamp applied after the scale was chosen pushed points
-       outside the viewBox, which drew a map with areas missing off the top. */
+       outside the viewBox, which drew a map with areas missing off the top.
+       So the height is (w − 80) × spanY / spanX + 80, between 200 and 460:
+       what cityMapHold's box is, above. */
     const scale = Math.min(inner / spanX, (MAXH - pad * 2) / spanY);
-    const H = Math.round(Math.max(200, Math.min(MAXH, spanY * scale + pad * 2)));
+    const H = Math.round(Math.max(minH, Math.min(MAXH, spanY * scale + pad * 2)));
     const sx = (v) => (v - (x0 + x1) / 2) * scale + Math.min(w, Math.round(spanX * scale + pad * 2)) / 2;
     const sy = (v) => pad + (v - (y0 + y1) / 2) * scale + (H - pad * 2) / 2;
 
@@ -48822,7 +48875,13 @@ VIEWS.areas = () => {
   const townField = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
   townField.append(el('label', { class: 'caption', style: 'font-weight:600', for: 'areaTown' }, 'Town'));
   /* "table only" is known once the positions are in: before that, and when
-     they failed to load, every town read "— table only", Kuching included. */
+     they failed to load, every town read "— table only", Kuching included.
+     Until they are in it is the towns with no map shape (CITY_MAP_SHAPE,
+     70-property.js — held to the positions' file by build.mjs --check), so
+     the choices are the same words before and after: the page is served
+     before the positions arrive, and on a phone the field took 26px more
+     with the shorter list, the page under it moving when they came (the
+     integration's re-verification, 2026-10-04). */
   const townSel = el('select', { class: 'select select-sm', id: 'areaTown',
     onchange: e => { S.city = e.target.value; S.editing = null; renderKeepFocus(); } });
   Object.entries(SARAWAK_DIVISIONS).forEach(([division, towns]) => {
@@ -48830,7 +48889,7 @@ VIEWS.areas = () => {
     towns.forEach(c => grp.append(el('option', { value: c.id, selected: S.city === c.id ? '' : null },
       /* Say which towns can be drawn, rather than letting a reader pick one and
          find the map missing with no explanation. */
-      `${c.name}${!sarawakGeo || sarawakGeo.cities?.[c.id] ? '' : ' — table only'}`)));
+      `${c.name}${(sarawakGeo ? sarawakGeo.cities?.[c.id] : CITY_MAP_SHAPE[c.id]) ? '' : ' — table only'}`)));
     townSel.append(grp);
   });
   townField.append(townSel);
@@ -48935,9 +48994,16 @@ VIEWS.areas = () => {
     const t = layer.text(S.city, n);
     return t ? `${layer.label}: ${t}` : `${layer.label}: not recorded`;
   };
+  /* The positions on their way to a town that has them: the card is drawn
+     whole, round a box the map's size (cityMapHold, 70-property.js) — the
+     page is served so, and a reader scrolled past it stays where they were
+     when the map comes. */
+  const holding = !canMap && !sarawakGeo && geoLoadState !== 'failed' && !!CITY_MAP_SHAPE[S.city];
   const mapHost = el('div', { style: 'margin-top:var(--md)' });
   mapCard.append(mapHost);
-  mapHost.append(cityMap(S.city, S.editing, (n) => { S.editing = n; render(); }, paint));
+  mapHost.append(holding
+    ? cityMapHold(S.city, 'Loading the locality positions. The map is drawn when they arrive; the table below works now.')
+    : cityMap(S.city, S.editing, (n) => { S.editing = n; render(); }, paint));
 
   /* Legend — two series or more means one is never optional. */
   const legend = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:var(--md)' });
@@ -48981,7 +49047,7 @@ VIEWS.areas = () => {
     wrap.insertBefore(warn, wrap.firstChild.nextSibling);
   }
 
-  if (canMap) wrap.append(mapCard);
+  if (canMap || holding) wrap.append(mapCard);
   /* NOT YET, OR NOT THIS TIME — NOT "NO COORDINATES".
      While the positions were in flight, and for good when they failed to
      load, the card below told a reader on Kuching that coordinates were

@@ -1880,6 +1880,44 @@ redrawFocusClaims.push((a) => {
   cityMapFocus = { city: map.dataset.city, name: a.dataset.area };
   return true;
 });
+/* The map's box: 40px round the points, at most 460px tall and at least
+   200px. */
+const CITY_MAP_BOX = { pad: 40, maxH: 460, minH: 200 };
+/* Where a town's points lie, on one scale for both axes: longitude shortened
+   by the cosine of the middle latitude, latitude downwards. */
+function cityMapSpan(areas) {
+  const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
+  const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const kx = Math.cos(midLat * Math.PI / 180);
+  const xs = lons.map(l => l * kx), ys = lats.map(l => -l);
+  const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+  const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+  return { kx, x0, x1, y0, y1, spanX: (x1 - x0) || 0.01, spanY: (y1 - y0) || 0.01 };
+}
+/* THE MAP'S ROOM, BEFORE ITS POINTS ARRIVE (2026-10-04, the integration's
+   re-verification). A page is served as its first draw, and the area
+   screen's first draw comes before the locality positions do: its map card
+   was a 120px "Loading" card, and when the positions landed it became the
+   645px map (492px on a phone) — under a reader who had scrolled to it, the
+   table below dropped 525px, keeping their place by the words at the top of
+   the window held nothing below them (notePlace, 35-ui.js). The map's
+   height follows from its town's shape (cityMap, below: the width fills the
+   box until the height reaches its ceiling), so each town with positions
+   has its shape here — its span north to south over its span east to west,
+   cityMapSpan's — and while they are on their way the card is drawn whole,
+   its heading, legend and notes as they will be, round a box the map's size
+   at any width (cityMapHold; styles.css, integration-reverify), with no
+   script needed to size it. build.mjs --check holds these to
+   data/sarawak-geo.json (mapShapeProblems). A town not here is drawn without
+   a map once the positions say so, as before. */
+const CITY_MAP_SHAPE = { kuching: 0.678, sibu: 1.0084, miri: 2.973, bintulu: 1.0975 };
+function cityMapHold(cityId, waiting) {
+  const r = CITY_MAP_SHAPE[cityId];
+  const { pad, maxH, minH } = CITY_MAP_BOX;
+  return el('div', { class: 'map-hold', style: `--map-r:${r};--map-pad:${pad}px;--map-min:${minH}px;--map-max:${maxH}px` },
+    el('p', { class: 'caption map-hold-say',
+      'data-now': 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.' }, waiting));
+}
 function cityMap(cityId, selectedArea, onPick, paint) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
@@ -1895,24 +1933,19 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     const focusBack = held && host.contains(held) && held.dataset?.area ? held.dataset.area
       : cityMapFocus && cityMapFocus.city === cityId ? cityMapFocus.name : null;
     cityMapFocus = null;
-    const pad = 40;
-    const lats = areas.map(([, a]) => a.lat), lons = areas.map(([, a]) => a.lon);
-    const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-    const kx = Math.cos(midLat * Math.PI / 180);
-    const xs = lons.map(l => l * kx), ys = lats.map(l => -l);
-    const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
-    const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
-    const spanX = (x1 - x0) || 0.01, spanY = (y1 - y0) || 0.01;
+    const { pad, maxH: MAXH, minH } = CITY_MAP_BOX;
+    const { kx, x0, x1, y0, y1, spanX, spanY } = cityMapSpan(areas);
     /* One scale for both axes — a map with two is not a map — with the height
        following from the data rather than a chosen ratio, so a city that is
        long north-to-south gets a tall box instead of a wide empty one. */
     const inner = w - pad * 2;
-    const MAXH = 460;
     /* Fit width first, then shrink if the resulting height would exceed the
        ceiling — a clamp applied after the scale was chosen pushed points
-       outside the viewBox, which drew a map with areas missing off the top. */
+       outside the viewBox, which drew a map with areas missing off the top.
+       So the height is (w − 80) × spanY / spanX + 80, between 200 and 460:
+       what cityMapHold's box is, above. */
     const scale = Math.min(inner / spanX, (MAXH - pad * 2) / spanY);
-    const H = Math.round(Math.max(200, Math.min(MAXH, spanY * scale + pad * 2)));
+    const H = Math.round(Math.max(minH, Math.min(MAXH, spanY * scale + pad * 2)));
     const sx = (v) => (v - (x0 + x1) / 2) * scale + Math.min(w, Math.round(spanX * scale + pad * 2)) / 2;
     const sy = (v) => pad + (v - (y0 + y1) / 2) * scale + (H - pad * 2) / 2;
 

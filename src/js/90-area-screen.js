@@ -73,7 +73,13 @@ VIEWS.areas = () => {
   const townField = el('div', { class: 'row seg-group', style: 'gap:8px;align-items:center' });
   townField.append(el('label', { class: 'caption', style: 'font-weight:600', for: 'areaTown' }, 'Town'));
   /* "table only" is known once the positions are in: before that, and when
-     they failed to load, every town read "— table only", Kuching included. */
+     they failed to load, every town read "— table only", Kuching included.
+     Until they are in it is the towns with no map shape (CITY_MAP_SHAPE,
+     70-property.js — held to the positions' file by build.mjs --check), so
+     the choices are the same words before and after: the page is served
+     before the positions arrive, and on a phone the field took 26px more
+     with the shorter list, the page under it moving when they came (the
+     integration's re-verification, 2026-10-04). */
   const townSel = el('select', { class: 'select select-sm', id: 'areaTown',
     onchange: e => { S.city = e.target.value; S.editing = null; renderKeepFocus(); } });
   Object.entries(SARAWAK_DIVISIONS).forEach(([division, towns]) => {
@@ -81,7 +87,7 @@ VIEWS.areas = () => {
     towns.forEach(c => grp.append(el('option', { value: c.id, selected: S.city === c.id ? '' : null },
       /* Say which towns can be drawn, rather than letting a reader pick one and
          find the map missing with no explanation. */
-      `${c.name}${!sarawakGeo || sarawakGeo.cities?.[c.id] ? '' : ' — table only'}`)));
+      `${c.name}${(sarawakGeo ? sarawakGeo.cities?.[c.id] : CITY_MAP_SHAPE[c.id]) ? '' : ' — table only'}`)));
     townSel.append(grp);
   });
   townField.append(townSel);
@@ -186,9 +192,16 @@ VIEWS.areas = () => {
     const t = layer.text(S.city, n);
     return t ? `${layer.label}: ${t}` : `${layer.label}: not recorded`;
   };
+  /* The positions on their way to a town that has them: the card is drawn
+     whole, round a box the map's size (cityMapHold, 70-property.js) — the
+     page is served so, and a reader scrolled past it stays where they were
+     when the map comes. */
+  const holding = !canMap && !sarawakGeo && geoLoadState !== 'failed' && !!CITY_MAP_SHAPE[S.city];
   const mapHost = el('div', { style: 'margin-top:var(--md)' });
   mapCard.append(mapHost);
-  mapHost.append(cityMap(S.city, S.editing, (n) => { S.editing = n; render(); }, paint));
+  mapHost.append(holding
+    ? cityMapHold(S.city, 'Loading the locality positions. The map is drawn when they arrive; the table below works now.')
+    : cityMap(S.city, S.editing, (n) => { S.editing = n; render(); }, paint));
 
   /* Legend — two series or more means one is never optional. */
   const legend = el('div', { class: 'row row-wrap', style: 'gap:var(--md);margin-top:var(--md)' });
@@ -232,7 +245,7 @@ VIEWS.areas = () => {
     wrap.insertBefore(warn, wrap.firstChild.nextSibling);
   }
 
-  if (canMap) wrap.append(mapCard);
+  if (canMap || holding) wrap.append(mapCard);
   /* NOT YET, OR NOT THIS TIME — NOT "NO COORDINATES".
      While the positions were in flight, and for good when they failed to
      load, the card below told a reader on Kuching that coordinates were

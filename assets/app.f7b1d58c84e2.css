@@ -4456,3 +4456,28 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   #views [data-inert="button"][data-act], #productTabs [data-inert="button"][data-act] { display: none !important; }
 }
 /* ---- end integration-final ---- */
+/* ---- integration-reverify ---- */
+/* THE MAP'S ROOM BEFORE ITS POINTS (2026-10-04). The box cityMap will draw
+   (cityMapHold, 70-property.js), at any width, before the locality
+   positions arrive and with no script to measure anything: the map's own
+   rule — --map-pad round the points, the width filled until the height
+   reaches --map-max, never under --map-min. The town's shape (--map-r, its
+   span north to south over its span east to west) gives the height from the
+   width: ::before is the points' area, the box's width less its padding and
+   --map-r of that tall, and the box stops widening where that area reaches
+   the ceiling, centred, as the map is. Every value is on the box itself, from
+   the script's own constants (CITY_MAP_BOX): no size container, whose
+   contents a first frame can draw without the page's custom properties
+   (prerender, above). The map's background, until the map is drawn on it. */
+.map-hold {
+  position: relative; box-sizing: border-box; margin: 0 auto; padding: var(--map-pad);
+  min-height: var(--map-min); max-height: var(--map-max); overflow: hidden;
+  max-width: calc((var(--map-max) - 2 * var(--map-pad)) / var(--map-r) + 2 * var(--map-pad));
+  border-radius: 10px; background: var(--surface-sunk);
+}
+.map-hold::before { content: ""; display: block; aspect-ratio: 1 / var(--map-r); }
+.map-hold-say {
+  position: absolute; inset: 0; margin: 0; padding: var(--md);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+}
+/* ---- end integration-reverify ---- */

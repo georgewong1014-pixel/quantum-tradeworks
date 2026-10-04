@@ -1050,6 +1050,243 @@ try {
       }
     }
     /* ---- end integration-final ---- */
+    /* ---- integration-reverify ---- */
+    /* THE INTEGRATION'S RE-VERIFICATION (2026-10-04), each part failing on
+       d52f39f:
+       1. ONE CURRENCY, BEFORE THE SCRIPT AND AFTER. The head's script
+          (FIRST_SCRIPT, build.mjs) and the app (State.baseCcy, 05-plans.js)
+          each give a browser that keeps none its base currency from its
+          time zone and language, and the app's rule held a backspace where
+          \b was meant: an en-MY or ms-MY reader outside the two Malaysian
+          zones was shown the ringgit page, then the skeleton, then dollars.
+          For a fresh visitor in Singapore (en-MY), London (ms-MY), New York
+          (en-US), Kuching (en-GB) and Kuala Lumpur (en-US), the script's
+          choice — /compare, drawn in ringgit, shown or kept out of sight —
+          is State.baseCcy once the app runs, and is the rule's; and in
+          Singapore with en-MY /compare stands through the script (no
+          skeleton, in no frame) and its sums stay in ringgit once the
+          filings land.
+       2. A READER WHO SCROLLED STAYS WHERE THEY READ — every run of words on
+          screen, not only the top one the page holds them by (notePlace):
+          the area screen at 1280 (495 and 990px down) and 390 (1190 and
+          2380), whose map card grew from 120px to 645px under them when the
+          locality positions came; the calculator three quarters down on a
+          phone, and /research and /app/equities at 1280 (692px down), where
+          the words noted were found again as a select's <option>, which has
+          no box, and the reader moved 341px and 27px. None may move more
+          than 4px when the page is drawn or when its data lands, and the
+          layout shift is at most 0.05.
+       3. THE AREA SCREEN'S MAP CARD KEEPS ITS ROOM AT EVERY WIDTH: at 360,
+          390, 430, 768, 1024, 1280 and 1440 the served card is the height
+          of the card drawn with the map in it.
+       4. NO EMPTY PAGE WHEN THE APP NEVER COMES. A reader the served page is
+          kept from (a New York visitor on /compare; a returning reader on
+          /property/models at 390) is shown it at once when the app's script
+          fails to load, and SERVED_WAIT_MS after the head when it never
+          arrives, not before; and a reader whose app is on time, or comes
+          after 5s, is never shown it, however long their data takes. */
+    {
+      const { defaultCcy, SERVED_WAIT_MS = 8000 } = await import('./build.mjs');
+      const said = { ccy: [], place: [], map: [], fallback: [] };
+      const say = (k, ok, what, got) => { if (!ok) said[k].push(`${what}${got === undefined ? '' : ` — ${JSON.stringify(got).slice(0, 300)}`}`); else if (VERBOSE) console.log(`       ${k}: ${what}`); };
+      const W1280 = { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }, W390 = { width: 390, height: 844, deviceScaleFactor: 1, mobile: true };
+      const size = async (m) => { await send('Emulation.setDeviceMetricsOverride', m, sid); await send('Emulation.setTouchEmulationEnabled', { enabled: !!m.mobile, maxTouchPoints: m.mobile ? 5 : 1 }, sid); };
+      const releaseData = async () => { holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = []; };
+      const SETTLED = `typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view && !document.getElementById('views').hasAttribute('data-served')`;
+      const ua = (await send('Browser.getVersion', {})).result?.userAgent || '';
+      const zone = async (tz, lang) => {
+        await send('Emulation.setTimezoneOverride', { timezoneId: tz }, sid);
+        await send('Emulation.setUserAgentOverride', { userAgent: ua, acceptLanguage: lang }, sid);
+        await send('Emulation.setLocaleOverride', { locale: '' }, sid).catch(() => {});
+        await send('Emulation.setLocaleOverride', { locale: lang }, sid).catch(() => {});
+      };
+      /* Each frame as it is painted: served or drawn, kept out of sight or
+         shown, the skeleton. */
+      const FRAMES = `(() => { const f = window.__fp2 = []; let last = '';
+        const tick = () => { const v = document.getElementById('views'), d = document.documentElement;
+          if (v && document.body) { const first = v.firstElementChild;
+            const k = [v.hasAttribute('data-served') ? 'served' : 'drawn', d.hasAttribute('data-served-hidden') ? 'hidden' : '',
+              v.hasAttribute('data-served') && first && getComputedStyle(first).display !== 'none' ? 'shown' : '',
+              v.textContent.includes(${JSON.stringify(P.SKELETON)}) ? 'skeleton' : ''].join('|');
+            if (k !== last) { f.push(k); last = k; } }
+          requestAnimationFrame(tick); };
+        requestAnimationFrame(tick); })();`;
+      const framesId = (await send('Page.addScriptToEvaluateOnNewDocument', { source: FRAMES }, sid)).result?.identifier;
+      const servedShown = (frames) => frames.some(k => /^served\|[^|]*\|shown/.test(k));
+      const NOW = `(() => { const d = document.documentElement, v = document.getElementById('views'), first = v && v.firstElementChild;
+        return { hidden: d.hasAttribute('data-served-hidden'), shown: !!first && getComputedStyle(first).display !== 'none' && !!v.innerText.trim(),
+          served: !!v && v.hasAttribute('data-served'), script: typeof State !== 'undefined', skeleton: !!v && v.textContent.includes(${JSON.stringify(P.SKELETON)}) }; })()`;
+      try {
+        /* 1. One currency. */
+        try {
+          for (const [tz, lang, want] of [['Asia/Singapore', 'en-MY', 'MYR'], ['Europe/London', 'ms-MY', 'MYR'], ['America/New_York', 'en-US', 'USD'],
+            ['Asia/Kuching', 'en-GB', 'MYR'], ['Asia/Kuala_Lumpur', 'en-US', 'MYR']]) {
+            await zone(tz, lang);
+            await size(W1280);
+            await firstVisit({ script: true });
+            await send('Page.navigate', { url: live + '/compare' }, sid);
+            if (!await until(SERVED_PAINTED)) { say('ccy', false, `/compare in ${tz} (${lang}): the served page was not painted before the script`); continue; }
+            await painted();
+            const head = await value(`({ ...${NOW}, reads: document.documentElement.getAttribute('data-served-reads') || '', lang: navigator.language,
+              rule: (${defaultCcy})((() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })(), [navigator.language].concat(navigator.languages || []).join(' ')) })`);
+            /* /compare is drawn in ringgit and reads nothing else a fresh
+               visitor holds otherwise: shown means the script chose ringgit. */
+            if (!/(^| )baseCcy:MYR( |$)/.test(head.reads)) { say('ccy', false, `/compare does not say on <html> that its render read a ringgit base`, head.reads); continue; }
+            const chose = head.hidden ? 'USD' : 'MYR';
+            await releaseScript();
+            await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete'`);
+            await painted();
+            const app = await value(`({ ...${NOW}, ccy: State.baseCcy })`);
+            say('ccy', app.ccy === chose && chose === want && head.rule === want,
+              `a fresh visitor in ${tz} (${lang}, navigator.language ${head.lang}): the head's script chose ${chose} (the ringgit page ${head.hidden ? 'kept out of sight' : 'shown'}), State.baseCcy is ${app.ccy}, and the rule gives ${want}${head.rule === want ? '' : ` (defaultCcy gave ${head.rule})`}`);
+            if (tz === 'Asia/Singapore') {
+              say('ccy', app.served && app.shown && !app.skeleton, `/compare in Singapore (${lang}): once the script ran the served page did not stand`, app);
+              await releaseData(); await quiet(SETTLED);
+              const landed = await value(`(() => { const t = document.getElementById('views').innerText; return { rm: (t.match(/RM\\s?[0-9]/g) || []).length, usd: (t.match(/\\$\\s?[0-9]/g) || []).length, frames: window.__fp2 || [] }; })()`);
+              say('ccy', landed.rm > 0 && landed.usd === 0 && !landed.frames.some(k => /skeleton/.test(k)),
+                `/compare in Singapore (${lang}): once the filings landed, ${landed.usd} sums in dollars and ${landed.rm} in ringgit${landed.frames.some(k => /skeleton/.test(k)) ? ', the skeleton painted between' : ''}`, landed.frames);
+            }
+          }
+        } finally { await zone(P.ZONE, P.LOCALE); }
+
+        /* 2. The scrolled reader, by every run of words on screen. Each run
+           that is the only one of its words on the page (not a chart's, the
+           tab's own, a field's value or a choice in a select), and where it
+           stands in the window. */
+        const SCREEN = `(() => { const v = document.getElementById('views');
+          const head = Math.max(0, ...['#pubbar', '#appbar'].map(s => document.querySelector(s)).filter(Boolean).map(n => n.getBoundingClientRect()).filter(r => r.height && r.top <= 1).map(r => r.bottom));
+          const stuck = (e) => { for (; e && e !== v; e = e.parentElement) if (/^(sticky|fixed)$/.test(getComputedStyle(e).position)) return true; return false; };
+          const count = new Map(), top = new Map(), on = [];
+          const w = document.createTreeWalker(v, NodeFilter.SHOW_TEXT);
+          for (let n = w.nextNode(); n; n = w.nextNode()) {
+            const t = n.data.replace(/\\s+/g, ' ').trim(), e = n.parentElement;
+            if (t.length < 3 || !e || e.closest('svg, [data-now], .sr-only, option, optgroup, select, textarea, template, [data-inert="field"], [data-inert="choice"], [data-inert="range"]')) continue;
+            const r = document.createRange(); r.selectNodeContents(n);
+            if (!r.getClientRects().length || getComputedStyle(e).visibility !== 'visible') continue;
+            const b = r.getBoundingClientRect(); if (!b.height) continue;
+            count.set(t, (count.get(t) || 0) + 1); top.set(t, b.top);
+            if (b.top >= head + 2 && b.bottom <= innerHeight - 2 && !stuck(e)) on.push(t);
+          }
+          return { at: Object.fromEntries([...top].filter(([t]) => count.get(t) === 1).map(([t, y]) => [t, Math.round(y * 10) / 10])), on: on.filter(t => count.get(t) === 1), y: Math.round(scrollY) }; })()`;
+        for (const [path, metrics, at] of [['/property/areas', W1280, 495], ['/property/areas', W1280, 990], ['/property/areas', W390, 1190], ['/property/areas', W390, 2380],
+          ['/property/calculator', W390, 0.75], ['/research', W1280, 692], ['/app/equities', W1280, 692]]) {
+          await size(metrics);
+          await firstVisit({ script: true });
+          await send('Page.navigate', { url: live + path }, sid);
+          if (!await until(SERVED_PAINTED)) { say('place', false, `${path} at ${metrics.width}: the served page was not painted before the script`); continue; }
+          await painted();
+          const docH = await value('document.documentElement.scrollHeight');
+          const target = at < 1 ? Math.round((docH - metrics.height) * at) : at;
+          for (let i = 0; i < 80; i++) {
+            const y = await value('scrollY');
+            if (y >= target - 30) break;
+            await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: metrics.width / 2, y: 400, deltaX: 0, deltaY: Math.min(1200, target - y) }, sid);
+            await sleep(40);
+          }
+          await sleep(700);
+          const s0 = await value(SCREEN);
+          if (!s0 || s0.on.length < 3) { say('place', false, `${path} at ${metrics.width}, scrolled to ${target}: fewer than three runs of words on screen to hold`, s0?.on); continue; }
+          await releaseScript();
+          await until(`typeof State !== 'undefined' && !!State.view`); await painted(); await sleep(300);
+          const s1 = await value(SCREEN);
+          await releaseData();
+          await quiet(`typeof realPending !== 'undefined' && !realPending && (typeof geoLoadState === 'undefined' || geoLoadState !== 'loading')`); await sleep(600);
+          const s2 = await value(SCREEN);
+          const cls = await value('window.__cls');
+          const moved = (s) => s0.on.filter(t => t in s.at).map(t => [t, Math.round(s.at[t] - s0.at[t])]);
+          const m1 = moved(s1), m2 = moved(s2);
+          const far = (m) => m.filter(([, d]) => Math.abs(d) > 4);
+          const said2 = (m, when) => (far(m).length ? `${far(m).length} of ${m.length} moved ${when} (${far(m).slice(0, 3).map(([t, d]) => `"${t.slice(0, 36)}" ${d > 0 ? '+' : ''}${d}px`).join(', ')})` : `none of ${m.length} moved ${when}`);
+          say('place', m1.length >= 3 && m2.length >= 3 && !far(m1).length && !far(m2).length && cls <= 0.05,
+            `${path} at ${metrics.width}, scrolled to ${target} (${s0.on.length} runs on screen): ${said2(m1, 'when drawn')}; ${said2(m2, 'when its data landed')}; window ${s0.y}→${s1.y}→${s2.y}; layout shift ${Number(cls).toFixed(3)}`);
+        }
+        await size(W1280);
+
+        /* 3. The area screen's map card, served and drawn, at every width. */
+        const MAPCARD = `(() => { const h = [...document.querySelectorAll('#views h3')].find(x => /^Kuching — /.test(x.textContent.trim()));
+          const c = h && h.closest('.card'); if (!c) return null;
+          return { title: h.textContent.trim(), h: Math.round(c.getBoundingClientRect().height), map: !!c.querySelector('svg[data-city]') }; })()`;
+        for (const width of [360, 390, 430, 768, 1024, 1280, 1440]) {
+          const metrics = { width, height: width < 800 ? 844 : 900, deviceScaleFactor: 1, mobile: width < 800 };
+          await size(metrics);
+          await firstVisit({ script: true });
+          await send('Page.navigate', { url: live + '/property/areas' }, sid);
+          if (!await until(SERVED_PAINTED)) { say('map', false, `/property/areas at ${width}: the served page was not painted before the script`); continue; }
+          await painted();
+          const a = await value(MAPCARD);
+          await releaseScript(); await releaseData();
+          await quiet(`typeof State !== 'undefined' && typeof geoLoadState !== 'undefined' && geoLoadState === 'done' && !document.getElementById('views').hasAttribute('data-served')`);
+          const b = await value(MAPCARD);
+          say('map', !!a && !!b && b.map && Math.abs(a.h - b.h) <= 2, `/property/areas at ${width}: the served map card ("${a?.title}") is ${a?.h}px, the card drawn with the map ("${b?.title}") ${b?.h}px`);
+        }
+        await size(W1280);
+
+        /* 4. The app's script fails, never comes, or comes late. */
+        const shownAt = `(() => { const d = document.documentElement; window.__shownAt = d.hasAttribute('data-served-hidden') ? null : __realNow();
+          new MutationObserver(() => { if (window.__shownAt == null && !d.hasAttribute('data-served-hidden')) window.__shownAt = __realNow(); }).observe(d, { attributes: true }); return true; })()`;
+        const SAVED = { savedWork: [{ id: 'w-frames', kind: 'property', name: 'Frames reader' }] };
+        for (const [label, path, metrics, seed] of [['a New York visitor', '/compare', W1280, null], ['a returning reader', '/property/models', W390, SAVED]]) {
+          const tz = seed ? P.ZONE : 'America/New_York';
+          try {
+            await zone(tz, seed ? P.LOCALE : 'en-US');
+            await size(metrics);
+            /* Fails to load. */
+            await firstVisit({ seed, script: true });
+            await send('Page.navigate', { url: live + path }, sid);
+            if (!await until(SERVED_PAINTED)) { say('fallback', false, `${path} to ${label}: the served page was not painted before the script`); continue; }
+            await painted();
+            const was = await value(NOW);
+            await value(shownAt);
+            for (let i = 0; i < 50 && !scriptHeld.length; i++) await sleep(60);
+            if (!scriptHeld.length) { say('fallback', false, `${path} to ${label}: the app's script was never asked for`); continue; }
+            const failedAt = await value('__realNow()');
+            for (const requestId of scriptHeld) await send('Fetch.failRequest', { requestId, errorReason: 'ConnectionReset' }, sid);
+            scriptHeld = []; holdScript = false;
+            await until('window.__shownAt != null', 4000);
+            const failed = await value(`({ ...${NOW}, at: window.__shownAt })`);
+            say('fallback', was.hidden && !failed.script && failed.shown && !failed.hidden && failed.at != null && failed.at - failedAt < 1500,
+              `${path} at ${metrics.width} to ${label}, the app's script failing to load: ${was.hidden ? '' : 'not kept out of sight before it (so not the case), '}${failed.shown ? `shown ${Math.round(failed.at - failedAt)}ms after the failure` : 'the served page never shown'}`, failed);
+            /* Never comes. */
+            await firstVisit({ seed, script: true });
+            await send('Page.navigate', { url: live + path }, sid);
+            if (!await until(SERVED_PAINTED)) { say('fallback', false, `${path} to ${label}: the served page was not painted before the script`); continue; }
+            const was2 = await value(NOW);
+            await value(shownAt);
+            await until('window.__shownAt != null', SERVED_WAIT_MS + 4000);
+            const stalled = await value(`({ ...${NOW}, at: window.__shownAt })`);
+            say('fallback', was2.hidden && !stalled.script && stalled.shown && stalled.at != null && stalled.at >= SERVED_WAIT_MS - 50 && stalled.at < SERVED_WAIT_MS + 2000,
+              `${path} at ${metrics.width} to ${label}, the app's script never arriving: ${was2.hidden ? '' : 'not kept out of sight before it (so not the case), '}${stalled.at == null ? `the served page not shown in ${(SERVED_WAIT_MS + 4000) / 1000}s` : `shown ${Math.round(stalled.at)}ms after the page was asked for (the bound is ${SERVED_WAIT_MS}ms)`}`, stalled);
+            /* On time, or 5s late, and the data slower than the bound. */
+            for (const late of [0, 5000]) {
+              await firstVisit({ seed, script: late > 0 });
+              await send('Page.navigate', { url: live + path }, sid);
+              if (late) { await sleep(late); await releaseScript(); }
+              await sleep(SERVED_WAIT_MS + 2500 - late);
+              const frames = await value('window.__fp2 || []');
+              const now = await value(NOW);
+              say('fallback', now.script && !servedShown(frames), `${path} at ${metrics.width} to ${label}, the app's script ${late ? `${late / 1000}s late` : 'on time'} and the data held past ${SERVED_WAIT_MS / 1000}s: ${now.script ? '' : 'the app never ran; '}${servedShown(frames) ? 'the served page was shown over a running app' : 'the served page never shown'}`, frames);
+            }
+          } finally { await releaseAll(); await zone(P.ZONE, P.LOCALE); }
+        }
+        await size(W1280);
+      } catch (e) {
+        say('ccy', false, `the checks could not run: ${e.message}`);
+      } finally {
+        await releaseAll();
+        await zone(P.ZONE, P.LOCALE);
+        await size(W1280);
+        if (framesId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: framesId }, sid);
+      }
+      const parts = [['ccy', 'one currency: for a fresh visitor in Singapore (en-MY), London (ms-MY), New York (en-US), Kuching (en-GB) and Kuala Lumpur (en-US), State.baseCcy is what the head\'s script chose and what the rule gives; /compare in Singapore (en-MY) stands through the script and stays in ringgit'],
+        ['place', 'a reader who scrolled stays where they read — every run of words on screen within 4px when the page is drawn and when its data lands (the area screen at 1280 and 390, the calculator deep on a phone, /research and /app/equities), the layout shift at most 0.05'],
+        ['map', 'the area screen\'s served map card is the drawn card\'s height at 360, 390, 430, 768, 1024, 1280 and 1440'],
+        ['fallback', `a reader the served page is kept from is shown it at once when the app's script fails to load and ${SERVED_WAIT_MS / 1000}s on when it never comes, and never over an app that runs (on time or 5s late, its data slower than that)`]];
+      for (const [k, what] of parts) {
+        if (said[k].length) { bad.push(`integration-reverify: ${k}`); console.log(`FAIL ${what}`); said[k].slice(0, 30).forEach(x => console.log(`     ${x}`)); }
+        else console.log(`ok   ${what}`);
+      }
+    }
+    /* ---- end integration-reverify ---- */
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });

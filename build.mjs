@@ -782,12 +782,41 @@ export function withRender(html, r) {
 /* The base currency of a browser that keeps none: ringgit where its time
    zone or language is Malaysia's, dollars otherwise — State.baseCcy's rule
    (05-plans.js), for the render's (servedReadsOf, which holds it to the
-   render's own digest) and for the head's script. */
+   render's own digest) and for the head's script.
+   THE TWO RULES PARTED (2026-10-04, the integration's re-verification). The
+   app's held a backspace (U+0008) where \b was typed — a shell had eaten the
+   backslash — so its language branch never matched, while this one read
+   /-MY/: a reader in Singapore or London whose language is en-MY or ms-MY was
+   shown the ringgit page by the head's script, then the skeleton, then the
+   app's dollar page. The same rule here and there, /-MY\b/; no source file
+   may carry a control character (sourceControls, below); and coverage-frames
+   holds State.baseCcy to this script's choice for readers in five zones and
+   languages (integration-reverify). */
 export function defaultCcy(tz, langs) {
-  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY/i.test(langs) ? 'MYR' : 'USD';
+  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY\b/i.test(langs) ? 'MYR' : 'USD';
 }
 /* servedHash (35-ui.js): FNV-1a, 32 bits — a digest that names a value. */
 export const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
+/* IF THE APP NEVER COMES (2026-10-04, the integration's re-verification). A
+   page kept out of sight waits for the app to draw the reader's own — and
+   when the app's script failed to load (a dropped connection on a phone, a
+   blocker, a page cached from before a deploy whose script is gone) or never
+   came, the reader had the header and an empty page for good, where with no
+   script at all they have the whole page. So the script, on hiding the
+   page, also watches for the app:
+   - the app's script fails to load, or stops with an error before it has
+     drawn the page: the served page is shown at once;
+   - the app has not started (its first act, buildShell, takes data-served
+     off <html>) SERVED_WAIT_MS after the head was read: shown then.
+   Never over an app that has started: once it runs the page is its to draw,
+   and a reader whose app is on time, or slow only for its data (the
+   skeleton, then their page), never sees the served one. 8 seconds: the
+   script is 0.8MB as served (brotli) and 3.5MB to parse — about 5s on a
+   1.6Mbps line and a mid-range phone — so 8s passes for a stalled or blocked
+   script, not a slow one, short of a line under 1Mbps, where the served page
+   comes first and the app then draws the reader's over it (the skeleton
+   between, as before pages were served). */
+export const SERVED_WAIT_MS = 8000;
 export const FIRST_SCRIPT = `(function () {
 var d = document.documentElement, s = null;
 try { s = window.localStorage; } catch (e) { s = null; }
@@ -812,8 +841,17 @@ for (var i = 0; i < list.length; i++) {
     mine = c === was;
   } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
   else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
-  if (!mine) { d.setAttribute('data-served-hidden', ''); return; }
+  if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
 }
+if (!d.hasAttribute('data-served-hidden')) return;
+function served() { var v = document.getElementById('views'); return !!v && v.hasAttribute('data-served'); }
+function app(u) { return /\\/assets\\/app\\.[0-9a-f]+\\.js(?:[?#]|$)/.test(String(u || '')); }
+function show() { d.removeAttribute('data-served-hidden'); }
+addEventListener('error', function (e) {
+  var t = e.target;
+  if ((t && t.tagName === 'SCRIPT' ? app(t.src) : app(e.filename)) && served()) show();
+}, true);
+setTimeout(function () { if (d.hasAttribute('data-served') && served()) show(); }, ${SERVED_WAIT_MS});
 })();`;
 export const FIRST_TAG = `<script data-first-paint>${FIRST_SCRIPT}</script>`;
 export const firstHash = () => 'sha256-' + createHash('sha256').update(FIRST_SCRIPT, 'utf8').digest('base64');
@@ -1133,6 +1171,60 @@ function filesUnder(dir, rel = '') {
   });
 }
 
+/* NO CONTROL CHARACTER IN A SOURCE FILE (2026-10-04, the integration's
+   re-verification). A regex typed through a shell heredoc lost its
+   backslash, and \b became a backspace (U+0008) in State.baseCcy's language
+   rule (05-plans.js) — invisible in an editor, valid JavaScript, a pattern
+   that matches nothing a browser sends — and the app and the head's script
+   (defaultCcy, above) gave a reader in Singapore with an en-MY browser two
+   currencies for six weeks. No file under src/, and no .mjs, .js, .css or
+   .html at the root (the build, the harnesses, the pages it writes), may
+   hold a C0 control character other than a tab, a line feed or a carriage
+   return. Each is named by file, line and code point. */
+export function sourceControls({ root = ROOT } = {}) {
+  const BAD = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
+  const named = (c) => `U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`;
+  const under = (dir) => (existsSync(join(root, dir)) ? readdirSync(join(root, dir), { withFileTypes: true })
+    .flatMap(d => (d.isDirectory() ? under(`${dir}/${d.name}`) : [`${dir}/${d.name}`])) : []);
+  const files = [...under('src'), ...readdirSync(root, { withFileTypes: true })
+    .filter(d => d.isFile() && /\.(mjs|js|css|html)$/.test(d.name)).map(d => d.name)];
+  const out = [];
+  for (const f of files) {
+    const text = readFileSync(join(root, f), 'utf8');
+    for (const m of text.matchAll(BAD)) {
+      const line = text.slice(0, m.index).split(String.fromCharCode(10)).length;
+      const around = text.slice(Math.max(0, m.index - 24), m.index + 8).replace(BAD, (c) => `<${named(c)}>`).replace(/\s+/g, ' ');
+      out.push(`${f}:${line} holds the control character ${named(m[0])} — a backslash lost on the way in? (…${around}…)`);
+    }
+  }
+  return out;
+}
+
+/* THE AREA SCREEN'S MAP, ITS ROOM KEPT (2026-10-04, the same). The page is
+   served before the locality positions arrive, so its map card is drawn
+   round a box the map's size (cityMapHold, 70-property.js) from each town's
+   shape in CITY_MAP_SHAPE — which must be the shape the positions give, by
+   the map's own reckoning (cityMapSpan), for every town that has them and no
+   other: a wrong one moves the page under a reader when the map comes. */
+export function mapShapeProblems({ root = ROOT } = {}) {
+  const P = lf(readFileSync(join(root, 'src', 'js', '70-property.js'), 'utf8'));
+  const { cityMapSpan, CITY_MAP_SHAPE } = vm.runInContext([
+    cut(P, '70-property.js', 'function cityMapSpan(', '\n}\n'),
+    cut(P, '70-property.js', 'const CITY_MAP_SHAPE = ', ';\n'),
+    '({ cityMapSpan, CITY_MAP_SHAPE })'].join('\n'), vm.createContext({}));
+  const geo = JSON.parse(readFileSync(join(root, 'data', 'sarawak-geo.json'), 'utf8'));
+  const out = [];
+  const towns = Object.entries(geo.cities || {}).filter(([, c]) => Object.keys(c.areas || {}).length);
+  for (const [id, c] of towns) {
+    const { spanX, spanY } = cityMapSpan(Object.entries(c.areas));
+    const want = Math.round(spanY / spanX * 10000) / 10000;
+    if (!(id in CITY_MAP_SHAPE)) out.push(`CITY_MAP_SHAPE (70-property.js) has no shape for ${id}, which data/sarawak-geo.json maps — give it ${id}: ${want}`);
+    else if (Math.abs(CITY_MAP_SHAPE[id] - want) > 0.00005) out.push(`CITY_MAP_SHAPE.${id} (70-property.js) is ${CITY_MAP_SHAPE[id]}, where data/sarawak-geo.json's positions give ${want}`);
+  }
+  for (const id of Object.keys(CITY_MAP_SHAPE)) if (!towns.some(([t]) => t === id)) out.push(`CITY_MAP_SHAPE (70-property.js) gives ${id} a shape, and data/sarawak-geo.json maps no position for it`);
+  return out;
+}
+
 /* What would make the committed files serve something other than what they
    say, beyond drift from src/.
 
@@ -1197,7 +1289,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const current = new Set([files.script.file, files.styles.file]);
   const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
-  const problems = servingProblems(built);
+  const problems = [...servingProblems(built), ...sourceControls(), ...mapShapeProblems()];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);

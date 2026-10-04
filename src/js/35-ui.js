@@ -3080,7 +3080,27 @@ function stayPut(h, n) {
    phone by 155px when the filings did. The words at the top of the window
    are noted before such a change — by what they say and which of the
    page's runs saying it they are — and where they are drawn again the
-   window is scrolled by what they moved. */
+   window is scrolled by what they moved.
+   ONLY WORDS ON THE PAGE (2026-10-04, the integration's re-verification).
+   Every text node counted, and a choice inside a select is one: the noted
+   "Bursa Malaysia" (the served page's first) was found again as the market
+   select's new <option>, which has no box, and /research and /app/equities
+   scrolled a reader 27px when the filings landed; on a phone deep in the
+   calculator the noted words were a served field's value, "Illustrative
+   default", found again as an option, and the reader moved 341px. A run of
+   words is noted, counted and found only where it is laid out and is words
+   on the page (placeRun); where none is found again, nothing is scrolled. */
+const PLACE_SKIP = 'svg, [data-now], option, optgroup, select, textarea, template, datalist, [data-inert="field"], [data-inert="choice"], [data-inert="range"]';
+/* Words a reader can see that the page drawn draws as words again: laid out
+   (a box, not hidden), not a chart's, not the tab's own (data-now), not a
+   choice in a select or a template's, and not a served field's value — the
+   field drawn in its place holds it as a value. */
+function placeRun(n) {
+  const e = n.parentElement;
+  if (!e || e.closest(PLACE_SKIP)) return false;
+  const r = document.createRange(); r.selectNodeContents(n);
+  return r.getClientRects().length > 0 && getComputedStyle(e).visibility === 'visible';
+}
 function notePlace() {
   if (!viewRoot || scrollY < 1) return null;
   const head = Math.max(0, ...['#pubbar', '#appbar'].map(s => document.querySelector(s)).filter(Boolean)
@@ -3097,7 +3117,7 @@ function notePlace() {
       const w = document.createTreeWalker(at, NodeFilter.SHOW_TEXT);
       for (let n = w.nextNode(); n; n = w.nextNode()) {
         const t = n.data.replace(/\s+/g, ' ').trim();
-        if (t.length < 3 || n.parentElement?.closest('svg, [data-now]')) continue;
+        if (t.length < 3 || !placeRun(n)) continue;
         const r = document.createRange(); r.selectNodeContents(n);
         const b = r.getBoundingClientRect();
         if (b.height && b.bottom > head && b.top < innerHeight) { found = { node: n, t, top: b.top }; break; }
@@ -3108,14 +3128,14 @@ function notePlace() {
   if (!found) return null;
   let nth = 0;
   const w = document.createTreeWalker(viewRoot, NodeFilter.SHOW_TEXT);
-  for (let n = w.nextNode(); n && n !== found.node; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === found.t) nth++;
+  for (let n = w.nextNode(); n && n !== found.node; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === found.t && placeRun(n)) nth++;
   return { t: found.t, nth, top: found.top };
 }
 function keepPlace(p) {
   if (!p || !viewRoot) return;
   let nth = 0, n;
   const w = document.createTreeWalker(viewRoot, NodeFilter.SHOW_TEXT);
-  for (n = w.nextNode(); n; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === p.t && nth++ === p.nth) break;
+  for (n = w.nextNode(); n; n = w.nextNode()) if (n.data.replace(/\s+/g, ' ').trim() === p.t && placeRun(n) && nth++ === p.nth) break;
   if (!n) return;
   const r = document.createRange(); r.selectNodeContents(n);
   const moved = r.getBoundingClientRect().top - p.top;
