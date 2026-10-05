@@ -2546,6 +2546,30 @@ for (const w of [360, 390]) {
         if (a.again.shown || a.again.expanded !== 'false') fails.push('360×640: "About" pressed again did not close its panel');
         if (!a.describes) fails.push('360×640: the renovation slider is not described by its span, in the panel');
       }
+      /* With the lender-limits note in "About", the deposit still says it is
+         computed, not approved, in sight beside its evidence tag — at 0% too,
+         the case the note is for — and the tag holds its place as the slider
+         moves (the release re-check of 5 Oct 2026). */
+      const d = await ev(`(async () => {
+        const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const radio = document.getElementById('lab-in-downPct');
+        if (!radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frames(); }
+        const knob = document.getElementById('lab-knob-downPct'), tag = knob?.querySelector('.lab-tag-gap');
+        if (!tag) return { missing: true };
+        const at = () => { const b = tag.getBoundingClientRect(); return { seen: !!tag.getClientRects().length && getComputedStyle(tag).visibility === 'visible', top: Math.round(b.top), right: Math.round(b.right), text: tag.textContent }; };
+        const before = at();
+        const rg = document.getElementById('lab-r-downPct'); rg.value = '0'; rg.dispatchEvent(new Event('input', { bubbles: true })); await frames();
+        const zero = at();
+        const back = document.getElementById('lab-back-downPct'); back?.click(); await frames();
+        return { before, zero, vw: document.documentElement.clientWidth };
+      })()`);
+      said.depositGap = d;
+      if (d.missing) fails.push('360×640: the deposit knob has no "Computed, not approved" tag');
+      else {
+        if (!d.before.seen || !d.zero.seen || d.zero.text !== 'Computed, not approved') fails.push(`360×640: the deposit's "Computed, not approved" is not in sight (${JSON.stringify(d.zero)})`);
+        if (d.zero.top !== d.before.top) fails.push(`360×640: the deposit's tag moved ${d.zero.top - d.before.top}px when the deposit went to 0%`);
+        if (d.zero.right > d.vw) fails.push(`360×640: the deposit's tag runs past the screen (${d.zero.right} > ${d.vw})`);
+      }
     }
     /* The keyboard and the page after a save, at 390. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);

@@ -4617,6 +4617,12 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   background: var(--surface-sunk); color: var(--ink-2); border: 1px solid var(--line); }
 .lab-tag.is-default, .lab-tag-whatif { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
 .lab-tag-whatif { border-style: dashed; }
+/* The deposit's "Computed, not approved", in a second column of the tag
+   cell, on a phone only (labKnob); from a 600px panel, and on a served
+   page from a 663px window, the whole lender-limits note stands instead. */
+.lab-tags > .lab-tag-gap { grid-area: 1 / 2; margin-left: 6px; white-space: nowrap; background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+@container lab (min-width: 600px) { .lab-tags > .lab-tag-gap { display: none; } }
+@media (min-width: 663px) { :root[data-served] .lab-tags > .lab-tag-gap { display: none; } }
 .lab-span { margin-top: 2px; line-height: 1.45; }
 .lab-span-why { display: none; }
 .lab-knob-note { margin-top: 4px; line-height: 1.45; }
