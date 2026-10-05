@@ -43366,6 +43366,13 @@ function labKnob(P, lab, col, inp) {
   knob.ev = el('span', { class: 'lab-tag', id: eid }, labEvidenceWords(col.work, k));
   knob.whatIf = el('span', { class: 'lab-tag lab-tag-whatif is-idle', id: knob.ids.wid }, 'What-if — not saved, no evidence attached');
   tags.append(knob.ev, knob.whatIf);
+  /* COMPUTED, NOT APPROVED, IN SIGHT ON A PHONE (the release re-check of
+     5 Oct 2026). Below a 600px panel the deposit's lender-limits note sits
+     in "About", so a deposit taken to 0% showed nothing to say that no
+     lender approved it (the brief's gap rule). A fixed tag beside the
+     evidence tag says it at every deposit and never comes or goes while the
+     slider moves; from 600px the whole note stands under the tags. */
+  if (k === 'downPct') tags.append(el('span', { class: 'lab-tag lab-tag-gap' }, 'Computed, not approved'));
   ft.append(tags);
   row.append(ft);
   /* In sight whatever the panel: what to do where there is no slider, and
