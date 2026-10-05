@@ -4494,3 +4494,339 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   display: flex; align-items: center; justify-content: center; text-align: center;
 }
 /* ---- end integration-reverify ---- */
+/* ---- scenario-lab ---- */
+/* THE SCENARIO LAB (82-property-lab.js). A panel that sizes itself by its
+   own width (container: lab), so the page and a map's side sheet draw it by
+   the same rules: the phone's layout is the base — one knob at a time,
+   picked above it — and a browser without container queries (Safari before
+   16) keeps that layout, which works whole. From 600px of panel all five
+   knobs stand and the chain is two-up; from 960px the knobs are a column of
+   their own beside the figures, stuck under the topbar, so a bar is in view
+   while its slider moves. Tokens only; the depth is the cards'. Only a
+   bar's transform and a control's colour and shadow move, and nothing at
+   all while a slider is held or where motion is reduced. */
+.lab { container: lab / inline-size; min-width: 0; }
+/* What the panel hides it hides: a tag, a button or a note drawn as a box of its
+   own class is still out of sight while it carries [hidden]. */
+.lab [hidden] { display: none !important; }
+.lab-hd { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--md); }
+.lab-claim { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink-2); }
+.lab-status { font-size: 13px; line-height: 20px; color: var(--ink-2); max-width: 82ch; }
+.lab-status strong { color: var(--ink); }
+/* Said from the first drawing (labPaintPanel): what a move becomes, then the
+   moves not saved. Two lines' room below a 960px panel, where either can
+   wrap, so the line growing at the first tick moves nothing under it. */
+.lab-moved-line { font-size: 12px; line-height: 18px; color: var(--ink-2); }
+.lab-moved-line.is-unsaved { font-weight: 600; color: var(--bronze); }
+@container lab (max-width: 959px) { .lab-moved-line { min-height: 36px; } }
+.lab-note-warn { color: var(--bronze); font-weight: 600; }
+.lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
+.lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
+.lab-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+
+/* The pickers: a legend beside a strip of choices, one 44px line on a
+   phone. The radio itself is out of sight; its whole label is the target,
+   and the label carries the ring when the radio has the keyboard. */
+.lab-pick { border: 0; margin: 0; padding: 0; min-width: 0; }
+.lab-legend { float: left; margin-right: 8px; padding: 0; line-height: 44px; font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+.lab-seg { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; min-width: 0;
+  background: var(--surface-sunk); border: 1px solid var(--line); border-radius: var(--r-md); }
+.lab-seg-opt { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; min-width: 44px;
+  padding: 0 10px; border-radius: var(--r-sm); font-size: 13px; font-weight: 500; color: var(--ink-2); cursor: pointer; white-space: nowrap;
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease; }
+.lab-seg-opt:hover { color: var(--ink); }
+.lab-seg-opt.is-on { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1); }
+.lab-seg-opt.is-off { color: var(--ink-3); cursor: not-allowed; }
+.lab-seg-opt:has(.lab-radio:focus-visible) { outline: 2px solid var(--brand); outline-offset: 1px; }
+.lab-radio { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; overflow: hidden; }
+/* A column's name beside its letter from 600px; on a phone the letter, and
+   the name in the radio's own name (the chain's heading shows it). */
+.lab-seg-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lab-off-why { clear: both; margin-top: 4px; }
+/* The five inputs share the strip, each as wide as its word and the room
+   left over shared out: one line beside the legend in a wide sans too —
+   at 10px a side, "Reno" took a second 44px line of its own in Verdana and
+   on CI's DejaVu, and the knob and its results moved 48px down the screen. */
+.lab-pick-input .lab-seg-opt { flex: 1 1 auto; padding: 0 6px; }
+.lab-pick-by { margin-top: var(--sm); }
+.lab-pick-by .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 6px; }
+.lab-seg-by { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* A, B and C keep --s1, --s2 and --s3 in both themes, and the letter
+   always travels with the colour. The letter's ink is the series colour
+   taken toward the page's ink, which holds 4.5:1 on every surface it
+   stands on in either theme. */
+.lab-c-A { --lab-c: var(--s1); --lab-t: color-mix(in srgb, var(--s1) 72%, var(--ink)); }
+.lab-c-B { --lab-c: var(--s2); --lab-t: color-mix(in srgb, var(--s2-text) 72%, var(--ink)); }
+.lab-c-C { --lab-c: var(--s3); --lab-t: color-mix(in srgb, var(--s3) 72%, var(--ink)); }
+.lab-letter { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--lab-c); color: var(--lab-t); font-size: 12px; font-weight: 700; line-height: 1; background: var(--surface-2); }
+
+/* A knob: its label and box, the slider, what its figure rests on, and
+   the span the slider covers, with the span's basis. On a phone the label
+   shares a 44px line with "About", whose panel holds the span and the notes
+   (82-property-lab.js, labKnob); from 600px the label's line is its own
+   18px and the panel's words stand under the tags, as they always did. */
+.lab-knob { padding: 0 0 2px; border-top: 1px solid var(--line); min-width: 0; }
+.lab-knob:not(.is-on) { display: none; }
+.lab-knob-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.lab-knob-label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); min-width: 0; text-wrap: balance; }
+/* Quiet until wanted: the words a step down from the label, the target a
+   full 44px, its text flush with the knob's right edge (the margin gives
+   back the padding), and its chevron turned while the panel is open. */
+.lab-about-btn { flex: none; min-height: 44px; gap: 5px; padding: 0 8px; margin-right: -8px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.lab-about-btn:hover { color: var(--ink); }
+.lab-about-btn[aria-expanded="true"] { color: var(--ink); }
+.lab-about-i, .lab-about-chev { display: inline-flex; color: var(--ink-3); }
+.lab-about-chev { transition: transform 160ms ease; }
+.lab-about-btn[aria-expanded="true"] .lab-about-chev { transform: rotate(180deg); }
+.lab-about { display: none; }
+.lab-knob.is-about .lab-about { display: block; margin-top: 6px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--surface-sunk); box-shadow: inset 0 0 0 1px var(--line); }
+.lab-knob.is-about .lab-about > :first-child { margin-top: 0; }
+/* Words opened to be read, a step darker than a caption: 6.2:1 on the
+   sunk surface in light, where the caption's ink is 4.6:1. */
+.lab-knob.is-about .lab-about .metaline { color: var(--ink-2); }
+.lab-about .lab-span-why { display: inline; }
+.lab-knob-ctl { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.lab-range-wrap { flex: 1 1 auto; min-width: 0; }
+.lab-num { flex: none; width: 6.25rem; text-align: right; }
+/* The way back to the figure as saved: an icon the width of a target, its
+   words its name (and its title), holding its place at the end of the
+   slider's line from the first drawing — so the slider never narrows, and
+   nothing below moves, when it comes into sight with the first move. */
+.lab-reset { flex: none; width: 40px; min-width: 40px; padding: 0; justify-content: center; }
+/* Out of sight and out of reach, its room kept. */
+.lab .is-idle { visibility: hidden; }
+.lab-range { display: block; width: 100%; margin: 0; touch-action: pan-y; }
+/* The track filled to the thumb. Written as input.lab-range[type="range"]:
+   the global input[type="range"] rules above outweigh a bare class. */
+input.lab-range[type="range"]::-webkit-slider-runnable-track { background: linear-gradient(to right, var(--brand) var(--pos, 0%), var(--surface-sunk) var(--pos, 0%)); }
+input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius: 999px; background: var(--brand); }
+.lab-range:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.lab-ticks { position: relative; height: 6px; margin: 0 8px 2px; }
+.lab-tick { position: absolute; top: 0; left: calc(var(--at) * 100%); width: 1px; height: 6px; background: var(--line-2); }
+.lab-knob-ft { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-top: 2px; }
+/* The evidence tag and the what-if tag in one cell, one of them in sight:
+   the cell is as tall as the taller, moved or not — and each tag its own
+   height in it: where the evidence tag takes two lines (a wide sans on a
+   phone) the one-line what-if tag was stretched to a two-line box. */
+.lab-tags { display: grid; min-width: 0; flex: 1 1 12rem; }
+.lab-tags > .lab-tag { grid-area: 1 / 1; justify-self: start; align-self: start; }
+.lab-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 18px;
+  background: var(--surface-sunk); color: var(--ink-2); border: 1px solid var(--line); }
+.lab-tag.is-default, .lab-tag-whatif { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+.lab-tag-whatif { border-style: dashed; }
+/* The deposit's "Computed, not approved", in a second column of the tag
+   cell, on a phone only (labKnob); from a 600px panel, and on a served
+   page from a 663px window, the whole lender-limits note stands instead. */
+.lab-tags > .lab-tag-gap { grid-area: 1 / 2; margin-left: 6px; white-space: nowrap; background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
+@container lab (min-width: 600px) { .lab-tags > .lab-tag-gap { display: none; } }
+@media (min-width: 663px) { :root[data-served] .lab-tags > .lab-tag-gap { display: none; } }
+.lab-span { margin-top: 2px; line-height: 1.45; }
+.lab-span-why { display: none; }
+.lab-knob-note { margin-top: 4px; line-height: 1.45; }
+.lab-reno { margin-top: 6px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-sunk); }
+
+/* The chain: a row a figure, its formula a tap away. */
+.lab-chain-card { padding: var(--xs) var(--md) var(--sm); min-width: 0; }
+.lab-chain-hd { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 8px; margin-bottom: 0; }
+.lab-chain-h { display: flex; align-items: center; gap: 6px; }
+.lab-chain { display: grid; grid-template-columns: minmax(0, 1fr); column-gap: var(--lg); }
+/* The rule between rows is a shadow, not a border, so a row is its 44px. */
+.lab-row { box-shadow: inset 0 1px 0 var(--grid); min-width: 0; }
+.lab-sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; min-height: 44px;
+  padding: 4px 0; cursor: pointer; list-style: none; }
+.lab-sum::-webkit-details-marker { display: none; }
+.lab-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+/* A name that wraps ("Value less loan, year 10 (before selling costs)" on a
+   phone) hangs its second line under its first word, not under the chevron. */
+.lab-row-label { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--ink); padding-left: 12px; text-indent: -12px; }
+/* The chevron is drawn, not said: with no text alternative every row's name
+   began "›" (the second content line; a browser without the syntax keeps
+   the first and shows the same mark). */
+.lab-row-label::before { content: "›"; content: "›" / ""; display: inline-block; width: 12px; text-indent: 0; color: var(--ink-3); transition: transform 160ms ease; }
+.lab-row[open] .lab-row-label::before { transform: rotate(90deg); }
+.lab-row-label { grid-column: 1; grid-row: 1; }
+.lab-row-fig { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.lab-val { font-size: 15px; line-height: 19px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.lab-val.neg { color: var(--dn-text); }
+.lab-delta { font-size: 11px; line-height: 14px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+.lab-row-note { grid-column: 1; grid-row: 2; padding-left: 12px; font-size: 11px; line-height: 15px; color: var(--ink-3); }
+.lab-row-note:empty { display: none; }
+.lab-row-body { padding: 0 0 10px 12px; }
+.lab-formula { font-size: 13px; line-height: 1.55; color: var(--ink-2); max-width: 70ch; }
+.lab-help { margin-top: 6px; }
+.lab-paid-figs { grid-column: 1 / -1; grid-row: 3; display: flex; flex-wrap: wrap; gap: 2px 12px; padding-left: 12px; font-size: 12px; color: var(--ink-2); }
+.lab-paid-k { color: var(--ink-3); }
+.lab-paid-figs .lab-val { font-size: 12px; line-height: 16px; }
+.lab-grade { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }
+.lab-grade-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lab-grade-letter { font-size: 22px; font-weight: 700; color: var(--ink); }
+.lab-grade-verdict { font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.lab-grade-gate { margin-top: 4px; line-height: 1.5; }
+.lab-movedby, .lab-context, .lab-rests { margin-top: 6px; line-height: 1.5; }
+.lab-movedby { color: var(--ink-2); }
+
+/* The comparison: a row a column, its figure as text and a bar beneath it
+   that is decoration only. A bar starts at nought, wherever nought falls
+   on the panel's own scale, and is scaled, never resized. */
+.lab-cmp-card { padding: var(--md); min-width: 0; }
+.lab-cmp-body { margin-top: var(--sm); min-width: 0; }
+.lab-cmp-panels { display: grid; gap: var(--md); grid-template-columns: minmax(0, 1fr); }
+.lab-cmp { width: 100%; border-collapse: collapse; table-layout: auto; }
+.lab-cmp caption { caption-side: top; text-align: left; padding: 0 0 6px; font-size: 12px; line-height: 1.5; color: var(--ink-3); }
+.lab-cmp-row th { text-align: left; padding: 8px 8px 4px 0; font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); vertical-align: middle; }
+.lab-cmp-row th .lab-letter { margin-right: 2px; vertical-align: -6px; }
+.lab-cmp-row.is-active .lab-letter { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--brand); }
+.lab-cmp-chip { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; color: var(--ink-3); }
+.lab-cmp-v { text-align: right; padding: 8px 0 4px; font-size: 14px; line-height: 18px; font-weight: 700; color: var(--ink); white-space: nowrap; vertical-align: middle; }
+.lab-cmp-barrow td { padding: 0 0 10px; }
+/* The track is the card's brightest surface, ringed: brass (--s2) holds
+   3:1 against it in light, where it measured 2.7:1 on the sunk surface. */
+.lab-track { position: relative; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line); }
+.lab-zero { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -.5px; background: var(--ink-3); z-index: 1; }
+.lab-bar-fill, .lab-bar-seg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: left center;
+  background: var(--lab-c); transform: scaleX(0); transition: transform 180ms ease; }
+/* A STACK'S PARTS, TOLD APART THE SAME WAY IN EITHER THEME. The second part
+   is the series colour taken toward the page's ink — darker in light,
+   lighter in dark: always the stronger shade against the track. The third
+   is outlined: a wash of the colour, edged top and bottom in the colour
+   itself, so its extent holds 3:1 against the track and the card wherever
+   the colour does. Called "darker" and "lighter", the parts were the
+   reverse in dark (--ink is light there), and the lighter part's wash was
+   under 3:1 in both themes (the verification of 4 Oct 2026, F4 and F9).
+   The edges are inset shadows: a bar is scaled sideways only, so they keep
+   their height at any scale. */
+.lab-seg-2 { background: color-mix(in srgb, var(--lab-c) 62%, var(--ink)); }
+.lab-seg-3 { background: color-mix(in srgb, var(--lab-c) 22%, var(--surface-2));
+  box-shadow: inset 0 2px 0 var(--lab-c), inset 0 -2px 0 var(--lab-c); }
+.lab-ref, .lab-mark { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; z-index: 2; }
+.lab-ref { background: var(--ink-2); }
+.lab-mark { background: var(--ink); box-shadow: 0 0 0 1px var(--surface-2); }
+.lab-cmp-note { display: block; margin-top: 4px; }
+.lab-cmp-words { margin-top: var(--sm); display: flex; flex-direction: column; gap: 4px; }
+.lab-facts { display: grid; gap: var(--sm); grid-template-columns: minmax(0, 1fr); margin-top: var(--sm); }
+.lab-fact .h-card { font-size: 14px; }
+.lab-fact-list { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.lab-twin { margin-top: var(--sm); }
+
+/* The columns and the commits. */
+.lab-cols-card, .lab-commit { padding: var(--md); }
+.lab-cols { list-style: none; margin: var(--xs) 0 var(--sm); padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lab-col-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; padding: 6px 8px;
+  border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); }
+.lab-col-row.is-active { outline: 2px solid var(--brand); outline-offset: -1px; }
+.lab-col-name { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; font-size: 13px; }
+.lab-col-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; flex: 0 0 auto; max-width: 100%; margin-left: auto; }
+.lab-commit-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--xs); }
+.lab-commit-acts .btn { white-space: normal; text-align: center; }
+.lab-commit-why { margin-top: var(--sm); line-height: 1.5; max-width: 80ch; }
+.lab-name-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: var(--sm); padding: var(--sm);
+  border-radius: var(--r-md); background: var(--surface-sunk); }
+.lab-name-label { flex: 1 0 100%; font-size: 13px; font-weight: 600; color: var(--ink); }
+.lab-name-form .input { flex: 1 1 16rem; min-width: 0; }
+.lab-name-acts { display: flex; gap: 6px; }
+
+@container lab (min-width: 600px) {
+  /* Out of sight and out of reach (visibility), not display:none, so the
+     page served at 1280 still carries it, and a phone shows it from the
+     first frame instead of gaining it when the script runs. */
+  .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
+  .lab-knob:not(.is-on) { display: block; }
+  .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  .lab-seg-by { display: flex; }
+  .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lab-facts { grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+  .lab-span-why { display: inline; }
+  /* Names beside the letters need the strip's whole width: the legend
+     stands over it. */
+  .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+  /* Every knob in full: no "About", its words under the tags. */
+  .lab-knob { padding-top: 6px; }
+  .lab-knob-hd { min-height: 0; }
+  .lab-about-btn { display: none; }
+  .lab-about, .lab-knob.is-about .lab-about { display: block; margin: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .lab-knob.is-about .lab-about > .lab-span:first-child { margin-top: 2px; }
+  .lab-knob.is-about .lab-about .metaline { color: var(--ink-3); }
+}
+@container lab (min-width: 960px) {
+  .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
+  /* A box that scrolls clips what passes its padding, and a focus ring is
+     drawn 4px outside its control (2px wide, 2px off): 2px of padding cut
+     the ring's left side off every slider (the verification of 4 Oct 2026,
+     F15). The padding holds the whole ring; the margin keeps the column's
+     edge where it was. */
+  .lab-inputs { position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) + 12px);
+    max-height: calc(100vh - var(--topbar-live, var(--topbar-h)) - 24px); overflow-y: auto; padding: 6px; margin: -4px -6px 0; }
+}
+/* A served page lays its panel out by the window until the script runs,
+   as the tab row and the screener do (prerender, above): the panel is the
+   window less the 15px scrollbar, the shell's padding and, from 1024px,
+   the 264px sidebar — 600px of it from a 663px window, 960px from 1303px. */
+:root[data-served] .lab { container-type: normal; }
+@media (min-width: 663px) {
+  :root[data-served] .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
+  :root[data-served] .lab-knob:not(.is-on) { display: block; }
+  :root[data-served] .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
+  :root[data-served] .lab-seg-by { display: flex; }
+  :root[data-served] .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-served] .lab-span-why { display: inline; }
+  :root[data-served] .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+  :root[data-served] .lab-knob { padding-top: 6px; }
+  :root[data-served] .lab-knob-hd { min-height: 0; }
+  :root[data-served] .lab-about-btn { display: none; }
+  :root[data-served] .lab-about { display: block; }
+}
+@media (min-width: 1303px) {
+  :root[data-served] .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
+}
+/* The header line's two lines of room below a 960px panel (above), by the
+   window while served: without it the served line stood 18px shorter than
+   the drawn one, and everything under it moved as the page was drawn. */
+@media (max-width: 1302px) {
+  :root[data-served] .lab-moved-line { min-height: 36px; }
+}
+/* A served slider is its stated value in a slider's box (prerender.mjs),
+   on a line of its own as the slider is. */
+#views[data-served] .lab-range[data-inert] { display: block; }
+
+@media (pointer: coarse), (max-width: 768px) {
+  .lab-seg-opt { min-height: 44px; }
+  /* A row's "what this means" is the only thing on its line, not a word in
+     a sentence: it takes the whole target. */
+  .lab-help .metric-label { min-height: 44px; }
+  /* The strip is its choices' 44px and a hairline: on a phone the two
+     pickers, the knob and the seven results share one screen. */
+  .lab-pick-cols .lab-seg, .lab-pick-input .lab-seg { padding: 0; border-color: transparent; }
+  .lab-sum { min-height: 44px; }
+  .lab-reset { width: 44px; min-width: 44px; }
+}
+@media (pointer: coarse) {
+  input.lab-range[type="range"]::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -13px; }
+  input.lab-range[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
+}
+/* No motion while a slider is held, or where motion is reduced. */
+.lab.is-dragging .lab-bar-fill, .lab.is-dragging .lab-bar-seg { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lab-bar-fill, .lab-bar-seg, .lab-row-label::before, .lab-about-chev { transition: none !important; }
+}
+/* With no script the lab is a page of the sample's figures: the pickers,
+   the boxes and the commits need the script, and are not offered. */
+@media (scripting: none) {
+  .lab .lab-pick, .lab .lab-num, .lab .lab-ticks, .lab .lab-cols-card, .lab .lab-commit, .lab .lab-about-btn { display: none !important; }
+  /* With no picker, every knob is shown, at every width; with no "About",
+     its words are. */
+  .lab .lab-knob { display: block !important; }
+  .lab .lab-about { display: block !important; }
+}
+
+/* EVERY SLIDER'S FOCUS, IN EVERY BROWSER. The thumb's 24% ring alone was
+   too faint to find, and Firefox drew none at all: its thumb had no focus
+   rule. The slider itself carries the product's ring, and Firefox's thumb
+   the same ring WebKit's has. */
+input[type="range"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 24%, transparent); }
+/* ---- end scenario-lab ---- */

@@ -332,13 +332,45 @@ try {
     };
     const releaseScript = async () => { holdScript = false; for (const requestId of scriptHeld) await send('Fetch.continueRequest', { requestId }, sid); scriptHeld = []; };
     /* A first visit: storage and cache emptied, and — for a returning
-       reader — what their browser holds written first. */
+       reader — what their browser holds written first.
+       THE PAGE LEFT GOES FIRST (5 Oct 2026). This let what it held from the
+       page before through, then went to about:blank, waited 150ms and
+       emptied the origin's storage. A page whose app's script had been held
+       got it then, and its app — 3.5MB to parse — booted while the tab was
+       leaving: it wrote the first visit's samples (vl.watchlists,
+       vl.portfolios, vl.theses…) and, at pagehide, its digests into the
+       origin after the storage was emptied, often after the next page had
+       begun. So "a fresh visitor" held another page's samples, with or
+       without their digests, and the head's script rightly kept a page that
+       reads one out of sight: a sample's text with no digest kept beside it
+       may be the reader's own. /app/equities after /research (theses),
+       /app/scanner/watchlists after a scanner page (watchlists) — a
+       different page on different runs, more often on a slower machine: 4
+       of 10 runs of the Kuala Lumpur loop alone on a clean copy of 6b4d7b3
+       here, 122 of its 500 "fresh" visits holding another page's keys, and
+       not one visit that held nothing kept out of sight; none on CI's
+       runner. Now the page left opens about:blank itself, and the tab is
+       on it before anything held is answered: no app of the page left runs
+       at all. By its own hand, not the browser's: a blank page the page
+       opens takes its origin and its process, so it commits after the page
+       left has unloaded and its pagehide has run — one the browser opens
+       did not wait for that, and a page whose app had run wrote its digests
+       (vl.servedReads) after the storage was emptied. Then the storage is
+       emptied, and read back empty from that blank page. Conditions, not a
+       longer wait: 10 of 10 runs of the loop, and not one visit holding a
+       key, on the same copy. */
     const firstVisit = async ({ seed = null, raw = null, script = false } = {}) => {
+      await value(`(location.href = 'about:blank', true)`);
+      if (!await until(`location.href === 'about:blank'`, 5000)) {
+        /* A page that cannot leave by its own hand (an error page). */
+        await send('Page.navigate', { url: 'about:blank' }, sid);
+        if (!await until(`location.href === 'about:blank'`)) throw new Error('the tab never reached about:blank for a first visit');
+      }
       await releaseAll();
-      await send('Page.navigate', { url: 'about:blank' }, sid);
-      await sleep(150);
       await send('Storage.clearDataForOrigin', { origin: live, storageTypes: 'all' }, sid);
       await send('Network.clearBrowserCache', {}, sid);
+      if (!await until(`(() => { try { return !Object.keys(localStorage).some(k => k.startsWith('vl.')); } catch (e) { return true; } })()`, 5000))
+        throw new Error('the site\'s storage still held vl.* after it was emptied for a first visit');
       /* seed: values, written as the app writes them; raw: as stored. */
       const kept = { ...Object.fromEntries(Object.entries(seed || {}).map(([k, v]) => [k, JSON.stringify(v)])), ...(raw || {}) };
       if (Object.keys(kept).length) {
@@ -917,7 +949,10 @@ try {
           const bgs = [...new Set(r.frames.map(k => k.split('|')[4]))];
           say('first', r.painted && r.before.theme === 'dark' && r.before.bg === r.after.bg && bgs.length === 1, `${path}, the dark theme kept: a frame was painted in another background (${bgs.join(' then ')})`, r.before);
         }
-        /* A fresh visitor in Kuala Lumpur: every rendered page, shown. */
+        /* A fresh visitor in Kuala Lumpur: every rendered page, shown — to a
+           browser that holds nothing of this site, which is said, so that a
+           page kept out of sight is never blamed for what another page left
+           behind (firstVisit). */
         const hiddenFresh = [];
         for (const s of pages) {
           if (s.file === 'index.html') continue;
@@ -925,7 +960,9 @@ try {
           await send('Page.navigate', { url: live + s.path }, sid);
           if (!await until(SERVED_PAINTED)) { hiddenFresh.push(`${s.path} (not painted)`); continue; }
           const n = await value(NOW);
-          if (n.hidden || !n.shown) hiddenFresh.push(s.path);
+          const kept = await value(`Object.keys(localStorage).filter(k => k.startsWith('vl.')).sort()`) || [];
+          if (kept.length) hiddenFresh.push(`${s.path} (not a fresh visitor: the browser held ${kept.join(', ')})`);
+          else if (n.hidden || !n.shown) hiddenFresh.push(s.path);
         }
         say('first', !hiddenFresh.length, `a fresh visitor in Kuala Lumpur was not shown ${hiddenFresh.join(', ')}`);
 
@@ -1298,6 +1335,47 @@ try {
     failures += bad.length;
   }
   /* ---- end prerender ---- */
+  /* ---- scenario-lab ---- */
+  /* THE SCENARIO LAB GIVES ONE ANSWER FROM ITS FIRST FRAME (3 Oct 2026).
+     Its page is served as the app drew it (prerender, above) and drawn at
+     once over itself, every figure from the calculator's model on the
+     sample deal. Sampled from navigation for six seconds, each of its
+     questions — every result in the chain, the grade, each column's
+     figure in the comparison and the line that says what is open — must
+     have one answer: never a nought, a dash or another deal's figure for a
+     frame before the page's own. Fails before the lab existed: the address
+     drew the not-found card, and none of its questions was ever answered. */
+  {
+    const labCollector = `(async () => {
+      const seen = {};
+      const t0 = performance.now();
+      while (performance.now() - t0 < 6000) {
+        const q = {};
+        document.querySelectorAll('#views .lab-chain [data-lab], #views .lab-grade [data-lab]').forEach(n => { q['figure ' + n.dataset.lab] = n.textContent.trim(); });
+        document.querySelectorAll('#views .lab-cmp tr[data-lab-col]').forEach(n => { q['comparison ' + n.closest('table').dataset.field + ' ' + n.dataset.labCol] = (n.querySelector('.lab-cmp-v')?.textContent || '').trim(); });
+        const st = document.querySelector('#views .lab-status');
+        if (st) q.status = st.textContent.replace(/\\s+/g, ' ').trim();
+        for (const [k, v] of Object.entries(q)) { (seen[k] ||= {}); if (!(v in seen[k])) seen[k][v] = Math.round(performance.now() - t0); }
+        await new Promise(r => setTimeout(r, ${SAMPLE_MS}));
+      }
+      return JSON.stringify(seen);
+    })()`;
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Page.navigate', { url: BASE + '/property/lab' }, sessionId);
+    const r = await send('Runtime.evaluate', { expression: labCollector, returnByValue: true, awaitPromise: true }, sessionId);
+    const seen = r.result?.exceptionDetails ? null : JSON.parse(r.result.result.value);
+    const qs = seen ? Object.keys(seen) : [];
+    const two = seen ? Object.entries(seen).filter(([, a]) => Object.keys(a).length > 1) : [];
+    if (!seen || qs.filter(k => k.startsWith('figure ')).length < 8 || !qs.some(k => k.startsWith('comparison '))) {
+      failures++;
+      console.log(`FAIL /property/lab — the Scenario Lab's questions were never answered (${qs.length} seen${seen ? '' : ': the collector threw'})`);
+    } else if (two.length) {
+      failures++;
+      console.log('FAIL /property/lab — the Scenario Lab contradicted itself');
+      two.slice(0, 8).forEach(([q, a]) => console.log(`     ${q}: ${Object.entries(a).sort((x, y) => x[1] - y[1]).map(([v, ms]) => `+${ms}ms ${v}`).join(' | ')}`));
+    } else console.log(`ok   /property/lab          ${qs.length} questions — every result, the grade, each column's comparison and the status — one answer each from the first frame`);
+  }
+  /* ---- end scenario-lab ---- */
   process.exitCode = failures ? 1 : 0;
 } finally {
   try { ws?.close(); } catch { /* already gone */ }
