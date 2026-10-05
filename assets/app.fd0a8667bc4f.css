@@ -4544,6 +4544,11 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
    the name in the radio's own name (the chain's heading shows it). */
 .lab-seg-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .lab-off-why { clear: both; margin-top: 4px; }
+/* The five inputs share the strip, each as wide as its word and the room
+   left over shared out: one line beside the legend in a wide sans too —
+   at 10px a side, "Reno" took a second 44px line of its own in Verdana and
+   on CI's DejaVu, and the knob and its results moved 48px down the screen. */
+.lab-pick-input .lab-seg-opt { flex: 1 1 auto; padding: 0 6px; }
 .lab-pick-by { margin-top: var(--sm); }
 .lab-pick-by .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 6px; }
 .lab-seg-by { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -4559,11 +4564,31 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   border: 2px solid var(--lab-c); color: var(--lab-t); font-size: 12px; font-weight: 700; line-height: 1; background: var(--surface-2); }
 
 /* A knob: its label and box, the slider, what its figure rests on, and
-   the span the slider covers, with the span's basis. */
-.lab-knob { padding: 6px 0 2px; border-top: 1px solid var(--line); min-width: 0; }
+   the span the slider covers, with the span's basis. On a phone the label
+   shares a 44px line with "About", whose panel holds the span and the notes
+   (82-property-lab.js, labKnob); from 600px the label's line is its own
+   18px and the panel's words stand under the tags, as they always did. */
+.lab-knob { padding: 0 0 2px; border-top: 1px solid var(--line); min-width: 0; }
 .lab-knob:not(.is-on) { display: none; }
-.lab-knob-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.lab-knob-label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); }
+.lab-knob-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
+.lab-knob-label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink); min-width: 0; text-wrap: balance; }
+/* Quiet until wanted: the words a step down from the label, the target a
+   full 44px, its text flush with the knob's right edge (the margin gives
+   back the padding), and its chevron turned while the panel is open. */
+.lab-about-btn { flex: none; min-height: 44px; gap: 5px; padding: 0 8px; margin-right: -8px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.lab-about-btn:hover { color: var(--ink); }
+.lab-about-btn[aria-expanded="true"] { color: var(--ink); }
+.lab-about-i, .lab-about-chev { display: inline-flex; color: var(--ink-3); }
+.lab-about-chev { transition: transform 160ms ease; }
+.lab-about-btn[aria-expanded="true"] .lab-about-chev { transform: rotate(180deg); }
+.lab-about { display: none; }
+.lab-knob.is-about .lab-about { display: block; margin-top: 6px; padding: 8px 10px; border-radius: var(--r-sm);
+  background: var(--surface-sunk); box-shadow: inset 0 0 0 1px var(--line); }
+.lab-knob.is-about .lab-about > :first-child { margin-top: 0; }
+/* Words opened to be read, a step darker than a caption: 6.2:1 on the
+   sunk surface in light, where the caption's ink is 4.6:1. */
+.lab-knob.is-about .lab-about .metaline { color: var(--ink-2); }
+.lab-about .lab-span-why { display: inline; }
 .lab-knob-ctl { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .lab-range-wrap { flex: 1 1 auto; min-width: 0; }
 .lab-num { flex: none; width: 6.25rem; text-align: right; }
@@ -4584,9 +4609,11 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-tick { position: absolute; top: 0; left: calc(var(--at) * 100%); width: 1px; height: 6px; background: var(--line-2); }
 .lab-knob-ft { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-top: 2px; }
 /* The evidence tag and the what-if tag in one cell, one of them in sight:
-   the cell is as tall as the taller, moved or not. */
+   the cell is as tall as the taller, moved or not — and each tag its own
+   height in it: where the evidence tag takes two lines (a wide sans on a
+   phone) the one-line what-if tag was stretched to a two-line box. */
 .lab-tags { display: grid; min-width: 0; flex: 1 1 12rem; }
-.lab-tags > .lab-tag { grid-area: 1 / 1; justify-self: start; }
+.lab-tags > .lab-tag { grid-area: 1 / 1; justify-self: start; align-self: start; }
 .lab-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; line-height: 18px;
   background: var(--surface-sunk); color: var(--ink-2); border: 1px solid var(--line); }
 .lab-tag.is-default, .lab-tag-whatif { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
@@ -4607,11 +4634,13 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   padding: 4px 0; cursor: pointer; list-style: none; }
 .lab-sum::-webkit-details-marker { display: none; }
 .lab-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
-.lab-row-label { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--ink); }
+/* A name that wraps ("Value less loan, year 10 (before selling costs)" on a
+   phone) hangs its second line under its first word, not under the chevron. */
+.lab-row-label { font-size: 13px; line-height: 17px; font-weight: 600; color: var(--ink); padding-left: 12px; text-indent: -12px; }
 /* The chevron is drawn, not said: with no text alternative every row's name
    began "›" (the second content line; a browser without the syntax keeps
    the first and shows the same mark). */
-.lab-row-label::before { content: "›"; content: "›" / ""; display: inline-block; width: 12px; color: var(--ink-3); transition: transform 160ms ease; }
+.lab-row-label::before { content: "›"; content: "›" / ""; display: inline-block; width: 12px; text-indent: 0; color: var(--ink-3); transition: transform 160ms ease; }
 .lab-row[open] .lab-row-label::before { transform: rotate(90deg); }
 .lab-row-label { grid-column: 1; grid-row: 1; }
 .lab-row-fig { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
@@ -4709,6 +4738,13 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   /* Names beside the letters need the strip's whole width: the legend
      stands over it. */
   .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+  /* Every knob in full: no "About", its words under the tags. */
+  .lab-knob { padding-top: 6px; }
+  .lab-knob-hd { min-height: 0; }
+  .lab-about-btn { display: none; }
+  .lab-about, .lab-knob.is-about .lab-about { display: block; margin: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .lab-knob.is-about .lab-about > .lab-span:first-child { margin-top: 2px; }
+  .lab-knob.is-about .lab-about .metaline { color: var(--ink-3); }
 }
 @container lab (min-width: 960px) {
   .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
@@ -4733,6 +4769,10 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   :root[data-served] .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   :root[data-served] .lab-span-why { display: inline; }
   :root[data-served] .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
+  :root[data-served] .lab-knob { padding-top: 6px; }
+  :root[data-served] .lab-knob-hd { min-height: 0; }
+  :root[data-served] .lab-about-btn { display: none; }
+  :root[data-served] .lab-about { display: block; }
 }
 @media (min-width: 1303px) {
   :root[data-served] .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
@@ -4765,14 +4805,16 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 /* No motion while a slider is held, or where motion is reduced. */
 .lab.is-dragging .lab-bar-fill, .lab.is-dragging .lab-bar-seg { transition: none; }
 @media (prefers-reduced-motion: reduce) {
-  .lab-bar-fill, .lab-bar-seg, .lab-row-label::before { transition: none !important; }
+  .lab-bar-fill, .lab-bar-seg, .lab-row-label::before, .lab-about-chev { transition: none !important; }
 }
 /* With no script the lab is a page of the sample's figures: the pickers,
    the boxes and the commits need the script, and are not offered. */
 @media (scripting: none) {
-  .lab .lab-pick, .lab .lab-num, .lab .lab-ticks, .lab .lab-cols-card, .lab .lab-commit { display: none !important; }
-  /* With no picker, every knob is shown, at every width. */
+  .lab .lab-pick, .lab .lab-num, .lab .lab-ticks, .lab .lab-cols-card, .lab .lab-commit, .lab .lab-about-btn { display: none !important; }
+  /* With no picker, every knob is shown, at every width; with no "About",
+     its words are. */
   .lab .lab-knob { display: block !important; }
+  .lab .lab-about { display: block !important; }
 }
 
 /* EVERY SLIDER'S FOCUS, IN EVERY BROWSER. The thumb's 24% ring alone was

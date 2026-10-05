@@ -2434,6 +2434,7 @@ for (const w of [360, 390]) {
 {
   const fails = [];
   const said = {};
+  const SPARE = 16;
   const ev = async (expression) => {
     const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
     if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
@@ -2452,14 +2453,24 @@ for (const w of [360, 390]) {
   const fresh = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); window.prompt = () => null; return true; })()`);
   try {
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
-    /* One screen at 360×640, and nothing moves under the thumb. */
+    /* One screen at 360×640, and nothing moves under the thumb — in the
+       page's font and in Verdana, as E5 does (face()). CI's Linux runner has
+       neither Inter nor Segoe UI, and its sans is as wide as Verdana: there
+       the Input picker took a second line, the evidence tag and the notes
+       wrapped, and the last result ended up to 60px below the screen, which
+       no run on this machine's fonts could see (CI run 37252405895, 5 Oct
+       2026). In Verdana each knob's last result also keeps 16px of the
+       screen spare, so a sans wider still is caught here, not on CI. */
     await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 640, deviceScaleFactor: 1, mobile: true }, sessionId);
     await load('/property/lab');
     await fresh();
     said.knobs = [];
+    for (const font of [null, 'Verdana, sans-serif'])
     for (const k of ['price', 'downPct', 'ratePct', 'rent', 'renovation']) {
       const view = await load('/property/lab');
       if (view !== 'propertyLab') { fails.push(`360×640: /property/lab opened ${view}`); break; }
+      const at = `360×640${font ? ' in Verdana' : ''}`;
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const r = await ev(`(async () => {
         document.documentElement.style.scrollBehavior = 'auto';
         /* As Safari, which anchors no scroll: Chrome's anchoring hid a line
@@ -2483,16 +2494,58 @@ for (const w of [360, 390]) {
         rg.value = String(v + step <= Number(rg.max) ? v + step : v - step);
         rg.dispatchEvent(new Event('input', { bubbles: true }));
         await ${frames};
-        return { under: Math.round(under), vh: innerHeight, before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves) };
+        return { under: Math.round(under), vh: innerHeight, before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves),
+          face: getComputedStyle(document.querySelector('#lab-root .lab-val')).fontFamily };
       })()`);
-      said.knobs.push([k, Math.max(...r.after.vals.map(v => v[2]))]);
-      if (!r.moved.includes(k)) fails.push(`360×640, ${k}: one tick moved nothing (${r.moved.join(', ')})`);
+      said.knobs.push([`${k}${font ? ' (Verdana)' : ''}`, Math.max(...r.after.vals.map(v => v[2]))]);
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}, ${k}: the results were drawn in ${r.face}, not Verdana`);
+      if (!r.moved.includes(k)) fails.push(`${at}, ${k}: one tick moved nothing (${r.moved.join(', ')})`);
+      const foot = r.vh - (font ? SPARE : 0);
       for (const [name, s] of [['unmoved', r.before], ['after one tick', r.after]]) {
-        if (s.range[0] < r.under || s.range[1] > r.vh) fails.push(`360×640, ${k} ${name}: the slider sits at ${s.range.join('–')}, the screen below the topbar is ${r.under}–${r.vh}`);
-        s.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([f, t, b]) => fails.push(`360×640, ${k} ${name}: ${f} sits at ${t}–${b}, off the screen`));
+        if (s.range[0] < r.under || s.range[1] > r.vh) fails.push(`${at}, ${k} ${name}: the slider sits at ${s.range.join('–')}, the screen below the topbar is ${r.under}–${r.vh}`);
+        s.vals.filter(([, t, b]) => t < r.under || b > foot).forEach(([f, t, b]) => fails.push(`${at}, ${k} ${name}: ${f} sits at ${t}–${b}, ${b > r.vh ? 'off the screen' : `inside the ${SPARE}px kept spare at its foot`}`));
       }
       const shift = r.after.vals.map((v, i) => Math.abs(v[1] - r.before.vals[i][1])).concat([Math.abs(r.after.range[0] - r.before.range[0])]);
-      if (Math.max(...shift) > 1) fails.push(`360×640, ${k}: the first tick of a drag moved the slider or the results by ${Math.max(...shift)}px`);
+      if (Math.max(...shift) > 1) fails.push(`${at}, ${k}: the first tick of a drag moved the slider or the results by ${Math.max(...shift)}px`);
+    }
+    /* What left the one screen is one tap away: at 360×640, "About" on the
+       renovation knob is a 44px button that opens, right after the knob's
+       tags, the span with its basis and the note on what the budget moves,
+       and closes them again — the slider still described by the span while
+       the panel is closed, and the keyboard left on the button. */
+    {
+      await load('/property/lab');
+      const a = await ev(`(async () => {
+        const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const radio = document.getElementById('lab-in-renovation');
+        if (!radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frames(); }
+        const knob = document.getElementById('lab-knob-renovation'), btn = document.getElementById('lab-about-btn-renovation'), panel = document.getElementById('lab-about-renovation');
+        if (!btn || !panel) return { missing: true };
+        const range = document.getElementById('lab-r-renovation');
+        const describes = (range.getAttribute('aria-describedby') || '').split(' ').includes('lab-span-renovation') && panel.contains(document.getElementById('lab-span-renovation'));
+        const b = btn.getBoundingClientRect();
+        const closed = { shown: !!panel.getClientRects().length, expanded: btn.getAttribute('aria-expanded') };
+        btn.focus(); btn.click(); await frames();
+        const open = { shown: !!panel.getClientRects().length, expanded: btn.getAttribute('aria-expanded'), text: panel.innerText.replace(/\\s+/g, ' ').trim(),
+          afterTags: !!(knob.querySelector('.lab-knob-ft').compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING), focus: document.activeElement === btn,
+          inside: panel.getBoundingClientRect().right <= document.documentElement.clientWidth };
+        btn.click(); await frames();
+        const again = { shown: !!panel.getClientRects().length, expanded: btn.getAttribute('aria-expanded') };
+        return { size: [Math.round(b.width), Math.round(b.height)], name: btn.textContent.replace(/\\s+/g, ' ').trim(), describes, closed, open, again };
+      })()`);
+      said.about = a;
+      if (a.missing) fails.push('360×640: the renovation knob has no "About" button and panel');
+      else {
+        if (a.size[0] < 43.5 || a.size[1] < 43.5) fails.push(`360×640: "About" is ${a.size.join('×')}px`);
+        if (a.closed.shown || a.closed.expanded !== 'false') fails.push(`360×640: the renovation's panel is open before "About" is pressed (${JSON.stringify(a.closed)})`);
+        if (!a.open.shown || a.open.expanded !== 'true') fails.push(`360×640: "About" did not open its panel (${JSON.stringify(a.open).slice(0, 160)})`);
+        if (!/nothing to twice as saved/.test(a.open.text) || !/Moves the cash required/.test(a.open.text)) fails.push(`360×640: the open panel does not hold the span and the renovation's note: "${a.open.text.slice(0, 160)}"`);
+        if (!a.open.afterTags) fails.push('360×640: the panel does not follow the knob\'s tags in the reading order');
+        if (!a.open.focus) fails.push('360×640: pressing "About" moved the keyboard off it');
+        if (!a.open.inside) fails.push('360×640: the open panel runs past the screen\'s right edge');
+        if (a.again.shown || a.again.expanded !== 'false') fails.push('360×640: "About" pressed again did not close its panel');
+        if (!a.describes) fails.push('360×640: the renovation slider is not described by its span, in the panel');
+      }
     }
     /* The keyboard and the page after a save, at 390. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
@@ -2629,7 +2682,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL scenario-lab-verify — the Scenario Lab as the verification found it: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all seven results on one screen (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
+  else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all seven results on one screen, in the page's font and in Verdana with ${SPARE}px spare (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; "About" (${said.about.size.join('×')}px) opens the renovation's span and note after its tags and closes them; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
 }
 /* ---- end scenario-lab-verify ---- */
 

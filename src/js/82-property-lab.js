@@ -683,10 +683,35 @@ function labKnob(P, lab, col, inp) {
   const k = inp.k;
   const applies = labApplies(col.work, k);
   const noSlider = k === 'renovation' && !(num0(col.baseInputs.renovation) > 0) && !(num0(col.work.renovation) > 0);
-  const row = el('div', { class: `lab-knob${lab.input === k ? ' is-on' : ''}${applies ? '' : ' is-off'}`, id: labId(P, `knob-${k}`), data: { k } });
+  const aboutOpen = applies && !!P.about?.[k];
+  const row = el('div', { class: `lab-knob${lab.input === k ? ' is-on' : ''}${applies ? '' : ' is-off'}${aboutOpen ? ' is-about' : ''}`, id: labId(P, `knob-${k}`), data: { k } });
   const rid = labId(P, `r-${k}`), nid = labId(P, `n-${k}`), lid = labId(P, `l-${k}`), sid = labId(P, `span-${k}`), eid = labId(P, `ev-${k}`);
   const hd = el('div', { class: 'lab-knob-hd' });
   hd.append(el('label', { class: 'lab-knob-label', id: lid, for: noSlider ? nid : rid }, inp.label()));
+  /* ABOUT THIS INPUT, ONE TAP AWAY ON A PHONE (the release fix of 5 Oct
+     2026). In a wide sans — CI's Linux DejaVu, or Verdana here — the span's
+     line, the renovation's note (four lines), the deposit's (two) and a
+     wrapped evidence tag stood between the slider and its results, and the
+     last result left a 360×640 screen by up to 60px. Below a 600px panel the
+     span and the notes that explain the knob sit in a panel this button
+     opens, straight after the knob's tags, closed at first; from 600px it is
+     not drawn and they stand as before. Nothing is reworded or dropped: the
+     slider is still described by the span (aria-describedby reads a closed
+     panel too), the evidence tag and a 0% rate's warning stay in sight, and
+     a reader with no script is shown the panel open (styles.css). */
+  const aboutId = labId(P, `about-${k}`);
+  const about = el('div', { class: 'lab-about', id: aboutId });
+  if (applies) {
+    const btn = el('button', { type: 'button', class: 'btn btn-quiet lab-about-btn', id: labId(P, `about-btn-${k}`), 'aria-expanded': aboutOpen ? 'true' : 'false', 'aria-controls': aboutId,
+      onclick: () => {
+        const open = btn.getAttribute('aria-expanded') !== 'true';
+        (P.about ||= {})[k] = open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        row.classList.toggle('is-about', open);
+      } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), 'About',
+      el('span', { class: 'sr-only' }, ` ${inp.label()}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
+    hd.append(btn);
+  }
   const num = el('input', { type: 'number', inputmode: 'decimal', class: 'input input-inline lab-num', id: nid, step: inp.step,
     value: String(col.work[k] ?? ''), 'aria-label': `${inp.label()} — type a figure`, 'aria-describedby': `${sid} ${eid}`,
     disabled: applies ? null : '' });
@@ -746,18 +771,23 @@ function labKnob(P, lab, col, inp) {
   tags.append(knob.ev, knob.whatIf);
   ft.append(tags);
   row.append(ft);
+  /* In sight whatever the panel: what to do where there is no slider, and
+     a 0% rate's warning. */
+  if (noSlider) row.append(el('p', { class: 'metaline lab-knob-note' }, 'No renovation entered — type a budget to explore.'));
+  if (k === 'ratePct') { knob.zero = el('p', { class: 'metaline lab-knob-note lab-note-warn', hidden: '' }, 'The rate is 0%. If that was intended, the repayment is right; if not, it is roughly half what it should be — the model cannot tell the two apart.'); row.append(knob.zero); }
   knob.span = el('p', { class: 'metaline lab-span', id: sid });
-  /* The span's ends and its basis, and why that basis — the last left out
-     on a phone, where the knob has one line for it. */
+  /* The span's ends and its basis, and why that basis — the last shown on
+     a phone only in the open panel, where it has the room. */
   knob.spanEdges = el('span', {}, '');
   knob.span.append(knob.spanEdges, el('span', { class: 'lab-span-why' }, inp.why || ''), '.');
-  row.append(knob.span);
-  if (noSlider) row.append(el('p', { class: 'metaline lab-knob-note' }, 'No renovation entered — type a budget to explore.'));
-  if (k === 'downPct') row.append(el('p', { class: 'metaline lab-knob-note' }, 'Lender limits on the margin of finance are not modelled: computed, not approved.'));
-  if (k === 'ratePct') { knob.zero = el('p', { class: 'metaline lab-knob-note lab-note-warn', hidden: '' }, 'The rate is 0%. If that was intended, the repayment is right; if not, it is roughly half what it should be — the model cannot tell the two apart.'); row.append(knob.zero); }
+  about.append(knob.span);
+  if (k === 'downPct') about.append(el('p', { class: 'metaline lab-knob-note' }, 'Lender limits on the margin of finance are not modelled: computed, not approved.'));
   if (k === 'renovation') {
     knob.recover = el('p', { class: 'metaline lab-knob-note' });
-    row.append(knob.recover);
+    about.append(knob.recover);
+  }
+  row.append(about);
+  if (k === 'renovation') {
     knob.card = el('div', { class: 'lab-reno', id: labId(P, 'reno'), hidden: '' });
     row.append(knob.card);
   }
