@@ -4736,6 +4736,12 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 @media (min-width: 1303px) {
   :root[data-served] .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
 }
+/* The header line's two lines of room below a 960px panel (above), by the
+   window while served: without it the served line stood 18px shorter than
+   the drawn one, and everything under it moved as the page was drawn. */
+@media (max-width: 1302px) {
+  :root[data-served] .lab-moved-line { min-height: 36px; }
+}
 /* A served slider is its stated value in a slider's box (prerender.mjs),
    on a line of its own as the slider is. */
 #views[data-served] .lab-range[data-inert] { display: block; }
