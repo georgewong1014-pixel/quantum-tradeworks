@@ -4852,3 +4852,49 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 input[type="range"]:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 24%, transparent); }
 /* ---- end scenario-lab ---- */
+
+/* ---- journeys-served ---- */
+/* THE RECORDED JOURNEYS, SERVED (N1c, N1e, the 5 Oct audit; journeysServed
+   in journeys.mjs draws the markup, the build serves it and 91-health.js
+   draws it again). /status lists each journey with its result and every
+   step marked OK, FAIL or gated; the three product landing pages carry one
+   line with their journey's last result, under the product's tab row. */
+.journeys-list { list-style: none; padding: 0; margin: var(--sm) 0 0; }
+.journey-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); scroll-margin-top: 96px; }
+.journey-row > .health-chip { flex: none; min-width: 4.75rem; justify-content: center; }
+.journey-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+/* Under the name on a wide screen (the chip's width in), the whole width
+   on a phone — as healthRow lays a check's words out. */
+.journey-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
+@media (max-width: 640px) { .journey-body { padding-left: 0; } }
+.journey-body > .caption { margin: 0; max-width: 72ch; overflow-wrap: anywhere; }
+.journey-steps { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-2); }
+.journey-steps > li { max-width: 100%; overflow-wrap: anywhere; }
+.journey-mark {
+  display: inline-block; min-width: 3.4em; padding: 0 5px; border: 1px solid var(--line-2); border-radius: 4px;
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .04em; text-align: center; color: var(--ink-2);
+}
+.journey-steps > li[data-mark="ok"] > .journey-mark { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 38%, transparent); }
+.journey-steps > li[data-mark="fail"] > .journey-mark { color: var(--critical-text); border-color: color-mix(in srgb, var(--critical) 42%, transparent); background: color-mix(in srgb, var(--critical) 8%, transparent); }
+.journey-steps > li[data-mark="gated"] > .journey-mark { border-style: dashed; color: var(--ink); }
+.journey-why { color: var(--ink-3); }
+.journeys-log, .journey-line-link { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.journeys-log:hover, .journey-line-link:hover { text-decoration-thickness: 2px; }
+.journeys-log:focus-visible, .journey-line-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 2px; }
+/* The line beside the product's badge: under the tab row, above the page. */
+.journey-line { margin: 0; font-size: var(--text-label); line-height: 1.5; color: var(--ink-2); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.journey-line:not(:empty) { margin-bottom: var(--sm); }
+/* Empty — no run recorded — it takes no room, served or drawn; and it is
+   never display: none, which a render leaves out (servedCopy), so the
+   slot the build writes into is always in the render. */
+#views[data-served] .journey-line[data-now=""]:empty::before { content: none; }
+.journey-line-label { font-weight: var(--weight-semibold); color: var(--ink); }
+/* A finger's target where the pointer is one: 44px each way. Padding on an
+   inline link grows what it answers to, not its line: the sentence keeps
+   its baseline and its height. */
+@media (pointer: coarse), (max-width: 768px) {
+  .journeys-log, .journey-line-link { padding: 15px 6px; margin: 0 -6px; }
+}
+/* An empty list takes no room, served or drawn. */
+#views[data-served] ul.journeys-list[data-now=""]:empty::before { content: none; }
+/* ---- end journeys-served ---- */
