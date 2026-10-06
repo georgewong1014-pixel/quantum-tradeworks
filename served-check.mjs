@@ -1048,6 +1048,62 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
 }
 /* ---- end journeys-served ---- */
 
+/* ---- robots-noindex ---- */
+/* FETCHABLE, AND OUT OF SEARCH (plan item 1.1; the owner's decision D2 of
+   5 Oct 2026). robots.txt said Disallow: /app$ and Disallow: /app/scanner,
+   so a fetcher that follows it — an assistant, an auditor's tool — could not
+   read the Scanner's dashboard or the setup builder at all, though each
+   serves a fresh visitor's page, and a search engine that may not fetch a
+   page never reads a noindex on it. Held here as served, not as vercel.json
+   says (the headers checks above hold that):
+   - the served robots.txt, read as RFC 9309 reads it (robotsAllows,
+     build.mjs) for "*" and for two named crawlers that have no group of
+     their own, allows /app, /app/scanner, the setup builder and an alert,
+     and has no Disallow line for /app or /app/scanner; /admin/, /prerender/
+     and /my/ stay disallowed;
+   - every response at /app and at /app/scanner and under it — a GET with a
+     query string, a HEAD as `curl -sI` sends, a parameter route's address —
+     carries X-Robots-Tag: noindex; a product page under /app
+     (/app/equities), a page in the sitemap and the site root do not;
+   - /app/scanner, fetched, is the Scanner's dashboard: its h1 reads
+     "Scanner dashboard". */
+{
+  const { robotsAllows } = await import('./build.mjs');
+  const p = [];
+  const robots = (await getAll(['/robots.txt'])).get('/robots.txt');
+  if (robots.status !== 200) p.push(`/robots.txt: ${described(robots)}`);
+  const FETCHABLE = ['/app', '/app/scanner', '/app/scanner/setups/new', '/app/scanner/setups', '/app/scanner/alerts/a00000000'];
+  const KEPT_OUT = ['/admin/scanner', '/prerender/pricing.html', '/my/workspace'];
+  for (const agent of ['*', 'ClaudeBot', 'Googlebot']) {
+    for (const path of FETCHABLE) { const r = robotsAllows(robots.body, path, agent); if (!r.allowed) p.push(`robots.txt disallows ${path} to ${agent} (${r.rule}), read as RFC 9309 reads it`); }
+    for (const path of KEPT_OUT) { const r = robotsAllows(robots.body, path, agent); if (r.allowed) p.push(`robots.txt allows ${path} to ${agent}, which stays disallowed`); }
+  }
+  const lines = [...robots.body.matchAll(/^\s*Disallow\s*:\s*(\S*)/gmi)].map(m => m[1]);
+  for (const d of lines) if (/^\/app(\$|\/scanner)?(\/.*|\$)?$/.test(d) && !/^\/app\/(watchlists|workspace)/.test(d)) p.push(`robots.txt still says Disallow: ${d}`);
+  const NOINDEX = ['/app', '/app?tab=served-check', '/app/scanner', '/app/scanner/setups/new', '/app/scanner/setups/served-check/edit', '/app/scanner/alerts/a00000000', '/app/scanner/settings'];
+  const INDEXABLE = ['/', '/app/equities', '/pricing', '/research', '/status'];
+  const got = await getAll([...NOINDEX, ...INDEXABLE]);
+  for (const path of NOINDEX) {
+    const r = got.get(path), tag = r.headers.get('x-robots-tag');
+    if (r.status !== 200) p.push(`${path}: ${described(r)}`);
+    if (!/^\s*noindex\s*$/i.test(tag || '')) p.push(`${path}: X-Robots-Tag is ${tag === null ? 'absent' : JSON.stringify(tag)}, not noindex`);
+  }
+  for (const path of ['/app/scanner', '/app/scanner/setups/new']) {
+    const h = await fetch(BASE + path, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(30000) }).catch(e => ({ status: 0, error: e.message, headers: new Headers() }));
+    if (h.status !== 200 || !/^\s*noindex\s*$/i.test(h.headers.get('x-robots-tag') || '')) p.push(`HEAD ${path}: ${h.status || h.error}, X-Robots-Tag ${JSON.stringify(h.headers.get('x-robots-tag'))}, not 200 with noindex`);
+  }
+  for (const path of INDEXABLE) {
+    const tag = got.get(path).headers.get('x-robots-tag');
+    if (tag !== null) p.push(`${path}: served X-Robots-Tag ${JSON.stringify(tag)} — a page for an index`);
+  }
+  const words = (html) => html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  const h1 = /<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(got.get('/app/scanner').body || '');
+  if (!h1 || words(h1[1]) !== 'Scanner dashboard') p.push(`/app/scanner: its served h1 reads ${JSON.stringify(h1 ? words(h1[1]) : null)}, not "Scanner dashboard"`);
+  judge(p, `robots.txt, read as RFC 9309 reads it, lets a fetcher read /app, /app/scanner and the setup builder (/app/scanner/setups/new) and still disallows /admin/, /prerender/ and /my/; ${NOINDEX.length} addresses at /app and /app/scanner (a query, a parameter route, a HEAD too) are served X-Robots-Tag: noindex and ${INDEXABLE.length} pages for an index are not; /app/scanner serves its h1 "Scanner dashboard"`,
+    '/app or /app/scanner cannot be fetched by a crawler that follows robots.txt, or is not served noindex');
+}
+/* ---- end robots-noindex ---- */
+
 /* ---- readiness-served ---- */
 /* WHAT PROPERTY SAYS IT IS, SERVED (the 5 Oct audit, N2b, N2c and N4a).
    - /property/lab: the Scenario Lab is Beta (TOOLS), and TOOL_FLAGGED marks

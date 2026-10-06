@@ -266,18 +266,32 @@ function ruleP2(register) {
   else ok(`every P2 row is out of reach — ${p2.length} P2 rows, none with a path, none operational or flagged, each naming what it waits on`);
 }
 
-/* 7 — the scanner's personal records and one machine's operations pages
-   are not for crawlers: robots.txt disallows every route under /app/scanner
-   and /admin. */
+/* 7 — the scanner's pages and one machine's operations pages are kept out
+   of search. The operations pages (/admin) are disallowed in robots.txt.
+   The scanner's (every route under /app/scanner) and My Dashboard (/app)
+   are fetchable — robots.txt allows them, so a fetcher that follows it can
+   read the setup builder — and vercel.json serves each with X-Robots-Tag:
+   noindex (plan item 1.1, D2 of 5 Oct 2026). Both read as a crawler reads
+   them: robots.txt by RFC 9309 (robotsAllows, build.mjs), the header by
+   the rules of the vercel.json that deploys; a parameter is a sample
+   segment. */
 {
+  const { robotsAllows, noindexByHeader } = await import('./build.mjs');
   const robots = existsSync('robots.txt') ? read('robots.txt') : '';
-  const dis = [...robots.matchAll(/^Disallow:\s*(\S+)/gmi)].map(m => m[1]);
-  const covered = (p) => dis.some(d => p === d || p.startsWith(d.endsWith('/') ? d : `${d}/`) || (d.endsWith('/') && p === d.slice(0, -1)));
-  const paths = ROUTES.map(r => r.path).filter(p => /^\/(app\/scanner|admin)(\/|$)/.test(p));
-  const bad = paths.filter(p => !covered(p)).map(p => `${p} is not disallowed`);
-  if (!paths.length) bad.push('no /app/scanner or /admin route found — the route table changed shape');
-  if (bad.length) fail('robots.txt keeps the scanner and operations paths out of crawlers', bad);
-  else ok(`robots.txt keeps the scanner and operations paths out of crawlers — ${paths.length} routes under /app/scanner and /admin, each disallowed`);
+  const noindex = existsSync('vercel.json') ? noindexByHeader(read('vercel.json')) : () => false;
+  const sample = (p) => p.replace(/:[A-Za-z]+/g, 'register-check');
+  const paths = ROUTES.map(r => r.path).filter(p => /^\/(app\/scanner|admin)(\/|$)/.test(p) || p === '/app');
+  const bad = [];
+  for (const p of paths.map(sample)) {
+    const r = robotsAllows(robots, p);
+    if (p.startsWith('/admin')) { if (r.allowed) bad.push(`${p} is not disallowed in robots.txt`); continue; }
+    if (!r.allowed) bad.push(`${p} is disallowed in robots.txt (${r.rule}), so a fetcher that follows it cannot read it, and a crawler never reads its noindex`);
+    if (!noindex(p)) bad.push(`${p} is not served with X-Robots-Tag: noindex by vercel.json`);
+  }
+  if (!paths.some(p => p.startsWith('/admin')) || !paths.some(p => p.startsWith('/app/scanner'))) bad.push('no /app/scanner or /admin route found — the route table changed shape');
+  const scanner = paths.filter(p => !p.startsWith('/admin')).length;
+  if (bad.length) fail('the scanner and operations paths are kept out of search indexes', bad);
+  else ok(`the scanner and operations paths are kept out of search indexes — ${paths.length - scanner} routes under /admin disallowed in robots.txt; ${scanner} routes (/app and every one under /app/scanner) allowed in robots.txt and served X-Robots-Tag: noindex`);
 }
 
 /* 8 — THE RULES FAIL WHEN THEY SHOULD (docs/phase3-plan.md SC-319 item 2).

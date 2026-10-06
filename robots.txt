@@ -10,26 +10,29 @@
 # /property/models is My properties: the properties one reader saved, read from
 # their browser. Personal, like /my/.
 #
-# /app/scanner is the personal-lane scanner: the reader's own setups, alerts
-# and history, read from files on their own machine. /admin/ is a read-only
-# view of one machine's scanner worker. Neither has anything for an index.
+# /admin/ is a read-only view of one machine's scanner worker. Nothing there
+# is for an index.
 #
-# /app itself is My Dashboard since Release A: the visitor's own counts and
-# saved work, read from their browser. Only that address — "$" ends the match,
-# which Google and Bing honour — so the product pages under /app stay as they
-# were. The sitemap already leaves it out.
+# /app (My Dashboard) and /app/scanner with every address under it (the
+# scanner's dashboard, the setup builder, setups and alerts) are NOT
+# disallowed here (plan item 1.1, the owner's decision D2 of 5 Oct 2026). A
+# fetcher that follows this file could not read them at all — an assistant or
+# an auditor asked about the Scanner was turned away from /app/scanner and
+# /app/scanner/setups/new — although what each serves is a fresh visitor's
+# page, with nothing of any reader's in it. They are kept out of search
+# instead by an X-Robots-Tag: noindex response header (vercel.json): a page
+# must be fetchable for a search engine to read that it may not be indexed.
+# The sitemap leaves them out.
 #
 # /prerender/ holds each page's content as build.mjs puts it into that page
 # (prerender.mjs): served at its own address, it is a copy of a page with no
 # head of its own. The page itself is the one to index.
 
 User-agent: *
-Disallow: /app$
 Disallow: /my/
 Disallow: /app/watchlists
 Disallow: /app/workspace
 Disallow: /property/models
-Disallow: /app/scanner
 Disallow: /admin/
 Disallow: /prerender/
 Allow: /

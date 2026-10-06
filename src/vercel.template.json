@@ -85,6 +85,25 @@
     },
     {
       "$comment": [
+        "My Dashboard (/app) and the Scanner (/app/scanner and every address",
+        "under it: its dashboard, the setup builder, setups, alerts) are a",
+        "reader's own lane: kept out of search, and readable by any fetcher",
+        "(plan item 1.1, the owner's decision D2 of 5 Oct 2026). robots.txt",
+        "disallowed them, so a fetcher that follows it could not read",
+        "/app/scanner or /app/scanner/setups/new at all, although each serves a",
+        "fresh visitor's page; and a crawler that may not fetch a page never",
+        "reads a noindex on it. So robots.txt allows them, and this header says",
+        "noindex on every response at those addresses. Not /app/equities or any",
+        "other address under /app: those are product pages, as before. Its own",
+        "header, which no other rule sets on these addresses."
+      ],
+      "source": "/(app|app/scanner|app/scanner/.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
+      "$comment": [
         "The app's script, written once by build.mjs for every page but",
         "index.html (which carries it inline): assets/app.<first 12 hex of its",
         "SHA-256>.js, index.html's inline script byte for byte. Its name changes",

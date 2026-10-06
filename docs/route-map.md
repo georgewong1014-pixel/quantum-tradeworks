@@ -214,10 +214,11 @@ built, so that one address now has a page of its own.
 `/pricing`, `/about`, `/contact`, `/privacy`, `/terms`.
 
 Left out on purpose: every alias above; `/my/*`, `/app/watchlists`,
-`/app/workspace`, `/property/models`, `/app/scanner/*` and `/admin/*`, which
+`/app/workspace`, `/property/models` and `/admin/*`, which
 `robots.txt` disallows (personal or one machine's); `/app` — My Dashboard, the visitor's
-own counts and saved work — which `robots.txt` also disallows, by that
-address alone (`Disallow: /app$`); `/welcome` and `/start`, which are
+own counts and saved work — and `/app/scanner/*`, which `robots.txt` allows
+and vercel.json serves with `X-Robots-Tag: noindex` (plan item 1.1, 6 Oct
+2026), so a fetcher can read them and a search engine leaves them out; `/welcome` and `/start`, which are
 application shells rather than destinations; `/property/lab`, the Scenario
 Lab, which opens on the sample deal (the owner's answer, 3 Oct 2026);
 parameterised pages. The

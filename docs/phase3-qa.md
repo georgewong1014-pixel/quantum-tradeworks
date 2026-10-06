@@ -62,7 +62,7 @@ by equity-test and injected into the page; nothing is ever written to `data/`.
 | 16 | Universes resolve correctly | covered | scanner-test.mjs — *a symbols universe matches case-insensitively*; *a market universe reads the instrument registry*; *a watchlist universe evaluates the symbols it snapshotted*; equity-test.mjs — *market screening lists your own series in symbol order, never by value* scanner-test.mjs — *SC-311 the worker reads data/watchlists.json at run time*; *SC-311 with the export missing, or without the list, the worker falls back to the snapshot*. |
 | 17 | Email failures do not erase alerts | **blocked** | There is no email (SC-309: server, operating entity, PDPA notice). The alert is the record and is written before anything else; the delivery page lists email as not configured — equity-test.mjs — *the operations pages render the worker files read-only*. |
 | 18 | Retries do not duplicate deliveries | **blocked** | Nothing is delivered, so nothing can be delivered twice. The nearest guarantee is item 14's key. |
-| 19 | Users cannot access others' setups or alerts | **blocked** | There are no users. The nearest checks: scanner-test.mjs — *neither scanner data file is tracked by git*; register-check.mjs — *robots.txt keeps the scanner and operations paths out of crawlers*. The operations pages say they are visible to anyone who opens them and hold nothing on the deployed site. |
+| 19 | Users cannot access others' setups or alerts | **blocked** | There are no users. The nearest checks: scanner-test.mjs — *neither scanner data file is tracked by git*; register-check.mjs — *the scanner and operations paths are kept out of search indexes*. The operations pages say they are visible to anyone who opens them and hold nothing on the deployed site. |
 | 20 | Admin replay audited | partial | scanner-test.mjs — *--as-of DATE records exactly the alerts a run on the history cut at DATE records, marked origin replay*; *replaying the same date again adds nothing*; equity-test.mjs — *the operations pages render the worker files read-only* (the control log: three entries from the fixture, each with time, action and arguments). scanner-test.mjs — *SC-307 --as-of DATE --setup ID replays one setup*; *SC-307 a retry of a narrowed replay keeps its narrowing and adds nothing*. **Blocked:** an audit with an operator identity — no accounts; the log is a local append-only file and the page says so. |
 | 21 | Builder creates and edits valid rules | covered | equity-test.mjs — *the scanner builder writes valid rules and refuses invalid ones*; *scanner versions bump on evaluation fields only*; *the scanner export round-trips*; *the scanner builder works from the keyboard*. |
 | 22 | Dashboard shows persisted status | covered | equity-test.mjs — *the dashboard answers from persisted records in every state* (never, current, behind, failed, paused from injected run records; a stale result never under a current heading); scanner-test.mjs — *scanStatus: no runs and no last run is "never"*; *the local case — a scan run on 27 September on bars of 7 August — is behind*; *behind after a setups edit; failed (not current) when a failure follows a success* |
@@ -87,8 +87,9 @@ The capability register (src/js/80-registers.js, at /status) carries one row
 per item of docs/phase3-plan.md §1 — SC-301…SC-319 and SC-NAV (the plan's NAV
 row, renamed so it cannot merge with Phase 2's). register-check.mjs now reads
 both plans and adds two rules: a **P2** row (SC-317 intraday, SC-318 push) has
-no path and is neither operational nor flagged; and robots.txt disallows every
-route under /app/scanner and /admin. SC-314 (historical matches) and SC-316
+no path and is neither operational nor flagged; and every route under /admin is
+disallowed in robots.txt while every route under /app/scanner is fetchable
+and served X-Robots-Tag: noindex (plan item 1.1, 6 Oct 2026). SC-314 (historical matches) and SC-316
 (market screening) are P1 and **flagged**, and their pages carry the notice.
 SC-301, SC-309 and SC-315 are gated with no path. The setup builder, setup
 persistence and alert history rows are queued in this branch and take their

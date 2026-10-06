@@ -1288,8 +1288,68 @@ export function mapShapeProblems({ root = ROOT } = {}) {
    2. The sitemap: every address it lists must be served its own page, name
       itself as its canonical (the sitemap lists canonical addresses only, and
       the page's canonical is what the router sets), sit on the site's own
-      origin, and not be one robots.txt disallows. */
-function servingProblems({ rewrites, plan }) {
+      origin, not be one robots.txt disallows (read as RFC 9309 reads it,
+      robotsAllows below), and not be one vercel.json serves with
+      X-Robots-Tag: noindex (plan item 1.1). */
+/* ROBOTS.TXT AS A CRAWLER READS IT (RFC 9309; plan item 1.1, 2026-10-06).
+   The sitemap's check took each Disallow as a prefix and a trailing "$" as
+   "exactly" — near enough for the lines this file had, and not the
+   standard: no "*", no Allow, no longest-match. This is the standard's
+   reading, small enough to hold here:
+   - the groups whose user-agent lines name the crawler's product token
+     (case-insensitive) apply, all of them merged; if none does, the "*"
+     groups; if none is "*", everything is allowed;
+   - a rule's path matches from the start of the address's path; "*" is
+     any run of characters and a final "$" ends the match;
+   - the matching rule with the longest path wins; an Allow and a Disallow
+     of the same length, the Allow (the least restrictive); an empty
+     Disallow matches nothing; no matching rule is allowed;
+   - /robots.txt itself is always allowed.
+   Returns whether the path is allowed, and the rule that decided. */
+export function robotsAllows(text, path, agent = '*') {
+  if (path === '/robots.txt') return { allowed: true, rule: null };
+  const groups = [];
+  let group = null, agents = false;
+  for (const raw of String(text).split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z-]+)\s*:\s*([^#]*)/.exec(raw);
+    if (!m) continue;
+    const key = m[1].toLowerCase(), value = m[2].trim();
+    if (key === 'user-agent') {
+      if (!agents) { group = { agents: [], rules: [] }; groups.push(group); }
+      group.agents.push(value.toLowerCase());
+      agents = true;
+      continue;
+    }
+    agents = false;
+    if (group && (key === 'allow' || key === 'disallow') && value) group.rules.push({ allow: key === 'allow', path: value });
+  }
+  const token = String(agent).toLowerCase();
+  let apply = token === '*' ? [] : groups.filter(g => g.agents.includes(token));
+  if (!apply.length) apply = groups.filter(g => g.agents.includes('*'));
+  const matches = (rule) => {
+    const end = rule.endsWith('$');
+    const body = end ? rule.slice(0, -1) : rule;
+    const re = body.split('*').map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+    return new RegExp(`^${re}${end ? '$' : ''}`).test(path);
+  };
+  let best = null;
+  for (const r of apply.flatMap(g => g.rules)) {
+    if (!matches(r.path)) continue;
+    if (!best || r.path.length > best.path.length || (r.path.length === best.path.length && r.allow && !best.allow)) best = r;
+  }
+  return { allowed: !best || best.allow, rule: best ? `${best.allow ? 'Allow' : 'Disallow'}: ${best.path}` : null };
+}
+/* The addresses vercel.json serves with X-Robots-Tag: noindex: a test of a
+   path against each header rule that sets it, the source read as the
+   regular expression it is here (literals and groups, as served-check reads
+   the header sources). */
+export function noindexByHeader(vercel) {
+  const cfg = typeof vercel === 'string' ? JSON.parse(vercel) : vercel;
+  const rules = (cfg.headers || []).filter(g => (g.headers || []).some(h => h.key.toLowerCase() === 'x-robots-tag' && /\bnoindex\b/i.test(h.value)))
+    .map(g => new RegExp(`^${g.source}$`));
+  return (path) => rules.some(re => re.test(path));
+}
+function servingProblems({ rewrites, plan, vercel }) {
   const out = [];
   for (const { source } of rewrites) {
     if (source === '/' || source.includes(':')) continue;
@@ -1299,8 +1359,8 @@ function servingProblems({ rewrites, plan }) {
   }
   const sitemap = existsSync(join(ROOT, 'sitemap.xml')) ? readFileSync(join(ROOT, 'sitemap.xml'), 'utf8') : '';
   const robots = existsSync(join(ROOT, 'robots.txt')) ? readFileSync(join(ROOT, 'robots.txt'), 'utf8') : '';
-  const disallow = [...robots.matchAll(/^Disallow:\s*(\S+)/gmi)].map(m => m[1]);
-  const blocked = (p) => disallow.some(d => (d.endsWith('$') ? p === d.slice(0, -1) : p.startsWith(d)));
+  const blocked = (p) => !robotsAllows(robots, p).allowed;
+  const noindex = noindexByHeader(vercel);
   const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1].trim());
   if (!locs.length) out.push('sitemap.xml lists no addresses');
   const byPath = new Map(plan.pages.map(p => [p.path, p]));
@@ -1314,6 +1374,7 @@ function servingProblems({ rewrites, plan }) {
     if (!page) { out.push(`sitemap.xml lists ${path}, which no route without a parameter serves a page for`); continue; }
     if (page.head.canonical !== loc) out.push(`sitemap.xml lists ${path}, whose canonical is ${page.head.canonical}`);
     if (blocked(path)) out.push(`sitemap.xml lists ${path}, which robots.txt disallows`);
+    if (noindex(path)) out.push(`sitemap.xml lists ${path}, which vercel.json serves with X-Robots-Tag: noindex`);
   }
   return out;
 }
