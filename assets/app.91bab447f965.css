@@ -4634,6 +4634,12 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-tile-next:hover { border-color: var(--line-2); box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--ink) 30%, transparent); }
 .lab-tile-next:hover .lab-next-go { text-decoration-thickness: 2px; }
 .lab-tile-next:has(.lab-next-go:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+/* Where a finger is the pointer the link is a 44px target of its own too:
+   padding on an inline link grows what it answers to, not its line (as the
+   journey line's link does), so the tile keeps its height. */
+@media (pointer: coarse), (max-width: 768px) {
+  .lab-next-go { padding: 13px 6px; margin: 0 -6px; }
+}
 @container lab (min-width: 760px) {
   .lab-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .lab-tile { padding: 12px 14px 13px; }
