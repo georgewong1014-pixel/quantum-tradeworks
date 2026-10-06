@@ -1448,7 +1448,9 @@ async function loadSarawakLayers() {
    false, and the wait says so, rather than reading a half-booted page as
    ready. */
 function propertyPagesSettled() {
-  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading';
+  /* And no NAPIC division file in flight: the area screen's panel redraws
+     the page when one lands (loadNapic, 81-napic.js). */
+  return (!realEnabled() || realStatus !== null) && !realPending && geoLoadState !== 'loading' && !napicLoading();
 }
 
 /* ==========================================================================

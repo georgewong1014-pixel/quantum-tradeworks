@@ -1,0 +1,24 @@
+{
+  "format": "quantum-tradeworks/napic-division",
+  "version": 1,
+  "division": "Kapit",
+  "period": {"code":"H1 2025","start":"2025-01-01","end":"2025-06-30"},
+  "licence": {"status":"REVIEW_REQUIRED","publish":"DERIVED_ONLY","note":"Official NAPIC/JPPH aggregates and sample benchmarks. Record-level republication, bulk export and raw-file download stay disabled until JPPH confirms commercial redistribution rights.","attribution":"Valuation and Property Services Department (JPPH), Ministry of Finance Malaysia — NAPIC Property Market Report H1 2025","sourceUrl":"https://napic.jpph.gov.my/en/latest-publication"},
+  "cannotAnswer": ["Exact transaction date — the finest period in these files is a half-year","Individual transacted price — every figure is an aggregate or a sample range","A latest or most recent sale","Median, P25 or P75 computed from records","Tenure, lot or unit reference against a transaction","Land or floor area against a specific sale"],
+  "reconciliation": {"target":{"count":11773}},
+  "summary": [
+    {"periodCode":"H1 2025","subsector":"RESIDENTIAL","count":9,"valueRm":2850000,"impliedAverageValueRm":316666.6666666667,"impliedAverageLabel":"Implied aggregate average within this category"},
+    {"periodCode":"H1 2025","subsector":"COMMERCIAL","count":11,"valueRm":9306667,"impliedAverageValueRm":846060.6363636364,"impliedAverageLabel":"Implied aggregate average within this category"},
+    {"periodCode":"H1 2025","subsector":"INDUSTRIAL","count":0,"valueRm":0,"impliedAverageValueRm":null,"impliedAverageLabel":"Implied aggregate average within this category"},
+    {"periodCode":"H1 2025","subsector":"AGRICULTURE","count":46,"valueRm":3362364,"impliedAverageValueRm":73094.86956521739,"impliedAverageLabel":"Implied aggregate average within this category"},
+    {"periodCode":"H1 2025","subsector":"DEVELOPMENT_LAND","count":0,"valueRm":0,"impliedAverageValueRm":null,"impliedAverageLabel":"Implied aggregate average within this category"}
+  ],
+  "benchmarks": [
+    {"scheme":"Jalan Ulu Sungai Kapit","propertyType":"THREE STOREY SHOP","floorLevel":null,"roadPosition":null,"sampleSize":null,"min":1250000,"max":1250000,"rangeLabel":"Observed price range across the sample, per unit","basisUnit":"RM_PER_UNIT","perMonth":false,"changeStated":"ND","changePct":null,"grossYieldPct":null},
+    {"scheme":"Bleteh Bazaar","propertyType":"CENTRAL TOWN PRIME AREA","floorLevel":null,"roadPosition":null,"sampleSize":null,"min":1800,"max":2800,"rangeLabel":"Observed rental range across the sample, per unit per month","basisUnit":"RM_PER_UNIT","perMonth":true,"changeStated":"Stable","changePct":0,"grossYieldPct":null},
+    {"scheme":"Sungai Amang, Kapit","propertyType":"MIXED CULTIVATION","floorLevel":null,"roadPosition":"Second Layer","sampleSize":null,"min":57000,"max":57000,"rangeLabel":"Observed price range across the sample, per hectare","basisUnit":"RM_PER_HECTARE","perMonth":false,"changeStated":"ND","changePct":null,"grossYieldPct":null},
+    {"scheme":"Sungai Lajan, Batang Rajang, Song","propertyType":"VACANT LAND","floorLevel":null,"roadPosition":"Second Layer","sampleSize":null,"min":75000,"max":75000,"rangeLabel":"Observed price range across the sample, per hectare","basisUnit":"RM_PER_HECTARE","perMonth":false,"changeStated":"ND","changePct":null,"grossYieldPct":null},
+    {"scheme":"Ulu Sungai Bleteh, Kapit","propertyType":"VACANT LAND","floorLevel":null,"roadPosition":"Second Layer","sampleSize":null,"min":99000,"max":99000,"rangeLabel":"Observed price range across the sample, per hectare","basisUnit":"RM_PER_HECTARE","perMonth":false,"changeStated":"ND","changePct":null,"grossYieldPct":null},
+    {"scheme":"Ulu Sungai Bleteh, Kapit","propertyType":"VACANT LAND","floorLevel":null,"roadPosition":"Interior","sampleSize":null,"min":74000,"max":74000,"rangeLabel":"Observed price range across the sample, per hectare","basisUnit":"RM_PER_HECTARE","perMonth":false,"changeStated":"ND","changePct":null,"grossYieldPct":null}
+  ]
+}

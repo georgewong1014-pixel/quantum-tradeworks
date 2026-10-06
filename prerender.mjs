@@ -770,7 +770,7 @@ export function cleanCopy({ root = ROOT, worktree = WORKTREE } = {}) {
    committed under the new code, passing build --check. What the working
    tree changes that the app is made from: every tracked file but the
    renders and what build.mjs writes, and any new file under src/ or data/. */
-const OUTPUTS = (f) => /^(prerender\/|pages\/|assets\/|index\.html$|404\.html$|vercel\.json$|health\/)/.test(f);
+const OUTPUTS = (f) => /^(prerender\/|pages\/|assets\/|index\.html$|404\.html$|vercel\.json$|health\/|data\/napic-h1-2025\/)/.test(f);
 export function unrendered({ root = ROOT } = {}) {
   const out = execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   const said = [];

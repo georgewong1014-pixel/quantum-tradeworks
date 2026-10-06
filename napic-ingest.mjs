@@ -622,6 +622,8 @@ if (!CHECK_ONLY) {
   writeFileSync(OUT, JSON.stringify({ ...head, summary, benchmarks: slimBench }, null, 0) + '\n');
   console.log(`  full     ${FULL}`);
   console.log(`  derived  ${OUT}`);
+  /* Plan item 1.6: this file is the source, never served. */
+  console.log('  then     node build.mjs: it writes data/napic-h1-2025/<division>.json, one division a file, which is what the site serves; .vercelignore keeps this one off the host');
 }
 
 /* ---- spot-check against the records named in the specification ---- */

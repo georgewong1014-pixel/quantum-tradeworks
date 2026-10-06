@@ -92,7 +92,9 @@ qtti/out/
 # What IS committed is data/napic-h1-2025.json: derived division-level summaries
 # and the published benchmark ranges, with attribution. That is the
 # "QT-generated analysis and derived summaries" the specification permits, and
-# it is 987kB rather than 11MB.
+# it is 987kB rather than 11MB. It is the source, and is not deployed
+# (.vercelignore): build.mjs writes data/napic-h1-2025/<division>.json from
+# it, one division a file, and those are what the site serves (plan item 1.6).
 property-data/raw/
 property-data/staging/
 property-data/normalized/
