@@ -137,16 +137,26 @@ is no history, and the step instead holds the page to saying so.
 
 **Where the results go.** `.github/workflows/journeys.yml` runs it against the
 live site after every successful production deployment (Vercel's
-`deployment_status` events), nightly at 03:17 UTC, and by hand. It writes the
-job summary, keeps one issue titled *Production journeys failing* open while a
-journey fails and closes it on the next all-pass run, and commits
-`health/journeys.json` to main — only when a status or a failing step changed
-or the recorded run is a day old, with `[skip ci]`. The deployment of that
-commit runs the journeys again and records nothing, whatever it finds: its
-commit changed only `health/`, so it is the same app (`--decide
---deployed-files`), and a status that flaps between PASS and DEGRADED cannot
-turn into a loop of commits and deployments. CI runs the journeys against
-`serve.mjs` on every push.
+`deployment_status` events), twice a day at 03:17 and 15:17 UTC, and by hand.
+It writes the job summary, keeps one issue titled *Production journeys failing*
+open while a journey fails and closes it on the next all-pass run, and commits
+`health/journeys.json` to main after every production deployment that changes
+the app, on every scheduled run and on a run by hand (D16) — with what started
+it (`trigger`), its public log (`run`) and each step that passes by checking an
+honest refusal marked `gated`. In the same commit, `node build.mjs` writes the
+record into the served `/status` and into one line beside the product's badge
+on `/property`, `/research` and `/app/scanner` (`journeysServed`, the one
+renderer, which the page's script also draws with), and `journeys.mjs --guard`
+refuses the commit if anything else changed. The commit runs CI (no
+`[skip ci]`), so Vercel's Deployment Checks can promote it. The deployment of
+that commit runs the journeys again and records nothing, whatever it finds: it
+changed only the record and, by `github-actions[bot]`, the island pages, so it
+is the same app (`--decide --deployed-files --deployed-author`), and a status
+that flaps between PASS and DEGRADED cannot turn into a loop of commits and
+deployments. A lost push starts again from fresh main (fetch, reset, rebuild),
+never `git pull --rebase`; an island page in a merge conflict is resolved by
+`node build.mjs`. CI runs the journeys against `serve.mjs` on every push, as a
+job of its own (*every tool works from start to finish*).
 
 A call to action passes only when pressing it reaches the address it names
 (a press that leaves the reader where they were is a failure, however working

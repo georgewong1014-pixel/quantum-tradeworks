@@ -7,7 +7,8 @@ name: journeys
 # read where its figures came from, model and save a property, build and save
 # a scanner setup, and press each primary call to action and land on a page.
 # journeys.mjs asks exactly that, in real Chrome, of the live site — and
-# /status shows the answer (91-health.js reads health/journeys.json).
+# /status shows the answer, in its served HTML and again as its script reads
+# health/journeys.json.
 #
 # It runs
 #   - after every successful PRODUCTION deployment. Vercel's GitHub
@@ -20,7 +21,10 @@ name: journeys
 #       github.event.deployment.production_environment  true for production
 #       github.event.deployment.sha                   the commit deployed
 #     Previews, and the pending/in_progress/failure states, are skipped;
-#   - nightly, so a site nobody deployed is still looked at every day;
+#   - twice a day on a schedule (03:17 and 15:17 UTC), so a site nobody
+#     deployed is still looked at, and its record is never a day old even
+#     when GitHub starts a scheduled run six or seven hours late (it started
+#     the old 03:17 run between 09:11 and 10:11 on 1–4 Oct 2026);
 #   - by hand (workflow_dispatch).
 #
 # What it writes
@@ -29,47 +33,58 @@ name: journeys
 #   - ONE issue titled "Production journeys failing": opened on the first
 #     FAIL, its body replaced by the latest table while it fails, closed with
 #     a comment by the next run in which every journey passes;
-#   - health/journeys.json on main, ONLY when a status or a failing step
-#     changed or the recorded run is over a day old (journeys.mjs --decide
-#     holds the rule, and its --self-test the cases). The commit says
-#     [skip ci], so checks.yml does not run on it.
+#   - health/journeys.json on main, with what started the run (trigger) and
+#     the run's public log (run), and the island pages rebuilt from it in the
+#     same commit — /status's served result and the one-line result on the
+#     /property, /research and /app/scanner pages (node build.mjs). Recorded
+#     after every production deployment that changes the app, on every
+#     scheduled run and on a run started by hand (D16, the owner's decision
+#     of 5 Oct 2026; journeys.mjs --decide holds the rule, its --self-test
+#     the cases). Until 6 Oct 2026 it was recorded only when a status changed
+#     or the record was a day old, and three code deployments in a row went
+#     unrecorded.
 #
-# LOOP SAFETY. That commit is deployed like any other (the file has to be on
-# the site for /status to read it), and its deployment runs this workflow
-# again. That run still writes its summary and keeps the issue, but it
-# records nothing: the deployed commit changed only health/, so it serves the
-# same app as the deployment before it (decide's deployedFiles rule, held by
-# journeys.mjs --self-test). "The second run finds the same statuses" was not
-# enough on its own — a step a second over budget is DEGRADED on one run and
-# PASS on the next, and each flip would have been committed, deployed and run
-# again. So one result makes at most one extra deployment, whatever the
-# second run finds. If the platform ever skips "[skip ci]" commits, the file
-# waits for the next deployment of main instead; nothing loops either way.
+# LOOP SAFETY. That commit is deployed like any other (the file and the pages
+# have to be on the site), and its deployment runs this workflow again. That
+# run still writes its summary and keeps the issue, but it records nothing:
+# the deployed commit changed only the record and — written by
+# github-actions[bot] — the island pages, so it serves the same app as the
+# deployment before it (decide's ownRecord rule, held by journeys.mjs
+# --self-test). A status that flaps — a step a second over budget is
+# DEGRADED on one run and PASS on the next — therefore makes at most one
+# extra deployment, whatever the second run finds. A deployment whose
+# changed files cannot be listed records nothing either.
 #
-# Permissions are the two it uses and nothing else: contents (the commit) and
-# issues (the issue). The job's concurrency group keeps two runs from racing
-# to commit; a push that loses to a developer's is rebased and retried.
+# Permissions are the three it uses and nothing else: contents (the commit),
+# issues (the issue) and actions (starting checks.yml on the commit). The
+# job's concurrency group keeps two runs from racing to commit; a push that
+# loses to a developer's starts again from main as it is now — fetch, reset,
+# copy the record, rebuild — never `git pull --rebase`, which would conflict
+# on the island pages. People merging main follow the same rule (fetch and
+# merge --ff-only); an island page in conflict is resolved by node build.mjs.
 
 on:
   deployment_status:
   schedule:
-    - cron: '17 3 * * *'   # 03:17 UTC, 11:17 in Kuching
+    - cron: '17 3,15 * * *'   # 03:17 and 15:17 UTC, 11:17 and 23:17 in Kuching
   workflow_dispatch:
 
 # THE GATE BEFORE THIS ONE. With Vercel's Deployment Checks on (Project →
-# Settings → Build and Deployment → Deployment Checks: GitHub, the two jobs of
-# checks.yml — "parses, and matches its source" and "every route renders"),
-# Vercel holds each production deployment until those pass on its commit, and
-# only then serves it: the journeys in checks.yml's browser job run against
-# that commit's own files first, so a commit whose journeys fail never goes
-# live. This workflow is what follows the release — the same journeys against
-# the live site. Two consequences here:
-#   - a deployment's run waits up to 45 minutes for the site to serve its
-#     build (the checks take 15 to 25), not 5;
+# Settings → Build and Deployment → Deployment Checks: GitHub, the three jobs
+# of checks.yml — "parses, and matches its source", "every route renders" and
+# "every tool works from start to finish"), Vercel holds each production
+# deployment until those pass on its commit, and only then serves it: the
+# journeys in checks.yml run against that commit's own files first, so a
+# commit whose journeys fail never goes live. This workflow is what follows
+# the release — the same journeys against the live site. Two consequences
+# here:
+#   - a deployment's run waits up to an hour for the site to serve its build
+#     (the checks take 39 to 52 minutes), inside a 75-minute job;
 #   - the record this workflow commits is pushed with its own token, and a
-#     push made with it starts no workflow — so checks.yml never ran on it,
-#     and its deployment would wait for checks that never come. It starts
-#     them itself (actions: write).
+#     push made with it starts no workflow — so checks.yml would never run on
+#     it, and its deployment would wait for checks that never come. It starts
+#     them itself (actions: write). The commit no longer says [skip ci]: its
+#     checks are what Deployment Checks promotes it on.
 permissions:
   actions: write
   contents: write
@@ -95,8 +110,12 @@ jobs:
       group: journeys
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    # Up to 45 minutes waiting for a held deployment to go live, then the run.
-    timeout-minutes: 60
+    # Up to an hour waiting for a held deployment to go live, then the run.
+    timeout-minutes: 75
+    env:
+      # What started the run, and its public log: both are recorded.
+      TRIGGER: ${{ github.event_name == 'deployment_status' && 'deployment' || github.event_name == 'schedule' && 'schedule' || 'dispatch' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       # main, whatever triggered the run: the result is committed on top of it,
       # and the whole history is there to match the served build to a commit.
@@ -119,8 +138,8 @@ jobs:
           "${{ steps.chrome.outputs.chrome-path }}" --version
 
       # --url production is the template's canonical origin. After a
-      # deployment, --commit waits (up to 45 minutes: a deployment held for
-      # its Deployment Checks goes live only once checks.yml passes on it) for
+      # deployment, --commit waits (up to an hour: a deployment held for its
+      # Deployment Checks goes live only once checks.yml passes on it) for
       # the site to serve that commit's build before the journeys start, and
       # records it as served; a build not served by then is recorded as what
       # the site did serve. The exit code is kept for the last step, so a
@@ -132,8 +151,9 @@ jobs:
         run: |
           set +e
           node journeys.mjs --url production \
+            --trigger "$TRIGGER" --run "$RUN_URL" \
             --json "$RUNNER_TEMP/journeys.json" --markdown "$RUNNER_TEMP/journeys.md" \
-            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA" --wait 2700}
+            ${DEPLOY_SHA:+--commit "$DEPLOY_SHA" --wait 3600}
           echo "exit=$?" >> "$GITHUB_OUTPUT"
 
       - name: job summary
@@ -147,11 +167,12 @@ jobs:
           fi
 
       # The rule lives in journeys.mjs (decide) so it is tested offline:
-      # commit only when a status or a failing step changed, or the recorded
-      # run is over 24 hours old.
-      # After a deployment, the paths its commit changed go with the result:
-      # a deployment of the record's own commit (only health/ changed)
-      # records nothing, so a status that flaps cannot loop.
+      # record after a deployment that changed the app, on a scheduled run
+      # and on a run by hand. After a deployment, the paths its commit
+      # changed and its author go with the result: a deployment of the
+      # record's own commit (only the record, and the island pages by
+      # github-actions[bot]) records nothing, so a status that flaps cannot
+      # loop.
       - name: decide what to record
         id: decide
         if: always()
@@ -165,10 +186,12 @@ jobs:
           fi
           git show origin/main:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null || rm -f "$RUNNER_TEMP/recorded.json"
           deployed=''
+          author=''
           if [ -n "$DEPLOY_SHA" ] && git diff --name-only "$DEPLOY_SHA^" "$DEPLOY_SHA" > "$RUNNER_TEMP/deployed-files.txt" 2>/dev/null; then
             deployed="$RUNNER_TEMP/deployed-files.txt"
+            author=$(git log -1 --format='%an' "$DEPLOY_SHA")
           fi
-          node journeys.mjs --decide "$RUNNER_TEMP/recorded.json" "$RUNNER_TEMP/journeys.json" ${deployed:+--deployed-files "$deployed"} | tee -a "$GITHUB_OUTPUT"
+          node journeys.mjs --decide "$RUNNER_TEMP/recorded.json" "$RUNNER_TEMP/journeys.json" --trigger "$TRIGGER" ${deployed:+--deployed-files "$deployed"} ${author:+--deployed-author "$author"} | tee -a "$GITHUB_OUTPUT"
 
       - name: open, update or close the issue
         if: always() && steps.decide.outputs.noresult != 'true'
@@ -197,9 +220,19 @@ jobs:
             echo "no issue to open or close (fails=${FAILS:-0}, all_pass=${ALL_PASS:-false}, open issue: ${num:-none})"
           fi
 
-      # The record is pushed with this workflow's token, which starts no
-      # workflow; checks.yml is started on it by hand, so the deployment of
-      # the record can pass its Deployment Checks and go live.
+      # The record and the island pages rebuilt from it, in one commit by
+      # github-actions[bot], on top of main as it is now:
+      #   1. copy the record over health/journeys.json;
+      #   2. node build.mjs, which writes it into /status and the three
+      #      product landing pages (no browser: the renders are committed);
+      #   3. node journeys.mjs --guard: the tree changes the record and those
+      #      pages and nothing else, or nothing is committed;
+      #   4. commit — with no [skip ci], so its checks run.
+      # A push lost to another starts again from fresh main (fetch, reset,
+      # 1–4), never git pull --rebase. The record is pushed with this
+      # workflow's token, which starts no workflow; checks.yml is started on
+      # it by hand, so the deployment of the record can pass its Deployment
+      # Checks and go live.
       - name: record the result on main
         if: always() && steps.decide.outputs.commit == 'true'
         env:
@@ -207,19 +240,26 @@ jobs:
           WHY: ${{ steps.decide.outputs.why }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p health
-          cp "$RUNNER_TEMP/journeys.json" health/journeys.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add health/journeys.json
-          git commit -m "chore(health): production journeys — $SUMMARY [skip ci]" -m "$WHY" -m "Written by .github/workflows/journeys.yml from journeys.mjs --url production."
+          record() {
+            mkdir -p health || return 2
+            cp "$RUNNER_TEMP/journeys.json" health/journeys.json || return 2
+            node build.mjs > "$RUNNER_TEMP/build.log" 2>&1 || { cat "$RUNNER_TEMP/build.log"; return 2; }
+            node journeys.mjs --guard || return 2
+            git add -A || return 2
+            git commit -q -m "chore(health): production journeys — $SUMMARY" -m "$WHY" -m "Written by .github/workflows/journeys.yml from journeys.mjs --url production, with the island pages node build.mjs rebuilt from it."
+          }
+          record || exit 1
           for i in 1 2 3 4 5; do
             if git push origin HEAD:main; then
               gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on the recorded commit"
               exit 0
             fi
             sleep $((i * 5))
-            git pull --rebase origin main || { git rebase --abort; exit 1; }
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            record || exit 1
           done
           echo "could not push the result after 5 attempts"
           exit 1

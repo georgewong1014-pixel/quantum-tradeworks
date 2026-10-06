@@ -540,7 +540,11 @@ for (const route of ROUTES) {
     asked = [];
     await send('Page.navigate', { url: BASE + '/status' + query }, sessionId);
     for (let i = 0; i < 200; i++) {
+      /* The page is served with the committed record in the block, and keeps
+         it until its own read returns (N1c): done once the read has been
+         drawn, not when the block first says something. */
       const done = await evalValue(`!window.__healthMark && !!document.getElementById('health-journeys-sum')
+        && typeof HEALTH !== 'undefined' && HEALTH.journeys !== null && HEALTH.kept === null
         && !/Reading/.test(document.getElementById('health-journeys-sum').textContent) && document.getElementById('health-journeys-sum').textContent.length > 0
         && document.querySelectorAll('#health-quick > li').length === 4 && !document.querySelector('#health-quick > li[data-status="PENDING"]')`);
       if (done) break;
@@ -622,7 +626,9 @@ for (const route of ROUTES) {
   if (!/could not be read/.test(s.sum) || s.rows.length) p.push(`an unreadable result: ${JSON.stringify(s.sum.slice(0, 90))}, ${s.rows.length} rows — a result was shown`);
 
   s = await fixture({ status: 200, body: { ...GOOD, ranAt: new Date(Date.now() - 5 * 86400000 - 3600000).toISOString() } }, 'a five-day-old result');
-  if (!/No run has been recorded for 5 days/.test(s.sum)) p.push(`a five-day-old result does not say how old it is: ${JSON.stringify(s.sum)}`);
+  if (!/recorded 121 hours ago: runs are recorded at least twice a day/.test(s.sum)) p.push(`a five-day-old result does not say how old it is: ${JSON.stringify(s.sum)}`);
+  s = await fixture({ status: 200, body: { ...GOOD, ranAt: new Date(Date.now() - 20 * 3600000).toISOString() } }, 'a result 20 hours old');
+  if (/hours ago/.test(s.sum)) p.push(`a result under a day old is called old: ${JSON.stringify(s.sum)}`);
 
   /* audit1 health-verify: a Degraded journey whose file gives no reason was
      described with the Pass's sentence, "each step within its time budget"

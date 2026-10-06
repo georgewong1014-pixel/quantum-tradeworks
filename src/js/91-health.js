@@ -18,15 +18,34 @@
 
    COMPLETE JOURNEYS ON THE LIVE SITE. health/journeys.json, written by
    journeys.mjs when .github/workflows/journeys.yml drives a real browser
-   through the deployed site: after each production deployment, nightly, and
-   by hand. It lives outside data/ — whose files are versioned by the build
-   and cached for a year — is served with no-cache, is not stamped into the
-   build, and is fetched here with no-store, so the result shown is the one
-   the site holds now. Absent, it is "not run yet"; unreadable, it says so;
-   a result is never invented and a stale one says how old it is.
+   through the deployed site: after each production deployment that changes
+   the app, twice a day on a schedule, and by hand. It lives outside data/ —
+   whose files are versioned by the build and cached for a year — is served
+   with no-cache, and is fetched here with no-store, so the result shown is
+   the one the site holds now. Absent, it is "not run yet"; unreadable, it
+   says so; a result is never invented and a stale one says how old it is.
+
+   SERVED, TOO (N1c, the 5 Oct audit; D16). The page is served with the
+   committed record already in it: build.mjs writes it into the journeys
+   block, and into one line beside the product's badge on /property,
+   /research and /app/scanner, with journeysServed — journeys.mjs's one
+   renderer, whose source the build puts in place of the marker below — and
+   this script draws the same words with the same function, in UTC. Until
+   its own no-store read returns, the page keeps what it was served, so
+   nothing moves when it is drawn (coverage-frames). A fetch of /status that
+   runs no script reads the last recorded run, its time, its commit, its
+   public log and every journey's steps.
    ========================================================================== */
 
 const HEALTH_JOURNEYS_FILE = 'health/journeys.json';
+/* The one renderer of the recorded result (journeys.mjs, journeysServed):
+   put here by the build. */
+const journeysServed = /*@INJECT:journeysServed*/ null;
+/* What the line beside a product's badge proves, and what it does not. */
+const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
+/* A recorded run older than this says so. Runs are recorded at least twice
+   a day (D16). */
+const HEALTH_STALE_MS = 24 * 3600 * 1000;
 const HEALTH_BUDGET_MS = 1500;
 /* A second visit to the page within this time shows the same run rather than
    running again: render() redraws the page when the filings land. */
@@ -235,7 +254,8 @@ const HEALTH_FULL = [
 ];
 
 /* ---- running them ---- */
-const HEALTH = { quick: new Map(), quickAt: 0, full: new Map(), fullRunning: false, journeys: null, journeysAt: 0 };
+/* kept: the journeys summary standing as served until the read returns. */
+const HEALTH = { quick: new Map(), quickAt: 0, full: new Map(), fullRunning: false, journeys: null, journeysAt: 0, kept: null };
 
 async function healthRunList(list, into) {
   await Promise.all(list.map(async (c) => {
@@ -273,6 +293,8 @@ function healthResultProblem(doc) {
   if (doc.kind !== 'quantum-tradeworks-journeys') return 'it is not a journeys result';
   if (doc.ranAt == null && Array.isArray(doc.journeys) && !doc.journeys.length) return null;
   if (typeof doc.ranAt !== 'string' || !Number.isFinite(Date.parse(doc.ranAt))) return 'its run time is not a date';
+  if (doc.run != null && !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/.test(String(doc.run))) return 'its run is not an Actions run’s address';
+  if (doc.trigger != null && !['deployment', 'schedule', 'dispatch'].includes(doc.trigger)) return 'what started its run is not a deployment, the schedule or a person';
   if (!Array.isArray(doc.journeys) || !doc.journeys.length) return 'it lists no journeys';
   for (const j of doc.journeys) {
     if (!j || typeof j.id !== 'string' || typeof j.name !== 'string') return 'a journey has no name';
@@ -290,11 +312,17 @@ function healthStart() {
     /* After the page has painted: the checks are the page's second thing. */
     setTimeout(() => healthRunList(HEALTH_QUICK, HEALTH.quick), 0);
   }
-  if (now - HEALTH.journeysAt > HEALTH_RERUN_MS) {
-    HEALTH.journeysAt = now;
-    HEALTH.journeys = null;
-    healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); });
-  }
+  healthReadJourneys();
+}
+/* The recorded run, read from the site with no-store: by /status and by the
+   three product landing pages' lines. A second page within HEALTH_RERUN_MS
+   shows the same read. */
+function healthReadJourneys() {
+  const now = Date.now();
+  if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
+  HEALTH.journeysAt = now;
+  HEALTH.journeys = null;
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -397,6 +425,10 @@ function healthPaintNow() {
     /* With no result to list, the sentence that says so stands as the
        section's content — a quiet panel, not a line lost under the prose. */
     js.style.cssText = `margin-top:var(--sm)${J && J.state !== 'ok' ? ';padding:12px 14px;border-radius:var(--r-sm);background:var(--surface-sunk);color:var(--ink-2)' : ''}`;
+    /* Until the read returns, the run the page was served with stands
+       (healthSection kept it): nothing moves. */
+    if (!J && HEALTH.kept === js) return;
+    HEALTH.kept = null;
     if (!J) { js.textContent = 'Reading the latest recorded run…'; jl.replaceChildren(); return; }
     if (J.state === 'none') {
       js.textContent = 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.';
@@ -408,23 +440,48 @@ function healthPaintNow() {
       jl.replaceChildren();
       return;
     }
-    const doc = J.doc, list = doc.journeys;
-    const k = { pass: list.filter(x => x.status === 'PASS').length, degraded: list.filter(x => x.status === 'DEGRADED').length, fail: list.filter(x => x.status === 'FAIL').length };
-    const age = Date.now() - Date.parse(doc.ranAt);
-    const days = Math.floor(age / 86400000);
-    let where = '';
-    try { where = doc.url && new URL(doc.url).origin !== location.origin ? ` against ${doc.url}` : ''; } catch { where = doc.url ? ` against ${doc.url}` : ''; }
-    js.textContent = `Last recorded run ${caseRaisedAt(new Date(doc.ranAt))}${where}${doc.commit ? `, on commit ${String(doc.commit).slice(0, 7)}` : ''}: ${healthTally(k, list.length)}.`
-      + (days >= 2 ? ` No run has been recorded for ${days} days — the scheduled run may not have run since.` : '');
-    jl.replaceChildren(...list.map(j => healthRow({
-      status: j.status, title: j.name,
-      /* Only a Pass may be described as within budget: a Degraded journey
-         was over a budget or lost a part, and one whose file gives no reason
-         says that rather than borrowing the Pass's sentence. */
-      detail: j.status === 'FAIL' ? `Failed at “${j.failedStep}”${j.route ? ` on ${j.route}` : ''}.${j.note ? ` ${j.note}` : ''}`
-        : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.'),
-      meta: healthMs(j.ms),
-    })));
+    /* The served words, drawn by the same function (journeysServed): only
+       a Pass is described as within budget, a failure names its step and
+       route, and each step is OK, FAIL or gated. How old the run is, is the
+       reader's now, and is said by the script alone. */
+    const out = journeysServed(J.doc);
+    const age = Date.now() - Date.parse(J.doc.ranAt);
+    js.querySelector('.journeys-age')?.remove();
+    if (js.innerHTML !== out.sum) js.innerHTML = out.sum;
+    if (age > HEALTH_STALE_MS) js.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
+    if (jl.innerHTML !== out.list) jl.innerHTML = out.list;
+  }
+}
+
+/* THE LINE BESIDE A PRODUCT'S BADGE (N1e, the 5 Oct audit; D16). On the
+   three product landing pages — /property, /research and /app/scanner —
+   one line, above the page and under the product's tab row, never in it:
+   the product's journey, its last recorded result, time and commit, and a
+   link to its steps on /status. Its title says what a journey proves and
+   what it does not. Served by the build (journeysServed's lines), kept as
+   served until this tab's own read of the record returns, then drawn from
+   it with the same function. */
+function journeyLineNode() {
+  const path = location.pathname.replace(/\/+$/, '') || '/';
+  const lines = journeysServed(null).lines;
+  if (!Object.hasOwn(lines, path)) return null;
+  const p = el('p', { class: 'journey-line', 'data-journey': path, 'data-now': '', title: JOURNEY_LINE_TITLE });
+  const J = HEALTH.journeys;
+  if (J?.state === 'ok') p.innerHTML = journeysServed(J.doc).lines[path] || '';
+  else {
+    const was = [...document.querySelectorAll('#views .journey-line')].find(n => n.getAttribute('data-journey') === path);
+    if (was && was.textContent.trim()) p.innerHTML = was.innerHTML;
+    healthReadJourneys();
+  }
+  return p;
+}
+function journeyLinesPaint() {
+  const J = HEALTH.journeys;
+  if (!J) return;
+  const lines = J.state === 'ok' ? journeysServed(J.doc).lines : journeysServed(null).lines;
+  for (const p of document.querySelectorAll('#views .journey-line')) {
+    const html = lines[p.getAttribute('data-journey')] ?? '';
+    if (p.innerHTML !== html) p.innerHTML = html;
   }
 }
 
@@ -434,10 +491,28 @@ function healthSection() {
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'health-h' }, 'Does each tool work?'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Two kinds of evidence, each saying only what it checked: the tools’ own code run in your browser when the page opens, and complete journeys through the live site, as last recorded.'),
+      'Two kinds of evidence, each saying only what it checked: complete journeys through the live site, as last recorded, and the tools’ own code run in your browser when the page opens.'),
   ])));
 
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Checked in your browser now'));
+  /* The recorded journeys first (N1c): the result a fetch of this page
+     reads, before the checks only a browser runs. */
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Complete journeys on the live site'));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
+  /* As served until this tab's read of the record returns (healthPaintNow):
+     the page was drawn with it, and nothing moves when it is drawn again. */
+  const sum = el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys });
+  const jlist = el('ul', { id: 'health-journeys', class: 'journeys-list', 'data-now': '' });
+  const wasSum = document.getElementById('health-journeys-sum'), wasList = document.getElementById('health-journeys');
+  if (!HEALTH.journeys && wasSum && wasList && /^Last recorded run /.test(wasSum.textContent)) {
+    sum.innerHTML = wasSum.innerHTML;
+    sum.querySelector('.journeys-age')?.remove();
+    HEALTH.kept = sum;
+    jlist.innerHTML = wasList.innerHTML;
+  }
+  card.append(sum, jlist);
+
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'Each tool’s own code, run in your browser by this page’s script when the page opens, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
   card.append(healthList('health-quick'));
@@ -458,12 +533,6 @@ function healthSection() {
   ]));
   card.append(healthList('health-full'));
   card.append(el('p', { class: 'metaline', id: 'health-full-sum', role: 'status', style: 'margin-top:var(--sm)' }));
-
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Complete journeys on the live site'));
-  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'A real browser, driven through the deployed site by GitHub Actions after each production deployment, nightly and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. A run is recorded here when a journey’s status or failing step changed, or once the record is a day old — never by the run on the deployment of this record itself, which serves the same app — so what is shown can trail the latest run by up to a day. Nothing checks the site between runs.'));
-  card.append(el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys }));
-  card.append(healthList('health-journeys'));
   /* Filled once the card is on the page. */
   requestAnimationFrame(healthPaint);
   return card;

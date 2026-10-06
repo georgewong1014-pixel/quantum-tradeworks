@@ -128,9 +128,13 @@ jobs:
       - name: the capability register claims only what its routes and checks support
         run: node register-check.mjs
 
-      # The journeys workflow commits health/journeys.json only when a status
-      # or a failing step changes or the record is a day old — the rule that
-      # keeps a deploy of its own commit from committing again. Offline.
+      # The journeys workflow commits health/journeys.json, with the island
+      # pages rebuilt from it, after every production deployment that changes
+      # the app and on every scheduled run — and never from the deployment of
+      # its own record commit, the rule that keeps it from looping. Also the
+      # served result's one renderer (journeysServed), the guard on the
+      # bot's commit, and both workflows' shape: the journeys job of its own
+      # here, the wait, the schedule, no [skip ci]. Offline.
       - name: the journeys' commit rule, result shape and table
         run: node journeys.mjs --self-test
 
@@ -308,14 +312,57 @@ jobs:
       - name: no horizontal overflow at any width
         run: node mobile.mjs http://localhost:8123
 
-      # Every check above looks at a page. These are journeys: find a company
-      # and its filed statements and keep it on a list, filter the screener
-      # and open a result, model a property and save it, build a scanner
-      # setup, save it and evaluate it, press every primary call to action —
-      # by real clicks, passing only when the whole path completes. The same
-      # script runs against the live site after each production deployment
-      # (journeys.yml); here the personal lane is answered 404 in the browser
-      # and the scanner reads a synthetic history made from its engine's
-      # fixture, so the evaluate step has to find the match.
+  # THE JOURNEYS, A JOB OF THEIR OWN (plan item 2.3, 6 Oct 2026). They were
+  # the last step of "every route renders", so a sweep, a frames check or a
+  # phone width that failed before them stopped the job and hid whether the
+  # tools still worked; and with Vercel's Deployment Checks holding each
+  # production deployment until these jobs pass, a failure anywhere in the
+  # browser job said nothing about the journeys. Here they run beside it,
+  # after the static job, on a runner of their own (about five minutes).
+  # The job names are what Deployment Checks is set to — keep them as they
+  # are: "parses, and matches its source", "every route renders" and
+  # "every tool works from start to finish".
+  journeys:
+    name: every tool works from start to finish
+    needs: static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: install Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          chrome-version: stable
+
+      - name: point the tools at it
+        run: |
+          echo "CHROME_PATH=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          "${{ steps.chrome.outputs.chrome-path }}" --version
+
+      # serve.mjs applies the generated headers, so the journeys run under
+      # the real Content-Security-Policy, as the route checks do.
+      - name: serve
+        run: |
+          nohup node serve.mjs --port 8123 > /tmp/serve.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:8123/ && break
+            sleep 0.25
+          done
+          curl -sI http://localhost:8123/ | grep -i content-security-policy
+
+      # Every check in the other jobs looks at a page. These are journeys:
+      # find a company and its filed statements and keep it on a list, filter
+      # the screener and open a result, model a property and save it, build a
+      # scanner setup, save it and evaluate it, press every primary call to
+      # action — by real clicks, passing only when the whole path completes.
+      # The same script runs against the live site after each production
+      # deployment and twice a day (journeys.yml); here the personal lane is
+      # answered 404 in the browser and the scanner reads a synthetic history
+      # made from its engine's fixture, so the evaluate step has to find the
+      # match.
       - name: every tool works from start to finish
         run: node journeys.mjs http://localhost:8123

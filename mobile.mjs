@@ -487,6 +487,22 @@ await sleep(2500);
   const v = r.result?.result?.value;
   if (!v || !v.n || v.small.length) { bad++; console.log(`FAIL 390px /status — path links under 44px: ${v ? [...new Set(v.small)].join('; ') || 'no links found' : 'not measured'}`); }
 }
+/* THE RECORDED JOURNEYS' LINKS, 44PX EACH WAY (N1c, N1e). /status's
+   "public log" and the "details" beside each product's badge are links in
+   a sentence; on a phone each answers a finger across 44px, and the line it
+   sits in keeps its height. */
+for (const path of ['/status', '/property', '/research', '/app/scanner']) {
+  await send('Page.navigate', { url: BASE + path }, sessionId);
+  await sleep(2500);
+  const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
+    const links = [...document.querySelectorAll('main .journeys-log, main .journey-line-link')];
+    const small = links.filter(a => { const b = a.getBoundingClientRect(); return b.width < 44 || b.height < 44; })
+      .map(a => a.textContent + ' ' + Math.round(a.getBoundingClientRect().width) + '×' + Math.round(a.getBoundingClientRect().height) + 'px');
+    return { n: links.length, small };
+  })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || !v.n || v.small.length) { bad++; console.log(`FAIL 390px ${path} — the recorded journeys' links under 44px: ${v ? [...new Set(v.small)].join('; ') || 'no links found' : 'not measured'}`); }
+}
 /* THE AREA RECORDER FITS WHAT SHOWS OF ITS TABLE. It sits in a row spanning
    all sixteen columns and took the table's 1,674px width, with the cell's
    nowrap: at 390px every sentence and field ran past the scrolling wrapper,

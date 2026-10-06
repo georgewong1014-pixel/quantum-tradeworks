@@ -1324,6 +1324,70 @@ try {
       }
     }
     /* ---- end integration-reverify ---- */
+    /* ---- journeys-served ---- */
+    /* THE RECORDED JOURNEYS STAND AS SERVED (N1c and N1e, the 5 Oct audit;
+       D16). /status is served with the last recorded run in its journeys
+       block, and /property, /research and /app/scanner with one line of
+       their journey's result — written by the build from the committed
+       record, drawn again by the script with the same function. Its first
+       draw happens with the record's no-store read still on its way: the
+       block and the line must stand as served until it returns, and then
+       say the same — the same markup, where it stood, at the same height —
+       or the page moves under the reader (a list of five journeys and their
+       steps, emptied and filled again). Held at 1280 and 390, from before
+       the script to the page settled with every request answered; and the
+       served page must carry a recorded result to begin with, never the
+       placeholder. */
+    {
+      const said = [];
+      const W1280 = { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }, W390 = { width: 390, height: 844, deviceScaleFactor: 1, mobile: true };
+      const BLOCK = `(() => { const box = (n) => { if (!n) return null; const r = n.getBoundingClientRect(); return [Math.round(r.top + scrollY), Math.round(r.height)]; };
+        const s = document.getElementById('health-journeys-sum'), l = document.getElementById('health-journeys'), lines = [...document.querySelectorAll('#views .journey-line')];
+        const html = (n) => (n ? n.innerHTML.replace(/<span class="journeys-age">[\\s\\S]*?<\\/span>/, '') : null);
+        return { sum: html(s), list: html(l), line: html(lines[0]), lines: lines.length, sumBox: box(s), listBox: box(l), lineBox: box(lines[0]),
+          next: box(document.querySelector('#views h1')), served: document.getElementById('views').hasAttribute('data-served'),
+          read: typeof HEALTH !== 'undefined' && !!HEALTH.journeys }; })()`;
+      const near = (a, b) => (a === null && b === null) || (!!a && !!b && Math.abs(a[0] - b[0]) <= 2 && Math.abs(a[1] - b[1]) <= 2);
+      try {
+        for (const [path, metrics] of [['/status', W1280], ['/status', W390], ['/property', W1280], ['/property', W390], ['/research', W1280], ['/app/scanner', W390]]) {
+          const at = `${path} at ${metrics.width}`;
+          await send('Emulation.setDeviceMetricsOverride', metrics, sid);
+          await firstVisit({ script: true });
+          await send('Page.navigate', { url: live + path }, sid);
+          if (!await until(SERVED_PAINTED)) { said.push(`${at}: the served page was not painted before the script`); continue; }
+          await painted();
+          const served = await value(BLOCK);
+          if (path === '/status') {
+            if (!/^Last recorded run /.test((served.sum || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no recorded run in its journeys block: ${JSON.stringify((served.sum || '').slice(0, 90))}`); continue; }
+            if (!/<li class="journey-row"/.test(served.list || '')) { said.push(`${at}: served with no journey listed`); continue; }
+          } else if (served.lines !== 1 || !/^<span class="journey-line-label">Journey:<\/span> /.test(served.line || '')) { said.push(`${at}: served with no journey line (${served.lines} lines: ${JSON.stringify((served.line || '').slice(0, 80))})`); continue; }
+          await releaseScript();
+          await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete'`);
+          await painted();
+          const drawn = await value(BLOCK);
+          holding = false;
+          for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid);
+          held = [];
+          if (!await quiet(`typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served') && typeof HEALTH !== 'undefined' && !!HEALTH.journeys`)) said.push(`${at}: the page never settled with the record read`);
+          await painted();
+          const settled = await value(BLOCK);
+          for (const [when, x] of [['when the script drew it, the record still on its way', drawn], ['once the record was read and the page settled', settled]]) {
+            for (const k of path === '/status' ? ['sum', 'list'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
+            for (const k of path === '/status' ? ['sumBox', 'listBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
+          }
+          if (!settled.read) said.push(`${at}: the page never read the record`);
+        }
+      } catch (e) {
+        said.push(`the checks could not run: ${e.message}`);
+      } finally {
+        await releaseAll();
+        await send('Emulation.setDeviceMetricsOverride', W1280, sid);
+      }
+      const what = 'the recorded journeys stand as served — /status\'s summary and list, and the journey line on /property, /research and /app/scanner — from the first frame, through the script\'s first draw with the record\'s read on its way, to the page settled: the same markup, where it stood, at 1280 and 390';
+      if (said.length) { bad.push('journeys-served'); console.log(`FAIL ${what}`); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
+      else console.log(`ok   ${what}`);
+    }
+    /* ---- end journeys-served ---- */
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });

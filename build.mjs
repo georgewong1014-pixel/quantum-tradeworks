@@ -144,6 +144,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { journeysServed, ISLAND_PAGES, RECORD_FILE } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const src = (...p) => join(ROOT, 'src', ...p);
@@ -165,6 +166,8 @@ export const PAGE_LIMIT = 200 * 1024;
 const STYLE_MARKER = '/*@INJECT:styles*/\n';
 const SCRIPT_MARKER = '//@INJECT:scripts\n';
 const VERSIONS_MARKER = '/*@INJECT:dataversions*/';
+/* Where the journeys' one renderer goes into the app (91-health.js). */
+const JOURNEYS_MARKER = '/*@INJECT:journeysServed*/ null';
 const CSP_MARKER = '@CSP_HASH';
 /* The first-paint script's hash (BEFORE THE FIRST PAINT, below). */
 const CSP_FIRST_MARKER = '@CSP_FIRST_HASH';
@@ -751,6 +754,49 @@ export function withRender(html, r) {
   return html;
 }
 
+/* ─── THE RESULT, SERVED (N1c–N1e, the 5 Oct audit; D16) ─────────────────────
+   /status said whether the tools work only once its script had fetched
+   health/journeys.json: served, its journeys block read "Read from the site
+   by this page's script." and listed nothing, so a fetch of the page — a
+   crawler, a link preview, an auditor's curl — read no result, no time and
+   no commit. A render cannot carry the record (it is drawn ahead of time,
+   with every request held), so the build writes it in: the committed
+   health/journeys.json, through journeys.mjs's one renderer
+   (journeysServed), into /status's #health-journeys-sum and
+   #health-journeys, and into the one line beside the product's badge on
+   /property, /research and /app/scanner (ISLAND_PAGES) — the page's own
+   slots, drawn empty by the app with data-now and so served by the render
+   as placeholders. The renders are untouched (prerender --check compares
+   them, and the app's drawing, as they were); --check reproduces the pages
+   from the committed record; served-check and coverage-frames read what a
+   page serves through this same function. The journeys workflow commits the
+   record and these pages together, rebuilt (journeys.yml). */
+export function readRecord(root = ROOT) {
+  const f = join(root, RECORD_FILE);
+  if (!existsSync(f)) return null;
+  try { return JSON.parse(lf(readFileSync(f, 'utf8'))); }
+  catch { throw new Error(`${RECORD_FILE} is not JSON — the served /status and product pages cannot carry it`); }
+}
+/* A render's #views as its page serves it: the record in its slots. Only an
+   island page's render changes; each slot exactly once, or the build fails. */
+export function withServedRecord(r, served) {
+  if (!ISLAND_PAGES.includes(r.file)) return r.views;
+  let views = r.views;
+  const put = (re, inner, what) => {
+    const n = (views.match(new RegExp(re.source, 'g')) || []).length;
+    if (n !== 1) throw new Error(`${r.render} (${r.path}) carries ${n} of ${what}, where the build writes the recorded journeys exactly once — run node prerender.mjs, then node build.mjs`);
+    views = views.replace(re, (all, open, close) => open + inner + close);
+  };
+  if (r.path === '/status') {
+    put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum, '#health-journeys-sum');
+    put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
+  } else {
+    if (!Object.hasOwn(served.lines, r.path)) throw new Error(`${r.file} is an island page, and journeysServed draws no line for ${r.path}`);
+    put(new RegExp(`(<p class="journey-line"[^>]*\\bdata-journey="${r.path.replace(/[/.]/g, '\\$&')}"[^>]*>)(</p>)`), served.lines[r.path], `the journey line for ${r.path}`);
+  }
+  return views;
+}
+
 /* ─── BEFORE THE FIRST PAINT ──────────────────────────────────────────────────
    (2026-10-04, the integration's final verification.) A served page is a
    fresh visitor's, drawn in Kuala Lumpur, and it stood for every reader until
@@ -1004,6 +1050,11 @@ export function build({ bare = false } = {}) {
   const versions = dataVersions();
   if (!js.includes(VERSIONS_MARKER)) throw new Error('src/js lost its data-version marker');
   js = js.replace(VERSIONS_MARKER, () => JSON.stringify(versions));
+  /* The journeys' result is drawn in the page by the function that writes it
+     into the served page (journeysServed, journeys.mjs): its source, here,
+     so the two cannot part (THE RESULT, SERVED, below). */
+  if (js.split(JOURNEYS_MARKER).length !== 2) throw new Error('src/js must carry the journeys renderer marker exactly once (91-health.js)');
+  js = js.replace(JOURNEYS_MARKER, () => `(${journeysServed.toString()})`);
 
   /* One stylesheet and one script, where linked() looks for them: the page's
      own markup must not carry a second of either, which linked() would take
@@ -1035,11 +1086,13 @@ export function build({ bare = false } = {}) {
     stems.set(s.render, s.file);
   }
   const rendered = bare ? { manifest: null, renders: new Map(), missing: [], edited: [], extra: [], unknown: [] } : readRenders(scope);
-  /* Every page carries the first-paint script (BEFORE THE FIRST PAINT). */
+  /* Every page carries the first-paint script (BEFORE THE FIRST PAINT); an
+     island page's render, the recorded journeys (THE RESULT, SERVED). */
+  const served = journeysServed(readRecord());
   const page = (head, file, opts) => {
     const r = rendered.renders.get(file);
     const p = withFirst(withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null)));
-    return r ? withRender(p, r) : p;
+    return r ? withRender(p, { ...r, views: withServedRecord(r, served) }) : p;
   };
   const rootHead = plan.pages.find(p => p.path === '/').head;
   const html = page(rootHead, 'index.html');

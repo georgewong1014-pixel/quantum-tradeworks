@@ -3318,10 +3318,12 @@ function drawPage(samePage) {
      dark, a tab of the page's own strip — the whole page faded out and slid
      up 6px under the reader, and the control given focus back was measured
      6px off where it came to rest (stayPut). A new page still enters. */
-  /* Above the page, in its column: the product's Start here panel, until the
-     reader hides it (Release B, B6; 36-layouts.js). */
+  /* Above the page, in its column: on a product's landing page the line
+     with its journey's last recorded result (N1e; 91-health.js), and the
+     product's Start here panel, until the reader hides it (Release B, B6;
+     36-layouts.js). */
   const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
-    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [startHereNode(), node]));
+    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [journeyLineNode(), startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);

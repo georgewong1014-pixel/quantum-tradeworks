@@ -61,7 +61,8 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
-  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash } from './build.mjs';
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord } from './build.mjs';
+import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -171,6 +172,10 @@ function headOf(html) {
    chrome. Anything else is left in, and differs. */
 const RENDER_PLAN = routePlan(read('src/index.template.html'));
 const RENDERED = readRenders(prerenderScope(RENDER_PLAN));
+/* An island page's render as its page carries it: the committed record in
+   its slots (build.mjs, THE RESULT, SERVED). */
+const SERVED_RECORD = journeysServed(readRecord());
+const servedViews = (rd) => withServedRecord(rd, SERVED_RECORD);
 const NAV = navMarkup();
 const attrEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function withoutOwn(html, file) {
@@ -183,7 +188,7 @@ function withoutOwn(html, file) {
   if (rd) take(servedHtmlTag(rd), '<html lang="en">');
   for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) take(open + nav[slot] + close, open + close);
   if (rd && rd.tabs !== null) take(`<div class="ptabs-host" id="productTabs">${rd.tabs}</div>`, '<div class="ptabs-host" id="productTabs" hidden></div>');
-  if (rd) take(`<div id="views" data-served="${attrEsc(rd.path)}">${rd.views}</div>`, '<div id="views"></div>');
+  if (rd) take(`<div id="views" data-served="${attrEsc(rd.path)}">${servedViews(rd)}</div>`, '<div id="views"></div>');
   return out;
 }
 /* file: the page's file, whose render (if it has one) it may carry; none
@@ -534,8 +539,10 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
       year, this file keeps its name and changes, so:
       - it is served 200 as JSON with Cache-Control no-cache — revalidated
         on every read, never kept as the result of a week ago;
-      - the build does not stamp it: no version in the app's DATA_VERSIONS,
-        so `node build.mjs --check` passes whatever the workflow commits;
+      - the build does not stamp it: no version in the app's DATA_VERSIONS.
+        (It does write it into the island pages — /status and the three
+        product landing pages — and the workflow commits them with it,
+        rebuilt; THE JOURNEYS' RESULT, SERVED, below);
       - it is a journeys result, or the placeholder committed before the
         first run (the page says "not run yet" for it). */
 {
@@ -758,7 +765,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
          Scanner dashboard's, and this said "only My Workspace's pages are
          left out" because their files were not under pages/my/. */
       if (myWorkspace({ path, head: router.headAt(path) })) p.push(`${path}: a My Workspace address is served a render (${rd.render}), where no /my/ address carries one`);
-      if (x.views !== rd.views) p.push(`${path}: #views is not ${rd.render} exactly`);
+      if (x.views !== servedViews(rd)) p.push(`${path}: #views is not ${rd.render} exactly${ISLAND_PAGES.includes(rd.file) ? ', with the recorded journeys in it' : ''}`);
       if (x.served !== rd.path) p.push(`${path}: #views is marked data-served=${JSON.stringify(x.served)}, not ${rd.path}`);
       if ((x.tabs ?? null) !== (rd.tabs ?? null)) p.push(`${path}: its tab row is ${x.tabs ? 'not' : 'missing, where it is'} ${rd.tabsFile} exactly`);
       if (x.chrome !== rd.manifest.chrome) p.push(`${path}: <html> says chrome ${JSON.stringify(x.chrome)}, where its render was drawn in the ${rd.manifest.chrome} chrome`);
@@ -928,6 +935,10 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
 {
   const p = [];
   const r = (await getAll(['/status'])).get('/status');
+  /* The in-browser rows are class="health-row"; the recorded journeys'
+     (journey-row, #health-journeys) are a recorded result, served as
+     recorded, and their chips never say "Not run" — THE JOURNEYS' RESULT,
+     SERVED, below. */
   const rows = [...(r.body || '').matchAll(/<li\b[^>]*\bclass="health-row"[^>]*>/g)].map(m => m[0]);
   const chips = [...(r.body || '').matchAll(/<span\b[^>]*\bclass="([^"]*\bhealth-chip\b[^"]*)"[^>]*>([^<]*)<\/span>/g)].map(m => ({ cls: m[1], says: m[2].trim() }));
   if (r.status !== 200) p.push(`/status: ${described(r)}`);
@@ -938,6 +949,104 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     '/status serves a check that ran nowhere as a result');
 }
 /* ---- end status-served ---- */
+
+/* ---- journeys-served ---- */
+/* THE JOURNEYS' RESULT, SERVED (N1c–N1e, the 5 Oct audit; D16). A fetch of
+   /status that ran no script read "Read from the site by this page's
+   script." and an empty list: no result, no time, no commit, no run. The
+   build now writes the committed record into the page (journeysServed,
+   journeys.mjs), and into one line on each product landing page. Held here,
+   before any script, against the record this same site serves:
+   1. /status's summary states the run's UTC time and a 7-character commit,
+      and its list has one li per journey with every step named and marked
+      OK, FAIL or gated — both exactly journeysServed(/health/journeys.json),
+      and neither the placeholder; "Complete journeys on the live site"
+      comes before "Checked in your browser now";
+   4. the summary links the record's own Actions run (the workflow's run
+      history only for a record that names none);
+   6. /property, /research and /app/scanner each serve their journey's line,
+      equal to the record, with a title saying what a journey proves, and
+      the Scanner's says its evaluate step is gated when the record does.
+   Against the live site (BASE is the template's origin, or --live), also:
+   the record names its run (4); the run is under 24 hours old (2); the
+   latest Production deployment GitHub lists is the recorded commit, or
+   differs from it only in the record and the island pages (3); Property
+   passes and the Scanner's evaluate step is gated (6). Item 5 is
+   status-served, above; item 7 is journeys.mjs --self-test. */
+{
+  const p = [];
+  const LIVE = BASE === ORIGIN || argv.includes('--live');
+  const REPO = 'georgewong1014-pixel/quantum-tradeworks';
+  const words = (html) => html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  const rec = await fetch(`${BASE}/health/journeys.json?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(e => ({ unreadable: e.message }));
+  const bad = resultProblem(rec);
+  if (bad) p.push(`/health/journeys.json is not a result (${bad}) — nothing to hold the pages to`);
+  const want = journeysServed(rec);
+  if (!want.recorded) p.push('/health/journeys.json records no run, so no page can serve one');
+  const got = await getAll(['/status', '/property', '/research', '/app/scanner']);
+  const status = got.get('/status').body || '';
+  const sum = /<p class="metaline" id="health-journeys-sum"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1];
+  const list = /<ul id="health-journeys"[^>]*>([\s\S]*?)<\/ul>/.exec(status)?.[1];
+  if (sum == null) p.push('/status serves no #health-journeys-sum');
+  else {
+    if (/Read from the site by this page/.test(words(sum))) p.push(`/status serves the placeholder in #health-journeys-sum: "${words(sum)}"`);
+    if (!/^Last recorded run \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC on [0-9a-f]{7}: \d+ of \d+ pass\b/.test(words(sum))) p.push(`/status's summary states no UTC run time and 7-character commit: "${words(sum).slice(0, 120)}"`);
+    if (want.recorded && sum !== want.sum) p.push(`/status's summary is not the record's: served "${words(sum).slice(0, 110)}", the record "${words(want.sum).slice(0, 110)}"`);
+    const link = /<a class="journeys-log" href="([^"]*)">/.exec(sum)?.[1] || null;
+    if (rec.run && link !== rec.run) p.push(`/status links ${link || 'no run'}, not the recorded run ${rec.run}`);
+    if (LIVE && !(link && RUN_URL.test(link))) p.push(`/status links ${link || 'nothing'}, not an Actions run (…/actions/runs/<id>) — the record names no run`);
+  }
+  if (list == null) p.push('/status serves no #health-journeys');
+  else if (want.recorded) {
+    if (list !== want.list) p.push('/status\'s #health-journeys is not the record\'s list');
+    const rows = [...list.matchAll(/<li class="journey-row" id="journey-[a-z0-9-]+" data-status="(PASS|DEGRADED|FAIL)">([\s\S]*?)<\/div><\/li>/g)];
+    if (rows.length !== (rec.journeys || []).length) p.push(`/status serves ${rows.length} journey rows for the record's ${(rec.journeys || []).length} journeys`);
+    rows.forEach((m, i) => {
+      const j = rec.journeys[i] || {};
+      const steps = [...m[2].matchAll(/<li data-mark="(ok|fail|gated)"><span class="journey-mark">(OK|FAIL|gated)<\/span> ([^<]*)/g)];
+      const recSteps = Array.isArray(j.steps) ? j.steps : [];
+      if (steps.length !== recSteps.length) p.push(`/status: ${j.id} serves ${steps.length} steps marked OK, FAIL or gated, of the record's ${recSteps.length}`);
+      steps.forEach((s, k) => { if (recSteps[k] && words(s[3]) !== recSteps[k].name) p.push(`/status: ${j.id}'s step ${k + 1} reads "${words(s[3])}", the record's "${recSteps[k].name}"`); });
+    });
+  }
+  const jAt = status.indexOf('>Complete journeys on the live site</h3>'), bAt = status.indexOf('>Checked in your browser now</h3>');
+  if (jAt < 0 || bAt < 0 || jAt > bAt) p.push('/status: "Complete journeys on the live site" is not served above "Checked in your browser now"');
+  for (const path of ['/property', '/research', '/app/scanner']) {
+    const body = got.get(path).body || '';
+    const m = new RegExp(`<p class="journey-line"[^>]*\\bdata-journey="${path.replace(/\//g, '\\/')}"[^>]*>([\\s\\S]*?)<\\/p>`).exec(body);
+    if (!m) { p.push(`${path} serves no journey line`); continue; }
+    const tag = m[0].slice(0, m[0].indexOf('>') + 1);
+    if (!/title="[^"]*proves[^"]*not show that any figure[^"]*accurate/.test(tag)) p.push(`${path}: the journey line's title does not say that a journey proves the path works, not that a figure is accurate`);
+    if (want.recorded && m[1] !== want.lines[path]) p.push(`${path}: the journey line is not the record's: served "${words(m[1]).slice(0, 100)}", the record "${words(want.lines[path] || '').slice(0, 100)}"`);
+    if (want.recorded && !/^Journey: .+ · (PASS|DEGRADED|FAIL)\b.* · \d{1,2} [A-Z][a-z]{2} \d{2}:\d{2} UTC · [0-9a-f]{7} · details$/.test(words(m[1]))) p.push(`${path}: the journey line does not read "Journey: <name> · <status> · <time UTC> · <sha> · details": "${words(m[1]).slice(0, 120)}"`);
+    if (!new RegExp(`href="/status#journey-[a-z0-9-]+"`).test(m[1]) && want.recorded) p.push(`${path}: the journey line links no journey on /status`);
+    if (/class="ptabs/.test(m[0])) p.push(`${path}: the journey line is in the tab row`);
+  }
+  const scan = (rec.journeys || []).find(j => j.id === 'scanner');
+  const gated = (scan?.steps || []).some(s => s.gated && /^Evaluate/.test(s.name));
+  const scanLine = words(/<p class="journey-line"[^>]*data-journey="\/app\/scanner"[^>]*>([\s\S]*?)<\/p>/.exec(got.get('/app/scanner').body || '')?.[1] || '');
+  if (gated && !/ · evaluate: gated \(no prices ship\) · /.test(scanLine)) p.push(`/app/scanner: the record gates the evaluate step and the line does not say so: "${scanLine.slice(0, 120)}"`);
+  if (LIVE) {
+    const age = Date.now() - Date.parse(rec.ranAt);
+    if (!(age < 24 * 3600000)) p.push(`the recorded run of ${rec.ranAt} is ${Math.round(age / 3600000)} hours old — over 24`);
+    if (!gated) p.push('the record does not gate the Scanner\'s evaluate step on the live site, where no prices ship');
+    const prop = (rec.journeys || []).find(j => j.id === 'property');
+    if (prop?.status !== 'PASS') p.push(`the property journey is ${prop?.status || 'not recorded'}, not PASS`);
+    const gh = (u) => fetch(`https://api.github.com/repos/${REPO}/${u}`, { headers: { accept: 'application/vnd.github+json', 'user-agent': 'served-check' }, signal: AbortSignal.timeout(30000) }).then(r => r.json());
+    try {
+      const dep = (await gh('deployments?environment=Production&per_page=1'))?.[0]?.sha;
+      if (!dep) p.push('GitHub lists no Production deployment');
+      else if (dep !== rec.commit) {
+        const files = ((await gh(`compare/${rec.commit}...${dep}`))?.files || []).map(f => f.filename);
+        const other = files.filter(f => f !== 'health/journeys.json' && !ISLAND_PAGES.includes(f));
+        if (!files.length || other.length) p.push(`the latest Production deployment ${dep.slice(0, 7)} is not the recorded commit ${String(rec.commit).slice(0, 7)}, and differs from it in ${other.length ? other.slice(0, 5).join(', ') : 'nothing GitHub lists'}`);
+      }
+    } catch (e) { p.push(`GitHub's deployments and compare APIs could not be read (${e.message})`); }
+  }
+  judge(p, `the recorded journeys are served before any script runs: /status's summary (${want.recorded ? words(want.sum).slice(0, 72) + '…' : 'none'}) and ${(rec.journeys || []).length} journey rows with every step OK, FAIL or gated, exactly the record this site serves, above the in-browser checks; and the journey line on /property, /research and /app/scanner, equal to it${gated ? ', the Scanner\'s evaluate step gated' : ''}${LIVE ? '; the live record names its run, is under 24 hours old and is the latest Production deployment\'s commit or differs from it only in the record and the island pages' : ''}`,
+    'the recorded journeys are not served as recorded');
+}
+/* ---- end journeys-served ---- */
 
 /* ---- readiness-served ---- */
 /* WHAT PROPERTY SAYS IT IS, SERVED (the 5 Oct audit, N2b, N2c and N4a).

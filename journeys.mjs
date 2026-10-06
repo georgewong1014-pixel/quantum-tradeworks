@@ -12,14 +12,21 @@
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
  *   --only <id,id>       some journeys: equities, screener, property, scanner, ctas
- *   --decide <recorded.json> <new.json> [--deployed-files <list.txt>]
+ *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
+ *   --run <url>          the Actions run that made the result, recorded (its public log)
+ *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
+ *            [--deployed-author <name>]
  *                        offline: should the new result be committed over the recorded one?
- *                        The list is the paths the deployed commit changed: when it is only
- *                        health/, the run tested the deployment of its own record and
- *                        nothing is committed
+ *                        After a deployment the list is the paths the deployed commit changed
+ *                        and the author is its author: a commit that changed only the record
+ *                        (and, by github-actions[bot], the island pages) serves the same app
+ *                        as the deployment before it, and nothing is committed
  *                        Prints commit=, why=, fails=, degraded=, all_pass= lines (GITHUB_OUTPUT)
- *   --self-test          offline: the commit rule, the result's shape and the table, on fixtures,
- *                        and the workflow that applies the rule (its concurrency, inputs, permissions)
+ *   --guard              offline: the working tree changes nothing but the record and the
+ *                        island pages (ISLAND_PAGES), or exit 1 naming what else it changes
+ *   --self-test          offline: the commit rule, the result's shape, the table, the served
+ *                        result (journeysServed) and the guard, on fixtures, and the workflows
+ *                        that apply them (concurrency, inputs, permissions, the bot's commit)
  *
  * Exit 0 when no journey FAILS (a DEGRADED one is reported, not fatal); 1 when
  * one does; 2 when the check itself cannot run (no browser, a bad argument).
@@ -77,7 +84,11 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const argv = process.argv.slice(2);
+/* Imported (build.mjs reads journeysServed and ISLAND_PAGES), nothing below
+   runs: only `node journeys.mjs …` parses arguments, starts a browser or
+   reads a result. */
+const MAIN = /journeys\.mjs$/.test(process.argv[1] || '');
+const argv = MAIN ? process.argv.slice(2) : [];
 const has = (n) => argv.includes(`--${n}`);
 const flag = (n) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null; };
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -85,24 +96,41 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 /* ─── THE RESULT FILE ─────────────────────────────────────────────────────── */
 export const RESULT_KIND = 'quantum-tradeworks-journeys';
 export const STATUSES = ['PASS', 'DEGRADED', 'FAIL'];
-/* A recorded run is refreshed once a day even when nothing changed, so the
-   page's "last recorded run" is never more than a day behind the last run. */
+/* What started a run (N1b, the 5 Oct audit): a production deployment, the
+   schedule, or a person (workflow_dispatch). Recorded with the result. */
+export const TRIGGERS = ['deployment', 'schedule', 'dispatch'];
+export const triggerOf = (event) => ({ deployment_status: 'deployment', schedule: 'schedule', workflow_dispatch: 'dispatch' })[event] || null;
+/* The public log of the run that made a result: an Actions run of this
+   repository's workflow, and nothing else, is linked from the served page. */
+export const RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/;
+/* With no trigger named (a run decided by hand, an older workflow), a
+   recorded run is refreshed once a day even when nothing changed. */
 export const REFRESH_MS = 24 * 3600 * 1000;
 
 /* What the page and the workflow both hold a result to. The page has its own
    copy of this rule (91-health.js, healthResultProblem); the self-test below
-   and the /status block in sweep.mjs hold the two to the same fixtures. */
+   and the /status block in sweep.mjs hold the two to the same fixtures.
+   run, trigger and a step's gated (N1b) are optional — a record written
+   before them is still a record — but one that is there must be what it
+   says. */
 export function resultProblem(doc) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return 'not an object';
   if (doc.kind !== RESULT_KIND) return `kind is ${JSON.stringify(doc.kind)}, not ${RESULT_KIND}`;
   if (doc.ranAt == null && Array.isArray(doc.journeys) && !doc.journeys.length) return null;   /* the placeholder: no run yet */
   if (typeof doc.ranAt !== 'string' || !Number.isFinite(Date.parse(doc.ranAt))) return 'ranAt is not a date';
+  if (doc.run != null && !RUN_URL.test(String(doc.run))) return `run is ${JSON.stringify(doc.run)}, not an Actions run's address`;
+  if (doc.trigger != null && !TRIGGERS.includes(doc.trigger)) return `trigger is ${JSON.stringify(doc.trigger)}, not ${TRIGGERS.join(', ')}`;
   if (!Array.isArray(doc.journeys) || !doc.journeys.length) return 'it lists no journeys';
   for (const j of doc.journeys) {
     if (!j || typeof j.id !== 'string' || typeof j.name !== 'string') return 'a journey has no id or name';
     if (!STATUSES.includes(j.status)) return `journey ${j.id} has status ${JSON.stringify(j.status)}`;
     if (j.status === 'FAIL' && (typeof j.failedStep !== 'string' || !j.failedStep)) return `journey ${j.id} failed at no named step`;
     if (j.ms != null && !Number.isFinite(j.ms)) return `journey ${j.id} has a time that is not a number`;
+    if (j.steps != null && !Array.isArray(j.steps)) return `journey ${j.id} has steps that are not a list`;
+    for (const s of j.steps || []) {
+      if (!s || typeof s.name !== 'string' || !['OK', 'SLOW', 'FAIL'].includes(s.status)) return `journey ${j.id} has a step with no name or a status outside OK, SLOW and FAIL`;
+      if (s.gated != null && (typeof s.gated !== 'string' || !s.gated.trim() || s.status === 'FAIL')) return `journey ${j.id}: step "${s.name}" is gated with no reason, or gated and failed`;
+    }
   }
   return null;
 }
@@ -116,24 +144,53 @@ export function signature(doc) {
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)));
 }
 
-/* COMMIT ONLY WHAT IS NEWS. The workflow runs after every production
-   deployment and nightly; the file it commits is deployed, and that
-   deployment runs the journeys again. So a result is committed only when a
-   status or a failing step changed, or the recorded run is a day old.
+/* THE ISLAND PAGES (N1c–N1e, the 5 Oct audit). The served pages that carry
+   the recorded result in their HTML, so a fetch that runs no script reads it:
+   /status's journeys block, and the one line beside the product's badge on
+   the three product landing pages. build.mjs fills them from the committed
+   health/journeys.json (journeysServed, below), and the workflow commits
+   them with the record, rebuilt — so they change with every record, and no
+   other page does: the line is never in a tab row, which every page of a
+   product carries. */
+export const ISLAND_PAGES = ['pages/status.html', 'pages/property.html', 'pages/research.html', 'pages/app/scanner.html'];
+export const RECORD_FILE = 'health/journeys.json';
+export const BOT = 'github-actions[bot]';
 
-   AND NEVER FROM THE DEPLOYMENT OF ITS OWN RECORD. "An identical result a
-   minute later commits nothing" ends the loop only while the result is
-   identical — and a status can flap: a step a second over its budget is
-   DEGRADED on one run and PASS on the next, and each flip was a change, so
-   each was committed, deployed and run again. A deployment whose commit
-   changed nothing but health/ serves the same app as the one before it, so
-   its run is not news about the site: it still reports (the summary, the
-   issue), but it records nothing (deployedFiles, from the workflow). */
-export const ownRecord = (files) => Array.isArray(files) && files.length > 0 && files.every(f => /^health\//.test(f));
-export function decide(recorded, fresh, now = Date.now(), { deployedFiles = null } = {}) {
+/* WHAT THE RECORD SAYS, AND WHEN (D16, the owner's decision of 5 Oct 2026).
+   It said whether a status changed, and refreshed the record once a day
+   otherwise: three code deployments in a row (ee173ce, 4a6b6e5, 75312b2)
+   passed their journeys and none was recorded, and the 03:17 schedule,
+   started six or seven hours late, could leave a record 48 hours old. Now:
+   - after every production deployment that changes the app, the result is
+     recorded: it is the result of the build being served;
+   - every scheduled run (twice a day) is recorded, and so is a run started
+     by hand — a person asked for it;
+   - NEVER FROM THE DEPLOYMENT OF ITS OWN RECORD. The record is committed and
+     deployed, and that deployment runs the journeys again. A commit that
+     changed nothing but the record — and, written by the workflow itself
+     (github-actions[bot]), the island pages rebuilt from it — serves the same
+     app as the deployment before it, so its run is not news about the site:
+     it still reports (the summary, the issue), but it records nothing, and a
+     status that flaps (a step a second over budget, DEGRADED then PASS)
+     cannot loop. The island pages count as the record's only when the bot
+     wrote them: a person's commit that changes /status is a deployment of
+     the app like any other.
+   - A deployment whose changed files are not known records nothing: it
+     cannot be told from the deployment of a record.
+   With no trigger named, the old rule stands: a status or a failing step
+   changed, or the record is a day old. */
+export const ownRecord = (files, author = null) => Array.isArray(files) && files.length > 0
+  && files.every(f => f === RECORD_FILE || /^health\//.test(f) || (author === BOT && ISLAND_PAGES.includes(f)));
+export function decide(recorded, fresh, now = Date.now(), { deployedFiles = null, deployedAuthor = null, trigger = null } = {}) {
   const p = resultProblem(fresh);
   if (p || !hasRun(fresh)) return { commit: false, why: `the new result cannot be recorded: ${p || 'it holds no run'}` };
-  if (ownRecord(deployedFiles)) return { commit: false, why: `this run tested the deployment of a commit that changed only ${deployedFiles.join(', ')} — the same app as the deployment before it — so it records nothing: a status that differs on this run waits for the next nightly or code deployment, and a flapping status cannot loop` };
+  if (ownRecord(deployedFiles, deployedAuthor)) return { commit: false, why: `this run tested the deployment of a commit that changed only ${deployedFiles.join(', ')}${deployedAuthor ? ` (by ${deployedAuthor})` : ''} — the record, served with the same app as the deployment before it — so it records nothing: a status that differs on this run waits for the next scheduled run or code deployment, and a flapping status cannot loop` };
+  if (trigger === 'deployment') {
+    if (!Array.isArray(deployedFiles) || !deployedFiles.length) return { commit: false, why: 'this run followed a deployment whose changed files are not known, so it cannot be told from the deployment of a record: it records nothing' };
+    return { commit: true, why: `the deployment of a commit that changed the app (${deployedFiles.length} file${deployedFiles.length === 1 ? '' : 's'}${deployedFiles.length <= 3 ? `: ${deployedFiles.join(', ')}` : `, ${deployedFiles.slice(0, 3).join(', ')} among them`}): its result is recorded` };
+  }
+  if (trigger === 'schedule') return { commit: true, why: 'a scheduled run: every scheduled run is recorded' };
+  if (trigger === 'dispatch') return { commit: true, why: 'a run started by hand: it is recorded' };
   if (recorded == null) return { commit: true, why: 'no result is recorded yet' };
   const rp = resultProblem(recorded);
   if (rp) return { commit: true, why: `the recorded result cannot be read (${rp})` };
@@ -148,6 +205,91 @@ export function decide(recorded, fresh, now = Date.now(), { deployedFiles = null
   const age = now - Date.parse(recorded.ranAt);
   if (age > REFRESH_MS) return { commit: true, why: `the same results, and the recorded run is ${Math.round(age / 3600000)} hours old` };
   return { commit: false, why: `the same statuses and failing steps as the recorded run of ${recorded.ranAt}, which is under 24 hours old` };
+}
+
+/* THE BOT COMMITS THE RECORD AND ITS PAGES, AND NOTHING ELSE (N1d). After
+   copying the record the workflow runs node build.mjs, which rewrites the
+   island pages from it; anything else the build changes means main was not
+   built from its own source, and that is not the bot's to commit. The paths
+   are git's (status --porcelain), one a line; returns what may not be
+   committed. */
+export function guardProblems(changed) {
+  const allowed = new Set([RECORD_FILE, ...ISLAND_PAGES]);
+  return changed.filter(f => !allowed.has(f));
+}
+
+/* ─── THE RESULT, SERVED (N1c, N1e) ───────────────────────────────────────── */
+/* ONE RENDERER. /status drew the journeys' result only in the reader's
+   browser, from a fetch: served, the block said "Read from the site by this
+   page's script.", so a fetch of the page — a crawler, an auditor's curl —
+   read no result, no time and no commit (the 5 Oct audit, #1). Now the
+   build writes the committed record into the served /status and the three
+   product landing pages with this function, and the page's script draws the
+   same words with the same function: build.mjs puts its source into the app
+   in place of the marker in 91-health.js, so the served words and the drawn
+   ones cannot part. It is pure and self-contained for that reason — it reads
+   nothing outside itself — and it writes only escaped text, the record's
+   own Actions run link and links to /status.
+   Times are UTC, so a page served to anyone, anywhere, and the same page
+   drawn in their browser, say one thing. What it returns:
+     sum    the inner HTML of #health-journeys-sum: "Last recorded run
+            <date, time UTC> on <sha>: N of N pass · public log"
+     list   the inner HTML of #health-journeys: one li per journey, its
+            result, and every step marked OK, FAIL or gated
+     lines  the inner HTML of each product landing page's line, by address:
+            "Journey: <name> · PASS · <time UTC> · <sha> · details" */
+export function journeysServed(doc) {
+  const REPO = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
+  const LINES = { '/property': 'property', '/research': 'equities', '/app/scanner': 'scanner' };
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const STATE = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'] };
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const two = (n) => (n < 10 ? '0' : '') + n;
+  const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {} };
+  Object.keys(LINES).forEach(k => { empty.lines[k] = ''; });
+  const at = doc && typeof doc.ranAt === 'string' ? new Date(doc.ranAt) : null;
+  const list = doc && Array.isArray(doc.journeys) ? doc.journeys.filter(j => j && typeof j.id === 'string' && typeof j.name === 'string' && STATE[j.status]) : [];
+  if (!at || !Number.isFinite(at.getTime()) || !list.length) return empty;
+  const day = at.getUTCDate() + ' ' + MONTHS[at.getUTCMonth()];
+  const time = two(at.getUTCHours()) + ':' + two(at.getUTCMinutes()) + ' UTC';
+  const sha = /^[0-9a-f]{7,40}$/.test(String(doc.commit || '')) ? String(doc.commit).slice(0, 7) : null;
+  const run = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/.test(String(doc.run || '')) ? String(doc.run) : null;
+  const n = (s) => list.filter(j => j.status === s).length;
+  const tally = n('PASS') + ' of ' + list.length + ' pass' + (n('DEGRADED') ? ', ' + n('DEGRADED') + ' degraded' : '') + (n('FAIL') ? ', ' + n('FAIL') + ' failed' : '');
+  const log = run ? '<a class="journeys-log" href="' + esc(run) + '">public log</a>'
+    : '<a class="journeys-log" href="' + REPO + '/actions/workflows/journeys.yml">public run history</a>';
+  const sum = 'Last recorded run ' + day + ' ' + at.getUTCFullYear() + ', ' + time + (sha ? ' on ' + sha : ', its commit not identified') + ': ' + tally + ' · ' + log;
+  const idOf = (j) => 'journey-' + j.id.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  /* A step that passes by checking an honest refusal — the scanner's
+     evaluate step on the live site, which holds the page to saying there is
+     no price history, because none ships — is "gated", with its reason. */
+  const mark = (s) => (s.status === 'FAIL' ? 'FAIL' : s.gated ? 'gated' : 'OK');
+  const steps = (j) => (Array.isArray(j.steps) ? j.steps : []).filter(s => s && typeof s.name === 'string' && ['OK', 'SLOW', 'FAIL'].includes(s.status));
+  const items = list.map(j => {
+    const detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
+      : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
+    const st = steps(j);
+    return '<li class="journey-row" id="' + idOf(j) + '" data-status="' + j.status + '">'
+      + '<span class="chip health-chip ' + STATE[j.status][0] + '">' + STATE[j.status][1] + '</span>'
+      + '<p class="journey-name">' + esc(j.name) + '</p>'
+      + '<div class="journey-body"><p class="caption">' + esc(detail) + '</p>'
+      + (st.length ? '<ol class="journey-steps" aria-label="' + esc(j.name) + ': each step">' + st.map(s => '<li data-mark="' + mark(s).toLowerCase() + '">'
+        + '<span class="journey-mark">' + mark(s) + '</span> ' + esc(s.name)
+        + (s.gated ? '<span class="journey-why"> — ' + esc(s.gated) + '</span>' : s.status === 'SLOW' ? '<span class="journey-why"> — over its time budget</span>' : s.status === 'FAIL' && s.why ? '<span class="journey-why"> — ' + esc(s.why) + '</span>' : '')
+        + '</li>').join('') + '</ol>' : '')
+      + '</div></li>';
+  }).join('');
+  const lines = {};
+  Object.keys(LINES).forEach(path => {
+    const j = list.find(x => x.id === LINES[path]);
+    if (!j) { lines[path] = ''; return; }
+    const gated = steps(j).filter(s => s.gated && s.status !== 'FAIL')
+      .map(s => ' · ' + esc(s.name.split(':')[0].replace(/\s+it$/i, '').toLowerCase()) + ': gated (' + esc(s.gated) + ')').join('');
+    lines[path] = '<span class="journey-line-label">Journey:</span> ' + esc(j.name) + ' · ' + j.status
+      + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + gated + ' · ' + day + ' ' + time
+      + (sha ? ' · ' + sha : '') + ' · <a class="journey-line-link" href="/status#' + idOf(j) + '">details</a>';
+  });
+  return { recorded: true, sum, list: items, lines };
 }
 
 const fmtS = (ms) => (ms == null ? '—' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
@@ -201,7 +343,63 @@ function selfTest() {
   t(decide(pass, flap, now, { deployedFiles: ['health/journeys.json'] }).commit === false, 'the deployment of the record\'s own commit records nothing, even when a status flapped (no loop)');
   t(decide(undefined, pass2, now, { deployedFiles: ['health/journeys.json'] }).commit === false, 'the deployment of the record\'s own commit records nothing, even over no record');
   t(decide(pass, flap, now, { deployedFiles: ['health/journeys.json', 'src/js/91-health.js'] }).commit === true, 'a deployment that changed the app as well is news: a changed status is committed');
-  t(decide(pass, flap, now, { deployedFiles: [] }).commit === true && decide(pass, flap, now).commit === true, 'with no list of the deployed files (nightly, by hand) the rule is unchanged');
+  t(decide(pass, flap, now, { deployedFiles: [] }).commit === true && decide(pass, flap, now).commit === true, 'with no trigger and no list of the deployed files, the old rule: a changed status is committed');
+  /* D16 (the owner's decision of 5 Oct 2026): every production deployment
+     that changes the app, and every scheduled run, is recorded — the same
+     statuses as a record two hours old included — and the deployment of the
+     record's own commit still records nothing. */
+  const BOT_FILES = ['health/journeys.json', ...ISLAND_PAGES];
+  const code = decide(pass, pass2, now, { trigger: 'deployment', deployedFiles: ['src/js/91-health.js', 'index.html', 'assets/app.0123456789ab.js'], deployedAuthor: 'MCD' });
+  t(code.commit === true, `D16: a code deployment records its result, the same statuses as a record 2h old included (${code.why.slice(0, 70)}…)`);
+  t(decide(pass, pass2, now, { trigger: 'schedule' }).commit === true, 'D16: a scheduled run records its result, the same statuses as a record 2h old included');
+  t(decide(pass, pass2, now, { trigger: 'dispatch' }).commit === true, 'D16: a run started by hand records its result');
+  t(decide(pass, flap, now, { trigger: 'deployment', deployedFiles: BOT_FILES, deployedAuthor: BOT }).commit === false, 'D16: a record-only commit by the bot (the record and the island pages it rebuilt) records nothing, even when a status flapped (no loop)');
+  t(decide(pass, flap, now, { trigger: 'deployment', deployedFiles: ['health/journeys.json'], deployedAuthor: 'MCD' }).commit === false, 'D16: a commit of the record alone records nothing, whoever wrote it');
+  t(decide(pass, pass2, now, { trigger: 'deployment', deployedFiles: ['health/journeys.json', 'pages/status.html'], deployedAuthor: 'MCD' }).commit === true, 'D16: the island pages count as the record\'s only from github-actions[bot]: a person\'s commit to /status is a code deployment');
+  t(decide(pass, pass2, now, { trigger: 'deployment', deployedFiles: [...BOT_FILES, 'src/js/91-health.js'], deployedAuthor: BOT }).commit === true, 'D16: a bot commit that also changed the app is a code deployment');
+  t(decide(pass, pass2, now, { trigger: 'deployment', deployedFiles: null }).commit === false, 'D16: a deployment whose changed files are not known records nothing (it cannot be told from a record\'s)');
+  t(decide(pass, { ...pass2, journeys: [] }, now, { trigger: 'schedule' }).commit === false, 'D16: a scheduled run with no valid result records nothing');
+  t(ownRecord(BOT_FILES, BOT) && !ownRecord(BOT_FILES, 'MCD') && ownRecord(['health/journeys.json'], 'MCD') && !ownRecord([], BOT), 'ownRecord: the record from anyone, the island pages only from github-actions[bot], and an empty list is no one\'s');
+  /* The record's new fields (N1b). */
+  const rec = { ...pass2, schema: 2, run: 'https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/37252405895', trigger: 'deployment' };
+  t(resultProblem(rec) === null, 'the record: run (an Actions run) and trigger (deployment, schedule or dispatch) are valid');
+  t(resultProblem({ ...rec, run: 'https://example.test/actions/runs/1' }) !== null && resultProblem({ ...rec, trigger: 'push' }) !== null, 'the record: a run that is not an Actions run\'s address, or a trigger outside the three, is not valid');
+  const gatedDoc = { ...rec, journeys: [{ ...j('scanner', 'PASS'), name: 'Scanner: build, save and evaluate a setup', steps: [{ name: 'Save the setup', ms: 200, status: 'OK' }, { name: 'Evaluate it: the page says there is no price history here', ms: 230, status: 'OK', gated: 'no prices ship' }] }] };
+  t(resultProblem(gatedDoc) === null, 'the record: a step that passes by checking a refusal is gated, with its reason');
+  t(resultProblem({ ...gatedDoc, journeys: [{ ...gatedDoc.journeys[0], steps: [{ name: 'Evaluate', ms: 1, status: 'OK', gated: '' }] }] }) !== null, 'the record: a gated step with no reason is not valid');
+  t(triggerOf('deployment_status') === 'deployment' && triggerOf('schedule') === 'schedule' && triggerOf('workflow_dispatch') === 'dispatch' && triggerOf('push') === null, 'the trigger: deployment_status, schedule and workflow_dispatch, and nothing else');
+  /* The guard on the bot's commit (N1d). */
+  t(!guardProblems(BOT_FILES).length && guardProblems(['health/journeys.json', 'pages/about.html', 'index.html']).join() === 'pages/about.html,index.html', 'the guard: the record and the island pages may be committed by the bot, and nothing else');
+  /* The one renderer (N1c, N1e). */
+  {
+    const full = { ...rec, ranAt: '2026-10-05T10:30:28.776Z', commit: '75312b2bc2c9cf2dc016a2bd405fd403a4656be1', journeys: [
+      { ...j('equities', 'PASS'), name: 'Equities: search, filed statements, watchlist', steps: [{ name: 'Open Equities Research', ms: 400, status: 'OK' }] },
+      { ...j('property', 'PASS'), name: 'Property: calculate, change, save', steps: [{ name: 'Save the property', ms: 700, status: 'OK' }, { name: 'Slow <step>', ms: 9000, status: 'SLOW' }] },
+      gatedDoc.journeys[0],
+      { ...j('ctas', 'FAIL', 'Open My Dashboard'), name: 'Primary calls to action land on working pages', route: '/app', note: 'the app never started', steps: [{ name: 'Open My Dashboard', ms: 45000, status: 'FAIL', why: 'the app never started' }] }] };
+    const out = journeysServed(full);
+    t(out.sum === 'Last recorded run 5 Oct 2026, 10:30 UTC on 75312b2: 3 of 4 pass, 1 failed · <a class="journeys-log" href="https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/37252405895">public log</a>',
+      `journeysServed: the summary — its run in UTC, a 7-character commit, the tally and the run's public log (${out.sum.slice(0, 80)}…)`);
+    const lis = out.list.match(/<li class="journey-row" id="journey-[a-z-]+" data-status="(PASS|DEGRADED|FAIL)">/g) || [];
+    t(lis.length === 4, `journeysServed: one li per journey (${lis.length} of 4)`);
+    const marks = [...out.list.matchAll(/<li data-mark="([a-z]+)"><span class="journey-mark">([A-Za-z]+)<\/span> ([^<]*)/g)].map(m => `${m[2]} ${m[3]}`);
+    t(marks.join(' | ') === 'OK Open Equities Research | OK Save the property | OK Slow &lt;step&gt; | OK Save the setup | gated Evaluate it: the page says there is no price history here | FAIL Open My Dashboard',
+      `journeysServed: every step named and marked OK, FAIL or gated, escaped (${marks.join(' | ').slice(0, 120)})`);
+    t(/gated Evaluate it[^<]*<span class="journey-why"> — no prices ship<\/span>/.test(out.list.replace(/<span class="journey-mark">gated<\/span>/, 'gated')) && /over its time budget/.test(out.list), 'journeysServed: a gated step says why; a slow one says it was over its budget');
+    t(out.lines['/property'] === '<span class="journey-line-label">Journey:</span> Property: calculate, change, save · PASS · 5 Oct 10:30 UTC · 75312b2 · <a class="journey-line-link" href="/status#journey-property">details</a>',
+      `journeysServed: /property's line — "Journey: <name> · PASS · <time UTC> · <sha> · details" (${out.lines['/property'].slice(0, 90)}…)`);
+    t(/ · PASS · evaluate: gated \(no prices ship\) · 5 Oct 10:30 UTC · 75312b2 · <a [^>]*href="\/status#journey-scanner">details<\/a>$/.test(out.lines['/app/scanner']), `journeysServed: the Scanner's line adds "evaluate: gated (no prices ship)" (${out.lines['/app/scanner'].slice(-110)})`);
+    t(/^<span class="journey-line-label">Journey:<\/span> Equities: search, filed statements, watchlist · PASS · /.test(out.lines['/research']), 'journeysServed: /research\'s line is the equities journey');
+    const none = journeysServed({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] });
+    t(!none.recorded && /^Not run yet\./.test(none.sum) && none.list === '' && Object.values(none.lines).every(l => l === '') && Object.keys(none.lines).length === 3, 'journeysServed: the placeholder serves "not run yet", no list and three empty lines');
+    const old = journeysServed({ ...full, run: undefined });
+    t(/<a class="journeys-log" href="https:\/\/github\.com\/georgewong1014-pixel\/quantum-tradeworks\/actions\/workflows\/journeys\.yml">public run history<\/a>$/.test(old.sum), 'journeysServed: a record with no run links the workflow\'s public run history, never a run it did not record');
+    /* build.mjs imports this module, and this module imports build.mjs for
+       --url production: a top-level await of it would wait on itself. */
+    const own = readFileSync(join(ROOT, 'journeys.mjs'), 'utf8').split(/\r?\n/).filter(l => /^\S/.test(l) && /\bawait\b/.test(l) && !/^\s*(\/\/|\/\*|\*)/.test(l));
+    t(!own.length, `journeys.mjs has no top-level await (build.mjs imports it; --url production imports build.mjs)${own.length ? `: ${own[0].slice(0, 60)}` : ''}`);
+    t(!/[\s\S]<\/script|<!--/i.test(String(journeysServed)) && !/\b(document|window|location|el|fetch|HEALTH|BASE)\b\s*[.(]/.test(String(journeysServed)), 'journeysServed: self-contained (the build puts its source into the app) — no page globals, no </script or <!--');
+  }
   t(resultProblem(doc('2026-09-30T11:30:00Z', [j('a', 'FAIL')])) !== null, 'a FAIL with no named step is not a valid result');
   t(resultProblem(doc('2026-09-30T11:30:00Z', [{ ...j('a', 'PASS'), status: 'OK' }])) !== null, 'a status outside PASS, DEGRADED and FAIL is not a valid result');
   t(resultProblem({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] }) === null && !hasRun({ kind: RESULT_KIND, ranAt: null, journeys: [] }), 'the placeholder is valid and holds no run');
@@ -227,15 +425,65 @@ function selfTest() {
     t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'actions: write,contents: write,issues: write', 'the workflow: permissions actions, contents and issues write, nothing else');
     const wait = Number((/--commit "\$DEPLOY_SHA" --wait (\d+)/.exec(y) || [])[1]);
     const limit = Number((/^ {4}timeout-minutes: (\d+)$/m.exec(y) || [])[1]);
-    t(wait >= 2700 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (45 minutes at least) inside a ${limit || '?'}-minute job with ten to spare`);
+    /* 2.3: the checks take 39–52 minutes, so a deployment held for them
+       goes live up to an hour after it is made. */
+    t(wait >= 3600 && limit >= 75 && limit * 60 >= wait + 600, `the workflow: a deployment's run waits ${wait || 'no'}s for its build (an hour at least) inside a ${limit || '?'}-minute job (75 at least) with ten to spare`);
     t(/git push origin HEAD:main; then\n\s+gh workflow run checks\.yml [^\n]*--ref main/.test(y) && /GH_TOKEN: \$\{\{ github\.token \}\}/.test(y.slice(y.indexOf('record the result on main'))), 'the workflow: the record it pushes has checks.yml started on it, so its deployment can pass its Deployment Checks');
+    /* D16 and N1b–N1d. Comments may tell the history; the commands may not
+       carry it. */
+    const cmds = y.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+    t(/^ {4}- cron: '17 3,15 \* \* \*'/m.test(y), 'the workflow: two scheduled runs a day (17 3,15 * * *)');
+    t(!/\[skip ci\]/i.test(cmds), 'the workflow: the record commit does not say [skip ci] — its checks run, so Deployment Checks can promote it');
+    t(/TRIGGER: \$\{\{ github\.event_name == 'deployment_status' && 'deployment' \|\| github\.event_name == 'schedule' && 'schedule' \|\| 'dispatch' \}\}/.test(y)
+      && /node journeys\.mjs --url production [^\n]*\\\n[^\n]*--trigger "\$TRIGGER" --run "\$RUN_URL"/.test(cmds) && /RUN_URL: \$\{\{ github\.server_url \}\}\/\$\{\{ github\.repository \}\}\/actions\/runs\/\$\{\{ github\.run_id \}\}/.test(y),
+      'the workflow: the record carries what started the run and the run\'s public log');
+    t(/node journeys\.mjs --decide [^\n]*--trigger "\$TRIGGER"[^\n]*--deployed-files[^\n]*--deployed-author/.test(cmds) && /git log -1 --format='%an' "\$DEPLOY_SHA"/.test(cmds), 'the workflow: the trigger, the deployed commit\'s files and its author reach the commit rule');
+    const rec = cmds.slice(cmds.indexOf('record the result on main'));
+    const at = (re) => { const m = re.exec(rec); return m ? m.index : -1; };
+    const iCopy = at(/cp "\$RUNNER_TEMP\/journeys\.json" health\/journeys\.json/), iBuild = at(/node build\.mjs\b/), iGuard = at(/node journeys\.mjs --guard\b/), iCommit = at(/git commit\b/);
+    t(iCopy > -1 && iCopy < iBuild && iBuild < iGuard && iGuard < iCommit, 'the workflow: the record is copied, the island pages rebuilt from it (node build.mjs), the guard run, then the commit');
+    t(!/pull --rebase/.test(cmds) && /git fetch -q origin main\n\s+git reset -q --hard origin\/main\n\s+record \|\| exit 1/.test(rec), 'the workflow: a lost push starts again from main as it is now (fetch, reset, rebuild) — never git pull --rebase');
   }
-  console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule, the result shape, the table and the workflow hold');
+  /* 2.3: the journeys against CI's server are a job of their own, beside the
+     route checks rather than after them, so a failure before them cannot
+     hide them; and the jobs' names, which Vercel's Deployment Checks are
+     set to, are the ones the owner selected. */
+  const cf = join(ROOT, '.github/workflows/checks.yml');
+  if (existsSync(cf)) {
+    const y = readFileSync(cf, 'utf8').replace(/\r\n/g, '\n');
+    const jobs = {};
+    for (const m of y.slice(y.indexOf('\njobs:\n')).matchAll(/^ {2}([a-z][a-z0-9-]*):\n((?: {4,}[^\n]*\n|\s*\n)*)/gm)) jobs[m[1]] = m[2];
+    const named = (n) => Object.entries(jobs).find(([, b]) => new RegExp(`^ {4}name: ${n}$`, 'm').test(b));
+    const tool = named('every tool works from start to finish'), runtime = named('every route renders'), stat = named('parses, and matches its source');
+    t(!!stat && !!runtime && !!tool, `checks.yml: the three jobs Deployment Checks names — ${['parses, and matches its source', 'every route renders', 'every tool works from start to finish'].map(n => `"${n}" ${named(n) ? 'there' : 'MISSING'}`).join(', ')}`);
+    t(!!tool && /^ {4}needs: static$/m.test(tool[1]) && /node journeys\.mjs http:\/\/localhost:\d+/.test(tool[1]) && !!runtime && !/node journeys\.mjs/.test(runtime[1]),
+      'checks.yml: the journeys are their own job, after the static job and beside "every route renders", not a step of it');
+  }
+  console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule (a code deployment records, a scheduled run records, a record-only bot commit records nothing), the result shape, the table, the served result, the guard and the workflows hold');
   process.exit(bad ? 1 : 0);
 }
 
-if (has('self-test')) selfTest();
-if (has('decide')) {
+/* The working tree's changes, as git names them: a rename's new path. */
+function changedPaths() {
+  const out = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: ROOT, encoding: 'utf8' });
+  return out.split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '')).map(p => (p.includes(' -> ') ? p.split(' -> ')[1] : p));
+}
+
+if (MAIN && has('self-test')) selfTest();
+if (MAIN && has('guard')) {
+  const changed = changedPaths();
+  const bad = guardProblems(changed);
+  if (bad.length) {
+    console.error(`the bot may commit only ${RECORD_FILE} and the island pages (${ISLAND_PAGES.join(', ')}); this tree also changes:`);
+    bad.slice(0, 20).forEach(f => console.error(`  ${f}`));
+    if (bad.length > 20) console.error(`  and ${bad.length - 20} more`);
+    console.error('main was not built from its own source, or the build changed what the record does not decide — nothing is committed');
+    process.exit(1);
+  }
+  console.log(`the tree changes ${changed.length ? changed.join(', ') : 'nothing'}: the record and the island pages only`);
+  process.exit(0);
+}
+if (MAIN && has('decide')) {
   const i = argv.indexOf('--decide');
   const [recFile, newFile] = [argv[i + 1], argv[i + 2]];
   if (!newFile) { console.error('usage: node journeys.mjs --decide <recorded.json> <new.json>'); process.exit(2); }
@@ -245,7 +493,11 @@ if (has('decide')) {
      line (git diff --name-only <sha>^ <sha>), for a run after a deployment. */
   const df = flag('deployed-files');
   const deployedFiles = df && existsSync(df) ? readFileSync(df, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean) : null;
-  const d = decide(recorded === undefined && existsSync(recFile) ? { unreadable: true } : recorded, fresh, Date.now(), { deployedFiles });
+  /* --trigger: what started the run; --deployed-author: who wrote the
+     deployed commit (git log -1 --format=%an <sha>). */
+  const trigger = flag('trigger');
+  if (trigger && !TRIGGERS.includes(trigger)) { console.error(`--trigger is ${trigger}, not ${TRIGGERS.join(', ')}`); process.exit(2); }
+  const d = decide(recorded === undefined && existsSync(recFile) ? { unreadable: true } : recorded, fresh, Date.now(), { deployedFiles, deployedAuthor: flag('deployed-author'), trigger });
   const js = fresh?.journeys || [];
   const n = (s) => js.filter(x => x.status === s).length;
   console.log(`commit=${d.commit}`);
@@ -260,17 +512,29 @@ if (has('decide')) {
 }
 
 /* ─── WHERE ───────────────────────────────────────────────────────────────── */
-let BASE = flag('url') || argv.find(a => /^https?:\/\//.test(a)) || 'http://localhost:8123';
-if (BASE === 'production') {
-  const { siteOrigin } = await import('./build.mjs');
-  BASE = siteOrigin(readFileSync(join(ROOT, 'src/index.template.html'), 'utf8'));
-}
-BASE = BASE.replace(/\/+$/, '');
-let HOST;
-try { HOST = new URL(BASE).hostname; } catch { console.error(`not an address: ${BASE}`); process.exit(2); }
+/* --url production is resolved in main(), not here: build.mjs imports this
+   module (journeysServed), so awaiting build.mjs at the top level while this
+   module is still being evaluated would wait on itself — the run hung there
+   with "unsettled top-level await" before it began. With no top-level await,
+   this module has finished evaluating by the time main() asks for it. */
+let BASE = (flag('url') || argv.find(a => /^https?:\/\//.test(a)) || 'http://localhost:8123').replace(/\/+$/, '');
+let HOST = null;
 /* The owner's machine, as the app decides it (25-universe.js, OWNER_MACHINE):
    only there does the page ask for the personal lane at all. */
-const OWNER_MACHINE = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(HOST);
+let OWNER_MACHINE = false;
+async function where() {
+  if (BASE === 'production') {
+    const { siteOrigin } = await import('./build.mjs');
+    BASE = siteOrigin(readFileSync(join(ROOT, 'src/index.template.html'), 'utf8')).replace(/\/+$/, '');
+  }
+  try { HOST = new URL(BASE).hostname; } catch { console.error(`not an address: ${BASE}`); process.exit(2); }
+  OWNER_MACHINE = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(HOST);
+}
+/* What started the run and its public log, recorded with the result (N1b). */
+const TRIGGER = flag('trigger');
+const RUN = flag('run');
+if (MAIN && TRIGGER && !TRIGGERS.includes(TRIGGER)) { console.error(`--trigger is ${TRIGGER}, not ${TRIGGERS.join(', ')}`); process.exit(2); }
+if (MAIN && RUN && !RUN_URL.test(RUN)) { console.error(`--run is ${RUN}, not an Actions run's address`); process.exit(2); }
 const ONLY = (flag('only') || '').split(',').map(s => s.trim()).filter(Boolean);
 
 /* Budgets. A first load includes the 1.4MB of filed statements; an action
@@ -553,20 +817,20 @@ class Journey {
   toJSON() {
     return { id: this.id, name: this.name, status: this.status, failedStep: this.failedStep, route: this.route, ms: this.ms,
       note: this.notes.length ? this.notes.join(' · ').slice(0, 600) : null,
-      steps: this.steps.map(s => ({ name: s.name, ms: s.ms, status: s.status, ...(s.why ? { why: s.why.slice(0, 200) } : {}) })) };
+      steps: this.steps.map(s => ({ name: s.name, ms: s.ms, status: s.status, ...(s.why ? { why: s.why.slice(0, 200) } : {}), ...(s.gated ? { gated: s.gated } : {}) })) };
   }
 }
 
 /* One step: done within STEP_LIMIT or failed, and over its budget is said.
    Returns { ok, out } or { ok: false, why, route } — step() stops the journey
    on a failure, trial() records it and lets the journey go on. */
-async function timed(j, tab, name, budget, fn) {
+async function timed(j, tab, name, budget, fn, { gated = null } = {}) {
   const t0 = Date.now();
   let timer;
   try {
     const out = await Promise.race([fn(), new Promise((_, rej) => { timer = setTimeout(() => rej(new StepError(`did not finish within ${STEP_LIMIT / 1000}s`)), STEP_LIMIT); })]);
     const ms = Date.now() - t0;
-    j.steps.push({ name, ms, status: ms > budget ? 'SLOW' : 'OK' });
+    j.steps.push({ name, ms, status: ms > budget ? 'SLOW' : 'OK', ...(gated ? { gated } : {}) });
     if (ms > budget) j.degrade(`“${name}” took ${fmtS(ms)}, over its ${fmtS(budget)} budget`, await tab.where());
     return { ok: true, out };
   } catch (e) {
@@ -576,8 +840,11 @@ async function timed(j, tab, name, budget, fn) {
     return { ok: false, why, route: await tab.where() };
   } finally { clearTimeout(timer); }
 }
-async function step(j, tab, name, budget, fn) {
-  const r = await timed(j, tab, name, budget, fn);
+/* gated: the step passes by checking an honest refusal, and says why the
+   tool refuses there (N1b) — recorded with the step, and marked "gated"
+   wherever the result is shown, never as a plain OK. */
+async function step(j, tab, name, budget, fn, opts) {
+  const r = await timed(j, tab, name, budget, fn, opts);
   if (!r.ok) { j.fail(name, r.route, r.why); throw STOP; }
   return r.out;
 }
@@ -878,7 +1145,10 @@ const JOURNEYS = [
         await tab.click(test, 'Test against your history');
         await tab.expect(`/\\b1 match\\b/.test(document.querySelector('main .scan-test-out')?.innerText || '') && /\\bAAPL\\b/.test(document.querySelector('main .scan-test-out')?.innerText || '')`,
           async () => `the evaluation did not show the match: ${(await tab.text('.scan-test-out')).slice(0, 240).replace(/\s+/g, ' ')}`);
-      });
+      /* On the deployed site the step passes by checking a refusal, and is
+         recorded as gated: it proves the page says why it cannot evaluate,
+         not that an evaluation ran (N1b). */
+      }, synthetic ? undefined : { gated: 'no prices ship' });
     },
   },
   {
@@ -1011,6 +1281,7 @@ const JOURNEYS = [
 
 /* ─── RUN ─────────────────────────────────────────────────────────────────── */
 async function main() {
+  await where();
   const ranAt = new Date().toISOString();
   const who = await commitServed();
   const todo = JOURNEYS.filter(x => !ONLY.length || ONLY.includes(x.id));
@@ -1045,7 +1316,7 @@ async function main() {
     }
   } finally { await browser.close(); }
 
-  const doc = { kind: RESULT_KIND, schema: 1, ranAt, url: BASE, commit: who.commit, commitFrom: who.commitFrom, journeys: results.map(r => r.toJSON()) };
+  const doc = { kind: RESULT_KIND, schema: 2, ranAt, url: BASE, commit: who.commit, commitFrom: who.commitFrom, ...(TRIGGER ? { trigger: TRIGGER } : {}), ...(RUN ? { run: RUN } : {}), journeys: results.map(r => r.toJSON()) };
   const problem = resultProblem(doc);
   if (problem) { console.error(`FAIL  the result is not a valid result: ${problem}`); process.exit(2); }
   if (has('json')) {
@@ -1060,4 +1331,4 @@ async function main() {
   process.exit(n('FAIL') ? 1 : 0);
 }
 
-await main();
+if (MAIN) main().catch(e => { console.error(`FAIL  the journeys could not run: ${e.stack || e.message}`); process.exit(2); });
