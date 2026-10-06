@@ -46812,7 +46812,7 @@ const CAPABILITY_REGISTER = [
     now:'Quantum Scanner in the app sidebar (the Products group, after Equities Research), with the scanner’s unread matches counted on My Alerts, which lists them beside the research alerts, and the Trading Index as the last section of its strip; the dashboard at /app/scanner, with /my/scanner kept as its alias (a ?symbol= link still opens the builder); market screening, historical testing and the four /admin/scanner pages. Route parameters are never :id, so no scanner address is read as a company.',
     gate:'/admin/* is not restricted to anyone: there are no accounts, so the operations pages are read-only views that say so. Intraday timeframes appear nowhere as available.',
     checks:[{ file:'equity-test.mjs', name:'the scanner is in the sidebar after Equities Research, on every scanner address' },
-            { file:'register-check.mjs', name:'robots.txt keeps the scanner and operations paths out of crawlers' },
+            { file:'register-check.mjs', name:'the scanner and operations paths are kept out of search indexes' },
             { file:'mobile.mjs', name:'no horizontal overflow at any width' }] },
   { name:'Market-data ingestion (scanner)', status:'data-gated', path:null,
     brief:['SC-301'], priority:'P0',
