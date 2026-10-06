@@ -758,12 +758,12 @@ function setPlan(id) {
 
 /* An upgrade prompt that names the limit rather than hiding behind a paywall. */
 function upsell(title, detail) {
-  const box = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze)' });
+  const box = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--bronze)' });
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, [
     el('span', { class: 'chip chip-bronze' }, planOf().name),
     el('h3', { class: 'h-card' }, title),
   ]));
-  box.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--sm)' }, detail));
+  box.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' }, detail));
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     /* Outline: a plan prompt is never the page's primary action — on the
        property calculator it was the only filled button, at the page's end. */
@@ -11120,8 +11120,13 @@ function timeframeScoreBars(container, tfs, floors) {
        number on the page.
      - it is a summary of what is already on screen, so it introduces no
        figure the reader cannot scroll up and check. */
-function decisionDock({ figs, blocker, next }) {
-  const dock = el('div', { class: 'dock', role: 'complementary', 'aria-label': 'Current result and next action' });
+/* actions: the page's sticky action bar under 640px (lsActionBar, the
+   layout system), in the dock's place for its own action and blocker; with
+   phoneOnly the dock is that bar alone and is not shown from 640px. */
+function decisionDock({ figs, blocker, next, actions = null, phoneOnly = false }) {
+  const dock = el('div', { class: `dock${actions ? ' ls-dock' : ''}${phoneOnly ? ' ls-dock-phone' : ''}`, role: 'complementary',
+    'aria-label': phoneOnly ? 'Page actions' : 'Current result and next action' });
+  if (phoneOnly) { dock.append(el('div', { class: 'dock-inner' }, lsActionBar(actions))); return dock; }
   const inner = el('div', { class: 'dock-inner' });
 
   const fg = el('div', { class: 'dock-figs' });
@@ -11148,6 +11153,7 @@ function decisionDock({ figs, blocker, next }) {
     acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: next.onclick }, next.label));
     inner.append(acts);
   }
+  if (actions) inner.append(lsActionBar(actions));
   dock.append(inner);
   return dock;
 }
@@ -11234,7 +11240,7 @@ function workBar(kind, onReset, { primary = false, saveLabel = 'Save' } = {}) {
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
 function tableTwin(caption, headers, rows) {
   const det = el('details', { class: 'caption', style: 'margin-top:var(--sm)' });
-  det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:12px' }, caption));
+  det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:var(--ls-meta)' }, caption));
   const wrap = el('div', { class: 'tablewrap', style: 'margin-top:var(--xs)' });
   const t = el('table', { class: 'dt' });
   /* A header left blank for the eye — the label column of a two-column
@@ -11949,6 +11955,8 @@ const ICON = {
   chev:'<path d="m6 9 6 6 6-6"/>',
   /* The Scenario Lab's way back to a figure as saved (82-property-lab.js). */
   undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  /* The layout system's action bar: Save this (37-layout-system.js). */
+  bookmark:'<path d="M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -14173,14 +14181,17 @@ function renderProductTabs() {
   /* The tools' states are part of what the strip says: a tool the filings
      failed under is text in it, and comes back a link when they load. So is
      a tab's count: a match read changes the Scanner's Alerts tab. */
-  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null]);
+  /* On a page of the layout system (lsOn, 37-layout-system.js) the row is
+     its chips under 640px: drawn again when that changes. */
+  const chips = lsOn();
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips]);
   if (!host.hidden && host.dataset.strip === strip) return;
   const items = tabs.map(t => {
     const n = tabCount(t);
     return { label: n ? `${t.label} · ${n}` : t.label, path: t.path, current: t === here, ariaLabel: n ? `${t.label}, ${n} unread` : null };
   });
   const nav = p
-    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: pid === 'scanner' ? 'scan-subnav' : '' })
+    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
     : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
@@ -14540,7 +14551,7 @@ function bootSkeleton() {
      cannot reach sec.gov at all (the policy allows connections to this origin
      only), so "being fetched from SEC EDGAR" described a request that never
      happens and made a stored snapshot sound live. */
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;max-width:60ch' },
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:8px;max-width:60ch' },
     'The US companies’ annual statements, retrieved from SEC EDGAR when this dataset was built, are loading from this site. This page waits for them '
     + 'rather than showing the illustrative sample first — a sample company and a filed one can share a '
     + 'ticker, and the sample carries a price the filed company does not have.'));
@@ -15313,7 +15324,9 @@ function drawPage(samePage) {
      with its journey's last recorded result (N1e; 91-health.js), and the
      product's Start here panel, until the reader hides it (Release B, B6;
      36-layouts.js). */
-  const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
+  /* ls-view: a page on the layout system, its journey line and Start here
+     with it (37-layout-system.js; styles.css, layout-system). */
+  const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
     'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [journeyLineNode(), startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
@@ -15828,6 +15841,232 @@ function startHereSettings() {
     } }, 'Show them again'),
   ]));
   return card;
+}
+/* ==========================================================================
+   THE QUANTUM RESPONSIVE LAYOUT SYSTEM (the owner's decision, 7 Oct 2026)
+   --------------------------------------------------------------------------
+   Defined once, here and in styles.css (layout-system), and checked: build
+   --check holds the stylesheet to its tokens, served-check holds a served
+   page's cards to the four types, mobile.mjs holds the phone patterns and
+   the measure, coverage-frames holds an L3 drawer to moving nothing.
+
+   FIVE RULES. One screen, one primary question. Numbers and visuals before
+   explanation. Desktop compares; mobile sequences. Evidence is available,
+   not imposed. The main action is always visible.
+
+   THREE INFORMATION LEVELS, never all three at equal weight:
+     L1 decision  the one or two figures the page exists for — the
+                  card-metric size (--ls-metric), class ls-l1
+     L2 context   the figures that qualify them — medium (--ls-l2), ls-l2
+     L3 evidence  formulas, methodology, sources, assumptions — small and
+                  collapsed: a <details>, or the evidence drawer (ls-l3)
+   The disclosures that stay in sight — the status strip, "Not a
+   valuation", "not a real listing" — are never L3.
+
+   FOUR CARD TYPES, and no others (data-card): metric (a value, its label,
+   its data badge), action (a title, one line, one call to action), alert
+   ("N assumptions need evidence", "Review →"), insight (a finding, its
+   figure, "See why →"). A region headed by its own heading is a section
+   (ls-section), not a card; a figure inside a section that qualifies it
+   is a figure (ls-fig), not a card.
+
+   BREAKPOINTS, BY BEHAVIOUR (LS_BP; the media queries in styles.css):
+     under 640    one column; the sticky action bar; tables become cards;
+                  tab rows become one line of chips that scrolls
+     640–1023     one or two columns; the navigation collapsible
+     1024–1439    sidebar and workspace (up to --ls-workspace-max)
+     1440 and up  sidebar, workspace and, where the page has evidence, the
+                  evidence drawer on the right (--ls-drawer-w)
+   Every rule is the window's, never the script's, so the page served
+   before the script runs is laid out as the page it draws (prerender).
+
+   THE CTA LADDER on what is built here: one site action; a product's
+   action ("Analyse a property"); the conversion, "Save this"; no paid
+   call to action.
+
+   Pages on the system (LS_VIEWS): /property (and /property/lab, the same
+   view) and /property/calculator. The rest come later, one at a time.
+   ========================================================================== */
+
+const LS_VIEWS = ['propertyLab', 'property'];
+const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
+const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
+const lsOn = (view = State.view) => LS_VIEWS.includes(view);
+/* The window, as the stylesheet reads it. */
+const lsWide = () => typeof matchMedia === 'function' && matchMedia(`(min-width: ${LS_BP.wide}px)`).matches;
+const lsPhone = () => typeof matchMedia === 'function' && matchMedia(`(max-width: ${LS_BP.tablet - 0.02}px)`).matches;
+
+/* ------------------------------------------------------------------- cards */
+/* METRIC: its label, its value and its data badge — the figure's kind (the
+   evidence words today; the shared badge set, plan 3.7, when it lands).
+   level 1 is the decision's size, level 2 the context's. */
+function lsMetricCard({ label, value, badge = null, sub = null, level = 1, tone = null, cls = '', attrs = {}, valueAttrs = {} }) {
+  return el('div', { ...attrs, class: `ls-card ls-l${level}${cls ? ` ${cls}` : ''}`, 'data-card': 'metric', 'data-level': String(level) }, [
+    el('p', { class: 'ls-card-hd' }, [el('span', { class: 'ls-card-label' }, label), badge ? ' ' : null, badge]),
+    el('p', { ...valueAttrs, class: `ls-card-value num${tone ? ` ${tone}` : ''}${valueAttrs.class ? ` ${valueAttrs.class}` : ''}` }, value),
+    sub != null ? el('p', { class: 'ls-card-sub' }, sub) : null,
+  ]);
+}
+/* ACTION: a title, one line and one call to action, the whole card its
+   target (the call's ::after reaches over it). */
+function lsActionCard({ title, line, cta, badge = null, cls = '', attrs = {} }) {
+  cta.classList.add('ls-card-cta');
+  return el('div', { ...attrs, class: `ls-card${cls ? ` ${cls}` : ''}`, 'data-card': 'action' }, [
+    el('p', { class: 'ls-card-hd' }, [el('span', { class: 'ls-card-label' }, title), badge ? ' ' : null, badge]),
+    el('p', { class: 'ls-card-act' }, cta),
+    el('p', { class: 'ls-card-sub' }, line),
+  ]);
+}
+/* ALERT: what needs the reader, counted, and "Review →". */
+function lsAlertCard({ text, sub = null, cta, cls = '', attrs = {} }) {
+  cta.classList.add('ls-card-cta');
+  return el('div', { ...attrs, class: `ls-card${cls ? ` ${cls}` : ''}`, 'data-card': 'alert' }, [
+    el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
+    el('div', { class: 'ls-card-body' }, [el('p', { class: 'ls-card-title' }, text), sub ? el('p', { class: 'ls-card-sub' }, sub) : null]),
+    cta,
+  ]);
+}
+/* INSIGHT: a finding, its figure, and "See why →" into the evidence. */
+function lsInsightCard({ figure, finding, sub = null, cta, cls = '', attrs = {}, label = null }) {
+  cta.classList.add('ls-card-cta');
+  return el('div', { ...attrs, class: `ls-card${cls ? ` ${cls}` : ''}`, 'data-card': 'insight' }, [
+    label ? el('p', { class: 'ls-card-hd' }, el('span', { class: 'ls-card-label' }, label)) : null,
+    el('div', { class: 'ls-card-row' }, [figure, el('div', { class: 'ls-card-body' }, [finding, sub])]),
+    cta,
+  ]);
+}
+/* The call to action a card ends on, as a link (an address) or a button. */
+function lsCta(words, { path = null, onclick = null, id = null, sr = null } = {}) {
+  const kids = [words, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →'), sr ? el('span', { class: 'sr-only' }, sr) : null];
+  if (path) return el('a', { class: 'ls-cta', id, href: href(path), onclick: (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault(); if (onclick) onclick(e); else navigate(path);
+  } }, kids);
+  return el('button', { type: 'button', class: 'ls-cta', id, onclick }, kids);
+}
+
+/* ------------------------------------------------------- the evidence (L3) */
+/* THE EVIDENCE DRAWER. One <aside> of L3 sections, each a <details>: from
+   1440px it stands in the page's right-hand column (--ls-drawer-w), so a
+   section opened or closed there moves nothing in the workspace; under
+   1440px it is a collapsed section where the page puts it. Its sections
+   open where they are; nothing in it is open until the reader opens it. */
+function lsEvidence({ id, title = 'Evidence', lede = null, sections = [] }) {
+  return el('aside', { class: 'ls-evidence ls-l3', id, 'data-level': '3', 'aria-labelledby': `${id}-h` }, el('div', { class: 'ls-evidence-in' }, [
+    el('h2', { class: 'ls-evidence-h', id: `${id}-h` }, title),
+    lede ? el('p', { class: 'ls-evidence-lede' }, lede) : null,
+    ...sections,
+  ]));
+}
+function lsEvidenceSection({ id = null, summary, body, cls = '' }) {
+  return el('details', { class: `ls-ev${cls ? ` ${cls}` : ''}`, id }, [
+    el('summary', { class: 'ls-ev-sum' }, el('span', { class: 'ls-ev-t' }, summary)),
+    el('div', { class: 'ls-ev-body' }, body),
+  ]);
+}
+/* "See why →": the section opened, in sight and given the keyboard —
+   in the drawer from 1440px, under its summary below it. */
+function lsOpenEvidence(details) {
+  if (!details) return;
+  details.open = true;
+  const sum = details.querySelector(':scope > summary');
+  const box = details.closest('.ls-evidence');
+  const r = details.getBoundingClientRect();
+  if (!(r.top >= 0 && r.bottom <= innerHeight)) details.scrollIntoView({ block: lsWide() && box ? 'nearest' : 'start' });
+  sum?.focus({ preventScroll: true });
+}
+
+/* --------------------------------------------------------- the action bar */
+/* THE STICKY ACTION BAR (under 640px). A page's own actions — never the
+   site's navigation: no new tab bar (the owner's decision). At most three,
+   each a 44px target, the conversion last and the only filled one. Drawn
+   into the page's dock (decisionDock, 30-charts.js), which is fixed to the
+   bottom, respects the safe area, publishes its height (--dock-h) so the
+   page's end is reserved above it, and goes inert behind an open drawer;
+   from 640px the bar is not shown, and on a page with no dock of its own
+   neither is the dock (.dock.ls-dock-phone). */
+function lsActionBar(actions) {
+  const bar = el('nav', { class: 'ls-actbar', 'aria-label': 'Page actions' });
+  for (const a of actions.filter(Boolean)) {
+    const cls = `ls-act${a.primary ? ' ls-act-primary' : ''}`;
+    const kids = [el('span', { class: 'ls-act-ico', 'aria-hidden': 'true', html: icon(a.icon || 'chart', 18) }), el('span', { class: 'ls-act-word' }, a.label)];
+    /* A disabled action stays in its place (aria-disabled, so the bar
+       never changes shape) and says why when pressed. */
+    const b = a.path
+      ? el('a', { class: cls, id: a.id || null, href: href(a.path), 'aria-label': a.aria || null, onclick: (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+          e.preventDefault(); navigate(a.path);
+        } }, kids)
+      : el('button', { type: 'button', class: cls, id: a.id || null, 'aria-label': a.aria || null,
+          'aria-disabled': a.disabled ? 'true' : null, onclick: (e) => {
+            if (b.getAttribute('aria-disabled') === 'true') { e.preventDefault(); const s = typeof a.said === 'function' ? a.said() : a.said; if (s) toast(s); return; }
+            a.onclick?.(e);
+          } }, kids);
+    bar.append(b);
+  }
+  return bar;
+}
+/* A bar's action brought up to date where the page changes without a
+   redraw (the Lab's Save as its columns change). */
+function lsActUpdate(id, { label = null, aria = null, disabled = null } = {}) {
+  const b = document.getElementById(id);
+  if (!b) return;
+  if (label != null) { const w = b.querySelector('.ls-act-word'); if (w && w.textContent !== label) w.textContent = label; }
+  if (aria != null && b.getAttribute('aria-label') !== aria) b.setAttribute('aria-label', aria);
+  if (disabled != null) { if (disabled) b.setAttribute('aria-disabled', 'true'); else b.removeAttribute('aria-disabled'); }
+}
+/* Where a bar's action takes the reader on the page: the place in sight,
+   under the topbar and clear of the bar, and the keyboard on it. */
+function lsGoTo(target, focus = null) {
+  if (!target) return;
+  target.scrollIntoView({ block: 'start' });
+  const f = focus || target;
+  if (f && !f.matches('a, button, input, select, textarea, summary, [tabindex]')) f.setAttribute('tabindex', '-1');
+  f?.focus({ preventScroll: true });
+}
+
+/* -------------------------------------------------------- tables to cards */
+/* UNDER 640PX A TABLE THE SYSTEM NAMES IS A CARD A ROW (ls-tcards): each
+   cell says its column's name beside its figure (data-label), all from the
+   stylesheet, so the page served before the script is the page drawn. The
+   selected row stands as a card; the others wait behind one button —
+   "Compare 70% & 80% ↓" — which from 640px is out of sight and out of
+   reach, never display:none, so the served page carries it as the drawn
+   one does (prerender: what is not displayed is not served). */
+const LS_TCARDS_OPEN = new Set();
+function lsTableCards(table, { id, selected = null, more = null } = {}) {
+  table.classList.add('ls-tcards');
+  table.id = table.id || id;
+  const heads = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim());
+  for (const tr of table.querySelectorAll('tbody tr')) [...tr.children].forEach((td, i) => { if (heads[i] && !td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i]); });
+  if (selected == null || selected < 0 || !more) return { table, toggle: null };
+  table.querySelectorAll('tbody tr').forEach((tr, i) => tr.classList.toggle('ls-tcard-sel', i === selected));
+  const open = LS_TCARDS_OPEN.has(table.id);
+  table.classList.toggle('is-open', open);
+  const toggle = el('button', { type: 'button', class: 'btn btn-ghost btn-sm ls-tcards-more', 'aria-controls': table.id, 'aria-expanded': open ? 'true' : 'false',
+    onclick: () => {
+      const now = !table.classList.contains('is-open');
+      table.classList.toggle('is-open', now);
+      if (now) LS_TCARDS_OPEN.add(table.id); else LS_TCARDS_OPEN.delete(table.id);
+      toggle.setAttribute('aria-expanded', now ? 'true' : 'false');
+      toggle.querySelector('.ls-tcards-word').textContent = now ? more.close : more.open;
+    } }, [el('span', { class: 'ls-tcards-word' }, open ? more.close : more.open), el('span', { class: 'ls-tcards-chev', 'aria-hidden': 'true' }, '↓')]);
+  return { table, toggle };
+}
+/* The rows a table marks selected (a 1-based index into its body, or a
+   predicate on the row). */
+const lsSelectedRow = (rows, pick) => Math.max(0, rows.findIndex(pick));
+
+/* -------------------------------------------------------------------- chips */
+/* UNDER 640PX A ROW OF TABS IS ONE LINE OF CHIPS THAT SCROLLS SIDEWAYS
+   (ls-chips), never two lines: the stylesheet does it; this keeps the
+   chosen chip in its row's sight once the row is laid out. */
+function lsChipsInView(row) {
+  if (!row) return;
+  const on = row.querySelector('.is-on, [aria-current="page"], [aria-selected="true"]');
+  if (!on || row.scrollWidth <= row.clientWidth + 1) return;
+  const r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
+  if (b.left < r.left || b.right > r.right) row.scrollLeft += (b.left + b.width / 2) - (r.left + r.width / 2);
 }
 /* ==========================================================================
    VIEW — RESEARCH QUEUE (Equities Research)
@@ -33250,12 +33489,12 @@ function affordabilityPanel(cityName) {
   const latest = series[series.length - 1];
   if (!isNum(latest.median)) return null;
 
-  const card = el('div', { class: 'panel' });
+  const card = el('div', { class: 'panel ls-section' });
   card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, `${cityName} district household income`));
   card.append(el('div', { class: 'row', style: 'gap:var(--lg);flex-wrap:wrap' }, [
-    el('div', {}, [el('div', { style:'font-size:20px;font-weight:700' }, `RM${latest.median.toLocaleString()}`),
+    el('div', {}, [el('div', { style:'font-size:var(--ls-l2);font-weight:700' }, `RM${latest.median.toLocaleString()}`),
                    el('div', { class:'metaline' }, `median, ${latest.year}`)]),
-    el('div', {}, [el('div', { style:'font-size:20px;font-weight:700' }, `RM${latest.mean.toLocaleString()}`),
+    el('div', {}, [el('div', { style:'font-size:var(--ls-l2);font-weight:700' }, `RM${latest.mean.toLocaleString()}`),
                    el('div', { class:'metaline' }, `mean, ${latest.year}`)]),
   ]));
 
@@ -33267,7 +33506,7 @@ function affordabilityPanel(cityName) {
      RM2,250: a rule stated one way and computed another. */
   const lo = Math.round(latest.median / 4 / 10) * 10;
   const hi = Math.round(latest.median / 3 / 10) * 10;
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:10px' },
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:10px' },
     `A household on the median here sustains roughly RM${lo.toLocaleString()}–${hi.toLocaleString()} a month in rent.`));
   card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'Derived from published income at a quarter to a third of it — a convention, not a measurement, and not an observed rent. No source consulted carries transacted rents for Sarawak. It describes the whole district, so it cannot tell one area here from another.'));
@@ -33859,7 +34098,7 @@ function usePlaceControl(city, area, { id } = {}) {
    bar's did (renderKeepFocus). */
 function propertyModelBar(d = State.deal) {
   const st = propertyStatus(d);
-  const bar = el('section', { class: 'card pm-bar', 'aria-label': 'The property on the calculator' });
+  const bar = el('section', { class: 'card pm-bar ls-bar', 'aria-label': 'The property on the calculator' });
   const status = el('p', { class: 'pm-status', id: 'pm-status', tabindex: '-1' });
   if (st.kind === 'model') {
     status.append('Editing: ', el('strong', {}, st.rec.name));
@@ -33937,7 +34176,7 @@ const PC_CONTRACT_OPEN = new Set();
 function propertySection(id, { provide, calculates }) {
   const i = PC_SECTIONS.findIndex(s => s.id === id);
   const s = PC_SECTIONS[i];
-  const inputs = el('div', { class: 'card rail-sticky pc-inputs' });
+  const inputs = el('div', { class: 'card rail-sticky pc-inputs ls-form' });
   const outputs = el('div', { class: 'pc-outputs' });
   /* The section's contract — what it asks and what it works out, 40 to 80
      words — is a drawer under its heading (N3, the owner's decision D18):
@@ -34029,7 +34268,7 @@ const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
   const want = location.hash.replace(/^#/, '');
   const key = location.pathname + location.search + location.hash;
-  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want)) && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
   const go = () => {
     if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
@@ -34038,6 +34277,16 @@ function propertyArrivalSection() {
     pcArrivalWant = null;
     /* At once, as a browser lands on an anchor: a page's length of smooth
        scrolling is not an arrival. */
+    /* Or the review list — the Scenario Lab's alert, "Review →": opened,
+       in sight, the keyboard on its summary. */
+    if (id === 'review') {
+      const det = document.getElementById('pc-review-list');
+      if (!det) return;
+      det.open = true;
+      document.getElementById('review')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      det.querySelector('summary')?.focus({ preventScroll: true });
+      return;
+    }
     if (PC_FIELD_HASH.test(id)) {
       const field = document.getElementById(id);
       if (!field) return;
@@ -34057,7 +34306,7 @@ function propertyArrivalSection() {
    link chooses the property. */
 function propertyReportNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Take the report with you',
     `The decision record prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open. It reads the same inputs as every section above.`));
   card.append(el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
@@ -34145,7 +34394,7 @@ function pmColumns(rec, d, st) {
 }
 function propertyScenariosPanel(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card pm-scenarios' });
+  const card = el('div', { class: 'card pm-scenarios ls-section' });
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h3', { class: 'h-card', id: 'pm-sc-title', tabindex: '-1' }, st.kind === 'model' ? `Scenarios of “${st.rec.name}”` : 'Scenarios'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' },
@@ -34684,7 +34933,7 @@ function cpLink(rec, { id = null, cls = 'btn btn-ghost btn-sm', label = 'Client 
    while the deal is not saved — the one thing to do first. */
 function propertyProposalNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card', id: 'cp-next' });
+  const card = el('div', { class: 'card ls-section', id: 'cp-next' });
   if (st.kind !== 'model') {
     card.append(cardHead('A proposal for a client',
       'A client proposal is made from a saved property, so that it can be opened again and read the same. Save this property first.'));
@@ -35951,22 +36200,22 @@ function renderFromControl(control) {
    RETURN AND TAX — the panel for the two figures that were wrong
    ========================================================================== */
 function returnsAndTaxPanel(d, m) {
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Return, and tax on the rent',
     'The internal rate of return discounts every year’s cash flow at the time it actually arrives. '
     + 'The annualised multiple beside it does not, and the gap between them is what the timing costs.'));
 
   /* ---- the rate ---- */
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  g.append(el('div', { class: 'panel' }, statTile('Internal rate of return',
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Internal rate of return',
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
         ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`
         : (m.irrWhy || 'Not computable') })));
-  g.append(el('div', { class: 'panel' }, statTile('Annualised multiple',
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
     { sub: 'Total money back, spread evenly. Ignores when it arrives' })));
-  g.append(el('div', { class: 'panel' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
+  g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
         ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
@@ -36003,7 +36252,7 @@ function returnsAndTaxPanel(d, m) {
      citizen or permanent resident". The arrow keys still move between them,
      and each redraw hands focus back to the one chosen. */
   const who = el('fieldset', { id: 'disposerCategory', style: 'margin:var(--lg) 0 0;padding:0;border:0;min-width:0' });
-  who.append(el('legend', { style: 'padding:0;margin-bottom:6px;font-size:14px;line-height:20px;color:var(--ink-2)' }, 'Who would be selling'));
+  who.append(el('legend', { style: 'padding:0;margin-bottom:6px;font-size:var(--ls-support);line-height:20px;color:var(--ink-2)' }, 'Who would be selling'));
   RPGT_CATEGORY_IDS.forEach(id => {
     const c = RPGT_SCHEDULE.categories[id];
     const l = el('label', { class: 'checkline', style: 'align-items:flex-start' });
@@ -36069,11 +36318,11 @@ function returnsAndTaxPanel(d, m) {
 
   /* ---- what tax does to the deal ---- */
   const g2 = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  g2.append(el('div', { class: 'panel' }, statTile('Tax on rent over the hold',
+  g2.append(el('div', { class: 'panel ls-fig' }, statTile('Tax on rent over the hold',
     fmtMoney(m.cumTax, 'MYR', 0), { sub: `At ${fmtPct(d.marginalTaxPct, 0)} on taxable rental income` })));
-  g2.append(el('div', { class: 'panel' }, statTile('Rental cash, before tax',
+  g2.append(el('div', { class: 'panel ls-fig' }, statTile('Rental cash, before tax',
     fmtMoney(m.cumPreTax, 'MYR', 0), { sub: 'What the older figures on this page showed' })));
-  g2.append(el('div', { class: 'panel' }, statTile('Rental cash, after tax',
+  g2.append(el('div', { class: 'panel ls-fig' }, statTile('Rental cash, after tax',
     fmtMoney(m.cumCash, 'MYR', 0), { sub: 'What you keep' })));
   card.append(g2);
 
@@ -37905,6 +38154,31 @@ let observationDraft = null;
    as the IPS tables (IPS_PROSE_CELL, 79-ips-views.js) already do. */
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
+/* The one-page answer's four metric cards, in the order a reader decides
+   in, each with its level and the inputs its figure is worked from (its
+   badge: labTileKind, 82-property-lab.js) — the Lab's tiles' own lists for
+   the two they share. */
+const PC_ANSWER_CARDS = [
+  { key: 'safe', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
+  { key: 'monthly', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'complete', level: 2, rests: ['price', 'downPct'] },
+  { key: 'breakeven', level: 2, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'vacancyPct', 'maintenance'] },
+];
+/* THE CALCULATOR'S ACTION BAR ON A PHONE (the layout system, under 640px,
+   in its dock): Analyse — the one-page answer, the figures and the grade;
+   Compare — the Scenarios section; Save this — what the model bar's Save
+   does, while there is anything to save. */
+function propertyBarActions() {
+  const d = State.deal, st = propertyStatus(d);
+  const can = st.kind !== 'model' || st.dirty;
+  return [
+    { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', aria: 'Analyse: the figures and the grade', onclick: () => lsGoTo(document.getElementById('pc-answer'), document.getElementById('pc-answer-h')) },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare scenarios', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) },
+    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, disabled: !can,
+      aria: !can ? 'Saved in this browser' : st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property',
+      said: 'Saved in this browser — change a figure to save it again.', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+  ];
+}
 VIEWS.property = () => {
   /* A section the address names (#scenarios), read before this page writes
      its own address, which carries none (71-property-models.js). */
@@ -37921,7 +38195,7 @@ VIEWS.property = () => {
   const d = State.deal;
   const m = dealModel(d);
   const paid = propertyReportUnlocked(d.projectId);
-  const wrap = el('div');
+  const wrap = el('div', { class: 'ls-page pc-page' });
 
   /* The one head every product page wears (pageHead, 36-layouts.js). Its
      second line — what the model covers — is a drawer under it (N3, D18):
@@ -37936,10 +38210,10 @@ VIEWS.property = () => {
      qualifying detail follows in a span that collapses on a phone — the part a
      reader must not miss is the first sentence, and burying that to win fold
      space would be trading the wrong thing for it. */
-  const disc = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
+  const disc = el('div', { class: 'ls-disclosure', style: 'margin-bottom:var(--md)' });
   disc.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
-    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' }, [
+    el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px' }, [
       'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
       el('span', { class: 'fold-phone' },
         ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
@@ -37972,7 +38246,7 @@ VIEWS.property = () => {
      makes it the most flattering number here and the least informative. */
   const g = propertyGrade(d, m);
   const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
-  const onePage = el('div', { class: 'card', style: `border-left:3px solid var(${gradeTone})` });
+  const onePage = el('section', { class: 'card ls-section pc-answer', id: 'pc-answer', 'aria-labelledby': 'pc-answer-h', style: `border-left:3px solid var(${gradeTone})` });
 
   /* THE MONEY, FIRST, AND ONCE (N3, the owner's decision D18).
      The card opened on a letter grade and a score, and the figures that
@@ -37995,18 +38269,31 @@ VIEWS.property = () => {
      the ledger's does. */
   const answers = el('div', { class: 'grid g-4 pc-answers' });
   const unpricedLines = m.missingCostLines || [];
-  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-     unpricedLines.length
-       ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-       : 'Including rent-ready and the reserve'],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
-    .forEach(([l, v, s], i) => answers.append(el('div', { class: 'panel' }, statTile(l, v,
-      { sub: s, tone: i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null }))));
+  /* THE SYSTEM'S METRIC CARDS (37-layout-system.js): the safe cash and the
+     month are the decision (L1, first and at the card-metric size), the
+     cash to complete and the break-even rent qualify them (L2); each with
+     its data badge — what its figures rest on, in the Lab's tiles' words
+     (labTileKind), the lowest-ranked input it is worked from. */
+  const answerFigs = {
+    safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+      unpricedLines.length
+        ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+        : 'Including rent-ready and the reserve'],
+    monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
+      isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
+    complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
+    breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+      isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+  };
+  for (const t of PC_ANSWER_CARDS) {
+    const [l, v, s, tone] = answerFigs[t.key];
+    const card = el('div', { class: `panel ls-card ls-l${t.level}`, 'data-card': 'metric', 'data-level': String(t.level), 'data-answer': t.key },
+      statTile(l, v, { sub: s, tone }));
+    card.append(labTag(labTileKind(d, t.rests)));
+    answers.append(card);
+  }
   onePage.append(answers);
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
@@ -38014,10 +38301,10 @@ VIEWS.property = () => {
       /* The card's heading. It was a paragraph, so the page went from its h1
          straight to the h4 below ("Why this cannot be graded") — the first
          heading a screen reader met after the title skipped two levels. */
-      el('h3', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
+      el('h3', { class: 'eyebrow', id: 'pc-answer-h', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
-        el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${gradeTone})` }, g.grade),
-        el('span', { style: 'font-size:15px;font-weight:600' }, g.verdict),
+        el('span', { class: 'num', style: `font-size:var(--ls-metric);font-weight:700;color:var(${gradeTone})` }, g.grade),
+        el('span', { style: 'font-size:var(--ls-body);font-weight:600' }, g.verdict),
       ]),
     ]),
     el('div', { style: 'margin-left:auto;text-align:right' }, [
@@ -38053,7 +38340,7 @@ VIEWS.property = () => {
   /* The owner subsidy stated as a commitment rather than a monthly minus —
      over five and ten years; the year's figure is the Monthly position
      tile's, above. */
-  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' },
+  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:var(--sm);color:var(--dn-text)' },
     `This property does not pay for itself. Holding it is paid from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
 
   if (g.gates.length) {
@@ -38077,7 +38364,7 @@ VIEWS.property = () => {
        them would not grade it — the sentence above says why. */
     const named = g.classUngradeable ? 'Still to check'
       : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade] || 'Why this falls short';
-    const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
+    const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:var(--ls-support)' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
         style: x.severity === 'critical' ? 'margin-right:6px' : 'display:none' }, 'Blocking'),
       x.text + (x.who ? ` Confirm with: ${x.who}.` : ''),
@@ -38108,8 +38395,8 @@ VIEWS.property = () => {
     steps.forEach(([label, v]) => {
       bars.append(el('div', {}, [
         el('div', { class: 'row', style: 'gap:8px;justify-content:space-between' }, [
-          el('span', { style: 'font-size:13px' }, label),
-          el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtAmount(v, 'MYR')),
+          el('span', { style: 'font-size:var(--ls-support)' }, label),
+          el('span', { class: 'num', style: 'font-size:var(--ls-support);font-weight:600' }, fmtAmount(v, 'MYR')),
         ]),
         el('div', { style: 'height:8px;border-radius:4px;background:var(--surface-sunk);margin-top:3px;overflow:hidden' },
           el('div', { style: `height:100%;width:${Math.max(1, v / total * 100)}%;background:var(--brand);border-radius:4px` })),
@@ -38128,7 +38415,7 @@ VIEWS.property = () => {
     const warn = el('div', { style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
     warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
-      el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
+      el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
         `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
     ]));
     if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -38172,24 +38459,24 @@ VIEWS.property = () => {
   const b = State.borrower;
   const lr = loanReadiness(b, m);
   const pf = propertyFinanceability(d, m);
-  const finCard = el('div', { class: 'card' });
+  const finCard = el('div', { class: 'card ls-section' });
   finCard.append(cardHead('Can this be financed?',
     'Three separate questions. Collapsing them into one percentage would hide the one that is actually blocking.'));
 
   const trio = el('div', { class: 'grid g-3' });
-  trio.append(el('div', { class: 'panel' }, statTile('Borrower Loan Readiness',
+  trio.append(el('div', { class: 'panel ls-fig' }, statTile('Borrower Loan Readiness',
     b.assessed && isNum(lr.score) ? `${lr.score}/100` : '—',
     { sub: b.assessed ? lr.band : 'Loan readiness not assessed' })));
-  trio.append(el('div', { class: 'panel' }, statTile('Property Financeability',
+  trio.append(el('div', { class: 'panel ls-fig' }, statTile('Property Financeability',
     isNum(pf.score) ? `${pf.score}/100` : '—',
     { sub: pf.gates.length ? `${pf.gates.length} item${pf.gates.length === 1 ? '' : 's'} to verify first` : 'No blocking item recorded' })));
-  trio.append(el('div', { class: 'panel' }, statTile('Modelled financing coverage',
+  trio.append(el('div', { class: 'panel ls-fig' }, statTile('Modelled financing coverage',
     isNum(m.financingCoverageOfPrice) ? fmtPct(m.financingCoverageOfPrice, 1) : '—',
     { sub: m.financingBasisConfirmed ? 'of the price, on the entered valuation' : 'modelled, not lender-confirmed' })));
   finCard.append(trio);
 
   /* The sentence this section exists to make unmissable. */
-  finCard.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md)' },
+  finCard.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:var(--md)' },
     b.assessed && isNum(lr.score)
       ? `Loan Readiness ${lr.score}/100 is a diagnostic score, not a ${lr.score}% chance of approval. No approval probability is offered anywhere in this product, because calculating one honestly would need a lender's own record of applications and outcomes, and nobody outside a lender has that. Each lender applies its own credit policy and its own final assessment.`
       : b.assessed
@@ -38313,7 +38600,7 @@ VIEWS.property = () => {
      instalment of nought and a reserve, and was told both were unavailable. */
   const noSchedule = !m.tenureValid && m.loan > 0;
   if (m.zeroRateModelled || noSchedule || !m.reserveComputable) {
-    const flags = el('div', { class: 'card', style: 'border-left:3px solid var(--dn-text)' });
+    const flags = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--dn-text)' });
     const ul = el('ul', { class: 'ticklist' });
     if (m.zeroRateModelled) ul.append(el('li', {},
       'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
@@ -38334,7 +38621,7 @@ VIEWS.property = () => {
      the reader who has just modelled a deal is precisely the one who wants to
      record it. A real anchor, so it can be opened in a new tab. */
   const regNote = el('div', { class: 'note', style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' }, [
-    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
+    el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
       'Modelling one deal answers what it would do. Recording several answers which ones exist and what you actually know about each — the register keeps the source, the availability date, four separate prices and a next action with an owner.'),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/opportunities'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/opportunities'); } },
@@ -38488,12 +38775,12 @@ VIEWS.property = () => {
      district, which every deal has. */
   {
     const obs = observationsFor(d.city, d.district);
-    const oc = el('div', { class: 'panel', style: 'margin-top:12px' });
+    const oc = el('div', { class: 'panel ls-section', style: 'margin-top:12px' });
     oc.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
       `What you have recorded — ${d.district}`));
 
     if (!obs.total) {
-      oc.append(el('p', { class: 'body', style: 'font-size:13px' },
+      oc.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         'Nothing yet for this area. No source publishes neighbourhood rents or transactions for Sarawak, so the only way this becomes known is one observation at a time.'));
     } else {
       const ot = el('table', { class: 'dt' });
@@ -38708,7 +38995,7 @@ VIEWS.property = () => {
      lawfully hold the title, and getting it wrong is not a modelling error —
      it is a void transfer. */
   titleField.append(el('div', { class: 'note', style: 'margin-top:8px' }, [
-    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' }, 'Title classification recorded from your input'),
+    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:var(--ls-support)' }, 'Title classification recorded from your input'),
     el('p', { class: 'metaline' },
       'Eligibility has not been verified. Nothing here confirms that a transfer is permitted, and this selection changes only how the tool describes the property to you. Confirm with a Sarawak property lawyer and the Land and Survey Department before relying on it.'),
   ]));
@@ -38927,7 +39214,7 @@ VIEWS.property = () => {
   /* ---------- outputs ---------- */
   /* The summary in the reader's language, and the review queue, above the
      sections: both are about every section at once. */
-  const free = el('div', { class: 'card' });
+  const free = el('div', { class: 'pc-free' });
   /* Language applies to the summary below and to the metric names in it. The
      analysis itself stays in English, which the note says rather than leaving
      the reader to discover it. */
@@ -38945,7 +39232,7 @@ VIEWS.property = () => {
      language — and what is and is not translated. The buttons above stay in
      sight: they translate every section's labels, not only this table. Open
      across a redraw once opened (a language chosen redraws the page). */
-  const summary = el('details', { class: 'panel pc-more pc-summary', style: 'margin-bottom:var(--md)', open: propertySummaryOpen ? '' : null });
+  const summary = el('details', { class: 'panel pc-more pc-summary ls-l3', style: 'margin-bottom:var(--md)', open: propertySummaryOpen ? '' : null });
   summary.addEventListener('toggle', () => { propertySummaryOpen = summary.open; });
   summary.append(el('summary', { class: 'pc-more-sum' }, sc.title));
   const srows = [
@@ -38969,22 +39256,27 @@ VIEWS.property = () => {
      reader has already taken. */
   const queue = propertyReviewQueue(d);
   if (queue.length) {
-    const q = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
-    const det = el('details');
-    const sum = el('summary', { style: 'cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap' });
-    sum.append(el('span', { class: 'chip chip-bronze' }, `${queue.length} sample input${queue.length === 1 ? '' : 's'}`));
-    sum.append(el('span', { style: 'font-size:16px;font-weight:600' },
-      `Review ${queue.length} sample input${queue.length === 1 ? '' : 's'}`));
-    sum.append(el('span', { class: 'metaline', style: 'flex-basis:100%' },
-      'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.'));
+    /* THE SYSTEM'S ALERT CARD: how many figures still need the reader's
+       evidence, and "Review →", which opens the list (L3) under it. The
+       Scenario Lab's alert links here (/property/calculator#review). */
+    const q = el('div', { class: 'card ls-card pc-review', 'data-card': 'alert', id: 'review', style: 'margin-bottom:var(--md)' });
+    const det = el('details', { id: 'pc-review-list' });
+    const n = queue.length, s = n === 1 ? '' : 's';
+    const sum = el('summary', { class: 'pc-review-sum' }, [
+      el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
+      el('span', { class: 'ls-card-body' }, [
+        el('span', { class: 'ls-card-title' }, `${n} sample input${s} need${n === 1 ? 's' : ''} your evidence`),
+        el('span', { class: 'ls-card-sub' }, 'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.')]),
+      el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
+    ]);
     det.append(sum);
 
     const list = el('div', { style: 'margin-top:var(--md);display:flex;flex-direction:column;gap:2px' });
     queue.forEach(f => {
       const row = el('div', { class: 'row row-wrap',
         style: 'gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--grid)' });
-      row.append(el('span', { style: 'font-size:14px;font-weight:600;min-width:150px' }, f.label));
-      row.append(el('span', { class: 'num', style: 'font-size:14px;min-width:120px' },
+      row.append(el('span', { style: 'font-size:var(--ls-support);font-weight:600;min-width:150px' }, f.label));
+      row.append(el('span', { class: 'num', style: 'font-size:var(--ls-support);min-width:120px' },
         isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'));
       row.append(el('span', { class: 'metaline', style: 'flex:1 1 260px' }, f.affects));
       row.append(el('button', {
@@ -39007,14 +39299,14 @@ VIEWS.property = () => {
   const summaryCard = free;
 
   /* The four headline numbers, in the section whose inputs make them. */
-  const headline = el('div', { class: 'card' });
+  const headline = el('div', { class: 'card ls-section' });
   headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
   const fg = el('div', { class: 'grid g-4' });
-  fg.append(el('div', { class: 'panel' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
-  fg.append(el('div', { class: 'panel' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
-  fg.append(el('div', { class: 'panel' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
     { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
-  fg.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
   headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
@@ -39040,16 +39332,16 @@ VIEWS.property = () => {
 
   /* What buying it takes: the price per unit, where the cash goes, the
      ledger, and the cash to hold back. */
-  const buyCard = el('div', { class: 'card' });
+  const buyCard = el('div', { class: 'card ls-section' });
   buyCard.append(cardHead('What buying it takes',
     'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.'));
 
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
-  unitCard.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+  unitCard.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
     'What you are paying, per unit'));
   const unitTile = (label, perSqft, unit, dp, sub) => {
     const v = rateInUnit(perSqft, unit);
-    return el('div', { class: 'panel' }, statTile(label,
+    return el('div', { class: 'panel ls-fig' }, statTile(label,
       isNum(v) ? `${fmtMoney(v, 'MYR', dp)}/${areaUnit(unit).short}` : '—',
       { sub: isNum(v) ? sub : 'No area entered, so this cannot be computed' }));
   };
@@ -39074,7 +39366,7 @@ VIEWS.property = () => {
      legend — the title names it and both marks are directly labelled. */
   if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
     const rb = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
-    rb.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    rb.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
       'Rent against break-even'));
     const rbHost = el('div', { style: 'margin-top:var(--sm)' });
     rb.append(rbHost);
@@ -39108,7 +39400,7 @@ VIEWS.property = () => {
      alone, and here the colour carries the one distinction that matters. */
   if ((m.costGroups || []).length >= 2) {
     const wf = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
-    wf.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    wf.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
       'What the cash is for'));
     const swatch = (tok, text) => el('span', { class: 'caption',
       style: 'display:inline-flex;align-items:center;gap:6px' }, [
@@ -39137,12 +39429,16 @@ VIEWS.property = () => {
      with 430px, and a swipe moved whichever one the finger happened to land
      on. Each table now scrolls in its own wrapper and this is a plain block. */
   const cash = el('div', { style: 'margin-top:var(--md)' });
-  const cashT = el('table', { class: 'dt' });
-  const cashB = el('tbody');
+  /* A body a group: under 640px each is a card of its own (ls-tcards, the
+     layout system's tables-become-cards), its name heading it. */
+  const cashT = el('table', { class: 'dt pc-cost-table', 'aria-label': 'What the cash is for, line by line' });
+  let cashB;
   m.costGroups.forEach(g => {
+    cashB = el('tbody', { class: 'ls-tgroup' });
+    cashT.append(cashB);
     const sub = g.items.reduce((s2, it) => s2 + (isNum(it[1]) ? it[1] : 0), 0);
     const gMissing = g.items.filter(it => !isNum(it[1])).length;
-    cashB.append(el('tr', {}, [
+    cashB.append(el('tr', { class: 'ls-tgroup-hd' }, [
       el('td', { style: 'font-weight:600', colspan: 2 }, g.label)]));
     /* An unpriced line is shown as unpriced. Omitting it would read as a cost
        that does not exist, and every one of these exists. */
@@ -39153,11 +39449,11 @@ VIEWS.property = () => {
           it[0],
           /* Marked at every appearance. A placeholder is plausible, which is
              precisely why it cannot be left to look like a checked figure. */
-          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:12px',
+          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:var(--ls-meta)',
             title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
-          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:12px',
+          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:var(--ls-meta)',
             title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
-          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:12px',
+          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:var(--ls-meta)',
             title: it[2]?.note || 'A figure you entered from a quotation.' }, 'your quote') : null,
         ]),
         isNum(it[1])
@@ -39172,6 +39468,9 @@ VIEWS.property = () => {
       el('td', { class: 'num metaline' }, fmtAmount(sub, 'MYR'))]));
   });
   const nMissing = (m.missingCostLines || []).length;
+  /* The total, its own card on a phone. */
+  cashB = el('tbody', { class: 'ls-tgroup ls-tgroup-total' });
+  cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' },
       nMissing ? 'Total initial cash so far' : 'Total initial cash'),
@@ -39191,14 +39490,14 @@ VIEWS.property = () => {
         + (m.placeholderCostLines.length
             ? `${m.placeholderCostLines.length} ${m.placeholderCostLines.length === 1 ? 'is a placeholder' : 'are placeholders'}: approximations entered so the workflow runs, not quotations. Replace them with real quotes before this figure means anything.`
             : 'They compute, and they are not evidence.'))]));
-  cashT.append(cashB);
+  lsTableCards(cashT, { id: 'pc-cost-table' });
   cash.append(el('div', { class: 'tablewrap' }, cashT));
 
   /* ---- financing basis (specification 29.2) ---------------------------- */
   const fin = el('div', { style: 'margin-top:var(--md);padding-top:var(--md);border-top:1px solid var(--line)' });
   fin.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'What the loan is calculated against'));
   if (!m.financingBasisConfirmed) {
-    fin.append(el('p', { class: 'body', style: 'font-size:13px;color:var(--bronze)' },
+    fin.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);color:var(--bronze)' },
       'Financing basis is modelled, not lender-confirmed. No bank or valuer estimate has been entered, so the loan below is calculated against the purchase price — which assumes a valuation at least equal to what you agreed to pay. Where a valuation comes in lower, the shortfall becomes cash you must find at completion, and this figure would understate what the purchase takes.'));
   } else {
     const kv = el('dl', { class: 'kv' });
@@ -39215,7 +39514,7 @@ VIEWS.property = () => {
      ['Share of the price this funds', fmtPct(m.financingCoverageOfPrice, 1)]]
       .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
     fin.append(kv);
-    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;color:var(--dn-text)' },
+    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:8px;color:var(--dn-text)' },
       `The valuation is ${fmtAmount(m.valuationGapCash, 'MYR')} below the price, so a ${fmtPct(m.marginOfFinancePct, 0)} margin of finance funds ${fmtPct(m.financingCoverageOfPrice, 1)} of what you are paying, not ${fmtPct(m.marginOfFinancePct, 0)}. That difference is cash, it is due on completion day, and it is listed above as valuation-gap cash.`));
     else fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The estimate is at or above the price, so there is no valuation gap on this scenario.'));
@@ -39229,7 +39528,7 @@ VIEWS.property = () => {
   m.financingScenarios.forEach(s => {
     const isCurrent = Math.abs(s.mof - m.marginOfFinancePct) < 1e-9;
     scB.append(el('tr', { style: isCurrent ? 'background:var(--surface-sunk)' : '' }, [
-      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:12px' }, 'entered') : null]),
+      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:var(--ls-meta)' }, 'entered') : null]),
       el('td', { class: 'num' }, fmtAmount(s.loan, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(s.cashEquity, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(s.instalment, 'MYR')),
@@ -39237,10 +39536,17 @@ VIEWS.property = () => {
     ]));
   });
   scT.append(scB);
+  /* Under 640px a card a margin (the layout system): the one entered
+     stands, the others behind "Compare 70% & 80% ↓". */
+  const curAt = m.financingScenarios.findIndex(s => Math.abs(s.mof - m.marginOfFinancePct) < 1e-9);
+  const others = m.financingScenarios.filter((s, i) => i !== curAt).map(s => `${s.mof}%`).join(' & ');
+  const { toggle: scMore } = lsTableCards(scT, { id: 'pc-fin-scenarios', selected: curAt,
+    more: { open: `Compare ${others}`, close: `Hide ${others}` } });
   fin.append(el('div', { class: 'tablewrap' }, scT));
+  if (scMore) fin.append(scMore);
   fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Scenarios, not offers. No lender has seen this property or this borrower, and the margin a lender will actually extend depends on its own valuation, its credit policy and the applicant. Cash equity is the purchase price less the loan, so it carries any valuation gap with it.'));
-  const loanCard = el('div', { class: 'card' });
+  const loanCard = el('div', { class: 'card ls-section' });
   loanCard.append(cardHead('The loan', 'What the loan is lent against, what it funds, and what it would be at other margins of finance.'));
   fin.style.cssText = '';
   loanCard.append(fin);
@@ -39266,7 +39572,7 @@ VIEWS.property = () => {
    ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
-    .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel' },
+    .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel ls-fig' },
       statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === arr.length - 1 ? '--brand' : null }))));
   cash.append(threeCash);
 
@@ -39295,7 +39601,7 @@ VIEWS.property = () => {
   /* Questions, answered by the buyer, each naming who can actually settle it.
      The tool does not decide legal eligibility or flood exposure — it makes
      sure neither is skipped. */
-  const chk = el('div', { class: 'card' });
+  const chk = el('div', { class: 'card ls-section' });
   chk.append(cardHead('Before the numbers mean anything',
     'Ten questions that decide more than the price does. No figure in the model moves on your answers. An adverse answer is raised in the findings below with who can confirm it, and the grade\'s local-demand pillar counts each question only once it is settled without one — an adverse or open answer earns nothing there.'));
   const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
@@ -39327,7 +39633,7 @@ VIEWS.property = () => {
   ordered.forEach(c => {
     const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
     row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
-      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:500;margin:0' }, ptr(`chk.${c.id}`, c.q)),
+      el('p', { style: 'flex:1 1 320px;font-size:var(--ls-support);font-weight:500;margin:0' }, ptr(`chk.${c.id}`, c.q)),
       /* A group named by its question, and the answer given carried by
          aria-pressed. Ten rows of "Yes", "No", "Not sure" reached a screen
          reader with no question attached and no word of which was chosen —
@@ -39381,7 +39687,7 @@ VIEWS.property = () => {
   const checkCard = chk;
 
   /* ---------- stress tests ---------- */
-  const stressCard = el('div', { class: 'card' });
+  const stressCard = el('div', { class: 'card ls-section' });
   stressCard.append(cardHead('What breaks it',
     'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.'));
 
@@ -39400,9 +39706,9 @@ VIEWS.property = () => {
     /* A fourth case: no monthly position to cross zero, because the loan's
        instalment could not be computed. It used to fall through to "any
        rate", in green. */
-    if (why === 'unknown') return el('div', { class: 'panel' }, statTile(label, '—',
+    if (why === 'unknown') return el('div', { class: 'panel ls-fig' }, statTile(label, '—',
       { sub: 'Not computable — the loan’s instalment could not be worked out from the entered tenure.' }));
-    return el('div', { class: 'panel' }, statTile(label,
+    return el('div', { class: 'panel ls-fig' }, statTile(label,
       isNum(value) ? fmt(value) : never ? copy.neverValue : copy.alwaysValue,
       { sub: isNum(value) ? copy.crosses(entered) : never ? copy.never : copy.always,
         tone: isNum(value) ? (copy.good(value, entered) ? '--ok-text' : '--dn-text')
@@ -39428,7 +39734,7 @@ VIEWS.property = () => {
         always: 'Covers its costs even with no tenant at all.',
         good: (v, e) => v > e + 10,
       }));
-    stressGrid.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
+    stressGrid.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
       { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
         tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
   }
@@ -39467,7 +39773,7 @@ VIEWS.property = () => {
   ]));
 
   /* ---------- management operations ---------- */
-  const ops = el('div', { class: 'card' });
+  const ops = el('div', { class: 'card ls-section' });
   ops.append(cardHead(m.managed ? 'Management operations' : 'Management operations — self-managed',
     m.managed
       ? 'What the service costs, and what it has to do for it. A percentage alone is not comparable between two agents; cost per occupied month and cost per tenancy are.'
@@ -39475,13 +39781,13 @@ VIEWS.property = () => {
 
   if (m.managed) {
     ops.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' }, [
-      el('div', { class: 'panel' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
+      el('div', { class: 'panel ls-fig' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
         { sub: `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
-      el('div', { class: 'panel' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
+      el('div', { class: 'panel ls-fig' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
         { sub: 'what it costs for each month the property is actually let' })),
-      el('div', { class: 'panel' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
+      el('div', { class: 'panel ls-fig' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
         ? fmtAmount(m.mgmtCostPerTenancy, 'MYR') : '—', { sub: `over a ${m.monthsPerCycle}-month tenancy` })),
-      el('div', { class: 'panel' }, statTile('Placement fee a year', fmtAmount(m.placementAnnual, 'MYR'),
+      el('div', { class: 'panel ls-fig' }, statTile('Placement fee a year', fmtAmount(m.placementAnnual, 'MYR'),
         { sub: `assumes the tenant leaves each cycle` })),
     ]));
     if (m.renewalAnnual < m.placementAnnual) ops.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
@@ -39501,7 +39807,7 @@ VIEWS.property = () => {
   if (isNum(m.impliedVacancyPct) && m.letsToTenant !== false) {
     const gap = Math.abs(m.impliedVacancyPct - num0(d.vacancyPct));
     ops.append(el('div', { class: 'note', style: `margin-top:var(--md);border-left:3px solid var(${gap > 2 ? '--warn' : '--line'})` },
-      el('p', { class: 'body', style: 'font-size:13px' },
+      el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         `Placing a tenant in ${num0(d.daysToFirstTenant)} days on a ${m.monthsPerCycle}-month tenancy implies `
         + `${fmtPct(m.impliedVacancyPct, 1)} vacancy. You have entered ${fmtPct(num0(d.vacancyPct), 1)}, and that is the figure every output above uses. `
         + (gap > 2
@@ -39531,7 +39837,7 @@ VIEWS.property = () => {
   ops.append(duties);
 
   /* ---------- evidence quality ---------- */
-  const ev = el('div', { class: 'card' });
+  const ev = el('div', { class: 'card ls-section' });
   ev.append(cardHead('What this rests on',
     'A figure a seller quoted and a figure taken from a transacted comparable are not the same evidence.'));
   const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
@@ -39620,7 +39926,7 @@ VIEWS.property = () => {
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */
-    const exitCard = el('div', { class: 'card', id: 'property-report-full' });
+    const exitCard = el('div', { class: 'card ls-section', id: 'property-report-full' });
     exitCard.append(cardHead('Selling in year 5 and year 10',
       'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
     const exTable = el('table', { class: 'dt' });
@@ -39661,7 +39967,7 @@ VIEWS.property = () => {
     /* ---------- hold or sell, year by year ---------- */
     {
       const hs = m.holdVsSell || [];
-      const card = el('div', { class: 'card' });
+      const card = el('div', { class: 'card ls-section' });
       card.append(cardHead('If you sold in year…',
         'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
       const rated = hs.filter(e => isNum(e.irrPct));
@@ -39696,10 +40002,10 @@ VIEWS.property = () => {
     /* ---------- what the renovation returns ---------- */
     {
       const rr = renovationReturn(d, m);
-      const card = el('div', { class: 'card' });
+      const card = el('div', { class: 'card ls-section' });
       card.append(cardHead('What the renovation returns',
         'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.'));
-      if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:13px' }, rr.why));
+      if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, rr.why));
       else {
         const g = el('div', { class: 'grid g-3' });
         [['Renovation and furnishing', fmtAmount(rr.cost, 'MYR'), 'spent before the property can earn'],
@@ -39708,7 +40014,7 @@ VIEWS.property = () => {
          ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
          ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
          ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
-        ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel' }, statTile(k, v, { sub }))));
+        ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel ls-fig' }, statTile(k, v, { sub }))));
         card.append(g);
         card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
           (isNum(rr.irrDelta)
@@ -39722,14 +40028,14 @@ VIEWS.property = () => {
     }
 
     /* ---------- paid report ---------- */
-    const comps = el('div', { class: 'card' });
+    const comps = el('div', { class: 'card ls-section' });
     if (m.proj.custom) {
       /* An empty comparables table with "RM null–null" beneath it would read as a
          market with no transactions rather than as a tool with no data. The card
          says which of the two it is. */
       comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
         'None held for this location.'));
-      comps.append(el('p', { class: 'body', style: 'font-size:13px' },
+      comps.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
       comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
         /* This said "Every figure above came from you" while the provenance table
@@ -39762,24 +40068,24 @@ VIEWS.property = () => {
       ]))));
       ctw.append(ct); comps.append(ctw);
       const rng = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-      rng.append(el('div', { class: 'panel' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
+      rng.append(el('div', { class: 'panel ls-fig' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
         { sub: `Project range RM${m.proj.psfLo}–${m.proj.psfHi}, median RM${m.proj.psfMid}` })));
-      rng.append(el('div', { class: 'panel' }, statTile('Your rent', `RM${d.rent}`,
+      rng.append(el('div', { class: 'panel ls-fig' }, statTile('Your rent', `RM${d.rent}`,
         { sub: `Observed range RM${m.proj.rentLo}–${m.proj.rentHi}, median RM${m.proj.rentMid}` })));
-      rng.append(el('div', { class: 'panel' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
+      rng.append(el('div', { class: 'panel ls-fig' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
         { sub: `You assumed ${fmtPct(d.vacancyPct, 0)}` })));
       comps.append(rng);
     }
     reportCards.push(comps);
 
-    const inv = el('div', { class: 'card' });
+    const inv = el('div', { class: 'card ls-section' });
     inv.append(cardHead('Investment measures', 'Computed from your inputs. Every figure below traces to the assumptions on the left.'));
     const ig = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
-    ig.append(el('div', { class: 'panel' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
-    ig.append(el('div', { class: 'panel' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
-    ig.append(el('div', { class: 'panel' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
       { sub: 'Annual cash flow ÷ cash invested', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
-    ig.append(el('div', { class: 'panel' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
     const kv = el('dl', { class: 'kv' });
@@ -39793,7 +40099,7 @@ VIEWS.property = () => {
     reportCards.push(inv);
 
     /* scenario path */
-    const sc2 = el('div', { class: 'card' });
+    const sc2 = el('div', { class: 'card ls-section' });
     sc2.append(cardHead(`${d.holdYears}-year scenario`,
       `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`));
     const stw = el('div', { class: 'tablewrap' });
@@ -39812,7 +40118,7 @@ VIEWS.property = () => {
 
 
     /* equity comparison — the cross-asset point of the whole product */
-    const eq2 = el('div', { class: 'card' });
+    const eq2 = el('div', { class: 'card ls-section' });
     eq2.append(cardHead('The same cash in equities',
       `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
     /* The real rate, not the annualised multiple. Comparing a property against
@@ -39820,14 +40126,14 @@ VIEWS.property = () => {
        defensible place the old approximation appeared. */
     const need = isNum(m.irrPct) ? m.irrPct : null;
     const eg = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-    eg.append(el('div', { class: 'panel' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
+    eg.append(el('div', { class: 'panel ls-fig' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
       { sub: `Including leverage, costs and ${m.rpgtPct}% RPGT` })));
     /* The capital the rate of return is measured on, the reserve included —
        the returns panel states the same figure. This tile showed the cash
        before the reserve beside a rate computed on the cash after it. */
-    eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
+    eg.append(el('div', { class: 'panel ls-fig' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
       { sub: 'Deposit, entry costs and the reserve — what the rate of return is measured on' })));
-    eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment',
+    eg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly commitment',
       isNum(m.cashflowMonthly) ? fmtAmount(monthlyCommitment(m), 'MYR') : '—',
       { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
         : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
@@ -39856,15 +40162,15 @@ VIEWS.property = () => {
     reportCards.push(eq2);
 
     /* risk flags */
-    const rf = el('div', { class: 'card' });
+    const rf = el('div', { class: 'card ls-section' });
     const flags = propertyRiskFlags(d, m);
     rf.append(cardHead(`Risk flags — ${flags.filter(f => f.sev !== 'good').length}`,
       'Computed from your assumptions against the sample project data. Each names the input that triggered it.'));
     const fl = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
     flags.forEach(f => {
-      const item = el('div', { class: 'panel' });
-      item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.t)]));
-      item.append(el('p', { class: 'body', style: 'font-size:13px' }, f.n));
+      const item = el('div', { class: 'pc-flag' });
+      item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:var(--ls-support);font-weight:600' }, f.t)]));
+      item.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, f.n));
       fl.append(item);
     });
     rf.append(fl);
@@ -40015,7 +40321,7 @@ const PROTECTION_COMPARISON = [
 
 /* ---------------------------------------------------------------- panel --- */
 function financingChoicesPanel(d, m) {
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('The two quotes that are easy to misread',
     'A rate can be quoted two ways that mean very different things, and the loan insurance is usually offered '
     + 'added to the loan rather than paid. Both are decided quickly at the counter and both cost real money.'));
@@ -40076,12 +40382,12 @@ function financingChoicesPanel(d, m) {
     const reducingInterest = isNum(reducingPmt) ? reducingPmt * flatYrs * 12 - flatAmount : null;
 
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-    g.append(el('div', { class: 'panel' }, statTile('Quoted as flat',
+    g.append(el('div', { class: 'panel ls-fig' }, statTile('Quoted as flat',
       fmtPct(d.flatQuotePct, 2), { sub: `On ${fmtMoney(flatAmount, 'MYR', 0)} over ${flatYrs} years` })));
-    g.append(el('div', { class: 'panel' }, statTile('What that really costs',
+    g.append(el('div', { class: 'panel ls-fig' }, statTile('What that really costs',
       isNum(realRate) ? fmtPct(realRate, 2) : '—',
       { sub: isNum(realRate) ? 'The same monthly payment, charged the normal way' : (eq.why || 'Not computable'), tone: '--bronze' })));
-    g.append(el('div', { class: 'panel' }, statTile('Every month',
+    g.append(el('div', { class: 'panel ls-fig' }, statTile('Every month',
       isNum(eq.flat.monthly) ? fmtMoney(eq.flat.monthly, 'MYR', 0) : '—',
       { sub: isNum(reducingPmt) ? `Against ${fmtMoney(reducingPmt, 'MYR', 0)} at your ${fmtPct(num0(d.ratePct), 2)}` : 'Per month' })));
     card.append(g);
@@ -40104,7 +40410,7 @@ function financingChoicesPanel(d, m) {
 
     /* The picture: what you borrow against what the interest adds. */
     const block = el('div', { class: 'render-block', style: 'margin-top:var(--md)' });
-    block.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    block.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
       'What you borrow, and what you hand back on top'));
     const host = el('div', { style: 'margin-top:var(--sm)' });
     block.append(host);
@@ -40185,10 +40491,10 @@ function financingChoicesPanel(d, m) {
     const fin = premiumIfFinanced(d.mrtaPremium, num0(d.ratePct), mortgageYrs);
     const mltaTotal = d.mltaPremiumAnnual * mortgageYrs;
     const g2 = el('div', { class: 'grid g-2', style: 'margin-top:var(--md)' });
-    g2.append(el('div', { class: 'panel' }, statTile('Reducing cover, all in',
+    g2.append(el('div', { class: 'panel ls-fig' }, statTile('Reducing cover, all in',
       fmtMoney(fin ? fin.totalPaid : d.mrtaPremium, 'MYR', 0),
       { sub: fin ? 'Premium plus the interest, if added to the loan' : 'Premium' })));
-    g2.append(el('div', { class: 'panel' }, statTile('Level cover, all in',
+    g2.append(el('div', { class: 'panel ls-fig' }, statTile('Level cover, all in',
       fmtMoney(mltaTotal, 'MYR', 0), { sub: `${fmtMoney(d.mltaPremiumAnnual, 'MYR', 0)} a year for ${mortgageYrs} years` })));
     card.append(g2);
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
@@ -40813,7 +41119,7 @@ function propertyBreakPoint(d, key, { measure = 'cashflow', lo, hi, iterations =
 /* ------------------------------------------------------------------ panel --- */
 function propertySensitivityPanel(d, m) {
   const s = propertySensitivity(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('What actually decides this',
     'Every assumption moved one realistic step in each direction, ranked by how far it moves the rate of return. '
     + 'The ones at the top are where a valuer or a rental appraisal is worth paying for. The ones at the bottom are not.'));
@@ -40824,7 +41130,7 @@ function propertySensitivityPanel(d, m) {
   }
 
   const block = el('div', { class: 'render-block', style: 'margin-top:var(--md)' });
-  block.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+  block.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
     `Effect on a ${fmtPct(s.baseIrr, 2)} rate of return`));
   const host = el('div', { style: 'margin-top:var(--sm)' });
   block.append(host);
@@ -41006,7 +41312,7 @@ const IPS_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;
 /* ---- the eight gates, for whichever asset supplied the answers ---- */
 function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
   const a = assessment;
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead(title,
     `The eight gates every asset passes through, in the order IPS §3 fixes them. `
     + 'A gate is answered, partly answered, not established, or failing — there is no fifth state, because "probably fine" is what lets an unexamined asset through.'));
@@ -41042,7 +41348,7 @@ function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
 /* ---- §6.5 demand ---- */
 function demandPanel(city, area) {
   const test = demandTest(city, area);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead(`Demand — ${area}`,
     'Who has a recurring reason to occupy or buy here. IPS §6.5 makes this a required test and penalises concentration: '
     + 'one source that can stop is not a demand base.'));
@@ -41050,7 +41356,7 @@ function demandPanel(city, area) {
   const v = IPS_VERDICTS[test.verdict] || IPS_VERDICTS.unknown;
   card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [
     el('span', { class: v.tone }, v.label),
-    el('span', { class: 'body', style: 'font-size:13px' }, test.why),
+    el('span', { class: 'body', style: 'font-size:var(--ls-support)' }, test.why),
   ]));
 
   /* Room for the state to be read without pushing the note out of sight.
@@ -41109,7 +41415,7 @@ function demandPanel(city, area) {
 /* ---- §6.7 environmental depreciation ---- */
 function environmentalPanel(d) {
   const env = environmentalAllowance(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Environmental allowance',
     'IPS §6.7 requires recurring allowances in coastal, flood-prone or humid environments. '
     + 'Every one below is triggered by something recorded against this locality — nothing is inferred from the town.'));
@@ -41158,7 +41464,7 @@ function environmentalPanel(d) {
 
 /* ---- §6.8 rent versus buy ---- */
 function rentVersusBuyPanel(d, m) {
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Rent, or buy',
     'IPS §6.8. For a property you would use yourself rather than let, the comparison is between owning it all year '
     + 'and renting it for the weeks you actually want it.'));
@@ -41180,20 +41486,20 @@ function rentVersusBuyPanel(d, m) {
   if (!r.ok) { card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, r.why)); return card; }
 
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  g.append(el('div', { class: 'panel' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
     { sub: 'Purchase price over one year of market rent' })));
-  g.append(el('div', { class: 'panel' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
     /* On everything put in, which is what the model charges it on — the
        deposit, the fees, the renovation and the reserve. It said "the
        deposit", and RM9,110 is 7% of RM130,142, not of a RM57,200 deposit. */
     { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the ${fmtMoney(r.committed, 'MYR', 0)} of cash put in is not earning elsewhere` })));
-  g.append(el('div', { class: 'panel' }, statTile('Cost to rent instead',
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Cost to rent instead',
     isNum(r.rentInstead) ? fmtMoney(r.rentInstead, 'MYR', 0) : '—',
     { sub: isNum(r.weeks) ? `${fmtNum(r.weeks, 0)} weeks at this property's own rent` : 'Enter your weeks of use' })));
   card.append(g);
 
   card.append(el('p', { class: 'body', style: 'font-weight:600;margin-top:var(--md)' }, r.classification));
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:6px' }, r.why));
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:6px' }, r.why));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Classifying a purchase as consumption is not a judgement about whether to make it. People buy things they enjoy, and that is a '
     + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns, '
@@ -43390,9 +43696,19 @@ function labDraw(P, focusId = null) {
   P.els.colsCard = labColumnsCard(P, lab);
   P.els.commitCard = labCommits(P, lab, col);
   P.cardSig = labCardSig(lab);
-  outputs.append(labChain(P, lab, col), labCompare(P, lab), P.els.colsCard, P.els.commitCard);
+  /* The chain, what needs evidence, the evidence itself (L3: under the
+     chain, collapsed; from 1440px the drawer on the right), then A, B and
+     C side by side and keeping one. */
+  const chain = labChain(P, lab, col);
+  const alert = P.compact ? null : labAlert(P, lab);
+  const evidence = labEvidence(P, lab);
+  outputs.append(...[chain, alert, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  /* The rows the workspace's column takes from 1440px, where the knobs and
+     the drawer stand beside every one of them (styles.css). */
+  grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
   P.node.replaceChildren(labHeader(P, lab), grid);
   labPaintPanel(P, { initial: true });
+  if (P.address) labBarSync();
   for (const id of [].concat(had || [])) {
     const n = document.getElementById(id);
     if (!n || !P.node.contains(n) || n.disabled || !n.getClientRects().length) continue;
@@ -43509,9 +43825,9 @@ function labIdentityAct(P, lab) {
    any figure it is worked from is still the tool's seeded one, else the
    weakest evidence among them — and the next step. */
 const LAB_TILES = [
-  { key: 'safeCashRequired', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
-  { key: 'cashflowMonthly', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
-  { key: 'netYield', rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'safeCashRequired', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
+  { key: 'cashflowMonthly', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'netYield', level: 2, rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
 ];
 function labTileKind(d, rests) {
   const keys = rests.filter(k => propertyInputApplies(d, k));
@@ -43519,7 +43835,7 @@ function labTileKind(d, rests) {
   const weakest = keys.filter(k => evidenceDriversFor(d).includes(k)).map(k => evidenceOf(shownEvidence(d, k))).sort((a, b) => a.rank - b.rank)[0];
   return weakest ? { kind: weakest.id, words: weakest.label } : { kind: 'user', words: evidenceOf('user').label };
 }
-const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
+const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
 function labTiles(P, lab) {
   const d = labSubjectInputs(lab);
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
@@ -43529,11 +43845,16 @@ function labTiles(P, lab) {
     const f = LAB_FIGURES.find(x => x.key === t.key);
     const v = run ? f.read(run.m, d) : null;
     const kind = d ? labTileKind(d, t.rests) : { kind: 'unavailable', words: 'Unavailable' };
-    grid.append(el('div', { class: 'lab-tile', role: 'listitem', data: { tile: t.key } }, [
-      el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, f.label(d)), ' ', labTag(kind)]),
-      el('p', { class: `lab-tile-val num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-value': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v)),
-      el('p', { class: 'lab-tile-sub' }, run ? (f.note(run.m, d) || '') : 'Needs a purchase price'),
-    ]));
+    /* THE SYSTEM'S METRIC CARD (37-layout-system.js): the cash and the
+       month are the decision (L1, the card-metric size); the yield
+       qualifies them (L2, medium). */
+    const card = lsMetricCard({ label: f.label(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
+      sub: run ? (f.note(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
+      cls: 'lab-tile', attrs: { role: 'listitem', 'data-tile': t.key }, valueAttrs: { class: 'lab-tile-val', 'data-value': isNum(v) ? String(v) : '' } });
+    card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
+    card.querySelector('.ls-card-label').classList.add('lab-tile-label');
+    card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
+    grid.append(card);
   }
   grid.append(labNextTile(P, lab, d));
   return grid;
@@ -43572,11 +43893,46 @@ function labNextTile(P, lab, d) {
     } }, 'Compare scenarios');
     sub = 'A, B and C side by side, below';
   }
-  return el('div', { class: 'lab-tile lab-tile-next', role: 'listitem', data: { tile: 'next', kind: kind.kind } }, [
-    el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, 'Next step'), ' ', labTag(kind)]),
-    el('p', { class: 'lab-tile-val lab-next-what' }, act),
-    el('p', { class: 'lab-tile-sub' }, sub),
-  ]);
+  /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
+  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: labTag(kind), cls: 'lab-tile lab-tile-next',
+    attrs: { role: 'listitem', 'data-tile': 'next', 'data-kind': kind.kind } });
+  card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
+  card.querySelector('.ls-card-label').classList.add('lab-tile-label');
+  card.querySelector('.ls-card-act').classList.add('lab-tile-val', 'lab-next-what');
+  card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
+  return card;
+}
+
+/* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
+   Analyse — the product's action, the full model in the calculator;
+   Compare — A, B and C side by side, below; Save this — the conversion,
+   what the identity line's Save does (which a phone does not show beside
+   the name: the bar carries it). */
+const labPagePanel = () => [...LAB_PANELS].find(x => x.address && x.node.isConnected) || null;
+function labBarSave() {
+  const P = labPagePanel(), lab = P && LAB[P.key];
+  if (!lab) return { aria: 'Nothing to save', disabled: true };
+  const col = labActive(lab);
+  if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
+  if (!lab.model) return { aria: 'Save this property', run: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) };
+  if (labCanSave(lab, col)) return { aria: `Save ${col.key} as a scenario`, run: () => labNaming(P, lab, labScenarioNaming(lab, col, 'identity')) };
+  return { aria: 'Saved in this browser', disabled: true, said: `Saved in this browser — move a figure to save ${col.key} as a scenario.` };
+}
+function labBarActions() {
+  const s = labBarSave();
+  return [
+    { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', path: '/property/calculator', aria: 'Analyse this property in the calculator' },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => {
+      const P = labPagePanel();
+      const r = P && P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
+      if (r) lsGoTo(r.closest('.lab-cmp-card'), r);
+    } },
+    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
+  ];
+}
+function labBarSync() {
+  const s = labBarSave();
+  lsActUpdate('ls-act-save', { aria: s.aria, disabled: !!s.disabled });
 }
 
 /* "Sliders move": which column the knobs set. Radios, so the arrow keys
@@ -43619,7 +43975,7 @@ function labInputPicker(P, lab) {
   const col = labActive(lab);
   const fs = el('fieldset', { class: 'lab-pick lab-pick-input' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Input'));
-  const row = el('div', { class: 'lab-seg', role: 'presentation' });
+  const row = el('div', { class: 'lab-seg ls-chips', role: 'presentation' });
   for (const inp of LAB_INPUTS) {
     const id = labId(P, `in-${inp.k}`);
     const off = !labApplies(col.work, inp.k);
@@ -43679,7 +44035,7 @@ function labKnob(P, lab, col, inp) {
         (P.about ||= {})[k] = open;
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         row.classList.toggle('is-about', open);
-      } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), 'About',
+      } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), el('span', { class: 'lab-about-word' }, 'About'),
       el('span', { class: 'sr-only' }, ` ${inp.label()}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
     hd.append(btn);
   }
@@ -43696,7 +44052,9 @@ function labKnob(P, lab, col, inp) {
      F5). Now the way back holds its place on the slider's line from the
      first drawing, out of sight and reach until a move (is-idle), and the
      what-if tag takes the evidence tag's place, the two drawn in one cell. */
-  const ctl = el('div', { class: 'lab-knob-ctl' });
+  /* The unit beside the box (data-unit): on a phone the chosen chip names
+     the knob, and its label is for the ear (styles.css, layout-system). */
+  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label().match(/\((RM|%)\)\s*$/) || [])[1] || null });
   row.append(ctl);
   const knob = { row, num, range: null, reset: null, whatIf: null, span: null, ev: null, ticks: null };
   if (!applies) {
@@ -43881,7 +44239,7 @@ function labWireRange(P, lab, range, k) {
 
 /* THE CHAIN: seven rows in the owner's order, and the grade. */
 function labChain(P, lab, col) {
-  const card = el('section', { class: 'card lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
+  const card = el('section', { class: 'card ls-section lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
   const bl = labBaseline(lab, col);
   card.append(el('div', { class: 'lab-chain-hd' }, [
     el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${col.name}`]),
@@ -43911,6 +44269,13 @@ function labChain(P, lab, col) {
     P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det };
     /* A row's formula is written while it is open, and when it opens. */
     det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
+    /* From 1440px, in the evidence drawer beside the figures instead
+       (labShowFormula): opened under its row, it moved every row below. */
+    sum.addEventListener('click', (e) => {
+      if (P.compact || !lsWide() || !P.els.how?.node.isConnected || det.open) return;
+      e.preventDefault();
+      labShowFormula(P, f.key);
+    });
   }
   card.append(list);
   if (labPaid(d)) {
@@ -43922,27 +44287,66 @@ function labChain(P, lab, col) {
     }
     P.els.chain.irrPct.sum.append(paid);
   }
-  const grade = el('div', { class: 'lab-grade', id: labId(P, 'grade') });
-  const letter = el('span', { class: 'lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
-  const verdict = el('span', { class: 'lab-grade-verdict' }, '');
-  const gate = el('p', { class: 'metaline lab-grade-gate' }, '');
-  /* WHY THE LETTER, A TAP AWAY (N3): every gate the grade has, worst first,
-     with who confirms each, and the score it is not. Written while open. */
-  const whyLetter = el('span', {}, '');
-  const why = el('details', { class: 'lab-grade-why', id: labId(P, 'grade-why') }, [
-    el('summary', { class: 'lab-grade-why-sum' }, ['Why ', whyLetter]),
-    el('div', { class: 'lab-grade-why-body' })]);
-  why.addEventListener('toggle', () => { if (why.open) labPaintPanel(P); });
-  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate, why);
+  /* THE GRADE, THE SYSTEM'S INSIGHT CARD: the finding (the verdict and the
+     most serious gate), its figure (the letter) and "See why →" into the
+     evidence, where every gate is (labEvidence). */
+  const letter = el('span', { class: 'ls-card-figure lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
+  const verdict = el('p', { class: 'ls-card-title lab-grade-verdict' }, '');
+  const gate = el('p', { class: 'ls-card-sub lab-grade-gate' }, '');
+  const seeWhy = lsCta('See why', { id: labId(P, 'see-why'), sr: ' — every gate behind the grade', onclick: () => lsOpenEvidence(P.els.grade?.why) });
+  const grade = lsInsightCard({ label: 'Underwriting grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
+  seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
-  P.els.grade = { letter, verdict, gate, why, whyLetter, whyBody: why.lastChild };
-  /* What the figures rest on (§6.3), from the column's own inputs. */
+  P.els.grade = { letter, verdict, gate, seeWhy };
+  return card;
+}
+
+/* THE EVIDENCE (L3), the system's drawer (lsEvidence): why the letter —
+   every gate the grade has, worst first, with who confirms each, and the
+   score it is not; what the figures rest on (§6.3), from the column's own
+   inputs; and, from 1440px, how the figure a row names is worked out — a
+   row pressed there writes its formula here instead of opening under
+   itself, so nothing in the workspace moves. Written while open. */
+function labEvidence(P, lab) {
+  const why = lsEvidenceSection({ id: labId(P, 'grade-why'), cls: 'lab-grade-why', summary: ['Why ', (P.els.grade.whyLetter = el('span', {}, ''))],
+    body: el('div', { class: 'lab-grade-why-body' }) });
+  why.querySelector('summary').classList.add('lab-grade-why-sum');
+  why.addEventListener('toggle', () => { if (why.open) labPaintPanel(P); });
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
   const movedBy = el('p', { class: 'metaline lab-movedby', id: labId(P, 'movedby') }, '');
-  card.append(movedBy, ctx, rests);
+  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [movedBy, ctx, rests] });
+  const formula = el('p', { class: 'lab-formula', id: labId(P, 'ev-formula-text') }, '');
+  const fhead = el('p', { class: 'ls-ev-k', id: labId(P, 'ev-formula-k') }, '');
+  const how = lsEvidenceSection({ id: labId(P, 'ev-formula'), cls: 'ls-ev-wide', summary: 'How a figure is worked out', body: [fhead, formula] });
+  how.addEventListener('toggle', () => { if (how.open) labPaintPanel(P); });
+  P.els.grade.why = why;
+  P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
-  return card;
+  P.els.how = { node: how, head: fhead, formula };
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, how] });
+}
+/* From 1440px a row of the chain shows its formula in the drawer. */
+function labShowFormula(P, key) {
+  P.formulaKey = key;
+  for (const [k, ce] of Object.entries(P.els.chain)) ce.sum.classList.toggle('is-shown', k === key);
+  if (P.els.how) P.els.how.node.open = true;
+  labPaintPanel(P);
+  const f = LAB_FIGURES.find(x => x.key === key);
+  if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase()} is worked out, in the evidence beside the figures.`);
+}
+/* THE SYSTEM'S ALERT CARD: how many of the figures behind these results
+   are still the tool's, and where they are reviewed — the calculator's
+   review list (/property/calculator#review). Only for the calculator's own
+   deal, as the next step: another deal is not the one there. */
+function labAlert(P, lab) {
+  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+  const d = labSubjectInputs(lab);
+  const q = d && onCalc ? propertyReviewQueue(d) : [];
+  if (!q.length) return null;
+  return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
+    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''} — still the tool’s starting figures.`,
+    cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
    deal and unmoved: a plain link from any other column would open a
@@ -43961,11 +44365,11 @@ function labWhereEntered(lab, col, key) {
 /* THE COMPARISON. One table a panel, A, B, C in that order whatever is
    compared; the switch changes the form and the scale. */
 function labCompare(P, lab) {
-  const card = el('section', { class: 'card lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
+  const card = el('section', { class: 'card ls-section lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
   card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'A, B and C side by side'));
   const fs = el('fieldset', { class: 'lab-pick lab-pick-by' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Compare by'));
-  const seg = el('div', { class: 'lab-seg lab-seg-by', role: 'presentation' });
+  const seg = el('div', { class: 'lab-seg lab-seg-by ls-chips', role: 'presentation' });
   for (const mt of LAB_METRICS) {
     const id = labId(P, `by-${mt.id}`);
     const on = lab.metric === mt.id;
@@ -44217,7 +44621,7 @@ function labUpdateCompare(P, vm) {
 
 /* The columns: which saved figures each shows, a copy added, one removed. */
 function labColumnsCard(P, lab) {
-  const card = el('section', { class: 'card lab-cols-card', 'aria-labelledby': labId(P, 'cols-h') });
+  const card = el('section', { class: 'card ls-section lab-cols-card', 'aria-labelledby': labId(P, 'cols-h') });
   card.append(el('h2', { class: 'h-card', id: labId(P, 'cols-h') }, 'Columns'));
   const rec = lab.model ? pmFind(lab.model) : null;
   const offered = rec ? pmColumns(rec, State.deal, propertyStatus(State.deal)) : [];
@@ -44283,7 +44687,7 @@ function labClear(P, lab, c) {
 
 /* COMMITS — THE ONLY WRITES. Each says what it does to whose figures. */
 function labCommits(P, lab, col) {
-  const card = el('section', { class: 'card lab-commit', 'aria-labelledby': labId(P, 'commit-h'), id: labId(P, 'commit') });
+  const card = el('section', { class: 'card ls-section lab-commit', 'aria-labelledby': labId(P, 'commit-h'), id: labId(P, 'commit') });
   card.append(el('h2', { class: 'h-card', id: labId(P, 'commit-h') }, `Keep ${col.key}`));
   const rec = lab.model ? pmFind(lab.model) : null;
   const n = labMoveCount(col);
@@ -44581,6 +44985,13 @@ function labPaintPanel(P, { initial = false } = {}) {
        first draw — served whole, with no script to open them. */
     if (initial || ce.det.open) labText(ce.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
   }
+  /* The drawer's formula: the row last pressed from 1440px, else the
+     first — the same words its row writes (LAB_FIGURES). */
+  if (P.els.how && (initial || P.els.how.node.open)) {
+    const f = LAB_FIGURES.find(x => x.key === P.formulaKey) || LAB_FIGURES[0];
+    labText(P.els.how.head, f.label(d));
+    labText(P.els.how.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
+  }
   if (P.els.chain.irrPct?.paidBox && (initial || P.els.chain.irrPct.det.open)) {
     const box = P.els.chain.irrPct.paidBox;
     const words = !m ? '' : labPaid(d)
@@ -44683,6 +45094,7 @@ function labPaintPanel(P, { initial = false } = {}) {
     P.els.colsCard = cc; P.els.commitCard = cm; P.cardSig = sig;
     /* The identity line's Save offers what the commit card's does. */
     if (P.els.idAct?.isConnected) { const a = labIdentityAct(P, lab); P.els.idAct.replaceWith(a); P.els.idAct = a; }
+    if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
   /* The comparison: in place while its shape holds, drawn again when not. */
@@ -44759,7 +45171,8 @@ function labRefresh() {
    above the sliders says from the first drawing (labPaintPanel). */
 VIEWS.propertyLab = () => {
   labArrive();
-  const wrap = el('div', { class: 'lab-page' });
+  /* On the layout system (ls-page: 37-layout-system.js, styles.css). */
+  const wrap = el('div', { class: 'lab-page ls-page' });
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
@@ -54420,8 +54833,12 @@ const DOCKS = {
           det.scrollIntoView({ block: 'start' });
         },
       } : null,
+      /* Under 640px the layout system's action bar (propertyBarActions). */
+      actions: propertyBarActions(),
     };
   },
+  /* /property: its action bar alone, on a phone (labBarActions). */
+  propertyLab: () => ({ figs: [], actions: labBarActions(), phoneOnly: true }),
 
   wheel: () => {
     const p = State.wheel, m = wheelMath(p), fit = wheelFit(p, m, null);

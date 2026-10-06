@@ -673,8 +673,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "a61effc6f6b63372",
-      "changed": "2026-10-04"
+      "digest": "20daef4457b1413d",
+      "changed": "2026-10-06"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -789,8 +789,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "78deea0c746ed516",
-      "changed": "2026-10-04"
+      "digest": "bf71f8a8dae00eb0",
+      "changed": "2026-10-06"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",
@@ -1068,18 +1068,18 @@
         ]
       },
       "inert": {
-        "buttons": 18,
+        "buttons": 24,
         "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 13,
+        "notShown": 9,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0ea1b120a3ba192e",
+      "digest": "18ef9573b8f0f4da",
       "changed": "2026-10-06"
     },
     "pages/property/areas.html": {
@@ -1126,7 +1126,7 @@
         ]
       },
       "inert": {
-        "buttons": 56,
+        "buttons": 57,
         "fields": 78,
         "choices": 13,
         "roles": 0,
@@ -1137,7 +1137,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "11f57530b53b3717",
+      "digest": "ce699e52d87f65b6",
       "changed": "2026-10-06"
     },
     "pages/property/comparables.html": {
@@ -1184,18 +1184,18 @@
         ]
       },
       "inert": {
-        "buttons": 18,
+        "buttons": 24,
         "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 13,
+        "notShown": 9,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f77b6d75ec4f1291",
+      "digest": "606a44702a8392df",
       "changed": "2026-10-06"
     },
     "pages/property/models.html": {
