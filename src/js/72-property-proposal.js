@@ -770,7 +770,7 @@ function cpRunningWords(d, m) {
   return `${bits.slice(0, -1).join(', ')} and ${bits[bits.length - 1]}`;
 }
 
-function cpRentSection(d, m) {
+function cpRentSection(d, m, paid = false) {
   const s = cpSection('rental', m.letsToTenant ? 'Rent and the monthly cash flow' : 'What holding it costs');
   const loan = m.loan > 0;
   if (!m.letsToTenant) {
@@ -802,7 +802,7 @@ function cpRentSection(d, m) {
     const taxKnown = m.taxComputed && isNum(m.cumTax);
     if (!m.taxComputed) s.append(cpNote('Before tax: no marginal tax rate was entered, so every figure here is before tax on the rent — what the property produces, not what an owner keeps.'));
     else if (!taxKnown) s.append(cpNote(`No tax on the rent is computed although a marginal rate of ${cpPct(d.marginalTaxPct)} is entered: the loan’s interest — the deduction that decides the tax — could not be worked out from the entered tenure.`, { warn: true }));
-    else s.append(el('p', { class: 'cp-note' }, [`The monthly position and the break-even rent are before tax on the rent. The rental cash and the rate of return under “If it is sold” are after tax at ${cpPct(d.marginalTaxPct)}, which comes to `,
+    else s.append(el('p', { class: 'cp-note' }, [`The monthly position and the break-even rent are before tax on the rent. ${paid ? 'The rental cash and the rate of return under “If it is sold” are' : 'The rate of return under “If it is sold” is'} after tax at ${cpPct(d.marginalTaxPct)}, which comes to `,
       cpFig('cumTax', cpMoney(m.cumTax)), ' across the hold: loan interest is deducted and principal is not. Nothing here is tax advice.']));
   }
   return s;
@@ -841,14 +841,33 @@ function cpScenariosSection(rec, picks) {
 
 /* The sale at the end of the hold, as the model prices it (dealModel's own
    exit: exitAt for the holding period, and the rate of return of the whole
-   hold). Nothing is assumed here that the model does not already assume. */
-function cpExitSection(d, m) {
+   hold). Nothing is assumed here that the model does not already assume.
+
+   THE OWNER'S PAYWALL RULE (3 Oct 2026). The sale's costs, its net proceeds
+   and the total profit are the full report's, as on the calculator (its
+   exit table) and the Scenario Lab (LAB_PAID): shown only where the report
+   is unlocked (propertyReportUnlocked, the calculator's own test). Until
+   then the proposal prints the Lab's two free figures — in the Lab's own
+   words (LAB_FIGURES), so the two pages cannot word them differently — and
+   says where the rest is. From ee173ce to this change the table printed all
+   ten rows to anyone, the net proceeds and the profit included. */
+const CP_EXIT_LOCKED = 'In the full analysis — preview in the calculator; nothing is on sale';
+function cpExitSection(d, m, paid = false) {
   const s = cpSection('exit', `If it is sold after ${cpPlural(d.holdYears, 'year')}`);
   /* A deduction carries its minus — except one that prints as nothing: a
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
   const lets = m.letsToTenant;
-  s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+  const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
+  if (!paid) {
+    const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
+    s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+      cpRow(label('valueLessLoanAtExit'), isNum(m.valueLessLoanAtExit) ? cpFig('valueLessLoanAtExit', cpMoney(m.valueLessLoanAtExit))
+        : el('span', { class: 'cp-unpriced', 'data-cp': 'valueLessLoanAtExit' }, 'Not computed — the loan has no schedule')),
+      cpRow(label('irrPct'), rate()),
+    ], { cls: 'cp-exit cp-exit-free' }));
+    s.append(el('p', { class: 'cp-note cp-exit-locked', 'data-cp-locked': 'exit' }, CP_EXIT_LOCKED));
+  } else s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
     cpRow('Sale value', cpFig('exitValue', cpMoney(m.exitValue))),
     cpRow('Loan outstanding', less('outstanding', m.outstanding)),
     cpRow('Agent commission', less('agentFee', m.agentFee)),
@@ -858,7 +877,7 @@ function cpExitSection(d, m) {
     cpRow('Net proceeds', cpFig('netExitProceeds', cpMoney(m.netExitProceeds))),
     cpRow(!lets ? 'Cash to hold it over the hold — running costs and loan repayments' : m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', cpFig('cumCash', cpMoney(m.cumCash))),
     cpRow('Total profit on the cash put in', cpFig('totalProfit', cpMoney(m.totalProfit))),
-    cpRow('Rate of return over the hold', isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate')),
+    cpRow('Rate of return over the hold', rate()),
   ], { cls: 'cp-exit' }));
   if (!isNum(m.irrPct) && m.irrWhy) s.append(cpNote(`No rate of return: ${m.irrWhy}`));
   const reno = num0(d.renovation) > 0 && num0(d.renoValueRecoveryPct) > 0
@@ -903,7 +922,7 @@ function cpDisclosures(rec, d, m) {
 }
 
 function cpDocument(rec, details, forWhom, picks) {
-  const d = pmInputsOf(rec), m = dealModel(d), cash = cpCash(m);
+  const d = pmInputsOf(rec), m = dealModel(d), cash = cpCash(m), paid = propertyReportUnlocked(d.projectId);
   const doc = el('article', { class: 'cp-doc', id: 'cp-doc', 'aria-label': 'Client proposal' });
   doc.append(cpHead(rec, d, details, forWhom));
   const where = pmPlace(d);
@@ -918,9 +937,9 @@ function cpDocument(rec, details, forWhom, picks) {
   doc.append(cpPropertySection(rec, d, m));
   doc.append(cpAcquisitionSection(d, m, cash));
   doc.append(cpFinancingSection(d, m));
-  doc.append(cpRentSection(d, m));
+  doc.append(cpRentSection(d, m, paid));
   if (picks.length) doc.append(cpScenariosSection(rec, picks));
-  doc.append(cpExitSection(d, m));
+  doc.append(cpExitSection(d, m, paid));
   doc.append(cpDisclosures(rec, d, m));
   return doc;
 }

@@ -3882,6 +3882,71 @@ try {
         if (p8.length) fail('property-proposal PP8: each figure\'s words say what it is', p8.slice(0, 20));
         else ok(`property-proposal PP8: a cash purchase is described with no loan, rate or repayment; "the price is met by" a loan and a deposit that add up to it, and a loan on a valuation above the price is flagged instead; a rent of 1850.5 prints RM1,850.50 and 572000.755 as entered; what a scenario changes is in words, as entered (4.375%), with no input hint, raw value or first person, and the name a scenario is offered is in the same words, whole ("${r.offered}"); the growth rate is credited to whoever set it; the fee registry is named; a quote is not "your quote"`);
       });
+
+      /* PP9 — THE OWNER'S PAYWALL RULE (3 Oct 2026). The sale's costs, its
+         net proceeds and the total profit are the full report's: the
+         calculator shows its exit table and the Lab its LAB_PAID rows only
+         where propertyReportUnlocked holds. The proposal printed all ten
+         rows of its sale table to anyone from ee173ce (plan item 1.4).
+         Locked: exactly the Lab's two free rows, in the Lab's words, each
+         the model's figure, the note saying where the rest is, and none of
+         the nine others' labels or figures anywhere on the page (sale value,
+         loan outstanding, agent, legal, months carried, gains tax, net
+         proceeds, rental cash over the hold, total profit).
+         Unlocked: all ten, and no note. Fails on 66af066 (ten rows locked). */
+      await ppStep('PP9', async () => {
+        const r = await evaluate(`(async () => { ${PPH}
+          const keep = { bought: State.propertyReportsBought, log: State.propertyReportLog };
+          try {
+            const rec = ppMake('PP sale locked', { price: 520000, rent: 2100, marginalTaxPct: 24, holdYears: 7 });
+            const pid = pmInputsOf(pmFind(rec.id)).projectId;
+            const look = async () => { navigate(cpPath(rec.id)); await w(450);
+              const doc = document.getElementById('cp-doc'), sec = document.getElementById('cp-h-exit')?.parentElement;
+              const m = dealModel(pmInputsOf(pmFind(rec.id))), d = pmInputsOf(pmFind(rec.id));
+              return { view: State.view, unlocked: propertyReportUnlocked(pid),
+                rows: [...(sec?.querySelectorAll('.cp-exit tbody tr') || [])].map(tr => ({ label: txt(tr.querySelector('th')), keys: [...tr.querySelectorAll('[data-cp]')].map(n => n.dataset.cp), text: txt(tr.querySelector('td')) })),
+                keys: [...(doc?.querySelectorAll('[data-cp]') || [])].map(n => n.dataset.cp),
+                /* The page's words but its inputs (.cp-assume): "Agent
+                   commission on exit, 2%" is an assumption anyone sees on
+                   the calculator, not the sale's commission. */
+                text: (() => { const c = doc?.cloneNode(true); c?.querySelectorAll('.cp-assume').forEach(n => n.remove()); return txt(c); })(), notes: [...(sec?.querySelectorAll('.cp-note') || [])].map(txt),
+                want: { vll: fmtMoney(m.valueLessLoanAtExit, 'MYR', 0), irr: fmtPct(m.irrPct, 2), labels: ['valueLessLoanAtExit', 'irrPct'].map(k => LAB_FIGURES.find(f => f.key === k).label(d)) } };
+            };
+            State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== pid);
+            State.propertyReportLog = { month: meterMonth(), ids: [] };
+            const locked = await look();
+            /* The calculator's offer of the report, on the same locked deal:
+               it may not offer what the Lab already shows free. */
+            navigate('/property/calculator'); await w(500);
+            locked.offer = txt([...document.querySelectorAll('#views p')].find(p => /^Adds /.test(txt(p)) && /Full investor report — proposed/.test(txt(p.parentElement))));
+            State.propertyReportsBought = [...State.propertyReportsBought, pid];
+            const open = await look();
+            return { locked, open };
+          } finally { State.propertyReportsBought = keep.bought; State.propertyReportLog = keep.log; }
+        })()`);
+        const NOTE = 'In the full analysis — preview in the calculator; nothing is on sale';
+        const PAID_KEYS = ['exitValue', 'outstanding', 'agentFee', 'exitLegal', 'carryWhileSelling', 'rpgt', 'netExitProceeds', 'cumCash', 'totalProfit'];
+        const PAID_WORDS = [/Sale value/, /Loan outstanding/, /Agent commission/, /Legal fees on the sale/, /Carried while it sells/, /Real property gains tax \(/, /Net proceeds/i, /Rental cash/i, /Cash to hold it over the hold/, /Total profit/i];
+        const p9 = [], L = r.locked, O = r.open;
+        if (L.view !== 'propertyProposal' || O.view !== 'propertyProposal') p9.push(`the views are ${L.view} and ${O.view}`);
+        if (L.unlocked || !O.unlocked) p9.push(`the check did not set the two states: unlocked ${L.unlocked} then ${O.unlocked}`);
+        if (JSON.stringify(L.rows.map(x => x.label)) !== JSON.stringify(L.want.labels)) p9.push(`locked, the sale table's rows are ${JSON.stringify(L.rows.map(x => x.label))}, not the Lab's two ${JSON.stringify(L.want.labels)}`);
+        if (L.rows[0] && L.rows[0].text !== L.want.vll) p9.push(`locked, "${L.rows[0].label}" prints ${L.rows[0].text}; the model's is ${L.want.vll}`);
+        if (L.rows[1] && L.rows[1].text !== L.want.irr) p9.push(`locked, "${L.rows[1].label}" prints ${L.rows[1].text}; the model's is ${L.want.irr}`);
+        if (!L.notes.includes(NOTE)) p9.push(`locked, the sale does not say "${NOTE}": ${JSON.stringify(L.notes).slice(0, 300)}`);
+        const leakedKeys = PAID_KEYS.filter(k => L.keys.includes(k));
+        if (leakedKeys.length) p9.push(`locked, the proposal prints the full report's ${leakedKeys.join(', ')}`);
+        const leakedWords = PAID_WORDS.filter(re => re.test(L.text)).map(String);
+        if (leakedWords.length) p9.push(`locked, the proposal's text names ${leakedWords.join(', ')}`);
+        if (!L.offer) p9.push('locked, the calculator offers no full report to set beside the Lab');
+        else if (/debt-service cover/i.test(L.offer)) p9.push(`the calculator's offer of the report adds debt-service cover, which the Lab shows free under Risk: "${L.offer.slice(0, 160)}"`);
+        if (O.rows.length !== 10) p9.push(`unlocked, the sale table has ${O.rows.length} rows, not 10: ${JSON.stringify(O.rows.map(x => x.label))}`);
+        const missing = PAID_KEYS.filter(k => !O.keys.includes(k));
+        if (missing.length) p9.push(`unlocked, the proposal does not print ${missing.join(', ')}`);
+        if (O.notes.includes(NOTE)) p9.push('unlocked, the sale still says the rest is in the full analysis');
+        if (p9.length) fail('property-proposal PP9: the sale\'s costs, proceeds and profit are on the proposal only where the report is unlocked', p9);
+        else ok(`property-proposal PP9: locked, the sale table holds only the Lab's two free rows — "${L.want.labels.join('" and "')}", ${L.want.vll} and ${L.want.irr}, the model's — and "${NOTE}", with none of the full report's nine other figures or their labels anywhere on the page, and the calculator's offer adds no debt-service cover, which the Lab shows free; unlocked, all ten rows and no note`);
+      });
     } finally {
       await evaluate(`(() => { const k = ${ppKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
     }

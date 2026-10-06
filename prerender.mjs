@@ -136,6 +136,8 @@ const PORT = Number(flag('port') || process.env.PRERENDER_PORT || 0);
 const CDP = Number(process.env.CDP_PORT) || 0;
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const lf = (t) => t.split('\r\n').join('\n');
+/* A moment in seconds as its day in UTC: 2026-10-06. */
+const utcDay = (sec) => new Date(Number(sec) * 1000).toISOString().slice(0, 10);
 
 /* The clock every page is drawn at: a Thursday morning in Kuala Lumpur. Fixed,
    not the day of the run, so a render changes only when the page does. */
@@ -509,6 +511,11 @@ export function servedCopy(live, counts = {}) {
   }
   /* What is this tab's, now (NOW, 35-ui.js): what any reader may be told. */
   for (const n of root.querySelectorAll('[data-now]')) if (root.contains(n)) { n.textContent = n.getAttribute('data-now'); add('now'); }
+  /* And what marks it (N1a, 2026-10-06): a chip's colour and a row's status
+     drawn from the render's own run — /status's "Not run" chips were served
+     green, their rows data-status="PASS". */
+  for (const n of root.querySelectorAll('[data-now-class]')) n.setAttribute('class', n.getAttribute('data-now-class'));
+  for (const n of root.querySelectorAll('[data-now-status]')) n.setAttribute('data-status', n.getAttribute('data-now-status'));
   /* A disclosure whose body the script fills when it opens. */
   for (const d of root.querySelectorAll('details')) {
     const body = [...d.childNodes].filter(k => !(k.nodeType === 1 && k.localName === 'summary'));
@@ -724,7 +731,10 @@ export function cleanCopy({ root = ROOT, worktree = WORKTREE } = {}) {
   rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   mkdirSync(dir, { recursive: true });
   try {
-    let from;
+    /* The day a render drawn here is dated (the manifest's "changed"): the
+       commit's it is drawn from, in UTC — or, from the working tree, which
+       has no commit yet, the day of the run. */
+    let from, day = utcDay(Date.now() / 1000);
     if (worktree) {
       for (const f of files) {
         if (!existsSync(join(root, f))) continue;          /* deleted, not yet committed */
@@ -737,6 +747,7 @@ export function cleanCopy({ root = ROOT, worktree = WORKTREE } = {}) {
       const archive = execFileSync('git', ['archive', '--format=tar', 'HEAD'], { cwd: root, maxBuffer: 1024 * 1024 * 1024 });
       execFileSync('tar', ['-xf', '-', '-C', dir], { input: archive, stdio: ['pipe', 'ignore', 'pipe'] });
       from = `HEAD (${git('rev-parse', '--short=12', 'HEAD').trim()})`;
+      day = utcDay(git('log', '-1', '--format=%ct', 'HEAD').trim());
     }
     /* And the copy itself, as it stands: a personal file in it is a tracked one. */
     const all = [];
@@ -746,7 +757,7 @@ export function cleanCopy({ root = ROOT, worktree = WORKTREE } = {}) {
     if (personal.length) throw new Error(`personal data is tracked, and would be rendered from: ${personal.join(', ')}`);
     rmSync(join(dir, 'prerender'), { recursive: true, force: true });
     execFileSync(process.execPath, ['build.mjs', '--bare'], { cwd: dir, stdio: ['ignore', 'ignore', 'pipe'] });
-    return { dir, from };
+    return { dir, from, day };
   } catch (e) {
     rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
     throw e;
@@ -1038,17 +1049,33 @@ async function main() {
          pages a render of an older app. */
       const prior = existsSync(join(ROOT, MANIFEST)) ? JSON.parse(lf(readFileSync(join(ROOT, MANIFEST), 'utf8'))) : { pages: {} };
       const pages = ONLY.length ? { ...prior.pages } : {};
+      /* WHEN EACH PAGE LAST CHANGED (plan item 1.3): "changed", the day
+         build.mjs gives the page's address in sitemap.xml as <lastmod>. A
+         render drawn the same as the one committed keeps its day; one drawn
+         otherwise takes the day of the commit it is drawn from (copy.day).
+         A committed render with no day yet is given its own file's last
+         commit's. Kept in the manifest, not asked of git by the build, so
+         build --check reproduces it in a copy with no history (CI's
+         one-commit checkout, a git archive) — and two runs on one commit
+         still write the same files. */
+      const lastCommit = (...fs) => {
+        try {
+          const t = execFileSync('git', ['log', '-1', '--format=%ct', '--', ...fs], { cwd: ROOT, encoding: 'utf8' }).trim();
+          return t ? utcDay(t) : null;
+        } catch { return null; }
+      };
       for (const { s, r } of results) {
         mkdirSync(dirname(join(ROOT, s.render)), { recursive: true });
         writeFileSync(join(ROOT, s.render), `${r.views}\n`);
         if (r.tabs) writeFileSync(join(ROOT, s.tabs), `${r.tabs}\n`); else rmSync(join(ROOT, s.tabs), { force: true });
+        const digest = renderDigest(r.views, r.tabs), was = prior.pages?.[s.file];
         pages[s.file] = { path: s.path, view: r.view, state: r.state, chrome: r.chrome, h1: r.h1, tabs: !!r.tabs, nav: r.nav,
           inert: Object.fromEntries(['buttons', 'fields', 'choices', 'roles', 'forms', 'removed', 'notShown', 'now', 'cellStops', 'emptyDetails'].map(k => [k, r.counts[k] || 0])),
-          digest: renderDigest(r.views, r.tabs) };
+          digest, changed: was?.digest === digest ? (was.changed || lastCommit(s.render, s.tabs) || copy.day) : copy.day };
       }
       const ordered = Object.fromEntries(Object.keys(pages).sort((a, b) => (a === 'index.html' ? -1 : b === 'index.html' ? 1 : a.localeCompare(b))).map(k => [k, pages[k]]));
       const manifest = {
-        $comment: 'Written by prerender.mjs: how each page in prerender/ was drawn. build.mjs puts each render into its page; node prerender.mjs --check says whether each is still the app\'s.',
+        $comment: 'Written by prerender.mjs: how each page in prerender/ was drawn, and the day (UTC) of the commit its render last changed at. build.mjs puts each render into its page and each day into sitemap.xml as <lastmod>; node prerender.mjs --check says whether each is still the app\'s.',
         drawn: { viewport: `${VIEWPORT.width}x${VIEWPORT.height}`, theme: 'light', motion: 'reduce', clock: CLOCK, timeZone: ZONE, locale: LOCALE, storage: 'none', personalLane: '404' },
         pages: ordered,
       };

@@ -586,7 +586,7 @@ for (const route of ROUTES) {
     for (const [face, extra] of [['the page font', ''], ['Verdana', 'font-family:Verdana,sans-serif'], ['spaced', 'letter-spacing:.3em']]) {
       out[face] = [undefined, 'PASS', 'DEGRADED', 'FAIL', 'served'].map(st => {
         const c = healthChip(st === 'served' ? undefined : st);
-        if (st === 'served') c.textContent = c.getAttribute('data-now');
+        if (st === 'served') { c.textContent = c.getAttribute('data-now'); c.setAttribute('class', c.getAttribute('data-now-class') || c.getAttribute('class')); }
         c.style.cssText += ';' + extra; host.append(c);
         return Math.round(c.getBoundingClientRect().width * 10) / 10;
       });

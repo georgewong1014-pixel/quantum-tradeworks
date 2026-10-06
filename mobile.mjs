@@ -2709,6 +2709,103 @@ for (const w of [360, 390]) {
   else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all seven results on one screen, in the page's font and in Verdana with ${SPARE}px spare (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; "About" (${said.about.size.join('×')}px) opens the renovation's span and note after its tags and closes them; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
 }
 /* ---- end scenario-lab-verify ---- */
+/* ---- batch1-phone ---- */
+/* TWO THINGS A WIDE SANS PUSHED OUT (batch 1, 6 Oct 2026). CI's Linux sans
+   is as wide as Verdana, and both of these fit in this machine's fonts:
+     - at 360×640, the Lab's rate typed to 0%: its warning stays whole and in
+       sight, and the last of the seven results still ends on the screen (it
+       ended 3px below it in Verdana);
+     - the app bar's Search button at 360, 375, 390 and 430: its word is
+       either whole inside the button or not shown — never cut by its edge
+       (it ran 25px out at 375 and 10px at 390 in Verdana) — the magnifier is
+       whole inside it, and the button is a 44px target. */
+{
+  const fails = [], said = { lab: [], search: [] };
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev('State.view');
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`) : null);
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 640, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await load('/property/lab');
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+    for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `360×640${font ? ' in Verdana' : ''}`;
+      if (await load('/property/lab') !== 'propertyLab') { fails.push(`${at}: /property/lab did not open the Lab`); continue; }
+      await face(font);
+      const r = await ev(`(async () => {
+        const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        document.documentElement.style.scrollBehavior = 'auto';
+        document.documentElement.style.overflowAnchor = 'none'; document.body.style.overflowAnchor = 'none';
+        const radio = document.getElementById('lab-in-ratePct');
+        if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); await frames(); }
+        const nb = document.querySelector('#lab-knob-ratePct input[type=number]');
+        nb.value = '0'; nb.dispatchEvent(new Event('input', { bubbles: true })); nb.dispatchEvent(new Event('change', { bubbles: true }));
+        await frames(); await new Promise(r => setTimeout(r, 300)); await frames();
+        const bar = [...document.querySelectorAll('.appbar, .topbar')].filter(n => n.getClientRects().length && getComputedStyle(n).position !== 'static').map(n => n.getBoundingClientRect().bottom);
+        const under = Math.max(0, ...bar);
+        window.scrollTo(0, document.querySelector('.lab-pick-input').getBoundingClientRect().top + scrollY - under);
+        await frames();
+        const warn = document.querySelector('#lab-knob-ratePct .lab-note-warn');
+        const w = warn && warn.getClientRects().length ? warn.getBoundingClientRect() : null;
+        const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
+        return { under: Math.round(under), vh: innerHeight, rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
+      })()`);
+      said.lab.push([font ? 'Verdana' : 'page font', Math.max(...r.vals.map(v => v[2]))]);
+      if (r.rate !== '0') fails.push(`${at}: the rate did not take 0 (it reads ${r.rate})`);
+      if (!r.warn) fails.push(`${at}: at a 0% rate the Lab shows no warning`);
+      else {
+        if (!/^The rate is 0%\. If that was intended, the repayment is right; if not, it is roughly half what it should be — the model cannot tell the two apart\.$/.test(r.warn[2])) fails.push(`${at}: the 0% warning reads "${r.warn[2]}"`);
+        if (r.warn[0] < r.under || r.warn[1] > r.vh) fails.push(`${at}: the 0% warning sits at ${r.warn[0]}–${r.warn[1]}, the screen below the topbar is ${r.under}–${r.vh}`);
+      }
+      r.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([f, t, b]) => fails.push(`${at}, rate 0%: ${f} sits at ${t}–${b}, off the ${r.under}–${r.vh} screen`));
+    }
+    for (const w of [360, 375, 390, 430]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
+      for (const font of [null, 'Verdana, sans-serif']) {
+        const at = `${w}${font ? ' in Verdana' : ''}`;
+        await load('/app');
+        await face(font);
+        const r = await ev(`(async () => {
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const b = document.querySelector('.appbar .appbar-search');
+          if (!b || !b.getClientRects().length) return null;
+          const box = b.getBoundingClientRect(), label = b.querySelector('.appbar-search-label'), icon = b.querySelector('svg').getBoundingClientRect();
+          const l = label && label.getClientRects().length ? label.getBoundingClientRect() : null;
+          const inside = (x) => x.left >= box.left - 0.5 && x.right <= box.right + 0.5 && x.top >= box.top - 0.5 && x.bottom <= box.bottom + 0.5;
+          const outside = (x) => x.top >= box.bottom - 0.5 || x.bottom <= box.top + 0.5 || x.left >= box.right - 0.5 || x.right <= box.left + 0.5;
+          return { size: [Math.round(box.width), Math.round(box.height)], word: !l ? 'not drawn' : inside(l) ? 'whole' : outside(l) ? 'not shown' : 'cut',
+            icon: inside(icon), name: b.getAttribute('aria-label') };
+        })()`);
+        if (!r) { fails.push(`${at}: /app shows no app-bar Search button`); continue; }
+        said.search.push(`${at} ${r.word}`);
+        if (r.word === 'cut') fails.push(`${at}: the Search button's word is cut by its edge`);
+        if (!r.icon) fails.push(`${at}: the Search button's magnifier runs out of it`);
+        if (r.size[0] < 43.5 || r.size[1] < 43.5) fails.push(`${at}: the Search button is ${r.size.join('×')}px`);
+        if (!/^Search /.test(r.name || '')) fails.push(`${at}: the Search button has no name ("${r.name}")`);
+      }
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL batch1-phone — a wide sans on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   batch1-phone: at 360×640 a 0% rate's warning stays whole and in sight and the seven results end on the screen (the last at ${said.lab.map(([f, b]) => `${b} in the ${f}`).join(', ')}); the app bar's Search word is whole or not shown, never cut, its magnifier whole and the button a 44px target (${said.search.join('; ')})`);
+}
+/* ---- end batch1-phone ---- */
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */

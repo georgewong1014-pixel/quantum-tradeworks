@@ -101,8 +101,13 @@ const CAPABILITY_REGISTER = [
     gate:'Needs the offer-status workflow. Financing scenarios at 70/80/90% exist today; named lender offers do not.' },
   { name:'Operations Excellence handoff', status:'queued', path:null,
     gate:'Book 2. Generated from Book 1 once acquisition underwriting is settled.' },
-  { name:'Property map and area observations', status:'maintenance', path:'/property/calculator',
-    now:'Cached coordinates under ODbL with per-area match confidence.' },
+  /* Not a map (N4a, the 5 Oct audit): "Property map … /property/calculator"
+     read as the map the plan's Phase 5 is still to build. What exists is
+     cityMap (70-property.js), a diagram of 8 cached locality points for each
+     of Kuching, Sibu, Miri and Bintulu (data/sarawak-geo.json), whose own
+     caption says it has no basemap, road or boundary. */
+  { name:'Locality diagram and area observations', status:'maintenance', path:'/property/areas',
+    now:'8 locality points per town, relative positions with per-point match confidence (ODbL); no basemap, no scheme or building positions.' },
   { name:'Discover and screener', status:'maintenance', path:'/discover/screener',
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
   /* The explorer and the brief's paths were a row of their own in the brief

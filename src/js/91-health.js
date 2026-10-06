@@ -316,9 +316,16 @@ const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this p
 /* One width whatever it says (health-chip, styles.css): served it says
    "Not run", drawn "Checking…" and then its result, and the check's name
    beside it must not move between them. */
+/* A RESULT IS SERVED WITH NONE OF ITS MARKS (N1a, the 5 Oct audit). The
+   words "Not run" were served in the chip, but its colour (chip-ok) and the
+   row's data-status="PASS" were the render's own run's: a fetch of /status
+   read a passing check that had run nowhere. data-now-class and
+   data-now-status are what the chip's class and the row's status are
+   served as (servedCopy, prerender.mjs), as data-now is its words. */
+const HEALTH_NOT_RUN_STATUS = 'PENDING';
 const healthChip = (status) => {
   const s = HEALTH_STATE[status];
-  return el('span', { class: `chip health-chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip }, s ? s.label : 'Checking…');
+  return el('span', { class: `chip health-chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip, 'data-now-class': 'chip health-chip' }, s ? s.label : 'Checking…');
 };
 const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`) : null);
 /* The result, its name and its time on one line; what was checked below it.
@@ -331,7 +338,7 @@ function healthRow({ status, title, detail, meta }) {
   /* The whole line's width, so it always starts a line of its own; the
      measure is the text's, inside it. */
   const text = 'margin:0;max-width:72ch;overflow-wrap:anywhere';
-  return el('li', { class: 'health-row', data: { status: status || 'PENDING' }, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
+  return el('li', { class: 'health-row', data: { status: status || HEALTH_NOT_RUN_STATUS }, 'data-now-status': HEALTH_NOT_RUN_STATUS, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
     healthChip(status),
     el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, title),
     meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums', 'data-now': '' }, meta) : null,

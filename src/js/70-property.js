@@ -443,6 +443,19 @@ const shownEvidence = (d, k) =>
     ? 'illustrative_default'
     : (d.evidence?.[k] || 'assumed');
 
+/* WHICH INPUT BOXES SAY THEY HOLD THE TOOL'S NUMBER (N2c, the 5 Oct audit).
+   The calculator tagged four of its ten seeded figures at the box —
+   price, rent, maintenance and built-up area, the evidence drivers — and
+   the deposit, the rate, the tenure, the vacancy, the holding period and
+   the growth rate sat beside them untagged, read as the reader's own. Every
+   figure on the review queue is tagged while it is the tool's: a driver as
+   its evidence says (shownEvidence), any other while nobody has touched it
+   and the deal was not started blank — and, as the queue, only where this
+   class uses it. */
+const inputIsSeeded = (d, k) => (EVIDENCE_DRIVERS.includes(k)
+  ? evidenceDriversFor(d).includes(k) && shownEvidence(d, k) === 'illustrative_default'
+  : PROPERTY_REVIEW.some(f => f.k === k) && propertyInputApplies(d, k) && !isTouched(d, k) && !d?.userStarted);
+
 /* Named rather than inline, so Reset restores exactly what a first visit sees.
    These are the seeded figures the review queue lists and the evidence card
    calls illustrative defaults — the two must not be able to disagree about

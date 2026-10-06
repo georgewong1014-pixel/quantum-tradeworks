@@ -378,7 +378,17 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     const c = headOf(r.body).canonical;
     if (c !== loc) p.push(`${paths[i]}: served with canonical ${c}`);
   });
-  judge(p, `every sitemap address (${locs.length}) is served 200 with itself as its canonical`, 'a sitemap address is not served as its own canonical');
+  /* And each says when its page last changed (plan item 1.3): one <lastmod>
+     per <url>, a day, in the sitemap that is served — this checkout's. */
+  const served = (await getAll(['/sitemap.xml'])).get('/sitemap.xml');
+  const urls = [...(served.body || '').matchAll(/<url>([\s\S]*?)<\/url>/g)].map(m => m[1]);
+  if ((served.body || '').split('\r\n').join('\n') !== read('sitemap.xml')) p.push(`/sitemap.xml: ${described(served)}, not this checkout's file`);
+  urls.forEach(u => {
+    const days = [...u.matchAll(/<lastmod>([^<]*)<\/lastmod>/g)].map(m => m[1]);
+    if (days.length !== 1 || !/^\d{4}-\d\d-\d\d$/.test(days[0])) p.push(`${(/<loc>([^<]+)/.exec(u) || [])[1]}: ${days.length} <lastmod> (${days.join(', ') || 'none'}), not one day`);
+  });
+  if (urls.length !== locs.length) p.push(`/sitemap.xml serves ${urls.length} <url>s, this checkout's lists ${locs.length}`);
+  judge(p, `every sitemap address (${locs.length}) is served 200 with itself as its canonical, and the served sitemap gives each one <lastmod>`, 'a sitemap address is not served as its own canonical, or has no <lastmod>');
 }
 
 /* ---- audit: verify ---- */
@@ -863,6 +873,112 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     'a page does not carry the first-paint script, or says other than what its render read');
 }
 /* ---- end integration-final ---- */
+
+/* ---- disclosure-guard ---- */
+/* THE DISCLOSURE STAYS AS IT IS (plan item 1.5; audits B #9–#10 and C, "keep
+   the bottom disclosure"). Two sentences say on every page what this is and
+   is not: the strip's "Beta preview." with "Do not use figures here for
+   investment decisions.", and the footer's p.footer-legal. Both were right
+   on 4 Oct 2026 and nothing held them there: a template edit, a build or a
+   render could shorten either, and every other check would still pass.
+   Held here on what is served, before any script runs, at every address
+   that serves a page — every static route, every company's own page, the
+   parameter routes' page and the 404 — word for word against the text
+   below, typed here rather than read from the template, so an edit to the
+   template is what fails. The footer is compared as text (tags out, white
+   space as one space); the strip's two sentences must stand together, the
+   first in <strong>, inside #disclosureText. The script may swap the
+   strip's first words for a fuller "Beta preview — …" once the filings
+   load (95-boot.js); that keeps the sentence and is not what a fetch reads. */
+{
+  const STRIP = '<strong>Beta preview.</strong> Do not use figures here for investment decisions.';
+  const LEGAL = 'Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell any security. Financial figures come from two different places and are labelled on every page: statements filed with the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked illustrative, which are synthetic and created for interface demonstration. No market-data licence is in place for either exchange. A filed company therefore carries no price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act before launch.';
+  const text = (html) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  const p = [];
+  const { companies } = companyPlan(ORIGIN, router);
+  const generic = params[0].replace(/:[A-Za-z]+/g, 'disclosure-check');
+  const paths = [...statics, ...companies.map(co => co.path), generic, '/nope-for-disclosure-check', '/404.html'];
+  const got = await getAll(paths);
+  for (const path of paths) {
+    const r = got.get(path);
+    if (!r.status || !/text\/html/.test(r.type || '')) { p.push(`${path}: ${described(r)}`); continue; }
+    const strip = /<span id="disclosureText">([\s\S]*?)<span class="disclosure-long">/.exec(r.body)?.[1];
+    if (strip == null) p.push(`${path}: serves no #disclosureText`);
+    else if (strip.replace(/\s+/g, ' ').trim() !== STRIP) p.push(`${path}: the strip reads "${text(strip).slice(0, 120)}", not "Beta preview. Do not use figures here for investment decisions."`);
+    const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+    if (legal.length !== 1) p.push(`${path}: serves ${legal.length} p.footer-legal, not one`);
+    else if (legal[0] !== LEGAL) {
+      const at = [...LEGAL].findIndex((c, i) => legal[0][i] !== c);
+      p.push(`${path}: p.footer-legal is not its text of 4 Oct 2026 — from character ${at}: "${legal[0].slice(Math.max(0, at - 20), at + 60)}"`);
+    }
+  }
+  judge(p, `${paths.length} addresses (every static route, every company's own page, the parameter routes' page and the 404) serve "Beta preview." with "Do not use figures here for investment decisions." and the footer's p.footer-legal word for word as on 4 Oct 2026`,
+    'a served page shortens or drops the disclosure strip or the footer\'s legal text');
+}
+/* ---- end disclosure-guard ---- */
+
+/* ---- status-served ---- */
+/* A CHECK THAT RAN NOWHERE IS SERVED AS NO RESULT (N1a, the 5 Oct audit).
+   /status's in-browser checks are run by the page's script in the reader's
+   tab; served, each chip says "Not run". Two of them were served green
+   (chip-ok) in rows marked data-status="PASS" — the render's own run's
+   result, read by every fetch as a pass. On the served page no health row
+   may carry PASS, FAIL or DEGRADED, and no chip that says "Not run" a
+   result's colour. */
+{
+  const p = [];
+  const r = (await getAll(['/status'])).get('/status');
+  const rows = [...(r.body || '').matchAll(/<li\b[^>]*\bclass="health-row"[^>]*>/g)].map(m => m[0]);
+  const chips = [...(r.body || '').matchAll(/<span\b[^>]*\bclass="([^"]*\bhealth-chip\b[^"]*)"[^>]*>([^<]*)<\/span>/g)].map(m => ({ cls: m[1], says: m[2].trim() }));
+  if (r.status !== 200) p.push(`/status: ${described(r)}`);
+  if (!rows.length || !chips.length) p.push(`/status serves ${rows.length} health rows and ${chips.length} result chips — the check has nothing to read`);
+  rows.forEach((row, i) => { const st = /\bdata-status="([^"]*)"/.exec(row)?.[1]; if (/^(PASS|FAIL|DEGRADED)$/.test(st || '')) p.push(`/status: health row ${i + 1} is served data-status="${st}"`); });
+  chips.forEach((c, i) => { if (c.says === 'Not run' && /\bchip-(ok|warn|critical|dn|up)\b/.test(c.cls)) p.push(`/status: chip ${i + 1} says "Not run" and is served as ${c.cls.trim()}`); });
+  judge(p, `/status serves its ${rows.length} in-browser check rows with no PASS, FAIL or DEGRADED status, and none of its ${chips.length} "Not run" chips in a result's colour`,
+    '/status serves a check that ran nowhere as a result');
+}
+/* ---- end status-served ---- */
+
+/* ---- readiness-served ---- */
+/* WHAT PROPERTY SAYS IT IS, SERVED (the 5 Oct audit, N2b, N2c and N4a).
+   - /property/lab: the Scenario Lab is Beta (TOOLS), and TOOL_FLAGGED marks
+     no tab Beta, so its only visible state was its product's "Live". A
+     status badge reading Beta sits beside its h1, outside it, and not as
+     screen-reader text or a title.
+   - /property/calculator: every one of the ten seeded inputs — not the four
+     evidence drivers only — has the illustrative-default tag in its row.
+   - /status: no capability named a "map" at /property/calculator — what
+     exists is a diagram of 8 locality points per town on /property/areas,
+     with no basemap, and its row says so. */
+{
+  const p = [];
+  const got = await getAll(['/property/lab', '/property/calculator', '/status']);
+  const lab = got.get('/property/lab').body || '';
+  const hd = /<div class="page-hd-title">\s*<h1>([^<]*)<\/h1>\s*<span class="status-badge status-beta"[^>]*>([^<]*)<\/span>\s*<\/div>/.exec(lab);
+  if (!hd) p.push('/property/lab: no status badge beside its h1 — its only visible state is the product\'s');
+  else if (hd[1].trim() !== 'Scenario Lab' || hd[2].trim() !== 'Beta') p.push(`/property/lab: the heading reads "${hd[1]}" beside "${hd[2]}", not "Scenario Lab" beside "Beta"`);
+  const TAG = 'Illustrative default — not yours, and not from any market';
+  const SEEDED = ['price', 'rent', 'sqft', 'maintenance', 'ratePct', 'vacancyPct', 'downPct', 'apprecPct', 'tenureYears', 'holdYears'];
+  const calc = got.get('/property/calculator').body || '';
+  const untagged = SEEDED.filter(k => {
+    const at = calc.indexOf(`id="d-${k}"`);
+    if (at < 0) return true;
+    const row = calc.slice(at, calc.indexOf('</div>', at));
+    return !row.includes(`>${TAG}</span>`) || /class="sr-only"|hidden/.test(row.slice(row.lastIndexOf('<span', row.indexOf(TAG)), row.indexOf(TAG)));
+  });
+  if (untagged.length) p.push(`/property/calculator: ${SEEDED.length - untagged.length} of the ${SEEDED.length} seeded inputs carry the "${TAG}" tag in their row; ${untagged.join(', ')} do not`);
+  const status = got.get('/status').body || '';
+  if (/Property map and area observations/.test(status)) p.push('/status: still lists "Property map and area observations"');
+  const row = /<tr>(?:(?!<\/tr>)[\s\S])*Locality diagram and area observations(?:(?!<\/tr>)[\s\S])*<\/tr>/.exec(status)?.[0] || '';
+  if (!row) p.push('/status: no "Locality diagram and area observations" row');
+  else {
+    if (!row.includes('<a href="/property/areas">/property/areas</a>')) p.push('/status: the locality diagram\'s row does not give /property/areas as where it is');
+    if (!/no basemap/.test(row) || !/8 locality points per town/.test(row)) p.push(`/status: the locality diagram's row does not say "8 locality points per town" and "no basemap": ${row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200)}`);
+  }
+  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator serves the illustrative-default tag in the row of each of its ${SEEDED.length} seeded inputs; /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
+    'a Property page serves its readiness other than as it is');
+}
+/* ---- end readiness-served ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

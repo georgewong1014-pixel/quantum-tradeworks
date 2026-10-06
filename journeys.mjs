@@ -779,6 +779,30 @@ const JOURNEYS = [
         await tab.expect(want ? `(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(want)})` : `/(?<![\\d.,])600(,000(?![\\d,])|(\\.0+)?k\\b)/i.test(document.querySelector('main')?.innerText || '')`,
           `the saved property${want ? ` “${want}”` : ' (asked for no name; looked for by its price, RM600,000)'} is not listed on ${models ? 'My properties' : 'Saved Models'}`);
       });
+      /* The owner's paywall rule (3 Oct 2026): the sale's costs, its net
+         proceeds and the total profit are the full report's. A fresh
+         browser has previewed no report, so its client proposal prints the
+         Scenario Lab's two free rows of the sale and says where the rest
+         is — and none of the nine others. The proposal printed all ten to
+         anyone from ee173ce (plan item 1.4). */
+      await step(j, tab, 'Proposal hides the sale’s costs, proceeds and profit until unlocked', BUDGET.action * 2, async () => {
+        const link = `[...document.querySelectorAll('main a')].find(a => a.getClientRects().length && /^Client proposal/.test(a.getAttribute('aria-label') || '')${prompted ? ` && (a.getAttribute('aria-label') || '').endsWith(${JSON.stringify(name)})` : ''})`;
+        await tab.click(link, 'The saved property’s Client proposal link');
+        await tab.expect(`State.view === 'propertyProposal' && !!document.getElementById('cp-h-exit')`, 'the Client proposal link did not open a proposal with its sale');
+        const sale = await tab.eval(`(() => { const doc = document.getElementById('cp-doc'), sec = document.getElementById('cp-h-exit').parentElement;
+          /* Its words but its inputs (.cp-assume): "Agent commission on
+             exit, 2%" is an assumption, not the sale's commission. */
+          const words = doc.cloneNode(true); words.querySelectorAll('.cp-assume').forEach(n => n.remove());
+          return { rows: [...sec.querySelectorAll('tbody th')].map(th => th.textContent.replace(/\\s+/g, ' ').trim()), text: words.textContent.replace(/\\s+/g, ' '),
+            notes: [...sec.querySelectorAll('.cp-note')].map(p => p.textContent.replace(/\\s+/g, ' ').trim()) }; })()`);
+        const want = [/^Value less loan, year \d+ \(before selling costs\)$/, /^If sold in year \d+$/];
+        if (sale.rows.length !== 2 || !want.every((re, i) => re.test(sale.rows[i]))) throw new StepError(`the proposal's sale lists ${sale.rows.length} rows (${sale.rows.join('; ').slice(0, 160)}), not the Lab's two free ones`);
+        const shown = [['Sale value', /Sale value/], ['loan outstanding', /Loan outstanding/], ['agent commission', /Agent commission/], ['legal fees', /Legal fees on the sale/],
+          ['months carried', /Carried while it sells/], ['gains tax', /Real property gains tax \(/], ['net proceeds', /Net proceeds/i], ['rental cash over the hold', /Rental cash over the hold|Cash to hold it over the hold/i], ['total profit', /Total profit/i]]
+          .filter(([, re]) => re.test(sale.text)).map(([w]) => w);
+        if (shown.length) throw new StepError(`before any report is unlocked the proposal shows the full report's ${shown.join(', ')}`);
+        if (!sale.notes.includes('In the full analysis — preview in the calculator; nothing is on sale')) throw new StepError('the proposal does not say where the rest of the sale is');
+      });
     },
   },
   {

@@ -247,11 +247,25 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
     const text = f.endsWith('.html') ? raw.replace(/<!--[\s\S]*?-->/g, '') : raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     text.split('\n').forEach(line => { if (/monitor your own (market )?setups|monitor your setups/i.test(line)) said.push(`${f.slice(ROOT.length + 1)}: ${line.trim().slice(0, 120)}`); });
   }
+  /* AND WHAT IS SERVED (plan item 1.5). Since 3 Oct each page is served
+     with the app's render of it already in place (prerender/, put into
+     pages/ by build.mjs), so a phrase can reach a reader through a render or
+     a built page that no module line still holds — a render not drawn
+     again, or a page built from an older source. index.html, 404.html,
+     every page under pages/ and every render under prerender/ are read as
+     served (HTML comments out), and "monitor your own", in any form, may
+     not appear in them at all. */
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.html') ? [join(dir, e.name)] : []));
+  const served = [join(ROOT, 'index.html'), join(ROOT, '404.html'), ...walk(join(ROOT, 'pages')), ...walk(join(ROOT, 'prerender'))];
+  for (const f of served) {
+    const text = readFileSync(f, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+    text.split('\n').forEach(line => { const m = /.{0,60}(monitor your own|monitor your setups).{0,60}/i.exec(line); if (m) said.push(`${f.slice(ROOT.length + 1).replace(/\\/g, '/')}: …${m[0].trim()}…`); });
+  }
   if (said.length) {
     bad += said.length;
     console.error(`FAIL  ${said.length} line(s) promise a visitor can monitor their setups here, where nothing runs them:`);
     said.forEach(x => console.error(`      ${x}`));
-  } else console.log('ok    no page or meta tag promises "monitor your own setups": a visitor builds setups here, and the Scanner\'s card says where they run');
+  } else console.log(`ok    no page or meta tag promises "monitor your own setups": a visitor builds setups here, and the Scanner's card says where they run — and "monitor your own" appears in none of the ${served.length} served files (index.html, 404.html, pages/, prerender/)`);
 }
 /* ---- end audit3: monitor ---- */
 

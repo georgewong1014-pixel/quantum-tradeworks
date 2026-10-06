@@ -1743,7 +1743,10 @@ function labRefresh() {
 VIEWS.propertyLab = () => {
   labArrive();
   const wrap = el('div', { class: 'lab-page' });
-  wrap.append(pageHead({ title: 'Scenario Lab',
+  /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
+     and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
+     was its product's "Property Intelligence · Live". */
+  wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'),
     lede: 'Move price, deposit, rate, rent and renovation, and every figure below is worked out again by the calculator’s own model — for up to three scenarios side by side.',
     note: 'Moves are what-ifs, kept in this tab until you save one as a scenario or open it in the calculator.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);

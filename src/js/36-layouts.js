@@ -58,12 +58,14 @@ function pageKicker(view = State.view) {
    one line; the note carries what the page must still say at its top — a
    disclosure, a limit — in the smaller, secondary voice under it; the action
    is the page's one primary action, where the whole page has one. */
-function pageHead({ title, lede = null, note = null, action = null, eyebrow = null, cls = '' } = {}) {
+/* badge: a status badge said beside the heading, outside it, so the page's
+   h1 stays its name (the Scenario Lab's Beta, N2b of the 5 Oct audit). */
+function pageHead({ title, lede = null, note = null, action = null, eyebrow = null, cls = '', badge = null } = {}) {
   const kicker = eyebrow || pageKicker();
   return el('div', { class: `page-hd${cls ? ` ${cls}` : ''}` }, [
     el('div', { class: 'page-hd-text' }, [
       kicker ? el('p', { class: 'eyebrow' }, kicker) : null,
-      el('h1', {}, title),
+      badge ? el('div', { class: 'page-hd-title' }, [el('h1', {}, title), badge]) : el('h1', {}, title),
       lede ? el('p', { class: 'body-lg page-lede' }, lede) : null,
       note ? el('p', { class: 'page-note' }, note) : null,
     ]),

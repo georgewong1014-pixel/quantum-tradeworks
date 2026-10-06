@@ -1265,6 +1265,33 @@ function servingProblems({ rewrites, plan }) {
   return out;
 }
 
+/* SITEMAP <lastmod> (plan item 1.3). Each address the sitemap lists is
+   given the day its page last changed: the "changed" day prerender.mjs
+   keeps for the page's render in the manifest — the commit's day the render
+   was last drawn differently from (prerender.mjs, WHEN EACH PAGE LAST
+   CHANGED). The sitemap stays as typed, its addresses, order, comments and
+   priorities the author's; the build writes only each <lastmod>, read from
+   the tree and not from git, so --check reproduces it in a copy with no
+   history. An address whose page carries no render, or whose render has no
+   day, is a problem: a <lastmod> nobody can reproduce is worse than none. */
+export function sitemapWithLastmod(text, plan, manifest) {
+  const fileOf = new Map();
+  for (const g of routePages(plan)) g.routes.forEach(p => fileOf.set(p.path, g.file));
+  const problems = [];
+  const body = text.replace(/<url>\s*<loc>([^<]+)<\/loc>(?:\s*<lastmod>[^<]*<\/lastmod>)?/g, (all, loc) => {
+    const at = loc.trim();
+    const path = at.startsWith(plan.origin + '/') ? at.slice(plan.origin.length) : null;
+    const file = path && fileOf.get(path);
+    const day = file ? manifest?.pages?.[file]?.changed : null;
+    if (!day || !/^\d{4}-\d\d-\d\d$/.test(day)) {
+      problems.push(`sitemap.xml: ${at} has no day its page last changed (${file ? `no "changed" for ${file} in ${MANIFEST}` : 'no page carries a render at it'}) — run node prerender.mjs, then node build.mjs`);
+      return `<url><loc>${loc}</loc>`;
+    }
+    return `<url><loc>${loc}</loc><lastmod>${day}</lastmod>`;
+  });
+  return { body, problems };
+}
+
 if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const bare = process.argv.includes('--bare');
   if (bare && process.argv.includes('--check')) { console.error('--bare writes pages without their renders, for prerender.mjs; it has nothing to check'); process.exit(2); }
@@ -1281,15 +1308,19 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   ];
   const CFG = join(ROOT, 'vercel.json');
   const kb = (n) => `${(n / 1024).toFixed(0)}kB`;
+  /* The sitemap's <lastmod>s, from the renders' days (sitemapWithLastmod);
+     --bare reads no render, so it leaves the sitemap as it is. */
+  const SITEMAP = join(ROOT, 'sitemap.xml');
+  const sitemap = !bare && existsSync(SITEMAP) ? sitemapWithLastmod(lf(readFileSync(SITEMAP, 'utf8')), plan, rendered.manifest) : null;
   const outputs = [['index.html', html], ['vercel.json', vercel], [NOT_FOUND, notFound], ...pages,
-    [files.script.file, files.script.body], [files.styles.file, files.styles.body]];
+    [files.script.file, files.script.body], [files.styles.file, files.styles.body], ...(sitemap ? [['sitemap.xml', sitemap.body]] : [])];
   /* A page no route writes, and an app file under a name the build no longer
      writes — last build's app.<hash>.js, still deployed and still served,
      though no page names it. */
   const current = new Set([files.script.file, files.styles.file]);
   const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
-  const problems = [...servingProblems(built), ...sourceControls(), ...mapShapeProblems()];
+  const problems = [...servingProblems(built), ...sourceControls(), ...mapShapeProblems(), ...(sitemap ? sitemap.problems : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);
@@ -1322,7 +1353,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
       console.log(`every page carries the navigation NAV_MARKUP draws; ${rendered.renders.size} of them (${scope.length} in scope) carry their committed render of the page in #views exactly, under prerender/.`);
       console.log(`every page but index.html loads /${files.script.file} and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}).`);
       console.log(`every page, index.html too, carries the first-paint script once in its head before what it loads, named in the CSP (${firstHash().slice(0, 19)}…); ${[...rendered.renders.values()].filter(r => servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render })).length} pages with a render say on <html> what it read.`);
-      console.log(`sitemap.xml lists only canonical addresses that are served their own page.`);
+      console.log(`sitemap.xml lists only canonical addresses that are served their own page, each with the day its render last changed as <lastmod>.`);
     } else {
       drift.forEach(d => console.error(d));
       console.error('\nRun `node build.mjs` and commit the result.');

@@ -2760,8 +2760,10 @@ VIEWS.property = () => {
         } }));
       /* Said beside the number rather than only in the evidence section below,
          because this is where a reader decides whether to trust it. Only for
-         a figure this class has: a parcel's rent is used by nothing. */
-      if (evidenceDriversFor(d).includes(k) && shownEvidence(d, k) === 'illustrative_default')
+         a figure this class has: a parcel's rent is used by nothing. All ten
+         seeded figures, not the four evidence drivers only (inputIsSeeded,
+         70-property.js). */
+      if (inputIsSeeded(d, k))
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
       rail.append(f);
@@ -3457,14 +3459,17 @@ VIEWS.property = () => {
        "nothing can be bought" — a price, a purchase and its denial side by
        side. It now says what the pricing page says — a proposed price, not
        on sale — and its button says what it does, as a plan's does there:
-       it previews the report in this browser. */
+       it previews the report in this browser.
+       Debt-service cover is not among what it adds: the Scenario Lab shows
+       it free, under Risk (plan item 1.4), and a report cannot offer what
+       the free tool already gives. */
     reportCards.push(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
-        ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
+        ? `Adds net operating income, cash-on-cash return, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
