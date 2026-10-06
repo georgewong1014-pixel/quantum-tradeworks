@@ -753,7 +753,7 @@ $('#disclosureMore')?.addEventListener('click', (e) => {
 const LEGACY_VIEW_PATH = {
   home: '/app', discover: '/discover', compare: '/compare', thesis: '/my/theses',
   portfolio: '/my/portfolio', alerts: '/my/alerts', tracked: '/my/tracked',
-  property: '/property', learn: '/learn', plans: '/pricing',
+  property: '/property/calculator', learn: '/learn', plans: '/pricing',
 };
 
 function fromHash() {
@@ -805,7 +805,7 @@ const DOCKS = {
       (b.severity === 'critical') - (a.severity === 'critical'))[0];
     const queue = propertyReviewQueue(d);
     /* A safe cash with a cost line unpriced is a total so far, and the dock
-       says so as the capstrip, the tile and the decision record do. With the
+       says so as the tile and the decision record do. With the
        reserve unpriced (a loan tenure of 0) it read "RM121.8k Safe cash" as
        the whole answer under a strip reading "So far — a line is unpriced". */
     const short = (m.missingCostLines || []).length > 0;

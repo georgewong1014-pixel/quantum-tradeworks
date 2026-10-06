@@ -1417,7 +1417,7 @@ for (const route of ROUTES) {
     ['equities', ['/research', '/discover/screener', '/discover/value-map', '/compare', '/research/queue', '/discover/sarawak', '/us-options/wheel']],
     ['scanner', ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/alerts',
       '/app/scanner/backtest', '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index']],
-    ['property', ['/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/opportunities']],
+    ['property', ['/property', '/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/opportunities']],
   ];
   /* My Alerts is being rebuilt beside this (Release B, B1): it is held to
      the workspace header, which the shell draws, and not to a head its own
@@ -2678,6 +2678,62 @@ for (const route of ROUTES) {
   else console.log(`ok   scenario-lab: ${LAB_PATHS.join(', ')} each open the Scenario Lab on the comparison the address names, ?model=nope saying the property is not saved here — no error, exception, failed request, NaN or sideways scroll`);
 }
 /* ---- end scenario-lab ---- */
+/* ---- n3-addresses ---- */
+/* /PROPERTY OPENS THE SCENARIO LAB, AND EVERY ADDRESS STILL WORKS (N3, the
+   owner's decision D18). /property and /property/lab open the Lab — with
+   its ?by= — and /property/calculator the calculator. A calculator link
+   written before, on /property, still opens the calculator with what it
+   carries: the deal's ?city and ?d= (a shared deal), or a section's #hash,
+   the address becoming /property/calculator with them, in place — Back does
+   not return to an address that only redirects. Fails before N3: /property
+   opened the calculator. */
+{
+  const p = [];
+  const CASES = [
+    ['/property', 'propertyLab', '/property'],
+    ['/property?by=risk', 'propertyLab', '/property', { metric: 'risk' }],
+    ['/property/lab', 'propertyLab', '/property/lab'],
+    ['/property/calculator', 'property', '/property/calculator'],
+    ['/property?city=sibu&d=price:600000', 'property', '/property/calculator', { city: 'sibu', price: 600000 }],
+    ['/property#scenarios', 'property', '/property/calculator', { hash: '' }],
+  ];
+  for (const [path, view, at, want = {}] of CASES) {
+    bucket = [];
+    await send('Page.navigate', { url: BASE + '/privacy' }, sessionId);
+    await sleep(600);
+    await send('Runtime.evaluate', { expression: `Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k))` }, sessionId);
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    let st = null;
+    for (let i = 0; i < 60; i++) {
+      await sleep(150);
+      const r = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof State !== 'undefined' && document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending
+        ? ({ view: State.view, path: location.pathname, search: location.search, hash: location.hash, city: State.deal?.city, price: State.deal?.price, depth: history.length,
+             metric: typeof labSubject !== 'undefined' && labSubject && LAB[labSubject] ? LAB[labSubject].metric : null }) : null` }, sessionId);
+      st = r.result?.result?.value;
+      if (st) break;
+    }
+    await sleep(300);
+    if (!st) { p.push(`${path}: the page never settled`); continue; }
+    if (st.view !== view) p.push(`${path}: opened ${st.view}, not ${view}`);
+    if (st.path !== at) p.push(`${path}: the address is ${st.path}, not ${at}`);
+    if (want.metric && st.metric !== want.metric) p.push(`${path}: compares by ${st.metric}, not ${want.metric}`);
+    if (want.city && (st.city !== want.city || st.price !== want.price)) p.push(`${path}: the calculator holds ${st.city} at ${st.price}, not the link's ${want.city} at ${want.price}`);
+    if (want.city && !/[?&]d=/.test(st.search)) p.push(`${path}: the calculator's address carries no deal (${st.search})`);
+    /* Back from the redirected page is the page before it, not the address
+       that only redirected (a history entry of its own would be). */
+    if (at !== path.split(/[?#]/)[0]) {
+      await send('Runtime.evaluate', { expression: 'history.back()' }, sessionId);
+      let back = null;
+      for (let i = 0; i < 30; i++) { await sleep(150); back = (await send('Runtime.evaluate', { returnByValue: true, expression: 'location.pathname + location.search' }, sessionId)).result?.result?.value; if (back === '/privacy') break; }
+      if (back !== '/privacy') p.push(`${path}: Back from the calculator went to ${back}, not the page before it — the redirect left an entry of its own`);
+    }
+    bucket.filter(x => !/data\/(prices|personal-[a-z-]+|price-history|price-adjustments|scan-[a-z-]+|ingest-runs|sarawak-income|watchlists)\.json/.test(x))
+      .forEach(x => p.push(`${path}: ${x}`));
+  }
+  if (p.length) { bad++; console.log(`FAIL n3-addresses: /property and the addresses beside it (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   n3-addresses: /property and /property/lab open the Scenario Lab (with ?by=), /property/calculator the calculator; a calculator link written on /property — a shared deal's ?city and ?d=, or #scenarios — opens the calculator at /property/calculator with what it carries, in place (no history entry for the redirect), and nothing logs an error`);
+}
+/* ---- end n3-addresses ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

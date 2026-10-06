@@ -1754,6 +1754,10 @@ function usePropertyReport(id) {
 const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
 /* Whether the borrower's financing disclosure is open — see its <details>. */
 let borrowerPanelOpen = false;
+/* Whether the Summary table's drawer is open (N3), held as the borrower's is;
+   and the copy-link note under its ⓘ. */
+let propertySummaryOpen = false;
+let copyLinkNoteOpen = false;
 /* What the calculator's "record what you observed" form holds before Record —
    see the form. */
 let observationDraft = null;
@@ -1787,9 +1791,13 @@ VIEWS.property = () => {
   const paid = propertyReportUnlocked(d.projectId);
   const wrap = el('div');
 
-  /* The one head every product page wears (pageHead, 36-layouts.js). */
-  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.',
-    note: 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.' }));
+  /* The one head every product page wears (pageHead, 36-layouts.js). Its
+     second line — what the model covers — is a drawer under it (N3, D18):
+     the top of the page is the deal and its answer, the method a tap away. */
+  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.' }));
+  wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
+    el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
+    el('p', { class: 'pc-more-body' }, 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -1834,33 +1842,40 @@ VIEWS.property = () => {
   const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
   const onePage = el('div', { class: 'card', style: `border-left:3px solid var(${gradeTone})` });
 
-  /* THE MONEY, FIRST.
-     The card opened on a letter grade and a score, and the three figures that
-     decide whether somebody can do this at all — what leaves the account, what
-     is needed to be safe, what it costs to hold each month — sat below the
-     fold on a phone behind the grade, the verdict and the gates.
-     A grade answers "is this a good deal". These answer "can I". */
-  const strip = el('div', { class: 'capstrip' });
+  /* THE MONEY, FIRST, AND ONCE (N3, the owner's decision D18).
+     The card opened on a letter grade and a score, and the figures that
+     decide whether somebody can do this at all — what leaves the account,
+     what is needed to be safe, what it costs to hold each month — sat below
+     the fold on a phone behind the grade, the verdict and the gates; a strip
+     of three put them first. Then the page said them three times: the strip,
+     the four tiles under the gates, and the Summary table under the card.
+     They are said once now, here, at the card's top: four tiles, each with
+     what it means. A grade answers "is this a good deal". These answer "can
+     I". The Summary table is a drawer below, for the reader's language. */
   /* What is still to be paid, as the decision record and the ledger's "Cash
      still to complete" both say. This printed the whole completion figure,
      booking deposit included, so with RM5,000 paid at offer the page read
      "Cash to complete RM95.3k — Paid out on completion day" and the record
-     carried out of the browser read RM90,254 under the same name. */
-  /* And a safe cash that is short says so here, first, as the tile below it
-     and the ledger do. With the reserve unpriced (a loan tenure of 0) the
-     strip read "Safe cash required RM121.8k" as the answer, above a tile
-     that said the same figure was short by the reserve. */
-  const stripShort = (m.missingCostLines || []).length;
-  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR')],
+     carried out of the browser read RM90,254 under the same name. And a safe
+     cash that is short says so: "Including the reserve" when the reserve was
+     the line that could not be priced — a tenure of 0 left it out of the
+     total and the tile said it was in. A short total says it is short, as
+     the ledger's does. */
+  const answers = el('div', { class: 'grid g-4 pc-answers' });
+  const unpricedLines = m.missingCostLines || [];
+  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
    ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-     stripShort ? `So far — ${stripShort === 1 ? 'a line is' : `${stripShort} lines are`} unpriced` : null],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—']]
-    .forEach(([k, v, short], i) => strip.append(el('div', {}, [
-      el('span', { class: 'eyebrow', style: 'display:block;margin-bottom:2px' }, k),
-      el('span', { class: 'num', style: `font-size:20px;font-weight:700${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
-      short ? el('span', { class: 'caption', style: 'display:block;color:var(--bronze)' }, short) : null,
-    ])));
-  onePage.append(strip);
+     unpricedLines.length
+       ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+       : 'Including rent-ready and the reserve'],
+   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
+    .forEach(([l, v, s], i) => answers.append(el('div', { class: 'panel' }, statTile(l, v,
+      { sub: s, tone: i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null }))));
+  onePage.append(answers);
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
     el('div', {}, [
@@ -1897,68 +1912,49 @@ VIEWS.property = () => {
     ? `${notApplying.join(' and ')} ${notApplying.length === 1 ? 'does' : 'do'} not apply to a ${String(PROPERTY_CLASSES[m.propertyClass]?.label || '').toLowerCase()} class, so at most ${fmtPct(g.reachable * 100, 0)} of the framework weight can ever be scored, against the 80% a grade requires — no further evidence changes that`
     : g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires`
     : 'a hard gate below is unmet';
+  /* What the grade is not, in sight: the methodology that says how it is
+     reached — "the score and the grade are not the same claim…" — is in the
+     pillars' drawer below (N3), beside the table it explains. */
   onePage.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    (g.grade === 'U' && isNum(g.score)
-      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${withheldBecause}. `
-      : '')
-    + 'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
+    'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
 
-  /* ---------- ANSWER, THEN CAVEAT, THEN ARITHMETIC ----------
-     The card used to open with four stat tiles and put the sentence that
-     actually answers the question — "this property does not pay for itself,
-     holding it costs RM14.4k a year" — underneath them, the reasons it cannot
-     be graded under that, and the warning that the figures are Kuching's in a
-     separate card eight screens further down. At 390px the fold ended on
-     "U / Not enough evidence / Score 9/100", so a reader who stopped there left
-     with a letter and no idea whose numbers produced it.
-
-     Order is now: what it does to your money -> why it cannot be graded ->
-     whose numbers these are -> the arithmetic. The caveat sits after the
-     verdict rather than before it, because a page that opens on a caveat has
-     not yet said what is being caveated. */
-
-  /* The owner subsidy stated as a commitment rather than a monthly minus. */
-  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);color:var(--dn-text)' },
-    `This property does not pay for itself. Holding it costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
+  /* The owner subsidy stated as a commitment rather than a monthly minus —
+     over five and ten years; the year's figure is the Monthly position
+     tile's, above. */
+  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' },
+    `This property does not pay for itself. Holding it is paid from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
 
   if (g.gates.length) {
-    /* THE THREE THAT DECIDE IT, THEN THE REST ON REQUEST.
+    /* THE ONE THAT DECIDES IT IN SIGHT, EVERY ONE A TAP AWAY (N3).
        Every blocker was listed at equal weight, so eleven items competed and
-       the critical one read like the eleventh. Severity already exists on each
-       gate and was only being used for a colour; it orders them now. */
+       the critical one read like the eleventh; then three stood in full and
+       the rest behind "Show all", 60-odd words before the first field.
+       Severity orders them: the most serious stays in sight on one line,
+       and the whole list — each with who confirms it — is the drawer. */
     const rank = { critical: 0, serious: 1, warning: 2 };
     const ordered = [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3));
-    const lead = ordered.slice(0, 3);
-    const rest = ordered.slice(3);
-
-    onePage.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' },
-      /* Named for the grade it sits under. Every graded result read "Why this
-         is conditional", so a D — "Does not meet the selected underwriting
-         criteria" — and an A that "Meets" them both called their findings
-         conditions. Conditional is the B verdict's word and only B's. */
-      /* A class that cannot be graded is not ungraded because of these, and
-         clearing them would not grade it — the sentence above says why. */
-      (g.classUngradeable ? 'Still to check'
-        : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
-        || 'Why this falls short')));
+    const worst = ordered[0];
+    onePage.append(el('p', { class: 'pc-worst' }, [
+      el('span', { class: worst.severity === 'critical' ? 'chip chip-bronze' : 'chip' }, worst.severity === 'critical' ? 'Blocking' : 'Most serious'),
+      ' ', el('span', { class: 'pc-worst-text' }, worst.text)]));
+    /* Named for the grade it sits under. Every graded result read "Why this
+       is conditional", so a D — "Does not meet the selected underwriting
+       criteria" — and an A that "Meets" them both called their findings
+       conditions. Conditional is the B verdict's word and only B's. A class
+       that cannot be graded is not ungraded because of these, and clearing
+       them would not grade it — the sentence above says why. */
+    const named = g.classUngradeable ? 'Still to check'
+      : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade] || 'Why this falls short';
     const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
         style: x.severity === 'critical' ? 'margin-right:6px' : 'display:none' }, 'Blocking'),
       x.text + (x.who ? ` Confirm with: ${x.who}.` : ''),
     ]);
-    const gl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
-    lead.forEach(x => gl.append(gateLine(x)));
-    onePage.append(gl);
-
-    if (rest.length) {
-      const more = el('details', { style: 'margin-top:8px' });
-      more.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
-        `Show all ${g.gates.length} blockers and assumptions`));
-      const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;margin-top:8px' });
-      rest.forEach(x => rl.append(gateLine(x)));
-      more.append(rl);
-      onePage.append(more);
-    }
+    const more = el('details', { class: 'pc-more pc-blockers' });
+    more.append(el('summary', { class: 'pc-more-sum' },
+      `${named}: ${g.gates.length === 1 ? 'the one blocker or assumption' : `all ${g.gates.length} blockers and assumptions`}`));
+    more.append(el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;margin-top:8px' }, ordered.map(gateLine)));
+    onePage.append(more);
   }
 
   /* THE CASH WATERFALL — where the completion figure comes from.
@@ -1966,8 +1962,8 @@ VIEWS.property = () => {
      a total with no decomposition on the first screen: the parts were in a cost
      table much further down, grouped by category rather than shown as a sum. */
   if (isNum(m.transactionCash) && m.transactionCash > 0) {
-    const wf = el('details', { style: 'margin-top:var(--md)' });
-    wf.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+    const wf = el('details', { class: 'pc-more' });
+    wf.append(el('summary', { class: 'pc-more-sum' },
       `Where ${fmtAmount(m.safeCashRequired, 'MYR')} of safe cash goes`));
     /* The cost groups already include the improvement costs and the reserve.
        Two further rows for them counted both twice, so the parts of RM130.1k
@@ -2008,27 +2004,12 @@ VIEWS.property = () => {
     onePage.append(warn);
   }
 
-  const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
-  /* "Including the reserve" when the reserve was the line that could not be
-     priced: a tenure of 0 left it out of the total and the tile said it was
-     in. A short total says it is short, as the ledger's does. */
-  const unpricedLines = m.missingCostLines || [];
-  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-     unpricedLines.length
-       ? `Short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-       : 'Including rent-ready and the reserve'],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
-    .forEach(([l, v, s]) => answers.append(el('div', { class: 'panel' }, statTile(l, v, { sub: s }))));
-  onePage.append(answers);
-
-  /* Pillars, so the grade decomposes rather than being taken on trust. */
-  const pw = el('details', { style: 'margin-top:var(--md)' });
-  pw.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'How this grade was reached'));
+  /* Pillars, so the grade decomposes rather than being taken on trust — and
+     the methodology that reads them, beside them. */
+  const pw = el('details', { class: 'pc-more' });
+  pw.append(el('summary', { class: 'pc-more-sum' }, 'How this grade was reached'));
+  if (g.grade === 'U' && isNum(g.score)) pw.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${withheldBecause}.`));
   const pt = el('table', { class: 'dt', style: 'margin-top:8px' });
   pt.append(el('thead', {}, el('tr', {}, ['Pillar', 'Weight', 'Score', 'Basis'].map((h, i) =>
     el('th', { style: i === 0 || i === 3 ? 'text-align:left' : null }, h)))));
@@ -2282,13 +2263,20 @@ VIEWS.property = () => {
      was new. */
   syncPropertyUrl(d);
   /* The address IS the share. One control to put it on the clipboard, beside
-     the fields it describes, and a sentence saying what travels with it. */
+     the fields it describes, and what travels with it behind an ⓘ beside it
+     (N3, D18): 62 words stood between the page's top and its first field. */
+  const copyNote = el('p', { class: 'metaline pc-tip-body', id: 'property-copy-note', hidden: copyLinkNoteOpen ? null : '' },
+    'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.');
+  const copyAbout = el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-tip', id: 'property-copy-about', 'aria-expanded': copyLinkNoteOpen ? 'true' : 'false',
+    'aria-controls': 'property-copy-note', 'aria-label': 'What a link to this deal carries', title: 'What a link to this deal carries',
+    onclick: () => { copyLinkNoteOpen = !copyLinkNoteOpen; copyAbout.setAttribute('aria-expanded', copyLinkNoteOpen ? 'true' : 'false'); copyNote.hidden = !copyLinkNoteOpen; } },
+    el('span', { class: 'pc-tip-i', 'aria-hidden': 'true', html: icon('info', 16) }));
   loc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-bottom:10px' }, [
     el('button', { class: 'btn btn-ghost btn-sm', id: 'property-copy-link', onclick: async () => {
       try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every input of this deal'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
-    el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.'),
+    copyAbout,
     /* Restore goes once it has restored, and focus went with it to <body>;
        it goes to Copy, which sat beside it. */
     store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
@@ -2300,6 +2288,7 @@ VIEWS.property = () => {
       }
     } }, 'Restore my previous deal') : null,
   ]));
+  loc.append(copyNote);
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
     d.city = e.target.value;
@@ -2819,8 +2808,14 @@ VIEWS.property = () => {
   free.append(langRow);
 
   const sc = SUMMARY_COPY[lang()] || SUMMARY_COPY.en;
-  const summary = el('div', { class: 'panel', style: 'margin-bottom:var(--md)' });
-  summary.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, sc.title));
+  /* THE SUMMARY TABLE AND ITS NOTE, A DRAWER (N3, D18): six figures the
+     grade card's tiles and the sections already state, in the reader's
+     language — and what is and is not translated. The buttons above stay in
+     sight: they translate every section's labels, not only this table. Open
+     across a redraw once opened (a language chosen redraws the page). */
+  const summary = el('details', { class: 'panel pc-more pc-summary', style: 'margin-bottom:var(--md)', open: propertySummaryOpen ? '' : null });
+  summary.addEventListener('toggle', () => { propertySummaryOpen = summary.open; });
+  summary.append(el('summary', { class: 'pc-more-sum' }, sc.title));
   const srows = [
     [tr('grossYield'),       fmtPct(m.grossYield, 2)],
     [tr('netYield'),         fmtPct(m.netYield, 2)],

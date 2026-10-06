@@ -6138,7 +6138,7 @@ try {
       ${levelsOf}
       const out = {};
       for (const p of ['/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs',
-        '/admin/scanner/delivery', '/discover/screener', '/app/scanner/setups', '/property', '/methodology/ips', '/company/AAPL-SEC',
+        '/admin/scanner/delivery', '/discover/screener', '/app/scanner/setups', '/property', '/property/calculator', '/methodology/ips', '/company/AAPL-SEC',
         '/company/AAPL-SEC/report', '/decision-record', '/learn', '/data-sources', '/methodology', '/my/alerts', '/my/theses', '/research']) {
         navigate(p); await w(150);
         const hs = [...document.querySelectorAll('main h1, main h2, main h3, main h4, main h5, main h6')];

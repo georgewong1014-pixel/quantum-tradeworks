@@ -1353,5 +1353,151 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end readiness-served ---- */
 
+/* ---- n3-property-landing ---- */
+/* /PROPERTY OPENS THE SCENARIO LAB, AND THE CALCULATOR'S TOP IS DRAWERS
+   (N3, the 5 Oct audit; the owner's decision D18). /property served the
+   calculator: about 730 words before its first field, 571 of them prose in
+   20 blocks of eight words or more — a Start here panel, the methodology,
+   the blockers, a Summary table, notes and two section contracts — and the
+   cash and the monthly position three times. Now, read as a fetch reads it
+   (what is visible: not under [hidden], aria-hidden, .sr-only, an <svg> or
+   a closed <details> but its <summary>):
+   - /property: at most 290 words in <main> before the first form control
+     (an input, select or textarea, or a served control made inert as a
+     field, a slider or a choice), at most 228 of them in blocks of eight
+     words or more;
+   - before that control, in this order: the identity line, naming the
+     property or "Sample deal", then four tiles labelled Cash required,
+     Monthly position, Net yield and Next step, each with a kind tag;
+   - "Not an official property valuation" and "not a real listing" visible
+     before it;
+   - /property/calculator: the methodology ("The score and the grade are
+     not the same claim"), the pillar table and the list of blockers inside
+     closed <details>, with the worst blocker in sight on one line, and the
+     cash to complete and the monthly position stated once above the
+     sections. */
+{
+  const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+  const BLOCK = new Set(['p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'header', 'footer', 'nav', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+    'caption', 'dl', 'dt', 'dd', 'details', 'summary', 'form', 'fieldset', 'legend', 'figure', 'figcaption', 'article', 'aside', 'main', 'br', 'hr', 'blockquote', 'pre',
+    'label', 'button', 'select', 'textarea', 'input']);
+  const ent = (s) => s.replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const attr = (tag, k) => { const m = new RegExp(`\\s${k}(?:="([^"]*)"|='([^']*)'|(?=[\\s>/]))`, 'i').exec(tag); return m ? (m[1] ?? m[2] ?? '') : null; };
+  /* One pass over <main>: each tag and each run of text with whether it is
+     visible there and whether a closed <details> holds it; the visible words
+     in blocks (a block-level tag ends one); and the first form control. */
+  const scan = (html) => {
+    const from = html.search(/<main\b/), to = html.indexOf('</main>', from);
+    const body = from < 0 ? '' : html.slice(from, to < 0 ? undefined : to);
+    const stack = [], blocks = [], tags = [], runs = [];
+    let cur = [], control = null;
+    const visible = () => stack.every(f => !f.skip && !(f.closed && !f.inSummary));
+    const inClosed = () => stack.some(f => f.closed && !f.inSummary);
+    const flush = () => { const w = cur.join(' ').split(/\s+/).filter(t => /[\p{L}\p{N}]/u.test(t)); if (w.length) blocks.push(w); cur = []; };
+    const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+    let m;
+    while ((m = re.exec(body))) {
+      if (m[4] != null) { const s = ent(m[4]); runs.push({ at: m.index, s, visible: visible(), closed: inClosed() }); if (visible()) cur.push(s); continue; }
+      if (!m[2]) continue;
+      const close = m[1] === '/', tag = m[2].toLowerCase(), raw = m[0];
+      if (BLOCK.has(tag)) flush();
+      if (close) {
+        for (let i = stack.length - 1; i >= 0; i--) if (stack[i].tag === tag) { if (tag === 'summary' && stack[i - 1]?.closed) stack[i - 1].inSummary = false; stack.length = i; break; }
+        continue;
+      }
+      if (tag === 'script' || tag === 'style' || tag === 'template') { const e = body.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? body.length : e; continue; }
+      const inert = attr(raw, 'data-inert'), type = (attr(raw, 'type') || '').toLowerCase();
+      const isControl = (tag === 'input' && type !== 'hidden') || tag === 'select' || tag === 'textarea' || ['field', 'range', 'choice'].includes(inert);
+      tags.push({ at: m.index, tag, raw, visible: visible(), closed: inClosed() });
+      if (isControl && visible() && !control) { flush(); control = { at: m.index, tag, inert, blocks: blocks.length }; }
+      if (VOID.has(tag) || raw.endsWith('/>')) continue;
+      const cls = ` ${attr(raw, 'class') || ''} `;
+      const f = { tag, skip: tag === 'svg' || attr(raw, 'hidden') !== null || attr(raw, 'aria-hidden') === 'true' || / sr-only /.test(cls),
+        closed: tag === 'details' && attr(raw, 'open') === null, inSummary: false };
+      if (tag === 'summary' && stack[stack.length - 1]?.closed) stack[stack.length - 1].inSummary = true;
+      stack.push(f);
+    }
+    flush();
+    /* The visible text of the element whose tag opens at `at`, to its end
+       (all of its text, with `all`). */
+    const textOf = (at, all = false) => {
+      const t = tags.find(x => x.at === at);
+      if (!t) return '';
+      let depth = 0, out = '';
+      const re2 = /<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+      re2.lastIndex = at;
+      let n;
+      while ((n = re2.exec(body))) {
+        if (n[4] != null) { const run = runs.find(r => r.at === n.index); if (run && (all || run.visible)) out += run.s; continue; }
+        const tg = n[2].toLowerCase();
+        if (VOID.has(tg) || n[0].endsWith('/>')) continue;
+        if (tg !== t.tag) continue;
+        depth += n[1] ? -1 : 1;
+        if (!depth) break;
+      }
+      return out.replace(/\s+/g, ' ').trim();
+    };
+    return { body, blocks, tags, runs, control, textOf };
+  };
+  const p = [], said = {};
+  const got = await getAll(['/property', '/property/calculator']);
+  const land = got.get('/property'), calc = got.get('/property/calculator');
+  if (land.status !== 200) p.push(`/property: ${described(land)}`);
+  if (calc.status !== 200) p.push(`/property/calculator: ${described(calc)}`);
+  const L = scan(land.body || '');
+  if (!L.control) p.push('/property: serves no form control in <main>');
+  else {
+    const before = L.blocks.slice(0, L.control.blocks);
+    const words = before.flat().length, prose = before.filter(b => b.length >= 8);
+    const proseWords = prose.reduce((a, b) => a + b.length, 0);
+    said.words = words; said.prose = proseWords; said.proseBlocks = prose.length;
+    if (words > 290) p.push(`/property: ${words} visible words in <main> before the first form control, more than 290`);
+    if (proseWords > 228) p.push(`/property: ${proseWords} of them in ${prose.length} blocks of eight words or more, more than 228`);
+    const seen = L.runs.filter(r => r.at < L.control.at && r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
+    for (const want of ['Not an official property valuation', 'not a real listing']) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    const id = L.tags.find(t => / lab-identity /.test(` ${attr(t.raw, 'class') || ''} `));
+    if (!id || !id.visible || id.at > L.control.at) p.push(`/property: ${!id ? 'no identity line (.lab-identity)' : !id.visible ? 'its identity line is not visible' : 'its identity line comes after the first form control'}`);
+    else {
+      const name = L.textOf(L.tags.find(t => t.at > id.at && attr(t.raw, 'id') === 'lab-status')?.at ?? -1);
+      said.identity = name;
+      if (!/^(Sample deal|“[^”]+”)/.test(name)) p.push(`/property: the identity line names "${name.slice(0, 60)}", not the property or "Sample deal"`);
+    }
+    const WANT = ['Cash required', 'Monthly position', 'Net yield', 'Next step'];
+    const tiles = L.tags.filter(t => attr(t.raw, 'data-tile') !== null && / lab-tile /.test(` ${attr(t.raw, 'class') || ''} `));
+    const labels = tiles.map(t => L.textOf(L.tags.find(x => x.at > t.at && / lab-tile-label /.test(` ${attr(x.raw, 'class') || ''} `))?.at ?? -1));
+    const kinds = tiles.map((t, i) => { const k = L.tags.find(x => x.at > t.at && (i + 1 >= tiles.length || x.at < tiles[i + 1].at) && attr(x.raw, 'data-kind') !== null); return k ? [attr(k.raw, 'data-kind'), L.textOf(k.at)] : null; });
+    said.tiles = labels.map((l, i) => `${l} [${kinds[i]?.[1] || 'no tag'}]`);
+    if (JSON.stringify(labels) !== JSON.stringify(WANT)) p.push(`/property: its tiles are labelled ${JSON.stringify(labels)}, not ${JSON.stringify(WANT)}`);
+    tiles.forEach((t, i) => {
+      if (!t.visible || t.at > L.control.at || (id && t.at < id.at)) p.push(`/property: the "${labels[i]}" tile is ${!t.visible ? 'not visible' : t.at > L.control.at ? 'after the first form control' : 'before the identity line'}`);
+      if (!kinds[i] || !kinds[i][0] || !kinds[i][1]) p.push(`/property: the "${labels[i]}" tile carries no kind tag`);
+    });
+  }
+  const C = scan(calc.body || '');
+  const firstSection = C.tags.find(t => attr(t.raw, 'id') === 'acquisition')?.at ?? Infinity;
+  const method = C.runs.find(r => r.s.includes('The score and the grade are not the same claim'));
+  if (!method) p.push('/property/calculator: serves no "The score and the grade are not the same claim" — the check has nothing to read');
+  else if (!method.closed) p.push('/property/calculator: "The score and the grade are not the same claim" is not inside a closed <details>');
+  const pillar = C.tags.find(t => t.tag === 'th' && C.textOf(t.at, true) === 'Pillar');
+  if (!pillar) p.push('/property/calculator: serves no pillar table');
+  else if (!pillar.closed) p.push('/property/calculator: the pillar table is not inside a closed <details>');
+  const gates = C.tags.filter(t => t.tag === 'li' && / evidence counter /.test(` ${attr(t.raw, 'class') || ''} `) && t.at < firstSection);
+  if (!gates.length) p.push('/property/calculator: serves no blockers above its sections — the check has nothing to read');
+  else if (gates.some(t => !t.closed)) p.push(`/property/calculator: ${gates.filter(t => !t.closed).length} of its ${gates.length} blockers stand outside a closed <details>`);
+  const worst = C.tags.find(t => / pc-worst /.test(` ${attr(t.raw, 'class') || ''} `));
+  if (!worst || !worst.visible) p.push('/property/calculator: the worst blocker is not in sight on its own line (.pc-worst)');
+  else said.worst = C.textOf(worst.at).slice(0, 60);
+  /* Stated once above the sections: the capstrip and the Summary table
+     said the cash and the monthly position again. */
+  const top = C.runs.filter(r => r.visible && r.at < firstSection).map(r => r.s).join(' ').replace(/\s+/g, ' ');
+  for (const k of ['Cash to complete', 'Monthly position']) {
+    const n = top.split(k).length - 1;
+    if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times above its sections, not once`);
+  }
+  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and "not a real listing" in sight; /property/calculator keeps the methodology, the pillar table and its blockers in closed drawers, the worst in sight ("${said.worst}…"), and says the cash to complete and the monthly position once above its sections`,
+    '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
+}
+/* ---- end n3-property-landing ---- */
+
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

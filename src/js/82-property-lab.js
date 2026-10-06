@@ -594,30 +594,182 @@ function labDraw(P, focusId = null) {
   }
 }
 
-/* The fixed header, at every width, and the status of what is open. */
+/* The fixed header, at every width, and the status of what is open. The
+   claim is the brief's fixed wording (§8), whole at every width. */
+const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
+const LAB_NOT_OFFICIAL = 'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
-  hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.')]));
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
   if (P.idPrefix === 'lab' && labArrivalNote && lab.key === labSubject) status.append(el('span', { class: 'lab-note-warn' }, labArrivalNote), ' ');
   const rec = lab.model ? pmFind(lab.model) : null;
-  if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-  /* Reached only by a panel given the deal as its subject while the
-     calculator holds a saved property: the page itself opens that property
-     (labArrive). */
-  else {
-    const st = propertyStatus(State.deal);
-    if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
+  const st = rec ? null : propertyStatus(State.deal);
+  /* A panel mounted on its own (the map's side sheet, phase 3) keeps the
+     claim and the status line as they were. */
+  if (P.compact) {
+    hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ', el('span', {}, LAB_CLAIM)]));
+    if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
+    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
       ' — illustrative figures, not a real listing. Every driving figure is the tool’s illustrative default until you change it.');
     else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
     else status.append('The deal on the calculator — not saved as a property.');
+    hd.append(status);
+  } else {
+    /* THE PAGE'S HEADER (N3, D18): which property this is, then its four
+       figures. The status line is the identity line's name. */
+    status.classList.add('lab-id-name');
+    if (rec) status.append(el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
+    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'), ' — not a real listing');
+    /* Reached only by a panel given the deal as its subject while the
+       calculator holds a saved property: the page itself opens that
+       property (labArrive). */
+    else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
+    else status.append(el('strong', {}, 'The deal on the calculator'), ' — not saved as a property');
+    hd.append(labIdentity(P, lab, status), labTiles(P, lab));
   }
-  hd.append(status);
-  const moved = el('p', { class: 'lab-moved-line', id: labId(P, 'unsaved') });
-  P.els.unsaved = moved;
-  hd.append(moved);
   return hd;
+}
+
+/* ------------------------------------------------- the identity and the tiles */
+/* WHAT THE PAGE IS ABOUT, BEFORE ANY CONTROL (N3, the 5 Oct audit; D18).
+   The subject's own figures: the calculator's deal, or a saved property as
+   saved — never a column's what-ifs, which the chain below shows against
+   them. Run by the model's kept runs (pmCompareRun), as a column is. */
+const labSubjectInputs = (lab) => {
+  if (!lab.model) return pmBare(State.deal);
+  const rec = pmFind(lab.model);
+  return rec ? pmInputsOf(rec) : null;
+};
+/* Place, type and size, as the calculator has them. */
+function labPlaceLine(d) {
+  const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city || '';
+  const size = num0(d.sqft) > 0 ? `${fmtNum(num0(d.sqft), 0)} sq ft`
+    : num0(d.landSqft) > 0 ? `${fmtNum(num0(d.landSqft), 0)} sq ft of land` : null;
+  return [[d.district, town].filter(Boolean).join(', '), d.propertyType, size].filter(Boolean).join(' · ');
+}
+/* Whether a column holds figures a scenario would add to its property: moved
+   in the lab, a lab copy, or the calculator's unsaved changes, and not the
+   property as saved. labCommits offers its Save on the same test. */
+function labCanSave(lab, col) {
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (!rec) return false;
+  const differs = Object.keys(pmDiff(pmBare(col.work), pmInputsOf(rec))).length > 0;
+  const kind = labSourceKind(col);
+  return differs && (labMoveCount(col) > 0 || kind === 'variant' || kind === 'current');
+}
+const labScenarioNaming = (lab, col, at = null) => {
+  const rec = pmFind(lab.model);
+  return { kind: 'scenario', at, value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(rec)), pmInputsOf(rec)) || `Scenario ${(rec.scenarios || []).length + 1}` };
+};
+/* THE IDENTITY LINE. The name — "Sample deal — not a real listing", or the
+   property's — with its place, type and size; Save as the page's one
+   primary button; and the regulated claim and the lab's own, whole at
+   every width: "Not a valuation" leads, and the reader is never left to
+   find it under the figures. */
+function labIdentity(P, lab, status) {
+  const d = labSubjectInputs(lab);
+  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
+  P.els.idAct = labIdentityAct(P, lab);
+  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, d ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d)) : null]));
+  P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
+  box.append(P.els.idForm);
+  box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
+    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM}`)]));
+  return box;
+}
+/* Save, as what it saves: the deal as a property until it is one, then the
+   column the sliders move as a scenario of it — where that would differ
+   from what is saved. Nothing to save, nothing to press. */
+function labIdentityAct(P, lab) {
+  const col = labActive(lab);
+  const box = el('div', { class: 'lab-id-act' });
+  const id = labId(P, 'id-save');
+  /* While its name is asked for, under the line, the form's Save is the
+     one to press: one primary, not two. */
+  if (lab.naming?.at === 'identity') return box;
+  if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property'));
+  else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
+    `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
+  else box.append(el('span', { class: 'lab-id-saved' }, 'Saved in this browser'));
+  return box;
+}
+/* THE FOUR TILES. Three of the chain's own figures (LAB_FIGURES: the same
+   reading, format and note as its rows, so a tile and a row cannot word or
+   compute one differently), each with what it rests on — today's evidence
+   words until the badge set lands (plan 3.7): "Illustrative default" while
+   any figure it is worked from is still the tool's seeded one, else the
+   weakest evidence among them — and the next step. */
+const LAB_TILES = [
+  { key: 'safeCashRequired', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
+  { key: 'cashflowMonthly', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'netYield', rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
+];
+function labTileKind(d, rests) {
+  const keys = rests.filter(k => propertyInputApplies(d, k));
+  if (keys.some(k => inputIsSeeded(d, k))) return { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
+  const weakest = keys.filter(k => evidenceDriversFor(d).includes(k)).map(k => evidenceOf(shownEvidence(d, k))).sort((a, b) => a.rank - b.rank)[0];
+  return weakest ? { kind: weakest.id, words: weakest.label } : { kind: 'user', words: evidenceOf('user').label };
+}
+const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
+function labTiles(P, lab) {
+  const d = labSubjectInputs(lab);
+  const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
+  const rec = lab.model ? pmFind(lab.model) : null;
+  const grid = el('div', { class: 'lab-tiles', role: 'list', 'aria-label': rec ? `“${rec.name}” as saved` : 'The deal on the calculator' });
+  for (const t of LAB_TILES) {
+    const f = LAB_FIGURES.find(x => x.key === t.key);
+    const v = run ? f.read(run.m, d) : null;
+    const kind = d ? labTileKind(d, t.rests) : { kind: 'unavailable', words: 'Unavailable' };
+    grid.append(el('div', { class: 'lab-tile', role: 'listitem', data: { tile: t.key } }, [
+      el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, f.label(d)), ' ', labTag(kind)]),
+      el('p', { class: `lab-tile-val num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-value': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v)),
+      el('p', { class: 'lab-tile-sub' }, run ? (f.note(run.m, d) || '') : 'Needs a purchase price'),
+    ]));
+  }
+  grid.append(labNextTile(P, lab, d));
+  return grid;
+}
+/* NEXT STEP: the first figure still the tool's (the review queue's order,
+   the one that moves the most first), entered where figures become the
+   reader's — the calculator, at its box; then Save; then Compare. Only for
+   the calculator's own deal: a saved property opened by a link while
+   another deal is on the calculator would open the wrong one there. */
+/* The figure in a word or two: the tile is half a phone's width. */
+const LAB_NEXT_NOUN = { price: 'price', rent: 'rent', sqft: 'built-up area', maintenance: 'maintenance', ratePct: 'rate', vacancyPct: 'vacancy',
+  downPct: 'deposit', apprecPct: 'growth rate', tenureYears: 'loan tenure', holdYears: 'holding period' };
+function labNextTile(P, lab, d) {
+  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+  const q = d && onCalc ? propertyReviewQueue(d) : [];
+  const id = labId(P, 'next-go');
+  let kind, act, sub;
+  if (q.length) {
+    const f = q[0], path = `/property/calculator#d-${f.k}`;
+    kind = { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
+    act = el('a', { class: 'lab-next-go', id, href: href(path), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path);
+    } }, [`Replace the ${LAB_NEXT_NOUN[f.k] || f.label.toLowerCase()}`, el('span', { class: 'sr-only' }, ` — the sample ${f.label.toLowerCase()}, in the calculator`)]);
+    sub = `The sample’s: ${isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'}`;
+  } else if (!lab.model) {
+    kind = { kind: 'unsaved', words: 'Not saved' };
+    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property');
+    sub = 'Then compare its scenarios';
+  } else {
+    kind = { kind: 'saved', words: 'Saved' };
+    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => {
+      const r = P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
+      if (!r) return;
+      r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
+      r.focus({ preventScroll: true });
+    } }, 'Compare scenarios');
+    sub = 'A, B and C side by side, below';
+  }
+  return el('div', { class: 'lab-tile lab-tile-next', role: 'listitem', data: { tile: 'next', kind: kind.kind } }, [
+    el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, 'Next step'), ' ', labTag(kind)]),
+    el('p', { class: 'lab-tile-val lab-next-what' }, act),
+    el('p', { class: 'lab-tile-sub' }, sub),
+  ]);
 }
 
 /* "Sliders move": which column the knobs set. Radios, so the arrow keys
@@ -640,6 +792,18 @@ function labColumnPicker(P, lab) {
     ]));
   }
   fs.append(row);
+  /* WHAT A MOVE BECOMES, said from the first drawing beside the columns it
+     is about (labPaintPanel). It stood across the page above the sliders,
+     a line of its own; on a phone it now shares the strip's line, which
+     its legend leaves to the ear there — "Sliders move B." starts it,
+     for the eye only (styles.css) — and the first slider is on the first
+     screen under the four figures (N3, mobile.mjs n3-first-view). */
+  const say = el('span', { class: 'lab-moved-say' }, '');
+  const moved = el('p', { class: 'lab-moved-line', id: labId(P, 'unsaved') }, el('span', { class: 'lab-moved-in' }, [
+    el('strong', { class: 'lab-moved-who', 'aria-hidden': 'true' }, `Sliders move ${lab.active}. `), say]));
+  P.els.unsaved = moved;
+  P.els.unsavedSay = say;
+  fs.append(moved);
   return fs;
 }
 /* "Input": on a phone one knob at a time, chosen here; from 600px wide all
@@ -955,9 +1119,16 @@ function labChain(P, lab, col) {
   const letter = el('span', { class: 'lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
   const verdict = el('span', { class: 'lab-grade-verdict' }, '');
   const gate = el('p', { class: 'metaline lab-grade-gate' }, '');
-  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate);
+  /* WHY THE LETTER, A TAP AWAY (N3): every gate the grade has, worst first,
+     with who confirms each, and the score it is not. Written while open. */
+  const whyLetter = el('span', {}, '');
+  const why = el('details', { class: 'lab-grade-why', id: labId(P, 'grade-why') }, [
+    el('summary', { class: 'lab-grade-why-sum' }, ['Why ', whyLetter]),
+    el('div', { class: 'lab-grade-why-body' })]);
+  why.addEventListener('toggle', () => { if (why.open) labPaintPanel(P); });
+  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate, why);
   card.append(grade);
-  P.els.grade = { letter, verdict, gate };
+  P.els.grade = { letter, verdict, gate, why, whyLetter, whyBody: why.lastChild };
   /* What the figures rest on (§6.3), from the column's own inputs. */
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
@@ -1321,14 +1492,18 @@ function labCommits(P, lab, col) {
      button and its toast alike — where it marks any: a column with nothing
      moved in the lab commits figures already as they were marked. */
   const yours = labMarked(col).length ? ' — the moved figures become yours' : '';
+  /* The page's one primary is the identity line's Save (N3): here, under
+     the figures, the same save is offered again, quieter. A panel with no
+     identity line (the map's) keeps it primary. */
+  const keepCls = P.compact ? 'btn-primary' : 'btn-ghost';
   if (rec) {
-    acts.append(el('button', { type: 'button', class: 'btn btn-primary', id: labId(P, 'save'), disabled: canSave ? null : '',
-      onclick: () => labNaming(P, lab, { kind: 'scenario', value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(pmFind(lab.model))), pmInputsOf(pmFind(lab.model))) || `Scenario ${(pmFind(lab.model).scenarios || []).length + 1}` }) },
+    acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save'), disabled: canSave ? null : '',
+      onclick: () => labNaming(P, lab, labScenarioNaming(lab, col)) },
       `Save ${col.key} as a scenario${yours}`));
     if (kind === 'sc' && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
       `Update scenario “${col.name}”${yours}`));
   } else {
-    acts.append(el('button', { type: 'button', class: 'btn btn-primary', id: labId(P, 'save-first'),
+    acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
       onclick: () => labNaming(P, lab, { kind: 'property', value: pmNameOf(State.deal) }) }, 'Save this property first'));
   }
   acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
@@ -1336,7 +1511,9 @@ function labCommits(P, lab, col) {
   acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: labId(P, 'clear'), disabled: n ? null : '', onclick: () => labClear(P, lab, col) },
     `Clear ${col.key}’s moves`));
   card.append(acts);
-  if (lab.naming) card.append(labNameForm(P, lab, col));
+  /* The name is asked for where its Save was pressed: here, or under the
+     identity line (labIdentity). */
+  if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
   const why = [];
   if (!rec) why.push(`A scenario belongs to a saved property. “Save this property first” saves the deal on the calculator as a property — then ${col.key} can be saved as its scenario.`);
   else if (!canSave) why.push(differs ? `${col.key} is saved already, as “${col.name}” — move a figure to save a new scenario, or to update this one.`
@@ -1392,8 +1569,8 @@ function labNameForm(P, lab, col) {
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
-        const back = isProp ? 'save-first' : 'save';
-        lab.naming = null; labDraw(P, labId(P, back));
+        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isProp ? 'save-first' : 'save'];
+        lab.naming = null; labDraw(P, back.map(x => labId(P, x)));
       } }, 'Cancel'),
     ]));
   return form;
@@ -1406,6 +1583,7 @@ function labNameForm(P, lab, col) {
    copy of a moved column lost what it had copied and went on calling
    itself "Copy of A" (the verification of 4 Oct 2026, F4). */
 function labSaveProperty(P, lab, name) {
+  const fromId = lab.naming?.at === 'identity';
   const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
   if (!rec) return;
   const moved = lab.cols.map(c => ({ key: c.key, moves: { ...c.moves }, name: c.name, source: c.source, of: c.of, baseInputs: c.baseInputs, inherited: c.inherited || {} }));
@@ -1421,8 +1599,9 @@ function labSaveProperty(P, lab, name) {
   if (P.key === lab.key) P.key = next.key;
   if (labSubject === lab.key) labSubject = next.key;
   /* The keyboard on the next thing to do with the column, which the
-     property's save leaves enabled. */
-  labDraw(P, [labId(P, 'save'), labId(P, 'open')]);
+     property's save leaves enabled — beside the identity line where the
+     save was asked for there. */
+  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'save'), labId(P, 'open')]);
   labAfterStructure(P, next, { address: true });
 }
 function labCommitScenario(P, lab, name) {
@@ -1433,6 +1612,7 @@ function labCommitScenario(P, lab, name) {
   const overrides = pmDiff(next, pmInputsOf(rec));
   if (!Object.keys(overrides).filter(k => k !== 'touched').length) { toast(`${col.key} holds the inputs “${rec.name}” is saved with — move a figure first.`); return null; }
   const yours = labYoursWords(col);
+  const fromId = lab.naming?.at === 'identity';
   const sc = pmAddScenario(rec.id, overrides, String(name || '').trim() || `Scenario ${(rec.scenarios || []).length + 1}`);
   if (!sc) { toast(STORE_REFUSED); return null; }
   /* The calculator's comparison shows it beside the columns already here. */
@@ -1444,7 +1624,7 @@ function labCommitScenario(P, lab, name) {
   lab.naming = null;
   /* Saved, the button that saved it is disabled: the keyboard goes to the
      next thing to do with the column, not to <body>. */
-  labDraw(P, [labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
   labAfterStructure(P, lab, { address: true });
   toast(`Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
   return sc;
@@ -1615,6 +1795,23 @@ function labPaintPanel(P, { initial = false } = {}) {
     labAttr(P.els.grade.letter, 'data-value', g?.grade || '');
     labText(P.els.grade.verdict, g ? g.verdict : 'Needs a purchase price');
     labText(P.els.grade.gate, worst ? `${g.gates.length} gate${g.gates.length === 1 ? '' : 's'}; the most serious: ${worst.text}` : g ? 'No gate is open.' : '');
+    labText(P.els.grade.whyLetter, g?.grade || 'there is no grade');
+    if (initial || P.els.grade.why.open) {
+      const rank = { critical: 0, serious: 1, warning: 2 };
+      const gates = g ? [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3)) : [];
+      const score = !g ? 'No grade: the column needs a purchase price.'
+        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not carried into a grade` : `Score ${g.score}/100`}, on ${fmtPct(g.coverage * 100, 0)} of the framework’s weight. `
+          + 'A research grade on the evidence entered: not a bank decision, not a valuation and not legal clearance. How it is reached, pillar by pillar, is in the calculator.';
+      const sig = JSON.stringify([score, gates.map(x => [x.severity, x.text, x.who || ''])]);
+      if (P.els.grade.whyAt !== sig) {
+        P.els.grade.whyAt = sig;
+        P.els.grade.whyBody.replaceChildren(
+          gates.length ? el('ul', { class: 'lab-grade-gates' }, gates.map(x => el('li', { data: { severity: x.severity } }, [
+            x.severity === 'critical' ? el('span', { class: 'chip chip-bronze' }, 'Blocking') : null, x.severity === 'critical' ? ' ' : null,
+            x.text + (x.who ? ` Confirm with: ${x.who}.` : '')]))) : el('p', { class: 'metaline' }, g ? 'No gate is open.' : ''),
+          el('p', { class: 'metaline lab-grade-score' }, score));
+      }
+    }
   }
   /* What moved, what the figures rest on. */
   if (P.els.movedBy) {
@@ -1653,12 +1850,12 @@ function labPaintPanel(P, { initial = false } = {}) {
      anchor the scroll (Safari), the slider and all seven results dropped
      43px under the finger at 360 (the re-verification of 4 Oct 2026). It now
      stands from the first drawing, saying what happens to a move before
-     there is one, and holds two lines' room on a phone (styles.css). */
+     there is one, and holds its room on a phone (styles.css). */
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
     const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
       : 'Moves you make here are kept until you close or reload this tab.';
-    labText(P.els.unsaved, s);
+    labText(P.els.unsavedSay, s);
     P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
   /* What follows the moves: the baseline's name, the links to where a
@@ -1670,10 +1867,12 @@ function labPaintPanel(P, { initial = false } = {}) {
   (P.els.where || []).forEach(n => { n.hidden = labMoveCount(col) > 0; });
   const sig = labCardSig(lab);
   if (!initial && sig !== P.cardSig && P.els.colsCard?.isConnected) {
-    const had = document.activeElement && (P.els.colsCard.contains(document.activeElement) || P.els.commitCard.contains(document.activeElement)) ? document.activeElement.id : null;
+    const had = document.activeElement && [P.els.colsCard, P.els.commitCard, P.els.idAct].some(n => n?.contains(document.activeElement)) ? document.activeElement.id : null;
     const cc = labColumnsCard(P, lab), cm = labCommits(P, lab, col);
     P.els.colsCard.replaceWith(cc); P.els.commitCard.replaceWith(cm);
     P.els.colsCard = cc; P.els.commitCard = cm; P.cardSig = sig;
+    /* The identity line's Save offers what the commit card's does. */
+    if (P.els.idAct?.isConnected) { const a = labIdentityAct(P, lab); P.els.idAct.replaceWith(a); P.els.idAct = a; }
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
   /* The comparison: in place while its shape holds, drawn again when not. */
@@ -1740,15 +1939,22 @@ function labRefresh() {
 }
 
 /* ---------------------------------------------------------------- the page */
+/* /property AND /property/lab (N3, the owner's decision D18). Property's
+   landing opens the Lab on the calculator's deal, in the order a reader
+   decides in: which property this is, its four figures, the five sliders,
+   what they move, A, B and C side by side, then keeping one. The Start here
+   panel (startHereFor) and the head's second line went: a reader met about
+   180 words before the first control, 150 of them prose. What the second
+   line said — moves are what-ifs, kept in this tab until saved — the line
+   above the sliders says from the first drawing (labPaintPanel). */
 VIEWS.propertyLab = () => {
   labArrive();
   const wrap = el('div', { class: 'lab-page' });
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
-  wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'),
-    lede: 'Move price, deposit, rate, rent and renovation, and every figure below is worked out again by the calculator’s own model — for up to three scenarios side by side.',
-    note: 'Moves are what-ifs, kept in this tab until you save one as a scenario or open it in the calculator.' }));
+  wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
+    lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   return wrap;

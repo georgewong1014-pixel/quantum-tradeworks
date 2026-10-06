@@ -12323,6 +12323,14 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 /* The badge a product wears, with its note as the title. It is an element,
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
+/* THE HOOK FOR D17 (N2a, the 5 Oct audit; not built yet). Property's badge
+   is to read "Live · Your figures, sample to start" wherever it appears — the
+   tab row above /property's Scenario Lab, the header's Products menu, the
+   phone sheet, the footer, /how-it-works, /about, /status and the homepage
+   card. Here is the one place to draw it: a `qualifier` on the product's
+   PRODUCTS row, drawn by this function as visible text beside the badge's
+   word, never in its title. /property's identity line (82-property-lab.js)
+   carries no badge of its own, so nothing there changes when it lands. */
 function productBadge(id) {
   const p = productById(id);
   if (!p) return null;
@@ -12802,11 +12810,11 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    among them (Release B): it drew them as a strip of its own inside each of
    its pages, and now wears the row the other two products wear.
 
-   Property has no Overview tab. /property and /property/calculator are one
-   view — the calculator, whose canonical address is /property — so an
-   "Overview" beside "Calculator" would be two names for the same page, the
-   second one promising a summary that does not exist. The row gains it when
-   a Property overview is built (docs/route-map.md). */
+   Property has no Overview tab. /property, the product's landing, opens the
+   Scenario Lab on the calculator's deal (N3, the owner's decision D18), so
+   the "Scenario Lab" tab is current there as on /property/lab; the
+   calculator is /property/calculator, a page of its own. An "Overview"
+   beside them would be a third name for one of the two (docs/route-map.md). */
 /* Read from the registry (TOOLS, above): the tools of the product marked as
    tabs and in this build, in the registry's order — so a tab's name, its
    address and its badge cannot differ from How it works or the dashboard,
@@ -13065,7 +13073,14 @@ const ROUTES = [
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
-  { path: '/property',            view: 'property',  title: 'Property' },
+  /* /PROPERTY OPENS THE SCENARIO LAB (N3, the owner's decision D18). The
+     product's landing is the Lab on the calculator's deal — the sample on a
+     first visit — so it is the Lab's canonical address, and /property/lab,
+     which stays, names it. The calculator is /property/calculator, its own
+     canonical now. A link to the calculator written before — /property
+     with the deal's ?city, ?district, ?type or ?d=, or a section's #hash —
+     is still the calculator's (calculatorLegacy, below). */
+  { path: '/property',            view: 'propertyLab', title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/models',     view: 'propertyModels', title: 'My properties' },
   /* A saved property's client proposal (72-property-proposal.js), under My
@@ -13483,6 +13498,25 @@ function focusMain() {
 /* The views whose :id is a company. register-check's route rule reads the
    same two, so the checker and the router agree on what a path names. */
 const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
+/* A LINK TO THE CALCULATOR WRITTEN BEFORE /property OPENED THE SCENARIO LAB
+   (N3, D18). The calculator wrote its deal into its own address — ?city,
+   ?district, ?type and ?d= (syncPropertyUrl, 70-property.js) — on /property
+   as on /property/calculator, and other pages linked a section of it by its
+   #hash. Copied, bookmarked and shared, those links still mean the
+   calculator: the address becomes /property/calculator with its query and
+   its hash, in place (Back does not return to a page that only redirects).
+   The Lab's own ?model=, ?cols= and ?by= stay the Lab's. */
+const CALC_LINK_PARAMS = ['city', 'district', 'type', 'd'];
+function calculatorLegacy() {
+  const q = new URLSearchParams(location.search);
+  const hash = location.hash.replace(/^#/, '');
+  const section = /^d-[A-Za-z]+$/.test(hash) || (typeof PC_SECTIONS !== 'undefined' && PC_SECTIONS.some(s => s.id === hash));
+  if (!CALC_LINK_PARAMS.some(k => q.has(k)) && !section) return false;
+  const was = location.pathname;
+  history.replaceState(history.state, '', href('/property/calculator') + location.search + location.hash);
+  if (lastPath === was) lastPath = location.pathname;
+  return true;
+}
 function applyRoute() {
   /* And the address becomes the route's own (see matchRoute), so a link or a
      reload taken from it is the clean one. */
@@ -13490,7 +13524,8 @@ function applyRoute() {
     const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
     history.replaceState(history.state, '', href(at) + location.search + location.hash);
   }
-  const route = matchRoute(location.pathname);
+  let route = matchRoute(location.pathname);
+  if (route?.path === '/property' && calculatorLegacy()) route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
   /* A route whose view is defined in a module this build does not carry —
      How it works and the research queue arrive with their own branches — is
@@ -14693,13 +14728,14 @@ const SERVED_READS = {
   propertyModels: ['deal', 'dealBeforeLink', 'savedWork', 'startHere'],
   property: ['deal', 'dealBeforeLink', 'savedWork', 'startHere', 'observations', 'areaProfiles', 'demand', 'borrowerProfile',
     'lang', 'plan', 'propertyReportsBought'],
-  /* /property/lab: the calculator's deal and whether it is a saved property
-     (its columns come from it), the labels in the reader's language, the
-     report a figure is withheld behind and the plan that may include it,
-     the comparables the grade reads, and the Start here panel. Its
+  /* /property and /property/lab: the calculator's deal and whether it is a
+     saved property (its columns, its identity line and its four figures come
+     from it), the labels in the reader's language, the report a figure is
+     withheld behind and the plan that may include it, and the comparables
+     the grade reads — no Start here panel since N3 (startHereFor). Its
      ?model=, ?cols= and ?by= are read by the app as it draws (a page that
      does not wait: its first draw replaces the served page at once). */
-  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'startHere'],
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -15658,9 +15694,14 @@ const startHereHidden = () => { const v = store.read('startHere', {}); return v 
    page, nor on a company page or its report, which keep their own tabs and
    head, nor on the Scanner's operations pages, which are read-only views of
    the worker's files where nothing is there to press. */
+/* Nor on the Scenario Lab, Property's landing (N3, D18): its identity line,
+   its four figures and its first slider are what a first-time reader starts
+   with, and the panel stood a screen of words above them — about 50 of the
+   page's 180 before its first control. The calculator and Property's other
+   tools keep it. */
 function startHereFor(view = State.view) {
   const pid = productOf(view);
-  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view)) return null;
+  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab') return null;
   if (!TOOLS.some(t => t.product === pid && toolViews(t).includes(view))) return null;
   return startHereHidden()[pid] ? null : pid;
 }
@@ -33892,17 +33933,27 @@ const PC_SECTIONS = [
   { id: 'scenarios',   label: 'Scenarios' },
   { id: 'report',      label: 'Report' },
 ];
+const PC_CONTRACT_OPEN = new Set();
 function propertySection(id, { provide, calculates }) {
   const i = PC_SECTIONS.findIndex(s => s.id === id);
   const s = PC_SECTIONS[i];
   const inputs = el('div', { class: 'card rail-sticky pc-inputs' });
   const outputs = el('div', { class: 'pc-outputs' });
+  /* The section's contract — what it asks and what it works out, 40 to 80
+     words — is a drawer under its heading (N3, the owner's decision D18):
+     the section opens on its fields and its figures, the contract a tap
+     away. Open across a redraw once opened, as each field redraws the page. */
+  const contract = el('details', { class: 'pc-more pc-contract-more', open: PC_CONTRACT_OPEN.has(id) ? '' : null }, [
+    el('summary', { class: 'pc-more-sum' }, 'What this section asks, and what it works out'),
+    el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'You provide: '), provide]),
+    el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'Quantum calculates: '), calculates]),
+  ]);
+  contract.addEventListener('toggle', () => { if (contract.open) PC_CONTRACT_OPEN.add(id); else PC_CONTRACT_OPEN.delete(id); });
   const node = el('section', { class: 'pc-sec', id, 'aria-labelledby': `pc-h-${id}` }, [
     el('header', { class: 'pc-sec-hd' }, [
       el('p', { class: 'eyebrow' }, `${i + 1} of ${PC_SECTIONS.length}`),
       el('h2', { class: 'h-section', id: `pc-h-${id}`, tabindex: '-1' }, s.label),
-      el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'You provide: '), provide]),
-      el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'Quantum calculates: '), calculates]),
+      contract,
     ]),
     el('div', { class: 'studio-layout pc-sec-body' }, [inputs, outputs]),
   ]);
@@ -33971,10 +34022,14 @@ function pcMarkCurrent() {
    node, so the browser has nothing to anchor the scroll to). Held until the
    pages settle (propertyPagesSettled), for ten seconds at most. */
 let pcArrivalSeen = null, pcArrivalWant = null, pcArrivalAt = 0;
+/* Or a field: /property/calculator#d-price — the Scenario Lab's "Next step"
+   (N3), the first figure still the tool's, opens the calculator at its box,
+   the keyboard in it, in its own section. */
+const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
   const want = location.hash.replace(/^#/, '');
   const key = location.pathname + location.search + location.hash;
-  if (PC_SECTIONS.some(s => s.id === want) && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want)) && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
   const go = () => {
     if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
@@ -33983,6 +34038,15 @@ function propertyArrivalSection() {
     pcArrivalWant = null;
     /* At once, as a browser lands on an anchor: a page's length of smooth
        scrolling is not an arrival. */
+    if (PC_FIELD_HASH.test(id)) {
+      const field = document.getElementById(id);
+      if (!field) return;
+      (field.closest('.assumption') || field).scrollIntoView({ block: 'center', behavior: 'instant' });
+      field.focus({ preventScroll: true });
+      field.select?.();
+      pcMarkCurrent();
+      return;
+    }
     goToPropertySection(id, { instant: true });
   };
   setTimeout(go, 0);
@@ -37822,6 +37886,10 @@ function usePropertyReport(id) {
 const renderAfterTyping = () => setTimeout(renderKeepFocus, 0);
 /* Whether the borrower's financing disclosure is open — see its <details>. */
 let borrowerPanelOpen = false;
+/* Whether the Summary table's drawer is open (N3), held as the borrower's is;
+   and the copy-link note under its ⓘ. */
+let propertySummaryOpen = false;
+let copyLinkNoteOpen = false;
 /* What the calculator's "record what you observed" form holds before Record —
    see the form. */
 let observationDraft = null;
@@ -37855,9 +37923,13 @@ VIEWS.property = () => {
   const paid = propertyReportUnlocked(d.projectId);
   const wrap = el('div');
 
-  /* The one head every product page wears (pageHead, 36-layouts.js). */
-  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.',
-    note: 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.' }));
+  /* The one head every product page wears (pageHead, 36-layouts.js). Its
+     second line — what the model covers — is a drawer under it (N3, D18):
+     the top of the page is the deal and its answer, the method a tap away. */
+  wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.' }));
+  wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
+    el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
+    el('p', { class: 'pc-more-body' }, 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -37902,33 +37974,40 @@ VIEWS.property = () => {
   const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
   const onePage = el('div', { class: 'card', style: `border-left:3px solid var(${gradeTone})` });
 
-  /* THE MONEY, FIRST.
-     The card opened on a letter grade and a score, and the three figures that
-     decide whether somebody can do this at all — what leaves the account, what
-     is needed to be safe, what it costs to hold each month — sat below the
-     fold on a phone behind the grade, the verdict and the gates.
-     A grade answers "is this a good deal". These answer "can I". */
-  const strip = el('div', { class: 'capstrip' });
+  /* THE MONEY, FIRST, AND ONCE (N3, the owner's decision D18).
+     The card opened on a letter grade and a score, and the figures that
+     decide whether somebody can do this at all — what leaves the account,
+     what is needed to be safe, what it costs to hold each month — sat below
+     the fold on a phone behind the grade, the verdict and the gates; a strip
+     of three put them first. Then the page said them three times: the strip,
+     the four tiles under the gates, and the Summary table under the card.
+     They are said once now, here, at the card's top: four tiles, each with
+     what it means. A grade answers "is this a good deal". These answer "can
+     I". The Summary table is a drawer below, for the reader's language. */
   /* What is still to be paid, as the decision record and the ledger's "Cash
      still to complete" both say. This printed the whole completion figure,
      booking deposit included, so with RM5,000 paid at offer the page read
      "Cash to complete RM95.3k — Paid out on completion day" and the record
-     carried out of the browser read RM90,254 under the same name. */
-  /* And a safe cash that is short says so here, first, as the tile below it
-     and the ledger do. With the reserve unpriced (a loan tenure of 0) the
-     strip read "Safe cash required RM121.8k" as the answer, above a tile
-     that said the same figure was short by the reserve. */
-  const stripShort = (m.missingCostLines || []).length;
-  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR')],
+     carried out of the browser read RM90,254 under the same name. And a safe
+     cash that is short says so: "Including the reserve" when the reserve was
+     the line that could not be priced — a tenure of 0 left it out of the
+     total and the tile said it was in. A short total says it is short, as
+     the ledger's does. */
+  const answers = el('div', { class: 'grid g-4 pc-answers' });
+  const unpricedLines = m.missingCostLines || [];
+  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
    ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-     stripShort ? `So far — ${stripShort === 1 ? 'a line is' : `${stripShort} lines are`} unpriced` : null],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—']]
-    .forEach(([k, v, short], i) => strip.append(el('div', {}, [
-      el('span', { class: 'eyebrow', style: 'display:block;margin-bottom:2px' }, k),
-      el('span', { class: 'num', style: `font-size:20px;font-weight:700${i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? ';color:var(--dn-text)' : ''}` }, v),
-      short ? el('span', { class: 'caption', style: 'display:block;color:var(--bronze)' }, short) : null,
-    ])));
-  onePage.append(strip);
+     unpricedLines.length
+       ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+       : 'Including rent-ready and the reserve'],
+   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
+   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
+    .forEach(([l, v, s], i) => answers.append(el('div', { class: 'panel' }, statTile(l, v,
+      { sub: s, tone: i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null }))));
+  onePage.append(answers);
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
     el('div', {}, [
@@ -37965,68 +38044,49 @@ VIEWS.property = () => {
     ? `${notApplying.join(' and ')} ${notApplying.length === 1 ? 'does' : 'do'} not apply to a ${String(PROPERTY_CLASSES[m.propertyClass]?.label || '').toLowerCase()} class, so at most ${fmtPct(g.reachable * 100, 0)} of the framework weight can ever be scored, against the 80% a grade requires — no further evidence changes that`
     : g.coverage < 0.80 ? `only ${fmtPct(g.coverage * 100, 0)} of the framework weight could be scored, against the 80% a grade requires`
     : 'a hard gate below is unmet';
+  /* What the grade is not, in sight: the methodology that says how it is
+     reached — "the score and the grade are not the same claim…" — is in the
+     pillars' drawer below (N3), beside the table it explains. */
   onePage.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    (g.grade === 'U' && isNum(g.score)
-      ? `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${withheldBecause}. `
-      : '')
-    + 'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
+    'A research grade on the evidence entered. Not a bank decision, not a valuation, and not legal clearance — each of those is a named professional, and the questions below say which.'));
 
-  /* ---------- ANSWER, THEN CAVEAT, THEN ARITHMETIC ----------
-     The card used to open with four stat tiles and put the sentence that
-     actually answers the question — "this property does not pay for itself,
-     holding it costs RM14.4k a year" — underneath them, the reasons it cannot
-     be graded under that, and the warning that the figures are Kuching's in a
-     separate card eight screens further down. At 390px the fold ended on
-     "U / Not enough evidence / Score 9/100", so a reader who stopped there left
-     with a letter and no idea whose numbers produced it.
-
-     Order is now: what it does to your money -> why it cannot be graded ->
-     whose numbers these are -> the arithmetic. The caveat sits after the
-     verdict rather than before it, because a page that opens on a caveat has
-     not yet said what is being caveated. */
-
-  /* The owner subsidy stated as a commitment rather than a monthly minus. */
-  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);color:var(--dn-text)' },
-    `This property does not pay for itself. Holding it costs ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
+  /* The owner subsidy stated as a commitment rather than a monthly minus —
+     over five and ten years; the year's figure is the Monthly position
+     tile's, above. */
+  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' },
+    `This property does not pay for itself. Holding it is paid from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
 
   if (g.gates.length) {
-    /* THE THREE THAT DECIDE IT, THEN THE REST ON REQUEST.
+    /* THE ONE THAT DECIDES IT IN SIGHT, EVERY ONE A TAP AWAY (N3).
        Every blocker was listed at equal weight, so eleven items competed and
-       the critical one read like the eleventh. Severity already exists on each
-       gate and was only being used for a colour; it orders them now. */
+       the critical one read like the eleventh; then three stood in full and
+       the rest behind "Show all", 60-odd words before the first field.
+       Severity orders them: the most serious stays in sight on one line,
+       and the whole list — each with who confirms it — is the drawer. */
     const rank = { critical: 0, serious: 1, warning: 2 };
     const ordered = [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3));
-    const lead = ordered.slice(0, 3);
-    const rest = ordered.slice(3);
-
-    onePage.append(el('h4', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' },
-      /* Named for the grade it sits under. Every graded result read "Why this
-         is conditional", so a D — "Does not meet the selected underwriting
-         criteria" — and an A that "Meets" them both called their findings
-         conditions. Conditional is the B verdict's word and only B's. */
-      /* A class that cannot be graded is not ungraded because of these, and
-         clearing them would not grade it — the sentence above says why. */
-      (g.classUngradeable ? 'Still to check'
-        : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade]
-        || 'Why this falls short')));
+    const worst = ordered[0];
+    onePage.append(el('p', { class: 'pc-worst' }, [
+      el('span', { class: worst.severity === 'critical' ? 'chip chip-bronze' : 'chip' }, worst.severity === 'critical' ? 'Blocking' : 'Most serious'),
+      ' ', el('span', { class: 'pc-worst-text' }, worst.text)]));
+    /* Named for the grade it sits under. Every graded result read "Why this
+       is conditional", so a D — "Does not meet the selected underwriting
+       criteria" — and an A that "Meets" them both called their findings
+       conditions. Conditional is the B verdict's word and only B's. A class
+       that cannot be graded is not ungraded because of these, and clearing
+       them would not grade it — the sentence above says why. */
+    const named = g.classUngradeable ? 'Still to check'
+      : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade] || 'Why this falls short';
     const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
         style: x.severity === 'critical' ? 'margin-right:6px' : 'display:none' }, 'Blocking'),
       x.text + (x.who ? ` Confirm with: ${x.who}.` : ''),
     ]);
-    const gl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
-    lead.forEach(x => gl.append(gateLine(x)));
-    onePage.append(gl);
-
-    if (rest.length) {
-      const more = el('details', { style: 'margin-top:8px' });
-      more.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
-        `Show all ${g.gates.length} blockers and assumptions`));
-      const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;margin-top:8px' });
-      rest.forEach(x => rl.append(gateLine(x)));
-      more.append(rl);
-      onePage.append(more);
-    }
+    const more = el('details', { class: 'pc-more pc-blockers' });
+    more.append(el('summary', { class: 'pc-more-sum' },
+      `${named}: ${g.gates.length === 1 ? 'the one blocker or assumption' : `all ${g.gates.length} blockers and assumptions`}`));
+    more.append(el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px;margin-top:8px' }, ordered.map(gateLine)));
+    onePage.append(more);
   }
 
   /* THE CASH WATERFALL — where the completion figure comes from.
@@ -38034,8 +38094,8 @@ VIEWS.property = () => {
      a total with no decomposition on the first screen: the parts were in a cost
      table much further down, grouped by category rather than shown as a sum. */
   if (isNum(m.transactionCash) && m.transactionCash > 0) {
-    const wf = el('details', { style: 'margin-top:var(--md)' });
-    wf.append(el('summary', { class: 'metaline', style: 'cursor:pointer' },
+    const wf = el('details', { class: 'pc-more' });
+    wf.append(el('summary', { class: 'pc-more-sum' },
       `Where ${fmtAmount(m.safeCashRequired, 'MYR')} of safe cash goes`));
     /* The cost groups already include the improvement costs and the reserve.
        Two further rows for them counted both twice, so the parts of RM130.1k
@@ -38076,27 +38136,12 @@ VIEWS.property = () => {
     onePage.append(warn);
   }
 
-  const answers = el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' });
-  /* "Including the reserve" when the reserve was the line that could not be
-     priced: a tenure of 0 left it out of the total and the tile said it was
-     in. A short total says it is short, as the ledger's does. */
-  const unpricedLines = m.missingCostLines || [];
-  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-     unpricedLines.length
-       ? `Short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-       : 'Including rent-ready and the reserve'],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
-    .forEach(([l, v, s]) => answers.append(el('div', { class: 'panel' }, statTile(l, v, { sub: s }))));
-  onePage.append(answers);
-
-  /* Pillars, so the grade decomposes rather than being taken on trust. */
-  const pw = el('details', { style: 'margin-top:var(--md)' });
-  pw.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'How this grade was reached'));
+  /* Pillars, so the grade decomposes rather than being taken on trust — and
+     the methodology that reads them, beside them. */
+  const pw = el('details', { class: 'pc-more' });
+  pw.append(el('summary', { class: 'pc-more-sum' }, 'How this grade was reached'));
+  if (g.grade === 'U' && isNum(g.score)) pw.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `The score and the grade are not the same claim. The score is weighted only across the pillars that could be tested; the grade is withheld because ${withheldBecause}.`));
   const pt = el('table', { class: 'dt', style: 'margin-top:8px' });
   pt.append(el('thead', {}, el('tr', {}, ['Pillar', 'Weight', 'Score', 'Basis'].map((h, i) =>
     el('th', { style: i === 0 || i === 3 ? 'text-align:left' : null }, h)))));
@@ -38350,13 +38395,20 @@ VIEWS.property = () => {
      was new. */
   syncPropertyUrl(d);
   /* The address IS the share. One control to put it on the clipboard, beside
-     the fields it describes, and a sentence saying what travels with it. */
+     the fields it describes, and what travels with it behind an ⓘ beside it
+     (N3, D18): 62 words stood between the page's top and its first field. */
+  const copyNote = el('p', { class: 'metaline pc-tip-body', id: 'property-copy-note', hidden: copyLinkNoteOpen ? null : '' },
+    'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.');
+  const copyAbout = el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-tip', id: 'property-copy-about', 'aria-expanded': copyLinkNoteOpen ? 'true' : 'false',
+    'aria-controls': 'property-copy-note', 'aria-label': 'What a link to this deal carries', title: 'What a link to this deal carries',
+    onclick: () => { copyLinkNoteOpen = !copyLinkNoteOpen; copyAbout.setAttribute('aria-expanded', copyLinkNoteOpen ? 'true' : 'false'); copyNote.hidden = !copyLinkNoteOpen; } },
+    el('span', { class: 'pc-tip-i', 'aria-hidden': 'true', html: icon('info', 16) }));
   loc.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center;margin-bottom:10px' }, [
     el('button', { class: 'btn btn-ghost btn-sm', id: 'property-copy-link', onclick: async () => {
       try { await navigator.clipboard.writeText(location.href); toast('Link copied — it carries every input of this deal'); }
       catch { toast('Could not reach the clipboard — copy the address bar instead'); }
     } }, 'Copy a link to this deal'),
-    el('span', { class: 'metaline' }, 'The address carries every figure that differs from the default deal, its evidence grade and which ones you entered. It carries the Sarawak checklist answers too, with how each was established. Whoever opens it sees this deal — their own saved deal is kept aside, not mixed in. Your loan-readiness inputs are about you, not the deal, and do not travel.'),
+    copyAbout,
     /* Restore goes once it has restored, and focus went with it to <body>;
        it goes to Copy, which sat beside it. */
     store.read('dealBeforeLink', null) ? el('button', { class: 'btn btn-quiet btn-sm', onclick: () => {
@@ -38368,6 +38420,7 @@ VIEWS.property = () => {
       }
     } }, 'Restore my previous deal') : null,
   ]));
+  loc.append(copyNote);
 
   const citySel = el('select', { class: 'select', id: 'dealCity', onchange: e => {
     d.city = e.target.value;
@@ -38887,8 +38940,14 @@ VIEWS.property = () => {
   free.append(langRow);
 
   const sc = SUMMARY_COPY[lang()] || SUMMARY_COPY.en;
-  const summary = el('div', { class: 'panel', style: 'margin-bottom:var(--md)' });
-  summary.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, sc.title));
+  /* THE SUMMARY TABLE AND ITS NOTE, A DRAWER (N3, D18): six figures the
+     grade card's tiles and the sections already state, in the reader's
+     language — and what is and is not translated. The buttons above stay in
+     sight: they translate every section's labels, not only this table. Open
+     across a redraw once opened (a language chosen redraws the page). */
+  const summary = el('details', { class: 'panel pc-more pc-summary', style: 'margin-bottom:var(--md)', open: propertySummaryOpen ? '' : null });
+  summary.addEventListener('toggle', () => { propertySummaryOpen = summary.open; });
+  summary.append(el('summary', { class: 'pc-more-sum' }, sc.title));
   const srows = [
     [tr('grossYield'),       fmtPct(m.grossYield, 2)],
     [tr('netYield'),         fmtPct(m.netYield, 2)],
@@ -43342,30 +43401,182 @@ function labDraw(P, focusId = null) {
   }
 }
 
-/* The fixed header, at every width, and the status of what is open. */
+/* The fixed header, at every width, and the status of what is open. The
+   claim is the brief's fixed wording (§8), whole at every width. */
+const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
+const LAB_NOT_OFFICIAL = 'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
-  hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.')]));
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
   if (P.idPrefix === 'lab' && labArrivalNote && lab.key === labSubject) status.append(el('span', { class: 'lab-note-warn' }, labArrivalNote), ' ');
   const rec = lab.model ? pmFind(lab.model) : null;
-  if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-  /* Reached only by a panel given the deal as its subject while the
-     calculator holds a saved property: the page itself opens that property
-     (labArrive). */
-  else {
-    const st = propertyStatus(State.deal);
-    if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
+  const st = rec ? null : propertyStatus(State.deal);
+  /* A panel mounted on its own (the map's side sheet, phase 3) keeps the
+     claim and the status line as they were. */
+  if (P.compact) {
+    hd.append(el('p', { class: 'lab-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ', el('span', {}, LAB_CLAIM)]));
+    if (rec) status.append('Columns from ', el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
+    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'),
       ' — illustrative figures, not a real listing. Every driving figure is the tool’s illustrative default until you change it.');
     else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
     else status.append('The deal on the calculator — not saved as a property.');
+    hd.append(status);
+  } else {
+    /* THE PAGE'S HEADER (N3, D18): which property this is, then its four
+       figures. The status line is the identity line's name. */
+    status.classList.add('lab-id-name');
+    if (rec) status.append(el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
+    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'), ' — not a real listing');
+    /* Reached only by a panel given the deal as its subject while the
+       calculator holds a saved property: the page itself opens that
+       property (labArrive). */
+    else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
+    else status.append(el('strong', {}, 'The deal on the calculator'), ' — not saved as a property');
+    hd.append(labIdentity(P, lab, status), labTiles(P, lab));
   }
-  hd.append(status);
-  const moved = el('p', { class: 'lab-moved-line', id: labId(P, 'unsaved') });
-  P.els.unsaved = moved;
-  hd.append(moved);
   return hd;
+}
+
+/* ------------------------------------------------- the identity and the tiles */
+/* WHAT THE PAGE IS ABOUT, BEFORE ANY CONTROL (N3, the 5 Oct audit; D18).
+   The subject's own figures: the calculator's deal, or a saved property as
+   saved — never a column's what-ifs, which the chain below shows against
+   them. Run by the model's kept runs (pmCompareRun), as a column is. */
+const labSubjectInputs = (lab) => {
+  if (!lab.model) return pmBare(State.deal);
+  const rec = pmFind(lab.model);
+  return rec ? pmInputsOf(rec) : null;
+};
+/* Place, type and size, as the calculator has them. */
+function labPlaceLine(d) {
+  const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city || '';
+  const size = num0(d.sqft) > 0 ? `${fmtNum(num0(d.sqft), 0)} sq ft`
+    : num0(d.landSqft) > 0 ? `${fmtNum(num0(d.landSqft), 0)} sq ft of land` : null;
+  return [[d.district, town].filter(Boolean).join(', '), d.propertyType, size].filter(Boolean).join(' · ');
+}
+/* Whether a column holds figures a scenario would add to its property: moved
+   in the lab, a lab copy, or the calculator's unsaved changes, and not the
+   property as saved. labCommits offers its Save on the same test. */
+function labCanSave(lab, col) {
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (!rec) return false;
+  const differs = Object.keys(pmDiff(pmBare(col.work), pmInputsOf(rec))).length > 0;
+  const kind = labSourceKind(col);
+  return differs && (labMoveCount(col) > 0 || kind === 'variant' || kind === 'current');
+}
+const labScenarioNaming = (lab, col, at = null) => {
+  const rec = pmFind(lab.model);
+  return { kind: 'scenario', at, value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(rec)), pmInputsOf(rec)) || `Scenario ${(rec.scenarios || []).length + 1}` };
+};
+/* THE IDENTITY LINE. The name — "Sample deal — not a real listing", or the
+   property's — with its place, type and size; Save as the page's one
+   primary button; and the regulated claim and the lab's own, whole at
+   every width: "Not a valuation" leads, and the reader is never left to
+   find it under the figures. */
+function labIdentity(P, lab, status) {
+  const d = labSubjectInputs(lab);
+  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
+  P.els.idAct = labIdentityAct(P, lab);
+  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, d ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d)) : null]));
+  P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
+  box.append(P.els.idForm);
+  box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
+    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM}`)]));
+  return box;
+}
+/* Save, as what it saves: the deal as a property until it is one, then the
+   column the sliders move as a scenario of it — where that would differ
+   from what is saved. Nothing to save, nothing to press. */
+function labIdentityAct(P, lab) {
+  const col = labActive(lab);
+  const box = el('div', { class: 'lab-id-act' });
+  const id = labId(P, 'id-save');
+  /* While its name is asked for, under the line, the form's Save is the
+     one to press: one primary, not two. */
+  if (lab.naming?.at === 'identity') return box;
+  if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property'));
+  else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
+    `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
+  else box.append(el('span', { class: 'lab-id-saved' }, 'Saved in this browser'));
+  return box;
+}
+/* THE FOUR TILES. Three of the chain's own figures (LAB_FIGURES: the same
+   reading, format and note as its rows, so a tile and a row cannot word or
+   compute one differently), each with what it rests on — today's evidence
+   words until the badge set lands (plan 3.7): "Illustrative default" while
+   any figure it is worked from is still the tool's seeded one, else the
+   weakest evidence among them — and the next step. */
+const LAB_TILES = [
+  { key: 'safeCashRequired', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
+  { key: 'cashflowMonthly', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'netYield', rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
+];
+function labTileKind(d, rests) {
+  const keys = rests.filter(k => propertyInputApplies(d, k));
+  if (keys.some(k => inputIsSeeded(d, k))) return { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
+  const weakest = keys.filter(k => evidenceDriversFor(d).includes(k)).map(k => evidenceOf(shownEvidence(d, k))).sort((a, b) => a.rank - b.rank)[0];
+  return weakest ? { kind: weakest.id, words: weakest.label } : { kind: 'user', words: evidenceOf('user').label };
+}
+const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
+function labTiles(P, lab) {
+  const d = labSubjectInputs(lab);
+  const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
+  const rec = lab.model ? pmFind(lab.model) : null;
+  const grid = el('div', { class: 'lab-tiles', role: 'list', 'aria-label': rec ? `“${rec.name}” as saved` : 'The deal on the calculator' });
+  for (const t of LAB_TILES) {
+    const f = LAB_FIGURES.find(x => x.key === t.key);
+    const v = run ? f.read(run.m, d) : null;
+    const kind = d ? labTileKind(d, t.rests) : { kind: 'unavailable', words: 'Unavailable' };
+    grid.append(el('div', { class: 'lab-tile', role: 'listitem', data: { tile: t.key } }, [
+      el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, f.label(d)), ' ', labTag(kind)]),
+      el('p', { class: `lab-tile-val num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-value': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v)),
+      el('p', { class: 'lab-tile-sub' }, run ? (f.note(run.m, d) || '') : 'Needs a purchase price'),
+    ]));
+  }
+  grid.append(labNextTile(P, lab, d));
+  return grid;
+}
+/* NEXT STEP: the first figure still the tool's (the review queue's order,
+   the one that moves the most first), entered where figures become the
+   reader's — the calculator, at its box; then Save; then Compare. Only for
+   the calculator's own deal: a saved property opened by a link while
+   another deal is on the calculator would open the wrong one there. */
+/* The figure in a word or two: the tile is half a phone's width. */
+const LAB_NEXT_NOUN = { price: 'price', rent: 'rent', sqft: 'built-up area', maintenance: 'maintenance', ratePct: 'rate', vacancyPct: 'vacancy',
+  downPct: 'deposit', apprecPct: 'growth rate', tenureYears: 'loan tenure', holdYears: 'holding period' };
+function labNextTile(P, lab, d) {
+  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+  const q = d && onCalc ? propertyReviewQueue(d) : [];
+  const id = labId(P, 'next-go');
+  let kind, act, sub;
+  if (q.length) {
+    const f = q[0], path = `/property/calculator#d-${f.k}`;
+    kind = { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
+    act = el('a', { class: 'lab-next-go', id, href: href(path), onclick: (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path);
+    } }, [`Replace the ${LAB_NEXT_NOUN[f.k] || f.label.toLowerCase()}`, el('span', { class: 'sr-only' }, ` — the sample ${f.label.toLowerCase()}, in the calculator`)]);
+    sub = `The sample’s: ${isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'}`;
+  } else if (!lab.model) {
+    kind = { kind: 'unsaved', words: 'Not saved' };
+    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property');
+    sub = 'Then compare its scenarios';
+  } else {
+    kind = { kind: 'saved', words: 'Saved' };
+    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => {
+      const r = P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
+      if (!r) return;
+      r.closest('.lab-cmp-card')?.scrollIntoView({ block: 'start' });
+      r.focus({ preventScroll: true });
+    } }, 'Compare scenarios');
+    sub = 'A, B and C side by side, below';
+  }
+  return el('div', { class: 'lab-tile lab-tile-next', role: 'listitem', data: { tile: 'next', kind: kind.kind } }, [
+    el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, 'Next step'), ' ', labTag(kind)]),
+    el('p', { class: 'lab-tile-val lab-next-what' }, act),
+    el('p', { class: 'lab-tile-sub' }, sub),
+  ]);
 }
 
 /* "Sliders move": which column the knobs set. Radios, so the arrow keys
@@ -43388,6 +43599,18 @@ function labColumnPicker(P, lab) {
     ]));
   }
   fs.append(row);
+  /* WHAT A MOVE BECOMES, said from the first drawing beside the columns it
+     is about (labPaintPanel). It stood across the page above the sliders,
+     a line of its own; on a phone it now shares the strip's line, which
+     its legend leaves to the ear there — "Sliders move B." starts it,
+     for the eye only (styles.css) — and the first slider is on the first
+     screen under the four figures (N3, mobile.mjs n3-first-view). */
+  const say = el('span', { class: 'lab-moved-say' }, '');
+  const moved = el('p', { class: 'lab-moved-line', id: labId(P, 'unsaved') }, el('span', { class: 'lab-moved-in' }, [
+    el('strong', { class: 'lab-moved-who', 'aria-hidden': 'true' }, `Sliders move ${lab.active}. `), say]));
+  P.els.unsaved = moved;
+  P.els.unsavedSay = say;
+  fs.append(moved);
   return fs;
 }
 /* "Input": on a phone one knob at a time, chosen here; from 600px wide all
@@ -43703,9 +43926,16 @@ function labChain(P, lab, col) {
   const letter = el('span', { class: 'lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
   const verdict = el('span', { class: 'lab-grade-verdict' }, '');
   const gate = el('p', { class: 'metaline lab-grade-gate' }, '');
-  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate);
+  /* WHY THE LETTER, A TAP AWAY (N3): every gate the grade has, worst first,
+     with who confirms each, and the score it is not. Written while open. */
+  const whyLetter = el('span', {}, '');
+  const why = el('details', { class: 'lab-grade-why', id: labId(P, 'grade-why') }, [
+    el('summary', { class: 'lab-grade-why-sum' }, ['Why ', whyLetter]),
+    el('div', { class: 'lab-grade-why-body' })]);
+  why.addEventListener('toggle', () => { if (why.open) labPaintPanel(P); });
+  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate, why);
   card.append(grade);
-  P.els.grade = { letter, verdict, gate };
+  P.els.grade = { letter, verdict, gate, why, whyLetter, whyBody: why.lastChild };
   /* What the figures rest on (§6.3), from the column's own inputs. */
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
@@ -44069,14 +44299,18 @@ function labCommits(P, lab, col) {
      button and its toast alike — where it marks any: a column with nothing
      moved in the lab commits figures already as they were marked. */
   const yours = labMarked(col).length ? ' — the moved figures become yours' : '';
+  /* The page's one primary is the identity line's Save (N3): here, under
+     the figures, the same save is offered again, quieter. A panel with no
+     identity line (the map's) keeps it primary. */
+  const keepCls = P.compact ? 'btn-primary' : 'btn-ghost';
   if (rec) {
-    acts.append(el('button', { type: 'button', class: 'btn btn-primary', id: labId(P, 'save'), disabled: canSave ? null : '',
-      onclick: () => labNaming(P, lab, { kind: 'scenario', value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(pmFind(lab.model))), pmInputsOf(pmFind(lab.model))) || `Scenario ${(pmFind(lab.model).scenarios || []).length + 1}` }) },
+    acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save'), disabled: canSave ? null : '',
+      onclick: () => labNaming(P, lab, labScenarioNaming(lab, col)) },
       `Save ${col.key} as a scenario${yours}`));
     if (kind === 'sc' && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
       `Update scenario “${col.name}”${yours}`));
   } else {
-    acts.append(el('button', { type: 'button', class: 'btn btn-primary', id: labId(P, 'save-first'),
+    acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
       onclick: () => labNaming(P, lab, { kind: 'property', value: pmNameOf(State.deal) }) }, 'Save this property first'));
   }
   acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
@@ -44084,7 +44318,9 @@ function labCommits(P, lab, col) {
   acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: labId(P, 'clear'), disabled: n ? null : '', onclick: () => labClear(P, lab, col) },
     `Clear ${col.key}’s moves`));
   card.append(acts);
-  if (lab.naming) card.append(labNameForm(P, lab, col));
+  /* The name is asked for where its Save was pressed: here, or under the
+     identity line (labIdentity). */
+  if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
   const why = [];
   if (!rec) why.push(`A scenario belongs to a saved property. “Save this property first” saves the deal on the calculator as a property — then ${col.key} can be saved as its scenario.`);
   else if (!canSave) why.push(differs ? `${col.key} is saved already, as “${col.name}” — move a figure to save a new scenario, or to update this one.`
@@ -44140,8 +44376,8 @@ function labNameForm(P, lab, col) {
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
-        const back = isProp ? 'save-first' : 'save';
-        lab.naming = null; labDraw(P, labId(P, back));
+        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isProp ? 'save-first' : 'save'];
+        lab.naming = null; labDraw(P, back.map(x => labId(P, x)));
       } }, 'Cancel'),
     ]));
   return form;
@@ -44154,6 +44390,7 @@ function labNameForm(P, lab, col) {
    copy of a moved column lost what it had copied and went on calling
    itself "Copy of A" (the verification of 4 Oct 2026, F4). */
 function labSaveProperty(P, lab, name) {
+  const fromId = lab.naming?.at === 'identity';
   const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
   if (!rec) return;
   const moved = lab.cols.map(c => ({ key: c.key, moves: { ...c.moves }, name: c.name, source: c.source, of: c.of, baseInputs: c.baseInputs, inherited: c.inherited || {} }));
@@ -44169,8 +44406,9 @@ function labSaveProperty(P, lab, name) {
   if (P.key === lab.key) P.key = next.key;
   if (labSubject === lab.key) labSubject = next.key;
   /* The keyboard on the next thing to do with the column, which the
-     property's save leaves enabled. */
-  labDraw(P, [labId(P, 'save'), labId(P, 'open')]);
+     property's save leaves enabled — beside the identity line where the
+     save was asked for there. */
+  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'save'), labId(P, 'open')]);
   labAfterStructure(P, next, { address: true });
 }
 function labCommitScenario(P, lab, name) {
@@ -44181,6 +44419,7 @@ function labCommitScenario(P, lab, name) {
   const overrides = pmDiff(next, pmInputsOf(rec));
   if (!Object.keys(overrides).filter(k => k !== 'touched').length) { toast(`${col.key} holds the inputs “${rec.name}” is saved with — move a figure first.`); return null; }
   const yours = labYoursWords(col);
+  const fromId = lab.naming?.at === 'identity';
   const sc = pmAddScenario(rec.id, overrides, String(name || '').trim() || `Scenario ${(rec.scenarios || []).length + 1}`);
   if (!sc) { toast(STORE_REFUSED); return null; }
   /* The calculator's comparison shows it beside the columns already here. */
@@ -44192,7 +44431,7 @@ function labCommitScenario(P, lab, name) {
   lab.naming = null;
   /* Saved, the button that saved it is disabled: the keyboard goes to the
      next thing to do with the column, not to <body>. */
-  labDraw(P, [labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
   labAfterStructure(P, lab, { address: true });
   toast(`Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
   return sc;
@@ -44363,6 +44602,23 @@ function labPaintPanel(P, { initial = false } = {}) {
     labAttr(P.els.grade.letter, 'data-value', g?.grade || '');
     labText(P.els.grade.verdict, g ? g.verdict : 'Needs a purchase price');
     labText(P.els.grade.gate, worst ? `${g.gates.length} gate${g.gates.length === 1 ? '' : 's'}; the most serious: ${worst.text}` : g ? 'No gate is open.' : '');
+    labText(P.els.grade.whyLetter, g?.grade || 'there is no grade');
+    if (initial || P.els.grade.why.open) {
+      const rank = { critical: 0, serious: 1, warning: 2 };
+      const gates = g ? [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3)) : [];
+      const score = !g ? 'No grade: the column needs a purchase price.'
+        : `${!isNum(g.score) ? 'Not scored' : g.grade === 'U' ? `Model score ${g.score}/100 — not carried into a grade` : `Score ${g.score}/100`}, on ${fmtPct(g.coverage * 100, 0)} of the framework’s weight. `
+          + 'A research grade on the evidence entered: not a bank decision, not a valuation and not legal clearance. How it is reached, pillar by pillar, is in the calculator.';
+      const sig = JSON.stringify([score, gates.map(x => [x.severity, x.text, x.who || ''])]);
+      if (P.els.grade.whyAt !== sig) {
+        P.els.grade.whyAt = sig;
+        P.els.grade.whyBody.replaceChildren(
+          gates.length ? el('ul', { class: 'lab-grade-gates' }, gates.map(x => el('li', { data: { severity: x.severity } }, [
+            x.severity === 'critical' ? el('span', { class: 'chip chip-bronze' }, 'Blocking') : null, x.severity === 'critical' ? ' ' : null,
+            x.text + (x.who ? ` Confirm with: ${x.who}.` : '')]))) : el('p', { class: 'metaline' }, g ? 'No gate is open.' : ''),
+          el('p', { class: 'metaline lab-grade-score' }, score));
+      }
+    }
   }
   /* What moved, what the figures rest on. */
   if (P.els.movedBy) {
@@ -44401,12 +44657,12 @@ function labPaintPanel(P, { initial = false } = {}) {
      anchor the scroll (Safari), the slider and all seven results dropped
      43px under the finger at 360 (the re-verification of 4 Oct 2026). It now
      stands from the first drawing, saying what happens to a move before
-     there is one, and holds two lines' room on a phone (styles.css). */
+     there is one, and holds its room on a phone (styles.css). */
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
     const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
       : 'Moves you make here are kept until you close or reload this tab.';
-    labText(P.els.unsaved, s);
+    labText(P.els.unsavedSay, s);
     P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
   /* What follows the moves: the baseline's name, the links to where a
@@ -44418,10 +44674,12 @@ function labPaintPanel(P, { initial = false } = {}) {
   (P.els.where || []).forEach(n => { n.hidden = labMoveCount(col) > 0; });
   const sig = labCardSig(lab);
   if (!initial && sig !== P.cardSig && P.els.colsCard?.isConnected) {
-    const had = document.activeElement && (P.els.colsCard.contains(document.activeElement) || P.els.commitCard.contains(document.activeElement)) ? document.activeElement.id : null;
+    const had = document.activeElement && [P.els.colsCard, P.els.commitCard, P.els.idAct].some(n => n?.contains(document.activeElement)) ? document.activeElement.id : null;
     const cc = labColumnsCard(P, lab), cm = labCommits(P, lab, col);
     P.els.colsCard.replaceWith(cc); P.els.commitCard.replaceWith(cm);
     P.els.colsCard = cc; P.els.commitCard = cm; P.cardSig = sig;
+    /* The identity line's Save offers what the commit card's does. */
+    if (P.els.idAct?.isConnected) { const a = labIdentityAct(P, lab); P.els.idAct.replaceWith(a); P.els.idAct = a; }
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
   /* The comparison: in place while its shape holds, drawn again when not. */
@@ -44488,15 +44746,22 @@ function labRefresh() {
 }
 
 /* ---------------------------------------------------------------- the page */
+/* /property AND /property/lab (N3, the owner's decision D18). Property's
+   landing opens the Lab on the calculator's deal, in the order a reader
+   decides in: which property this is, its four figures, the five sliders,
+   what they move, A, B and C side by side, then keeping one. The Start here
+   panel (startHereFor) and the head's second line went: a reader met about
+   180 words before the first control, 150 of them prose. What the second
+   line said — moves are what-ifs, kept in this tab until saved — the line
+   above the sliders says from the first drawing (labPaintPanel). */
 VIEWS.propertyLab = () => {
   labArrive();
   const wrap = el('div', { class: 'lab-page' });
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
-  wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'),
-    lede: 'Move price, deposit, rate, rent and renovation, and every figure below is worked out again by the calculator’s own model — for up to three scenarios side by side.',
-    note: 'Moves are what-ifs, kept in this tab until you save one as a scenario or open it in the calculator.' }));
+  wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
+    lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   return wrap;
@@ -52524,7 +52789,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","scanner":"Scanner: build, save and evaluate a setup","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","scanner":"Scanner: build, save and evaluate a setup","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
@@ -54071,7 +54336,7 @@ $('#disclosureMore')?.addEventListener('click', (e) => {
 const LEGACY_VIEW_PATH = {
   home: '/app', discover: '/discover', compare: '/compare', thesis: '/my/theses',
   portfolio: '/my/portfolio', alerts: '/my/alerts', tracked: '/my/tracked',
-  property: '/property', learn: '/learn', plans: '/pricing',
+  property: '/property/calculator', learn: '/learn', plans: '/pricing',
 };
 
 function fromHash() {
@@ -54123,7 +54388,7 @@ const DOCKS = {
       (b.severity === 'critical') - (a.severity === 'critical'))[0];
     const queue = propertyReviewQueue(d);
     /* A safe cash with a cost line unpriced is a total so far, and the dock
-       says so as the capstrip, the tile and the decision record do. With the
+       says so as the tile and the decision record do. With the
        reserve unpriced (a loan tenure of 0) it read "RM121.8k Safe cash" as
        the whole answer under a strip reading "So far — a line is unpriced". */
     const short = (m.missingCostLines || []).length > 0;

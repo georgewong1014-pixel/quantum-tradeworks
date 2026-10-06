@@ -1245,14 +1245,6 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
    for anyone who selects or searches it, and it returns in full above 760px
    where there is room for it. Nothing that a reader must not miss lives here —
    the refusals, gates and provenance notes are on the cards themselves. */
-/* The three figures that decide whether a reader can do the deal at all, across
-   the top of the grade card. Three columns on a phone, because two of them
-   wrapping under the third would put the holding cost back below the fold. */
-.capstrip {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--md);
-  padding-bottom: var(--md); border-bottom: 1px solid var(--line);
-}
-@media (max-width: 420px) { .capstrip { gap: var(--sm); } .capstrip .num { font-size: 16px !important; } }
 
 @media (max-width: 760px) {
   .page-hd { margin-bottom: var(--md); }
@@ -3546,6 +3538,41 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pc-sec-hd .h-section:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
 .pc-contract { margin: 4px 0 0; max-width: 78ch; font-size: var(--text-body); line-height: 1.55; color: var(--ink-2); }
 .pc-contract-k { font-weight: var(--weight-semibold); color: var(--ink); }
+
+/* THE CALCULATOR'S DRAWERS (N3, the owner's decision D18). Its top was the
+   model's method before its money: what it models, how the grade is
+   reached, every blocker, where the cash goes, the Summary table and what
+   each section asks. Each is a drawer now, closed, its name the one line
+   in sight — a chevron that turns, a 44px target where a finger is the
+   pointer — and the figures, the worst blocker and the disclosures stand. */
+.pc-more { margin-top: var(--sm); min-width: 0; }
+.pc-more-sum { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; max-width: 100%;
+  font-size: 13px; line-height: 18px; font-weight: 600; color: var(--ink-2); cursor: pointer; list-style: none;
+  transition: color 160ms ease; }
+.pc-more-sum::-webkit-details-marker { display: none; }
+.pc-more-sum::before { content: "›"; content: "›" / ""; display: inline-block; width: 10px; flex: none; text-align: center; color: var(--ink-3); transition: transform 160ms ease; }
+.pc-more[open] > .pc-more-sum::before { transform: rotate(90deg); }
+.pc-more-sum:hover { color: var(--ink); }
+.pc-more-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.pc-more-body { margin: 4px 0 0 16px; max-width: 76ch; font-size: var(--text-sm); line-height: 1.55; color: var(--ink-2); }
+.pc-more-page { margin: calc(-1 * var(--sm)) 0 var(--md); }
+.pc-contract-more { margin: 0; }
+.pc-contract-more > .pc-contract { margin-left: 16px; }
+.pc-summary > .pc-more-sum { color: var(--ink); }
+/* The worst blocker, one line, in sight; the rest are its drawer. */
+.pc-worst { display: flex; align-items: center; gap: 8px; margin: var(--md) 0 0; min-width: 0; font-size: 13px; line-height: 20px; }
+.pc-worst > .chip { flex: none; }
+.pc-worst-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+/* What a link carries, behind the ⓘ beside "Copy a link". */
+.pc-tip { width: 32px; min-width: 32px; padding: 0; justify-content: center; color: var(--ink-2); }
+.pc-tip[aria-expanded="true"] { color: var(--brand); }
+.pc-tip-i { display: inline-flex; }
+.pc-tip-body { margin: -4px 0 10px; max-width: 72ch; }
+@media (pointer: coarse), (max-width: 768px) {
+  .pc-more-sum { min-height: 44px; }
+  .pc-tip { width: 44px; min-width: 44px; min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .pc-more-sum::before, .pc-more-sum { transition: none; } }
 .pc-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
 /* A stuck column rests under the index as well as the bar. */
 .pc-sec .rail-sticky { top: calc(var(--topbar-live, var(--topbar-h)) + var(--pc-index-h) + 12px); }
@@ -4534,10 +4561,142 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 /* Said from the first drawing (labPaintPanel): what a move becomes, then the
    moves not saved. Two lines' room below a 960px panel, where either can
    wrap, so the line growing at the first tick moves nothing under it. */
-.lab-moved-line { font-size: 12px; line-height: 18px; color: var(--ink-2); }
+/* Under the column strip, two lines' room at every width (the column of
+   knobs is 360px wide from a 960px panel). On a phone it shares the strip's
+   line: the strip as wide as its letters, the line beside it in three lines'
+   room, led by what the legend says (for the ear there, and for the eye
+   above the strip from 600px). */
+.lab-moved-line { margin: 6px 0 0; min-height: 36px; font-size: 12px; line-height: 18px; color: var(--ink-2); }
 .lab-moved-line.is-unsaved { font-weight: 600; color: var(--bronze); }
-@container lab (max-width: 959px) { .lab-moved-line { min-height: 36px; } }
+.lab-moved-who { display: none; font-weight: 700; color: var(--ink); }
+@container lab (max-width: 599px) {
+  .lab-pick-cols { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; }
+  .lab-pick-cols > .lab-legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .lab-pick-cols > .lab-seg { justify-self: start; }
+  .lab-pick-cols > .lab-moved-line { display: flex; align-items: center; margin: 0; min-height: 44px; font-size: 11.5px; line-height: 14.5px; }
+  .lab-moved-who { display: inline; }
+}
+@media (max-width: 662px) {
+  :root[data-served] .lab-pick-cols { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; }
+  :root[data-served] .lab-pick-cols > .lab-legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  :root[data-served] .lab-pick-cols > .lab-seg { justify-self: start; }
+  :root[data-served] .lab-pick-cols > .lab-moved-line { display: flex; align-items: center; margin: 0; min-height: 44px; font-size: 11.5px; line-height: 14.5px; }
+  :root[data-served] .lab-moved-who { display: inline; }
+}
 .lab-note-warn { color: var(--bronze); font-weight: 600; }
+
+/* THE PAGE'S HEADER (N3, the owner's decision D18): which property, then its
+   four figures, before any control. The identity line is the page's one
+   primary action beside its name, and the regulated claim under it, whole at
+   every width; the tiles are a figure each, what it rests on and its note.
+   A phone has the name, the place, Save, the claim, the four tiles two by
+   two and the first slider in one 390×844 screen (mobile.mjs, n3-first-view). */
+.lab-identity { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* The name and Save on one line, the place under the name: under both on a
+   phone, where the name takes what Save leaves it. */
+.lab-status.lab-id-name { max-width: none; font-size: 16px; line-height: 22px; color: var(--ink); text-wrap: balance; }
+.lab-id-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name act" "meta meta"; align-items: center; gap: 2px 12px; min-width: 0; }
+.lab-id-top > .lab-id-name { grid-area: name; }
+.lab-id-top > .lab-id-act { grid-area: act; }
+.lab-id-top > .lab-id-meta { grid-area: meta; }
+@container lab (min-width: 600px) { .lab-id-top { grid-template-areas: "name act" "meta act"; column-gap: 24px; } .lab-status.lab-id-name { font-size: 18px; line-height: 24px; } }
+@media (min-width: 663px) { :root[data-served] .lab-id-top { grid-template-areas: "name act" "meta act"; column-gap: 24px; } :root[data-served] .lab-status.lab-id-name { font-size: 18px; line-height: 24px; } }
+.lab-id-name strong { font-weight: 700; }
+.lab-id-meta { margin: 1px 0 0; font-size: 13px; line-height: 18px; color: var(--ink-2); }
+.lab-id-act { flex: none; display: flex; align-items: center; }
+.lab-id-act .btn { white-space: nowrap; }
+.lab-id-saved { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  color: var(--ok-text); background: color-mix(in srgb, var(--ok) 10%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent); }
+.lab-id-form:empty { display: none; }
+.lab-id-form .lab-name-form { margin-top: 0; }
+/* The chip in the sentence's first line, not on a line of its own. */
+.lab-claim.lab-id-claim { display: block; max-width: 96ch; }
+.lab-id-claim > .chip { margin-right: 4px; vertical-align: 1px; }
+
+.lab-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 4px; min-width: 0; }
+.lab-tile { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 10px 12px 11px;
+  border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent); }
+.lab-tile-hd { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 6px; margin: 0; min-width: 0; }
+.lab-tile-label { font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.lab-tile-kind { font-size: 10.5px; line-height: 16px; padding: 0 6px; white-space: nowrap; }
+.lab-tile-val { margin: 6px 0 0; font-size: 20px; line-height: 24px; font-weight: 700; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lab-tile-val.neg { color: var(--dn-text); }
+.lab-tile-sub { margin: 2px 0 0; font-size: 12px; line-height: 16px; color: var(--ink-2); }
+/* The next step is one target, the whole tile: its link or button reaches
+   over it (::after), and the tile wears the ring. */
+.lab-tile-val.lab-next-what { font-size: 15px; line-height: 20px; white-space: normal; }
+.lab-next-go { display: inline; padding: 0; margin: 0; border: 0; background: none; font: inherit; font-weight: 700; text-align: left;
+  color: var(--brand); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+.lab-next-go::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.lab-next-go:focus-visible { outline: none; }
+.lab-tile-next { transition: border-color 160ms ease, box-shadow 160ms ease; }
+.lab-tile-next:hover { border-color: var(--line-2); box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--ink) 30%, transparent); }
+.lab-tile-next:hover .lab-next-go { text-decoration-thickness: 2px; }
+.lab-tile-next:has(.lab-next-go:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+@container lab (min-width: 760px) {
+  .lab-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .lab-tile { padding: 12px 14px 13px; }
+  .lab-tile-val { font-size: 22px; line-height: 28px; }
+}
+/* Served, by the window: a 760px panel from an 823px window, and from 1103px
+   once the 264px sidebar stands (the panel's sum, below). */
+@media (min-width: 823px) and (max-width: 1023px), (min-width: 1103px) {
+  :root[data-served] .lab-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  :root[data-served] .lab-tile { padding: 12px 14px 13px; }
+  :root[data-served] .lab-tile-val { font-size: 22px; line-height: 28px; }
+}
+/* ON A PHONE the header is set a step tighter, every word kept: the four
+   figures two by two, the claim at the caption's size, and the eyebrow —
+   the product's name, which the product's header names just above it —
+   kept for the ear only. */
+@container lab (max-width: 599px) {
+  .lab-hd { margin-bottom: var(--xs); gap: 4px; }
+  .lab-inputs { gap: 4px; }
+  .lab-tile-kind { font-size: 10px; line-height: 13px; }
+  .lab-identity { gap: 4px; }
+  .lab-claim.lab-id-claim { font-size: 12px; line-height: 17px; }
+  .lab-id-claim > .chip { height: 17px; padding: 0 6px; font-size: 11px; vertical-align: 0; }
+  .lab-tiles { gap: 6px; }
+  .lab-tile { padding: 6px 10px 7px; }
+  .lab-tile-label { font-size: 10.5px; line-height: 14px; letter-spacing: .05em; }
+  .lab-tile-val { margin-top: 2px; font-size: 18px; line-height: 20px; }
+  .lab-tile-sub { font-size: 11.5px; line-height: 14px; }
+  .lab-status.lab-id-name { font-size: 15px; line-height: 20px; }
+  .lab-tile-val.lab-next-what { font-size: 14px; line-height: 18px; }
+}
+@media (max-width: 662px) {
+  :root[data-served] .lab-hd { margin-bottom: var(--xs); gap: 4px; }
+  :root[data-served] .lab-inputs { gap: 4px; }
+  :root[data-served] .lab-tile-kind { font-size: 10px; line-height: 13px; }
+  :root[data-served] .lab-identity { gap: 4px; }
+  :root[data-served] .lab-claim.lab-id-claim { font-size: 12px; line-height: 17px; }
+  :root[data-served] .lab-id-claim > .chip { height: 17px; padding: 0 6px; font-size: 11px; vertical-align: 0; }
+  :root[data-served] .lab-tiles { gap: 6px; }
+  :root[data-served] .lab-tile { padding: 6px 10px 7px; }
+  :root[data-served] .lab-tile-label { font-size: 10.5px; line-height: 14px; letter-spacing: .05em; }
+  :root[data-served] .lab-tile-val { margin-top: 2px; font-size: 18px; line-height: 20px; }
+  :root[data-served] .lab-tile-sub { font-size: 11.5px; line-height: 14px; }
+  :root[data-served] .lab-status.lab-id-name { font-size: 15px; line-height: 20px; }
+  :root[data-served] .lab-tile-val.lab-next-what { font-size: 14px; line-height: 18px; }
+}
+@media (max-width: 599px) {
+  .lab-page-hd .eyebrow, .lab-page-hd .page-lede { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .page-hd.lab-page-hd { margin-bottom: var(--xs); }
+  .view:has(> .shell > .lab-page) { padding-top: var(--xs); }
+  .shell:has(> .lab-page) > .journey-line:not(:empty) { margin-bottom: 4px; }
+}
+/* The grade's reasons, a tap away. */
+.lab-grade-why { margin-top: 4px; }
+.lab-grade-why-sum { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; font-size: 13px; font-weight: 600; color: var(--brand); cursor: pointer; list-style: none; }
+.lab-grade-why-sum::-webkit-details-marker { display: none; }
+.lab-grade-why-sum::after { content: "›"; content: "›" / ""; display: inline-block; transition: transform 160ms ease; color: var(--ink-3); }
+.lab-grade-why[open] > .lab-grade-why-sum::after { transform: rotate(90deg); }
+.lab-grade-why-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+.lab-grade-gates { margin: 4px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+.lab-grade-gates > li + li { margin-top: 4px; }
+.lab-grade-score { margin-top: 6px; line-height: 1.5; }
+@media (pointer: coarse), (max-width: 768px) { .lab-grade-why-sum { min-height: 44px; } }
 .lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
 .lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
 .lab-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
@@ -4838,7 +4997,7 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 /* With no script the lab is a page of the sample's figures: the pickers,
    the boxes and the commits need the script, and are not offered. */
 @media (scripting: none) {
-  .lab .lab-pick, .lab .lab-num, .lab .lab-ticks, .lab .lab-cols-card, .lab .lab-commit, .lab .lab-about-btn { display: none !important; }
+  .lab .lab-pick, .lab .lab-num, .lab .lab-ticks, .lab .lab-cols-card, .lab .lab-commit, .lab .lab-about-btn, .lab .lab-id-act { display: none !important; }
   /* With no picker, every knob is shown, at every width; with no "About",
      its words are. */
   .lab .lab-knob { display: block !important; }

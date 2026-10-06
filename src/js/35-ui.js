@@ -404,6 +404,14 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 /* The badge a product wears, with its note as the title. It is an element,
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
+/* THE HOOK FOR D17 (N2a, the 5 Oct audit; not built yet). Property's badge
+   is to read "Live · Your figures, sample to start" wherever it appears — the
+   tab row above /property's Scenario Lab, the header's Products menu, the
+   phone sheet, the footer, /how-it-works, /about, /status and the homepage
+   card. Here is the one place to draw it: a `qualifier` on the product's
+   PRODUCTS row, drawn by this function as visible text beside the badge's
+   word, never in its title. /property's identity line (82-property-lab.js)
+   carries no badge of its own, so nothing there changes when it lands. */
 function productBadge(id) {
   const p = productById(id);
   if (!p) return null;
@@ -883,11 +891,11 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    among them (Release B): it drew them as a strip of its own inside each of
    its pages, and now wears the row the other two products wear.
 
-   Property has no Overview tab. /property and /property/calculator are one
-   view — the calculator, whose canonical address is /property — so an
-   "Overview" beside "Calculator" would be two names for the same page, the
-   second one promising a summary that does not exist. The row gains it when
-   a Property overview is built (docs/route-map.md). */
+   Property has no Overview tab. /property, the product's landing, opens the
+   Scenario Lab on the calculator's deal (N3, the owner's decision D18), so
+   the "Scenario Lab" tab is current there as on /property/lab; the
+   calculator is /property/calculator, a page of its own. An "Overview"
+   beside them would be a third name for one of the two (docs/route-map.md). */
 /* Read from the registry (TOOLS, above): the tools of the product marked as
    tabs and in this build, in the registry's order — so a tab's name, its
    address and its badge cannot differ from How it works or the dashboard,
@@ -1146,7 +1154,14 @@ const ROUTES = [
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
-  { path: '/property',            view: 'property',  title: 'Property' },
+  /* /PROPERTY OPENS THE SCENARIO LAB (N3, the owner's decision D18). The
+     product's landing is the Lab on the calculator's deal — the sample on a
+     first visit — so it is the Lab's canonical address, and /property/lab,
+     which stays, names it. The calculator is /property/calculator, its own
+     canonical now. A link to the calculator written before — /property
+     with the deal's ?city, ?district, ?type or ?d=, or a section's #hash —
+     is still the calculator's (calculatorLegacy, below). */
+  { path: '/property',            view: 'propertyLab', title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/models',     view: 'propertyModels', title: 'My properties' },
   /* A saved property's client proposal (72-property-proposal.js), under My
@@ -1564,6 +1579,25 @@ function focusMain() {
 /* The views whose :id is a company. register-check's route rule reads the
    same two, so the checker and the router agree on what a path names. */
 const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
+/* A LINK TO THE CALCULATOR WRITTEN BEFORE /property OPENED THE SCENARIO LAB
+   (N3, D18). The calculator wrote its deal into its own address — ?city,
+   ?district, ?type and ?d= (syncPropertyUrl, 70-property.js) — on /property
+   as on /property/calculator, and other pages linked a section of it by its
+   #hash. Copied, bookmarked and shared, those links still mean the
+   calculator: the address becomes /property/calculator with its query and
+   its hash, in place (Back does not return to a page that only redirects).
+   The Lab's own ?model=, ?cols= and ?by= stay the Lab's. */
+const CALC_LINK_PARAMS = ['city', 'district', 'type', 'd'];
+function calculatorLegacy() {
+  const q = new URLSearchParams(location.search);
+  const hash = location.hash.replace(/^#/, '');
+  const section = /^d-[A-Za-z]+$/.test(hash) || (typeof PC_SECTIONS !== 'undefined' && PC_SECTIONS.some(s => s.id === hash));
+  if (!CALC_LINK_PARAMS.some(k => q.has(k)) && !section) return false;
+  const was = location.pathname;
+  history.replaceState(history.state, '', href('/property/calculator') + location.search + location.hash);
+  if (lastPath === was) lastPath = location.pathname;
+  return true;
+}
 function applyRoute() {
   /* And the address becomes the route's own (see matchRoute), so a link or a
      reload taken from it is the clean one. */
@@ -1571,7 +1605,8 @@ function applyRoute() {
     const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
     history.replaceState(history.state, '', href(at) + location.search + location.hash);
   }
-  const route = matchRoute(location.pathname);
+  let route = matchRoute(location.pathname);
+  if (route?.path === '/property' && calculatorLegacy()) route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
   /* A route whose view is defined in a module this build does not carry —
      How it works and the research queue arrive with their own branches — is
@@ -2774,13 +2809,14 @@ const SERVED_READS = {
   propertyModels: ['deal', 'dealBeforeLink', 'savedWork', 'startHere'],
   property: ['deal', 'dealBeforeLink', 'savedWork', 'startHere', 'observations', 'areaProfiles', 'demand', 'borrowerProfile',
     'lang', 'plan', 'propertyReportsBought'],
-  /* /property/lab: the calculator's deal and whether it is a saved property
-     (its columns come from it), the labels in the reader's language, the
-     report a figure is withheld behind and the plan that may include it,
-     the comparables the grade reads, and the Start here panel. Its
+  /* /property and /property/lab: the calculator's deal and whether it is a
+     saved property (its columns, its identity line and its four figures come
+     from it), the labels in the reader's language, the report a figure is
+     withheld behind and the plan that may include it, and the comparables
+     the grade reads — no Start here panel since N3 (startHereFor). Its
      ?model=, ?cols= and ?by= are read by the app as it draws (a page that
      does not wait: its first draw replaces the served page at once). */
-  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'startHere'],
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],

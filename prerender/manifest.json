@@ -1055,10 +1055,10 @@
     },
     "pages/property.html": {
       "path": "/property",
-      "view": "property",
+      "view": "propertyLab",
       "state": "first draw",
       "chrome": "app",
-      "h1": "Turn a property into a financial model",
+      "h1": "Scenario Lab",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -1068,18 +1068,18 @@
         ]
       },
       "inert": {
-        "buttons": 55,
-        "fields": 78,
+        "buttons": 18,
+        "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 5,
-        "now": 2,
-        "cellStops": 4,
+        "notShown": 13,
+        "now": 1,
+        "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a01e55c4a4b1e61b",
+      "digest": "5c1e50ba69b0e30d",
       "changed": "2026-10-06"
     },
     "pages/property/areas.html": {
@@ -1126,18 +1126,18 @@
         ]
       },
       "inert": {
-        "buttons": 55,
+        "buttons": 56,
         "fields": 78,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 5,
+        "notShown": 6,
         "now": 1,
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "e872d19762da2022",
+      "digest": "11f57530b53b3717",
       "changed": "2026-10-06"
     },
     "pages/property/comparables.html": {
@@ -1184,18 +1184,18 @@
         ]
       },
       "inert": {
-        "buttons": 19,
+        "buttons": 18,
         "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 11,
+        "notShown": 13,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2baf47465675e7a0",
+      "digest": "d5f7eebb400d317c",
       "changed": "2026-10-06"
     },
     "pages/property/models.html": {

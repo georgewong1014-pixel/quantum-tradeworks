@@ -82,7 +82,10 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 '/admin/scanner', '/admin/scanner/jobs', '/admin/scanner/data',
                 /* The Scenario Lab (3 Oct 2026): its sample, and the Location
                    comparison, the one view of facts in sentences. */
-                '/property/lab', '/property/lab?by=location'];
+                '/property/lab', '/property/lab?by=location',
+                /* Property's landing, the Lab with its identity line and four
+                   tiles over the sliders (N3, D18). */
+                '/property'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -922,7 +925,7 @@ for (const w of [360, 390]) {
   const PUBLIC = ['/', '/pricing', '/about', '/contact', '/privacy', '/terms', '/learn', '/learn/glossary', '/methodology', '/data-sources',
     '/corrections', '/learn/product-boundaries', '/status', '/methodology/ips', '/no-such-page'];
   const APP = ['/app', '/research', '/discover/screener', '/discover/value-map', '/compare', '/discover/sarawak', '/us-options/wheel',
-    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/areas',
+    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/calculator', '/property/areas',
     '/my/watchlists', '/my/alerts', '/my/workspace', '/my/data', '/my/portfolio', '/decision-record', '/welcome', '/start'];
   const chromeProbe = (paths) => `(async () => {
     const shown = (s) => { const n = document.querySelector(s); return !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden'; };
@@ -1152,7 +1155,7 @@ for (const w of [360, 390]) {
     }
     /* SHELL-10 — the dock is inert behind the open drawer, and a dock drawn
        while it is open is too; closing it gives the dock back. */
-    for (const path of ['/property', '/us-options/wheel']) {
+    for (const path of ['/property/calculator', '/us-options/wheel']) {
       await load(path, 390);
       await ev(`(() => { document.getElementById('navOpen').click(); return true; })()`); await sleep(350);
       const inert = `(() => { const d = document.querySelector('body > .dock'); return d ? !!d.closest('[inert]') : 'no dock'; })()`;
@@ -2822,6 +2825,80 @@ for (const w of [360, 390]) {
   else console.log(`ok   batch1-phone: at 360×640 a 0% rate's warning stays whole and in sight and the seven results end on the screen (the last at ${said.lab.map(([f, b]) => `${b} in the ${f}`).join(', ')}); the app bar's Search word is whole or not shown, never cut, its magnifier whole and the button a 44px target (${said.search.join('; ')})`);
 }
 /* ---- end batch1-phone ---- */
+/* ---- n3-first-view ---- */
+/* /PROPERTY'S FIRST SCREEN (N3, the 5 Oct audit; the owner's decision D18).
+   Property's landing opens the Scenario Lab on the calculator's deal, and a
+   first visit sees, without scrolling, at 1440×900 and at 390×844, in the
+   page's font and in Verdana (CI's Linux sans is as wide): the identity line,
+   the four tiles — Cash required, Monthly position, Net yield, Next step —
+   and the first slider, each whole inside the window. /property served the
+   calculator, whose first field sat about 2,400px down at 1440 and 3,650px
+   at 390. On a phone the identity line's Save and the next step are 44px
+   targets, and nothing scrolls sideways. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[1440, 900], [390, 844]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      /* A first visit: nothing kept in this browser. */
+      await load('/privacy');
+      await forget();
+      const view = await load('/property');
+      if (view !== 'propertyLab') { fails.push(`${at}: /property opened ${view}, not the Scenario Lab`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(`(async () => {
+        await document.fonts.ready;
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const box = (n) => { if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+        const range = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length);
+        return { y: Math.round(scrollY), vw: innerWidth, vh: innerHeight, over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          identity: box(document.querySelector('#views .lab-identity')), name: (document.getElementById('lab-status')?.textContent || '').trim(),
+          tiles: [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: n.querySelector('.lab-tile-label')?.textContent.trim(), at: box(n) })),
+          slider: box(range), sliderOf: range?.id || null,
+          save: box(document.getElementById('lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
+          face: getComputedStyle(document.querySelector('#views .lab-tile-val') || document.body).fontFamily };
+      })()`);
+      const whole = (b) => !!b && b.t >= 0 && b.b <= r.vh && b.l >= 0 && b.r <= r.vw;
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: the tiles were drawn in ${r.face}, not Verdana`);
+      if (r.y !== 0) fails.push(`${at}: the page opened scrolled to ${r.y}px, not at its top`);
+      if (!/^Sample deal/.test(r.name)) fails.push(`${at}: the identity line reads "${r.name.slice(0, 60)}", not the sample deal's on a first visit`);
+      if (!whole(r.identity)) fails.push(`${at}: the identity line ${r.identity ? `(${r.identity.t}–${r.identity.b}px)` : '(none)'} is not whole in the first ${r.vh}px`);
+      const labels = r.tiles.map(t => t.label);
+      if (JSON.stringify(labels) !== JSON.stringify(['Cash required', 'Monthly position', 'Net yield', 'Next step'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
+      r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
+      if (!whole(r.slider)) fails.push(`${at}: the first slider${r.sliderOf ? ` (#${r.sliderOf})` : ''} ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole in the first ${r.vh}px`);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (w < 600) {
+        if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: the identity line's Save is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
+        if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
+      }
+      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
+    }
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
+}
+/* ---- end n3-first-view ---- */
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
