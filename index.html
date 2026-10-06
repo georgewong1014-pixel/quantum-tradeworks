@@ -4975,6 +4975,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    proofSection, 91-health.js). A row as a journey's: the badge, the tool's
    name and product on one line; the journey, its outcome step and the last
    result under the name on a wide screen, the whole width on a phone. */
+.proof-h { margin: var(--md) 0 0; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink); }
 .proof-list { list-style: none; padding: 0; margin: var(--sm) 0 0; }
 .proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
@@ -57172,8 +57173,7 @@ VIEWS.status = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
   ])));
-  wrap.append(healthSection());   /* Does each tool work? — 91-health.js */
-  wrap.append(proofSection());    /* What proves each Live badge (D15) — 91-health.js */
+  wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
   const key = el('div', { class: 'card' });
   /* Counted, so the sentence cannot fall behind the list it describes — it
@@ -58272,13 +58272,14 @@ function proofSection() {
   const rows = liveBadgeRows();
   const proven = rows.filter(r => r.proof), unproven = rows.filter(r => !r.proof);
   const badge = () => el('span', { class: 'status-badge status-live' }, PRODUCT_STATUS.live);
-  const card = el('section', { class: 'card', id: 'proof', 'aria-labelledby': 'proof-h' });
-  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
-    el('h2', { class: 'h-card', id: 'proof-h' }, 'What proves each Live badge'),
-    el('p', { class: 'caption', style: 'margin-top:2px;max-width:72ch' },
-      'A Live badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'),
-  ])));
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, `Proven by an outcome step — ${proven.length} of ${rows.length}`));
+  /* Inside "Does each tool work?", under the journeys it reads and above
+     the checks run in this tab — which fill in after the page is drawn, and
+     would move it. */
+  const card = el('div', { class: 'proof-block', id: 'proof' });
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Live badge'));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    'A Live badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
+  card.append(el('h4', { class: 'proof-h' }, `Proven by an outcome step — ${proven.length} of ${rows.length}`));
   card.append(el('ul', { id: 'health-proofs', class: 'proof-list' }, proven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
     badge(),
     el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
@@ -58287,7 +58288,7 @@ function proofSection() {
       el('p', { class: 'proof-last' }, [el('span', { class: 'proof-last-label' }, 'Last result: '), proofResultNode(r.proof.journey, r.proof.step)]),
     ]),
   ]))));
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, `Live, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
+  card.append(el('h4', { class: 'proof-h' }, `Live, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     unproven.length
       ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Live badge while its journey is written; until then nothing here shows that it works on the live site.'
@@ -58325,6 +58326,7 @@ function healthSection() {
     jlist.innerHTML = wasList.innerHTML;
   }
   card.append(sum, jlist);
+  card.append(proofSection());
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
