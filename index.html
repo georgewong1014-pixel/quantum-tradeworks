@@ -3634,6 +3634,14 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pc-contract-more > .pc-contract { margin-left: 16px; }
 .pc-summary > .pc-more-sum { color: var(--ink); }
 /* The worst blocker, one line, in sight; the rest are its drawer. */
+/* The grade card's four figures, the one place above the sections they are
+   said: two by two on a phone, as the strip they replaced put three across,
+   so the money and the grade share the first screen. */
+@media (max-width: 620px) {
+  .grid.g-4.pc-answers { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); }
+  .pc-answers > .panel { padding: 10px 12px; }
+  .pc-answers .stat-value { font-size: 20px; }
+}
 .pc-worst { display: flex; align-items: center; gap: 8px; margin: var(--md) 0 0; min-width: 0; font-size: 13px; line-height: 20px; }
 .pc-worst > .chip { flex: none; }
 .pc-worst-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
