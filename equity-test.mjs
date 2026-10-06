@@ -2072,6 +2072,7 @@ try {
       out.legacy = stampDiff(null, { model: MODEL_VERSION });
       out.none = stampDiff(null);
       out.work = buildStamp('property').data;
+      out.workFile = napicFile(localityDivision(State.deal.city, State.deal.district));
       return out;
     })()`);
     const p = [];
@@ -2082,8 +2083,12 @@ try {
     if (r.data.status !== 'data' || r.data.modelMoved || !/Data moved: saved against us\.json a635756/.test(r.data.text)) p.push(`data move ${JSON.stringify(r.data)}`);
     if (r.legacy.status !== 'unstamped' || r.legacy.modelMoved !== false || r.none.status !== 'unstamped') p.push('an unstamped item is not reported as such');
     /* The NAPIC file of the deal's division (plan item 1.6: one file a
-       division; the whole extract is not served), and the geography. */
-    if (!r.work['napic-h1-2025/kuching.json']?.v || !r.work['sarawak-geo.json']?.v || 'napic-h1-2025.json' in r.work) p.push(`a property snapshot does not stamp the data it reads ${JSON.stringify(r.work)}`);
+       division; the whole extract is not served), and the geography. The
+       deal is whatever the checks before left it — Sibu, on the run that
+       wrote this. */
+    const napicKeys = Object.keys(r.work).filter(k => /^napic-h1-2025/.test(k));
+    if (!/^napic-h1-2025\/[a-z-]+\.json$/.test(r.workFile || '') || napicKeys.length !== 1 || napicKeys[0] !== r.workFile || !r.work[r.workFile]?.v || !r.work['sarawak-geo.json']?.v)
+      p.push(`a property snapshot does not stamp the data it reads: ${JSON.stringify(r.work)}, where the deal's division file is ${r.workFile}`);
     if (p.length) fail('one stamp on every saved item, and stampDiff says which of model and data moved', p);
     else ok('a stamp records the model, each data file by hash and the illustrative flag; stampDiff reports a model move, a data move and an unstamped item apart');
   }
