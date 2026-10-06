@@ -994,8 +994,7 @@ VIEWS.status = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
   ])));
-  wrap.append(healthSection());   /* Does each tool work? — 91-health.js */
-  wrap.append(proofSection());    /* What proves each Live badge (D15) — 91-health.js */
+  wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
   const key = el('div', { class: 'card' });
   /* Counted, so the sentence cannot fall behind the list it describes — it

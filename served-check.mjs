@@ -1129,7 +1129,11 @@ const HOME_PAGE = read(HOME);
       if (li && (!BADGE.test(li.html) || words(li.html) !== `Live ${r.name} · ${r.of}`)) p.push(`/status: ${r.key} is not served as "Live ${r.name} · ${r.of}": "${words(li.html).slice(0, 90)}"`);
     }
   }
-  const hp = head(/>(Proven by an outcome step — \d+ of \d+)<\/h3>/), hu = head(/>(Live, and not yet proven by a journey — \d+ of \d+)<\/h3>/);
+  const hp = head(/>(Proven by an outcome step — \d+ of \d+)<\/h4>/), hu = head(/>(Live, and not yet proven by a journey — \d+ of \d+)<\/h4>/);
+  /* Under the recorded journeys it reads, above the checks run in the
+     reader's tab (which fill in after the page is drawn). */
+  const at = (s) => status.indexOf(s);
+  if (!(at('id="health-journeys"') < at('id="health-proofs"') && at('id="health-unproven"') < at('>Checked in your browser now</h3>'))) p.push('/status does not serve the Live badges between the recorded journeys and "Checked in your browser now"');
   if (hp !== `Proven by an outcome step — ${proven.length} of ${rows.length}`) p.push(`/status heads the proven badges "${hp || 'nothing'}", not "Proven by an outcome step — ${proven.length} of ${rows.length}"`);
   if (hu !== `Live, and not yet proven by a journey — ${unproven.length} of ${rows.length}`) p.push(`/status heads the unproven badges "${hu || 'nothing'}", not "Live, and not yet proven by a journey — ${unproven.length} of ${rows.length}"`);
   judge(p, `/status serves every Live badge beside what proves it (D15): ${proven.length} of ${rows.length} beside their journey's outcome step and its last recorded result, exactly the record's (${proven.map(r => r.name).join(', ')}); ${unproven.length} listed as not yet proven by a journey (${unproven.map(r => r.name).join(', ')})`,
