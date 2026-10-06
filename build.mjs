@@ -150,7 +150,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { journeysServed, ISLAND_PAGES, RECORD_FILE, ROOT_PAGES } from './journeys.mjs';
+import { journeysServed, ISLAND_PAGES, RECORD_FILE, ROOT_PAGES, JOURNEY_NAMES } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const src = (...p) => join(ROOT, 'src', ...p);
@@ -174,6 +174,9 @@ const SCRIPT_MARKER = '//@INJECT:scripts\n';
 const VERSIONS_MARKER = '/*@INJECT:dataversions*/';
 /* Where the journeys' one renderer goes into the app (91-health.js). */
 const JOURNEYS_MARKER = '/*@INJECT:journeysServed*/ null';
+/* And the journeys' names, by id (91-health.js; JOURNEY_NAMES in
+   journeys.mjs): /status names the journey that proves each Live badge. */
+const JOURNEY_NAMES_MARKER = '/*@INJECT:journeyNames*/ null';
 const CSP_MARKER = '@CSP_HASH';
 /* The first-paint script's hash (BEFORE THE FIRST PAINT, below). */
 const CSP_FIRST_MARKER = '@CSP_FIRST_HASH';
@@ -817,6 +820,15 @@ export function readRecord(root = ROOT) {
   try { return JSON.parse(lf(readFileSync(f, 'utf8'))); }
   catch { throw new Error(`${RECORD_FILE} is not JSON — the served /status and product pages cannot carry it`); }
 }
+/* A Live badge's result slot on /status, as the render serves it, and the
+   journey and step its attributes name (unescaped as the serializer escaped
+   them). */
+const PROOF_SLOT_G = /(<span class="proof-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/g;
+export function proofSlotOf(open) {
+  const attr = (n) => { const m = new RegExp(`\\b${n}="([^"]*)"`).exec(open); return m ? m[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&') : null; };
+  const journey = attr('data-proof-journey'), step = attr('data-proof-step');
+  return journey && step ? { journey, step } : null;
+}
 /* A render's #views as its page serves it: the record in its slots. Only an
    island page's render changes; each slot exactly once, or the build fails. */
 export function withServedRecord(r, served) {
@@ -830,6 +842,17 @@ export function withServedRecord(r, served) {
   if (r.path === '/status') {
     put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum, '#health-journeys-sum');
     put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
+    /* Each Live badge's last result (D15, plan item 2.6; proofSection,
+       91-health.js): every .proof-result slot, drawn empty and marked
+       data-now, gets journeysServed's proof for the journey and the step
+       its attributes name. One slot a proven badge, at least one. */
+    const slots = views.match(PROOF_SLOT_G) || [];
+    if (!slots.length) throw new Error(`${r.render} (${r.path}) carries no empty .proof-result slot marked data-now, where the build writes each Live badge's result — run node prerender.mjs, then node build.mjs`);
+    views = views.replace(PROOF_SLOT_G, (all, open, close) => {
+      const a = proofSlotOf(open);
+      if (!a) throw new Error(`${r.render} (${r.path}): a .proof-result slot names no journey and step: ${open}`);
+      return open + served.proof(a.journey, a.step) + close;
+    });
   } else {
     if (!Object.hasOwn(served.lines, r.path)) throw new Error(`${r.file} is an island page, and journeysServed draws no line for ${r.path}`);
     put(new RegExp(`(<p class="journey-line"[^>]*\\bdata-journey="${r.path.replace(/[/.]/g, '\\$&')}"[^>]*>)(</p>)`), served.lines[r.path], `the journey line for ${r.path}`);
@@ -1109,6 +1132,8 @@ export function build({ bare = false } = {}) {
      so the two cannot part (THE RESULT, SERVED, below). */
   if (js.split(JOURNEYS_MARKER).length !== 2) throw new Error('src/js must carry the journeys renderer marker exactly once (91-health.js)');
   js = js.replace(JOURNEYS_MARKER, () => `(${journeysServed.toString()})`);
+  if (js.split(JOURNEY_NAMES_MARKER).length !== 2) throw new Error('src/js must carry the journeys\' names marker exactly once (91-health.js)');
+  js = js.replace(JOURNEY_NAMES_MARKER, () => JSON.stringify(JOURNEY_NAMES));
 
   /* One stylesheet and one script, where linked() looks for them: the page's
      own markup must not carry a second of either, which linked() would take

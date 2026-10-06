@@ -357,6 +357,86 @@ function ruleP2(register) {
   else ok(`the platform plan splits historical testing as the register does — the simulation of match dates built${reg?.status === 'flagged' ? ' and flagged' : ''} (SC-314), a strategy backtest with performance blocked on what it needs`);
 }
 
+/* 10 — WHAT PROVES A LIVE BADGE (D15, the owner's decision of 6 Oct 2026;
+   plan item 2.6). An outcome step in a production journey — an action and
+   the result it must produce — proves a Live badge; a landing does not (the
+   calls-to-action journey presses every tool's tab and does nothing
+   there). So every 'live' row of PRODUCTS and TOOLS (35-ui.js) carries
+   proof: { journey, step } naming a journey journeys.mjs runs and one of
+   that journey's declared outcome steps (OUTCOME_STEPS) — or proof: null,
+   "not yet proven by a journey", which /status lists from the same field
+   (proofSection, 91-health.js; served-check holds the served list). A row
+   naming a journey without such a step fails, and so does a live row that
+   says nothing: there is no exemption list anywhere else. The rule is a
+   function, so its self-test runs it on rows built to break it, against
+   the journeys' real declarations. */
+function ruleProof(rows, outcomes, names) {
+  const bad = [];
+  for (const r of rows) {
+    const who = `${r.kind === 'product' ? 'PRODUCTS' : 'TOOLS'} "${r.name}"`;
+    if (r.status !== 'live' && r.proof == null) continue;
+    if (!Object.hasOwn(r, 'proof')) { bad.push(`${who}: Live, and names no journey — name its journey and outcome step (proof: { journey, step }), or mark it not yet proven (proof: null), which /status lists`); continue; }
+    if (r.proof === null) continue;
+    const { journey, step } = r.proof || {};
+    if (!journey || !step) { bad.push(`${who}: proof names ${journey ? `the ${journey} journey but no step` : 'no journey'} — proof is { journey, step } or null`); continue; }
+    if (!Object.hasOwn(names, journey)) { bad.push(`${who}: names the journey "${journey}", which journeys.mjs does not run (${Object.keys(names).join(', ')})`); continue; }
+    const out = outcomes[journey] || [];
+    if (!out.length) { bad.push(`${who}: names the ${journey} journey, which has no outcome step — a landing is not proof (D15); its step "${step}" proves the link, not the tool`); continue; }
+    if (!out.includes(step)) bad.push(`${who}: names "${step}", which is not an outcome step of the ${journey} journey (its outcome steps: ${out.map(s => `"${s}"`).join(', ')})`);
+  }
+  return bad;
+}
+{
+  const J = await import('./journeys.mjs');
+  const OUT = J.OUTCOME_STEPS, NAMES = J.JOURNEY_NAMES;
+  const { PRODUCTS, TOOLS } = vm.runInContext(['const BASE = \'\';', sliceArray(UI, 'PRODUCTS'), sliceArray(UI, 'TOOLS'), '({ PRODUCTS, TOOLS })'].join('\n'), vm.createContext({}));
+  const rows = [...PRODUCTS.map(p => ({ ...p, kind: 'product' })), ...TOOLS.map(t => ({ ...t, name: t.label, kind: 'tool' }))];
+  const live = rows.filter(r => r.status === 'live');
+  const bad = [];
+  if (!OUT || !NAMES) bad.push('journeys.mjs declares no outcome steps (OUTCOME_STEPS) or journey names (JOURNEY_NAMES), so no Live badge can be held to one');
+  else {
+    bad.push(...ruleProof(rows, OUT, NAMES));
+    if (live.length < 10) bad.push(`only ${live.length} live rows read from PRODUCTS and TOOLS — the registry changed shape`);
+    /* The /status listing reads the same field, and the same rows. */
+    const health = read('src/js/91-health.js');
+    if (!/const rows = liveBadgeRows\(\);/.test(health) || !/unproven = rows\.filter\(r => !r\.proof\)/.test(health) || !/not yet proven by a journey/.test(health)) bad.push('/status does not list the unproven rows from the registry\'s own proof field (proofSection, 91-health.js)');
+    if (!/\.\.\.PRODUCTS\.filter\(p => p\.status === 'live'\)/.test(UI) || !/\.\.\.TOOLS\.filter\(t => t\.status === 'live'\)/.test(UI)) bad.push('liveBadgeRows (35-ui.js) does not read every live row of PRODUCTS and TOOLS');
+  }
+  if (bad.length) fail('every Live badge names the journey and outcome step that prove it, or is listed as not yet proven (D15)', bad);
+  else {
+    const proven = live.filter(r => r.proof), unproven = live.filter(r => r.proof === null);
+    ok(`every Live badge names the journey and outcome step that prove it, or is listed as not yet proven (D15) — ${live.length} live rows: ${proven.length} proven (${proven.map(r => `${r.name} by ${r.proof.journey}: "${r.proof.step}"`).join('; ')}); ${unproven.length} not yet proven (${unproven.map(r => r.name).join(', ')})`);
+  }
+
+  /* Its self-test: a clean set of rows passes, and each defect fails with
+     its own sentence — a deliberate 'live' row naming a journey without an
+     outcome step among them, against the real declarations. */
+  const self = [];
+  if (OUT && NAMES) {
+    const anyStep = Object.entries(OUT).find(([, s]) => s.length);
+    const clean = [
+      { kind: 'tool', name: 'QA proven', status: 'live', proof: { journey: anyStep[0], step: anyStep[1][0] } },
+      { kind: 'tool', name: 'QA unproven', status: 'live', proof: null },
+      { kind: 'tool', name: 'QA beta', status: 'beta' },
+    ];
+    const cases = [
+      ['a live row naming the calls-to-action journey, whose steps are landings', { kind: 'tool', name: 'QA landed', status: 'live', proof: { journey: 'ctas', step: 'Equities tab “Cash Wheel”' } }, /^TOOLS "QA landed": names the ctas journey, which has no outcome step — a landing is not proof/],
+      ['a live row naming a step that is not one of its journey\'s outcome steps', { kind: 'tool', name: 'QA opened', status: 'live', proof: { journey: 'property', step: 'Open the property calculator' } }, /^TOOLS "QA opened": names "Open the property calculator", which is not an outcome step of the property journey/],
+      ['a live row naming a journey that is not run', { kind: 'tool', name: 'QA ghost', status: 'live', proof: { journey: 'cashwheel', step: 'Model a wheel' } }, /^TOOLS "QA ghost": names the journey "cashwheel", which journeys\.mjs does not run/],
+      ['a live row that says nothing', { kind: 'product', name: 'QA silent', status: 'live' }, /^PRODUCTS "QA silent": Live, and names no journey/],
+    ];
+    const cleanBad = ruleProof(clean, OUT, NAMES);
+    if (cleanBad.length) self.push(`the clean rows fail: ${cleanBad.join('; ')}`);
+    if (!Object.hasOwn(OUT, 'ctas') || OUT.ctas.length) self.push(`the calls-to-action journey declares ${OUT.ctas ? OUT.ctas.length : 'no list of'} outcome steps — it has to declare none`);
+    for (const [what, row, want] of cases) {
+      const got = ruleProof([...clean, row], OUT, NAMES);
+      if (!got.some(g => want.test(g))) self.push(`${what} passed${got.length ? ` — it failed only for: ${got.join('; ')}` : ''}`);
+    }
+    if (self.length) fail('register-check self-test: the Live-badge rule fails on the rows built to break it', self);
+    else ok(`register-check self-test: the Live-badge rule fails on the rows built to break it — clean rows pass, and ${cases.length} defects each fail with their own sentence: ${cases.map(c => c[0]).join('; ')}`);
+  }
+}
+
 if (RELEASE && RELEASE_PHASE === 2) {
   const open = CAPABILITY_REGISTER.filter(c => c.priority === 'P0' && !c.complete && registerPhaseOf(c) === 2).map(c => `${c.name} (${c.brief.join(', ')}): ${c.status}, partial`);
   if (open.length) fail(`Phase 2 is not complete: ${open.length} P0 rows are partial`, open);

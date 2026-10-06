@@ -113,6 +113,7 @@ calculation or data, a meaningful result, the save or next action:
 | --- | --- |
 | `equities` | search "apple" → Apple's company page → Financials: the filed statements, and a figure's source (SEC EDGAR, the CIK, the XBRL concept) → Add to watchlist → the watchlist lists it |
 | `screener` | a filter (return on equity ≥ 20) → the count changes → open a result → its company page |
+| `compare` | from an empty selection, add AAPL and MSFT (filed, from their SEC filings) → a column each, with figures → *Save this comparison* → empty the page's selection → `/my/workspace` lists it → *Open* restores both columns |
 | `property` | the calculator: price, rent, loan → monthly cash flow, yield and cash required appear, and move with the rent and the loan → save → listed with the saved properties |
 | `scanner` | the builder: a condition (price crosses above its 20-bar EMA, on AAPL) → save → the setup's page shows it → its own evaluation |
 | `ctas` | every homepage card, the header's Open workspace, each product tab row link and the dashboard's first-time checklist: each lands on a working page (not a 404, not the not-found card, no console error) |
@@ -126,7 +127,7 @@ a journey fails.
 node journeys.mjs http://localhost:8123          # local: see below
 node journeys.mjs --url production               # the live site
 node journeys.mjs --url production --json out.json --markdown out.md
-node journeys.mjs --self-test                    # offline: the commit rule and the result's shape
+node journeys.mjs --self-test                    # offline: the commit rule, the result's shape and the outcome steps
 ```
 
 **It never reads your personal files.** On your machine the page asks
@@ -160,6 +161,18 @@ deployments. A lost push starts again from fresh main (fetch, reset, rebuild),
 never `git pull --rebase`; an island page in a merge conflict is resolved by
 `node build.mjs`. CI runs the journeys against `serve.mjs` on every push, as a
 job of its own (*every tool works from start to finish*).
+
+**What proves a Live badge** (D15, the owner's decision of 6 Oct 2026): an
+*outcome step* — an action and the result it must produce, checked. Each
+journey declares its outcome steps (`outcomes`, exported as `OUTCOME_STEPS`);
+the self-test finds each as a step its run takes, and a run that completes
+without one fails. The `ctas` journey only lands on pages and declares none.
+Every `'live'` row of `PRODUCTS` and `TOOLS` (`src/js/35-ui.js`) carries
+`proof: { journey, step }`, or `proof: null` — *not yet proven by a journey*.
+`/status` lists each Live badge beside its journey's last recorded result
+(served from the record by `node build.mjs`, `journeysServed(…).proof`) and,
+apart, the Live tools not yet proven; `register-check.mjs` fails a live row
+with no `proof`, or one naming a journey without that outcome step.
 
 A call to action passes only when pressing it reaches the address it names
 (a press that leaves the reader where they were is a failure, however working

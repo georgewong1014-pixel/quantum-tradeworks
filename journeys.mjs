@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, property, scanner, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, scanner, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -43,12 +43,23 @@
  *
  * So these are journeys, not pages. Each one is what a reader does — find a
  * company, read its filed statements and where a figure came from, keep it on
- * a list; filter the screener and open what it found; model a property,
+ * a list; filter the screener and open what it found; compare two filed
+ * companies, save the comparison and reopen it; model a property,
  * change it, save it; build a scanner setup, save it and have it evaluated;
  * press each primary call to action — in real Chrome, by real clicks and key
  * presses, and it passes only when the whole path completes: entry → valid
  * input → calculation or data → a meaningful result → the save or next
  * action. A page that renders and a button that does nothing is a FAIL here.
+ *
+ * WHAT PROVES A LIVE BADGE (D15, the owner's decision of 6 Oct 2026)
+ *
+ * An outcome step: an action, and the result it must produce, checked. Each
+ * journey names its outcome steps (outcomes, below; OUTCOME_STEPS); a step
+ * that only opens a page is not one, and the calls-to-action journey, which
+ * lands on every tool and does nothing there, has none. A 'live' row of
+ * PRODUCTS or TOOLS (35-ui.js) names its journey and outcome step (proof), or
+ * says it is not yet proven (proof: null) — and /status lists it so, beside
+ * the Live badge it keeps; register-check holds every row to that.
  *
  * WHAT A RESULT SAYS
  *
@@ -243,7 +254,11 @@ export function guardProblems(changed) {
      list   the inner HTML of #health-journeys: one li per journey, its
             result, and every step marked OK, FAIL or gated
      lines  the inner HTML of each product landing page's line, by address:
-            "Journey: <name> · PASS · <time UTC> · <sha> · details" */
+            "Journey: <name> · PASS · <time UTC> · <sha> · details"
+     proof  proof(journey, step): the inner HTML of a Live badge's result on
+            /status (D15, plan item 2.6) — the journey's last recorded
+            result and what that run made of the badge's outcome step:
+            "PASS · outcome step OK · <date, time UTC> · details" */
 export function journeysServed(doc) {
   const REPO = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
   const LINES = { '/property': 'property', '/research': 'equities', '/app/scanner': 'scanner' };
@@ -251,7 +266,8 @@ export function journeysServed(doc) {
   const STATE = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'] };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const two = (n) => (n < 10 ? '0' : '') + n;
-  const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {} };
+  const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {},
+    proof: () => 'No recorded run to show.' };
   Object.keys(LINES).forEach(k => { empty.lines[k] = ''; });
   const at = doc && typeof doc.ranAt === 'string' ? new Date(doc.ranAt) : null;
   const list = doc && Array.isArray(doc.journeys) ? doc.journeys.filter(j => j && typeof j.id === 'string' && typeof j.name === 'string' && STATE[j.status]) : [];
@@ -295,7 +311,22 @@ export function journeysServed(doc) {
       + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + gated + ' · ' + day + ' ' + time
       + (sha ? ' · ' + sha : '') + ' · <a class="journey-line-link" href="/status#' + idOf(j) + '">details</a>';
   });
-  return { recorded: true, sum, list: items, lines };
+  /* A LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, plan item 2.6). The
+     journey's status, and the badge's outcome step as that run recorded it:
+     OK, FAIL or gated; "not reached" where the journey failed before it;
+     "not in the recorded run" where the run has no step of that name (a
+     journey recorded before the step was written). A journey the run did
+     not include says so — nothing is carried over from an older run. */
+  const proof = (id, stepName) => {
+    const j = list.find(x => x.id === id);
+    if (!j) return 'Not in the last recorded run.';
+    const s = steps(j).find(x => x.name === stepName);
+    const said = s ? 'outcome step ' + mark(s) : j.status === 'FAIL' ? 'outcome step not reached' : 'outcome step not in the recorded run';
+    return '<span class="proof-status" data-status="' + j.status + '">' + j.status + '</span>'
+      + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + ' · ' + said + ' · ' + day + ' ' + at.getUTCFullYear() + ', ' + time
+      + ' · <a class="journey-line-link" href="#' + idOf(j) + '">details</a>';
+  };
+  return { recorded: true, sum, list: items, lines, proof };
 }
 
 const fmtS = (ms) => (ms == null ? '—' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
@@ -415,6 +446,43 @@ function selfTest() {
     t(!own.length, `journeys.mjs has no top-level await (build.mjs imports it; --url production imports build.mjs)${own.length ? `: ${own[0].slice(0, 60)}` : ''}`);
     t(!/[\s\S]<\/script|<!--/i.test(String(journeysServed)) && !/\b(document|window|location|el|fetch|HEALTH|BASE)\b\s*[.(]/.test(String(journeysServed)), 'journeysServed: self-contained (the build puts its source into the app) — no page globals, no </script or <!--');
   }
+  /* PLAN ITEM 2.5: the compare journey — and D15: what each journey
+     declares an outcome step is a step its run takes, and a landing is not
+     one. Read from the journeys themselves (JOURNEYS, OUTCOME_STEPS). */
+  {
+    const ids = JOURNEYS.map(x => x.id);
+    const cmp = JOURNEYS.find(x => x.id === 'compare');
+    const WANT = ['Add AAPL and MSFT: a column each, from their SEC filings', 'Save this comparison', 'The workspace lists it', 'Open restores both columns'];
+    t(!!cmp && JOURNEY_NAMES.compare === 'Equities compare: two filed companies, saved and reopened', `the compare journey is one of the journeys (${ids.join(', ')})`);
+    t(!!cmp && WANT.every(n => OUTCOME_STEPS.compare.includes(n)), `the compare journey: AAPL and MSFT added, the comparison saved, listed in the workspace, and both columns restored by Open — each an outcome step (${(OUTCOME_STEPS.compare || []).length} declared)`);
+    const run = String(cmp?.run || '');
+    t(!!cmp && JSON.stringify(cmp.storage?.()) === '{"compare":[]}' && /cmp-chip-\$\{tk\}-SEC/.test(run) && /\['AAPL', 'MSFT'\]/.test(run) && !/personal|price-history|prices\.json|scan-/.test(run),
+      'the compare journey: filed companies only (AAPL-SEC and MSFT-SEC), from an empty selection, seeding nothing else and naming no personal file — the same on the live site and on CI\'s server');
+    t(!!cmp && /Clear the page’s selection/.test(run) && run.indexOf('Clear the page’s selection') < run.indexOf('Open restores both columns'), 'the compare journey empties the page\'s selection before Open, so the columns can only come back from the saved comparison');
+    const undeclared = JOURNEYS.flatMap(x => (x.outcomes || []).filter(n => !String(x.run).includes(`step(j, tab, '${n}'`)).map(n => `${x.id}: “${n}”`));
+    t(!undeclared.length, `D15: every outcome step a journey declares is a step its own run takes, by that name${undeclared.length ? ` — not: ${undeclared.join('; ')}` : ` (${Object.values(OUTCOME_STEPS).flat().length} across ${ids.length} journeys)`}`);
+    t(Array.isArray(OUTCOME_STEPS.ctas) && OUTCOME_STEPS.ctas.length === 0 && ids.filter(id => id !== 'ctas').every(id => OUTCOME_STEPS[id].length > 0),
+      'D15: the calls-to-action journey declares no outcome step (a landing proves the link, not the tool); every other journey declares at least one');
+    t(readFileSync(join(ROOT, 'journeys.mjs'), 'utf8').includes(`--only <id,id>       some journeys: ${ids.join(', ')}\n`), 'the usage names every journey --only takes');
+    /* journeysServed shows it, and the result beside a Live badge. */
+    const steps = (names, failAt = null) => names.map((name, i) => ({ name, ms: 300, status: failAt === null || i < failAt ? 'OK' : i === failAt ? 'FAIL' : null })).filter(s => s.status);
+    const rec2 = { kind: RESULT_KIND, schema: 2, ranAt: '2026-10-06T03:17:44.000Z', commit: '67d0e5185f3c', journeys: [
+      { ...j('compare', 'PASS'), name: JOURNEY_NAMES.compare || 'compare', steps: steps(['Open Compare', ...WANT.slice(0, 2), 'Clear the page’s selection', ...WANT.slice(2)]) },
+      { ...j('property', 'FAIL', 'Save <the> property'), name: 'Property: calculate, change, save', steps: steps(['Open the property calculator', 'Change the rent: the cash flow and the yield move', 'Save <the> property'], 2) }] };
+    const out = journeysServed(rec2);
+    const cmpRow = /<li class="journey-row" id="journey-compare" data-status="PASS">([\s\S]*?)<\/div><\/li>/.exec(out.list)?.[1] || '';
+    const cmpMarks = [...cmpRow.matchAll(/<li data-mark="ok"><span class="journey-mark">OK<\/span> ([^<]*)<\/li>/g)].map(m => m[1]);
+    t(cmpMarks.length === 6 && WANT.every(n => cmpMarks.includes(n)), `journeysServed: a recorded compare journey is listed on /status, with each of its six steps marked (${cmpMarks.length})`);
+    t(out.proof('compare', 'Open restores both columns') === '<span class="proof-status" data-status="PASS">PASS</span> · outcome step OK · 6 Oct 2026, 03:17 UTC · <a class="journey-line-link" href="#journey-compare">details</a>',
+      `journeysServed: a Live badge's result — the journey's status, its outcome step as recorded, the run's UTC time, and its steps on this page (${out.proof('compare', 'Open restores both columns').replace(/<[^>]*>/g, '')})`);
+    t(out.proof('property', 'Change the rent: the cash flow and the yield move') === '<span class="proof-status" data-status="FAIL">FAIL</span> at “Save &lt;the&gt; property” · outcome step OK · 6 Oct 2026, 03:17 UTC · <a class="journey-line-link" href="#journey-property">details</a>'
+      && /^<span class="proof-status" data-status="FAIL">FAIL<\/span> at “Save &lt;the&gt; property” · outcome step FAIL · /.test(out.proof('property', 'Save <the> property'))
+      && / · outcome step not reached · /.test(out.proof('property', 'It is listed with the saved properties')),
+      'journeysServed: a failed journey names its failing step, escaped, and says of the badge\'s step OK, FAIL or not reached');
+    t(/ · outcome step not in the recorded run · /.test(out.proof('compare', 'A step written after the run')) && out.proof('equities', 'The watchlist lists it') === 'Not in the last recorded run.'
+      && journeysServed({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] }).proof('property', 'Save the property') === 'No recorded run to show.',
+      'journeysServed: a step the run did not record, a journey it did not run, and no run at all are each said — nothing carried over from an older run');
+  }
   t(resultProblem(doc('2026-09-30T11:30:00Z', [j('a', 'FAIL')])) !== null, 'a FAIL with no named step is not a valid result');
   t(resultProblem(doc('2026-09-30T11:30:00Z', [{ ...j('a', 'PASS'), status: 'OK' }])) !== null, 'a status outside PASS, DEGRADED and FAIL is not a valid result');
   t(resultProblem({ kind: RESULT_KIND, schema: 1, ranAt: null, journeys: [] }) === null && !hasRun({ kind: RESULT_KIND, ranAt: null, journeys: [] }), 'the placeholder is valid and holds no run');
@@ -474,7 +542,7 @@ function selfTest() {
     t(!!tool && /^ {4}needs: static$/m.test(tool[1]) && /node journeys\.mjs http:\/\/localhost:\d+/.test(tool[1]) && !!runtime && !/node journeys\.mjs/.test(runtime[1]),
       'checks.yml: the journeys are their own job, after the static job and beside "every route renders", not a step of it');
   }
-  console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule (a code deployment records, a scheduled run records, a record-only bot commit records nothing), the result shape, the table, the served result, the guard and the workflows hold');
+  console.log(bad ? `\n${bad} self-test check(s) failed` : '\nself-test: the commit rule (a code deployment records, a scheduled run records, a record-only bot commit records nothing), the result shape, the table, the served result, the compare journey, the outcome steps, the guard and the workflows hold');
   process.exit(bad ? 1 : 0);
 }
 
@@ -484,7 +552,8 @@ function changedPaths() {
   return out.split('\n').filter(Boolean).map(l => l.slice(3).replace(/^"|"$/g, '')).map(p => (p.includes(' -> ') ? p.split(' -> ')[1] : p));
 }
 
-if (MAIN && has('self-test')) selfTest();
+/* --self-test runs at the end of the module (below THE JOURNEYS), since it
+   reads the journeys' own declarations. */
 if (MAIN && has('guard')) {
   const changed = changedPaths();
   const bad = guardProblems(changed);
@@ -902,6 +971,7 @@ const JOURNEYS = [
        The journey starts from one empty list of the reader's own — the state
        of a reader who has cleared the samples. */
     storage: () => ({ watchlists: [{ id: 'wl-journey', name: 'Journey list', ids: [], added: {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), schema: 2 }], wlActive: 'wl-journey' }),
+    outcomes: ['Search for “apple”', 'Financials: the filed statements, and where a figure came from', 'Add to watchlist', 'The watchlist lists it'],
     async run(j, tab) {
       await step(j, tab, 'Open Equities Research', BUDGET.load, () => tab.goto('/research'));
       await step(j, tab, 'Search for “apple”', BUDGET.action, async () => {
@@ -952,6 +1022,7 @@ const JOURNEYS = [
   },
   {
     id: 'screener', name: 'Equities screener: filter, results, company',
+    outcomes: ['Filter: return on equity of at least 20'],
     async run(j, tab) {
       const count = `(() => { const h = [...document.querySelectorAll('main h3')].find(x => /companies match/.test(x.textContent)); const m = h && /(\\d+) of (\\d+) compan(?:y|ies) match/.exec(h.textContent); return m ? +m[1] : null; })()`;
       let before;
@@ -993,7 +1064,90 @@ const JOURNEYS = [
     },
   },
   {
+    /* PLAN ITEM 2.5 (audit A #2). Two filed companies — Apple and
+       Microsoft, from their SEC filings, the same on every site — compared,
+       the comparison saved, found in the workspace and reopened. A fresh
+       browser's selection is the sample pair of Malaysian banks
+       (illustrative figures), so the journey starts from an empty one; and
+       it empties the page's selection again before reopening, so the two
+       columns can only have come back from the saved comparison. Nothing
+       but this browser's own storage is written. */
+    id: 'compare', name: 'Equities compare: two filed companies, saved and reopened',
+    storage: () => ({ compare: [] }),
+    outcomes: ['Add AAPL and MSFT: a column each, from their SEC filings', 'Save this comparison', 'The workspace lists it', 'Open restores both columns'],
+    async run(j, tab) {
+      /* The comparison table's company columns, by ticker, and whether each
+         says it is filed (dataChip: .filed-mark), not illustrative. */
+      const COLS = `[...document.querySelectorAll('main table.dt-pagesticky thead th')].slice(1).map(th => ({ tk: (th.childNodes[0]?.textContent || '').trim(), filed: !!th.querySelector('.filed-mark') }))`;
+      const cols = () => tab.eval(COLS);
+      const both = async (why) => {
+        const c = await cols();
+        if (c.map(x => x.tk).join() !== 'AAPL,MSFT') throw new StepError(`${why}: the table's columns are ${c.length ? c.map(x => x.tk).join(', ') : 'none'}, not AAPL and MSFT`);
+        const not = c.filter(x => !x.filed).map(x => x.tk);
+        if (not.length) throw new StepError(`${why}: ${not.join(' and ')} ${not.length === 1 ? 'is' : 'are'} not marked as filed`);
+        /* Figures in both columns, from their statements: the latest year's
+           revenue, the row every operating business fills. */
+        const rev = await tab.eval(`(() => { const tr = [...document.querySelectorAll('main table.dt-pagesticky tbody tr')].find(r => r.querySelector('td.pin')?.textContent.trim() === 'Revenue, latest year');
+          return tr ? [...tr.querySelectorAll('td')].slice(1).map(td => td.textContent.trim()) : null; })()`);
+        if (!rev || rev.length !== 2 || !rev.every(v => /\d/.test(v))) throw new StepError(`${why}: the latest year's revenue reads ${rev ? rev.map(v => `“${v || 'empty'}”`).join(' and ') : 'nowhere'}, not a figure for each`);
+      };
+      const chip = (tk) => `document.getElementById('cmp-chip-${tk}-SEC')`;
+      await step(j, tab, 'Open Compare', BUDGET.load, async () => {
+        await tab.goto('/compare');
+        await tab.expect(`State.view === 'compare'`, async () => `/compare opened ${await tab.eval('State.view')}, not the comparison`);
+        await tab.expect(`!!(${chip('AAPL')}) && !!(${chip('MSFT')})`, 'the selection offers no chip for Apple or Microsoft as filed companies (AAPL-SEC, MSFT-SEC)');
+        const held = await tab.eval('State.compare.length');
+        if (held) throw new StepError(`the page holds ${held} compan${held === 1 ? 'y' : 'ies'} from this browser before any was chosen`);
+      });
+      await step(j, tab, 'Add AAPL and MSFT: a column each, from their SEC filings', BUDGET.action * 2, async () => {
+        for (const tk of ['AAPL', 'MSFT']) {
+          await tab.click(chip(tk), `The ${tk} chip`);
+          await tab.expect(`(${chip(tk)})?.getAttribute('aria-pressed') === 'true'`, `pressing ${tk} did not add it to the comparison`, 4000);
+        }
+        await tab.expect(`${COLS}.map(x => x.tk).join() === 'AAPL,MSFT'`, 'the table did not gain a column each for AAPL and MSFT', 6000);
+        await both('Added');
+      });
+      const name = `Journey check AAPL vs MSFT ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+      tab.prompt = name;
+      await step(j, tab, 'Save this comparison', BUDGET.action, async () => {
+        const before = tab.dialogs;
+        await tab.click(byText('main button', '/^Save this comparison$/'), 'Save this comparison');
+        await tab.expect(`/^Saved /.test(document.getElementById('toast')?.textContent || '')`, 'pressing Save said nothing was saved', 4000);
+        if (tab.dialogs === before) throw new StepError('Save asked for no name, so the saved comparison cannot be told from any other');
+        const said = await tab.eval(`document.getElementById('toast')?.textContent || ''`);
+        if (!said.includes(name)) throw new StepError(`the page says “${said}”, not that “${name}” was saved`);
+      });
+      await step(j, tab, 'Clear the page’s selection', BUDGET.action * 2, async () => {
+        for (const tk of ['AAPL', 'MSFT']) {
+          await tab.click(chip(tk), `The ${tk} chip`);
+          await tab.expect(`(${chip(tk)})?.getAttribute('aria-pressed') === 'false'`, `pressing ${tk} again did not take it out`, 4000);
+        }
+        await tab.expect(`!document.querySelector('main table.dt-pagesticky') && /Select at least one company/.test(document.querySelector('main')?.innerText || '')`, 'with both taken out, the page still shows a comparison', 4000);
+      });
+      await step(j, tab, 'The workspace lists it', BUDGET.load, async () => {
+        /* The comparison's own Workspace link goes with its table; the
+           sidebar's link to the saved work stays. */
+        await tab.click(visible('a[href="/my/workspace"]'), 'The link to the saved work');
+        await tab.expect(`State.view === 'workspace'`, 'the Workspace link did not open the workspace');
+        /* Listed by its name, as a comparison of two companies; which two,
+           Open shows (the next step). */
+        await tab.expect(`[...document.querySelectorAll('main .ws-row')].some(r => r.querySelector('.ws-name strong')?.textContent === ${JSON.stringify(name)} && /^Comparison$/.test(r.querySelector('.ws-name .chip')?.textContent.trim() || '') && /^2 companies\\b/.test(r.querySelector('.ws-name .metaline')?.textContent.trim() || ''))`,
+          async () => `the workspace does not list “${name}” as a comparison of 2 companies — it lists: ${(await tab.eval(`[...document.querySelectorAll('main .ws-row:not(.ws-head) .ws-name')].map(n => n.innerText.replace(/\\s+/g, ' ').trim()).join(' | ')`)).slice(0, 200) || 'nothing'}`);
+      });
+      await step(j, tab, 'Open restores both columns', BUDGET.load, async () => {
+        await tab.click(`[...document.querySelectorAll('main button.ws-open')].find(b => b.getAttribute('aria-label') === ${JSON.stringify(`Open ${name}`)})`, `Open ${name}`);
+        await tab.expect(`State.view === 'compare' && new URLSearchParams(location.search).has('saved')`, async () => `Open went to ${await tab.where()}, not to the saved comparison`);
+        await tab.expect(`${COLS}.length === 2`, 'the reopened comparison shows no columns', 8000);
+        await both('Reopened');
+        const head = await tab.text();
+        if (!head.includes(`Saved comparison — ${name}`)) throw new StepError('the reopened page does not say which saved comparison it is');
+      });
+    },
+  },
+  {
     id: 'property', name: 'Property: calculate, change, save',
+    outcomes: ['Enter a price, a rent and a loan', 'Change the rent: the cash flow and the yield move', 'Change the loan: the cash required moves',
+      'Save the property', 'It is listed with the saved properties', 'Proposal hides the sale’s costs, proceeds and profit until unlocked'],
     async run(j, tab) {
       const fig = (labels) => tab.eval(`(${FIGURE})(${JSON.stringify(labels)})`);
       const read = async () => ({
@@ -1099,6 +1253,9 @@ const JOURNEYS = [
   },
   {
     id: 'scanner', name: 'Scanner: build, save and evaluate a setup',
+    /* Not the evaluate step: on the live site it passes by checking a
+       refusal (gated), and a refusal proves no evaluation. */
+    outcomes: ['Build a condition: price crosses above its 20-bar EMA, on AAPL', 'Save the setup', 'The setup’s page shows it'],
     async run(j, tab) {
       const synthetic = OWNER_MACHINE;
       if (synthetic) {
@@ -1178,6 +1335,9 @@ const JOURNEYS = [
   },
   {
     id: 'ctas', name: 'Primary calls to action land on working pages',
+    /* Landings only: a press that reaches a working page proves the link,
+       not the tool behind it (D15). */
+    outcomes: [],
     async run(j, tab) {
       const failures = [];
       let checked = 0;
@@ -1304,6 +1464,14 @@ const JOURNEYS = [
   },
 ];
 
+/* THE OUTCOME STEPS (D15). By journey: the steps that do something and
+   check the result it must produce — what a 'live' row's proof may name
+   (register-check). A journey's own declaration, held to its code twice:
+   the self-test finds each name as a step the journey's run takes, and a
+   run that completes without taking one of them fails (main, below). */
+export const OUTCOME_STEPS = Object.freeze(Object.fromEntries(JOURNEYS.map(x => [x.id, Object.freeze([...(x.outcomes || [])])])));
+export const JOURNEY_NAMES = Object.freeze(Object.fromEntries(JOURNEYS.map(x => [x.id, x.name])));
+
 /* ─── RUN ─────────────────────────────────────────────────────────────────── */
 async function main() {
   await where();
@@ -1327,6 +1495,10 @@ async function main() {
       } catch (e) {
         if (e !== STOP) j.fail(j.steps.length ? j.steps[j.steps.length - 1].name : 'Start', tab ? await tab.where() : null, `the check itself broke: ${e.message}`);
       }
+      /* A journey that completed without one of the outcome steps it
+         declares would be recorded as proving what it never checked. */
+      const skipped = (def.outcomes || []).filter(n => !j.steps.some(s => s.name === n));
+      if (j.status !== 'FAIL' && skipped.length) j.fail(skipped[0], tab ? await tab.where() : null, `the check itself broke: the journey declares “${skipped.join('”, “')}” an outcome step and never took it`);
       j.ms = Date.now() - t0;
       if (tab && !def.errorsJudged && j.status !== 'FAIL') {
         const errs = unexpectedErrors(tab.errors);
@@ -1356,4 +1528,5 @@ async function main() {
   process.exit(n('FAIL') ? 1 : 0);
 }
 
+if (MAIN && has('self-test')) selfTest();
 if (MAIN) main().catch(e => { console.error(`FAIL  the journeys could not run: ${e.stack || e.message}`); process.exit(2); });

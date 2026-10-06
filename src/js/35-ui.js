@@ -383,7 +383,8 @@ const PRODUCTS = [
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.' },
+    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
+    proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
     task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
     question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
@@ -469,6 +470,17 @@ function toolProductOf(view) {
 
    A tool that is not in this build — a route another branch adds — is not
    listed anywhere until its route and view exist (toolPresent).
+
+   WHAT PROVES A LIVE BADGE (D15, the owner's decision of 6 Oct 2026; plan
+   item 2.6). An outcome step in a production journey: an action, and the
+   result it must produce, checked (journeys.mjs, OUTCOME_STEPS). A journey
+   that only lands on a tool's page does not count. So every 'live' row here
+   and in PRODUCTS carries proof: the journey and the outcome step that
+   prove it — or null, "not yet proven by a journey", which /status lists
+   beside the Live badge the row keeps while its journey is written (plan
+   item 6.5). There is no other list of exemptions: register-check fails a
+   live row with no proof field, and one whose journey has no such outcome
+   step.
    ========================================================================== */
 const TOOL_STATUS = { ...PRODUCT_STATUS, delayed: 'Delayed', unavailable: 'Unavailable' };
 /* The states a tab, a sidebar item or a dashboard row marks. Live and Beta
@@ -497,28 +509,30 @@ const TOOLS = [
     status: 'beta', statusNote: 'Names the Bursa companies that operate in Sarawak; no statements are held for them, and each one’s exposure stays empty until you record it.',
     action: { label: 'Open Sarawak watch', path: '/discover/sarawak' } },
   { id: 'wheel', product: 'equities', label: 'Cash Wheel', path: '/us-options/wheel', views: ['wheel'], tab: true,
-    status: 'live', statusNote: 'A cash-secured put and covered call cycle modelled from a contract you enter; no option-chain data is connected.',
+    status: 'live', statusNote: 'A cash-secured put and covered call cycle modelled from a contract you enter; no option-chain data is connected.', proof: null,
     action: { label: 'Model a wheel', path: '/us-options/wheel' } },
   /* Property Intelligence. "My properties" is the store of saved property
      models; its route arrives with that work, and until then it is listed
      nowhere (toolPresent). */
   { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
     status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
+    proof: { journey: 'property', step: 'It is listed with the saved properties' },
     action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
+    proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
     action: { label: 'Analyse a property', path: '/property/calculator' } },
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
-    status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
+    status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.', proof: null,
     action: { label: 'Screen a town', path: '/property/areas' } },
   { id: 'comparables', product: 'property', label: 'Comparables', path: '/property/comparables', views: ['comparables'], tab: true,
-    status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.',
+    status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.', proof: null,
     action: { label: 'Record a comparable', path: '/property/comparables' } },
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
-    status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
+    status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.', proof: null,
     action: { label: 'Record a property', path: '/property/opportunities' } },
   /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
      other two products' tools are (Release B, B5): its own strip, drawn
@@ -545,32 +559,33 @@ const TOOLS = [
     status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
     action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
   { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'], tab: true,
-    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
+    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.', proof: null,
     action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
   { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'], tab: true,
-    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.', proof: null,
     action: { label: 'Assess a trend', path: '/research/trading-index' } },
   /* The workspace — the reader's own, in this browser. */
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
-    status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
+    status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.', proof: null,
     action: { label: 'Open my dashboard', path: '/app' } },
   { id: 'watchlists', product: null, label: 'Watchlists', path: '/my/watchlists', views: ['watchlists'],
     status: 'live', statusNote: 'Lists of companies you follow, kept in this browser; each can be the universe a scanner setup checks.',
+    proof: { journey: 'equities', step: 'The watchlist lists it' },
     action: { label: 'Create a watchlist', path: '/my/watchlists' } },
   { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
-    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
+    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.', proof: null,
     action: { label: 'Review your alerts', path: '/my/alerts' } },
   { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
   { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
-    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
+    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.', proof: null,
     action: { label: 'Open your reports', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
-    status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
+    status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.', proof: null,
     action: { label: 'Open your portfolio', path: '/my/portfolio' } },
   { id: 'theses', product: null, label: 'Investment cases', path: '/my/theses', views: ['thesis'],
-    status: 'live', statusNote: 'What you believe about a company and what would prove you wrong, checked against the latest data held.',
+    status: 'live', statusNote: 'What you believe about a company and what would prove you wrong, checked against the latest data held.', proof: null,
     action: { label: 'Write an investment case', path: '/my/theses' } },
   { id: 'tracked', product: null, label: 'Tracked', path: '/my/tracked', views: ['tracked'],
     status: 'beta', statusNote: 'Instruments followed by price and trend only, from closes you supply — this site ships none.',
@@ -579,10 +594,17 @@ const TOOLS = [
      sends a reader here does: the workspace's tab said "Your data" beside a
      sidebar saying "Your data & settings". */
   { id: 'userdata', product: null, label: 'Your data & settings', path: '/my/data', views: ['userdata'],
-    status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.',
+    status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.', proof: null,
     action: { label: 'Open your data', path: '/my/data' } },
 ];
 const toolById = (id) => TOOLS.find(t => t.id === id) || null;
+/* Every Live badge the registry writes — the products', then the tools' —
+   with what proves it (proof, above). /status lists them (proofSection,
+   91-health.js). */
+const liveBadgeRows = () => [
+  ...PRODUCTS.filter(p => p.status === 'live').map(p => ({ key: `product:${p.id}`, name: p.name, of: 'Product', proof: p.proof })),
+  ...TOOLS.filter(t => t.status === 'live').map(t => ({ key: `tool:${t.id}`, name: t.label, of: t.product ? productById(t.product)?.name || t.product : 'My workspace', proof: t.proof })),
+];
 /* The views a tool is, as written, or else the view its route opens. */
 const toolViews = (t) => t.views || [matchRoute(t.path)?.view].filter(Boolean);
 /* In this build: its route resolves to a view that exists. */

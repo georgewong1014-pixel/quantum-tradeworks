@@ -558,6 +558,7 @@ for (const route of ROUTES) {
       rows: [...document.querySelectorAll('#health-journeys > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
       quick: [...document.querySelectorAll('#health-quick > li')].map(li => ({ status: li.dataset.status, text: li.innerText })),
       quickSum: document.getElementById('health-quick-sum')?.textContent || '', h2: document.querySelector('#health h2')?.textContent || '',
+      proofs: Object.fromEntries([...document.querySelectorAll('#health-proofs .proof-result')].map(n => [n.closest('li')?.dataset.proofRow, n.textContent.replace(/\\s+/g, ' ').trim()])),
       modes: window.__healthModes || [] })`);
     return { ...out, asked: asked.length };
   };
@@ -579,6 +580,10 @@ for (const route of ROUTES) {
   if (s.quick.length !== 4 || s.quick.some(q => q.status !== 'PASS')) p.push(`the in-browser checks on this build: ${quickSaid(s.quick)}`);
   if (!/^4 of 4 pass\./.test(s.quickSum)) p.push(`the in-browser summary reads ${JSON.stringify(s.quickSum)}`);
   if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`the placeholder: ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows — not "not run yet"`);
+  /* Each Live badge's last result (D15, plan item 2.6), drawn by the page
+     from what it read: from the placeholder, no result at all. */
+  const proofsSaid = (x) => Object.entries(x.proofs || {}).map(([k, v]) => `${k}: ${v}`).join(' | ').slice(0, 300);
+  if (Object.keys(s.proofs || {}).length < 4 || Object.values(s.proofs).some(v => v !== 'No recorded run to show.')) p.push(`the placeholder: the Live badges' results read ${proofsSaid(s)}, not "No recorded run to show."`);
   if (!s.asked) p.push('/status never asked the site for health/journeys.json');
   if (!s.modes.length || s.modes.some(m => m !== 'no-store')) p.push(`/status asks for health/journeys.json with cache ${JSON.stringify(s.modes)}, not no-store`);
   /* One chip width whatever it says (health-chip, styles.css): served "Not
@@ -617,6 +622,11 @@ for (const route of ROUTES) {
   s = await fixture({ status: 200, body: GOOD }, 'a good result');
   if (!/^Last recorded run /.test(s.sum) || !/2 of 2 pass/.test(s.sum) || !/abcdef1/.test(s.sum)) p.push(`a good result: ${JSON.stringify(s.sum)}`);
   if (s.rows.length !== 2 || s.rows.some(r => r.status !== 'PASS')) p.push(`a good result's rows: ${JSON.stringify(s.rows.map(r => r.status))}`);
+  /* The fixture's equities journey records no steps, and it has no property
+     journey: Watchlists' badge says its journey passed and its step is not
+     in that run; Property's, that its journey is not in the run. */
+  if (!/^PASS · outcome step not in the recorded run · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · details$/.test(s.proofs?.['tool:watchlists'] || '') || s.proofs?.['product:property'] !== 'Not in the last recorded run.')
+    p.push(`a good result: the Live badges' results read ${proofsSaid(s)}`);
 
   s = await fixture({ status: 404, body: '<!doctype html><title>404</title>', type: 'text/html; charset=utf-8' }, 'no file');
   if (!/^Not run yet\./.test(s.sum) || s.rows.length) p.push(`no file (404): ${JSON.stringify(s.sum.slice(0, 80))}, ${s.rows.length} rows`);
@@ -628,6 +638,7 @@ for (const route of ROUTES) {
 
   s = await fixture({ status: 200, body: '{"kind":"quantum-tradeworks-journeys","ranAt":"soon","journeys":[{"id":"x","name":"x","status":"OK"}]}' }, 'an unreadable result');
   if (!/could not be read/.test(s.sum) || s.rows.length) p.push(`an unreadable result: ${JSON.stringify(s.sum.slice(0, 90))}, ${s.rows.length} rows — a result was shown`);
+  if (Object.values(s.proofs || {}).some(v => v !== 'No recorded run to show.')) p.push(`an unreadable result: the Live badges' results read ${proofsSaid(s)} — a result was shown`);
 
   s = await fixture({ status: 200, body: { ...GOOD, ranAt: new Date(Date.now() - 5 * 86400000 - 3600000).toISOString() } }, 'a five-day-old result');
   if (!/recorded 121 hours ago: runs are recorded at least twice a day/.test(s.sum)) p.push(`a five-day-old result does not say how old it is: ${JSON.stringify(s.sum)}`);
@@ -689,7 +700,7 @@ for (const route of ROUTES) {
   if (modes?.result?.identifier) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: modes.result.identifier }, sessionId);
   ws.removeEventListener('message', intercept);
   if (p.length) { bad++; console.log('FAIL health: /status does not say truthfully whether each tool works'); p.forEach(x => console.log('     ' + x)); }
-  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it, and to Degraded, naming data/instruments.json, when that is served but unreadable, and does not degrade the data files when the reader switched the filed statements off; a Degraded journey with no note is not called within budget; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one — asked of the site on every visit, with no-store; a result chip one width whatever it says, in any font');
+  else console.log('ok   health: /status runs its four in-browser checks to Pass on this build and to Fail, naming data/us.json, without it, and to Degraded, naming data/instruments.json, when that is served but unreadable, and does not degrade the data files when the reader switched the filed statements off; a Degraded journey with no note is not called within budget; the full checks pass from the keyboard with focus kept; the journeys result reads Pass from a good file, "not run yet" from none and from the placeholder, Fail with its step and route from a failing one, nothing from an unreadable one and its age from an old one, and each Live badge\'s result is drawn from the same read — asked of the site on every visit, with no-store; a result chip one width whatever it says, in any font');
 }
 /* ---- end audit1: health ---- */
 /* ---- audit1: registry-ctas ---- */
