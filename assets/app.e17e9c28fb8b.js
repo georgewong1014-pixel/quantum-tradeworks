@@ -12540,10 +12540,24 @@ function toolSource(name) {
      the Scanner's dashboard — is judged by what it holds, however it came.
      One that is not is absent only once the load has looked for it: the
      scanner's files are read in the same load as the filings, and only where
-     the page is served from the owner's machine (25-universe.js). */
+     the page is served from the owner's machine (25-universe.js).
+     ANYWHERE ELSE, ABSENT FROM THE FIRST DRAW (6 Oct 2026). Off the owner's
+     machine the load never asks for them (OWNER_MACHINE), so one that is
+     not here will not come with the filings, and waiting for the load said
+     nothing true: each link to the Market, Alerts and Historical screens
+     was offered from the first draw — and served so, the render being that
+     draw (prerender.mjs) — then became text with its Unavailable badge when
+     the filings landed. On /status at 390px every build-status row with
+     such a path lost its finger-high link (44px) for a 22px line, and a
+     reader who had scrolled the served page to those rows saw the words
+     under the top of their window move 12px up (coverage-frames, CI's
+     DejaVu Sans; Segoe UI held the reader on rows with no such path). Now
+     the tool is Unavailable, and says why, from the first draw: served,
+     drawn and once the data lands alike. */
   const absent = (why) => {
     const read = typeof scanOpsRead !== 'undefined' && scanOpsRead;
-    if (read) return { state: 'unavailable', why };
+    const asked = typeof OWNER_MACHINE === 'undefined' || OWNER_MACHINE;
+    if (read || !asked) return { state: 'unavailable', why };
     if (filingsOn && !status) return null;
     return { state: 'unavailable', why: !filingsOn
       ? 'The scanner’s files are read with the filed statements, and those are switched off in this tab.'

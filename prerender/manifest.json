@@ -470,8 +470,8 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "ffb945c12a965cba",
-      "changed": "2026-10-04"
+      "digest": "8f7b2c94f1665baf",
+      "changed": "2026-10-06"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -499,8 +499,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "501c4d497d26f8c3",
-      "changed": "2026-10-04"
+      "digest": "4f4f7527a97c6687",
+      "changed": "2026-10-06"
     },
     "pages/app/scanner/watchlists.html": {
       "path": "/app/scanner/watchlists",
@@ -528,8 +528,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0fb5064267157522",
-      "changed": "2026-10-04"
+      "digest": "936ed62a19d358cd",
+      "changed": "2026-10-06"
     },
     "pages/compare.html": {
       "path": "/compare",
@@ -813,13 +813,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 0,
+        "notShown": 1,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bb613699e37b6251",
-      "changed": "2026-10-04"
+      "digest": "af1d2e9b799b9896",
+      "changed": "2026-10-06"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -934,8 +934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aef70a2af402b857",
-      "changed": "2026-10-04"
+      "digest": "c90fe469e8b15710",
+      "changed": "2026-10-06"
     },
     "pages/methodology.html": {
       "path": "/methodology",
@@ -1340,8 +1340,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aef70a2af402b857",
-      "changed": "2026-10-04"
+      "digest": "c90fe469e8b15710",
+      "changed": "2026-10-06"
     },
     "pages/start.html": {
       "path": "/start",
@@ -1398,7 +1398,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3d751c4341f68052",
+      "digest": "e0c4e52e70b82d49",
       "changed": "2026-10-06"
     },
     "pages/terms.html": {
