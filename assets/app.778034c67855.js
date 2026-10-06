@@ -44613,9 +44613,12 @@ function labPaintPanel(P, { initial = false } = {}) {
       if (P.els.grade.whyAt !== sig) {
         P.els.grade.whyAt = sig;
         P.els.grade.whyBody.replaceChildren(
+          /* The words one text node after the chip, as the served page's
+             markup reads back: a space of its own was a node of its own
+             once drawn, and the words stood 4px from where they were served. */
           gates.length ? el('ul', { class: 'lab-grade-gates' }, gates.map(x => el('li', { data: { severity: x.severity } }, [
-            x.severity === 'critical' ? el('span', { class: 'chip chip-bronze' }, 'Blocking') : null, x.severity === 'critical' ? ' ' : null,
-            x.text + (x.who ? ` Confirm with: ${x.who}.` : '')]))) : el('p', { class: 'metaline' }, g ? 'No gate is open.' : ''),
+            x.severity === 'critical' ? el('span', { class: 'chip chip-bronze' }, 'Blocking') : null,
+            `${x.severity === 'critical' ? ' ' : ''}${x.text}${x.who ? ` Confirm with: ${x.who}.` : ''}`]))) : el('p', { class: 'metaline' }, g ? 'No gate is open.' : ''),
           el('p', { class: 'metaline lab-grade-score' }, score));
       }
     }

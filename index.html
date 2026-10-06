@@ -4719,6 +4719,9 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
   :root[data-served] .lab-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   :root[data-served] .lab-tile { padding: 12px 14px 13px; }
   :root[data-served] .lab-tile-val { font-size: 22px; line-height: 28px; }
+  /* The next step keeps its own size served, as drawn (the rule above
+     outweighs .lab-tile-val.lab-next-what). */
+  :root[data-served] .lab-tile-val.lab-next-what { font-size: 15px; line-height: 20px; }
 }
 /* ON A PHONE the header is set a step tighter, every word kept: the four
    figures two by two, the claim at the caption's size, and the eyebrow —
@@ -50105,9 +50108,12 @@ function labPaintPanel(P, { initial = false } = {}) {
       if (P.els.grade.whyAt !== sig) {
         P.els.grade.whyAt = sig;
         P.els.grade.whyBody.replaceChildren(
+          /* The words one text node after the chip, as the served page's
+             markup reads back: a space of its own was a node of its own
+             once drawn, and the words stood 4px from where they were served. */
           gates.length ? el('ul', { class: 'lab-grade-gates' }, gates.map(x => el('li', { data: { severity: x.severity } }, [
-            x.severity === 'critical' ? el('span', { class: 'chip chip-bronze' }, 'Blocking') : null, x.severity === 'critical' ? ' ' : null,
-            x.text + (x.who ? ` Confirm with: ${x.who}.` : '')]))) : el('p', { class: 'metaline' }, g ? 'No gate is open.' : ''),
+            x.severity === 'critical' ? el('span', { class: 'chip chip-bronze' }, 'Blocking') : null,
+            `${x.severity === 'critical' ? ' ' : ''}${x.text}${x.who ? ` Confirm with: ${x.who}.` : ''}`]))) : el('p', { class: 'metaline' }, g ? 'No gate is open.' : ''),
           el('p', { class: 'metaline lab-grade-score' }, score));
       }
     }
