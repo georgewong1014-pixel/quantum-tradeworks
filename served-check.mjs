@@ -1566,7 +1566,9 @@ const HOME_PAGE = read(HOME);
     if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
     const root = tree(r.body);
     const view = has(root, x => x.tag === 'section' && x.cls.includes('view'))[0];
-    if (!view || !view.cls.includes('ls-view')) { p.push(`${path}: its view is not on the system (.ls-view)`); continue; }
+    if (!view) { p.push(`${path}: serves no view`); continue; }
+    /* Not on the system, its cards are still read: what it would have to change. */
+    if (!view.cls.includes('ls-view')) p.push(`${path}: its view is not on the system (.ls-view)`);
     if (!has(view, hasCls('ls-page')).length) p.push(`${path}: no .ls-page in its view`);
     for (const n of all(view)) {
       if (!n.cls.some(c => CARDISH.includes(c))) continue;
