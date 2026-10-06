@@ -15561,12 +15561,14 @@ function pageKicker(view = State.view) {
    one line; the note carries what the page must still say at its top — a
    disclosure, a limit — in the smaller, secondary voice under it; the action
    is the page's one primary action, where the whole page has one. */
-function pageHead({ title, lede = null, note = null, action = null, eyebrow = null, cls = '' } = {}) {
+/* badge: a status badge said beside the heading, outside it, so the page's
+   h1 stays its name (the Scenario Lab's Beta, N2b of the 5 Oct audit). */
+function pageHead({ title, lede = null, note = null, action = null, eyebrow = null, cls = '', badge = null } = {}) {
   const kicker = eyebrow || pageKicker();
   return el('div', { class: `page-hd${cls ? ` ${cls}` : ''}` }, [
     el('div', { class: 'page-hd-text' }, [
       kicker ? el('p', { class: 'eyebrow' }, kicker) : null,
-      el('h1', {}, title),
+      badge ? el('div', { class: 'page-hd-title' }, [el('h1', {}, title), badge]) : el('h1', {}, title),
       lede ? el('p', { class: 'body-lg page-lede' }, lede) : null,
       note ? el('p', { class: 'page-note' }, note) : null,
     ]),
@@ -30846,6 +30848,19 @@ const shownEvidence = (d, k) =>
     ? 'illustrative_default'
     : (d.evidence?.[k] || 'assumed');
 
+/* WHICH INPUT BOXES SAY THEY HOLD THE TOOL'S NUMBER (N2c, the 5 Oct audit).
+   The calculator tagged four of its ten seeded figures at the box —
+   price, rent, maintenance and built-up area, the evidence drivers — and
+   the deposit, the rate, the tenure, the vacancy, the holding period and
+   the growth rate sat beside them untagged, read as the reader's own. Every
+   figure on the review queue is tagged while it is the tool's: a driver as
+   its evidence says (shownEvidence), any other while nobody has touched it
+   and the deal was not started blank — and, as the queue, only where this
+   class uses it. */
+const inputIsSeeded = (d, k) => (EVIDENCE_DRIVERS.includes(k)
+  ? evidenceDriversFor(d).includes(k) && shownEvidence(d, k) === 'illustrative_default'
+  : PROPERTY_REVIEW.some(f => f.k === k) && propertyInputApplies(d, k) && !isTouched(d, k) && !d?.userStarted);
+
 /* Named rather than inline, so Reset restores exactly what a first visit sees.
    These are the seeded figures the review queue lists and the evidence card
    calls illustrative defaults — the two must not be able to disagree about
@@ -35038,7 +35053,7 @@ function cpRunningWords(d, m) {
   return `${bits.slice(0, -1).join(', ')} and ${bits[bits.length - 1]}`;
 }
 
-function cpRentSection(d, m) {
+function cpRentSection(d, m, paid = false) {
   const s = cpSection('rental', m.letsToTenant ? 'Rent and the monthly cash flow' : 'What holding it costs');
   const loan = m.loan > 0;
   if (!m.letsToTenant) {
@@ -35070,7 +35085,7 @@ function cpRentSection(d, m) {
     const taxKnown = m.taxComputed && isNum(m.cumTax);
     if (!m.taxComputed) s.append(cpNote('Before tax: no marginal tax rate was entered, so every figure here is before tax on the rent — what the property produces, not what an owner keeps.'));
     else if (!taxKnown) s.append(cpNote(`No tax on the rent is computed although a marginal rate of ${cpPct(d.marginalTaxPct)} is entered: the loan’s interest — the deduction that decides the tax — could not be worked out from the entered tenure.`, { warn: true }));
-    else s.append(el('p', { class: 'cp-note' }, [`The monthly position and the break-even rent are before tax on the rent. The rental cash and the rate of return under “If it is sold” are after tax at ${cpPct(d.marginalTaxPct)}, which comes to `,
+    else s.append(el('p', { class: 'cp-note' }, [`The monthly position and the break-even rent are before tax on the rent. ${paid ? 'The rental cash and the rate of return under “If it is sold” are' : 'The rate of return under “If it is sold” is'} after tax at ${cpPct(d.marginalTaxPct)}, which comes to `,
       cpFig('cumTax', cpMoney(m.cumTax)), ' across the hold: loan interest is deducted and principal is not. Nothing here is tax advice.']));
   }
   return s;
@@ -35109,14 +35124,33 @@ function cpScenariosSection(rec, picks) {
 
 /* The sale at the end of the hold, as the model prices it (dealModel's own
    exit: exitAt for the holding period, and the rate of return of the whole
-   hold). Nothing is assumed here that the model does not already assume. */
-function cpExitSection(d, m) {
+   hold). Nothing is assumed here that the model does not already assume.
+
+   THE OWNER'S PAYWALL RULE (3 Oct 2026). The sale's costs, its net proceeds
+   and the total profit are the full report's, as on the calculator (its
+   exit table) and the Scenario Lab (LAB_PAID): shown only where the report
+   is unlocked (propertyReportUnlocked, the calculator's own test). Until
+   then the proposal prints the Lab's two free figures — in the Lab's own
+   words (LAB_FIGURES), so the two pages cannot word them differently — and
+   says where the rest is. From ee173ce to this change the table printed all
+   ten rows to anyone, the net proceeds and the profit included. */
+const CP_EXIT_LOCKED = 'In the full analysis — preview in the calculator; nothing is on sale';
+function cpExitSection(d, m, paid = false) {
   const s = cpSection('exit', `If it is sold after ${cpPlural(d.holdYears, 'year')}`);
   /* A deduction carries its minus — except one that prints as nothing: a
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
   const lets = m.letsToTenant;
-  s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+  const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
+  if (!paid) {
+    const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
+    s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+      cpRow(label('valueLessLoanAtExit'), isNum(m.valueLessLoanAtExit) ? cpFig('valueLessLoanAtExit', cpMoney(m.valueLessLoanAtExit))
+        : el('span', { class: 'cp-unpriced', 'data-cp': 'valueLessLoanAtExit' }, 'Not computed — the loan has no schedule')),
+      cpRow(label('irrPct'), rate()),
+    ], { cls: 'cp-exit cp-exit-free' }));
+    s.append(el('p', { class: 'cp-note cp-exit-locked', 'data-cp-locked': 'exit' }, CP_EXIT_LOCKED));
+  } else s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
     cpRow('Sale value', cpFig('exitValue', cpMoney(m.exitValue))),
     cpRow('Loan outstanding', less('outstanding', m.outstanding)),
     cpRow('Agent commission', less('agentFee', m.agentFee)),
@@ -35126,7 +35160,7 @@ function cpExitSection(d, m) {
     cpRow('Net proceeds', cpFig('netExitProceeds', cpMoney(m.netExitProceeds))),
     cpRow(!lets ? 'Cash to hold it over the hold — running costs and loan repayments' : m.taxComputed ? 'Rental cash over the hold, after tax on the rent' : 'Rental cash over the hold, before tax', cpFig('cumCash', cpMoney(m.cumCash))),
     cpRow('Total profit on the cash put in', cpFig('totalProfit', cpMoney(m.totalProfit))),
-    cpRow('Rate of return over the hold', isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate')),
+    cpRow('Rate of return over the hold', rate()),
   ], { cls: 'cp-exit' }));
   if (!isNum(m.irrPct) && m.irrWhy) s.append(cpNote(`No rate of return: ${m.irrWhy}`));
   const reno = num0(d.renovation) > 0 && num0(d.renoValueRecoveryPct) > 0
@@ -35171,7 +35205,7 @@ function cpDisclosures(rec, d, m) {
 }
 
 function cpDocument(rec, details, forWhom, picks) {
-  const d = pmInputsOf(rec), m = dealModel(d), cash = cpCash(m);
+  const d = pmInputsOf(rec), m = dealModel(d), cash = cpCash(m), paid = propertyReportUnlocked(d.projectId);
   const doc = el('article', { class: 'cp-doc', id: 'cp-doc', 'aria-label': 'Client proposal' });
   doc.append(cpHead(rec, d, details, forWhom));
   const where = pmPlace(d);
@@ -35186,9 +35220,9 @@ function cpDocument(rec, details, forWhom, picks) {
   doc.append(cpPropertySection(rec, d, m));
   doc.append(cpAcquisitionSection(d, m, cash));
   doc.append(cpFinancingSection(d, m));
-  doc.append(cpRentSection(d, m));
+  doc.append(cpRentSection(d, m, paid));
   if (picks.length) doc.append(cpScenariosSection(rec, picks));
-  doc.append(cpExitSection(d, m));
+  doc.append(cpExitSection(d, m, paid));
   doc.append(cpDisclosures(rec, d, m));
   return doc;
 }
@@ -38740,8 +38774,10 @@ VIEWS.property = () => {
         } }));
       /* Said beside the number rather than only in the evidence section below,
          because this is where a reader decides whether to trust it. Only for
-         a figure this class has: a parcel's rent is used by nothing. */
-      if (evidenceDriversFor(d).includes(k) && shownEvidence(d, k) === 'illustrative_default')
+         a figure this class has: a parcel's rent is used by nothing. All ten
+         seeded figures, not the four evidence drivers only (inputIsSeeded,
+         70-property.js). */
+      if (inputIsSeeded(d, k))
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
       rail.append(f);
@@ -39437,14 +39473,17 @@ VIEWS.property = () => {
        "nothing can be bought" — a price, a purchase and its denial side by
        side. It now says what the pricing page says — a proposed price, not
        on sale — and its button says what it does, as a plan's does there:
-       it previews the report in this browser. */
+       it previews the report in this browser.
+       Debt-service cover is not among what it adds: the Scenario Lab shows
+       it free, under Risk (plan item 1.4), and a report cannot offer what
+       the free tool already gives. */
     reportCards.push(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
-        ? `Adds net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
+        ? `Adds net operating income, cash-on-cash return, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, debt-service cover, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
@@ -41296,8 +41335,13 @@ const CAPABILITY_REGISTER = [
     gate:'Needs the offer-status workflow. Financing scenarios at 70/80/90% exist today; named lender offers do not.' },
   { name:'Operations Excellence handoff', status:'queued', path:null,
     gate:'Book 2. Generated from Book 1 once acquisition underwriting is settled.' },
-  { name:'Property map and area observations', status:'maintenance', path:'/property/calculator',
-    now:'Cached coordinates under ODbL with per-area match confidence.' },
+  /* Not a map (N4a, the 5 Oct audit): "Property map … /property/calculator"
+     read as the map the plan's Phase 5 is still to build. What exists is
+     cityMap (70-property.js), a diagram of 8 cached locality points for each
+     of Kuching, Sibu, Miri and Bintulu (data/sarawak-geo.json), whose own
+     caption says it has no basemap, road or boundary. */
+  { name:'Locality diagram and area observations', status:'maintenance', path:'/property/areas',
+    now:'8 locality points per town, relative positions with per-point match confidence (ODbL); no basemap, no scheme or building positions.' },
   { name:'Discover and screener', status:'maintenance', path:'/discover/screener',
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
   /* The explorer and the brief's paths were a row of their own in the brief
@@ -44340,7 +44384,10 @@ function labRefresh() {
 VIEWS.propertyLab = () => {
   labArrive();
   const wrap = el('div', { class: 'lab-page' });
-  wrap.append(pageHead({ title: 'Scenario Lab',
+  /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
+     and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
+     was its product's "Property Intelligence · Live". */
+  wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'),
     lede: 'Move price, deposit, rate, rent and renovation, and every figure below is worked out again by the calculator’s own model — for up to three scenarios side by side.',
     note: 'Moves are what-ifs, kept in this tab until you save one as a scenario or open it in the calculator.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
@@ -52574,9 +52621,16 @@ const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this p
 /* One width whatever it says (health-chip, styles.css): served it says
    "Not run", drawn "Checking…" and then its result, and the check's name
    beside it must not move between them. */
+/* A RESULT IS SERVED WITH NONE OF ITS MARKS (N1a, the 5 Oct audit). The
+   words "Not run" were served in the chip, but its colour (chip-ok) and the
+   row's data-status="PASS" were the render's own run's: a fetch of /status
+   read a passing check that had run nowhere. data-now-class and
+   data-now-status are what the chip's class and the row's status are
+   served as (servedCopy, prerender.mjs), as data-now is its words. */
+const HEALTH_NOT_RUN_STATUS = 'PENDING';
 const healthChip = (status) => {
   const s = HEALTH_STATE[status];
-  return el('span', { class: `chip health-chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip }, s ? s.label : 'Checking…');
+  return el('span', { class: `chip health-chip ${s ? s.chip : ''}`, style: 'flex:none;min-width:4.75rem;justify-content:center', 'data-now': HEALTH_NOT_RUN.chip, 'data-now-class': 'chip health-chip' }, s ? s.label : 'Checking…');
 };
 const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`) : null);
 /* The result, its name and its time on one line; what was checked below it.
@@ -52589,7 +52643,7 @@ function healthRow({ status, title, detail, meta }) {
   /* The whole line's width, so it always starts a line of its own; the
      measure is the text's, inside it. */
   const text = 'margin:0;max-width:72ch;overflow-wrap:anywhere';
-  return el('li', { class: 'health-row', data: { status: status || 'PENDING' }, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
+  return el('li', { class: 'health-row', data: { status: status || HEALTH_NOT_RUN_STATUS }, 'data-now-status': HEALTH_NOT_RUN_STATUS, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
     healthChip(status),
     el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, title),
     meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums', 'data-now': '' }, meta) : null,

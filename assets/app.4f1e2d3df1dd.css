@@ -1225,6 +1225,11 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
 .page-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--lg); flex-wrap: wrap; margin-bottom: var(--lg); }
 .page-hd h1, .page-title { font-size: var(--text-h1); font-weight:700; letter-spacing: -.02em; }
 .page-hd > div:first-child { flex: 1 1 560px; min-width: 0; }
+/* A heading with its status beside it (pageHead's badge): on the heading's
+   line, never taller than it. Positioned, so the badge's visually hidden
+   comma (.status-badge::before) is laid out here. */
+.page-hd-title { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.page-hd-title > h1 { margin: 0; min-width: 0; }
 @media (max-width: 760px) { .page-title { font-size: 22px; } }
 
 /* PROGRESSIVE DISCLOSURE ON THE PHONE.
@@ -2340,6 +2345,19 @@ a.pp-row:active { transform: translateY(1px); }
 .appbar .brand { margin-left: 2px; }
 .appbar-search { margin-left: auto; min-width: 0; height: 40px; padding: 0 14px; gap: 8px; color: var(--ink-2); }
 @media (max-width: 360px) { .appbar-search-label { display: none; } }
+/* "Search" whole or not at all (batch 1, 6 Oct 2026). In a wide sans
+   (Verdana, CI's DejaVu) the bar left the button 60px at 375 and 75px at
+   390, and the word ran 25px and 10px out of it. On a phone the button
+   wraps its word onto a second line, which it clips, whenever the word does
+   not fit beside the magnifier: the button then shows the magnifier alone,
+   centred, as it does at 360, and its name (aria-label) is unchanged. The
+   first line is 20px tall and sits in the middle of the 44px button these
+   widths give it (min-height, above). */
+@media (max-width: 767.98px) {
+  .appbar-search { flex-wrap: wrap; justify-content: center; align-content: flex-start; overflow: hidden; padding: 11px 10px 0; gap: 24px 6px; min-width: 44px; }
+  .appbar-search > svg { margin-block: 2px; }
+  .appbar-search-label { line-height: 20px; min-width: 0; overflow: hidden; }
+}
 
 /* ------------------------------------------------------- app: sidebar */
 .sidebar {
@@ -4627,6 +4645,10 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-span { margin-top: 2px; line-height: 1.45; }
 .lab-span-why { display: none; }
 .lab-knob-note { margin-top: 4px; line-height: 1.45; }
+/* A 0% rate's warning stays whole and in sight on a phone, set tighter: in
+   a wide sans (Verdana, CI's DejaVu) its four lines put the last result 3px
+   below a 360×640 screen (batch 1, 6 Oct 2026). */
+@container lab (max-width: 599px) { .lab-knob-note.lab-note-warn { margin-top: 2px; line-height: 1.3; } }
 .lab-reno { margin-top: 6px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface-sunk); }
 
 /* The chain: a row a figure, its formula a tap away. */

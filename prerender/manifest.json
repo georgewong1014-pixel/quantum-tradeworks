@@ -1,5 +1,5 @@
 {
-  "$comment": "Written by prerender.mjs: how each page in prerender/ was drawn. build.mjs puts each render into its page; node prerender.mjs --check says whether each is still the app's.",
+  "$comment": "Written by prerender.mjs: how each page in prerender/ was drawn, and the day (UTC) of the commit its render last changed at. build.mjs puts each render into its page and each day into sitemap.xml as <lastmod>; node prerender.mjs --check says whether each is still the app's.",
   "drawn": {
     "viewport": "1280x900",
     "theme": "light",
@@ -35,7 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "db40d83c2ec177df"
+      "digest": "db40d83c2ec177df",
+      "changed": "2026-10-03"
     },
     "pages/about.html": {
       "path": "/about",
@@ -63,7 +64,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9595028208c64de8"
+      "digest": "9595028208c64de8",
+      "changed": "2026-10-03"
     },
     "pages/admin/scanner.html": {
       "path": "/admin/scanner",
@@ -91,7 +93,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6fc3b1c53812c598"
+      "digest": "6fc3b1c53812c598",
+      "changed": "2026-10-04"
     },
     "pages/admin/scanner/data.html": {
       "path": "/admin/scanner/data",
@@ -119,7 +122,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "42c315819ee8c547"
+      "digest": "42c315819ee8c547",
+      "changed": "2026-10-04"
     },
     "pages/admin/scanner/delivery.html": {
       "path": "/admin/scanner/delivery",
@@ -147,7 +151,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e8bc852bb9a3539e"
+      "digest": "e8bc852bb9a3539e",
+      "changed": "2026-10-03"
     },
     "pages/admin/scanner/jobs.html": {
       "path": "/admin/scanner/jobs",
@@ -175,7 +180,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "180c1d82a886a7a3"
+      "digest": "180c1d82a886a7a3",
+      "changed": "2026-10-04"
     },
     "pages/app.html": {
       "path": "/app",
@@ -203,7 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f4a19cf223de99a0"
+      "digest": "f4a19cf223de99a0",
+      "changed": "2026-10-04"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -231,7 +238,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3c6265dd402ba9c"
+      "digest": "c3c6265dd402ba9c",
+      "changed": "2026-10-04"
     },
     "pages/app/equities/compare.html": {
       "path": "/app/equities/compare",
@@ -259,7 +267,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "91acc0eaef815349"
+      "digest": "91acc0eaef815349",
+      "changed": "2026-10-04"
     },
     "pages/app/equities/explore.html": {
       "path": "/app/equities/explore",
@@ -287,7 +296,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3c6265dd402ba9c"
+      "digest": "c3c6265dd402ba9c",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner.html": {
       "path": "/app/scanner",
@@ -315,7 +325,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3d1cc6d20ff6dd39"
+      "digest": "3d1cc6d20ff6dd39",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -343,7 +354,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "61cb921b02145e37"
+      "digest": "61cb921b02145e37",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/backtest.html": {
       "path": "/app/scanner/backtest",
@@ -371,7 +383,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "88398d6b1ca4658b"
+      "digest": "88398d6b1ca4658b",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/market.html": {
       "path": "/app/scanner/market",
@@ -399,7 +412,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9d10678674407e3d"
+      "digest": "9d10678674407e3d",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/settings.html": {
       "path": "/app/scanner/settings",
@@ -427,7 +441,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "340e7a8eca969e0f"
+      "digest": "340e7a8eca969e0f",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/setups.html": {
       "path": "/app/scanner/setups",
@@ -455,7 +470,8 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "ffb945c12a965cba"
+      "digest": "ffb945c12a965cba",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -483,7 +499,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "501c4d497d26f8c3"
+      "digest": "501c4d497d26f8c3",
+      "changed": "2026-10-04"
     },
     "pages/app/scanner/watchlists.html": {
       "path": "/app/scanner/watchlists",
@@ -511,7 +528,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0fb5064267157522"
+      "digest": "0fb5064267157522",
+      "changed": "2026-10-04"
     },
     "pages/compare.html": {
       "path": "/compare",
@@ -539,7 +557,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "91acc0eaef815349"
+      "digest": "91acc0eaef815349",
+      "changed": "2026-10-04"
     },
     "pages/contact.html": {
       "path": "/contact",
@@ -567,7 +586,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f3ac81dfd5e41ce1"
+      "digest": "f3ac81dfd5e41ce1",
+      "changed": "2026-10-04"
     },
     "pages/corrections.html": {
       "path": "/corrections",
@@ -595,7 +615,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "323d93be70d87bc0"
+      "digest": "323d93be70d87bc0",
+      "changed": "2026-10-04"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -623,7 +644,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bec59f9c9ed31eaa"
+      "digest": "bec59f9c9ed31eaa",
+      "changed": "2026-10-04"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -651,7 +673,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "a61effc6f6b63372"
+      "digest": "a61effc6f6b63372",
+      "changed": "2026-10-04"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -679,7 +702,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "7388f02fc0993997"
+      "digest": "7388f02fc0993997",
+      "changed": "2026-10-04"
     },
     "pages/discover/sarawak.html": {
       "path": "/discover/sarawak",
@@ -707,7 +731,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f2f77dbf77e3a65d"
+      "digest": "f2f77dbf77e3a65d",
+      "changed": "2026-10-04"
     },
     "pages/discover/screener.html": {
       "path": "/discover/screener",
@@ -735,7 +760,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "7388f02fc0993997"
+      "digest": "7388f02fc0993997",
+      "changed": "2026-10-04"
     },
     "pages/discover/value-map.html": {
       "path": "/discover/value-map",
@@ -763,7 +789,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "78deea0c746ed516"
+      "digest": "78deea0c746ed516",
+      "changed": "2026-10-04"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",
@@ -791,7 +818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bb613699e37b6251"
+      "digest": "bb613699e37b6251",
+      "changed": "2026-10-04"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -819,7 +847,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "58a769817b118c9f"
+      "digest": "58a769817b118c9f",
+      "changed": "2026-10-04"
     },
     "pages/learn/glossary.html": {
       "path": "/learn/glossary",
@@ -847,7 +876,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "58a769817b118c9f"
+      "digest": "58a769817b118c9f",
+      "changed": "2026-10-04"
     },
     "pages/learn/product-boundaries.html": {
       "path": "/learn/product-boundaries",
@@ -875,7 +905,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6eb0271c47c30cef"
+      "digest": "6eb0271c47c30cef",
+      "changed": "2026-10-03"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -903,7 +934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aef70a2af402b857"
+      "digest": "aef70a2af402b857",
+      "changed": "2026-10-04"
     },
     "pages/methodology.html": {
       "path": "/methodology",
@@ -931,7 +963,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0360e22704fba64e"
+      "digest": "0360e22704fba64e",
+      "changed": "2026-10-04"
     },
     "pages/methodology/ips.html": {
       "path": "/methodology/ips",
@@ -957,7 +990,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0c08d38b87385152"
+      "digest": "0c08d38b87385152",
+      "changed": "2026-10-03"
     },
     "pages/pricing.html": {
       "path": "/pricing",
@@ -987,7 +1021,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e36c37c59224ee03"
+      "digest": "e36c37c59224ee03",
+      "changed": "2026-10-04"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -1015,7 +1050,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e19e56ca879524bc"
+      "digest": "e19e56ca879524bc",
+      "changed": "2026-10-04"
     },
     "pages/property.html": {
       "path": "/property",
@@ -1043,7 +1079,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "ce6873401f4b1443"
+      "digest": "e872d19762da2022",
+      "changed": "2026-10-06"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1071,7 +1108,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "22d380924e2c136b"
+      "digest": "22d380924e2c136b",
+      "changed": "2026-10-04"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -1099,7 +1137,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "ce6873401f4b1443"
+      "digest": "e872d19762da2022",
+      "changed": "2026-10-06"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1127,7 +1166,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "880a19522f9b56e6"
+      "digest": "880a19522f9b56e6",
+      "changed": "2026-10-04"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -1155,7 +1195,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2dc3f1fe0e6d733a"
+      "digest": "2baf47465675e7a0",
+      "changed": "2026-10-06"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -1183,7 +1224,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9bce34d0599d9efd"
+      "digest": "9bce34d0599d9efd",
+      "changed": "2026-10-04"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -1211,7 +1253,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e684289e538ac098"
+      "digest": "e684289e538ac098",
+      "changed": "2026-10-04"
     },
     "pages/research.html": {
       "path": "/research",
@@ -1239,7 +1282,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3c6265dd402ba9c"
+      "digest": "c3c6265dd402ba9c",
+      "changed": "2026-10-04"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",
@@ -1267,7 +1311,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2becb0ba08684039"
+      "digest": "2becb0ba08684039",
+      "changed": "2026-10-04"
     },
     "pages/research/trading-index.html": {
       "path": "/research/trading-index",
@@ -1295,7 +1340,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aef70a2af402b857"
+      "digest": "aef70a2af402b857",
+      "changed": "2026-10-04"
     },
     "pages/start.html": {
       "path": "/start",
@@ -1323,7 +1369,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "09b08b7cc0438333"
+      "digest": "09b08b7cc0438333",
+      "changed": "2026-10-04"
     },
     "pages/status.html": {
       "path": "/status",
@@ -1351,7 +1398,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0fd80ae15f2dce99"
+      "digest": "ea315002f33dd26a",
+      "changed": "2026-10-06"
     },
     "pages/terms.html": {
       "path": "/terms",
@@ -1379,7 +1427,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f1644f61a43a43ff"
+      "digest": "f1644f61a43a43ff",
+      "changed": "2026-10-03"
     },
     "pages/us-options/wheel.html": {
       "path": "/us-options/wheel",
@@ -1407,7 +1456,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "11adaec76da1ab9c"
+      "digest": "11adaec76da1ab9c",
+      "changed": "2026-10-04"
     },
     "pages/welcome.html": {
       "path": "/welcome",
@@ -1435,7 +1485,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6e91e70d12b25c05"
+      "digest": "6e91e70d12b25c05",
+      "changed": "2026-10-04"
     }
   }
 }
