@@ -975,12 +975,25 @@ try {
         const FIND = (a) => `(() => { const w = document.createTreeWalker(document.getElementById('views'), NodeFilter.SHOW_TEXT); let k = 0;
           for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.data.replace(/\\s+/g, ' ').trim() !== ${JSON.stringify(a.t)} || k++ !== ${a.k}) continue;
             const r = document.createRange(); r.selectNodeContents(n); return r.getBoundingClientRect().top; } return null; })()`;
-        for (const [path, metrics, at] of [['/status', W1280, 0.5], ['/status', W390, 0.5], ['/property/calculator', W1280, 0.5], ['/property/calculator', W390, 0.3],
+        /* IN ANOTHER MACHINE'S FONT TOO (6 Oct 2026). /status at 390 passed
+           here in Segoe UI and failed on CI's runner, in DejaVu Sans: a
+           page as long as /status puts half way down on another row in
+           another font, and there the rows whose path was offered as a link
+           until the data landed (absent, toolSource in 35-ui.js) moved the
+           words under the top of the window 12px. Verdana, which Windows
+           has and whose widths are DejaVu's kin, put the reader on such a
+           row too, and fails the same way on b907f00; so /status is held in
+           it as well (fontScript, prerender.mjs, from the first frame). */
+        for (const [path, metrics, at, face = null] of [['/status', W1280, 0.5], ['/status', W390, 0.5], ['/status', W1280, 0.5, 'Verdana'], ['/status', W390, 0.5, 'Verdana'],
+          ['/property/calculator', W1280, 0.5], ['/property/calculator', W390, 0.3],
           ['/discover/screener', W390, 1618], ['/discover/screener', W1280, 0.5], ['/app', W1280, 0.6], ['/pricing', W390, 0.5], ['/research/queue', W1280, 0.5]]) {
           await size(metrics);
           await firstVisit({ script: true });
+          const faceId = face ? (await send('Page.addScriptToEvaluateOnNewDocument', { source: P.fontScript(face) }, sid)).result?.identifier : null;
+          try {
+          const at$ = face ? `${path} at ${metrics.width} in ${face}` : `${path} at ${metrics.width}`;
           await send('Page.navigate', { url: live + path }, sid);
-          if (!await until(SERVED_PAINTED)) { say('scroll', false, `${path} at ${metrics.width}: the served page was not painted before the script`); continue; }
+          if (!await until(SERVED_PAINTED)) { say('scroll', false, `${at$}: the served page was not painted before the script`); continue; }
           await painted();
           const docH = await value('document.documentElement.scrollHeight');
           const target = at < 1 ? Math.round((docH - metrics.height) * at) : at;
@@ -992,7 +1005,7 @@ try {
           }
           await sleep(700);
           const a = await value(ANCHOR);
-          if (!a) { say('scroll', false, `${path} at ${metrics.width}: no words at the top of the window to hold`); continue; }
+          if (!a) { say('scroll', false, `${at$}: no words at the top of the window to hold`); continue; }
           await releaseScript();
           await until(`typeof State !== 'undefined' && !!State.view`); await painted(); await sleep(300);
           const y1 = await value(FIND(a));
@@ -1001,7 +1014,10 @@ try {
           const y2 = await value(FIND(a));
           const cls = await value('window.__cls');
           const moved = [y1, y2].map(y => (y == null ? null : Math.round(y - a.y)));
-          say('scroll', moved.every(m => m !== null && Math.abs(m) <= 4) && cls <= 0.05, `${path} at ${metrics.width}, scrolled to ${target}: "${a.t.slice(0, 50)}" at ${Math.round(a.y)}px moved ${moved.map(m => (m === null ? 'out of the page' : `${m > 0 ? '+' : ''}${m}px`)).join(' when drawn, then ')} when the data landed; layout shift ${Number(cls).toFixed(3)}`);
+          say('scroll', moved.every(m => m !== null && Math.abs(m) <= 4) && cls <= 0.05, `${at$}, scrolled to ${target}: "${a.t.slice(0, 50)}" at ${Math.round(a.y)}px moved ${moved.map(m => (m === null ? 'out of the page' : `${m > 0 ? '+' : ''}${m}px`)).join(' when drawn, then ')} when the data landed; layout shift ${Number(cls).toFixed(3)}`);
+          } finally {
+            if (faceId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: faceId }, sid);
+          }
         }
         await size(W1280);
 
@@ -1078,7 +1094,7 @@ try {
         if (framesId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: framesId }, sid);
       }
       const parts = [['first', 'served pages to readers the render is not for: a returning reader\'s own (before this release and since), a reader in New York or London, the dark theme — never shown a fresh visitor\'s page or a light frame, kept out of sight and out of reach, then drawn as theirs; a reader holding only a first visit\'s samples, a reader whose language is Malaysian, and every fresh visitor in Kuala Lumpur shown the page as served'],
-        ['scroll', 'a reader who scrolled before the script stays where they were when the page is drawn and when its data lands (/status, the calculator, the screener, /app, /pricing, /research/queue; 1280 and 390), the layout shift at most 0.05'],
+        ['scroll', 'a reader who scrolled before the script stays where they were when the page is drawn and when its data lands (/status, the calculator, the screener, /app, /pricing, /research/queue; 1280 and 390; /status in Verdana too), the layout shift at most 0.05'],
         ['minor', 'the dashboard\'s heading on screen through the wait; no action that does nothing offered to a reader with no script; "none yet" whole on the Sarawak screen'],
         ['widths', 'at 1024, 1280 and 1440, every page whose render left something out shows on its served page every run of text the drawn page shows, and no other']];
       for (const [k, what] of parts) {
