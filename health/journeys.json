@@ -1,10 +1,12 @@
 {
   "kind": "quantum-tradeworks-journeys",
-  "schema": 1,
-  "ranAt": "2026-10-05T10:30:28.776Z",
+  "schema": 2,
+  "ranAt": "2026-10-06T06:22:57.345Z",
   "url": "https://quantum-tradeworks.vercel.app",
-  "commit": "75312b2bc2c9cf2dc016a2bd405fd403a4656be1",
-  "commitFrom": "the served index.html is the build of the commit checked out",
+  "commit": "1c7ebfc7daf6aa9832116fa77a657863e5c4f995",
+  "commitFrom": "the deployment event, and the site serves its build",
+  "trigger": "deployment",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/37423388699",
   "journeys": [
     {
       "id": "equities",
@@ -12,37 +14,37 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 3557,
+      "ms": 3709,
       "note": null,
       "steps": [
         {
           "name": "Open Equities Research",
-          "ms": 453,
+          "ms": 486,
           "status": "OK"
         },
         {
           "name": "Search for “apple”",
-          "ms": 351,
+          "ms": 349,
           "status": "OK"
         },
         {
           "name": "Open Apple’s company page",
-          "ms": 276,
+          "ms": 280,
           "status": "OK"
         },
         {
           "name": "Financials: the filed statements, and where a figure came from",
-          "ms": 678,
+          "ms": 667,
           "status": "OK"
         },
         {
           "name": "Add to watchlist",
-          "ms": 289,
+          "ms": 244,
           "status": "OK"
         },
         {
           "name": "The watchlist lists it",
-          "ms": 233,
+          "ms": 224,
           "status": "OK"
         }
       ]
@@ -53,22 +55,22 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 1986,
+      "ms": 1911,
       "note": null,
       "steps": [
         {
           "name": "Open the screener",
-          "ms": 989,
+          "ms": 903,
           "status": "OK"
         },
         {
           "name": "Filter: return on equity of at least 20",
-          "ms": 542,
+          "ms": 543,
           "status": "OK"
         },
         {
           "name": "Open a result",
-          "ms": 268,
+          "ms": 269,
           "status": "OK"
         }
       ]
@@ -79,17 +81,17 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 6822,
+      "ms": 6977,
       "note": null,
       "steps": [
         {
           "name": "Open the property calculator",
-          "ms": 1182,
+          "ms": 1160,
           "status": "OK"
         },
         {
           "name": "Enter a price, a rent and a loan",
-          "ms": 2526,
+          "ms": 2520,
           "status": "OK"
         },
         {
@@ -99,17 +101,22 @@
         },
         {
           "name": "Change the loan: the cash required moves",
-          "ms": 879,
+          "ms": 788,
           "status": "OK"
         },
         {
           "name": "Save the property",
-          "ms": 719,
+          "ms": 728,
           "status": "OK"
         },
         {
           "name": "It is listed with the saved properties",
-          "ms": 473,
+          "ms": 491,
+          "status": "OK"
+        },
+        {
+          "name": "Proposal hides the sale’s costs, proceeds and profit until unlocked",
+          "ms": 256,
           "status": "OK"
         }
       ]
@@ -120,33 +127,34 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 2596,
+      "ms": 2572,
       "note": null,
       "steps": [
         {
           "name": "Open the setup builder",
-          "ms": 831,
+          "ms": 808,
           "status": "OK"
         },
         {
           "name": "Build a condition: price crosses above its 20-bar EMA, on AAPL",
-          "ms": 1130,
+          "ms": 1117,
           "status": "OK"
         },
         {
           "name": "Save the setup",
-          "ms": 236,
+          "ms": 242,
           "status": "OK"
         },
         {
           "name": "The setup’s page shows it",
-          "ms": 3,
+          "ms": 2,
           "status": "OK"
         },
         {
           "name": "Evaluate it: the page says there is no price history here",
-          "ms": 235,
-          "status": "OK"
+          "ms": 230,
+          "status": "OK",
+          "gated": "no prices ship"
         }
       ]
     },
@@ -156,142 +164,147 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 25214,
-      "note": "26 calls to action pressed, each landing on a working page",
+      "ms": 26561,
+      "note": "27 calls to action pressed, each landing on a working page",
       "steps": [
         {
           "name": "Open My Dashboard",
-          "ms": 798,
+          "ms": 794,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Start research”",
-          "ms": 658,
+          "ms": 727,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Create a watchlist”",
-          "ms": 644,
+          "ms": 682,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Create a setup”",
-          "ms": 663,
+          "ms": 681,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Analyse a property”",
-          "ms": 779,
+          "ms": 795,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Set your preferences”",
-          "ms": 628,
+          "ms": 650,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Not sure where to start?”",
-          "ms": 647,
+          "ms": 657,
           "status": "OK"
         },
         {
           "name": "The header’s “Open workspace”",
-          "ms": 644,
+          "ms": 646,
           "status": "OK"
         },
         {
           "name": "Homepage card “Research a company”",
-          "ms": 658,
+          "ms": 670,
           "status": "OK"
         },
         {
           "name": "Homepage card “Monitor my setups”",
-          "ms": 673,
+          "ms": 664,
           "status": "OK"
         },
         {
           "name": "Homepage card “Analyse a property”",
-          "ms": 780,
+          "ms": 815,
           "status": "OK"
         },
         {
           "name": "Equities tab “Overview”",
-          "ms": 647,
+          "ms": 622,
           "status": "OK"
         },
         {
           "name": "Equities tab “Screener”",
-          "ms": 706,
+          "ms": 702,
           "status": "OK"
         },
         {
           "name": "Equities tab “Compare”",
-          "ms": 654,
+          "ms": 682,
           "status": "OK"
         },
         {
           "name": "Equities tab “Research queue”",
-          "ms": 639,
+          "ms": 695,
           "status": "OK"
         },
         {
           "name": "Equities tab “Sarawak watch”",
-          "ms": 641,
+          "ms": 670,
           "status": "OK"
         },
         {
           "name": "Equities tab “Cash Wheel”",
-          "ms": 643,
+          "ms": 693,
           "status": "OK"
         },
         {
           "name": "Property tab “My properties”",
-          "ms": 636,
+          "ms": 635,
           "status": "OK"
         },
         {
           "name": "Property tab “Calculator”",
-          "ms": 714,
+          "ms": 707,
+          "status": "OK"
+        },
+        {
+          "name": "Property tab “Scenario Lab”",
+          "ms": 681,
           "status": "OK"
         },
         {
           "name": "Property tab “Area screen”",
-          "ms": 649,
+          "ms": 666,
           "status": "OK"
         },
         {
           "name": "Property tab “Comparables”",
-          "ms": 630,
+          "ms": 664,
           "status": "OK"
         },
         {
           "name": "Property tab “Opportunities”",
-          "ms": 655,
+          "ms": 649,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Dashboard”",
-          "ms": 632,
+          "ms": 622,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Setups”",
-          "ms": 633,
+          "ms": 680,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Watchlist scanner”",
-          "ms": 636,
+          "ms": 671,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Settings”",
-          "ms": 637,
+          "ms": 662,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Trading Index”",
-          "ms": 645,
+          "ms": 678,
           "status": "OK"
         }
       ]
