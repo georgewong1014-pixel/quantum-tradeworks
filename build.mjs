@@ -1454,6 +1454,65 @@ export function mapShapeProblems({ root = ROOT } = {}) {
   return out;
 }
 
+/* THE LAYOUT SYSTEM'S TYPE AND MEASURE, IN THE STYLESHEET (the owner's
+   decision, 7 Oct 2026; 37-layout-system.js). The pages on the system set
+   their type in seven tokens on the brief's scale, and hold text to a
+   measure of 70 characters at most. Held here, in src/styles.css:
+   - its layout-system section stands, and defines --ls-hero, --ls-title,
+     --ls-section, --ls-metric, --ls-body, --ls-support and --ls-meta, each
+     inside the brief's range on a phone (the base) and on a desk (from
+     1024px and from 1440px, as the media queries leave it);
+   - --ls-measure is 70ch or less;
+   - every font-size in that section, and in every rule of the families the
+     system's pages draw with (.ls-, .lab-, .pc-), is a token (var(--ls-…));
+   - no rule of those families lets a block wider than 70ch.
+   mobile.mjs holds what is drawn to the same; served-check what is served. */
+const LS_SCALE = {
+  '--ls-hero': [[36, 42], [52, 64]], '--ls-title': [[28, 32], [36, 44]], '--ls-section': [[21, 24], [24, 28]], '--ls-metric': [[26, 32], [28, 36]],
+  '--ls-body': [[16, 16], [16, 16]], '--ls-support': [[14, 14], [14, 14]], '--ls-meta': [[12, 12], [12, 13]],
+};
+export function layoutSystemProblems({ root = ROOT } = {}) {
+  const raw = lf(readFileSync(join(root, 'src', 'styles.css'), 'utf8'));
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+  const out = [];
+  const a = raw.indexOf('/* ---- layout-system ---- */'), b = raw.indexOf('/* ---- end layout-system ---- */');
+  if (a < 0 || b < a) out.push('src/styles.css has no layout-system section (/* ---- layout-system ---- */ … /* ---- end layout-system ---- */): the pages on the layout system have no type scale or measure to be held to');
+  const sec = a < 0 || b < a ? '' : css.slice(a, b);
+  /* The tokens' values: the section's base :root, then each media query's. */
+  const at = { base: {}, 640: {}, 1024: {}, 1440: {} };
+  for (const m of sec.matchAll(/(?:@media\s*\(min-width:\s*(\d+)px\)\s*\{\s*)?:root\s*\{([^}]*)\}/g)) {
+    const into = m[1] ? at[m[1]] : at.base;
+    if (!into) continue;
+    for (const d of m[2].matchAll(/(--ls-[a-z0-9-]+)\s*:\s*([^;]+);/g)) into[d[1]] = d[2].trim();
+  }
+  const px = (v) => (/^\d+(\.\d+)?px$/.test(v || '') ? parseFloat(v) : null);
+  for (const [t, [phone, desk]] of Object.entries(LS_SCALE)) {
+    const base = px(at.base[t]);
+    if (base == null) { out.push(`src/styles.css: the layout system's ${t} is ${at.base[t] ? `"${at.base[t]}", not a size in px` : 'not defined'}`); continue; }
+    if (base < phone[0] || base > phone[1]) out.push(`src/styles.css: ${t} is ${base}px on a phone, outside the brief's ${phone.join('–')}px`);
+    for (const w of [1024, 1440]) {
+      const v = px([at[w][t], at[1024][t], at[640][t], at.base[t]].slice(w === 1440 ? 0 : 1).find(x => x != null));
+      if (v == null || v < desk[0] || v > desk[1]) out.push(`src/styles.css: ${t} is ${v}px at ${w}px, outside the brief's ${desk.join('–')}px for a desk`);
+    }
+  }
+  const measure = /^(\d+(?:\.\d+)?)ch$/.exec(at.base['--ls-measure'] || '');
+  if (!measure || Number(measure[1]) > 70) out.push(`src/styles.css: --ls-measure is ${at.base['--ls-measure'] || 'not defined'}, not a measure of 70ch or less`);
+  /* Every rule of the system's families. */
+  let n = 0;
+  for (const m of css.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    const sel = m[1].trim(), body = m[2], inSec = m.index >= a && m.index < b;
+    if (!inSec && !/\.(ls|lab|pc)-/.test(sel)) continue;
+    const line = css.slice(0, m.index + m[0].indexOf('{')).split('\n').length;
+    for (const d of body.matchAll(/font-size\s*:\s*([^;!]+)/g)) {
+      n++;
+      if (!/^var\(--ls-[a-z0-9-]+\)$/.test(d[1].trim()) && d[1].trim() !== 'inherit') out.push(`src/styles.css:${line} ${sel.split('\n').pop().trim().slice(0, 70)} sets font-size: ${d[1].trim()}, not a token of the layout system's scale`);
+    }
+    for (const d of body.matchAll(/max-width\s*:\s*(\d+(?:\.\d+)?)ch/g)) if (Number(d[1]) > 70) out.push(`src/styles.css:${line} ${sel.split('\n').pop().trim().slice(0, 70)} lets a block ${d[1]}ch wide, more than the 70ch measure`);
+  }
+  if (!n) out.push('src/styles.css: no rule of the layout system\'s families sets a size — the check read nothing');
+  return out;
+}
+
 /* What would make the committed files serve something other than what they
    say, beyond drift from src/.
 
@@ -1644,7 +1703,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f)),
     ...filesUnder(NAPIC_DIR).filter(f => !napic.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
-  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...(sitemap ? sitemap.problems : [])];
+  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);

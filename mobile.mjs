@@ -2348,7 +2348,7 @@ for (const w of [360, 390]) {
         const range = document.querySelector('.lab-knob.is-on .lab-range');
         const rb = range ? range.getBoundingClientRect() : null;
         const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect() }));
-        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: innerHeight };
+        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })() };
       })()`);
       said.oneScreen = r;
       if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
@@ -2513,7 +2513,7 @@ for (const w of [360, 390]) {
         rg.value = String(v + step <= Number(rg.max) ? v + step : v - step);
         rg.dispatchEvent(new Event('input', { bubbles: true }));
         await ${frames};
-        return { under: Math.round(under), vh: innerHeight, before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves),
+        return { under: Math.round(under), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves),
           face: getComputedStyle(document.querySelector('#lab-root .lab-val')).fontFamily };
       })()`);
       said.knobs.push([`${k}${font ? ' (Verdana)' : ''}`, Math.max(...r.after.vals.map(v => v[2]))]);
@@ -2780,7 +2780,7 @@ for (const w of [360, 390]) {
         const warn = document.querySelector('#lab-knob-ratePct .lab-note-warn');
         const w = warn && warn.getClientRects().length ? warn.getBoundingClientRect() : null;
         const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
-        return { under: Math.round(under), vh: innerHeight, rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
+        return { under: Math.round(under), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
       })()`);
       said.lab.push([font ? 'Verdana' : 'page font', Math.max(...r.vals.map(v => v[2]))]);
       if (r.rate !== '0') fails.push(`${at}: the rate did not take 0 (it reads ${r.rate})`);
@@ -2834,7 +2834,11 @@ for (const w of [360, 390]) {
    and the first slider, each whole inside the window. /property served the
    calculator, whose first field sat about 2,400px down at 1440 and 3,650px
    at 390. On a phone the identity line's Save and the next step are 44px
-   targets, and nothing scrolls sideways. */
+   targets, and nothing scrolls sideways.
+   ON THE LAYOUT SYSTEM (7 Oct 2026): on a phone Save is the sticky action
+   bar's (Analyse · Compare · Save this), and "the first screen" ends where
+   the bar begins — the slider must be whole above it, not under it. The
+   Lab's checks above measure the same screen (vh: the bar's top). */
 {
   const fails = [], said = [];
   const ev = async (expression) => {
@@ -2868,11 +2872,11 @@ for (const w of [360, 390]) {
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         const box = (n) => { if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
         const range = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length);
-        return { y: Math.round(scrollY), vw: innerWidth, vh: innerHeight, over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        return { y: Math.round(scrollY), vw: innerWidth, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           identity: box(document.querySelector('#views .lab-identity')), name: (document.getElementById('lab-status')?.textContent || '').trim(),
           tiles: [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: n.querySelector('.lab-tile-label')?.textContent.trim(), at: box(n) })),
           slider: box(range), sliderOf: range?.id || null,
-          save: box(document.getElementById('lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
+          save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
           face: getComputedStyle(document.querySelector('#views .lab-tile-val') || document.body).fontFamily };
       })()`);
       const whole = (b) => !!b && b.t >= 0 && b.b <= r.vh && b.l >= 0 && b.r <= r.vw;
@@ -2886,7 +2890,7 @@ for (const w of [360, 390]) {
       if (!whole(r.slider)) fails.push(`${at}: the first slider${r.sliderOf ? ` (#${r.sliderOf})` : ''} ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole in the first ${r.vh}px`);
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (w < 600) {
-        if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: the identity line's Save is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
+        if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: Save (the action bar's, on a phone) is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
         if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
       }
       said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
@@ -2899,6 +2903,178 @@ for (const w of [360, 390]) {
   else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
 }
 /* ---- end n3-first-view ---- */
+/* ---- layout-system ---- */
+/* THE QUANTUM RESPONSIVE LAYOUT SYSTEM, AS DRAWN (the owner's decision, 7
+   Oct 2026; 37-layout-system.js). On the pages on the system — /property
+   and /property/calculator — in the page's font and in Verdana (CI's Linux
+   sans is as wide):
+     - under 640px (360, 390, 430): the calculator's financing scenarios and
+       its cost breakdown are cards, not a table — nothing in them scrolls
+       sideways, and of the scenarios the entered one stands with the others
+       behind a 44px "Compare …" button that brings them;
+     - a row of tabs — the product's, the Lab's inputs and its "Compare by",
+       the calculator's sections — is one line, never two;
+     - the sticky action bar is in view at the foot of the window — Analyse,
+       Compare, Save this — each a 44px target inside the screen, clear of
+       the safe area, and nothing is under it: /property's first slider sits
+       above it on the first screen, and at the end of each page the
+       footer's last line does;
+     - every word on the page is set in one of the scale's sizes (the
+       --ls-* tokens at that width), at 390 and at 1440;
+     - and at 1024 and 1440 no block of text runs wider than 70 characters
+       (its width over its own font's "0").
+   Each fails on 740ceab merged with main: the tables were tables, "Compare
+   by" took two lines on a phone, there was no bar, sizes were 10–22px off
+   any scale, and the claim ran 96ch, the lede 82ch, a body block 72ch. */
+{
+  const fails = [], said = { tables: 0, rows: 0, bars: 0, words: 0, blocks: 0 };
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* 1. Phones. */
+    for (const w of [360, 390, 430]) for (const font of [null, 'Verdana, sans-serif']) {
+      const h = w === 360 ? 640 : w === 390 ? 844 : 932;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      for (const path of ['/property', '/property/calculator']) {
+        const at = `${w}×${h} ${path}${font ? ' in Verdana' : ''}`;
+        const view = await load(path);
+        if (view !== (path === '/property' ? 'propertyLab' : 'property')) { fails.push(`${at}: opened ${view}`); continue; }
+        await face(font);
+        const r = await ev(`(async () => {
+          const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          document.documentElement.style.scrollBehavior = 'auto';
+          const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+          const out = { vw: document.documentElement.clientWidth, vh: innerHeight, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+          /* The bar. */
+          const bar = document.querySelector('body > .dock .ls-actbar');
+          const dock = bar && bar.closest('.dock');
+          out.bar = shown(bar) ? (() => { const b = dock.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), pos: getComputedStyle(dock).position,
+            acts: [...bar.querySelectorAll('.ls-act')].map(a => { const x = a.getBoundingClientRect(); return { word: a.textContent.trim(), w: Math.round(x.width), h: Math.round(x.height), l: Math.round(x.left), r: Math.round(x.right), cut: a.querySelector('.ls-act-word') ? a.querySelector('.ls-act-word').scrollWidth > a.querySelector('.ls-act-word').clientWidth + 1 : false }; }) }; })() : null;
+          /* Tab rows. */
+          const rows = [['the product\\'s tabs', '#productTabs .ptabs-list'], ['the Lab\\'s inputs', '#views .lab-pick-input .lab-seg'], ['the Lab\\'s "Compare by"', '#views .lab-seg-by'], ['the calculator\\'s sections', '#views .pc-index-list']];
+          out.rows = rows.map(([name, sel]) => { const n = document.querySelector(sel); if (!shown(n)) return [name, null];
+            const tops = [...n.children].filter(shown).map(c => Math.round(c.getBoundingClientRect().top));
+            return [name, { lines: new Set(tops.map(t => Math.round(t / 6))).size, spread: tops.length ? Math.max(...tops) - Math.min(...tops) : 0, n: tops.length }]; });
+          /* Tables the system calls cards. */
+          const tables = [...document.querySelectorAll('#views table')].filter(t => shown(t) && !t.closest('details:not([open])')).filter(t => /Margin of finance/.test(t.querySelector('thead')?.textContent || '') || /Total initial cash/.test(t.textContent));
+          out.tables = tables.map(t => { const wrap = t.closest('.tablewrap') || t.parentElement; const rowsShown = [...t.querySelectorAll('tbody tr')].filter(shown);
+            return { name: /Margin of finance/.test(t.textContent) ? 'financing scenarios' : 'cost breakdown', display: getComputedStyle(t).display,
+              sideways: wrap.scrollWidth - wrap.clientWidth, right: Math.round(t.getBoundingClientRect().right), rows: rowsShown.length, all: t.querySelectorAll('tbody tr').length,
+              more: (() => { const b = document.querySelector('[aria-controls="' + t.id + '"].ls-tcards-more'); if (!shown(b)) return null; const x = b.getBoundingClientRect(); return { w: Math.round(x.width), h: Math.round(x.height), id: t.id }; })() }; });
+          /* The first slider on /property's first screen. */
+          window.scrollTo(0, 0); await frames();
+          const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
+          out.slider = range && location.pathname === '/property' ? [Math.round(range.getBoundingClientRect().top), Math.round(range.getBoundingClientRect().bottom)] : null;
+          /* The footer's end, at the page's end. */
+          window.scrollTo(0, document.documentElement.scrollHeight); await frames(); await frames();
+          const legal = [...document.querySelectorAll('body > .footer *')].filter(n => shown(n) && n.childElementCount === 0 && n.textContent.trim()).pop();
+          out.footEnd = legal ? Math.round(legal.getBoundingClientRect().bottom) : null;
+          out.barTopAtEnd = dock ? Math.round(dock.getBoundingClientRect().top) : null;
+          return out;
+        })()`);
+        said.bars++;
+        if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+        if (!r.bar) fails.push(`${at}: no action bar in view`);
+        else {
+          if (r.bar.pos !== 'fixed' || Math.abs(r.bar.bottom - r.vh) > 1) fails.push(`${at}: the action bar is not fixed to the foot of the window (${r.bar.pos}, ${r.bar.top}–${r.bar.bottom} of ${r.vh})`);
+          const words = r.bar.acts.map(a => a.word);
+          if (words.length !== 3 || !/^Analyse/.test(words[0]) || !/^Compare/.test(words[1]) || !/^Save/.test(words[2])) fails.push(`${at}: the bar's actions are ${JSON.stringify(words)}, not Analyse · Compare · Save`);
+          r.bar.acts.forEach(a => {
+            if (a.w < 43.5 || a.h < 43.5) fails.push(`${at}: "${a.word}" in the bar is ${a.w}×${a.h}px, not a 44px target`);
+            if (a.l < 0 || a.r > r.vw) fails.push(`${at}: "${a.word}" runs out of the screen (${a.l}–${a.r} of ${r.vw})`);
+            if (a.cut) fails.push(`${at}: "${a.word}" in the bar is cut short`);
+          });
+          if (r.slider != null && r.slider[1] > r.bar.top && r.slider[0] < r.vh) fails.push(`${at}: the first slider (${r.slider.join("–")}px) is under the action bar from ${r.bar.top}px`);
+          if (r.footEnd == null || r.footEnd > r.barTopAtEnd + 1) fails.push(`${at}: at the page's end the footer's last line ends at ${r.footEnd}px, under the bar from ${r.barTopAtEnd}px`);
+        }
+        r.rows.forEach(([name, x]) => { if (x && x.lines > 1) fails.push(`${at}: ${name} take ${x.lines} lines (their tops ${x.spread}px apart), not one`); else if (x) said.rows++; });
+        if (path === '/property/calculator') {
+          if (r.tables.length < 2) fails.push(`${at}: the financing scenarios and the cost breakdown were not both found (${r.tables.map(t => t.name).join(', ') || 'none'})`);
+          for (const t of r.tables) {
+            said.tables++;
+            if (t.display === 'table') fails.push(`${at}: the ${t.name} is a table, not cards`);
+            if (t.sideways > 1 || t.right > r.vw) fails.push(`${at}: the ${t.name} scrolls ${t.sideways}px sideways`);
+            if (t.name === 'financing scenarios') {
+              if (t.rows !== 1) fails.push(`${at}: the financing scenarios show ${t.rows} of ${t.all} cards, not the entered one alone`);
+              if (!t.more || t.more.h < 43.5) fails.push(`${at}: the scenarios' "Compare …" button is ${t.more ? `${t.more.w}×${t.more.h}px` : 'not there'}`);
+              else {
+                const opened = await ev(`(async () => { document.querySelector('[aria-controls="${t.more.id}"]').click(); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                  const n = [...document.querySelectorAll('#${t.more.id} tbody tr')].filter(x => x.getClientRects().length).length; document.querySelector('[aria-controls="${t.more.id}"]').click(); return n; })()`);
+                if (opened !== t.all) fails.push(`${at}: "Compare …" brought ${opened} of ${t.all} scenarios`);
+              }
+            }
+          }
+        }
+      }
+    }
+    /* 2. The scale and the measure, at a phone's width and two desks'. */
+    for (const [w, h] of [[390, 844], [1024, 800], [1440, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const path of ['/property', '/property/calculator']) {
+        await load(path);
+        const r = await ev(`(() => {
+          const cs = getComputedStyle(document.documentElement);
+          const tokens = ['--ls-hero', '--ls-title', '--ls-section', '--ls-metric', '--ls-body', '--ls-support', '--ls-meta'].map(t => parseFloat(cs.getPropertyValue(t))).filter(Number.isFinite);
+          const views = document.getElementById('views');
+          const off = new Map();
+          const walker = document.createTreeWalker(views, NodeFilter.SHOW_TEXT);
+          for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+            const p = t.parentElement;
+            if (!t.data.trim() || p.closest('svg, .sr-only, [hidden], option') || !p.getClientRects().length || getComputedStyle(p).visibility === 'hidden') continue;
+            const r = document.createRange(); r.selectNodeContents(t); const b = r.getBoundingClientRect(); if (!b.width || !b.height) continue;
+            const fs = parseFloat(getComputedStyle(p).fontSize);
+            if (!tokens.some(x => Math.abs(x - fs) < 0.01)) { const k = fs + 'px ' + (p.className && typeof p.className === 'string' ? '.' + p.className.split(' ')[0] : p.tagName.toLowerCase()); if (!off.has(k)) off.set(k, t.data.trim().slice(0, 30)); }
+          }
+          /* The measure: a block of text, its width in its own font's "0". */
+          const cv = document.createElement('canvas').getContext('2d');
+          const wide = [];
+          let blocks = 0;
+          for (const n of views.querySelectorAll('p, li, dd, blockquote, figcaption, div')) {
+            if (!n.getClientRects().length || n.closest('svg, .sr-only, table, [hidden]')) continue;
+            const own = [...n.childNodes].filter(c => c.nodeType === 3).map(c => c.data).join('').trim();
+            if (n.tagName === 'DIV' && own.length < 40) continue;
+            if ((n.textContent || '').trim().length < 70) continue;
+            const s = getComputedStyle(n);
+            cv.font = s.fontStyle + ' ' + s.fontWeight + ' ' + s.fontSize + ' ' + s.fontFamily;
+            const ch = cv.measureText('0').width;
+            const box = n.getBoundingClientRect().width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+            blocks++;
+            if (box / ch > 70.5) wide.push(Math.round(box / ch) + 'ch ' + n.tagName.toLowerCase() + (n.className && typeof n.className === 'string' ? '.' + n.className.split(' ').join('.') : '') + ' “' + n.textContent.trim().slice(0, 40) + '”');
+          }
+          return { tokens, off: [...off].slice(0, 12), nOff: off.size, wide: wide.slice(0, 8), nWide: wide.length, blocks };
+        })()`);
+        const at = `${w} ${path}`;
+        if (r.tokens.length !== 7) fails.push(`${at}: the type scale's tokens are not defined (${r.tokens.length} of 7)`);
+        if (r.nOff) fails.push(`${at}: ${r.nOff} sizes off the scale (${r.tokens.join(', ')}px): ${r.off.map(([k, t]) => `${k} “${t}”`).join('; ')}`);
+        else said.words++;
+        if (w >= 1024) { said.blocks += r.blocks; if (r.nWide) fails.push(`${at}: ${r.nWide} text blocks wider than 70 characters: ${r.wide.join('; ')}`); }
+      }
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL layout-system — the pages on the layout system: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); if (fails.length > 40) console.log(`     … and ${fails.length - 40} more`); }
+  else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (the first slider above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
+}
+/* ---- end layout-system ---- */
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */

@@ -1498,6 +1498,125 @@ const HOME_PAGE = read(HOME);
     '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
 }
 /* ---- end n3-property-landing ---- */
+/* ---- layout-system ---- */
+/* THE PAGES ON THE LAYOUT SYSTEM, AS SERVED (the owner's decision, 7 Oct
+   2026; 37-layout-system.js). /property and /property/calculator, read as a
+   fetch reads them:
+   - the page is on the system: its view is .ls-view, its root .ls-page;
+   - every card is one of the four types, and holds what its type holds —
+     a metric its label, its value and its data badge; an action its title,
+     one line and one call to action; an alert its count of what needs
+     evidence and "Review"; an insight its figure, its finding and "See
+     why" — and every other surface drawn as a card is a named one: a
+     section (with its heading), the page's bar (with its controls), a form
+     (with its fields), a figure of a section (with its figure) or L3
+     evidence (a <details> or an <aside>);
+   - the type is the scale's: a size written on the page is a token
+     (var(--ls-…)), and the stylesheet the page loads defines the seven;
+   - no block of text is let wider than 70 characters: the measure is a
+     token of 70ch or less, the stylesheet holds every paragraph, item and
+     definition on these pages to it, and no width written on the page is
+     wider.
+   Each fails on 740ceab merged with main: no page carried the system, the
+   tiles and the calculator's 32 panels were none of the four, and sizes and
+   widths were px and ch written past it (mobile.mjs holds what is drawn). */
+{
+  const p = [], said = { cards: {}, surfaces: {}, sizes: 0 };
+  const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+  const attrOf = (raw, k) => { const m = new RegExp(`\\s${k}(?:="([^"]*)"|='([^']*)'|(?=[\\s>/]))`, 'i').exec(raw); return m ? (m[1] ?? m[2] ?? '') : null; };
+  /* <main> as a tree: enough to ask what an element holds. */
+  const tree = (html) => {
+    const from = html.search(/<main\b/), to = html.indexOf('</main>', from);
+    const body = from < 0 ? '' : html.slice(from, to < 0 ? undefined : to);
+    const root = { tag: '#root', kids: [], text: '' }, stack = [root];
+    const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+    let m;
+    while ((m = re.exec(body))) {
+      if (m[4] != null) { stack.forEach(n => { n.text += m[4]; }); continue; }
+      if (!m[2]) continue;
+      const tag = m[2].toLowerCase();
+      if (m[1]) { for (let i = stack.length - 1; i > 0; i--) if (stack[i].tag === tag) { stack.length = i; break; } continue; }
+      if (tag === 'script' || tag === 'style') { const e = body.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? body.length : e; continue; }
+      const raw = m[0], cls = (attrOf(raw, 'class') || '').split(/\s+/).filter(Boolean);
+      const n = { tag, raw, cls, kids: [], text: '', parent: stack[stack.length - 1] };
+      n.parent.kids.push(n);
+      if (!VOID.has(tag) && !raw.endsWith('/>')) stack.push(n);
+    }
+    return root;
+  };
+  const all = (n, out = []) => { for (const k of n.kids) { out.push(k); all(k, out); } return out; };
+  const has = (n, test) => all(n).filter(test);
+  const hasCls = (c) => (x) => x.cls.includes(c);
+  const words = (n) => n.text.replace(/\s+/g, ' ').trim();
+  const CARDISH = ['card', 'panel', 'ls-card', 'lab-tile', 'tile'];
+  const FIELD = (x) => ['input', 'select', 'textarea'].includes(x.tag) || ['field', 'range', 'choice'].includes(attrOf(x.raw, 'data-inert'));
+  const CONTROL = (x) => x.tag === 'button' || x.tag === 'a' || attrOf(x.raw, 'data-inert') !== null || FIELD(x);
+  const got = await getAll(['/property', '/property/calculator']);
+  /* The stylesheet the pages load. */
+  const cssHref = ((got.get('/property')?.body || '').match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];
+  const css = cssHref ? (await get(cssHref)).body : '';
+  const TOKENS = ['--ls-hero', '--ls-title', '--ls-section', '--ls-metric', '--ls-body', '--ls-support', '--ls-meta'];
+  const missing = TOKENS.filter(t => !new RegExp(`${t}\\s*:`).test(css));
+  if (!css) p.push(`the pages load no stylesheet that could be read (${cssHref || 'none named'})`);
+  else if (missing.length) p.push(`the stylesheet defines no ${missing.join(', ')} — the type scale's tokens`);
+  const measure = (css.match(/--ls-measure\s*:\s*([\d.]+)ch/) || [])[1];
+  if (!measure || Number(measure) > 70) p.push(`the measure token --ls-measure is ${measure ? `${measure}ch, wider than 70ch` : 'not defined in ch'}`);
+  if (!/\.ls-view\s+:is\(p,\s*li,\s*dd[^)]*\)\s*\{\s*max-width:\s*var\(--ls-measure\)/.test(css)) p.push('the stylesheet does not hold a page\'s paragraphs, items and definitions to --ls-measure');
+  for (const [path, r] of got) {
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    const root = tree(r.body);
+    const view = has(root, x => x.tag === 'section' && x.cls.includes('view'))[0];
+    if (!view || !view.cls.includes('ls-view')) { p.push(`${path}: its view is not on the system (.ls-view)`); continue; }
+    if (!has(view, hasCls('ls-page')).length) p.push(`${path}: no .ls-page in its view`);
+    for (const n of all(view)) {
+      if (!n.cls.some(c => CARDISH.includes(c))) continue;
+      const type = attrOf(n.raw, 'data-card');
+      const name = `${path}: ${n.tag}.${n.cls.join('.')} “${words(n).slice(0, 48)}”`;
+      if (n.cls.includes('ls-card') && type) {
+        if (!['metric', 'action', 'alert', 'insight'].includes(type)) { p.push(`${name} is a card of no type of the four ("${type}")`); continue; }
+        said.cards[type] = (said.cards[type] || 0) + 1;
+        const q = (test) => has(n, test);
+        if (type === 'metric') {
+          if (!q(x => x.cls.includes('ls-card-label') || x.cls.includes('stat-label')).length) p.push(`${name}: a metric card with no label`);
+          if (!q(x => x.cls.includes('ls-card-value') || x.cls.includes('stat-value')).length) p.push(`${name}: a metric card with no value`);
+          if (!q(x => x.cls.includes('ls-badge') && words(x)).length) p.push(`${name}: a metric card with no data badge`);
+        } else if (type === 'action') {
+          if (!q(x => x.cls.includes('ls-card-label') || x.cls.includes('ls-card-title')).length) p.push(`${name}: an action card with no title`);
+          if (!q(hasCls('ls-card-sub')).length) p.push(`${name}: an action card with no line`);
+          if (q(hasCls('ls-card-cta')).length !== 1) p.push(`${name}: an action card with ${q(hasCls('ls-card-cta')).length} calls to action, not one`);
+        } else if (type === 'alert') {
+          const t = q(hasCls('ls-card-title'))[0];
+          if (!t || !/^\d+ .*\bneeds?\b/.test(words(t))) p.push(`${name}: an alert that does not count what needs the reader ("${t ? words(t) : ''}")`);
+          if (!q(x => x.cls.includes('ls-card-cta') && /^Review\b/.test(words(x))).length) p.push(`${name}: an alert with no "Review"`);
+        } else if (type === 'insight') {
+          if (!q(hasCls('ls-card-figure')).length) p.push(`${name}: an insight with no figure`);
+          if (!q(hasCls('ls-card-title')).length) p.push(`${name}: an insight with no finding`);
+          if (!q(x => x.cls.includes('ls-card-cta') && /^See why\b/.test(words(x))).length) p.push(`${name}: an insight with no "See why"`);
+        }
+        continue;
+      }
+      const kind = ['ls-section', 'ls-bar', 'ls-form', 'ls-fig', 'ls-l3'].find(k => n.cls.includes(k));
+      if (!kind) { p.push(`${name} is drawn as a card and is none of the four types, nor a named surface`); continue; }
+      said.surfaces[kind] = (said.surfaces[kind] || 0) + 1;
+      if (kind === 'ls-section' && !has(n, x => /^h[1-6]$/.test(x.tag)).length) p.push(`${name}: a section with no heading`);
+      if (kind === 'ls-bar' && !has(n, CONTROL).length) p.push(`${name}: a bar with no control`);
+      if (kind === 'ls-form' && !has(n, FIELD).length) p.push(`${name}: a form with no field`);
+      if (kind === 'ls-fig' && !has(n, x => x.cls.includes('stat-value') || x.cls.includes('num')).length) p.push(`${name}: a figure with no figure`);
+      if (kind === 'ls-l3' && !['details', 'aside'].includes(n.tag)) p.push(`${name}: L3 evidence that is not a <details> or an <aside>`);
+    }
+    /* Sizes and widths written on the page. */
+    for (const n of all(view)) {
+      const st = attrOf(n.raw, 'style');
+      if (!st) continue;
+      for (const [, v] of st.matchAll(/font-size\s*:\s*([^;]+)/g)) { said.sizes++; if (!/^var\(--ls-[a-z0-9-]+\)$/.test(v.trim())) p.push(`${path}: ${n.tag}.${n.cls.join('.')} is sized ${v.trim()}, not a token of the scale`); }
+      for (const [, v] of st.matchAll(/max-width\s*:\s*([\d.]+)ch/g)) if (Number(v) > 70) p.push(`${path}: ${n.tag}.${n.cls.join('.')} is let ${v}ch wide, more than 70`);
+    }
+  }
+  const tally = (o) => Object.entries(o).map(([k, v]) => `${v} ${k}`).join(', ');
+  judge(p, `the pages on the layout system (/property, /property/calculator): every card one of the four types with what its type holds (${tally(said.cards)}), every other card-drawn surface a named one (${tally(said.surfaces)}); the seven type tokens defined and all ${said.sizes} sizes written on the pages tokens; the measure --ls-measure ${measure}ch, held on every paragraph, item and definition, and no width written past 70ch`,
+    'a page on the layout system serves a card that is none of the four types, a size off the scale, or a text block let wider than 70ch');
+}
+/* ---- end layout-system ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);
