@@ -60,7 +60,19 @@ const AS_OF = '30 Jul 2026';
    are the reader's own ('property', 'wheel', 'trading'), or 'universe' for a
    screen run over every company loaded. */
 const ILLUS_SET = 'illustrative set';
-const STAMP_FILES = { property: ['napic-h1-2025.json', 'sarawak-geo.json'], wheel: [], trading: [] };
+/* A property deal is stamped with the NAPIC file of the division its place
+   lies in — the one file of the twelve the area screen reads for it (plan
+   item 1.6; the whole extract is no longer served) — and the geography. A
+   stamp from before records napic-h1-2025.json; no file of that name is
+   versioned now, so it is listed and never reported as moved. */
+const STAMP_FILES = {
+  property: () => {
+    const d = typeof State !== 'undefined' ? State.deal : null;
+    const division = d?.city ? localityDivision(d.city, d.district) : null;
+    return [...(division ? [napicFile(division)] : []), 'sarawak-geo.json'];
+  },
+  wheel: () => [], trading: () => [],
+};
 const currentDataVersion = (key) => key === ILLUS_SET ? AS_OF : (DATA_VERSIONS[key] || null);
 const filingsGenerated = () => (typeof realStatus !== 'undefined' && realStatus?.ok && realStatus.generated) || null;
 function buildStamp(subject) {
@@ -73,7 +85,7 @@ function buildStamp(subject) {
     if (filingsGenerated()) data['us.json'] = usJson();
     data[ILLUS_SET] = { v: AS_OF };
   } else if (kind) {
-    (STAMP_FILES[kind] || []).forEach(f => { data[f] = { v: DATA_VERSIONS[f] || null }; });
+    (STAMP_FILES[kind]?.() || []).forEach(f => { data[f] = { v: DATA_VERSIONS[f] || null }; });
   }
   companies.forEach(c => {
     if (c.real && !c.personal) data['us.json'] = usJson();

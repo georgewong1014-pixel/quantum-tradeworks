@@ -974,9 +974,11 @@ async function loadRealData() {
      say, and nothing else in the app depends on either. */
   try { instruments = await fetchJson(dataUrl('instruments.json')); }
   catch { /* no registry */ }
-  /* Official NAPIC aggregates and benchmarks. Optional: absent is a normal
-     state and every panel that reads it says so rather than rendering blank. */
-  try { await loadNapic(); } catch { /* the panel reports it */ }
+  /* Official NAPIC aggregates and benchmarks are not read here: the area
+     screen's panel asks for its own division's file when it is drawn
+     (loadNapic, 81-napic.js; plan item 1.6). Every page read the whole
+     extract here, 1MB of every division, to show one division on one
+     screen. */
   /* Everything from here to the ops files is the personal lane: off the
      owner's machine none of it is asked for, and each stays null — the
      state every page that reads one already calls absent. */

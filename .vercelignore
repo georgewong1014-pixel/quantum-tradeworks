@@ -12,3 +12,12 @@
 # Only literal paths from the root: build.mjs (vercelIgnore) and serve.mjs
 # read this file the same way and refuse anything else.
 /index.html
+
+# The NAPIC extract whole (plan item 1.6, the owner's D7, 6 Oct 2026). Every
+# benchmark napic-ingest.mjs took, twelve divisions in one 1MB file, and its
+# own licence note says bulk export and raw-file download stay disabled until
+# JPPH confirms commercial redistribution rights. It stays in the repository
+# as the source; build.mjs writes data/napic-h1-2025/<division>.json from it,
+# one division a file with only what the area screen shows, and the page asks
+# for the one it needs.
+/data/napic-h1-2025.json

@@ -50,6 +50,9 @@
  *   its first 64kB as text (plan item 1.2). index.html is served nowhere.
  * - data/*.json still serve; a missing data file is a 404, not an HTML page
  *   answering 200.
+ * - The NAPIC extract whole, data/napic-h1-2025.json, is a 404, and no file
+ *   the deployment holds carries more than one division's NAPIC benchmarks
+ *   (plan item 1.6; the owner's D7).
  * - Every page carries the headers vercel.json gives its address, the CSP
  *   among them, and that CSP names the hash of the script it was served with.
  * - Every sitemap address is served its own page and names itself canonical.
@@ -59,7 +62,8 @@
  * what serve.mjs says it does.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -385,6 +389,81 @@ const HOME_PAGE = read(HOME);
   if (miss.status !== 404) p.push(`/data/no-such-file.json: ${described(miss)}, not 404 — a missing file must not look present`);
   judge(p, `data/*.json (${files.length} requests, versioned and bare) serve this checkout's files with the data cache headers; a missing one is 404; sitemap, robots and og.png serve`,
     'a file does not serve as it should');
+}
+
+/* 6b. NAPIC, ONE DIVISION A FILE (plan item 1.6; the owner's D7, 6 Oct 2026).
+      data/napic-h1-2025.json, the whole extract, was served: one 1MB
+      download of all 1,583 benchmarks across twelve divisions, against its
+      own licence note ("bulk export and raw-file download stay disabled
+      until JPPH confirms commercial redistribution rights"). It stays in the
+      repository as the source, and .vercelignore keeps it off the host.
+      Held here as served:
+      - /data/napic-h1-2025.json is a 404, bare and as the app used to ask
+        for it (?v=);
+      - no served file holds more than one division's benchmarks: every file
+        the deployment holds (the tracked files less .vercelignore's) is
+        asked for, a JSON one read for benchmark rows (an object with a
+        scheme and a min or a max) and the divisions they are filed under,
+        any other text one for a benchmark row written out as JSON.
+      Locally serve.mjs applies .vercelignore as Vercel does; only --url
+      against production shows that Vercel itself leaves the file out. */
+{
+  const p = [];
+  const SOURCE = '/data/napic-h1-2025.json';
+  const whole = await getAll([SOURCE, `${SOURCE}?v=0123456789ab`]);
+  for (const r of whole.values()) if (r.status !== 404) p.push(`${r.path}: ${described(r)}, not 404 — the whole NAPIC extract is served`);
+  /* The files the deployment holds: tracked (and new, not ignored) files
+     less what .vercelignore leaves out; a copy with no git (git archive) is
+     those files already. */
+  const ignoredByHost = new Set(read('.vercelignore').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#')));
+  let deployed;
+  try {
+    deployed = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\0').filter(Boolean);
+  } catch {
+    const walk = (rel) => readdirSync(join(ROOT, rel), { withFileTypes: true }).flatMap(d => {
+      const r = rel ? `${rel}/${d.name}` : d.name;
+      if (d.isDirectory()) return ['.git', 'node_modules', '.claude', '.vercel'].includes(d.name) ? [] : walk(r);
+      return [r];
+    });
+    deployed = walk('');
+  }
+  deployed = [...new Set(deployed)].filter(f => !ignoredByHost.has(`/${f}`) && existsSync(join(ROOT, f)));
+  const TEXT = /\.(json|m?js|html|css|txt|xml|csv|md|yml|ps1)$/i;
+  const asked = deployed.filter(f => TEXT.test(f)).map(f => `/${f.split('/').map(encodeURIComponent).join('/')}`);
+  const got = await getAll(asked);
+  /* The divisions a document's benchmark rows are filed under: a row's own
+     division, or the nearest enclosing object's. */
+  const divisionsIn = (doc) => {
+    const out = new Set();
+    let rows = 0;
+    const visit = (v, division) => {
+      if (Array.isArray(v)) { v.forEach(x => visit(x, division)); return; }
+      if (!v || typeof v !== 'object') return;
+      const here = typeof v.division === 'string' ? v.division : division;
+      if (typeof v.scheme === 'string' && ('min' in v || 'max' in v)) { rows++; out.add(here || '(no division named)'); }
+      for (const x of Object.values(v)) if (x && typeof x === 'object') visit(x, here);
+    };
+    visit(doc, null);
+    return { divisions: [...out], rows };
+  };
+  const ROW_AS_JSON = /"scheme"\s*:\s*"[^"]*"[^{}]*"(min|max)"\s*:/;
+  let servedText = 0, holding = 0;
+  for (const path of asked) {
+    const r = got.get(path);
+    if (r.status !== 200) continue;
+    servedText++;
+    if (/\.json$/i.test(path)) {
+      let doc;
+      try { doc = JSON.parse(r.body); } catch { continue; }
+      const { divisions, rows } = divisionsIn(doc);
+      if (rows) holding++;
+      if (divisions.length > 1) p.push(`${path}: ${rows} benchmark rows of ${divisions.length} divisions (${divisions.slice(0, 4).join(', ')}${divisions.length > 4 ? ', …' : ''}), ${Buffer.byteLength(r.body).toLocaleString('en-US')} bytes`);
+    } else if (ROW_AS_JSON.test(r.body)) p.push(`${path}: carries a NAPIC benchmark row written out as JSON`);
+  }
+  if (!holding) p.push('no served file holds a NAPIC benchmark row: the area screen has nothing to read');
+  judge(p, `${SOURCE} is a 404, bare and versioned; of the ${servedText} text files the deployment holds, ${holding} hold NAPIC benchmarks, each one division's`,
+    'the NAPIC extract is served beyond one division a file');
 }
 
 /* 7. The sitemap names only canonical addresses, each served its own page. */

@@ -888,8 +888,9 @@ try {
          were cut; Kota Samarahan reads its own division. */
   {
     const r = await evaluate(`(async () => {
-      for (let i = 0; i < 40 && !napicStatus.ok; i++) { if (!napicStatus.tried) loadNapic(); await new Promise(res => setTimeout(res, 100)); }
-      if (!napicStatus.ok) return { skip: true };
+      /* One division's file (plan item 1.6): Bau and Tabuan both lie in the Kuching Division. */
+      await loadNapic('Kuching');
+      if (!napicDoc('Kuching')) return { skip: true };
       const bau = napicBenchmarks('Kuching', { locality: 'Bau town' }), tab = napicBenchmarks('Kuching', { locality: 'Tabuan' });
       const panel = officialBenchmarkPanel('bau', 'Bau town').textContent;
       return { bau: { matched: bau.matched, total: bau.total, n: bau.rows.length }, tab: { matched: tab.matched, total: tab.total, n: tab.rows.length },
@@ -1315,8 +1316,8 @@ try {
          on Linux (89px against 87px), where the page was right both times. */
   {
     const r = await evaluate(`(async () => {
-      if (!napicStatus.ok) await loadNapic();
-      if (!napicStatus.ok) return { skip: true };
+      await loadNapic('Kuching');
+      if (!napicDoc('Kuching')) return { skip: true };
       const host = document.createElement('div');
       host.style.width = '358px';
       document.body.appendChild(host);
@@ -5092,6 +5093,66 @@ try {
     }
   }
   /* ---- end scenario-lab-verify ---- */
+
+  /* ---- napic-1.6 ---- */
+  /* N16 — THE AREA SCREEN'S NAPIC TABLE, FROM ITS DIVISION'S FILE ONLY (plan
+         item 1.6; the owner's D7, 6 Oct 2026). Every page read the whole
+         extract at boot, /data/napic-h1-2025.json: 1MB, all twelve
+         divisions, served against its own licence note. Now the panel asks
+         for its division's file when a locality is opened. Opened here as a
+         reader opens it — the locality's Record button on /property/areas —
+         for Matang, a Kuching locality with rows from one observation and
+         rows from several:
+         - the page asked for /data/napic-h1-2025/kuching.json and never for
+           the whole extract;
+         - the NAPIC table shows Matang's rows, every one named for it;
+         - a row from one observation says "1 observation in NAPIC’s H1 2025
+           sample" (D7's display rule), and no Sample cell reads a bare 1;
+           a sample of two or more is its number, as before. */
+  {
+    const AREA = 'Matang';
+    const until = async (expr, what) => {
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(100)) { try { if (await evaluate(expr)) return; } catch { /* booting */ } }
+      throw new Error(`${what} — not seen in 30s`);
+    };
+    try {
+      await evaluate('window.__n16Leaving = true');
+      await send('Page.navigate', { url: `${BASE}/property/areas` }, sessionId);
+      await until(`!window.__n16Leaving && propertyPagesSettled() && !!document.getElementById(areaRowButtonId(${JSON.stringify(AREA)}))`, `/property/areas with a Record button for ${AREA}`);
+      await evaluate(`(() => { if (State.areaScreen.editing !== ${JSON.stringify(AREA)}) document.getElementById(areaRowButtonId(${JSON.stringify(AREA)})).click(); return true; })()`);
+      const TABLE = `[...document.querySelectorAll('main table')].find(t => [...t.querySelectorAll('thead th')].some(th => th.textContent === 'Scheme or location'))`;
+      await until(`propertyPagesSettled() && !!(${TABLE})`, `the NAPIC table for ${AREA}`);
+      const r = await evaluate(`(() => {
+        const t = ${TABLE};
+        const head = [...t.querySelectorAll('thead th')].map(th => th.textContent);
+        const at = head.indexOf('Sample');
+        const rows = [...t.querySelectorAll('tbody tr')].map(tr => ({ scheme: tr.querySelector('th')?.textContent || '',
+          sample: tr.children[at]?.textContent || '', range: tr.children[head.indexOf('Observed range')]?.textContent || '' }));
+        const asked = performance.getEntriesByType('resource').map(e => new URL(e.name).pathname).filter(p => p.startsWith('/data/') && /napic/i.test(p));
+        return { rows, asked, at, editing: State.areaScreen.editing, city: State.areaScreen.city };
+      })()`);
+      const p = [];
+      const WORDS = '1 observation in NAPIC’s H1 2025 sample';
+      if (!r.asked.includes('/data/napic-h1-2025/kuching.json')) p.push(`the page never asked for /data/napic-h1-2025/kuching.json (it asked for ${JSON.stringify(r.asked)})`);
+      if (r.asked.some(x => x === '/data/napic-h1-2025.json')) p.push('the page asked for /data/napic-h1-2025.json, the whole extract');
+      if (r.asked.some(x => x !== '/data/napic-h1-2025/kuching.json')) p.push(`the page asked for NAPIC files beyond Kuching's: ${JSON.stringify(r.asked)}`);
+      if (!r.rows.length) p.push(`the NAPIC table for ${AREA} has no rows`);
+      const other = r.rows.filter(x => !x.scheme.toLowerCase().includes(AREA.toLowerCase()));
+      if (other.length) p.push(`${other.length} rows are not ${AREA}'s: ${other.slice(0, 3).map(x => x.scheme).join(', ')}`);
+      const single = r.rows.filter(x => x.sample === WORDS), bare = r.rows.filter(x => x.sample.trim() === '1');
+      const several = r.rows.filter(x => /^\d+$/.test(x.sample.trim()) && Number(x.sample) >= 2);
+      if (!single.length) p.push(`no row says "${WORDS}" (Samples: ${JSON.stringify([...new Set(r.rows.map(x => x.sample))].slice(0, 6))})`);
+      if (bare.length) p.push(`${bare.length} rows from one observation read a bare "1": ${bare.slice(0, 2).map(x => x.scheme + ' ' + x.range).join('; ')}`);
+      if (!several.length) p.push('no row from a sample of two or more shows its number');
+      if (p.length) fail(`napic-1.6 N16: the area screen's NAPIC table for ${AREA} reads its own division's file, and says which rows are one observation`, p);
+      else ok(`napic-1.6 N16: the area screen's NAPIC table for ${AREA}, Kuching, shows ${r.rows.length} rows from /data/napic-h1-2025/kuching.json alone — ${single.length} say "${WORDS}", ${several.length} show a sample of two or more`);
+    } catch (e) {
+      fail(`napic-1.6 N16: the area screen's NAPIC table for ${AREA} could not be read`, e.message);
+    } finally {
+      await evaluate(`(() => { State.areaScreen.editing = null; return true; })()`).catch(() => {});
+    }
+  }
+  /* ---- end napic-1.6 ---- */
 
 } catch (e) {
   fail('harness error', e.message);

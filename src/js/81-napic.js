@@ -32,16 +32,57 @@
    who cannot tell which is which will read the tightest number as the truest.
    ========================================================================== */
 
-let napic = null;
+/* ONE DIVISION AT A TIME (plan item 1.6; the owner's D7, 6 Oct 2026).
+   The whole extract was served at /data/napic-h1-2025.json and read by every
+   page at boot: 1MB, all 1,583 benchmarks of twelve divisions, against its
+   own licence note — "Record-level republication, bulk export and raw-file
+   download stay disabled until JPPH confirms commercial redistribution
+   rights". It is no longer deployed. build.mjs writes one file per division
+   (napicSlices), holding only what the panel below shows, and the panel asks
+   for the one division its locality lies in, when it is drawn. Each
+   division's file is asked for once a page; the panel redraws when it lands.
+   napicStatus says what the last request did, for /status and the harnesses. */
+const NAPIC_FILE_PREFIX = 'napic-h1-2025/';
+const napicSlug = (division) => String(division).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const napicFile = (division) => `${NAPIC_FILE_PREFIX}${napicSlug(division)}.json`;
+/* The division files this build ships, from the versions build.mjs stamps. */
+const napicFiles = () => Object.keys(DATA_VERSIONS).filter(f => f.startsWith(NAPIC_FILE_PREFIX));
+/* division → { state: 'loading' | 'done' | 'failed', doc, ready } — ready
+   resolves to the doc (or null), for a second caller while it is in flight. */
+const napicDivisions = new Map();
 let napicStatus = { tried: false, ok: false };
+const napicDoc = (division) => napicDivisions.get(division)?.doc || null;
+const napicLoading = () => [...napicDivisions.values()].some(d => d.state === 'loading');
 
-async function loadNapic() {
+function loadNapic(division) {
+  if (!division) return Promise.resolve(null);
+  if (napicDivisions.has(division)) return napicDivisions.get(division).ready;
+  const entry = { state: 'loading', doc: null, ready: null };
+  napicDivisions.set(division, entry);
   napicStatus.tried = true;
-  try {
-    const j = await fetchJson(dataUrl('napic-h1-2025.json'));
-    if (j && Array.isArray(j.summary)) { napic = j; napicStatus.ok = true; }
-  } catch { /* absent is a normal state and the panels say so */ }
+  entry.ready = (async () => {
+    try {
+      const j = await fetchJson(dataUrl(napicFile(division)));
+      if (j && j.division === division && Array.isArray(j.summary) && Array.isArray(j.benchmarks)) entry.doc = j;
+    } catch { /* absent is a normal state and the panel says so */ }
+    entry.state = entry.doc ? 'done' : 'failed';
+    napicStatus.ok = !!entry.doc;
+    /* The panel is drawn on the area screen only; it said "loading" there. */
+    if (State.view === 'areas') render();
+    return entry.doc;
+  })();
+  return entry.ready;
 }
+
+/* A SINGLE OBSERVATION IS NOT A PRICE (D7's display rule, until JPPH
+   answers). 165 of Kuching's 208 residential price rows were sampled from
+   one property: a figure from one sale, as near to an individual transacted
+   price as these files come. Such a row appears only in a list or a table,
+   and says what it is in these words; it is never a price on a map, a
+   headline or a starting value. A range over two or more is shown as it
+   was. */
+const napicSampleWords = (b, period) => b.sampleSize === 1
+  ? `1 observation in NAPIC’s ${period} sample` : b.sampleSize == null ? '—' : String(b.sampleSize);
 
 /* Which NAPIC division a town sits in. The product files by town; NAPIC files
    by division, and a division holds several towns — so a division figure is
@@ -54,7 +95,7 @@ const localityDivision = (cityId, area) =>
   (SARAWAK_CITIES.find(c => c.id === cityId) || {}).localityDivision?.[area] || townDivision(cityId);
 
 const napicActivity = (division, period = 'H1 2025') =>
-  !napic ? [] : napic.summary.filter(r => r.division === division && r.periodCode === period);
+  (napicDoc(division)?.summary || []).filter(r => r.periodCode === period);
 
 /* Benchmarks are per scheme. A locality match is a substring test on the
    scheme name, and it is deliberately shown as "schemes NAPIC surveyed in this
@@ -66,8 +107,9 @@ const napicActivity = (division, period = 'H1 2025') =>
    under a heading about the locality. `matched` and `total` let the panel
    state both. */
 function napicBenchmarks(division, { locality = null, limit = 40 } = {}) {
-  if (!napic) return { rows: [], matched: false, total: 0, divisionTotal: 0 };
-  const all = napic.benchmarks.filter(b => b.division === division);
+  const doc = napicDoc(division);
+  if (!doc) return { rows: [], matched: false, total: 0, divisionTotal: 0 };
+  const all = doc.benchmarks;
   let rows = all, matched = false;
   if (locality) {
     const l = String(locality).toLowerCase();
@@ -95,11 +137,15 @@ function officialBenchmarkPanel(city, area) {
   if (cityDef.ambiguousLocality?.[area]) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm);color:var(--bronze)' },
     cityDef.ambiguousLocality[area]));
 
-  if (!napicStatus.ok) {
+  /* The division's file, asked for as the panel is first drawn. */
+  if (!napicDivisions.has(division)) loadNapic(division);
+  const napic = napicDoc(division);
+  if (!napic) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
-      napicStatus.tried
-        ? 'The NAPIC dataset is not loaded in this build.'
-        : 'The NAPIC dataset has not been requested yet.'));
+      !division ? 'No NAPIC division is recorded for this town, so no NAPIC figures are shown.'
+      : napicDivisions.get(division)?.state === 'failed'
+        ? `The NAPIC figures for the ${division} Division are not loaded in this build.`
+        : `Loading NAPIC’s figures for the ${division} Division…`));
     return card;
   }
 
@@ -154,9 +200,15 @@ function officialBenchmarkPanel(city, area) {
          was the width of its heading and read "singl / e / store / y". */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;overflow-wrap:normal' },
         [b.propertyType, b.floorLevel, b.roadPosition].filter(Boolean).join(' · ').toLowerCase()),
-      el('td', { class: 'num', title: b.sampleSize == null ? 'Sample size not published for this table' : null },
-        b.sampleSize == null ? '—' : String(b.sampleSize)),
-      el('td', { class: 'num', title: b.rangeLabel },
+      /* D7: a row from one observation says so, in words, where the
+         figure is (napicSampleWords). Wrapped between words, as the type
+         column is, so it does not widen the table on a phone. */
+      b.sampleSize === 1
+        ? el('td', { class: 'caption napic-single', style: 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:9em' },
+          napicSampleWords(b, napic.period.code))
+        : el('td', { class: 'num', title: b.sampleSize == null ? 'Sample size not published for this table' : null },
+          napicSampleWords(b, napic.period.code)),
+      el('td', { class: 'num', title: b.sampleSize === 1 ? `${b.rangeLabel}: one property, not the scheme’s price` : b.rangeLabel },
         b.min === b.max ? fmtMoney(b.min, 'MYR', 0) : `${fmtMoney(b.min, 'MYR', 0)}–${fmtMoney(b.max, 'MYR', 0)}`),
       el('td', { class: 'caption', style: 'text-align:left' }, napicUnitLabel(b)),
       el('td', { class: 'num' }, b.changeStated ? b.changeStated
@@ -168,7 +220,8 @@ function officialBenchmarkPanel(city, area) {
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'A range observed across NAPIC’s sample of each scheme for the half-year. The top of a range is not the latest price '
       + 'and its midpoint is not a median — neither is a transaction. Where a sample size is published it is shown, because a '
-      + 'range over one property and a range over forty are different claims.'));
+      + 'range over one property and a range over forty are different claims. A row from one observation says so: its figure is '
+      + 'one property in NAPIC’s sample, not the scheme’s price.'));
   }
 
   /* ---- 3. the field this cannot fill ---- */

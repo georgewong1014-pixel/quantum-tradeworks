@@ -193,15 +193,88 @@ const APP_FILES_MARKER = '@APP_FILES';
    are git-ignored, exist only on the reader's own machine, and publishing a hash
    of them in a public repo would leak a fingerprint of licensed data. They keep
    plain URLs and no-store, which is what fetchJson falls back to. */
-const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json', 'napic-h1-2025.json'];
+const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json'];
 
-function dataVersions() {
+/* The committed files, and then each NAPIC division file the build writes
+   (napicSlices), hashed as written: the page asks for those by the same
+   content-addressed URL. */
+function dataVersions(written = new Map()) {
   const out = {};
   for (const f of VERSIONED) {
     const path = join(ROOT, 'data', f);
     if (!existsSync(path)) throw new Error(`data/${f} is missing — it is committed, so this is a broken checkout`);
     out[f] = createHash('sha256').update(readFileSync(path)).digest('hex').slice(0, 12);
   }
+  for (const [label, body] of written) out[label.slice('data/'.length)] = createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 12);
+  return out;
+}
+
+/* ─── NAPIC, SERVED ONE DIVISION AT A TIME (plan item 1.6; the owner's D7) ──
+   data/napic-h1-2025.json is what napic-ingest.mjs extracts: 1,583 benchmark
+   rows across twelve divisions, with every field the extraction took. Its own
+   licence note says "Record-level republication, bulk export and raw-file
+   download stay disabled until JPPH confirms commercial redistribution
+   rights", and it was served whole at /data/napic-h1-2025.json, a 1MB
+   download of every row, 165 single-observation Kuching rows among them.
+   It stays in the repository as the source. .vercelignore keeps it off the
+   host (servingProblems holds it there), and the build writes one file per
+   division under data/napic-h1-2025/. Each holds only what the area screen's
+   panel (officialBenchmarkPanel, 81-napic.js) shows: the division's H1 2025
+   activity rows, its benchmark rows with the columns the table shows, and
+   the period, attribution, licence and caveats every panel carries. The page
+   asks for the one division its locality lies in (loadNapic). No file holds
+   a second division's rows: napicProblems fails the build if one would, and
+   served-check fails a served file that does. */
+export const NAPIC_SOURCE = 'data/napic-h1-2025.json';
+export const NAPIC_DIR = 'data/napic-h1-2025';
+export const napicSlug = (division) => String(division).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+/* What officialBenchmarkPanel reads of a row, and nothing else: no land or
+   floor area, no previous range, no table or evidence labels. A column the
+   panel gains is added here, or it reads blank. */
+const NAPIC_ROW_FIELDS = ['scheme', 'propertyType', 'floorLevel', 'roadPosition', 'sampleSize', 'min', 'max', 'rangeLabel',
+  'basisUnit', 'perMonth', 'changeStated', 'changePct', 'grossYieldPct'];
+const NAPIC_ACTIVITY_FIELDS = ['periodCode', 'subsector', 'count', 'valueRm', 'impliedAverageValueRm', 'impliedAverageLabel'];
+/* One row a line, so a diff of a regenerated extract reads row by row. */
+const napicJson = (doc) => '{\n' + Object.entries(doc).map(([k, v]) => `  ${JSON.stringify(k)}: ${
+  Array.isArray(v) && v.some(r => r && typeof r === 'object')
+    ? (v.length ? `[\n${v.map(r => `    ${JSON.stringify(r)}`).join(',\n')}\n  ]` : '[]')
+    : JSON.stringify(v)}`).join(',\n') + '\n}\n';
+/* label (data/napic-h1-2025/<division>.json) → the file's text. */
+export function napicSlices(text) {
+  const src = JSON.parse(text);
+  const period = src.period.code;
+  const pick = (r, keys) => Object.fromEntries(keys.map(k => [k, r[k] === undefined ? null : r[k]]));
+  const divisions = [...new Set([...src.benchmarks, ...src.summary].map(r => r.division))].sort();
+  const out = new Map();
+  for (const division of divisions) {
+    out.set(`${NAPIC_DIR}/${napicSlug(division)}.json`, napicJson({
+      format: 'quantum-tradeworks/napic-division', version: 1, division,
+      period: src.period, licence: src.licence, cannotAnswer: src.cannotAnswer,
+      reconciliation: { target: { count: src.reconciliation.target.count } },
+      summary: src.summary.filter(r => r.division === division && r.periodCode === period).map(r => pick(r, NAPIC_ACTIVITY_FIELDS)),
+      benchmarks: src.benchmarks.filter(r => r.division === division).map(r => pick(r, NAPIC_ROW_FIELDS)),
+    }));
+  }
+  return out;
+}
+/* Every source row in exactly one file, each file one division's, under one
+   name each, and the licence carried whole. */
+export function napicProblems(slices, text) {
+  const src = JSON.parse(text);
+  const out = [];
+  let rows = 0;
+  const seen = new Set();
+  for (const [label, body] of slices) {
+    const doc = JSON.parse(body);
+    const divisions = new Set([doc.division, ...doc.benchmarks.map(r => r.division).filter(Boolean)]);
+    if (divisions.size !== 1) out.push(`${label} holds ${divisions.size} divisions' rows`);
+    if (label !== `${NAPIC_DIR}/${napicSlug(doc.division)}.json`) out.push(`${label} holds the ${doc.division} Division`);
+    if (seen.has(doc.division)) out.push(`two files hold the ${doc.division} Division`);
+    seen.add(doc.division);
+    if (JSON.stringify(doc.licence) !== JSON.stringify(src.licence)) out.push(`${label} does not carry the source's licence whole`);
+    rows += doc.benchmarks.length;
+  }
+  if (rows !== src.benchmarks.length) out.push(`the division files hold ${rows} benchmark rows, where ${NAPIC_SOURCE} holds ${src.benchmarks.length}`);
   return out;
 }
 
@@ -1124,7 +1197,9 @@ export function build({ bare = false } = {}) {
      literal in the file expanded to the whole tail of the document. The
      build still succeeded and spliced 15 extra lines of `</html>` into the
      middle of fmtMoney. A function replacer substitutes nothing. */
-  const versions = dataVersions();
+  const napicText = lf(readFileSync(join(ROOT, NAPIC_SOURCE), 'utf8'));
+  const napic = napicSlices(napicText);
+  const versions = dataVersions(napic);
   if (!js.includes(VERSIONS_MARKER)) throw new Error('src/js lost its data-version marker');
   js = js.replace(VERSIONS_MARKER, () => JSON.stringify(versions));
   /* The journeys' result is drawn in the page by the function that writes it
@@ -1301,7 +1376,7 @@ export function build({ bare = false } = {}) {
   const vercel = JSON.stringify(stripComments(parsed), null, 2) + String.fromCharCode(10);
   if (vercel.includes('"$comment')) throw new Error('a $comment survived into vercel.json');
 
-  return { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash, scope, rendered };
+  return { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash, scope, rendered, napic, napicText };
 }
 
 const sha = (s) => createHash('sha256').update(s).digest('hex');
@@ -1474,7 +1549,10 @@ function servingProblems({ rewrites, plan, vercel }) {
   {
     const ign = vercelIgnore(existsSync(join(ROOT, '.vercelignore')) ? readFileSync(join(ROOT, '.vercelignore'), 'utf8') : '');
     if (!ign.paths.has('/index.html')) out.push(`.vercelignore does not drop /index.html: Vercel serves a file before any rewrite, so / would be index.html, the app inline, and not ${HOME}`);
-    for (const p of ign.paths) if (p !== '/index.html') out.push(`.vercelignore drops ${p}, and only /index.html is kept off the host`);
+    /* And the NAPIC extract whole (plan item 1.6, NAPIC_SOURCE): the source
+       of the division files, never served itself. */
+    if (!ign.paths.has(`/${NAPIC_SOURCE}`)) out.push(`.vercelignore does not drop /${NAPIC_SOURCE}: every NAPIC benchmark would be one download, which its licence note says stays disabled until JPPH confirms redistribution rights`);
+    for (const p of ign.paths) if (p !== '/index.html' && p !== `/${NAPIC_SOURCE}`) out.push(`.vercelignore drops ${p}, and only /index.html and /${NAPIC_SOURCE} are kept off the host`);
     for (const l of ign.refused) out.push(`.vercelignore says "${l}", which neither this check nor serve.mjs reads — only literal paths from the root`);
     const root = rewrites.filter(r => r.source === '/');
     if (root.length !== 1 || root[0].destination !== `/${HOME}`) out.push(`vercel.json rewrites / to ${root.map(r => r.destination).join(', ') || 'nothing'}, not /${HOME}`);
@@ -1541,7 +1619,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const bare = process.argv.includes('--bare');
   if (bare && process.argv.includes('--check')) { console.error('--bare writes pages without their renders, for prerender.mjs; it has nothing to check'); process.exit(2); }
   const built = build({ bare });
-  const { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash, scope, rendered } = built;
+  const { html, vercel, notFound, pages, files, rewrites, plan, modules, versions, cspHash, scope, rendered, napic, napicText } = built;
   /* What prerender/ does not hold for the pages in scope, and what it holds
      for none: --check fails on either; a build says so and writes the page
      without a render. */
@@ -1558,14 +1636,15 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const SITEMAP = join(ROOT, 'sitemap.xml');
   const sitemap = !bare && existsSync(SITEMAP) ? sitemapWithLastmod(lf(readFileSync(SITEMAP, 'utf8')), plan, rendered.manifest) : null;
   const outputs = [['index.html', html], ['vercel.json', vercel], [NOT_FOUND, notFound], ...pages,
-    [files.script.file, files.script.body], [files.styles.file, files.styles.body], ...(sitemap ? [['sitemap.xml', sitemap.body]] : [])];
+    [files.script.file, files.script.body], [files.styles.file, files.styles.body], ...napic, ...(sitemap ? [['sitemap.xml', sitemap.body]] : [])];
   /* A page no route writes, and an app file under a name the build no longer
      writes — last build's app.<hash>.js, still deployed and still served,
      though no page names it. */
   const current = new Set([files.script.file, files.styles.file]);
-  const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f))];
+  const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f)),
+    ...filesUnder(NAPIC_DIR).filter(f => !napic.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
-  const problems = [...servingProblems(built), ...sourceControls(), ...mapShapeProblems(), ...(sitemap ? sitemap.problems : [])];
+  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...(sitemap ? sitemap.problems : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);
@@ -1590,7 +1669,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
        it, so a committed one means the build was not run. The same for a
        company page whose company left the universe, or whose address moved
        with its name. */
-    stale.forEach(f => drift.push(`${f} is stale — ${isCompanyPage(f) ? 'no company in the universe has that address any more' : f.startsWith(PAGES) ? 'no route writes it any more' : 'no page loads it any more'}`));
+    stale.forEach(f => drift.push(`${f} is stale — ${isCompanyPage(f) ? 'no company in the universe has that address any more' : f.startsWith(PAGES) ? 'no route writes it any more' : f.startsWith(NAPIC_DIR) ? `no division in ${NAPIC_SOURCE} writes it any more` : 'no page loads it any more'}`));
     problems.forEach(p => drift.push(p));
     renderProblems.forEach(p => drift.push(p));
     if (!drift.length) {
@@ -1599,6 +1678,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
       console.log(`every page but index.html loads /${files.script.file} (deferred, from its head) and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}). / is ${HOME}, ${kb(Buffer.byteLength(pages.get(HOME)))}, the app's script tag and #views in its first ${HOME_HEAD_BYTES / 1024}kB and its h1 in its first ${HOME_TEXT_BYTES / 1024}kB; .vercelignore keeps index.html off the host and /index.html is a 308 to /.`);
       console.log(`every page, index.html too, carries the first-paint script once in its head before what it loads, named in the CSP (${firstHash().slice(0, 19)}…); ${[...rendered.renders.values()].filter(r => servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render })).length} pages with a render say on <html> what it read.`);
       console.log(`sitemap.xml lists only canonical addresses that are served their own page, each with the day its render last changed as <lastmod>.`);
+      console.log(`${NAPIC_DIR}/ holds ${napic.size} division files made from ${NAPIC_SOURCE}, one division each, ${kb([...napic.values()].reduce((n, b) => n + Buffer.byteLength(b), 0))} in all; .vercelignore keeps ${NAPIC_SOURCE} off the host.`);
     } else {
       drift.forEach(d => console.error(d));
       console.error('\nRun `node build.mjs` and commit the result.');
@@ -1626,6 +1706,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     renderProblems.forEach(p => console.error(`WARNING  ${p}`));
     console.log(`pages/company/  ${companiesSaid}, one per company at its own address, the largest ${kb(Math.max(0, ...companySizes))}, ${(companySizes.reduce((a, b) => a + b, 0) / 1048576).toFixed(2)}MB in all`);
     if (stale.length) console.log(`stale        ${stale.join(', ')} — removed`);
+    console.log(`${NAPIC_DIR}/  ${napic.size} division files made from ${NAPIC_SOURCE}, the largest ${kb(Math.max(...[...napic.values()].map(b => Buffer.byteLength(b))))}, ${kb([...napic.values()].reduce((n, b) => n + Buffer.byteLength(b), 0))} in all`);
     console.log(`vercel.json  ${rewrites.length} rewrites (${plan.companies.length} company addresses to their pages, ${plan.params.length} parameter routes to /${GENERIC})  csp ${cspHash.slice(0, 19)}…`);
     Object.entries(versions).forEach(([f, v]) => console.log(`  data/${f.padEnd(18)} v=${v}`));
     if (problems.length) {

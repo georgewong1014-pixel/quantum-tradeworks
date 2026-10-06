@@ -46,7 +46,7 @@ calculation runs in the reader's browser from data files under `/data/`.
 | Malaysian companies | 18 | Illustrative: real listing codes, synthetic financials, labelled on every surface |
 | Illustrative US | 1 | Progressive (PGR) — its filed twin is not in the set |
 | Prices | 0 | No market-data licence for either exchange. A filed company carries no price unless the reader enters one |
-| NAPIC property data | H1 2025 | Derived division-level summaries and published benchmark ranges only (987 kB); raw source files are private pending JPPH confirmation of redistribution rights |
+| NAPIC property data | H1 2025 | Derived division-level summaries and published benchmark ranges only; the extract (`data/napic-h1-2025.json`) is the source and is not deployed, and the site serves one division a file (`data/napic-h1-2025/`, plan item 1.6); raw source files are private pending JPPH confirmation of redistribution rights |
 | Sarawak geography | cached | Coordinates under ODbL with per-area match confidence |
 
 ### What exists per product area

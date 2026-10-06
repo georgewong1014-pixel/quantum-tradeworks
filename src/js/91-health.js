@@ -171,16 +171,27 @@ const HEALTH_QUICK = [
             : realStatus?.ok ? { ok: true, text: 'loaded here' } : realStatus ? { ok: false, text: `not loaded here (${realStatus.error})` } : { ok: null, text: 'not loaded yet' }) },
         { file: 'instruments.json', uses: 'the instrument registry, for search and the scanner',
           loaded: () => (!realEnabled() ? OFF : instruments?.instruments?.length ? { ok: true, text: 'loaded here' } : { ok: false, text: 'not loaded here' }) },
-        { file: 'napic-h1-2025.json', uses: 'the NAPIC benchmarks, for Property Intelligence',
-          loaded: () => (napicStatus?.ok ? { ok: true, text: 'loaded here' } : napicStatus?.tried ? { ok: false, text: 'not loaded here' } : { ok: null, text: null }) },
+        /* One line for the NAPIC division files (plan item 1.6): each one
+           asked for, and the line served only when every one is. Read by the
+           area screen only, a division at a time, so this page has none of
+           them. */
+        { file: 'napic-h1-2025/', files: napicFiles(), uses: `the NAPIC benchmarks, one file for each of ${napicFiles().length} divisions, for the area screen`,
+          loaded: () => ({ ok: null, text: null }) },
         /* Read by the property pages only, so this page has no copy of it. */
         { file: 'sarawak-geo.json', uses: 'the area map, for Property Intelligence', loaded: () => ({ ok: null, text: null }) },
       ];
-      const res = await Promise.all(FILES.map(async (x) => {
+      const head = async (file) => {
         try {
-          const r = await fetch(dataUrl(x.file), { method: 'HEAD', cache: 'no-store' });
-          return { ...x, served: r.ok && /json/i.test(r.headers.get('content-type') || ''), code: r.status, l: x.loaded() };
-        } catch (e) { return { ...x, served: false, code: e.message, l: x.loaded() }; }
+          const r = await fetch(dataUrl(file), { method: 'HEAD', cache: 'no-store' });
+          return { served: r.ok && /json/i.test(r.headers.get('content-type') || ''), code: r.status };
+        } catch (e) { return { served: false, code: e.message }; }
+      };
+      const res = await Promise.all(FILES.map(async (x) => {
+        if (!x.files) return { ...x, ...(await head(x.file)), l: x.loaded() };
+        const each = await Promise.all(x.files.map(head));
+        const missing = each.map((h, i) => [x.files[i], h]).filter(([, h]) => !h.served);
+        return { ...x, served: x.files.length > 0 && !missing.length, l: x.loaded(),
+          code: x.files.length ? `${missing.length} of ${x.files.length}: ${missing.slice(0, 2).map(([f, h]) => `${f.slice(NAPIC_FILE_PREFIX.length)} ${h.code}`).join(', ')}` : 'none in this build' };
       }));
       /* A file that is served but did not load is as absent to the tool that
          reads it as one that is not served: a HEAD that answers 200 over a
@@ -240,18 +251,25 @@ const HEALTH_FULL = [
   {
     id: 'data-read', title: 'The data files, read in full',
     async run() {
-      const files = ['us.json', 'instruments.json', 'napic-h1-2025.json', 'sarawak-geo.json'];
+      const files = ['us.json', 'instruments.json', ...napicFiles(), 'sarawak-geo.json'];
       const out = await Promise.all(files.map(async (f) => {
         try {
           const r = await fetch(dataUrl(f));
           if (!r.ok) return { f, ok: false, why: `served ${r.status}` };
           const text = await r.text();
           JSON.parse(text);
-          return { f, ok: true, kb: Math.round(text.length / 1024) };
+          return { f, ok: true, kb: Math.round(text.length / 1024), bytes: text.length };
         } catch (e) { return { f, ok: false, why: e.message }; }
       }));
       const bad = out.filter(x => !x.ok);
-      const said = out.map(x => `data/${x.f} ${x.ok ? `parsed (${x.kb.toLocaleString('en-US')} kB)` : `failed: ${x.why}`}`).join(', ');
+      /* The NAPIC division files said as one, and any that failed by name. */
+      const isNapic = (x) => x.f.startsWith(NAPIC_FILE_PREFIX);
+      const napicOut = out.filter(isNapic), napicBad = napicOut.filter(x => !x.ok);
+      const one = (x) => `data/${x.f} ${x.ok ? `parsed (${x.kb.toLocaleString('en-US')} kB)` : `failed: ${x.why}`}`;
+      const napicSaid = !napicOut.length ? 'no NAPIC division file in this build'
+        : `data/${NAPIC_FILE_PREFIX} ${napicOut.length - napicBad.length} of ${napicOut.length} division files parsed (${Math.round(napicOut.filter(x => x.ok).reduce((n, x) => n + x.bytes, 0) / 1024).toLocaleString('en-US')} kB in all)${napicBad.length ? `; ${napicBad.map(one).join(', ')}` : ''}`;
+      const said = [...out.filter(x => !isNapic(x)).map(one), napicSaid].join(', ');
+      if (!napicOut.length) bad.push({ f: NAPIC_FILE_PREFIX });
       if (bad.some(x => x.f === 'us.json')) return healthFail(`${said}.`);
       return bad.length ? healthDegraded(`${said}.`) : healthPass(`${said}.`);
     },
