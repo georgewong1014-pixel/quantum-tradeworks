@@ -41,6 +41,11 @@ const HEALTH_JOURNEYS_FILE = 'health/journeys.json';
 /* The one renderer of the recorded result (journeys.mjs, journeysServed):
    put here by the build. */
 const journeysServed = /*@INJECT:journeysServed*/ null;
+/* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
+   the build, so a Live badge names the journey that proves it as the
+   journeys themselves are named (proofSection). */
+const JOURNEY_NAMES = /*@INJECT:journeyNames*/ null;
+const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
 /* A recorded run older than this says so. Runs are recorded at least twice
@@ -322,7 +327,7 @@ function healthReadJourneys() {
   if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
   HEALTH.journeysAt = now;
   HEALTH.journeys = null;
-  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); });
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -485,6 +490,72 @@ function journeyLinesPaint() {
   }
 }
 
+/* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, the owner's
+   decision of 6 Oct 2026; plan item 2.6). An outcome step in a production
+   journey proves a Live badge: an action and the result it must produce. So
+   /status lists every Live badge the registry writes (liveBadgeRows,
+   35-ui.js), each beside the journey and outcome step that prove it and
+   that journey's last recorded result — served by the build from the
+   committed record (journeysServed's proof, into each .proof-result slot,
+   drawn empty here with data-now), kept as served until this tab's own read
+   of the record returns, then drawn from it with the same function — and,
+   apart, the Live tools "not yet proven by a journey", read from the same
+   rows (proof: null). Nothing is moved to Beta here: the badges stay as
+   the registry writes them while their journeys are written (plan item
+   6.5). */
+const PROOF_UNPROVEN = 'not yet proven by a journey';
+function proofResultNode(journey, step) {
+  const span = el('span', { class: 'proof-result', 'data-proof-journey': journey, 'data-proof-step': step, 'data-now': '' });
+  const J = HEALTH.journeys;
+  if (J) span.innerHTML = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).proof(journey, step);
+  else {
+    const was = [...document.querySelectorAll('#views .proof-result')].find(n => n.getAttribute('data-proof-journey') === journey && n.getAttribute('data-proof-step') === step);
+    if (was && was.textContent.trim()) span.innerHTML = was.innerHTML;
+  }
+  return span;
+}
+function proofSlotsPaint() {
+  const J = HEALTH.journeys;
+  if (!J) return;
+  const served = J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null);
+  for (const n of document.querySelectorAll('#views .proof-result')) {
+    const html = served.proof(n.getAttribute('data-proof-journey'), n.getAttribute('data-proof-step'));
+    if (n.innerHTML !== html) n.innerHTML = html;
+  }
+}
+function proofSection() {
+  healthReadJourneys();
+  const rows = liveBadgeRows();
+  const proven = rows.filter(r => r.proof), unproven = rows.filter(r => !r.proof);
+  const badge = () => el('span', { class: 'status-badge status-live' }, PRODUCT_STATUS.live);
+  /* Inside "Does each tool work?", under the journeys it reads and above
+     the checks run in this tab — which fill in after the page is drawn, and
+     would move it. */
+  const card = el('div', { class: 'proof-block', id: 'proof' });
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Live badge'));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    'A Live badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
+  card.append(el('h4', { class: 'proof-h' }, `Proven by an outcome step — ${proven.length} of ${rows.length}`));
+  card.append(el('ul', { id: 'health-proofs', class: 'proof-list' }, proven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
+    badge(),
+    el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
+    el('div', { class: 'proof-body' }, [
+      el('p', { class: 'caption' }, `Journey “${journeyNameOf(r.proof.journey)}”, outcome step “${r.proof.step}”.`),
+      el('p', { class: 'proof-last' }, [el('span', { class: 'proof-last-label' }, 'Last result: '), proofResultNode(r.proof.journey, r.proof.step)]),
+    ]),
+  ]))));
+  card.append(el('h4', { class: 'proof-h' }, `Live, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    unproven.length
+      ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Live badge while its journey is written; until then nothing here shows that it works on the live site.'
+      : 'None: every Live badge is proven by an outcome step.'));
+  card.append(el('ul', { id: 'health-unproven', class: 'proof-list' }, unproven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
+    badge(),
+    el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
+  ]))));
+  return card;
+}
+
 function healthSection() {
   healthStart();
   const card = el('section', { class: 'card', id: 'health', 'aria-labelledby': 'health-h' });
@@ -498,7 +569,7 @@ function healthSection() {
      reads, before the checks only a browser runs. */
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
+    'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, compares two filed companies and saves and reopens the comparison, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
   /* As served until this tab's read of the record returns (healthPaintNow):
      the page was drawn with it, and nothing moves when it is drawn again. */
   const sum = el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys });
@@ -511,6 +582,7 @@ function healthSection() {
     jlist.innerHTML = wasList.innerHTML;
   }
   card.append(sum, jlist);
+  card.append(proofSection());
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },

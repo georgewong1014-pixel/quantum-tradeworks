@@ -4896,4 +4896,25 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 }
 /* An empty list takes no room, served or drawn. */
 #views[data-served] ul.journeys-list[data-now=""]:empty::before { content: none; }
+/* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, plan item 2.6;
+   proofSection, 91-health.js). A row as a journey's: the badge, the tool's
+   name and product on one line; the journey, its outcome step and the last
+   result under the name on a wide screen, the whole width on a phone. */
+.proof-h { margin: var(--md) 0 0; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink); }
+.proof-list { list-style: none; padding: 0; margin: var(--sm) 0 0; }
+.proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
+.proof-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.proof-of { font-weight: var(--weight-body); color: var(--ink-2); }
+.proof-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
+@media (max-width: 640px) { .proof-body { padding-left: 0; } }
+.proof-body > p { margin: 0; max-width: 72ch; overflow-wrap: anywhere; }
+.proof-last { margin-top: 4px !important; font-size: var(--text-label); line-height: 1.5; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.proof-last-label { font-weight: var(--weight-semibold); color: var(--ink); }
+.proof-status { font-weight: var(--weight-bold); letter-spacing: .02em; }
+.proof-status[data-status="PASS"] { color: var(--ok-text); }
+.proof-status[data-status="DEGRADED"] { color: var(--bronze); }
+.proof-status[data-status="FAIL"] { color: var(--critical-text); }
+/* The unproven: a badge and a name each, so as many to a line as fit. */
+#health-unproven { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); column-gap: var(--lg); }
 /* ---- end journeys-served ---- */

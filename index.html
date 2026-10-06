@@ -4971,6 +4971,27 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 }
 /* An empty list takes no room, served or drawn. */
 #views[data-served] ul.journeys-list[data-now=""]:empty::before { content: none; }
+/* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, plan item 2.6;
+   proofSection, 91-health.js). A row as a journey's: the badge, the tool's
+   name and product on one line; the journey, its outcome step and the last
+   result under the name on a wide screen, the whole width on a phone. */
+.proof-h { margin: var(--md) 0 0; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink); }
+.proof-list { list-style: none; padding: 0; margin: var(--sm) 0 0; }
+.proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
+.proof-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.proof-of { font-weight: var(--weight-body); color: var(--ink-2); }
+.proof-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
+@media (max-width: 640px) { .proof-body { padding-left: 0; } }
+.proof-body > p { margin: 0; max-width: 72ch; overflow-wrap: anywhere; }
+.proof-last { margin-top: 4px !important; font-size: var(--text-label); line-height: 1.5; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.proof-last-label { font-weight: var(--weight-semibold); color: var(--ink); }
+.proof-status { font-weight: var(--weight-bold); letter-spacing: .02em; }
+.proof-status[data-status="PASS"] { color: var(--ok-text); }
+.proof-status[data-status="DEGRADED"] { color: var(--bronze); }
+.proof-status[data-status="FAIL"] { color: var(--critical-text); }
+/* The unproven: a badge and a name each, so as many to a line as fit. */
+#health-unproven { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); column-gap: var(--lg); }
 /* ---- end journeys-served ---- */
 </style>
 <!--
@@ -17600,7 +17621,8 @@ const PRODUCTS = [
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.' },
+    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
+    proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
     task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
     question: 'What will happen to my company’s cash flow?', action: null, actionPath: null,
@@ -17686,6 +17708,17 @@ function toolProductOf(view) {
 
    A tool that is not in this build — a route another branch adds — is not
    listed anywhere until its route and view exist (toolPresent).
+
+   WHAT PROVES A LIVE BADGE (D15, the owner's decision of 6 Oct 2026; plan
+   item 2.6). An outcome step in a production journey: an action, and the
+   result it must produce, checked (journeys.mjs, OUTCOME_STEPS). A journey
+   that only lands on a tool's page does not count. So every 'live' row here
+   and in PRODUCTS carries proof: the journey and the outcome step that
+   prove it — or null, "not yet proven by a journey", which /status lists
+   beside the Live badge the row keeps while its journey is written (plan
+   item 6.5). There is no other list of exemptions: register-check fails a
+   live row with no proof field, and one whose journey has no such outcome
+   step.
    ========================================================================== */
 const TOOL_STATUS = { ...PRODUCT_STATUS, delayed: 'Delayed', unavailable: 'Unavailable' };
 /* The states a tab, a sidebar item or a dashboard row marks. Live and Beta
@@ -17714,28 +17747,30 @@ const TOOLS = [
     status: 'beta', statusNote: 'Names the Bursa companies that operate in Sarawak; no statements are held for them, and each one’s exposure stays empty until you record it.',
     action: { label: 'Open Sarawak watch', path: '/discover/sarawak' } },
   { id: 'wheel', product: 'equities', label: 'Cash Wheel', path: '/us-options/wheel', views: ['wheel'], tab: true,
-    status: 'live', statusNote: 'A cash-secured put and covered call cycle modelled from a contract you enter; no option-chain data is connected.',
+    status: 'live', statusNote: 'A cash-secured put and covered call cycle modelled from a contract you enter; no option-chain data is connected.', proof: null,
     action: { label: 'Model a wheel', path: '/us-options/wheel' } },
   /* Property Intelligence. "My properties" is the store of saved property
      models; its route arrives with that work, and until then it is listed
      nowhere (toolPresent). */
   { id: 'models', product: 'property', label: 'My properties', path: '/property/models', tab: true,
     status: 'live', statusNote: 'The properties you have saved in this browser, each with its scenarios; open one to edit it in the calculator.',
+    proof: { journey: 'property', step: 'It is listed with the saved properties' },
     action: { label: 'Open my properties', path: '/property/models' } },
   { id: 'calculator', product: 'property', label: 'Calculator', path: '/property/calculator', views: ['property'], tab: true,
     status: 'live', statusNote: 'Monthly cash flow, yield, break-even rent and cash required, computed from the figures you enter; it starts on illustrative defaults and marks each one until you replace it.',
+    proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' },
     action: { label: 'Analyse a property', path: '/property/calculator' } },
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
   { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
-    status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
+    status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.', proof: null,
     action: { label: 'Screen a town', path: '/property/areas' } },
   { id: 'comparables', product: 'property', label: 'Comparables', path: '/property/comparables', views: ['comparables'], tab: true,
-    status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.',
+    status: 'live', statusNote: 'Sarawak transacted prices and achieved rents you record, each with what it rests on.', proof: null,
     action: { label: 'Record a comparable', path: '/property/comparables' } },
   { id: 'opportunities', product: 'property', label: 'Opportunities', path: '/property/opportunities', views: ['opportunities'], tab: true,
-    status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.',
+    status: 'live', statusNote: 'Real properties you record, each with what is known about it and what is not, never ordered by merit.', proof: null,
     action: { label: 'Record a property', path: '/property/opportunities' } },
   /* Quantum Scanner — its sections, each a tab of the Scanner's row as the
      other two products' tools are (Release B, B5): its own strip, drawn
@@ -17762,32 +17797,33 @@ const TOOLS = [
     status: 'beta', statusNote: 'A simulation of the dates on which a setup’s conditions held in your own history — no returns, no performance.',
     action: { label: 'Simulate a setup', path: '/app/scanner/backtest' } },
   { id: 'scanSettings', product: 'scanner', label: 'Settings', path: '/app/scanner/settings', views: ['scannerSettings'], tab: true,
-    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.',
+    status: 'live', statusNote: 'How values are shown and which matches count as unread, kept in this browser; the app is the only delivery channel.', proof: null,
     action: { label: 'Open scanner settings', path: '/app/scanner/settings' } },
   { id: 'trading', product: 'scanner', label: 'Trading Index', path: '/research/trading-index', views: ['tradingIndex'], tab: true,
-    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
+    status: 'live', statusNote: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.', proof: null,
     action: { label: 'Assess a trend', path: '/research/trading-index' } },
   /* The workspace — the reader's own, in this browser. */
   { id: 'dashboard', product: null, label: 'My Dashboard', path: '/app', views: ['home'],
-    status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.',
+    status: 'live', statusNote: 'What changed since your last visit, your setups’ matches where the scanner’s record is here, and what you have saved — read from this browser.', proof: null,
     action: { label: 'Open my dashboard', path: '/app' } },
   { id: 'watchlists', product: null, label: 'Watchlists', path: '/my/watchlists', views: ['watchlists'],
     status: 'live', statusNote: 'Lists of companies you follow, kept in this browser; each can be the universe a scanner setup checks.',
+    proof: { journey: 'equities', step: 'The watchlist lists it' },
     action: { label: 'Create a watchlist', path: '/my/watchlists' } },
   { id: 'myAlerts', product: null, label: 'My Alerts', path: '/my/alerts', views: ['alerts'],
-    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
+    status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.', proof: null,
     action: { label: 'Review your alerts', path: '/my/alerts' } },
   { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
   { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
-    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
+    status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.', proof: null,
     action: { label: 'Open your reports', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
-    status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
+    status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.', proof: null,
     action: { label: 'Open your portfolio', path: '/my/portfolio' } },
   { id: 'theses', product: null, label: 'Investment cases', path: '/my/theses', views: ['thesis'],
-    status: 'live', statusNote: 'What you believe about a company and what would prove you wrong, checked against the latest data held.',
+    status: 'live', statusNote: 'What you believe about a company and what would prove you wrong, checked against the latest data held.', proof: null,
     action: { label: 'Write an investment case', path: '/my/theses' } },
   { id: 'tracked', product: null, label: 'Tracked', path: '/my/tracked', views: ['tracked'],
     status: 'beta', statusNote: 'Instruments followed by price and trend only, from closes you supply — this site ships none.',
@@ -17796,10 +17832,17 @@ const TOOLS = [
      sends a reader here does: the workspace's tab said "Your data" beside a
      sidebar saying "Your data & settings". */
   { id: 'userdata', product: null, label: 'Your data & settings', path: '/my/data', views: ['userdata'],
-    status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.',
+    status: 'live', statusNote: 'Prices you paste, kept in this browser, and the export that carries everything you saved.', proof: null,
     action: { label: 'Open your data', path: '/my/data' } },
 ];
 const toolById = (id) => TOOLS.find(t => t.id === id) || null;
+/* Every Live badge the registry writes — the products', then the tools' —
+   with what proves it (proof, above). /status lists them (proofSection,
+   91-health.js). */
+const liveBadgeRows = () => [
+  ...PRODUCTS.filter(p => p.status === 'live').map(p => ({ key: `product:${p.id}`, name: p.name, of: 'Product', proof: p.proof })),
+  ...TOOLS.filter(t => t.status === 'live').map(t => ({ key: `tool:${t.id}`, name: t.label, of: t.product ? productById(t.product)?.name || t.product : 'My workspace', proof: t.proof })),
+];
 /* The views a tool is, as written, or else the view its route opens. */
 const toolViews = (t) => t.views || [matchRoute(t.path)?.view].filter(Boolean);
 /* In this build: its route resolves to a view that exists. */
@@ -57130,7 +57173,7 @@ VIEWS.status = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
   ])));
-  wrap.append(healthSection());   /* Does each tool work? — 91-health.js */
+  wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
   const key = el('div', { class: 'card' });
   /* Counted, so the sentence cannot fall behind the list it describes — it
@@ -57680,7 +57723,8 @@ const journeysServed = (function journeysServed(doc) {
   const STATE = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'] };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const two = (n) => (n < 10 ? '0' : '') + n;
-  const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {} };
+  const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {},
+    proof: () => 'No recorded run to show.' };
   Object.keys(LINES).forEach(k => { empty.lines[k] = ''; });
   const at = doc && typeof doc.ranAt === 'string' ? new Date(doc.ranAt) : null;
   const list = doc && Array.isArray(doc.journeys) ? doc.journeys.filter(j => j && typeof j.id === 'string' && typeof j.name === 'string' && STATE[j.status]) : [];
@@ -57724,8 +57768,28 @@ const journeysServed = (function journeysServed(doc) {
       + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + gated + ' · ' + day + ' ' + time
       + (sha ? ' · ' + sha : '') + ' · <a class="journey-line-link" href="/status#' + idOf(j) + '">details</a>';
   });
-  return { recorded: true, sum, list: items, lines };
+  /* A LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, plan item 2.6). The
+     journey's status, and the badge's outcome step as that run recorded it:
+     OK, FAIL or gated; "not reached" where the journey failed before it;
+     "not in the recorded run" where the run has no step of that name (a
+     journey recorded before the step was written). A journey the run did
+     not include says so — nothing is carried over from an older run. */
+  const proof = (id, stepName) => {
+    const j = list.find(x => x.id === id);
+    if (!j) return 'Not in the last recorded run.';
+    const s = steps(j).find(x => x.name === stepName);
+    const said = s ? 'outcome step ' + mark(s) : j.status === 'FAIL' ? 'outcome step not reached' : 'outcome step not in the recorded run';
+    return '<span class="proof-status" data-status="' + j.status + '">' + j.status + '</span>'
+      + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + ' · ' + said + ' · ' + day + ' ' + at.getUTCFullYear() + ', ' + time
+      + ' · <a class="journey-line-link" href="#' + idOf(j) + '">details</a>';
+  };
+  return { recorded: true, sum, list: items, lines, proof };
 });
+/* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
+   the build, so a Live badge names the journey that proves it as the
+   journeys themselves are named (proofSection). */
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","scanner":"Scanner: build, save and evaluate a setup","ctas":"Primary calls to action land on working pages"};
+const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
 /* A recorded run older than this says so. Runs are recorded at least twice
@@ -58007,7 +58071,7 @@ function healthReadJourneys() {
   if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
   HEALTH.journeysAt = now;
   HEALTH.journeys = null;
-  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); });
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -58170,6 +58234,72 @@ function journeyLinesPaint() {
   }
 }
 
+/* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, the owner's
+   decision of 6 Oct 2026; plan item 2.6). An outcome step in a production
+   journey proves a Live badge: an action and the result it must produce. So
+   /status lists every Live badge the registry writes (liveBadgeRows,
+   35-ui.js), each beside the journey and outcome step that prove it and
+   that journey's last recorded result — served by the build from the
+   committed record (journeysServed's proof, into each .proof-result slot,
+   drawn empty here with data-now), kept as served until this tab's own read
+   of the record returns, then drawn from it with the same function — and,
+   apart, the Live tools "not yet proven by a journey", read from the same
+   rows (proof: null). Nothing is moved to Beta here: the badges stay as
+   the registry writes them while their journeys are written (plan item
+   6.5). */
+const PROOF_UNPROVEN = 'not yet proven by a journey';
+function proofResultNode(journey, step) {
+  const span = el('span', { class: 'proof-result', 'data-proof-journey': journey, 'data-proof-step': step, 'data-now': '' });
+  const J = HEALTH.journeys;
+  if (J) span.innerHTML = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).proof(journey, step);
+  else {
+    const was = [...document.querySelectorAll('#views .proof-result')].find(n => n.getAttribute('data-proof-journey') === journey && n.getAttribute('data-proof-step') === step);
+    if (was && was.textContent.trim()) span.innerHTML = was.innerHTML;
+  }
+  return span;
+}
+function proofSlotsPaint() {
+  const J = HEALTH.journeys;
+  if (!J) return;
+  const served = J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null);
+  for (const n of document.querySelectorAll('#views .proof-result')) {
+    const html = served.proof(n.getAttribute('data-proof-journey'), n.getAttribute('data-proof-step'));
+    if (n.innerHTML !== html) n.innerHTML = html;
+  }
+}
+function proofSection() {
+  healthReadJourneys();
+  const rows = liveBadgeRows();
+  const proven = rows.filter(r => r.proof), unproven = rows.filter(r => !r.proof);
+  const badge = () => el('span', { class: 'status-badge status-live' }, PRODUCT_STATUS.live);
+  /* Inside "Does each tool work?", under the journeys it reads and above
+     the checks run in this tab — which fill in after the page is drawn, and
+     would move it. */
+  const card = el('div', { class: 'proof-block', id: 'proof' });
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'What proves each Live badge'));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    'A Live badge is proven by an outcome step in a journey on the live site: an action, and the result it must produce, checked. A journey that only opens a tool’s page does not count. Each badge below is beside its journey’s last recorded result, as listed above.'));
+  card.append(el('h4', { class: 'proof-h' }, `Proven by an outcome step — ${proven.length} of ${rows.length}`));
+  card.append(el('ul', { id: 'health-proofs', class: 'proof-list' }, proven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
+    badge(),
+    el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
+    el('div', { class: 'proof-body' }, [
+      el('p', { class: 'caption' }, `Journey “${journeyNameOf(r.proof.journey)}”, outcome step “${r.proof.step}”.`),
+      el('p', { class: 'proof-last' }, [el('span', { class: 'proof-last-label' }, 'Last result: '), proofResultNode(r.proof.journey, r.proof.step)]),
+    ]),
+  ]))));
+  card.append(el('h4', { class: 'proof-h' }, `Live, and ${PROOF_UNPROVEN} — ${unproven.length} of ${rows.length}`));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    unproven.length
+      ? 'No journey yet does what each of these tools is for and checks the result. Each keeps its Live badge while its journey is written; until then nothing here shows that it works on the live site.'
+      : 'None: every Live badge is proven by an outcome step.'));
+  card.append(el('ul', { id: 'health-unproven', class: 'proof-list' }, unproven.map(r => el('li', { class: 'proof-row', 'data-proof-row': r.key }, [
+    badge(),
+    el('p', { class: 'proof-name' }, [r.name, el('span', { class: 'proof-of' }, ` · ${r.of}`)]),
+  ]))));
+  return card;
+}
+
 function healthSection() {
   healthStart();
   const card = el('section', { class: 'card', id: 'health', 'aria-labelledby': 'health-h' });
@@ -58183,7 +58313,7 @@ function healthSection() {
      reads, before the checks only a browser runs. */
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
-    'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
+    'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, compares two filed companies and saves and reopens the comparison, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
   /* As served until this tab's read of the record returns (healthPaintNow):
      the page was drawn with it, and nothing moves when it is drawn again. */
   const sum = el('p', { class: 'metaline', id: 'health-journeys-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.journeys });
@@ -58196,6 +58326,7 @@ function healthSection() {
     jlist.innerHTML = wasList.innerHTML;
   }
   card.append(sum, jlist);
+  card.append(proofSection());
 
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },

@@ -1064,6 +1064,83 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end journeys-served ---- */
 
+/* ---- live-proof ---- */
+/* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT, SERVED (D15, the
+   owner's decision of 6 Oct 2026; plan item 2.6). An outcome step in a
+   production journey proves a Live badge; a landing does not. Held here,
+   before any script, on /status against the registry (every 'live' row of
+   PRODUCTS and TOOLS in src/js/35-ui.js, and its proof) and the record this
+   same site serves:
+   1. every Live badge whose row names its journey and outcome step is
+      listed in #health-proofs, in the registry's order, as Live, with its
+      name, the journey's name (journeys.mjs, JOURNEY_NAMES) and the step,
+      and its last result exactly journeysServed(record).proof(journey,
+      step);
+   2. every Live badge whose row says it is not yet proven (proof: null) is
+      listed in #health-unproven, as Live, and nothing else is;
+   3. the two headings count them out of every Live badge. */
+{
+  const p = [];
+  const J = await import('./journeys.mjs');
+  const vm = await import('node:vm');
+  const words = (html) => html.replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  const cutArray = (text, name) => { const i = text.indexOf(`const ${name} = [`); const e = text.indexOf('\n];', i); if (i < 0 || e < 0) throw new Error(`const ${name} = [ … ]; not found in src/js/35-ui.js`); return text.slice(i, e + 3); };
+  const UI = read('src/js/35-ui.js');
+  const { PRODUCTS, TOOLS } = vm.runInContext([cutArray(UI, 'PRODUCTS'), cutArray(UI, 'TOOLS'), '({ PRODUCTS, TOOLS })'].join('\n'), vm.createContext({}));
+  const rows = [
+    ...PRODUCTS.filter(x => x.status === 'live').map(x => ({ key: `product:${x.id}`, name: x.name, of: 'Product', proof: x.proof })),
+    ...TOOLS.filter(x => x.status === 'live').map(x => ({ key: `tool:${x.id}`, name: x.label, of: x.product ? PRODUCTS.find(q => q.id === x.product)?.name || x.product : 'My workspace', proof: x.proof })),
+  ];
+  const proven = rows.filter(r => r.proof), unproven = rows.filter(r => !r.proof);
+  const rec = await fetch(`${BASE}/health/journeys.json?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(e => ({ unreadable: e.message }));
+  const want = journeysServed(rec);
+  if (typeof want.proof !== 'function') p.push('journeysServed (journeys.mjs) draws no Live badge\'s result (proof)');
+  if (!J.JOURNEY_NAMES) p.push('journeys.mjs names no journeys (JOURNEY_NAMES)');
+  const status = (await getAll(['/status'])).get('/status').body || '';
+  const listOf = (id) => new RegExp(`<ul id="${id}"[^>]*>([\\s\\S]*?)</ul>`).exec(status)?.[1];
+  const items = (html) => [...(html || '').matchAll(/<li class="proof-row" data-proof-row="([^"]+)">([\s\S]*?)<\/li>/g)].map(m => ({ key: m[1], html: m[2] }));
+  const BADGE = /^<span class="status-badge status-live">Live<\/span><p class="proof-name">/;
+  const head = (re) => (status.match(re) || [])[1] || null;
+  const proofs = listOf('health-proofs'), rest = listOf('health-unproven');
+  if (proofs == null) p.push('/status serves no list of the Live badges and the journeys that prove them (#health-proofs)');
+  else {
+    const got = items(proofs);
+    if (got.map(x => x.key).join() !== proven.map(r => r.key).join()) p.push(`/status lists ${got.map(x => x.key).join(', ') || 'no badge'} as proven, where the registry's proven Live rows are ${proven.map(r => r.key).join(', ')}`);
+    for (const r of proven) {
+      const li = got.find(x => x.key === r.key);
+      if (!li) continue;
+      const w = words(li.html);
+      if (!BADGE.test(li.html)) p.push(`/status: ${r.key} is not served as Live`);
+      if (!w.includes(`${r.name} · ${r.of}`)) p.push(`/status: ${r.key} does not read "${r.name} · ${r.of}": "${w.slice(0, 90)}"`);
+      const jn = J.JOURNEY_NAMES?.[r.proof.journey];
+      if (!jn || !w.includes(`Journey “${jn}”, outcome step “${r.proof.step}”.`)) p.push(`/status: ${r.key} does not name its journey "${jn || r.proof.journey}" and outcome step "${r.proof.step}"`);
+      const slot = /<span class="proof-result" data-proof-journey="([^"]*)" data-proof-step="([^"]*)" data-now="">([\s\S]*?)<\/span><\/p>/.exec(li.html);
+      if (!slot) { p.push(`/status: ${r.key} serves no last result`); continue; }
+      if (slot[1] !== r.proof.journey || words(slot[2]) !== r.proof.step) p.push(`/status: ${r.key}'s result is for ${slot[1]} "${words(slot[2])}", not ${r.proof.journey} "${r.proof.step}"`);
+      if (typeof want.proof === 'function' && slot[3] !== want.proof(r.proof.journey, r.proof.step)) p.push(`/status: ${r.key}'s last result is not the record's: served "${words(slot[3]).slice(0, 90)}", the record "${words(want.proof(r.proof.journey, r.proof.step)).slice(0, 90)}"`);
+    }
+  }
+  if (rest == null) p.push('/status serves no list of the Live tools not yet proven by a journey (#health-unproven)');
+  else {
+    const got = items(rest);
+    if (got.map(x => x.key).join() !== unproven.map(r => r.key).join()) p.push(`/status lists ${got.map(x => x.key).join(', ') || 'nothing'} as not yet proven, where the registry's are ${unproven.map(r => r.key).join(', ') || 'none'}`);
+    for (const r of unproven) {
+      const li = got.find(x => x.key === r.key);
+      if (li && (!BADGE.test(li.html) || words(li.html) !== `Live ${r.name} · ${r.of}`)) p.push(`/status: ${r.key} is not served as "Live ${r.name} · ${r.of}": "${words(li.html).slice(0, 90)}"`);
+    }
+  }
+  const hp = head(/>(Proven by an outcome step — \d+ of \d+)<\/h4>/), hu = head(/>(Live, and not yet proven by a journey — \d+ of \d+)<\/h4>/);
+  /* Under the recorded journeys it reads, above the checks run in the
+     reader's tab (which fill in after the page is drawn). */
+  const at = (s) => status.indexOf(s);
+  if (!(at('id="health-journeys"') < at('id="health-proofs"') && at('id="health-unproven"') < at('>Checked in your browser now</h3>'))) p.push('/status does not serve the Live badges between the recorded journeys and "Checked in your browser now"');
+  if (hp !== `Proven by an outcome step — ${proven.length} of ${rows.length}`) p.push(`/status heads the proven badges "${hp || 'nothing'}", not "Proven by an outcome step — ${proven.length} of ${rows.length}"`);
+  if (hu !== `Live, and not yet proven by a journey — ${unproven.length} of ${rows.length}`) p.push(`/status heads the unproven badges "${hu || 'nothing'}", not "Live, and not yet proven by a journey — ${unproven.length} of ${rows.length}"`);
+  judge(p, `/status serves every Live badge beside what proves it (D15): ${proven.length} of ${rows.length} beside their journey's outcome step and its last recorded result, exactly the record's (${proven.map(r => r.name).join(', ')}); ${unproven.length} listed as not yet proven by a journey (${unproven.map(r => r.name).join(', ')})`,
+    '/status does not serve each Live badge beside what proves it');
+}
+/* ---- end live-proof ---- */
+
 /* ---- robots-noindex ---- */
 /* FETCHABLE, AND OUT OF SEARCH (plan item 1.1; the owner's decision D2 of
    5 Oct 2026). robots.txt said Disallow: /app$ and Disallow: /app/scanner,
