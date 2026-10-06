@@ -414,8 +414,10 @@ try {
       const m = manifest.pages?.[s.file];
       if (!m) { bad.push(s.path); console.log(`FAIL served ${s.path}: no render committed`); continue; }
       const committedText = read(s.render).replace(/\n$/, '');
-      /* index.html carries the app inline: there is no moment before it runs. */
-      const measure = s.file !== 'index.html';
+      /* Every page, the site root's too: / was index.html, the app inline,
+         with no moment before it ran; since plan item 1.2 it is served
+         pages/home.app.html, which loads the app like every other page. */
+      const measure = true;
       await firstVisit({ script: measure });
       const problems = [];
       try {
@@ -955,7 +957,6 @@ try {
            behind (firstVisit). */
         const hiddenFresh = [];
         for (const s of pages) {
-          if (s.file === 'index.html') continue;
           await firstVisit({ script: true });
           await send('Page.navigate', { url: live + s.path }, sid);
           if (!await until(SERVED_PAINTED)) { hiddenFresh.push(`${s.path} (not painted)`); continue; }

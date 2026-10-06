@@ -52,10 +52,13 @@ Services Act before launch.
 ## Run it
 
 The deployed site is static files assembled from `src/` by `build.mjs` and
-committed, so the host needs no build step: `index.html`, one self-contained
-HTML file with the app inline, and for every other address a small page (its
-own head, about 23kB) that loads the same script and stylesheet once from
-`assets/app.<hash>.js` and `.css`. After editing anything under `src/`, run
+committed, so the host needs no build step: for every address, the site root
+included (`pages/home.app.html`), a small page (its own head and its page,
+tens of kB) that loads the script and stylesheet once from
+`assets/app.<hash>.js` and `.css`. `index.html`, one self-contained HTML file
+with the app inline, stays in the repository for the tools that read the
+engine out of it; `.vercelignore` keeps it off the host, and `/index.html`
+redirects to `/`. After editing anything under `src/`, run
 `node build.mjs` and commit the result; CI fails if any of them drifts from
 its source.
 
@@ -181,7 +184,7 @@ yet*.
 .
 ├── src/              # the source: js/*.js in load order, styles.css, index and vercel templates
 ├── build.mjs         # assembles index.html, 404.html, pages/, assets/ and vercel.json (with the CSP hash) from src/
-├── index.html        # the entire deployed application, script and styles inline — generated, committed
+├── index.html        # the entire application, script and styles inline — generated, committed; read by the tools, not deployed (.vercelignore)
 ├── assets/           # index.html's inline script and stylesheet, once each, as app.<sha-256 prefix>.js/.css — generated, committed
 ├── pages/            # a small page per route without a parameter: that route's own <head>, loading assets/ — generated, committed
 ├── 404.html          # the same small page with the not-found head and noindex, served with status 404 — generated, committed

@@ -4,7 +4,8 @@
 //
 // It answers every request the way Vercel answers it, from the same
 // vercel.json: a trailing slash is redirected, then the redirects apply, a
-// file is served as itself, then the rewrites are tried in order, and
+// file is served as itself (unless .vercelignore keeps it out of the
+// deployment, as Vercel does), then the rewrites are tried in order, and
 // anything left is 404.html with status 404. Every harness runs against this server, so what they test is
 // what production serves — not a friendlier local imitation of it.
 import { createServer } from 'node:http';
@@ -150,11 +151,46 @@ const MIME = {
   '.map': 'application/json; charset=utf-8',
 };
 
+/* .vercelignore: the files the deployment leaves out (plan item 1.2 — the
+   root's index.html, the app inline). A file Vercel never received is not
+   there to serve, so here it is a miss at every address: as itself, as a
+   folder's index.html (/ itself), and as a rewrite's destination. Read as
+   build.mjs reads it (vercelIgnore): comments, blank lines and literal paths
+   from the root; anything else is said, once per version of the file, and
+   not applied. Re-read when it changes, like vercel.json. */
+const IGNORE_FILE = join(ROOT, '.vercelignore');
+let ignoreMtime = -1, ignored = new Set();
+function ignoredFiles() {
+  let m = 0;
+  try { m = statSync(IGNORE_FILE).mtimeMs; } catch { m = 0; }
+  if (m !== ignoreMtime) {
+    ignoreMtime = m;
+    ignored = new Set();
+    let text = '';
+    try { text = m ? readFileSync(IGNORE_FILE, 'utf8') : ''; } catch { text = ''; }
+    const refused = [];
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      if (/^\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(line) && !/(^|\/)\.\.?(\/|$)/.test(line)) ignored.add(line);
+      else refused.push(line);
+    }
+    if (refused.length) console.error(`serve.mjs does not implement .vercelignore's ${refused.map(l => JSON.stringify(l)).join(', ')} — what it serves differs from Vercel`);
+  }
+  return ignored;
+}
+const isIgnored = (file) => ignoredFiles().has('/' + file.slice(ROOT.length + 1).split(sep).join('/'));
+
 /* The file at an address, as a static host has it: a file is itself, a folder
    is its index.html. Nothing else — no /about for about.html, which Vercel
    does not do without cleanUrls, and no fallback to the app: that is the
-   rewrites' job now, and only for the addresses they name. */
+   rewrites' job now, and only for the addresses they name. A file
+   .vercelignore leaves out of the deployment is not there. */
 async function fileAt(pathname) {
+  const file = await deployedFileAt(pathname);
+  return file && isIgnored(file) ? null : file;
+}
+async function deployedFileAt(pathname) {
   // Contain every request inside ROOT. A malformed percent sequence (/%zz, or
   // a link truncated mid-escape) used to throw here, outside any handler, and
   // take the whole server down for every other tab — now it is a plain miss.

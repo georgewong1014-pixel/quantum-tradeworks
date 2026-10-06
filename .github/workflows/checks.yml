@@ -138,27 +138,48 @@ jobs:
       - name: the journeys' commit rule, result shape and table
         run: node journeys.mjs --self-test
 
-      # The CSP names a hash of the inline script. If the two ever disagree the
-      # site is blank in production and fine everywhere else, so it is checked
-      # against the built file rather than trusted.
-      - name: CSP hash covers the script that shipped
+      # The CSP names a hash of each inline script it allows. If one ever
+      # disagrees with the script that shipped, the site is blank in
+      # production and fine everywhere else, so it is checked against the
+      # built files rather than trusted.
+      # Since plan item 1.2, / is served the page vercel.json rewrites it to
+      # (pages/home.app.html), not index.html: its one inline script is the
+      # first-paint script every page carries in its head, and the app is
+      # /assets/app.<hash>.js, which script-src 'self' allows. So: every
+      # inline script of the page / is served must be named by its hash, and
+      # every script it loads must be on this site, under 'self'. index.html's
+      # inline app keeps its hash too: it is not deployed (.vercelignore), but
+      # a host that deployed it anyway would serve it at /, and it must run.
+      - name: CSP hash covers the scripts that shipped
         run: |
           node -e "
             const { readFileSync } = require('fs');
             const { createHash } = require('crypto');
-            const html = readFileSync('index.html', 'utf8');
             const cfg = JSON.parse(readFileSync('vercel.json', 'utf8'));
-            const inline = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('<\/script>'));
-            const want = 'sha256-' + createHash('sha256').update(inline, 'utf8').digest('base64');
+            const rootRule = (cfg.rewrites || []).find(r => r.source === '/');
+            if (!rootRule) { console.error('vercel.json rewrites / to nothing, so / would be index.html'); process.exit(1); }
+            const page = readFileSync(rootRule.destination.slice(1), 'utf8');
+            const index = readFileSync('index.html', 'utf8');
             const csp = cfg.headers.flatMap(g => g.headers).find(h => h.key === 'Content-Security-Policy');
             if (!csp) { console.error('no Content-Security-Policy in vercel.json'); process.exit(1); }
-            if (!csp.value.includes(want)) {
-              console.error('CSP does not cover the inline script.');
-              console.error('  needs  ' + want);
-              console.error('  has    ' + (csp.value.match(/sha256-[A-Za-z0-9+/=]+/) || ['(none)'])[0]);
+            const src = ' ' + ((csp.value.match(/(?:^|;)\s*script-src\s([^;]*)/) || [])[1] || '') + ' ';
+            const hash = (code) => 'sha256-' + createHash('sha256').update(code, 'utf8').digest('base64');
+            const inline = [...page.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+            const loads = [...page.matchAll(/<script\b[^>]*\bsrc=\"([^\"]*)\"/g)].map(m => m[1]);
+            const indexApp = index.slice(index.indexOf('<script>') + 8, index.lastIndexOf('<\/script>'));
+            const bad = [];
+            if (!inline.length) bad.push(rootRule.destination + ' carries no inline script: the first-paint script is missing');
+            inline.forEach((code, i) => { if (!src.includes(' \'' + hash(code) + '\' ')) bad.push(rootRule.destination + ': inline script ' + (i + 1) + ' needs ' + hash(code)); });
+            if (!loads.length || loads.some(s => !/^\/assets\/app\.[0-9a-f]{12}\.js$/.test(s))) bad.push(rootRule.destination + ' loads ' + JSON.stringify(loads) + ', not the app from /assets/');
+            if (!src.includes(' \'self\' ')) bad.push('script-src does not allow \'self\', so the app file is blocked');
+            if (!src.includes(' \'' + hash(indexApp) + '\' ')) bad.push('index.html: its inline app needs ' + hash(indexApp));
+            if (bad.length) {
+              console.error('CSP does not cover the scripts that shipped.');
+              bad.forEach(b => console.error('  ' + b));
+              console.error('  has    ' + src.trim());
               process.exit(1);
             }
-            console.log('CSP hash matches the shipped script.');
+            console.log('CSP covers / (' + rootRule.destination + '): ' + inline.length + ' inline script by its hash, the app from ' + loads[0] + ' by self; and index.html\'s inline app by its hash.');
           "
 
       # The licensed lane must never reach a public checkout. This is the one

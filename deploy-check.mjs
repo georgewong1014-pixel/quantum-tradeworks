@@ -50,7 +50,17 @@ const has  = (f) => argv.includes(`--${f}`);
 const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i > -1 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
 
 const URL_    = flag('url', 'https://quantum-tradeworks.vercel.app/');
-const FILE    = flag('file', 'index.html');
+/* THE FILE THE SITE ROOT IS SERVED (plan item 1.2). / was index.html; since
+   then vercel.json rewrites / to pages/home.app.html and index.html is not
+   deployed. The file is read from a commit's own vercel.json — its rewrite of
+   "/" — so this checkout, and every commit in the history below, is matched
+   against what its build served at /: the home page since 1.2, index.html
+   before. */
+function rootFile(vercelJson) {
+  try { return JSON.parse(vercelJson).rewrites?.find(r => r.source === '/')?.destination?.replace(/^\//, '') || 'index.html'; }
+  catch { return 'index.html'; }
+}
+const FILE    = flag('file', rootFile(await readFile('vercel.json', 'utf8').catch(() => '')));
 const WAIT    = has('wait');
 const TIMEOUT = Number(flag('timeout', 600));
 const EVERY   = Number(flag('every', 10));
@@ -84,14 +94,17 @@ function localCommit() {
    same two words for twenty minutes while the real answer — production is four
    commits behind and no build has run since — was sitting in git history.
 
-   Hashing recent commits' index.html and matching the served file against them
+   Hashing recent commits' root page (index.html, or pages/home.app.html since 1.2) and matching the served file against them
    turns that into a date and a subject line. */
 function liveCommit(servedHash) {
   try {
     const shas = execSync('git log --format=%H -25', { encoding: 'utf8' }).trim().split('\n');
     for (const [i, sha] of shas.entries()) {
-      let f;
-      try { f = execSync(`git show ${sha}:${FILE}`, { encoding: 'utf8', maxBuffer: 1e8 }); }
+      let f, file = FILE;
+      if (!flag('file')) {
+        try { file = rootFile(execSync(`git show ${sha}:vercel.json`, { encoding: 'utf8', maxBuffer: 1e8 })); } catch { file = 'index.html'; }
+      }
+      try { f = execSync(`git show ${sha}:${file}`, { encoding: 'utf8', maxBuffer: 1e8 }); }
       catch { continue; }
       if (fingerprint(f) === servedHash) {
         const subj = execSync(`git log -1 --format=%s ${sha}`, { encoding: 'utf8' }).trim();

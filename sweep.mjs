@@ -416,6 +416,10 @@ for (const route of ROUTES) {
    now, a page like the others. A company's own address has had a page of its own since
    Release B (build.mjs, ONE HEAD PER COMPANY), so a ticker (/company/aapl)
    is the parameter route's sample here, and Apple's own address a page's.
+   Since plan item 1.2 the site root is served pages/home.app.html, which
+   loads the app the same way (deferred, from its head), and index.html is
+   served nowhere; so / is a page of the second kind here, and is held back
+   below with the others.
    Both must run under the one policy vercel.json sends: the inline
    script by its hash, the file by 'self'. The loop above opens every route
    under that policy and would see a blocked script as a CSP line and an
@@ -441,7 +445,7 @@ for (const route of ROUTES) {
     srcs: [...document.scripts].filter(s => s.src).map(s => new URL(s.src).pathname),
     sheets: [...document.querySelectorAll('link[rel="stylesheet"]')].map(l => new URL(l.href).pathname),
     rules: [...document.styleSheets].reduce((n, s) => { try { return n + s.cssRules.length; } catch { return n; } }, 0) })`);
-  const kinds = [['/', 'inline'], ['/company/aapl', 'file'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/company/aapl-apple-inc', 'file'], ['/nope-for-the-slim-sweep', 'file']];
+  const kinds = [['/', 'file'], ['/company/aapl', 'file'], ['/pricing', 'file'], ['/property/calculator', 'file'], ['/company/aapl-apple-inc', 'file'], ['/nope-for-the-slim-sweep', 'file']];
   const rules = new Set();
   for (const [path, how] of kinds) {
     bucket = [];
@@ -456,7 +460,7 @@ for (const route of ROUTES) {
     if (path.startsWith('/nope') ? s.view !== 'notfound' : s.view === 'notfound') p.push(`${path}: drew ${s.view}`);
     rules.add(s.rules);
   }
-  if (rules.size !== 1) p.push(`the stylesheet is not the same one inline and linked: ${[...rules].join(' / ')} rules`);
+  if (rules.size !== 1) p.push(`the stylesheet is not the same one on every page: ${[...rules].join(' / ')} rules`);
   /* The script held back 1.5s: the frame painted without it must not move. */
   let held = 0, worst = 0;
   const hold = (e) => {
@@ -472,7 +476,7 @@ for (const route of ROUTES) {
   await send('Fetch.enable', { patterns: [{ urlPattern: '*/assets/app.*.js', requestStage: 'Request' }] }, sessionId);
   for (const [w, h, mobile] of [[390, 844, true], [1280, 900, false]]) {
     await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }, sessionId);
-    for (const path of ['/pricing', '/property/calculator']) {
+    for (const path of ['/', '/pricing', '/property/calculator']) {
       bucket = []; held = 0;
       await send('Page.navigate', { url: BASE + path }, sessionId);
       if (!await ready()) { p.push(`${path} @${w}, script 1.5s late: the page did not finish loading`); continue; }
@@ -495,7 +499,7 @@ for (const route of ROUTES) {
   ws.removeEventListener('message', hold);
   await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   if (p.length) { bad++; console.log('FAIL slim: the app is not loaded as each page should load it'); p.forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   slim: / runs the app inline, a parameter route, a route page, a company's own page and the 404 run it from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
+  else console.log(`ok   slim: /, a parameter route, a route page, a company's own page and the 404 run the app from assets/ under the same policy with the same ${[...rules][0]} style rules; with the script 1.5s late the page paints first, then draws with no error and a layout shift of at most ${worst.toFixed(3)} at 390 and 1280`);
 }
 /* ---- end audit: slim ---- */
 /* ---- audit1: health ---- */
