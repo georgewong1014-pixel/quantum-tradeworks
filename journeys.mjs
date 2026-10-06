@@ -154,6 +154,12 @@ export function signature(doc) {
    product carries. */
 export const ISLAND_PAGES = ['pages/status.html', 'pages/property.html', 'pages/research.html', 'pages/app/scanner.html'];
 export const RECORD_FILE = 'health/journeys.json';
+/* The page a commit serves at /: the file its vercel.json rewrites / to
+   (pages/home.app.html since plan item 1.2, build.mjs HOME), or index.html
+   where nothing rewrites / (every commit before 1.2). WHICH COMMIT IS
+   SERVED, below, matches the served build by it. */
+export const rootPageOf = (vercelJson) => { try { return JSON.parse(vercelJson).rewrites?.find(r => r.source === '/')?.destination?.replace(/^\//, '') || 'index.html'; } catch { return 'index.html'; } };
+export const ROOT_PAGES = ['pages/home.app.html', 'index.html'];
 export const BOT = 'github-actions[bot]';
 
 /* WHAT THE RECORD SAYS, AND WHEN (D16, the owner's decision of 5 Oct 2026).
@@ -370,6 +376,15 @@ function selfTest() {
   t(triggerOf('deployment_status') === 'deployment' && triggerOf('schedule') === 'schedule' && triggerOf('workflow_dispatch') === 'dispatch' && triggerOf('push') === null, 'the trigger: deployment_status, schedule and workflow_dispatch, and nothing else');
   /* The guard on the bot's commit (N1d). */
   t(!guardProblems(BOT_FILES).length && guardProblems(['health/journeys.json', 'pages/about.html', 'index.html']).join() === 'pages/about.html,index.html', 'the guard: the record and the island pages may be committed by the bot, and nothing else');
+  /* The served build is matched by the page its commit serves at / (plan
+     item 1.2): the rewrite of "/" in that commit's vercel.json, or
+     index.html before there was one; this checkout's own is the home page,
+     which carries no slot of the record (build.mjs refuses one), so the bot
+     never has it to commit. */
+  t(rootPageOf('{"rewrites":[{"source":"/pricing","destination":"/pages/pricing.html"},{"source":"/","destination":"/pages/home.app.html"}]}') === 'pages/home.app.html'
+    && rootPageOf('{"rewrites":[{"source":"/pricing","destination":"/pages/pricing.html"}]}') === 'index.html' && rootPageOf('') === 'index.html'
+    && (!existsSync(join(ROOT, 'vercel.json')) || ROOT_PAGES.includes(rootPageOf(readFileSync(join(ROOT, 'vercel.json'), 'utf8'))))
+    && !ISLAND_PAGES.some(f => ROOT_PAGES.includes(f)), 'the served build: matched by the page its own commit serves at /, the home page or, before plan item 1.2, index.html');
   /* The one renderer (N1c, N1e). */
   {
     const full = { ...rec, ranAt: '2026-10-05T10:30:28.776Z', commit: '75312b2bc2c9cf2dc016a2bd405fd403a4656be1', journeys: [
@@ -546,10 +561,14 @@ const STEP_LIMIT = 45000;
 
 /* ─── WHICH COMMIT IS SERVED ──────────────────────────────────────────────── */
 /* The site carries no build stamp, so the served build is identified the way
-   deploy-check.mjs identifies it: by its whole index.html. Its git blob id is
-   compared with the committed index.html of HEAD, then of every commit that
-   changed it — the newest match is the build being served. */
+   deploy-check.mjs identifies it: by the whole page its root is served. Its
+   git blob id is compared with that page as committed at HEAD, then in every
+   commit that changed it — the newest match is the build being served.
+   The page is a commit's own: the file its vercel.json rewrites / to
+   (pages/home.app.html since plan item 1.2), or index.html where it
+   rewrites / to nothing (every commit before 1.2). */
 const git = (...a) => { try { return execFileSync('git', a, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }).trim(); } catch { return null; } };
+const rootPageAt = (rev) => rootPageOf(git('show', `${rev}:vercel.json`) || '');
 const blobId = (text) => { const buf = Buffer.from(text.replace(/\r\n/g, '\n'), 'utf8'); return createHash('sha1').update(`blob ${buf.length}\0`).update(buf).digest('hex'); };
 async function servedBlob() {
   try { const r = await fetch(`${BASE}/`, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } }); return r.ok ? blobId(await r.text()) : null; }
@@ -558,7 +577,7 @@ async function servedBlob() {
 async function commitServed() {
   const want = flag('commit');
   if (want) {
-    const target = git('rev-parse', `${want}:index.html`);
+    const target = git('rev-parse', `${want}:${rootPageAt(want)}`);
     const deadline = Date.now() + Number(flag('wait') || 300) * 1000;
     while (target) {
       if (await servedBlob() === target) return { commit: git('rev-parse', want) || want, commitFrom: 'the deployment event, and the site serves its build' };
@@ -577,15 +596,21 @@ async function matchServed() {
   if (!blob) return { commit: null, commitFrom: 'the site could not be fetched' };
   const head = git('rev-parse', 'HEAD');
   if (!head) return { commit: null, commitFrom: 'no git checkout to match the served build against' };
-  if (git('rev-parse', 'HEAD:index.html') === blob) return { commit: head, commitFrom: 'the served index.html is the build of the commit checked out' };
-  const log = git('log', '-n', '400', '--format=@%H', '--raw', '--no-abbrev', '--', 'index.html') || '';
-  let sha = null;
+  const page = rootPageAt('HEAD');
+  if (git('rev-parse', `HEAD:${page}`) === blob) return { commit: head, commitFrom: `the served root page (${page}) is the build of the commit checked out` };
+  /* Each commit that changed a root page, the page its own vercel.json
+     serves at / matched (a commit's index.html is not what it served once
+     the home page was). */
+  const log = git('log', '-n', '400', '--format=@%H', '--raw', '--no-abbrev', '--', ...ROOT_PAGES) || '';
+  let sha = null, served = null;
   for (const line of log.split('\n')) {
-    if (line.startsWith('@')) { sha = line.slice(1); continue; }
-    const m = /^:\d+ \d+ [0-9a-f]+ ([0-9a-f]+) /.exec(line);
-    if (m && m[1] === blob) return { commit: sha, commitFrom: 'the served index.html is the build this commit made' };
+    if (line.startsWith('@')) { sha = line.slice(1); served = null; continue; }
+    const m = /^:\d+ \d+ [0-9a-f]+ ([0-9a-f]+) \S+\t(.+)$/.exec(line);
+    if (!m || m[1] !== blob) continue;
+    if (served === null) served = rootPageAt(sha);
+    if (m[2] === served) return { commit: sha, commitFrom: `the served root page (${served}) is the build this commit made` };
   }
-  return { commit: null, commitFrom: 'the served index.html matches no commit in this checkout (an uncommitted build?)' };
+  return { commit: null, commitFrom: 'the served root page matches no commit in this checkout (an uncommitted build?)' };
 }
 
 /* ─── THE BROWSER ─────────────────────────────────────────────────────────── */

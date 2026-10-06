@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/",
-      "destination": "/index.html"
+      "destination": "/pages/home.app.html"
     },
     {
       "source": "/app",
@@ -867,6 +867,11 @@
   ],
   "trailingSlash": false,
   "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
     {
       "source": "/:path+/index.html",
       "destination": "/:path+",

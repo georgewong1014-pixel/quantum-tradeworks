@@ -56,6 +56,10 @@
  *                       aliases) share one file.
  *   index.html          the site root's page — the '/' route's head, now
  *                       read from ROUTES and META like every other page.
+ *                       Since 2026-10-06 (plan item 1.2) it is not what /
+ *                       serves: / is pages/home.app.html, index.html
+ *                       linked like every other page (HOME, below), and
+ *                       index.html is kept off the host.
  *   404.html            the shell with the not-found head and noindex. Vercel
  *                       serves it with status 404 for any address nothing
  *                       else answers, and the app draws its not-found card.
@@ -88,6 +92,8 @@
  * thing in <body>, so the script runs at the same point of the parse, after
  * the same markup and the same stylesheet, as the inline one does. Nothing in
  * it reads its own element (document.currentScript) or the page's source.
+ * (Since plan item 1.2 the script is loaded deferred from the head, which
+ * runs it at the same point, after the whole parse: linked(), below.)
  * A page is then its head and the shell's markup — tens of kB, and
  * PAGE_LIMIT fails the build past that. The name is the first 12 hex of the
  * file's SHA-256, so a changed file is a new address and vercel.json can let
@@ -144,7 +150,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { journeysServed, ISLAND_PAGES, RECORD_FILE } from './journeys.mjs';
+import { journeysServed, ISLAND_PAGES, RECORD_FILE, ROOT_PAGES } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const src = (...p) => join(ROOT, 'src', ...p);
@@ -662,6 +668,40 @@ const MANIFEST = `${PRERENDER}/manifest.json`;
    route can have (a route's segments are letters, digits and hyphens), so no
    route's page can be written over it. */
 export const GENERIC = `${PAGES}/generic.app.html`;
+/* THE SITE ROOT, SERVED LIKE EVERY OTHER PAGE (plan item 1.2; the owner's
+   decision D2 of 5 Oct 2026). / was index.html: the app's 3.5MB script and
+   its stylesheet inline, so its h1 sat at byte 309,867. A fetcher that keeps
+   the first 32–256kB (an assistant, an auditor's tool, a link preview) read
+   the head and none of the page. And a browser downloaded the whole app again
+   on every visit to /, cached for no other page. / is now this page: index.html
+   linked (linked(), below), its render and everything else the same, loading
+   the two app files every other page loads. A name no route can have, like
+   GENERIC.
+   index.html stays, whole, for the tools that read the engine and the CSP
+   hash out of it (scanner/scan.mjs, ingest/, syntax.mjs, the harnesses).
+   It is kept off the host two ways:
+   - .vercelignore drops /index.html from the deployment. Vercel serves a
+     file before any rewrite ("precedence is given to the filesystem prior
+     to rewrites"), so with index.html deployed, / would still be index.html
+     and the rewrite of / to this page would never be reached;
+   - a redirect sends /index.html to / (308). Redirects come before the
+     file system, so this holds whether .vercelignore is honoured or not.
+   If a host did not honour .vercelignore, / would be index.html as before:
+   the app inline, its hash still in the CSP, so the page still works.
+   served-check fails it ("/ is not served the home page").
+   serve.mjs honours .vercelignore as Vercel does, so every harness is
+   served what Vercel serves. */
+export const HOME = `${PAGES}/home.app.html`;
+/* Where the site root's page must say what it is: the app's script tag and
+   the page's #views within the first 32kB, the page's text with its h1 within
+   the first 64kB (plan item 1.2's acceptance). The build fails past either. */
+export const HOME_HEAD_BYTES = 32 * 1024;
+export const HOME_TEXT_BYTES = 64 * 1024;
+/* HTML as a fetcher's text conversion reads it: scripts, styles and tags
+   out, the common entities decoded, white space as one space. */
+export const pageText = (html) => String(html).replace(/<(script|style)\b[^>]*>[\s\S]*?(<\/\1>|$)/gi, ' ').replace(/<[^>]*>?/g, ' ')
+  .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+  .replace(/\s+/g, ' ').trim();
 /* The pages written for the static routes: the site root's index.html, then
    one file per head — routes whose heads are identical (the wheel's five
    aliases) share one, named after the route among them that is its own
@@ -1003,9 +1043,22 @@ export function appFiles(html) {
 }
 
 /* A page that loads the two files where the shell carries them inline: the
-   <style> becomes a <link rel="stylesheet">, the <script> a plain <script
-   src> (parser-blocking, as the inline one is), and nothing else moves. It
-   refuses a page whose inline blocks are not the files' own bytes. */
+   <style> becomes a <link rel="stylesheet">, and the inline <script> at the
+   end of <body> goes. In its place, the app's script is loaded from the head,
+   straight after the stylesheet, deferred.
+   DEFERRED, IN THE HEAD (plan item 1.2, 2026-10-06). It was a plain <script
+   src> where the inline one was, the last thing in <body>: on the site root
+   that is byte 53,000 or so, past what a fetcher that keeps the first 32kB
+   reads. A deferred script runs where that one did, once the whole document
+   is parsed (all that followed it was </body></html>), and after the
+   stylesheet, so the app sees the same document as before. It is fetched
+   from the head, so it starts downloading while the page is still being
+   parsed, and it still never blocks the served page's first paint. Every
+   page loads it the same way. index.html keeps its inline script where it
+   always was.
+   It refuses a page whose inline blocks are not the files' own bytes. */
+export const scriptTag = (files) => `<script src="/${files.script.file}" defer></script>`;
+export const styleTag = (files) => `<link rel="stylesheet" href="/${files.styles.file}">`;
 export function linked(page, files) {
   const head = page.indexOf('</head>'), body = page.indexOf('<body>');
   const s0 = page.indexOf('<style>'), s1 = page.indexOf('</style>', s0);
@@ -1014,8 +1067,9 @@ export function linked(page, files) {
   if (j0 < body || j1 < j0) throw new Error('the page has no <script> in its <body> to load');
   if (page.slice(s0 + 7, s1) !== files.styles.body) throw new Error("the page's stylesheet is not the app's");
   if (page.slice(j0 + 8, j1) !== files.script.body) throw new Error("the page's script is not the app's");
-  return page.slice(0, s0) + `<link rel="stylesheet" href="/${files.styles.file}">` + page.slice(s1 + 8, j0)
-    + `<script src="/${files.script.file}"></script>` + page.slice(j1 + 9);
+  /* The inline script's own line goes whole, so no blank line is left. */
+  const from = page[j0 - 1] === '\n' ? j0 - 1 : j0;
+  return page.slice(0, s0) + `${styleTag(files)}\n${scriptTag(files)}` + page.slice(s1 + 8, from) + page.slice(j1 + 9);
 }
 
 /* bare: every page without its render and its chrome — only prerender.mjs
@@ -1108,9 +1162,19 @@ export function build({ bare = false } = {}) {
      page's own canonical and takes the noindex off as it draws the page
      (setDocumentMeta, 35-ui.js). */
   const pages = new Map([[GENERIC, linked(page(rootHead, GENERIC, { notFound: true }), files)]]);
+  /* The site root's page: index.html, render and all, linked (HOME). The
+     record goes into the island pages only (withServedRecord), and the
+     root's render has none of their slots: were it to grow one, / would
+     serve the record without the journeys workflow rebuilding it. */
+  const rootRender = rendered.renders.get('index.html');
+  if (rootRender && /\bid="health-journeys|\bclass="journey-line"/.test(rootRender.views))
+    throw new Error(`${rootRender.render} carries a slot for the recorded journeys — add ${HOME} to ISLAND_PAGES (journeys.mjs), so the journeys workflow rebuilds it with the record`);
+  /* journeys.mjs matches the served build by this page (ROOT_PAGES). */
+  if (!ROOT_PAGES.includes(HOME)) throw new Error(`journeys.mjs's ROOT_PAGES does not name ${HOME}, so the journeys could not tell which build / serves`);
+  pages.set(HOME, linked(html, files));
   const fileOfRoute = new Map();
   for (const g of routePages(plan)) {
-    g.routes.forEach(p => fileOfRoute.set(p.path, g.file));
+    g.routes.forEach(p => fileOfRoute.set(p.path, g.file === 'index.html' ? HOME : g.file));
     if (g.file === 'index.html') continue;
     if (pages.has(g.file)) throw new Error(`${g.file} would be written for ${g.named.path} and is already written`);
     pages.set(g.file, linked(page(g.named.head, g.file), files));
@@ -1142,7 +1206,7 @@ export function build({ bare = false } = {}) {
      hash does not name is blocked — and each must load exactly the current
      two files, and weigh what a page does, not what the app does. */
   const inline = inlineScript(html);
-  const want = [`<link rel="stylesheet" href="/${files.styles.file}">`, `<script src="/${files.script.file}"></script>`];
+  const want = [styleTag(files), scriptTag(files)];
   /* Every page, index.html too, carries the first-paint script once, in its
      head before anything it loads, the same bytes (BEFORE THE FIRST PAINT). */
   for (const [file, page] of [['index.html', html], [NOT_FOUND, notFound], ...pages]) {
@@ -1156,12 +1220,24 @@ export function build({ bare = false } = {}) {
     if (inlineLeft) throw new Error(`${file} carries ${inlineLeft} inline <script> or <style>, which only index.html may`);
     if (loads !== 2 || !want.every(tag => page.split(tag).length === 2)) throw new Error(`${file} does not load exactly /${files.script.file} and /${files.styles.file}`);
     const size = Buffer.byteLength(page, 'utf8');
-    const rd = rendered.renders.get(file);
+    const rd = rendered.renders.get(file === HOME ? 'index.html' : file);
     if (size > PAGE_LIMIT) throw new Error(`${file} is ${(size / 1024).toFixed(0)}kB, over the ${PAGE_LIMIT / 1024}kB a page may weigh — ${rd
       ? `${(Buffer.byteLength(rd.views) / 1024).toFixed(0)}kB of it is its render (${rd.render}): the page has grown past what may be served whole, and what prerender.mjs serves of it (servedCopy) must shrink`
       : 'is the app inline in it again?'}`);
   }
-  const cspHash = 'sha256-' + createHash('sha256').update(inline, 'utf8').digest('base64');
+  /* The site root's page says what it is early (HOME_HEAD_BYTES,
+     HOME_TEXT_BYTES): a fetcher that keeps only the start of it still reads
+     that it loads the app, the page's #views and its h1. */
+  {
+    const home = Buffer.from(pages.get(HOME), 'utf8');
+    const head = home.subarray(0, HOME_HEAD_BYTES).toString('utf8');
+    for (const tag of [`<script src="/${files.script.file}"`, '<div id="views"'])
+      if (!head.includes(tag)) throw new Error(`${HOME} (/) does not carry ${tag} within its first ${HOME_HEAD_BYTES / 1024}kB — a fetcher that keeps only that much reads neither the app nor the page`);
+    const h1 = rootRender?.manifest.h1;
+    if (rootRender && !pageText(home.subarray(0, HOME_TEXT_BYTES).toString('utf8')).includes(h1))
+      throw new Error(`${HOME} (/): its first ${HOME_TEXT_BYTES / 1024}kB, as text, do not hold its h1 "${h1}"`);
+  }
+  const cspHash ='sha256-' + createHash('sha256').update(inline, 'utf8').digest('base64');
 
   const cfgTemplate = lf(readFileSync(src('vercel.template.json'), 'utf8'));
   if (!cfgTemplate.includes(CSP_MARKER)) throw new Error('vercel template lost its CSP marker');
@@ -1349,8 +1425,38 @@ export function noindexByHeader(vercel) {
     .map(g => new RegExp(`^${g.source}$`));
   return (path) => rules.some(re => re.test(path));
 }
+/* .vercelignore as this site writes it: comments, blank lines and literal
+   paths from the root ("/index.html"). Anything else a .gitignore may say
+   (a pattern, a folder, a "!") is refused by name, here and in serve.mjs,
+   which reads it the same way, so the file cannot mean one thing locally and
+   another on Vercel. */
+export function vercelIgnore(text) {
+  const paths = new Set(), refused = [];
+  for (const raw of String(text).split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (/^\/[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/.test(line) && !/(^|\/)\.\.?(\/|$)/.test(line)) paths.add(line);
+    else refused.push(line);
+  }
+  return { paths, refused };
+}
 function servingProblems({ rewrites, plan, vercel }) {
   const out = [];
+  /* 3. The site root (plan item 1.2, HOME): / is rewritten to the home page;
+     index.html, the app inline, is kept off the host by .vercelignore (a
+     file is served before any rewrite, so it would answer / itself), and
+     nothing else is; /index.html is a 308 to /. */
+  {
+    const ign = vercelIgnore(existsSync(join(ROOT, '.vercelignore')) ? readFileSync(join(ROOT, '.vercelignore'), 'utf8') : '');
+    if (!ign.paths.has('/index.html')) out.push(`.vercelignore does not drop /index.html: Vercel serves a file before any rewrite, so / would be index.html, the app inline, and not ${HOME}`);
+    for (const p of ign.paths) if (p !== '/index.html') out.push(`.vercelignore drops ${p}, and only /index.html is kept off the host`);
+    for (const l of ign.refused) out.push(`.vercelignore says "${l}", which neither this check nor serve.mjs reads — only literal paths from the root`);
+    const root = rewrites.filter(r => r.source === '/');
+    if (root.length !== 1 || root[0].destination !== `/${HOME}`) out.push(`vercel.json rewrites / to ${root.map(r => r.destination).join(', ') || 'nothing'}, not /${HOME}`);
+    const cfg = JSON.parse(vercel);
+    const index = (cfg.redirects || []).filter(r => r.source === '/index.html');
+    if (index.length !== 1 || index[0].destination !== '/' || index[0].permanent !== true) out.push('vercel.json does not redirect /index.html to / (308)');
+  }
   for (const { source } of rewrites) {
     if (source === '/' || source.includes(':')) continue;
     const at = join(ROOT, source);
@@ -1439,8 +1545,8 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);
   const companySizes = [...pages].filter(([f]) => isCompanyPage(f)).map(([, p]) => Buffer.byteLength(p, 'utf8'));
-  /* The route pages, less the parameter routes' page beside them. */
-  const routeFiles = pages.size - companySizes.length - 1;
+  /* The route pages, less the parameter routes' page and the site root's beside them. */
+  const routeFiles = pages.size - companySizes.length - 2;
   const shared = plan.pages.length - 1 - routeFiles;
   const filed = plan.companies.filter(c => c.company.real).length;
   const companiesSaid = `${plan.companies.length} company pages (${filed} filed with the SEC, ${plan.companies.length - filed} illustrative)`;
@@ -1463,9 +1569,9 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     problems.forEach(p => drift.push(p));
     renderProblems.forEach(p => drift.push(p));
     if (!drift.length) {
-      console.log(`index.html, 404.html, ${routeFiles} route pages, the parameter routes' page, ${companiesSaid}, the app's two files and vercel.json match src/ and data/us.json (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
+      console.log(`index.html, 404.html, the site root's page (${HOME}), ${routeFiles} route pages, the parameter routes' page, ${companiesSaid}, the app's two files and vercel.json match src/ and data/us.json (${modules.length} modules, ${kb(html.length)}; ${rewrites.length} rewrites).`);
       console.log(`every page carries the navigation NAV_MARKUP draws; ${rendered.renders.size} of them (${scope.length} in scope) carry their committed render of the page in #views exactly, under prerender/.`);
-      console.log(`every page but index.html loads /${files.script.file} and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}).`);
+      console.log(`every page but index.html loads /${files.script.file} (deferred, from its head) and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}). / is ${HOME}, ${kb(Buffer.byteLength(pages.get(HOME)))}, the app's script tag and #views in its first ${HOME_HEAD_BYTES / 1024}kB and its h1 in its first ${HOME_TEXT_BYTES / 1024}kB; .vercelignore keeps index.html off the host and /index.html is a 308 to /.`);
       console.log(`every page, index.html too, carries the first-paint script once in its head before what it loads, named in the CSP (${firstHash().slice(0, 19)}…); ${[...rendered.renders.values()].filter(r => servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render })).length} pages with a render say on <html> what it read.`);
       console.log(`sitemap.xml lists only canonical addresses that are served their own page, each with the day its render last changed as <lastmod>.`);
     } else {
@@ -1490,7 +1596,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     console.log(`index.html   ${modules.length} modules  ${kb(html.length)}  ${sha(html).slice(0, 12)}`);
     console.log(`assets/      ${files.script.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.script.body))}, ${files.styles.file.slice(ASSETS.length + 1)} ${kb(Buffer.byteLength(files.styles.body))} — index.html's inline script and stylesheet`);
     console.log(`404.html     the not-found head, noindex  ${kb(Buffer.byteLength(notFound))}`);
-    console.log(`pages/       ${routeFiles} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''} and ${GENERIC.slice(PAGES.length + 1)} for the ${plan.params.length} parameter routes, the largest of every page ${kb(largest)}`);
+    console.log(`pages/       ${HOME.slice(PAGES.length + 1)} for / (${kb(Buffer.byteLength(pages.get(HOME)))}), ${routeFiles} pages for ${plan.pages.length - 1} routes without a parameter${shared ? ` (${shared} share a page)` : ''} and ${GENERIC.slice(PAGES.length + 1)} for the ${plan.params.length} parameter routes, the largest of every page ${kb(largest)}`);
     console.log(`prerender/   ${bare ? 'not read (--bare): no page carries a render' : `${rendered.renders.size} of the ${scope.length} pages in scope carry their render of the page, ${rendered.renders.size ? `${kb([...rendered.renders.values()].reduce((n, r) => n + Buffer.byteLength(r.views) + Buffer.byteLength(r.tabs || ''), 0))} of renders` : 'none committed'}`}`);
     renderProblems.forEach(p => console.error(`WARNING  ${p}`));
     console.log(`pages/company/  ${companiesSaid}, one per company at its own address, the largest ${kb(Math.max(0, ...companySizes))}, ${(companySizes.reduce((a, b) => a + b, 0) / 1048576).toFixed(2)}MB in all`);

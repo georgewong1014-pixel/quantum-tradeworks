@@ -44,9 +44,12 @@
  *   last segment, is served 404 with the not-found title and noindex — the
  *   same app, which draws its not-found card.
  * - A trailing slash, or a trailing /index.html, is a 308 to the address
- *   without it, query kept; the site root's /index.html is the file.
- * - data/*.json and index.html still serve; a missing data file is a 404,
- *   not an HTML page answering 200.
+ *   without it, query kept; the site root's /index.html is a 308 to /.
+ * - / is pages/home.app.html: index.html linked like every other page, under
+ *   200kB, the app's script tag and #views in its first 32kB and its h1 in
+ *   its first 64kB as text (plan item 1.2). index.html is served nowhere.
+ * - data/*.json still serve; a missing data file is a 404, not an HTML page
+ *   answering 200.
  * - Every page carries the headers vercel.json gives its address, the CSP
  *   among them, and that CSP names the hash of the script it was served with.
  * - Every sitemap address is served its own page and names itself canonical.
@@ -60,7 +63,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
+import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
   servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 
@@ -102,6 +105,9 @@ const expectHead = (path) => {
 const VERCEL = JSON.parse(read('vercel.json'));
 /* The file each exact address is rewritten to. */
 const FILE_OF = new Map((VERCEL.rewrites || []).filter(x => !x.source.includes(':')).map(x => [x.source, x.destination.replace(/^\//, '')]));
+/* The file whose render an address's page carries: the site root's page,
+   HOME, carries index.html's (build.mjs, THE SITE ROOT). */
+const renderFileOf = (path) => { const f = FILE_OF.get(path); return f === HOME ? 'index.html' : f; };
 const expectHeaders = (path) => {
   const out = {};
   for (const g of VERCEL.headers || []) {
@@ -242,10 +248,20 @@ const INDEX = read('index.html');
    index.html carries it (build.mjs, THE APP ONCE). So a route page or the 404
    page is index.html with that one swap, outside the head's own tags. */
 const APP = appFiles(INDEX);
-const INDEX_SKELETON = skeleton(INDEX, 'index.html');
 const PAGE_SKELETON = skeleton(linked(INDEX, APP), 'index.html');
-judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html: ${described(indexFile)}, ${indexFile.body === INDEX ? 'this checkout\'s file' : 'NOT this checkout\'s index.html (a deploy not landed, or another build)'}`],
-  '/index.html is served, and it is this checkout\'s index.html', '/index.html is not served as this checkout\'s file');
+/* The site root is served the home page (plan item 1.2, build.mjs THE SITE
+   ROOT): this checkout's pages/home.app.html, which is index.html linked —
+   and so it says whether a deploy has landed, as /index.html said before.
+   index.html itself is served nowhere: /index.html is a 308 to /. */
+const HOME_PAGE = read(HOME);
+{
+  const p = [];
+  if (HOME_PAGE !== linked(INDEX, APP)) p.push(`${HOME} is not index.html linked — run node build.mjs`);
+  if (root.status !== 200 || root.body !== HOME_PAGE) p.push(`/: ${described(root)}, ${root.body === HOME_PAGE ? `this checkout's ${HOME}` : root.body === INDEX ? 'index.html, the app inline — the host deployed it, and served it before the rewrite of / (.vercelignore not honoured?)' : `NOT this checkout's ${HOME} (a deploy not landed, or another build)`}`);
+  const loc = indexFile.headers.get('location');
+  if (indexFile.status !== 308 || !loc || new URL(loc, BASE).href !== new URL('/', BASE).href) p.push(`/index.html: ${described(indexFile)}${loc ? ` to ${loc}` : ''}, not a 308 to /`);
+  judge(p, `/ is served this checkout's ${HOME} (index.html linked), and /index.html is a 308 to /`, `/ is not served the home page, or /index.html is not a 308 to /`);
+}
 
 /* 1. Every route without a parameter: its own head. */
 {
@@ -257,7 +273,8 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     const want = expectHead(path), have = headOf(r.body);
     for (const k of Object.keys(want)) if (have[k] !== want[k]) p.push(`${path}: ${k} is ${JSON.stringify(have[k])}, not ${JSON.stringify(want[k])}`);
     /* The site root is index.html itself, the app inline. */
-    if (skeleton(r.body, path === '/' ? 'index.html' : FILE_OF.get(path)) !== (path === '/' ? INDEX_SKELETON : PAGE_SKELETON)) p.push(`${path}: differs from index.html outside the route's own tags${path === '/' ? '' : ' and the two app files it loads'}`);
+    /* The site root too, since plan item 1.2: index.html linked. */
+    if (skeleton(r.body, renderFileOf(path)) !== PAGE_SKELETON) p.push(`${path}: differs from index.html outside the route's own tags and the two app files it loads`);
     p.push(...headerProblems(r));
   }
   judge(p, `every route without a parameter (${statics.length}) is served 200 with its own title, description, canonical, og: and twitter: tags, is index.html in every other byte but the two app files it loads in place of the inline ones, and carries vercel.json's headers with a CSP allowing its script`,
@@ -303,8 +320,8 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (r.body !== GENERIC_PAGE) p.push(`${path}: not the generic page (${GENERIC})`);
     p.push(...headerProblems(r));
   }
-  if (root.status !== 200 || root.body !== indexFile.body) p.push(`/: ${described(root)}, ${root.body === indexFile.body ? 'index.html' : 'not index.html'}`);
-  judge(p, `every parameter route (${params.length}) and a dotted company id are served the generic page (${GENERIC}: index.html's title and description, no canonical, noindex, nothing in #views), 200, with the headers; / is index.html`,
+  if (root.status !== 200 || root.body !== HOME_PAGE) p.push(`/: ${described(root)}, not ${HOME}`);
+  judge(p, `every parameter route (${params.length}) and a dotted company id are served the generic page (${GENERIC}: index.html's title and description, no canonical, noindex, nothing in #views), 200, with the headers; / is ${HOME}`,
     'a parameter route is not served the generic page');
 }
 
@@ -334,7 +351,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
 {
   const cases = [['/pricing/', '/pricing'], ['/pricing/?a=1&b=two', '/pricing?a=1&b=two'], ['/app/scanner/setups/', '/app/scanner/setups'],
     ['/company/aapl-apple-inc/', '/company/aapl-apple-inc'], ['/pricing/index.html', '/pricing'], ['/nope-folder/index.html?x=1', '/nope-folder?x=1'],
-    ['/app/scanner/setups/index.html', '/app/scanner/setups']];
+    ['/app/scanner/setups/index.html', '/app/scanner/setups'], ['/index.html', '/'], ['/index.html?x=1&tab=two', '/?x=1&tab=two']];
   const got = await getAll(cases.map(c => c[0]));
   const p = [];
   for (const [from, to] of cases) {
@@ -489,7 +506,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (r.headers.get('x-content-type-options') !== 'nosniff') p.push(`/${f.file}: no X-Content-Type-Options: nosniff`);
   }
   /* Every page, reached at every address that serves one, and the 404. */
-  const pages = await getAll([...statics.filter(s => s !== '/'), '/nope-xyz', '/deep/unknown/path/for-served-check', '/wp-login.php', '/.env']);
+  const pages = await getAll([...statics, '/nope-xyz', '/deep/unknown/path/for-served-check', '/wp-login.php', '/.env']);
   let largest = ['', 0];
   /* Addresses only a bot asks for. Vercel's own firewall answers some of them
      before any rewrite runs (on production, /wp-login.php is a 403 text/plain
@@ -514,11 +531,11 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (css.length !== 1 || css[0] !== `/${APP.styles.file}`) p.push(`${path}: loads the stylesheets ${JSON.stringify(css)}, not /${APP.styles.file} alone`);
     if (PROBES.includes(path) && r.status !== 404) p.push(`${path}: ${described(r)}, not 404 or a platform block`);
   }
-  /* index.html is the app whole, as every tool that reads it expects. */
-  const index = (await getAll(['/index.html'])).get('/index.html');
-  const indexInline = inlineScripts(index.body).filter(code => code !== FIRST_SCRIPT);
-  if (scriptSrcs(index.body).length || stylesheets(index.body).length || indexInline.length !== 1 || indexInline[0] !== APP.script.body)
-    p.push(`/index.html: does not carry the app inline and alone (${inlineScripts(index.body).length} inline, loads ${JSON.stringify([...scriptSrcs(index.body), ...stylesheets(index.body)])})`);
+  /* index.html is the app whole, as every tool that reads it expects: the
+     checkout's file, since it is served nowhere (plan item 1.2). */
+  const indexInline = inlineScripts(INDEX).filter(code => code !== FIRST_SCRIPT);
+  if (scriptSrcs(INDEX).length || stylesheets(INDEX).length || indexInline.length !== 1 || indexInline[0] !== APP.script.body)
+    p.push(`index.html: does not carry the app inline and alone (${inlineScripts(INDEX).length} inline, loads ${JSON.stringify([...scriptSrcs(INDEX), ...stylesheets(INDEX)])})`);
   /* A name the build does not write, and the folder itself. */
   const gone = await getAll(['/assets/app.000000000000.js', '/assets/app.000000000000.css', '/assets/', '/assets']);
   for (const [path, r] of gone) {
@@ -747,14 +764,13 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
   const fileOf = new Map();
   for (const s of scope) fileOf.set(s.path, s.file);
   /* Every static route, by the file its rewrite names. */
-  const rewrites = new Map((VERCEL.rewrites || []).map(x => [x.source, x.destination.replace(/^\//, '')]));
   const got = await getAll(statics);
   const h1s = new Map();
   let carrying = 0, empty = 0;
   for (const path of statics) {
     const r = got.get(path);
     if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
-    const file = rewrites.get(path);
+    const file = renderFileOf(path);
     const rd = renders.get(file);
     const x = parts(r.body);
     if (x.views === null) { p.push(`${path}: no <div id="views"> where the template has it`); continue; }
@@ -866,7 +882,7 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     if (!csp.includes(hash)) p.push(`${path}: its Content-Security-Policy does not name the first-paint script's hash`);
     const tag = /<html\b[^>]*>/.exec(body)?.[0] || '';
     const reads = /\bdata-served-reads="([^"]*)"/.exec(tag)?.[1] ?? null;
-    const rd = renders.get(path === '/' ? 'index.html' : FILE_OF.get(path));
+    const rd = renders.get(renderFileOf(path));
     const want = rd ? servedReadsOf(rd.views, { waits: rd.manifest.state === 'filings in', drawn: rd.drawn, render: rd.render }) : null;
     if (reads !== want) p.push(`${path}: <html> says it read ${JSON.stringify(reads)}, where its render read ${JSON.stringify(want)}`);
     if (reads) {
@@ -1103,6 +1119,42 @@ judge(indexFile.status === 200 && indexFile.body === INDEX ? [] : [`/index.html:
     '/app or /app/scanner cannot be fetched by a crawler that follows robots.txt, or is not served noindex');
 }
 /* ---- end robots-noindex ---- */
+
+/* ---- home-served ---- */
+/* THE SITE ROOT, SERVED LIKE EVERY OTHER PAGE (plan item 1.2; the owner's
+   decision D2 of 5 Oct 2026). / was index.html: 3.8MB with the app inline,
+   its h1 at byte 309,867, so a fetcher that keeps the first 32–256kB read the
+   head and nothing of the page. Held here as a fetcher reads it, by bytes:
+   - / answers 200 with fewer than 204,800 bytes, by the body and by the
+     Content-Length a HEAD with no compression is given (`curl -sI`);
+   - its first 32kB hold `<script src="/assets/app.` and `<div id="views"`;
+   - its first 64kB, as text, hold its h1 (the render's, from the manifest);
+   - /index.html is a 308 to /, and followed it lands on that page. */
+{
+  const p = [];
+  const LIMIT = 204800;
+  const r = await fetch(`${BASE}/`, { headers: { 'accept-encoding': 'identity' }, signal: AbortSignal.timeout(90000) }).catch(e => ({ status: 0, error: e.message }));
+  const bytes = r.status ? Buffer.from(await r.arrayBuffer()) : Buffer.alloc(0);
+  if (r.status !== 200) p.push(`/: ${r.status || r.error}, not 200`);
+  if (bytes.length >= LIMIT) p.push(`/: ${bytes.length.toLocaleString('en')} bytes, not under ${LIMIT.toLocaleString('en')}`);
+  const head = await fetch(`${BASE}/`, { method: 'HEAD', headers: { 'accept-encoding': 'identity' }, signal: AbortSignal.timeout(30000) }).catch(e => ({ status: 0, error: e.message, headers: new Headers() }));
+  const length = head.headers.get('content-length');
+  if (length !== null && !(Number(length) < LIMIT)) p.push(`HEAD /: Content-Length ${length}, not under ${LIMIT.toLocaleString('en')}`);
+  const first = bytes.subarray(0, HOME_HEAD_BYTES).toString('utf8');
+  for (const tag of ['<script src="/assets/app.', '<div id="views"']) {
+    const at = bytes.indexOf(tag);
+    if (!first.includes(tag)) p.push(`/: ${tag} is ${at < 0 ? 'not in the page' : `at byte ${at.toLocaleString('en')}`}, not within the first ${HOME_HEAD_BYTES / 1024}kB`);
+  }
+  const h1 = RENDERED.renders.get('index.html')?.manifest.h1;
+  if (!h1) p.push('no render of / is committed, so there is no h1 to look for');
+  else if (!pageText(bytes.subarray(0, HOME_TEXT_BYTES).toString('utf8')).includes(h1)) p.push(`/: its first ${HOME_TEXT_BYTES / 1024}kB, as text, do not hold its h1 "${h1}" (the h1 is at byte ${bytes.indexOf('<h1').toLocaleString('en')})`);
+  const idx = await fetch(`${BASE}/index.html`, { signal: AbortSignal.timeout(90000) }).catch(e => ({ status: 0, error: e.message, url: '' }));
+  const landed = idx.status ? await idx.text() : '';
+  if (idx.status !== 200 || new URL(idx.url || BASE).pathname !== '/' || landed.split('\r\n').join('\n') !== HOME_PAGE) p.push(`/index.html, followed: ${idx.status || idx.error} at ${idx.url ? new URL(idx.url).pathname : '?'}, not the home page at /`);
+  judge(p, `/ is ${bytes.length.toLocaleString('en')} bytes (under ${LIMIT.toLocaleString('en')}${length !== null ? `; Content-Length ${length}` : ''}), with <script src="/assets/app. at byte ${bytes.indexOf('<script src="/assets/app.').toLocaleString('en')} and <div id="views" at ${bytes.indexOf('<div id="views"').toLocaleString('en')} (within ${HOME_HEAD_BYTES / 1024}kB) and its h1 "${h1}" within the first ${HOME_TEXT_BYTES / 1024}kB as text; /index.html lands on it`,
+    '/ is not a light page that says what it is early');
+}
+/* ---- end home-served ---- */
 
 /* ---- readiness-served ---- */
 /* WHAT PROPERTY SAYS IT IS, SERVED (the 5 Oct audit, N2b, N2c and N4a).

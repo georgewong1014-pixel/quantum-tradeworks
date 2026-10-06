@@ -7,7 +7,10 @@
     "the failure that would otherwise take the whole site down in production",
     "while every local check still passed. index.html is the one page with the",
     "script inline; every other page loads the same bytes from",
-    "assets/app.<hash>.js, which 'self' allows. The second hash names the",
+    "assets/app.<hash>.js, which 'self' allows. index.html is no longer",
+    "deployed (.vercelignore; plan item 1.2), and its hash stays: were a host",
+    "to deploy it anyway, / would be index.html, and its script must still run.",
+    "The second hash names the",
     "small script every page carries in its head (build.mjs, FIRST_SCRIPT),",
     "which runs before the first paint: the theme kept, and whether the page",
     "served is this reader's."
@@ -15,12 +18,15 @@
   "$comment-rewrites": [
     "One rewrite per route in ROUTES (src/js/35-ui.js), written by build.mjs in",
     "place of the marker below. A route without a parameter goes to its own page",
-    "(pages/<route>.html, the site root to index.html), whose <head> is the one",
+    "(pages/<route>.html, the site root to pages/home.app.html: index.html,",
+    "linked like every other page, plan item 1.2), whose <head> is the one",
     "the router sets there; a parameter route (/company/:id …) to the generic page,",
     "pages/generic.app.html: the site root's head and the app, with no page in it",
     "(index.html carries the homepage itself, in #views).",
     "Every exact path is listed before any :param, and each is explicit: nothing",
-    "relies on Vercel checking its files before its rewrites.",
+    "relies on Vercel checking its files before its rewrites. The site root is",
+    "the one address a file would answer first (index.html), and .vercelignore",
+    "keeps that file off the host, so the rewrite of / is reached.",
     "",
     "There is no catch-all. It answered 200 with the homepage for any address,",
     "so a dead link was a soft 404. Anything no rewrite and no file answers is",
@@ -45,10 +51,17 @@
     "router took /pricing for a folder the app is deployed in (BASE, 35-ui.js),",
     "drew the homepage instead of the not-found card and asked for",
     "/pricing/data/us.json. A 308 to the folder's own address answers it: a route",
-    "there opens, anything else is the not-found page. The site root's own",
-    "/index.html is not matched (:path+ needs a segment) and is served as the file."
+    "there opens, anything else is the not-found page.",
+    "",
+    "The site root's own /index.html (not matched by :path+, which needs a",
+    "segment) was served as the file: the app inline, 3.5MB. / is",
+    "pages/home.app.html since plan item 1.2, and index.html is not deployed",
+    "(.vercelignore); /index.html is a 308 to /, the query kept. Redirects are",
+    "applied before the file system, so this holds even on a host that deployed",
+    "the file."
   ],
   "redirects": [
+    { "source": "/index.html", "destination": "/", "permanent": true },
     { "source": "/:path+/index.html", "destination": "/:path+", "permanent": true }
   ],
   "headers": [

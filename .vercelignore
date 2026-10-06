@@ -1,0 +1,14 @@
+# What the deployment leaves out (plan item 1.2, 6 Oct 2026).
+#
+# /index.html is the whole app in one file: its 3.5MB script and its
+# stylesheet inline. The tools that read the engine out of it need it in
+# the repository (scanner/scan.mjs, ingest/, syntax.mjs, the harnesses). It is
+# not deployed. Vercel serves a file before any rewrite, so a deployed
+# index.html would answer / itself, and vercel.json's rewrite of / to
+# pages/home.app.html (index.html linked, like every other page) would never
+# be reached. /index.html is also a 308 to / (vercel.json redirects, which
+# come before the file system).
+#
+# Only literal paths from the root: build.mjs (vercelIgnore) and serve.mjs
+# read this file the same way and refuse anything else.
+/index.html
