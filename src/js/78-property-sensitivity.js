@@ -143,7 +143,7 @@ function propertyBreakPoint(d, key, { measure = 'cashflow', lo, hi, iterations =
 /* ------------------------------------------------------------------ panel --- */
 function propertySensitivityPanel(d, m) {
   const s = propertySensitivity(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('What actually decides this',
     'Every assumption moved one realistic step in each direction, ranked by how far it moves the rate of return. '
     + 'The ones at the top are where a valuer or a rental appraisal is worth paying for. The ones at the bottom are not.'));
@@ -154,7 +154,7 @@ function propertySensitivityPanel(d, m) {
   }
 
   const block = el('div', { class: 'render-block', style: 'margin-top:var(--md)' });
-  block.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+  block.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
     `Effect on a ${fmtPct(s.baseIrr, 2)} rate of return`));
   const host = el('div', { style: 'margin-top:var(--sm)' });
   block.append(host);

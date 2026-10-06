@@ -17,7 +17,7 @@ const IPS_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;
 /* ---- the eight gates, for whichever asset supplied the answers ---- */
 function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
   const a = assessment;
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead(title,
     `The eight gates every asset passes through, in the order IPS §3 fixes them. `
     + 'A gate is answered, partly answered, not established, or failing — there is no fifth state, because "probably fine" is what lets an unexamined asset through.'));
@@ -53,7 +53,7 @@ function ipsGatePanel(assessment, { title = 'Against the methodology' } = {}) {
 /* ---- §6.5 demand ---- */
 function demandPanel(city, area) {
   const test = demandTest(city, area);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead(`Demand — ${area}`,
     'Who has a recurring reason to occupy or buy here. IPS §6.5 makes this a required test and penalises concentration: '
     + 'one source that can stop is not a demand base.'));
@@ -61,7 +61,7 @@ function demandPanel(city, area) {
   const v = IPS_VERDICTS[test.verdict] || IPS_VERDICTS.unknown;
   card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [
     el('span', { class: v.tone }, v.label),
-    el('span', { class: 'body', style: 'font-size:13px' }, test.why),
+    el('span', { class: 'body', style: 'font-size:var(--ls-support)' }, test.why),
   ]));
 
   /* Room for the state to be read without pushing the note out of sight.
@@ -120,7 +120,7 @@ function demandPanel(city, area) {
 /* ---- §6.7 environmental depreciation ---- */
 function environmentalPanel(d) {
   const env = environmentalAllowance(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Environmental allowance',
     'IPS §6.7 requires recurring allowances in coastal, flood-prone or humid environments. '
     + 'Every one below is triggered by something recorded against this locality — nothing is inferred from the town.'));
@@ -169,7 +169,7 @@ function environmentalPanel(d) {
 
 /* ---- §6.8 rent versus buy ---- */
 function rentVersusBuyPanel(d, m) {
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Rent, or buy',
     'IPS §6.8. For a property you would use yourself rather than let, the comparison is between owning it all year '
     + 'and renting it for the weeks you actually want it.'));
@@ -191,20 +191,20 @@ function rentVersusBuyPanel(d, m) {
   if (!r.ok) { card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, r.why)); return card; }
 
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  g.append(el('div', { class: 'panel' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Price to rent', `${fmtNum(r.priceToRent, 1)}×`,
     { sub: 'Purchase price over one year of market rent' })));
-  g.append(el('div', { class: 'panel' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('True cost to own', fmtMoney(r.trueCarrying, 'MYR', 0),
     /* On everything put in, which is what the model charges it on — the
        deposit, the fees, the renovation and the reserve. It said "the
        deposit", and RM9,110 is 7% of RM130,142, not of a RM57,200 deposit. */
     { sub: `A year, including ${fmtMoney(r.opportunity, 'MYR', 0)} the ${fmtMoney(r.committed, 'MYR', 0)} of cash put in is not earning elsewhere` })));
-  g.append(el('div', { class: 'panel' }, statTile('Cost to rent instead',
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Cost to rent instead',
     isNum(r.rentInstead) ? fmtMoney(r.rentInstead, 'MYR', 0) : '—',
     { sub: isNum(r.weeks) ? `${fmtNum(r.weeks, 0)} weeks at this property's own rent` : 'Enter your weeks of use' })));
   card.append(g);
 
   card.append(el('p', { class: 'body', style: 'font-weight:600;margin-top:var(--md)' }, r.classification));
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:6px' }, r.why));
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:6px' }, r.why));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Classifying a purchase as consumption is not a judgement about whether to make it. People buy things they enjoy, and that is a '
     + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns, '

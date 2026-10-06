@@ -574,7 +574,7 @@ function usePlaceControl(city, area, { id } = {}) {
    bar's did (renderKeepFocus). */
 function propertyModelBar(d = State.deal) {
   const st = propertyStatus(d);
-  const bar = el('section', { class: 'card pm-bar', 'aria-label': 'The property on the calculator' });
+  const bar = el('section', { class: 'card pm-bar ls-bar', 'aria-label': 'The property on the calculator' });
   const status = el('p', { class: 'pm-status', id: 'pm-status', tabindex: '-1' });
   if (st.kind === 'model') {
     status.append('Editing: ', el('strong', {}, st.rec.name));
@@ -652,7 +652,7 @@ const PC_CONTRACT_OPEN = new Set();
 function propertySection(id, { provide, calculates }) {
   const i = PC_SECTIONS.findIndex(s => s.id === id);
   const s = PC_SECTIONS[i];
-  const inputs = el('div', { class: 'card rail-sticky pc-inputs' });
+  const inputs = el('div', { class: 'card rail-sticky pc-inputs ls-form' });
   const outputs = el('div', { class: 'pc-outputs' });
   /* The section's contract — what it asks and what it works out, 40 to 80
      words — is a drawer under its heading (N3, the owner's decision D18):
@@ -744,7 +744,7 @@ const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
   const want = location.hash.replace(/^#/, '');
   const key = location.pathname + location.search + location.hash;
-  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want)) && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
   const go = () => {
     if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
@@ -753,6 +753,16 @@ function propertyArrivalSection() {
     pcArrivalWant = null;
     /* At once, as a browser lands on an anchor: a page's length of smooth
        scrolling is not an arrival. */
+    /* Or the review list — the Scenario Lab's alert, "Review →": opened,
+       in sight, the keyboard on its summary. */
+    if (id === 'review') {
+      const det = document.getElementById('pc-review-list');
+      if (!det) return;
+      det.open = true;
+      document.getElementById('review')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      det.querySelector('summary')?.focus({ preventScroll: true });
+      return;
+    }
     if (PC_FIELD_HASH.test(id)) {
       const field = document.getElementById(id);
       if (!field) return;
@@ -772,7 +782,7 @@ function propertyArrivalSection() {
    link chooses the property. */
 function propertyReportNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Take the report with you',
     `The decision record prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open. It reads the same inputs as every section above.`));
   card.append(el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
@@ -860,7 +870,7 @@ function pmColumns(rec, d, st) {
 }
 function propertyScenariosPanel(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card pm-scenarios' });
+  const card = el('div', { class: 'card pm-scenarios ls-section' });
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h3', { class: 'h-card', id: 'pm-sc-title', tabindex: '-1' }, st.kind === 'model' ? `Scenarios of “${st.rec.name}”` : 'Scenarios'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' },

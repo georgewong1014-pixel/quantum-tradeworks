@@ -1773,6 +1773,31 @@ let observationDraft = null;
    as the IPS tables (IPS_PROSE_CELL, 79-ips-views.js) already do. */
 const PROPERTY_PROSE_CELL = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
 
+/* The one-page answer's four metric cards, in the order a reader decides
+   in, each with its level and the inputs its figure is worked from (its
+   badge: labTileKind, 82-property-lab.js) — the Lab's tiles' own lists for
+   the two they share. */
+const PC_ANSWER_CARDS = [
+  { key: 'safe', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
+  { key: 'monthly', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'complete', level: 2, rests: ['price', 'downPct'] },
+  { key: 'breakeven', level: 2, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'vacancyPct', 'maintenance'] },
+];
+/* THE CALCULATOR'S ACTION BAR ON A PHONE (the layout system, under 640px,
+   in its dock): Analyse — the one-page answer, the figures and the grade;
+   Compare — the Scenarios section; Save this — what the model bar's Save
+   does, while there is anything to save. */
+function propertyBarActions() {
+  const d = State.deal, st = propertyStatus(d);
+  const can = st.kind !== 'model' || st.dirty;
+  return [
+    { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', aria: 'Analyse: the figures and the grade', onclick: () => lsGoTo(document.getElementById('pc-answer'), document.getElementById('pc-answer-h')) },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare scenarios', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) },
+    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, disabled: !can,
+      aria: !can ? 'Saved in this browser' : st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property',
+      said: 'Saved in this browser — change a figure to save it again.', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
+  ];
+}
 VIEWS.property = () => {
   /* A section the address names (#scenarios), read before this page writes
      its own address, which carries none (71-property-models.js). */
@@ -1789,7 +1814,7 @@ VIEWS.property = () => {
   const d = State.deal;
   const m = dealModel(d);
   const paid = propertyReportUnlocked(d.projectId);
-  const wrap = el('div');
+  const wrap = el('div', { class: 'ls-page pc-page' });
 
   /* The one head every product page wears (pageHead, 36-layouts.js). Its
      second line — what the model covers — is a drawer under it (N3, D18):
@@ -1804,10 +1829,10 @@ VIEWS.property = () => {
      qualifying detail follows in a span that collapses on a phone — the part a
      reader must not miss is the first sentence, and burying that to win fold
      space would be trading the wrong thing for it. */
-  const disc = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
+  const disc = el('div', { class: 'ls-disclosure', style: 'margin-bottom:var(--md)' });
   disc.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not a valuation'),
-    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' }, [
+    el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px' }, [
       'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.',
       el('span', { class: 'fold-phone' },
         ' This is an investment estimate built from your inputs and sample transaction data. Figures are scenarios, not predictions.'),
@@ -1840,7 +1865,7 @@ VIEWS.property = () => {
      makes it the most flattering number here and the least informative. */
   const g = propertyGrade(d, m);
   const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
-  const onePage = el('div', { class: 'card', style: `border-left:3px solid var(${gradeTone})` });
+  const onePage = el('section', { class: 'card ls-section pc-answer', id: 'pc-answer', 'aria-labelledby': 'pc-answer-h', style: `border-left:3px solid var(${gradeTone})` });
 
   /* THE MONEY, FIRST, AND ONCE (N3, the owner's decision D18).
      The card opened on a letter grade and a score, and the figures that
@@ -1863,18 +1888,31 @@ VIEWS.property = () => {
      the ledger's does. */
   const answers = el('div', { class: 'grid g-4 pc-answers' });
   const unpricedLines = m.missingCostLines || [];
-  [['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-     m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
-   ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-     unpricedLines.length
-       ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-       : 'Including rent-ready and the reserve'],
-   ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-     m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs'],
-   ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-     isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable']]
-    .forEach(([l, v, s], i) => answers.append(el('div', { class: 'panel' }, statTile(l, v,
-      { sub: s, tone: i === 2 && isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null }))));
+  /* THE SYSTEM'S METRIC CARDS (37-layout-system.js): the safe cash and the
+     month are the decision (L1, first and at the card-metric size), the
+     cash to complete and the break-even rent qualify them (L2); each with
+     its data badge — what its figures rest on, in the Lab's tiles' words
+     (labTileKind), the lowest-ranked input it is worked from. */
+  const answerFigs = {
+    safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+      unpricedLines.length
+        ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+        : 'Including rent-ready and the reserve'],
+    monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
+      isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
+    complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
+    breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+      isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+  };
+  for (const t of PC_ANSWER_CARDS) {
+    const [l, v, s, tone] = answerFigs[t.key];
+    const card = el('div', { class: `panel ls-card ls-l${t.level}`, 'data-card': 'metric', 'data-level': String(t.level), 'data-answer': t.key },
+      statTile(l, v, { sub: s, tone }));
+    card.append(labTag(labTileKind(d, t.rests)));
+    answers.append(card);
+  }
   onePage.append(answers);
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
@@ -1882,10 +1920,10 @@ VIEWS.property = () => {
       /* The card's heading. It was a paragraph, so the page went from its h1
          straight to the h4 below ("Why this cannot be graded") — the first
          heading a screen reader met after the title skipped two levels. */
-      el('h3', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
+      el('h3', { class: 'eyebrow', id: 'pc-answer-h', style: 'margin-bottom:2px' }, 'QT Property Underwriting Grade'),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
-        el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${gradeTone})` }, g.grade),
-        el('span', { style: 'font-size:15px;font-weight:600' }, g.verdict),
+        el('span', { class: 'num', style: `font-size:var(--ls-metric);font-weight:700;color:var(${gradeTone})` }, g.grade),
+        el('span', { style: 'font-size:var(--ls-body);font-weight:600' }, g.verdict),
       ]),
     ]),
     el('div', { style: 'margin-left:auto;text-align:right' }, [
@@ -1921,7 +1959,7 @@ VIEWS.property = () => {
   /* The owner subsidy stated as a commitment rather than a monthly minus —
      over five and ten years; the year's figure is the Monthly position
      tile's, above. */
-  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' },
+  if (m.annualOwnerSubsidy > 0) onePage.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:var(--sm);color:var(--dn-text)' },
     `This property does not pay for itself. Holding it is paid from your own income — ${fmtAmount(m.annualOwnerSubsidy * 5, 'MYR')} over five years and ${fmtAmount(m.annualOwnerSubsidy * 10, 'MYR')} over ten, before any major repair. That can be a deliberate choice on an appreciation case; it is not an income property.`));
 
   if (g.gates.length) {
@@ -1945,7 +1983,7 @@ VIEWS.property = () => {
        them would not grade it — the sentence above says why. */
     const named = g.classUngradeable ? 'Still to check'
       : { U: 'Why this cannot be graded', B: 'Why this is conditional', A: 'Still to check' }[g.grade] || 'Why this falls short';
-    const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:13px' }, [
+    const gateLine = (x) => el('li', { class: 'evidence counter', style: 'font-size:var(--ls-support)' }, [
       el('span', { class: x.severity === 'critical' ? 'chip chip-bronze' : null,
         style: x.severity === 'critical' ? 'margin-right:6px' : 'display:none' }, 'Blocking'),
       x.text + (x.who ? ` Confirm with: ${x.who}.` : ''),
@@ -1976,8 +2014,8 @@ VIEWS.property = () => {
     steps.forEach(([label, v]) => {
       bars.append(el('div', {}, [
         el('div', { class: 'row', style: 'gap:8px;justify-content:space-between' }, [
-          el('span', { style: 'font-size:13px' }, label),
-          el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtAmount(v, 'MYR')),
+          el('span', { style: 'font-size:var(--ls-support)' }, label),
+          el('span', { class: 'num', style: 'font-size:var(--ls-support);font-weight:600' }, fmtAmount(v, 'MYR')),
         ]),
         el('div', { style: 'height:8px;border-radius:4px;background:var(--surface-sunk);margin-top:3px;overflow:hidden' },
           el('div', { style: `height:100%;width:${Math.max(1, v / total * 100)}%;background:var(--brand);border-radius:4px` })),
@@ -1996,7 +2034,7 @@ VIEWS.property = () => {
     const warn = el('div', { style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
     warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
-      el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
+      el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
         `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
     ]));
     if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -2040,24 +2078,24 @@ VIEWS.property = () => {
   const b = State.borrower;
   const lr = loanReadiness(b, m);
   const pf = propertyFinanceability(d, m);
-  const finCard = el('div', { class: 'card' });
+  const finCard = el('div', { class: 'card ls-section' });
   finCard.append(cardHead('Can this be financed?',
     'Three separate questions. Collapsing them into one percentage would hide the one that is actually blocking.'));
 
   const trio = el('div', { class: 'grid g-3' });
-  trio.append(el('div', { class: 'panel' }, statTile('Borrower Loan Readiness',
+  trio.append(el('div', { class: 'panel ls-fig' }, statTile('Borrower Loan Readiness',
     b.assessed && isNum(lr.score) ? `${lr.score}/100` : '—',
     { sub: b.assessed ? lr.band : 'Loan readiness not assessed' })));
-  trio.append(el('div', { class: 'panel' }, statTile('Property Financeability',
+  trio.append(el('div', { class: 'panel ls-fig' }, statTile('Property Financeability',
     isNum(pf.score) ? `${pf.score}/100` : '—',
     { sub: pf.gates.length ? `${pf.gates.length} item${pf.gates.length === 1 ? '' : 's'} to verify first` : 'No blocking item recorded' })));
-  trio.append(el('div', { class: 'panel' }, statTile('Modelled financing coverage',
+  trio.append(el('div', { class: 'panel ls-fig' }, statTile('Modelled financing coverage',
     isNum(m.financingCoverageOfPrice) ? fmtPct(m.financingCoverageOfPrice, 1) : '—',
     { sub: m.financingBasisConfirmed ? 'of the price, on the entered valuation' : 'modelled, not lender-confirmed' })));
   finCard.append(trio);
 
   /* The sentence this section exists to make unmissable. */
-  finCard.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md)' },
+  finCard.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:var(--md)' },
     b.assessed && isNum(lr.score)
       ? `Loan Readiness ${lr.score}/100 is a diagnostic score, not a ${lr.score}% chance of approval. No approval probability is offered anywhere in this product, because calculating one honestly would need a lender's own record of applications and outcomes, and nobody outside a lender has that. Each lender applies its own credit policy and its own final assessment.`
       : b.assessed
@@ -2181,7 +2219,7 @@ VIEWS.property = () => {
      instalment of nought and a reserve, and was told both were unavailable. */
   const noSchedule = !m.tenureValid && m.loan > 0;
   if (m.zeroRateModelled || noSchedule || !m.reserveComputable) {
-    const flags = el('div', { class: 'card', style: 'border-left:3px solid var(--dn-text)' });
+    const flags = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--dn-text)' });
     const ul = el('ul', { class: 'ticklist' });
     if (m.zeroRateModelled) ul.append(el('li', {},
       'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
@@ -2202,7 +2240,7 @@ VIEWS.property = () => {
      the reader who has just modelled a deal is precisely the one who wants to
      record it. A real anchor, so it can be opened in a new tab. */
   const regNote = el('div', { class: 'note', style: 'display:flex;flex-wrap:wrap;gap:10px;align-items:center' }, [
-    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px;margin:0' },
+    el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
       'Modelling one deal answers what it would do. Recording several answers which ones exist and what you actually know about each — the register keeps the source, the availability date, four separate prices and a next action with an owner.'),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/opportunities'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/opportunities'); } },
@@ -2356,12 +2394,12 @@ VIEWS.property = () => {
      district, which every deal has. */
   {
     const obs = observationsFor(d.city, d.district);
-    const oc = el('div', { class: 'panel', style: 'margin-top:12px' });
+    const oc = el('div', { class: 'panel ls-section', style: 'margin-top:12px' });
     oc.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' },
       `What you have recorded — ${d.district}`));
 
     if (!obs.total) {
-      oc.append(el('p', { class: 'body', style: 'font-size:13px' },
+      oc.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         'Nothing yet for this area. No source publishes neighbourhood rents or transactions for Sarawak, so the only way this becomes known is one observation at a time.'));
     } else {
       const ot = el('table', { class: 'dt' });
@@ -2576,7 +2614,7 @@ VIEWS.property = () => {
      lawfully hold the title, and getting it wrong is not a modelling error —
      it is a void transfer. */
   titleField.append(el('div', { class: 'note', style: 'margin-top:8px' }, [
-    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' }, 'Title classification recorded from your input'),
+    el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:var(--ls-support)' }, 'Title classification recorded from your input'),
     el('p', { class: 'metaline' },
       'Eligibility has not been verified. Nothing here confirms that a transfer is permitted, and this selection changes only how the tool describes the property to you. Confirm with a Sarawak property lawyer and the Land and Survey Department before relying on it.'),
   ]));
@@ -2795,7 +2833,7 @@ VIEWS.property = () => {
   /* ---------- outputs ---------- */
   /* The summary in the reader's language, and the review queue, above the
      sections: both are about every section at once. */
-  const free = el('div', { class: 'card' });
+  const free = el('div', { class: 'pc-free' });
   /* Language applies to the summary below and to the metric names in it. The
      analysis itself stays in English, which the note says rather than leaving
      the reader to discover it. */
@@ -2813,7 +2851,7 @@ VIEWS.property = () => {
      language — and what is and is not translated. The buttons above stay in
      sight: they translate every section's labels, not only this table. Open
      across a redraw once opened (a language chosen redraws the page). */
-  const summary = el('details', { class: 'panel pc-more pc-summary', style: 'margin-bottom:var(--md)', open: propertySummaryOpen ? '' : null });
+  const summary = el('details', { class: 'panel pc-more pc-summary ls-l3', style: 'margin-bottom:var(--md)', open: propertySummaryOpen ? '' : null });
   summary.addEventListener('toggle', () => { propertySummaryOpen = summary.open; });
   summary.append(el('summary', { class: 'pc-more-sum' }, sc.title));
   const srows = [
@@ -2837,22 +2875,27 @@ VIEWS.property = () => {
      reader has already taken. */
   const queue = propertyReviewQueue(d);
   if (queue.length) {
-    const q = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze);margin-bottom:var(--md)' });
-    const det = el('details');
-    const sum = el('summary', { style: 'cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap' });
-    sum.append(el('span', { class: 'chip chip-bronze' }, `${queue.length} sample input${queue.length === 1 ? '' : 's'}`));
-    sum.append(el('span', { style: 'font-size:16px;font-weight:600' },
-      `Review ${queue.length} sample input${queue.length === 1 ? '' : 's'}`));
-    sum.append(el('span', { class: 'metaline', style: 'flex-basis:100%' },
-      'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.'));
+    /* THE SYSTEM'S ALERT CARD: how many figures still need the reader's
+       evidence, and "Review →", which opens the list (L3) under it. The
+       Scenario Lab's alert links here (/property/calculator#review). */
+    const q = el('div', { class: 'card ls-card pc-review', 'data-card': 'alert', id: 'review', style: 'margin-bottom:var(--md)' });
+    const det = el('details', { id: 'pc-review-list' });
+    const n = queue.length, s = n === 1 ? '' : 's';
+    const sum = el('summary', { class: 'pc-review-sum' }, [
+      el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
+      el('span', { class: 'ls-card-body' }, [
+        el('span', { class: 'ls-card-title' }, `${n} sample input${s} need${n === 1 ? 's' : ''} your evidence`),
+        el('span', { class: 'ls-card-sub' }, 'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.')]),
+      el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
+    ]);
     det.append(sum);
 
     const list = el('div', { style: 'margin-top:var(--md);display:flex;flex-direction:column;gap:2px' });
     queue.forEach(f => {
       const row = el('div', { class: 'row row-wrap',
         style: 'gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--grid)' });
-      row.append(el('span', { style: 'font-size:14px;font-weight:600;min-width:150px' }, f.label));
-      row.append(el('span', { class: 'num', style: 'font-size:14px;min-width:120px' },
+      row.append(el('span', { style: 'font-size:var(--ls-support);font-weight:600;min-width:150px' }, f.label));
+      row.append(el('span', { class: 'num', style: 'font-size:var(--ls-support);min-width:120px' },
         isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'));
       row.append(el('span', { class: 'metaline', style: 'flex:1 1 260px' }, f.affects));
       row.append(el('button', {
@@ -2875,14 +2918,14 @@ VIEWS.property = () => {
   const summaryCard = free;
 
   /* The four headline numbers, in the section whose inputs make them. */
-  const headline = el('div', { class: 'card' });
+  const headline = el('div', { class: 'card ls-section' });
   headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
   const fg = el('div', { class: 'grid g-4' });
-  fg.append(el('div', { class: 'panel' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
-  fg.append(el('div', { class: 'panel' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
-  fg.append(el('div', { class: 'panel' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
     { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
-  fg.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
   headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
@@ -2908,16 +2951,16 @@ VIEWS.property = () => {
 
   /* What buying it takes: the price per unit, where the cash goes, the
      ledger, and the cash to hold back. */
-  const buyCard = el('div', { class: 'card' });
+  const buyCard = el('div', { class: 'card ls-section' });
   buyCard.append(cardHead('What buying it takes',
     'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.'));
 
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
-  unitCard.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+  unitCard.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
     'What you are paying, per unit'));
   const unitTile = (label, perSqft, unit, dp, sub) => {
     const v = rateInUnit(perSqft, unit);
-    return el('div', { class: 'panel' }, statTile(label,
+    return el('div', { class: 'panel ls-fig' }, statTile(label,
       isNum(v) ? `${fmtMoney(v, 'MYR', dp)}/${areaUnit(unit).short}` : '—',
       { sub: isNum(v) ? sub : 'No area entered, so this cannot be computed' }));
   };
@@ -2942,7 +2985,7 @@ VIEWS.property = () => {
      legend — the title names it and both marks are directly labelled. */
   if (isNum(m.breakEvenRent) && m.breakEvenRent > 0 && isNum(d.rent)) {
     const rb = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
-    rb.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    rb.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
       'Rent against break-even'));
     const rbHost = el('div', { style: 'margin-top:var(--sm)' });
     rb.append(rbHost);
@@ -2976,7 +3019,7 @@ VIEWS.property = () => {
      alone, and here the colour carries the one distinction that matters. */
   if ((m.costGroups || []).length >= 2) {
     const wf = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
-    wf.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    wf.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
       'What the cash is for'));
     const swatch = (tok, text) => el('span', { class: 'caption',
       style: 'display:inline-flex;align-items:center;gap:6px' }, [
@@ -3005,12 +3048,16 @@ VIEWS.property = () => {
      with 430px, and a swipe moved whichever one the finger happened to land
      on. Each table now scrolls in its own wrapper and this is a plain block. */
   const cash = el('div', { style: 'margin-top:var(--md)' });
-  const cashT = el('table', { class: 'dt' });
-  const cashB = el('tbody');
+  /* A body a group: under 640px each is a card of its own (ls-tcards, the
+     layout system's tables-become-cards), its name heading it. */
+  const cashT = el('table', { class: 'dt pc-cost-table', 'aria-label': 'What the cash is for, line by line' });
+  let cashB;
   m.costGroups.forEach(g => {
+    cashB = el('tbody', { class: 'ls-tgroup' });
+    cashT.append(cashB);
     const sub = g.items.reduce((s2, it) => s2 + (isNum(it[1]) ? it[1] : 0), 0);
     const gMissing = g.items.filter(it => !isNum(it[1])).length;
-    cashB.append(el('tr', {}, [
+    cashB.append(el('tr', { class: 'ls-tgroup-hd' }, [
       el('td', { style: 'font-weight:600', colspan: 2 }, g.label)]));
     /* An unpriced line is shown as unpriced. Omitting it would read as a cost
        that does not exist, and every one of these exists. */
@@ -3021,11 +3068,11 @@ VIEWS.property = () => {
           it[0],
           /* Marked at every appearance. A placeholder is plausible, which is
              precisely why it cannot be left to look like a checked figure. */
-          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:12px',
+          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:var(--ls-meta)',
             title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
-          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:12px',
+          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:var(--ls-meta)',
             title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
-          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:12px',
+          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:var(--ls-meta)',
             title: it[2]?.note || 'A figure you entered from a quotation.' }, 'your quote') : null,
         ]),
         isNum(it[1])
@@ -3040,6 +3087,9 @@ VIEWS.property = () => {
       el('td', { class: 'num metaline' }, fmtAmount(sub, 'MYR'))]));
   });
   const nMissing = (m.missingCostLines || []).length;
+  /* The total, its own card on a phone. */
+  cashB = el('tbody', { class: 'ls-tgroup ls-tgroup-total' });
+  cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' },
       nMissing ? 'Total initial cash so far' : 'Total initial cash'),
@@ -3059,14 +3109,14 @@ VIEWS.property = () => {
         + (m.placeholderCostLines.length
             ? `${m.placeholderCostLines.length} ${m.placeholderCostLines.length === 1 ? 'is a placeholder' : 'are placeholders'}: approximations entered so the workflow runs, not quotations. Replace them with real quotes before this figure means anything.`
             : 'They compute, and they are not evidence.'))]));
-  cashT.append(cashB);
+  lsTableCards(cashT, { id: 'pc-cost-table' });
   cash.append(el('div', { class: 'tablewrap' }, cashT));
 
   /* ---- financing basis (specification 29.2) ---------------------------- */
   const fin = el('div', { style: 'margin-top:var(--md);padding-top:var(--md);border-top:1px solid var(--line)' });
   fin.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'What the loan is calculated against'));
   if (!m.financingBasisConfirmed) {
-    fin.append(el('p', { class: 'body', style: 'font-size:13px;color:var(--bronze)' },
+    fin.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);color:var(--bronze)' },
       'Financing basis is modelled, not lender-confirmed. No bank or valuer estimate has been entered, so the loan below is calculated against the purchase price — which assumes a valuation at least equal to what you agreed to pay. Where a valuation comes in lower, the shortfall becomes cash you must find at completion, and this figure would understate what the purchase takes.'));
   } else {
     const kv = el('dl', { class: 'kv' });
@@ -3083,7 +3133,7 @@ VIEWS.property = () => {
      ['Share of the price this funds', fmtPct(m.financingCoverageOfPrice, 1)]]
       .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
     fin.append(kv);
-    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;color:var(--dn-text)' },
+    if (m.valuationGapCash > 0) fin.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:8px;color:var(--dn-text)' },
       `The valuation is ${fmtAmount(m.valuationGapCash, 'MYR')} below the price, so a ${fmtPct(m.marginOfFinancePct, 0)} margin of finance funds ${fmtPct(m.financingCoverageOfPrice, 1)} of what you are paying, not ${fmtPct(m.marginOfFinancePct, 0)}. That difference is cash, it is due on completion day, and it is listed above as valuation-gap cash.`));
     else fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'The estimate is at or above the price, so there is no valuation gap on this scenario.'));
@@ -3097,7 +3147,7 @@ VIEWS.property = () => {
   m.financingScenarios.forEach(s => {
     const isCurrent = Math.abs(s.mof - m.marginOfFinancePct) < 1e-9;
     scB.append(el('tr', { style: isCurrent ? 'background:var(--surface-sunk)' : '' }, [
-      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:12px' }, 'entered') : null]),
+      el('td', { style: 'text-align:left' }, [`${s.mof}%`, isCurrent ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:var(--ls-meta)' }, 'entered') : null]),
       el('td', { class: 'num' }, fmtAmount(s.loan, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(s.cashEquity, 'MYR')),
       el('td', { class: 'num' }, fmtAmount(s.instalment, 'MYR')),
@@ -3105,10 +3155,17 @@ VIEWS.property = () => {
     ]));
   });
   scT.append(scB);
+  /* Under 640px a card a margin (the layout system): the one entered
+     stands, the others behind "Compare 70% & 80% ↓". */
+  const curAt = m.financingScenarios.findIndex(s => Math.abs(s.mof - m.marginOfFinancePct) < 1e-9);
+  const others = m.financingScenarios.filter((s, i) => i !== curAt).map(s => `${s.mof}%`).join(' & ');
+  const { toggle: scMore } = lsTableCards(scT, { id: 'pc-fin-scenarios', selected: curAt,
+    more: { open: `Compare ${others}`, close: `Hide ${others}` } });
   fin.append(el('div', { class: 'tablewrap' }, scT));
+  if (scMore) fin.append(scMore);
   fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Scenarios, not offers. No lender has seen this property or this borrower, and the margin a lender will actually extend depends on its own valuation, its credit policy and the applicant. Cash equity is the purchase price less the loan, so it carries any valuation gap with it.'));
-  const loanCard = el('div', { class: 'card' });
+  const loanCard = el('div', { class: 'card ls-section' });
   loanCard.append(cardHead('The loan', 'What the loan is lent against, what it funds, and what it would be at other margins of finance.'));
   fin.style.cssText = '';
   loanCard.append(fin);
@@ -3134,7 +3191,7 @@ VIEWS.property = () => {
    ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
-    .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel' },
+    .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel ls-fig' },
       statTile(label, fmtAmount(amount, 'MYR'), { sub, tone: i === arr.length - 1 ? '--brand' : null }))));
   cash.append(threeCash);
 
@@ -3163,7 +3220,7 @@ VIEWS.property = () => {
   /* Questions, answered by the buyer, each naming who can actually settle it.
      The tool does not decide legal eligibility or flood exposure — it makes
      sure neither is skipped. */
-  const chk = el('div', { class: 'card' });
+  const chk = el('div', { class: 'card ls-section' });
   chk.append(cardHead('Before the numbers mean anything',
     'Ten questions that decide more than the price does. No figure in the model moves on your answers. An adverse answer is raised in the findings below with who can confirm it, and the grade\'s local-demand pillar counts each question only once it is settled without one — an adverse or open answer earns nothing there.'));
   const answered = SARAWAK_CHECKS.filter(c => d.checks?.[c.id]).length;
@@ -3195,7 +3252,7 @@ VIEWS.property = () => {
   ordered.forEach(c => {
     const row = el('div', { style: 'padding:10px 0;border-top:1px solid var(--line)' });
     row.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:flex-start' }, [
-      el('p', { style: 'flex:1 1 320px;font-size:13px;font-weight:500;margin:0' }, ptr(`chk.${c.id}`, c.q)),
+      el('p', { style: 'flex:1 1 320px;font-size:var(--ls-support);font-weight:500;margin:0' }, ptr(`chk.${c.id}`, c.q)),
       /* A group named by its question, and the answer given carried by
          aria-pressed. Ten rows of "Yes", "No", "Not sure" reached a screen
          reader with no question attached and no word of which was chosen —
@@ -3249,7 +3306,7 @@ VIEWS.property = () => {
   const checkCard = chk;
 
   /* ---------- stress tests ---------- */
-  const stressCard = el('div', { class: 'card' });
+  const stressCard = el('div', { class: 'card ls-section' });
   stressCard.append(cardHead('What breaks it',
     'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.'));
 
@@ -3268,9 +3325,9 @@ VIEWS.property = () => {
     /* A fourth case: no monthly position to cross zero, because the loan's
        instalment could not be computed. It used to fall through to "any
        rate", in green. */
-    if (why === 'unknown') return el('div', { class: 'panel' }, statTile(label, '—',
+    if (why === 'unknown') return el('div', { class: 'panel ls-fig' }, statTile(label, '—',
       { sub: 'Not computable — the loan’s instalment could not be worked out from the entered tenure.' }));
-    return el('div', { class: 'panel' }, statTile(label,
+    return el('div', { class: 'panel ls-fig' }, statTile(label,
       isNum(value) ? fmt(value) : never ? copy.neverValue : copy.alwaysValue,
       { sub: isNum(value) ? copy.crosses(entered) : never ? copy.never : copy.always,
         tone: isNum(value) ? (copy.good(value, entered) ? '--ok-text' : '--dn-text')
@@ -3296,7 +3353,7 @@ VIEWS.property = () => {
         always: 'Covers its costs even with no tenant at all.',
         good: (v, e) => v > e + 10,
       }));
-    stressGrid.append(el('div', { class: 'panel' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
+    stressGrid.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
       { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
         tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
   }
@@ -3335,7 +3392,7 @@ VIEWS.property = () => {
   ]));
 
   /* ---------- management operations ---------- */
-  const ops = el('div', { class: 'card' });
+  const ops = el('div', { class: 'card ls-section' });
   ops.append(cardHead(m.managed ? 'Management operations' : 'Management operations — self-managed',
     m.managed
       ? 'What the service costs, and what it has to do for it. A percentage alone is not comparable between two agents; cost per occupied month and cost per tenancy are.'
@@ -3343,13 +3400,13 @@ VIEWS.property = () => {
 
   if (m.managed) {
     ops.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' }, [
-      el('div', { class: 'panel' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
+      el('div', { class: 'panel ls-fig' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
         { sub: `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
-      el('div', { class: 'panel' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
+      el('div', { class: 'panel ls-fig' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
         { sub: 'what it costs for each month the property is actually let' })),
-      el('div', { class: 'panel' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
+      el('div', { class: 'panel ls-fig' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
         ? fmtAmount(m.mgmtCostPerTenancy, 'MYR') : '—', { sub: `over a ${m.monthsPerCycle}-month tenancy` })),
-      el('div', { class: 'panel' }, statTile('Placement fee a year', fmtAmount(m.placementAnnual, 'MYR'),
+      el('div', { class: 'panel ls-fig' }, statTile('Placement fee a year', fmtAmount(m.placementAnnual, 'MYR'),
         { sub: `assumes the tenant leaves each cycle` })),
     ]));
     if (m.renewalAnnual < m.placementAnnual) ops.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
@@ -3369,7 +3426,7 @@ VIEWS.property = () => {
   if (isNum(m.impliedVacancyPct) && m.letsToTenant !== false) {
     const gap = Math.abs(m.impliedVacancyPct - num0(d.vacancyPct));
     ops.append(el('div', { class: 'note', style: `margin-top:var(--md);border-left:3px solid var(${gap > 2 ? '--warn' : '--line'})` },
-      el('p', { class: 'body', style: 'font-size:13px' },
+      el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         `Placing a tenant in ${num0(d.daysToFirstTenant)} days on a ${m.monthsPerCycle}-month tenancy implies `
         + `${fmtPct(m.impliedVacancyPct, 1)} vacancy. You have entered ${fmtPct(num0(d.vacancyPct), 1)}, and that is the figure every output above uses. `
         + (gap > 2
@@ -3399,7 +3456,7 @@ VIEWS.property = () => {
   ops.append(duties);
 
   /* ---------- evidence quality ---------- */
-  const ev = el('div', { class: 'card' });
+  const ev = el('div', { class: 'card ls-section' });
   ev.append(cardHead('What this rests on',
     'A figure a seller quoted and a figure taken from a transacted comparable are not the same evidence.'));
   const evRows = [['price', 'Purchase price'], ['rent', 'Expected rent'], ['maintenance', 'Maintenance'], ['sqft', 'Built-up area']]
@@ -3488,7 +3545,7 @@ VIEWS.property = () => {
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */
-    const exitCard = el('div', { class: 'card', id: 'property-report-full' });
+    const exitCard = el('div', { class: 'card ls-section', id: 'property-report-full' });
     exitCard.append(cardHead('Selling in year 5 and year 10',
       'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
     const exTable = el('table', { class: 'dt' });
@@ -3529,7 +3586,7 @@ VIEWS.property = () => {
     /* ---------- hold or sell, year by year ---------- */
     {
       const hs = m.holdVsSell || [];
-      const card = el('div', { class: 'card' });
+      const card = el('div', { class: 'card ls-section' });
       card.append(cardHead('If you sold in year…',
         'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
       const rated = hs.filter(e => isNum(e.irrPct));
@@ -3564,10 +3621,10 @@ VIEWS.property = () => {
     /* ---------- what the renovation returns ---------- */
     {
       const rr = renovationReturn(d, m);
-      const card = el('div', { class: 'card' });
+      const card = el('div', { class: 'card ls-section' });
       card.append(cardHead('What the renovation returns',
         'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.'));
-      if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:13px' }, rr.why));
+      if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, rr.why));
       else {
         const g = el('div', { class: 'grid g-3' });
         [['Renovation and furnishing', fmtAmount(rr.cost, 'MYR'), 'spent before the property can earn'],
@@ -3576,7 +3633,7 @@ VIEWS.property = () => {
          ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
          ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
          ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
-        ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel' }, statTile(k, v, { sub }))));
+        ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel ls-fig' }, statTile(k, v, { sub }))));
         card.append(g);
         card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
           (isNum(rr.irrDelta)
@@ -3590,14 +3647,14 @@ VIEWS.property = () => {
     }
 
     /* ---------- paid report ---------- */
-    const comps = el('div', { class: 'card' });
+    const comps = el('div', { class: 'card ls-section' });
     if (m.proj.custom) {
       /* An empty comparables table with "RM null–null" beneath it would read as a
          market with no transactions rather than as a tool with no data. The card
          says which of the two it is. */
       comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
         'None held for this location.'));
-      comps.append(el('p', { class: 'body', style: 'font-size:13px' },
+      comps.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
       comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
         /* This said "Every figure above came from you" while the provenance table
@@ -3630,24 +3687,24 @@ VIEWS.property = () => {
       ]))));
       ctw.append(ct); comps.append(ctw);
       const rng = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-      rng.append(el('div', { class: 'panel' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
+      rng.append(el('div', { class: 'panel ls-fig' }, statTile('Your price psf', m.psf ? `RM${m.psf.toFixed(0)}` : '—',
         { sub: `Project range RM${m.proj.psfLo}–${m.proj.psfHi}, median RM${m.proj.psfMid}` })));
-      rng.append(el('div', { class: 'panel' }, statTile('Your rent', `RM${d.rent}`,
+      rng.append(el('div', { class: 'panel ls-fig' }, statTile('Your rent', `RM${d.rent}`,
         { sub: `Observed range RM${m.proj.rentLo}–${m.proj.rentHi}, median RM${m.proj.rentMid}` })));
-      rng.append(el('div', { class: 'panel' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
+      rng.append(el('div', { class: 'panel ls-fig' }, statTile('Area vacancy', fmtPct(m.proj.vacancyPct, 0),
         { sub: `You assumed ${fmtPct(d.vacancyPct, 0)}` })));
       comps.append(rng);
     }
     reportCards.push(comps);
 
-    const inv = el('div', { class: 'card' });
+    const inv = el('div', { class: 'card ls-section' });
     inv.append(cardHead('Investment measures', 'Computed from your inputs. Every figure below traces to the assumptions on the left.'));
     const ig = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
-    ig.append(el('div', { class: 'panel' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
-    ig.append(el('div', { class: 'panel' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
-    ig.append(el('div', { class: 'panel' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
       { sub: 'Annual cash flow ÷ cash invested', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
-    ig.append(el('div', { class: 'panel' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
+    ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
     const kv = el('dl', { class: 'kv' });
@@ -3661,7 +3718,7 @@ VIEWS.property = () => {
     reportCards.push(inv);
 
     /* scenario path */
-    const sc2 = el('div', { class: 'card' });
+    const sc2 = el('div', { class: 'card ls-section' });
     sc2.append(cardHead(`${d.holdYears}-year scenario`,
       `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`));
     const stw = el('div', { class: 'tablewrap' });
@@ -3680,7 +3737,7 @@ VIEWS.property = () => {
 
 
     /* equity comparison — the cross-asset point of the whole product */
-    const eq2 = el('div', { class: 'card' });
+    const eq2 = el('div', { class: 'card ls-section' });
     eq2.append(cardHead('The same cash in equities',
       `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
     /* The real rate, not the annualised multiple. Comparing a property against
@@ -3688,14 +3745,14 @@ VIEWS.property = () => {
        defensible place the old approximation appeared. */
     const need = isNum(m.irrPct) ? m.irrPct : null;
     const eg = el('div', { class: 'grid g-3', style: 'margin-bottom:var(--md)' });
-    eg.append(el('div', { class: 'panel' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
+    eg.append(el('div', { class: 'panel ls-fig' }, statTile('Property, internal rate of return', isNum(need) ? fmtPct(need, 2) : '—',
       { sub: `Including leverage, costs and ${m.rpgtPct}% RPGT` })));
     /* The capital the rate of return is measured on, the reserve included —
        the returns panel states the same figure. This tile showed the cash
        before the reserve beside a rate computed on the cash after it. */
-    eg.append(el('div', { class: 'panel' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
+    eg.append(el('div', { class: 'panel ls-fig' }, statTile('Cash committed', fmtAmount(m.equityOut, 'MYR'),
       { sub: 'Deposit, entry costs and the reserve — what the rate of return is measured on' })));
-    eg.append(el('div', { class: 'panel' }, statTile('Monthly commitment',
+    eg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly commitment',
       isNum(m.cashflowMonthly) ? fmtAmount(monthlyCommitment(m), 'MYR') : '—',
       { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
         : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
@@ -3724,15 +3781,15 @@ VIEWS.property = () => {
     reportCards.push(eq2);
 
     /* risk flags */
-    const rf = el('div', { class: 'card' });
+    const rf = el('div', { class: 'card ls-section' });
     const flags = propertyRiskFlags(d, m);
     rf.append(cardHead(`Risk flags — ${flags.filter(f => f.sev !== 'good').length}`,
       'Computed from your assumptions against the sample project data. Each names the input that triggered it.'));
     const fl = el('div', { style: 'display:flex;flex-direction:column;gap:8px' });
     flags.forEach(f => {
-      const item = el('div', { class: 'panel' });
-      item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:13px;font-weight:600' }, f.t)]));
-      item.append(el('p', { class: 'body', style: 'font-size:13px' }, f.n));
+      const item = el('div', { class: 'pc-flag' });
+      item.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:4px' }, [sevChip(f.sev), el('span', { style: 'font-size:var(--ls-support);font-weight:600' }, f.t)]));
+      item.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, f.n));
       fl.append(item);
     });
     rf.append(fl);

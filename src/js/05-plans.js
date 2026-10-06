@@ -220,12 +220,12 @@ function setPlan(id) {
 
 /* An upgrade prompt that names the limit rather than hiding behind a paywall. */
 function upsell(title, detail) {
-  const box = el('div', { class: 'card', style: 'border-left:3px solid var(--bronze)' });
+  const box = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--bronze)' });
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:6px' }, [
     el('span', { class: 'chip chip-bronze' }, planOf().name),
     el('h3', { class: 'h-card' }, title),
   ]));
-  box.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--sm)' }, detail));
+  box.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-bottom:var(--sm)' }, detail));
   box.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
     /* Outline: a plan prompt is never the page's primary action — on the
        property calculator it was the only filled button, at the page's end. */

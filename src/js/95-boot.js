@@ -834,8 +834,12 @@ const DOCKS = {
           det.scrollIntoView({ block: 'start' });
         },
       } : null,
+      /* Under 640px the layout system's action bar (propertyBarActions). */
+      actions: propertyBarActions(),
     };
   },
+  /* /property: its action bar alone, on a phone (labBarActions). */
+  propertyLab: () => ({ figs: [], actions: labBarActions(), phoneOnly: true }),
 
   wheel: () => {
     const p = State.wheel, m = wheelMath(p), fit = wheelFit(p, m, null);

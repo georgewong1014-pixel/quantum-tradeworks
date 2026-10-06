@@ -30,6 +30,8 @@ const ICON = {
   chev:'<path d="m6 9 6 6 6-6"/>',
   /* The Scenario Lab's way back to a figure as saved (82-property-lab.js). */
   undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  /* The layout system's action bar: Save this (37-layout-system.js). */
+  bookmark:'<path d="M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -2254,14 +2256,17 @@ function renderProductTabs() {
   /* The tools' states are part of what the strip says: a tool the filings
      failed under is text in it, and comes back a link when they load. So is
      a tab's count: a match read changes the Scanner's Alerts tab. */
-  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null]);
+  /* On a page of the layout system (lsOn, 37-layout-system.js) the row is
+     its chips under 640px: drawn again when that changes. */
+  const chips = lsOn();
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips]);
   if (!host.hidden && host.dataset.strip === strip) return;
   const items = tabs.map(t => {
     const n = tabCount(t);
     return { label: n ? `${t.label} · ${n}` : t.label, path: t.path, current: t === here, ariaLabel: n ? `${t.label}, ${n} unread` : null };
   });
   const nav = p
-    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: pid === 'scanner' ? 'scan-subnav' : '' })
+    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
     : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
@@ -2621,7 +2626,7 @@ function bootSkeleton() {
      cannot reach sec.gov at all (the policy allows connections to this origin
      only), so "being fetched from SEC EDGAR" described a request that never
      happens and made a stored snapshot sound live. */
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;max-width:60ch' },
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:8px;max-width:60ch' },
     'The US companies’ annual statements, retrieved from SEC EDGAR when this dataset was built, are loading from this site. This page waits for them '
     + 'rather than showing the illustrative sample first — a sample company and a filed one can share a '
     + 'ticker, and the sample carries a price the filed company does not have.'));
@@ -3394,7 +3399,9 @@ function drawPage(samePage) {
      with its journey's last recorded result (N1e; 91-health.js), and the
      product's Start here panel, until the reader hides it (Release B, B6;
      36-layouts.js). */
-  const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
+  /* ls-view: a page on the layout system, its journey line and Start here
+     with it (37-layout-system.js; styles.css, layout-system). */
+  const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
     'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [journeyLineNode(), startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */

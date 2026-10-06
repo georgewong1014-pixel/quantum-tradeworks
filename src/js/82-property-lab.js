@@ -583,9 +583,19 @@ function labDraw(P, focusId = null) {
   P.els.colsCard = labColumnsCard(P, lab);
   P.els.commitCard = labCommits(P, lab, col);
   P.cardSig = labCardSig(lab);
-  outputs.append(labChain(P, lab, col), labCompare(P, lab), P.els.colsCard, P.els.commitCard);
+  /* The chain, what needs evidence, the evidence itself (L3: under the
+     chain, collapsed; from 1440px the drawer on the right), then A, B and
+     C side by side and keeping one. */
+  const chain = labChain(P, lab, col);
+  const alert = P.compact ? null : labAlert(P, lab);
+  const evidence = labEvidence(P, lab);
+  outputs.append(...[chain, alert, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  /* The rows the workspace's column takes from 1440px, where the knobs and
+     the drawer stand beside every one of them (styles.css). */
+  grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
   P.node.replaceChildren(labHeader(P, lab), grid);
   labPaintPanel(P, { initial: true });
+  if (P.address) labBarSync();
   for (const id of [].concat(had || [])) {
     const n = document.getElementById(id);
     if (!n || !P.node.contains(n) || n.disabled || !n.getClientRects().length) continue;
@@ -702,9 +712,9 @@ function labIdentityAct(P, lab) {
    any figure it is worked from is still the tool's seeded one, else the
    weakest evidence among them — and the next step. */
 const LAB_TILES = [
-  { key: 'safeCashRequired', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
-  { key: 'cashflowMonthly', rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
-  { key: 'netYield', rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'safeCashRequired', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
+  { key: 'cashflowMonthly', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
+  { key: 'netYield', level: 2, rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
 ];
 function labTileKind(d, rests) {
   const keys = rests.filter(k => propertyInputApplies(d, k));
@@ -712,7 +722,7 @@ function labTileKind(d, rests) {
   const weakest = keys.filter(k => evidenceDriversFor(d).includes(k)).map(k => evidenceOf(shownEvidence(d, k))).sort((a, b) => a.rank - b.rank)[0];
   return weakest ? { kind: weakest.id, words: weakest.label } : { kind: 'user', words: evidenceOf('user').label };
 }
-const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
+const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
 function labTiles(P, lab) {
   const d = labSubjectInputs(lab);
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
@@ -722,11 +732,16 @@ function labTiles(P, lab) {
     const f = LAB_FIGURES.find(x => x.key === t.key);
     const v = run ? f.read(run.m, d) : null;
     const kind = d ? labTileKind(d, t.rests) : { kind: 'unavailable', words: 'Unavailable' };
-    grid.append(el('div', { class: 'lab-tile', role: 'listitem', data: { tile: t.key } }, [
-      el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, f.label(d)), ' ', labTag(kind)]),
-      el('p', { class: `lab-tile-val num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-value': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v)),
-      el('p', { class: 'lab-tile-sub' }, run ? (f.note(run.m, d) || '') : 'Needs a purchase price'),
-    ]));
+    /* THE SYSTEM'S METRIC CARD (37-layout-system.js): the cash and the
+       month are the decision (L1, the card-metric size); the yield
+       qualifies them (L2, medium). */
+    const card = lsMetricCard({ label: f.label(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
+      sub: run ? (f.note(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
+      cls: 'lab-tile', attrs: { role: 'listitem', 'data-tile': t.key }, valueAttrs: { class: 'lab-tile-val', 'data-value': isNum(v) ? String(v) : '' } });
+    card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
+    card.querySelector('.ls-card-label').classList.add('lab-tile-label');
+    card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
+    grid.append(card);
   }
   grid.append(labNextTile(P, lab, d));
   return grid;
@@ -765,11 +780,46 @@ function labNextTile(P, lab, d) {
     } }, 'Compare scenarios');
     sub = 'A, B and C side by side, below';
   }
-  return el('div', { class: 'lab-tile lab-tile-next', role: 'listitem', data: { tile: 'next', kind: kind.kind } }, [
-    el('p', { class: 'lab-tile-hd' }, [el('span', { class: 'lab-tile-label' }, 'Next step'), ' ', labTag(kind)]),
-    el('p', { class: 'lab-tile-val lab-next-what' }, act),
-    el('p', { class: 'lab-tile-sub' }, sub),
-  ]);
+  /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
+  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: labTag(kind), cls: 'lab-tile lab-tile-next',
+    attrs: { role: 'listitem', 'data-tile': 'next', 'data-kind': kind.kind } });
+  card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
+  card.querySelector('.ls-card-label').classList.add('lab-tile-label');
+  card.querySelector('.ls-card-act').classList.add('lab-tile-val', 'lab-next-what');
+  card.querySelector('.ls-card-sub').classList.add('lab-tile-sub');
+  return card;
+}
+
+/* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
+   Analyse — the product's action, the full model in the calculator;
+   Compare — A, B and C side by side, below; Save this — the conversion,
+   what the identity line's Save does (which a phone does not show beside
+   the name: the bar carries it). */
+const labPagePanel = () => [...LAB_PANELS].find(x => x.address && x.node.isConnected) || null;
+function labBarSave() {
+  const P = labPagePanel(), lab = P && LAB[P.key];
+  if (!lab) return { aria: 'Nothing to save', disabled: true };
+  const col = labActive(lab);
+  if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
+  if (!lab.model) return { aria: 'Save this property', run: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) };
+  if (labCanSave(lab, col)) return { aria: `Save ${col.key} as a scenario`, run: () => labNaming(P, lab, labScenarioNaming(lab, col, 'identity')) };
+  return { aria: 'Saved in this browser', disabled: true, said: `Saved in this browser — move a figure to save ${col.key} as a scenario.` };
+}
+function labBarActions() {
+  const s = labBarSave();
+  return [
+    { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', path: '/property/calculator', aria: 'Analyse this property in the calculator' },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => {
+      const P = labPagePanel();
+      const r = P && P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
+      if (r) lsGoTo(r.closest('.lab-cmp-card'), r);
+    } },
+    { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
+  ];
+}
+function labBarSync() {
+  const s = labBarSave();
+  lsActUpdate('ls-act-save', { aria: s.aria, disabled: !!s.disabled });
 }
 
 /* "Sliders move": which column the knobs set. Radios, so the arrow keys
@@ -812,7 +862,7 @@ function labInputPicker(P, lab) {
   const col = labActive(lab);
   const fs = el('fieldset', { class: 'lab-pick lab-pick-input' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Input'));
-  const row = el('div', { class: 'lab-seg', role: 'presentation' });
+  const row = el('div', { class: 'lab-seg ls-chips', role: 'presentation' });
   for (const inp of LAB_INPUTS) {
     const id = labId(P, `in-${inp.k}`);
     const off = !labApplies(col.work, inp.k);
@@ -872,7 +922,7 @@ function labKnob(P, lab, col, inp) {
         (P.about ||= {})[k] = open;
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         row.classList.toggle('is-about', open);
-      } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), 'About',
+      } }, [el('span', { class: 'lab-about-i', 'aria-hidden': 'true', html: icon('info', 15) }), el('span', { class: 'lab-about-word' }, 'About'),
       el('span', { class: 'sr-only' }, ` ${inp.label()}`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
     hd.append(btn);
   }
@@ -889,7 +939,9 @@ function labKnob(P, lab, col, inp) {
      F5). Now the way back holds its place on the slider's line from the
      first drawing, out of sight and reach until a move (is-idle), and the
      what-if tag takes the evidence tag's place, the two drawn in one cell. */
-  const ctl = el('div', { class: 'lab-knob-ctl' });
+  /* The unit beside the box (data-unit): on a phone the chosen chip names
+     the knob, and its label is for the ear (styles.css, layout-system). */
+  const ctl = el('div', { class: 'lab-knob-ctl', 'data-unit': (inp.label().match(/\((RM|%)\)\s*$/) || [])[1] || null });
   row.append(ctl);
   const knob = { row, num, range: null, reset: null, whatIf: null, span: null, ev: null, ticks: null };
   if (!applies) {
@@ -1074,7 +1126,7 @@ function labWireRange(P, lab, range, k) {
 
 /* THE CHAIN: seven rows in the owner's order, and the grade. */
 function labChain(P, lab, col) {
-  const card = el('section', { class: 'card lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
+  const card = el('section', { class: 'card ls-section lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
   const bl = labBaseline(lab, col);
   card.append(el('div', { class: 'lab-chain-hd' }, [
     el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${col.name}`]),
@@ -1104,6 +1156,13 @@ function labChain(P, lab, col) {
     P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det };
     /* A row's formula is written while it is open, and when it opens. */
     det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
+    /* From 1440px, in the evidence drawer beside the figures instead
+       (labShowFormula): opened under its row, it moved every row below. */
+    sum.addEventListener('click', (e) => {
+      if (P.compact || !lsWide() || !P.els.how?.node.isConnected || det.open) return;
+      e.preventDefault();
+      labShowFormula(P, f.key);
+    });
   }
   card.append(list);
   if (labPaid(d)) {
@@ -1115,27 +1174,66 @@ function labChain(P, lab, col) {
     }
     P.els.chain.irrPct.sum.append(paid);
   }
-  const grade = el('div', { class: 'lab-grade', id: labId(P, 'grade') });
-  const letter = el('span', { class: 'lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
-  const verdict = el('span', { class: 'lab-grade-verdict' }, '');
-  const gate = el('p', { class: 'metaline lab-grade-gate' }, '');
-  /* WHY THE LETTER, A TAP AWAY (N3): every gate the grade has, worst first,
-     with who confirms each, and the score it is not. Written while open. */
-  const whyLetter = el('span', {}, '');
-  const why = el('details', { class: 'lab-grade-why', id: labId(P, 'grade-why') }, [
-    el('summary', { class: 'lab-grade-why-sum' }, ['Why ', whyLetter]),
-    el('div', { class: 'lab-grade-why-body' })]);
-  why.addEventListener('toggle', () => { if (why.open) labPaintPanel(P); });
-  grade.append(el('div', { class: 'lab-grade-hd' }, [el('span', { class: 'eyebrow' }, 'Underwriting grade'), letter, verdict]), gate, why);
+  /* THE GRADE, THE SYSTEM'S INSIGHT CARD: the finding (the verdict and the
+     most serious gate), its figure (the letter) and "See why →" into the
+     evidence, where every gate is (labEvidence). */
+  const letter = el('span', { class: 'ls-card-figure lab-grade-letter num', data: { lab: 'grade', labFmt: 'grade' }, 'data-value': '' }, '—');
+  const verdict = el('p', { class: 'ls-card-title lab-grade-verdict' }, '');
+  const gate = el('p', { class: 'ls-card-sub lab-grade-gate' }, '');
+  const seeWhy = lsCta('See why', { id: labId(P, 'see-why'), sr: ' — every gate behind the grade', onclick: () => lsOpenEvidence(P.els.grade?.why) });
+  const grade = lsInsightCard({ label: 'Underwriting grade', figure: letter, finding: verdict, sub: gate, cta: seeWhy, cls: 'lab-grade', attrs: { id: labId(P, 'grade') } });
+  seeWhy.setAttribute('aria-controls', labId(P, 'grade-why'));
   card.append(grade);
-  P.els.grade = { letter, verdict, gate, why, whyLetter, whyBody: why.lastChild };
-  /* What the figures rest on (§6.3), from the column's own inputs. */
+  P.els.grade = { letter, verdict, gate, seeWhy };
+  return card;
+}
+
+/* THE EVIDENCE (L3), the system's drawer (lsEvidence): why the letter —
+   every gate the grade has, worst first, with who confirms each, and the
+   score it is not; what the figures rest on (§6.3), from the column's own
+   inputs; and, from 1440px, how the figure a row names is worked out — a
+   row pressed there writes its formula here instead of opening under
+   itself, so nothing in the workspace moves. Written while open. */
+function labEvidence(P, lab) {
+  const why = lsEvidenceSection({ id: labId(P, 'grade-why'), cls: 'lab-grade-why', summary: ['Why ', (P.els.grade.whyLetter = el('span', {}, ''))],
+    body: el('div', { class: 'lab-grade-why-body' }) });
+  why.querySelector('summary').classList.add('lab-grade-why-sum');
+  why.addEventListener('toggle', () => { if (why.open) labPaintPanel(P); });
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
   const movedBy = el('p', { class: 'metaline lab-movedby', id: labId(P, 'movedby') }, '');
-  card.append(movedBy, ctx, rests);
+  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [movedBy, ctx, rests] });
+  const formula = el('p', { class: 'lab-formula', id: labId(P, 'ev-formula-text') }, '');
+  const fhead = el('p', { class: 'ls-ev-k', id: labId(P, 'ev-formula-k') }, '');
+  const how = lsEvidenceSection({ id: labId(P, 'ev-formula'), cls: 'ls-ev-wide', summary: 'How a figure is worked out', body: [fhead, formula] });
+  how.addEventListener('toggle', () => { if (how.open) labPaintPanel(P); });
+  P.els.grade.why = why;
+  P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
-  return card;
+  P.els.how = { node: how, head: fhead, formula };
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, how] });
+}
+/* From 1440px a row of the chain shows its formula in the drawer. */
+function labShowFormula(P, key) {
+  P.formulaKey = key;
+  for (const [k, ce] of Object.entries(P.els.chain)) ce.sum.classList.toggle('is-shown', k === key);
+  if (P.els.how) P.els.how.node.open = true;
+  labPaintPanel(P);
+  const f = LAB_FIGURES.find(x => x.key === key);
+  if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase()} is worked out, in the evidence beside the figures.`);
+}
+/* THE SYSTEM'S ALERT CARD: how many of the figures behind these results
+   are still the tool's, and where they are reviewed — the calculator's
+   review list (/property/calculator#review). Only for the calculator's own
+   deal, as the next step: another deal is not the one there. */
+function labAlert(P, lab) {
+  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+  const d = labSubjectInputs(lab);
+  const q = d && onCalc ? propertyReviewQueue(d) : [];
+  if (!q.length) return null;
+  return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
+    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''} — still the tool’s starting figures.`,
+    cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
    deal and unmoved: a plain link from any other column would open a
@@ -1154,11 +1252,11 @@ function labWhereEntered(lab, col, key) {
 /* THE COMPARISON. One table a panel, A, B, C in that order whatever is
    compared; the switch changes the form and the scale. */
 function labCompare(P, lab) {
-  const card = el('section', { class: 'card lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
+  const card = el('section', { class: 'card ls-section lab-cmp-card', 'aria-labelledby': labId(P, 'cmp-h') });
   card.append(el('h2', { class: 'h-card', id: labId(P, 'cmp-h') }, 'A, B and C side by side'));
   const fs = el('fieldset', { class: 'lab-pick lab-pick-by' });
   fs.append(el('legend', { class: 'lab-legend' }, 'Compare by'));
-  const seg = el('div', { class: 'lab-seg lab-seg-by', role: 'presentation' });
+  const seg = el('div', { class: 'lab-seg lab-seg-by ls-chips', role: 'presentation' });
   for (const mt of LAB_METRICS) {
     const id = labId(P, `by-${mt.id}`);
     const on = lab.metric === mt.id;
@@ -1410,7 +1508,7 @@ function labUpdateCompare(P, vm) {
 
 /* The columns: which saved figures each shows, a copy added, one removed. */
 function labColumnsCard(P, lab) {
-  const card = el('section', { class: 'card lab-cols-card', 'aria-labelledby': labId(P, 'cols-h') });
+  const card = el('section', { class: 'card ls-section lab-cols-card', 'aria-labelledby': labId(P, 'cols-h') });
   card.append(el('h2', { class: 'h-card', id: labId(P, 'cols-h') }, 'Columns'));
   const rec = lab.model ? pmFind(lab.model) : null;
   const offered = rec ? pmColumns(rec, State.deal, propertyStatus(State.deal)) : [];
@@ -1476,7 +1574,7 @@ function labClear(P, lab, c) {
 
 /* COMMITS — THE ONLY WRITES. Each says what it does to whose figures. */
 function labCommits(P, lab, col) {
-  const card = el('section', { class: 'card lab-commit', 'aria-labelledby': labId(P, 'commit-h'), id: labId(P, 'commit') });
+  const card = el('section', { class: 'card ls-section lab-commit', 'aria-labelledby': labId(P, 'commit-h'), id: labId(P, 'commit') });
   card.append(el('h2', { class: 'h-card', id: labId(P, 'commit-h') }, `Keep ${col.key}`));
   const rec = lab.model ? pmFind(lab.model) : null;
   const n = labMoveCount(col);
@@ -1774,6 +1872,13 @@ function labPaintPanel(P, { initial = false } = {}) {
        first draw — served whole, with no script to open them. */
     if (initial || ce.det.open) labText(ce.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
   }
+  /* The drawer's formula: the row last pressed from 1440px, else the
+     first — the same words its row writes (LAB_FIGURES). */
+  if (P.els.how && (initial || P.els.how.node.open)) {
+    const f = LAB_FIGURES.find(x => x.key === P.formulaKey) || LAB_FIGURES[0];
+    labText(P.els.how.head, f.label(d));
+    labText(P.els.how.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
+  }
   if (P.els.chain.irrPct?.paidBox && (initial || P.els.chain.irrPct.det.open)) {
     const box = P.els.chain.irrPct.paidBox;
     const words = !m ? '' : labPaid(d)
@@ -1876,6 +1981,7 @@ function labPaintPanel(P, { initial = false } = {}) {
     P.els.colsCard = cc; P.els.commitCard = cm; P.cardSig = sig;
     /* The identity line's Save offers what the commit card's does. */
     if (P.els.idAct?.isConnected) { const a = labIdentityAct(P, lab); P.els.idAct.replaceWith(a); P.els.idAct = a; }
+    if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
   /* The comparison: in place while its shape holds, drawn again when not. */
@@ -1952,7 +2058,8 @@ function labRefresh() {
    above the sliders says from the first drawing (labPaintPanel). */
 VIEWS.propertyLab = () => {
   labArrive();
-  const wrap = el('div', { class: 'lab-page' });
+  /* On the layout system (ls-page: 37-layout-system.js, styles.css). */
+  const wrap = el('div', { class: 'lab-page ls-page' });
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
