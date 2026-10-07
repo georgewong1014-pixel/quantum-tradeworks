@@ -3186,7 +3186,7 @@ for (const w of [360, 390]) {
       if (!onSum) fails.push(`/ ${w}px: Tab does not reach the strip's Details (${await ev('document.activeElement?.outerHTML.slice(0, 80)')})`);
       await key('Enter', 'Enter', 13);
       await sleep(250);
-      const open = await ev(`(() => { const d = document.getElementById('disclosure'); const b = d.querySelector('.disclosure-body'); const t = b && b.getClientRects().length ? b.innerText : ''; return { open: d.open, breakdown: /companies? carr|illustrative/.test(t), mode: /Research mode/.test(t), advice: /No advice · No recommendations/.test(t), ds: !!b.querySelector('a[href="/data-sources"]') && b.querySelector('a[href="/data-sources"]').getClientRects().length > 0 }; })()`);
+      const open = await ev(`(() => { const d = document.getElementById('disclosure'); if (!d) return { open: false, strip: 'no <details id="disclosure">' }; const b = d.querySelector('.disclosure-body'); const t = b && b.getClientRects().length ? b.innerText : ''; return { open: d.open, breakdown: /companies? carr|illustrative/.test(t), mode: /Research mode/.test(t), advice: /No advice · No recommendations/.test(t), ds: !!b && !!b.querySelector('a[href="/data-sources"]') && b.querySelector('a[href="/data-sources"]').getClientRects().length > 0 }; })()`);
       if (!open.open || !open.breakdown || !open.mode || !open.advice || !open.ds) fails.push(`/ ${w}px: Tab and Enter on Details show ${JSON.stringify(open)}`);
       /* 3.3: the keyboard's stops on the cards. */
       await load('/');
@@ -3224,6 +3224,7 @@ for (const w of [360, 390]) {
     await load('/');
     const moved = await ev(`(async () => {
       const r = document.querySelector('#pub-lab-price');
+      if (!r) return { before: [], after: [], none: 'no price knob on the Property card' };
       const read = () => [...document.querySelectorAll('[data-product="property"] .pub-lab-figs dd')].map(d => d.textContent);
       const before = read();
       r.value = String(Number(r.max)); r.dispatchEvent(new Event('input', { bubbles: true }));
