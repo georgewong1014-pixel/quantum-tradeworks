@@ -12295,6 +12295,13 @@ function toast(msg) {
      — is labelled where it shows, and the note says so.
    - Business Intelligence is not built. It is text with a badge, never a
      link or a button, and SHOW_UNBUILT keeps it out of the app sidebar. */
+/* THE QUALIFIER (the owner's decisions D5 and D17, 2026-10-05): a few words
+   that say, beside the status word and in sight, what the status rests on.
+   The homepage card shows each product's; Property's is shown wherever its
+   badge is (qualifyBadge: the header's menu and the phone sheet, the
+   sidebar, the footer, the tab row, How it works, the search), because
+   "Live" alone read as live market data. The full note stays the badge's
+   title and the link's description, and the card's ⓘ prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
@@ -12302,15 +12309,25 @@ const PRODUCTS = [
        homepage card, How it works and the dashboard checklist all read it
        from here, so the three say the same words. */
     question: 'How is this company performing financially?', action: 'Start research', actionPath: '/research',
-    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
+    status: 'beta', qualifier: 'Filed + illustrative data',
+    statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
+  /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
+     promised a watch this site never keeps — it ships no prices, and the
+     worker that records a match runs on the reader's own computer. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
-    status: 'beta', statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
+    status: 'beta', qualifier: 'Your own price data',
+    statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
+    /* The Scenario Lab, offered beside the main action on the homepage card
+       (D5(d)) — until the map ships, when the card's action becomes
+       "Explore Property". */
+    also: { label: 'Try the Scenario Lab', path: '/property/lab' },
+    status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
     task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
@@ -12331,20 +12348,25 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 /* The badge a product wears, with its note as the title. It is an element,
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
-/* THE HOOK FOR D17 (N2a, the 5 Oct audit; not built yet). Property's badge
-   is to read "Live · Your figures, sample to start" wherever it appears — the
-   tab row above /property's Scenario Lab, the header's Products menu, the
-   phone sheet, the footer, /how-it-works, /about, /status and the homepage
-   card. Here is the one place to draw it: a `qualifier` on the product's
-   PRODUCTS row, drawn by this function as visible text beside the badge's
-   word, never in its title. /property's identity line (82-property-lab.js)
-   carries no badge of its own, so nothing there changes when it lands. */
-function productBadge(id) {
+/* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
+   "Live · Your figures, sample to start" wherever it appears — the tab row
+   above /property's Scenario Lab, the header's Products menu, the phone
+   sheet, the sidebar, the footer, /how-it-works and the homepage card. The
+   qualifier is drawn here, as visible text beside the badge's word, never
+   in its title: the badge and its words in one wrapper (.pbadge, laid out
+   by its row: display: contents), so a row that reads the badge's word
+   still reads "Live", and the qualifier is one more child of the row.
+   `qualified` draws any product's qualifier (the homepage card's);
+   `id` names the qualifier, for a link that is described by it. */
+function productBadge(id, { qualified = false, qualId = null } = {}) {
   const p = productById(id);
   if (!p) return null;
   const b = el('span', { class: `status-badge status-${p.status}`, title: p.statusNote }, PRODUCT_STATUS[p.status] || p.status);
-  b.toString = () => b.outerHTML;
-  return b;
+  const q = p.qualifier && (qualified || p.qualifyBadge)
+    ? el('span', { class: 'pbadge', 'data-badge-of': p.id }, [b, el('span', { class: 'pbadge-q', id: qualId }, p.qualifier)])
+    : b;
+  q.toString = () => q.outerHTML;
+  return q;
 }
 /* THE NOTE, FOR EVERYONE. A badge's qualifying sentence was only its
    `title`: a mouse's tooltip, never reached by a keyboard, a finger or a
@@ -12999,8 +13021,33 @@ function companyFromSlug(s) {
   return hit ? hit.c.id : null;
 }
 
+/* THE POSITIONING, ONE SOURCE (plan item 3.5, 2026-10-07). The site said
+   what it is in five places, typed five times, and they had drifted into
+   four variants of one sentence: the hero's lede, the site root's
+   description (with its og: and twitter: copies), the footer's line and
+   the template's own head. Each is written from here: the hero reads the
+   lede; the router (setDocumentMeta, below) the description, which the
+   build writes into the head, the og: and the twitter: tags of / alike;
+   build.mjs the footer's tagline and line into every page it writes.
+   wording-check fails on a copy of any of them typed anywhere else, and
+   served-check on a variant of one served anywhere. The headline (the h1)
+   is the page's own and is held (the owner's decision, 7 Oct 2026). */
+const POSITIONING = {
+  title: 'Quantum Tradeworks — your financial decision workspace',
+  /* The footer's tagline. Not on the hero any more (D5): the hero is the
+     h1, the lede and one action. */
+  kicker: 'Research · Monitor · Model · Plan',
+  /* The hero's lede under the held h1 (D5): with it, 14 words. */
+  lede: 'Companies, market setups and property, in one workspace.',
+  /* The footer's line on every page. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next.',
+  /* The site root's description, og:description and twitter:description:
+     the one-liner and what the site will not do. */
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next. Research only — no recommendations.',
+};
+
 const ROUTES = [
-  { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — your financial decision workspace' },
+  { path: '/',                    view: 'marketing', title: POSITIONING.title },
   { path: '/app',                 view: 'home',      title: 'My Dashboard' },
   /* Release A: how each product works, with the examples that left the
      homepage (55-views-public.js); and the Equities research queue, which
@@ -13136,7 +13183,7 @@ const ROUTES = [
 ];
 
 const META = {
-  marketing: 'Your financial decision workspace: research companies, build your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
+  marketing: POSITIONING.description,
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
@@ -14042,6 +14089,22 @@ let shellBuilt = false;
 function buildShell() {
   if (shellBuilt) return;
   shellBuilt = true;
+  /* PAGE CONTENT FIRST (plan item 3.5). A page is served with what the
+     reader does not see yet after its <main> — the other chrome's header,
+     hidden, and on an app page the sidebar, which is fixed beside the page
+     and moves nothing there — so a fetch reads the page before its
+     navigation (build.mjs, servedChrome). Put back, in the template's order
+     before the strip, the moment the script runs: the reader's keyboard
+     meets the sidebar before the page, as it always has, and a move to the
+     other chrome finds its header where it belongs. */
+  const strip = document.querySelector('.disclosure');
+  const chromeOrder = [shellEl.pubbar, shellEl.pubScrim, shellEl.appbar, shellEl.sidebar, shellEl.navScrim].filter(Boolean);
+  for (const n of chromeOrder) {
+    if (!n.hasAttribute('data-served-away')) continue;
+    if (n.getAttribute('data-served-away') === 'hidden') n.hidden = false;
+    n.removeAttribute('data-served-away');
+  }
+  if (strip && !chromeOrder.every((n, i) => n.nextElementSibling === (chromeOrder[i + 1] || strip))) chromeOrder.forEach(n => strip.before(n));
   /* The public header: Products, How it works, Pricing, Resources — drawn
      in place of the served copy of the same markup (NAV_MARKUP). */
   if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());
@@ -16067,6 +16130,48 @@ function lsChipsInView(row) {
   if (!on || row.scrollWidth <= row.clientWidth + 1) return;
   const r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
   if (b.left < r.left || b.right > r.right) row.scrollLeft += (b.left + b.width / 2) - (r.left + r.width / 2);
+}
+
+/* ------------------------------------------------------------ kind badges */
+/* THE EIGHT KIND BADGES (plan item 3.7; the owner's decision D6, with N6's
+   eighth word). One word for what kind of figure a number is, the same
+   word wherever the figure is shown — the metric card's data badge, the
+   homepage's visuals, and, a round at a time, every figure on the site.
+   Each badge is its word and a shape (.kind-shape: a square, a triangle, a
+   diamond, a disc, a quotation mark, a ring, a dashed box, a cross), never
+   a colour alone; it keeps the figure's fine label ("verified
+   transaction", "assumed default") in its title; and it links to where the
+   eight are defined, /data-sources#kinds. Badges are added beside what a
+   page already says — the strip, the footer's paragraph, /data-sources and
+   "Not a valuation" are unchanged by them.
+   The words' meanings are KIND_BADGES' notes, read by /data-sources too. */
+const KIND_BADGES = {
+  filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed. Not adjusted.' },
+  derived:      { word: 'Derived',      note: 'Arithmetic on figures of another kind, and exactly as reliable as they are. No assumption is involved.' },
+  modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see and change. Other assumptions give another figure.' },
+  yours:        { word: 'Yours',        note: 'A figure you entered or imported, or evidence you recorded: a price, a close, a rent, a transaction you have seen.' },
+  quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, and not checked against a transaction.' },
+  illustrative: { word: 'Illustrative', note: 'A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal.' },
+  placeholder:  { word: 'Placeholder',  note: 'A stand-in the tool carries so the sum runs — not a quote, not checked against its source; replace it before relying on the total.' },
+  unavailable:  { word: 'Unavailable',  note: 'No figure is shown, and the reason is stated beside it. Nothing is imputed.' },
+};
+/* When more than one applies to a figure, the first in this order wins. */
+const KIND_ORDER = ['unavailable', 'illustrative', 'placeholder', 'quoted', 'yours', 'modelled', 'derived', 'filed'];
+const kindFirst = (kinds) => KIND_ORDER.find(k => kinds.includes(k)) || null;
+/* Each source's kinds, to exactly one badge (build --check holds every
+   PROVENANCE kind, every EVIDENCE id and every fee status to one). */
+const KIND_OF_PROVENANCE = { reported: 'filed', calculated: 'derived', modelled: 'modelled', market: 'yours', illustrative: 'illustrative', unavailable: 'unavailable' };
+const KIND_OF_EVIDENCE = { verified: 'yours', public: 'yours', user: 'yours', developer: 'quoted', estimated: 'derived', assumed: 'illustrative', illustrative_default: 'illustrative' };
+const KIND_OF_FEE = { verified: 'derived', unverified: 'placeholder', placeholder: 'placeholder', unknown: 'unavailable' };
+/* The badge. `fine`: the figure's own label, in the title before the
+   word's meaning. `link`: false where the badge stands inside a link of
+   its own, or on /data-sources itself. */
+function kindBadge(kind, { fine = null, link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const b = KIND_BADGES[k];
+  const kids = [el('span', { class: 'kind-shape', 'aria-hidden': 'true' }), b.word];
+  const attrs = { class: `kind-badge kind-${k}`, 'data-kind-badge': k, title: fine ? `${fine} — ${b.note}` : b.note };
+  return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', attrs, kids);
 }
 /* ==========================================================================
    VIEW — RESEARCH QUEUE (Equities Research)
@@ -25967,108 +26072,255 @@ const pubArrow = () => el('span', { class: 'pub-arrow', 'aria-hidden': 'true', h
 const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PRODUCT_ICON[id] || 'grid', 22) });
 const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true', html: pubSvg(name, 18) });
 
-/* One product as a card. The whole card is the link, named by its task and
-   its product and described by its blurb and status, so a screen reader hears
-   "Research a company, Equities Research" rather than every word on the card.
-   A product with no path (Business Intelligence) is text: a card that looks
-   like a way in and leads nowhere is the one thing the brief rules out. */
-function pubProductCard(p) {
-  const id = (k) => `pub-${p.id}-${k}`;
-  /* A GOAL, NOT A PLACE (audit 1, #3). The card said "Open Equities
-     Research" and opened the product's front page, where the reader then had
-     to find the thing they came to do. It now says the goal — "Start
-     research", "Create a setup", "Analyse a property", the product's one
-     action as PRODUCTS words it — and opens the page where that starts; the
-     dashboard's checklist and How it works say the same words. The card is
-     named by that action and its product ("Create a setup, Quantum
-     Scanner"), and described by its task, blurb and status. */
-  const open = !!(p.path && p.action && p.actionPath);
-  const card = open
-    ? pubLink(p.actionPath, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('go')} ${id('n')}`, 'aria-describedby': `${id('t')} ${id('b')} ${id('s')}` })
-    : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
-  const badge = pubBadge(p);
-  card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
-  if (open) card.append(el('span', { class: 'sr-only', id: id('s') }, productNote(p.id)));
-  card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
-  card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
-  card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
-  /* Not built: "Coming soon", as words — nothing to press — with why beside
-     it for a screen reader, as the badge's title gives it to a mouse. */
-  card.append(open
-    ? el('span', { class: 'pub-card-go' }, el('span', { id: id('go') }, p.action), pubArrow())
-    : el('p', { class: 'pub-card-note' }, [PRODUCT_STATUS[p.status] || PRODUCT_STATUS.soon, el('span', { class: 'sr-only' }, ` — ${p.statusNote || 'not built yet, nothing to open'}`)]));
-  return card;
-}
+/* ==========================================================================
+   THE HOMEPAGE, DECLUTTERED (plan Phase 3A and 3B; the owner's decisions D5,
+   D6, D17 and D22, 5 Oct 2026), on the layout system (37-layout-system.js).
+   It said everything in prose — 557 drawn words, no figure — and twice
+   said what the data is. Now: the held headline, a lede of eight words and
+   one action; three products, each a task, a qualifier with its ⓘ, and a
+   visual of what the product does, drawn from its own engine; Business as
+   one line of text; and an example path through the work, drawn, with no
+   figure, name or count in it. The strip above every page carries the one
+   disclosure line; every sentence that left is one action away — in an ⓘ,
+   the strip's Details, /how-it-works or /my/data.
+   THE BUDGETS (plan 3.6; build --check holds the served page to them):
+   the hero 15 words or fewer; a card 12 outside its figure and its action;
+   a figure 20 (numbers, dates and axis ticks not counted); main 110 outside
+   its figures; at least two data visuals; one disclosure line above the
+   footer — the strip.
+   What it reads: nothing the reader keeps, and no base currency — Apple's
+   figures are in its filing currency, the sample deal's in ringgit — so the
+   served page stands for every reader, wherever they are (the head's
+   script never hides it).
+   ========================================================================== */
 
-/* The research disclaimers the body used to repeat, as one line: the badge,
-   the sentence that matters, and where the whole account is. The footer's
-   legal paragraph and the disclosure strip above the page are unchanged. */
-function pubDisclosure() {
-  return el('p', { class: 'pub-disclose' }, [
-    pubStatusBadge('beta', 'This build is a beta preview.'),
-    el('span', {}, 'Company figures are either filed with the SEC or illustrative, every company is labelled with which, and no market prices are licensed.'),
-    pubLink('/data-sources', { class: 'pub-textlink' }, 'Data sources', pubArrow()),
+/* APPLE'S FILED REVENUE AND NET INCOME, from data/us.json, written into the
+   app by the build (homeFiled, build.mjs) so the page draws them in its
+   first draw, before the filings load, and served-check holds them to the
+   file the site serves. US$ billions, by fiscal year. */
+const HOME_FILED = {"id":"AAPL-SEC","tk":"AAPL","name":"Apple Inc.","path":"/company/aapl-apple-inc","ccy":"USD","cik":"0000320193","years":[2016,2017,2018,2019,2020,2021,2022,2023,2024,2025],"rev":[215.639,229.234,265.595,260.174,274.515,365.817,394.328,383.285,391.035,416.161],"ni":[45.687,48.351,59.531,55.256,57.411,94.68,99.803,96.995,93.736,112.01]};
+
+/* A product's qualifier and its ⓘ: the badge and its few words in sight,
+   and the full note one press away — a native <details>, so it opens with
+   no script, from the keyboard as from a finger — with where every label is
+   explained. The card's link is described by both (aria-describedby). */
+function pubQualifier(p, id) {
+  return el('div', { class: 'pub-card-qual' }, [
+    productBadge(p.id, { qualified: true, qualId: id('q') }),
+    el('details', { class: 'pub-info' }, [
+      el('summary', { class: 'pub-info-btn' }, [
+        el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }, 'i'),
+        el('span', { class: 'sr-only' }, `What ${PRODUCT_STATUS[p.status]} means for ${p.name}`),
+      ]),
+      el('p', { class: 'pub-info-body' }, [
+        el('span', { id: id('note') }, p.statusNote), ' ',
+        el('a', { href: '/how-it-works#hiw-status', class: 'pub-textlink' }, 'What the labels mean'),
+      ]),
+    ]),
   ]);
 }
 
-VIEWS.marketing = () => {
-  const wrap = el('div', { class: 'pub' });
-
-  /* -- 1. hero: what this is, and the one thing to do ------------------- */
-  const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
-  hero.append(el('p', { class: 'pub-kicker' }, 'Research', el('span', { class: 'pub-kicker-dot' }, ' · '), 'Monitor',
-    el('span', { class: 'pub-kicker-dot' }, ' · '), 'Model', el('span', { class: 'pub-kicker-dot' }, ' · '), 'Plan'));
-  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
-  /* True to what is built: three products work today and business planning
-     does not exist yet, so it is named as next rather than listed as done. */
-  hero.append(el('p', { class: 'pub-lede' },
-    'Research companies, build your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
-  hero.append(el('div', { class: 'pub-ctas' }, [
-    pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow()),
-    pubJump('products', { class: 'btn btn-ghost pub-btn' }, 'Explore products'),
+/* -------------------------------------------------------------- the visuals */
+/* EQUITIES: Apple's filed revenue and net income, a pair of columns a
+   fiscal year, in US$ whatever the reader's base currency; the Filed badge;
+   and the measure no filed company can carry here. Linked to Apple's page. */
+function pubVisEquities() {
+  const F = HOME_FILED;
+  const fig = el('figure', { class: 'pub-vis pub-vis-eq', 'aria-labelledby': 'pub-vis-eq-src' });
+  if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-cap', id: 'pub-vis-eq-src' }, kindBadge('unavailable'), ' Filed example not loaded')); return fig; }
+  const n = F.years.length, W = 300, H = 136, top = 16, base = 116, gap = 6;
+  const max = Math.max(...F.rev.filter(isNum), ...F.ni.filter(isNum));
+  const slot = W / n, bw = (slot - gap) / 2;
+  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
+  const marks = F.years.map((fy, i) => {
+    const x = i * slot + gap / 2;
+    return [
+      isNum(F.rev[i]) ? `<rect class="pub-col pub-col-rev" x="${x.toFixed(1)}" y="${y(F.rev[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.rev[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '',
+      isNum(F.ni[i]) ? `<rect class="pub-col pub-col-ni" x="${(x + bw).toFixed(1)}" y="${y(F.ni[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.ni[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="ni" data-v="${F.ni[i]}"/>` : '',
+    ].join('');
+  }).join('');
+  const last = n - 1;
+  const svg = `<svg class="pub-vis-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue and net income, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars. Revenue ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}; net income ${fmtCap(F.ni[0], 'USD')} to ${fmtCap(F.ni[last], 'USD')}.`)}">`
+    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${marks}`
+    + `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(1)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>`
+    + `<text class="pub-vis-tick" x="0" y="${H - 4}">FY${F.years[0]}</text><text class="pub-vis-tick" x="${W}" y="${H - 4}" text-anchor="end">FY${F.years[last]}</text></svg>`;
+  fig.append(el('a', { class: 'pub-vis-link', href: href(F.path), 'data-path': F.path, 'aria-label': `${F.name}’s filed statements` }, el('span', { class: 'pub-vis-plot', html: svg })));
+  fig.append(el('figcaption', { class: 'pub-vis-cap' }, [
+    el('p', { class: 'pub-vis-src', id: 'pub-vis-eq-src' }, [kindBadge('filed', { fine: `${F.name}, SEC 10-K` }), el('span', {}, `${F.name.replace(/ Inc\.?$/, '')} · SEC 10-K · US$`)]),
+    el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rev' }), 'Revenue', el('i', { class: 'pub-sw pub-sw-ni' }), 'Net income']),
+    el('p', { class: 'pub-vis-row' }, [el('span', { class: 'pub-vis-k' }, 'P/E'), kindBadge('unavailable', { fine: 'P/E needs a price' }), el('span', {}, 'no licensed price')]),
   ]));
+  return fig;
+}
+
+/* SCANNER: the rule the builder starts from, as its condition chips, read
+   from the builder's own blank (scanBlankCondition) and the engine's
+   labels; and where a match is recorded. No chart and no count: no price
+   ships with this site, so nothing here could match. */
+function pubVisScanner() {
+  const c = typeof scanBlankCondition === 'function' ? scanBlankCondition() : null;
+  /* Each side as the builder names it, short: the price, or the indicator
+     and its period ("EMA 50"). */
+  const side = (s) => {
+    const def = SCAN_INDICATORS[s?.indicator];
+    if (s?.indicator === 'price') return 'Price';
+    const n = def ? scanParams(s).params.n : null;
+    const w = def && isNum(n) ? `${def.label} ${n}` : scanSideLabel(s);
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  };
+  const chips = c ? [side(c.left), SCAN_OPERATORS[scanOpName(c.op)]?.label || c.op, side(c.right)] : [];
+  return el('figure', { class: 'pub-vis pub-vis-scan' }, [
+    el('p', { class: 'pub-vis-k pub-vis-k-top' }, 'Starting rule'),
+    el('p', { class: 'pub-rule', role: 'list', 'aria-label': 'The builder’s starting rule' }, chips.map((t, i) => el('span', { class: `pub-chip${i === 1 ? ' pub-chip-op' : ''}`, role: 'listitem' }, t))),
+    el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
+    el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
+      el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
+      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
+    ]),
+  ]);
+}
+
+/* PROPERTY: the Scenario Lab, compact, on the sample deal — its price knob
+   (the Lab's own span and step) and three of its figures (LAB_FIGURES: the
+   Lab's reading, wording and format), with where the month's rent goes.
+   The sample deal only, never the reader's own deal: the page reads nothing
+   the reader keeps, so it is the same page for every reader. Moving the
+   price redraws the figures in place. */
+const PUB_LAB_KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly'];
+function pubLabRun(price) {
+  const d = pmCopy(PROPERTY_DEFAULT_DEAL);
+  d.price = price;
+  return price > 0 ? { m: dealModel(d) } : null;
+}
+function pubVisProperty() {
+  const inp = LAB_INPUT_BY_K.price;
+  const at = num0(PROPERTY_DEFAULT_DEAL.price);
+  const [lo, hi] = inp.span(at);
+  const fig = el('figure', { class: 'pub-vis pub-vis-lab', 'aria-labelledby': 'pub-vis-lab-src' });
+  const val = el('output', { class: 'pub-lab-price num', for: 'pub-lab-price', id: 'pub-lab-price-v' }, inp.shown(at));
+  const range = el('input', { type: 'range', class: 'pub-lab-range', id: 'pub-lab-price', min: String(lo), max: String(hi), step: String(inp.step), value: String(at),
+    'aria-valuetext': inp.shown(at) });
+  const figs = el('dl', { class: 'pub-lab-figs' });
+  const bars = el('span', { class: 'pub-lab-bars' });
+  const paint = (price) => {
+    const run = pubLabRun(price);
+    const m = run?.m || {};
+    figs.replaceChildren(...PUB_LAB_KEYS.flatMap(k => {
+      const f = LAB_FIGURES.find(x => x.key === k);
+      const v = run ? f.read(m) : null;
+      return [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v))];
+    }));
+    /* Where the month's rent goes: the rent, against the repayment and the
+       rest of the month's costs (vacancy and running costs, the rent less
+       what is left of it before the loan). What is left over, or short, is
+       the monthly position above. */
+    const rent = isNum(m.grossAnnualRent) ? m.grossAnnualRent / 12 : null;
+    const rep = isNum(m.instalment) ? m.instalment : null;
+    const costs = isNum(m.noi) && isNum(rent) ? rent - m.noi / 12 : null;
+    const top = Math.max(rent || 0, (rep || 0) + (costs || 0)) || 1;
+    const w = (v) => (Math.max(0, v || 0) / top * 100).toFixed(2);
+    bars.innerHTML = `<svg class="pub-lab-svg" viewBox="0 0 100 22" preserveAspectRatio="none" role="img" aria-label="${esc(`A month: rent ${labMoney(rent)}; repayment ${labMoney(rep)} and other costs ${labMoney(costs)}.`)}">`
+      + `<rect class="pub-bar pub-bar-rent" x="0" y="0" width="${w(rent)}" height="9" rx="1" data-v="${isNum(rent) ? rent : ''}"/>`
+      + `<rect class="pub-bar pub-bar-rep" x="0" y="13" width="${w(rep)}" height="9" rx="1" data-v="${isNum(rep) ? rep : ''}"/>`
+      + `<rect class="pub-bar pub-bar-cost" x="${w(rep)}" y="13" width="${w(costs)}" height="9" rx="1" data-v="${isNum(costs) ? costs : ''}"/></svg>`;
+  };
+  let said = null;
+  range.addEventListener('input', () => {
+    const v = Number(range.value);
+    val.textContent = inp.shown(v);
+    range.setAttribute('aria-valuetext', inp.shown(v));
+    paint(v);
+    clearTimeout(said);
+    said = setTimeout(() => {
+      const t = [...figs.querySelectorAll('dt')].map((dt, i) => `${dt.textContent} ${figs.querySelectorAll('dd')[i].textContent}`).join(', ');
+      const live = document.getElementById('liveStatus');
+      if (live) live.textContent = `At ${inp.shown(v)}: ${t}.`;
+    }, 700);
+  });
+  paint(at);
+  fig.append(
+    el('div', { class: 'pub-lab-knob' }, [el('label', { class: 'pub-vis-k', for: 'pub-lab-price' }, 'Price'), val, range]),
+    figs,
+    el('div', { class: 'pub-lab-flow' }, [bars,
+      el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rent' }), 'Rent', el('i', { class: 'pub-sw pub-sw-rep' }), 'Repayment', el('i', { class: 'pub-sw pub-sw-cost' }), 'Costs'])]),
+    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-lab-src' }, [kindBadge('illustrative', { fine: 'The sample deal' }), el('span', {}, 'Sample deal — not a real listing')])),
+  );
+  return fig;
+}
+const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property: pubVisProperty };
+
+/* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
+   card's one action, an <h3> link stretched over the card — its qualifier
+   with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
+   the visual's own link and control, a badge, the Property card's second
+   action) is its own target: no link, button or <details> inside a link.
+   Business, which is not built, is not a card: one line of text below. */
+function pubProductCard(p) {
+  const id = (k) => `pub-${p.id}-${k}`;
+  const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
+  card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
+  card.append(el('h3', { class: 'pub-card-title', id: id('t') },
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')} ${id('q')} ${id('note')}` }, p.task, pubArrow())));
+  card.append(pubQualifier(p, id));
+  const vis = PUB_VISUALS[p.id];
+  if (vis) card.append(vis());
+  if (p.also) card.append(el('p', { class: 'pub-card-also' }, pubLink(p.also.path, { class: 'pub-textlink' }, p.also.label, pubArrow())));
+  return card;
+}
+
+VIEWS.marketing = () => {
+  const wrap = el('div', { class: 'pub pub-home' });
+
+  /* -- 1. the hero: the held headline, the lede, one action ---------------- */
+  const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
+  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
+  hero.append(el('p', { class: 'pub-lede' }, POSITIONING.lede));
+  hero.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
   wrap.append(hero);
 
-  /* -- 2. the four products --------------------------------------------- */
-  const products = el('section', { class: 'pub-section', id: 'products', 'aria-labelledby': 'pub-products-h' });
-  products.append(el('div', { class: 'pub-section-hd' }, el('h2', { class: 'pub-h2', id: 'pub-products-h' }, 'What would you like to do?')));
-  products.append(el('div', { class: 'pub-cards' }, PRODUCTS.map(pubProductCard)));
-  products.append(pubDisclosure());
+  /* -- 2. the products, in the menu's order --------------------------------
+     The question stays for the ear; to the eye the cards are the answer. */
+  const products = el('section', { class: 'pub-section pub-products', id: 'products', 'aria-labelledby': 'pub-products-h' });
+  products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
+  const built = PRODUCTS.filter(p => p.path && p.actionPath);
+  products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
+  for (const p of PRODUCTS.filter(x => !x.path)) {
+    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
+      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
+    ]));
+  }
   wrap.append(products);
 
-  /* -- 3. where the work lives ------------------------------------------
-     Said plainly, because it is the one thing a visitor would otherwise
-     assume wrongly: there is no account, so the workspace is this browser,
-     and the export is the only copy that goes anywhere else. */
-  const conn = el('section', { class: 'pub-section', 'aria-labelledby': 'pub-conn-h' });
-  const panel = el('div', { class: 'pub-connected' });
-  panel.append(el('div', { class: 'pub-connected-copy' }, [
-    el('h2', { class: 'pub-h2', id: 'pub-conn-h' }, 'Your research, connected.'),
-    el('p', { class: 'pub-body' },
-      'The companies you research, the watchlists you keep, your scanner setups and your property models are saved in one personal workspace — '
-      + 'so a company can go on a watchlist, a watchlist can be what a setup checks, and a match leads back to the company.'),
-    el('div', { class: 'pub-local' }, [
-      pubGlyph('browser'),
-      el('div', {}, [
-        el('p', { class: 'pub-local-t' }, 'It lives in this browser.'),
-        el('p', { class: 'pub-local-b' },
-          'There are no accounts and no copy on a server. The export on Your data is the copy that travels — to another browser, another device, or a backup.'),
-        pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export', pubArrow()),
-      ]),
-    ]),
+  /* -- 3. an example path through the work (plan 3.4, D22) ------------------
+     Two step diagrams — research and property — each step a link to where
+     it happens. Labelled an example; no figure, name or count. Saved work
+     lives in this browser, said once, with where to read more. */
+  const path = el('section', { class: 'pub-section pub-path', 'aria-labelledby': 'pub-path-h' });
+  path.append(el('div', { class: 'pub-path-hd' }, [
+    el('p', { class: 'pub-tag' }, 'Example path'),
+    el('h2', { class: 'pub-h2', id: 'pub-path-h' }, 'Your research, connected.'),
   ]));
-  const kinds = el('ul', { class: 'pub-kinds' });
-  /* Each kind in its product's icon and accent, as on the cards above. */
-  [[PRODUCT_ICON.equities, 'Companies', 'Valuation runs, comparisons and investment cases you save.', 'equities'],
-   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.', null],
-   [PRODUCT_ICON.scanner, 'Scanner setups', 'Your own rules, with every version of each kept.', 'scanner'],
-   [PRODUCT_ICON.property, 'Property models', 'Deals saved from the calculator, and the properties you record.', 'property'],
-  ].forEach(([g, t, b, acc]) => kinds.append(el('li', { class: `pub-kind${acc ? ` pub-acc-${acc}` : ''}` }, [
-    pubGlyph(g), el('div', {}, [el('h3', { class: 'pub-kind-t' }, t), el('p', { class: 'pub-kind-b' }, b)]),
-  ])));
-  panel.append(kinds);
-  conn.append(panel);
-  wrap.append(conn);
+  const steps = (label, rows) => el('div', { class: 'pub-route' }, [
+    el('h3', { class: 'pub-route-t', id: `pub-route-${label.toLowerCase()}` }, label),
+    el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph]) => el('li', { class: 'pub-step' },
+      pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-t' }, t)])))),
+  ]);
+  path.append(el('div', { class: 'pub-routes' }, [
+    steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
+      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
+    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
+      ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
+  ]));
+  path.append(el('div', { class: 'pub-path-ft' }, [
+    el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
+    el('details', { class: 'pub-info' }, [
+      el('summary', { class: 'pub-info-btn' }, [el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }, 'i'), el('span', { class: 'sr-only' }, 'Where saved work is kept')]),
+      el('p', { class: 'pub-info-body' }, ['There are no accounts and no copy on a server. ',
+        pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export'), ' is the copy that travels.']),
+    ]),
+    el('a', { class: 'pub-textlink pub-path-more', href: '/how-it-works#hiw-journey' }, 'How it connects', pubArrow()),
+  ]));
+  wrap.append(path);
 
   const wl = waitlistCard();
   if (wl) wrap.append(wl);
@@ -27685,7 +27937,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['No accounts',
       'There is no sign-in and no account, so there is nothing to register, close or cancel.'],
     ['Pricing: not on sale',
-      [tp('The plans on the ', tlink('pricing page', '/pricing'), ' are proposed prices, shown so you can see what is planned. Nothing can be bought: there is no checkout and no payment provider, nothing is charged or renewed, and so there is no refund policy yet. A plan’s button previews its features in this browser only.'),
+      [tp('The plans on the ', tlink('pricing page', '/pricing'), ' are proposed prices, not on sale yet, shown so you can see what is planned. Nothing can be bought: there is no checkout and no payment provider, nothing is charged or renewed, and so there is no refund policy yet. A plan’s button previews its features in this browser only.'),
        'If sales ever open, terms of sale and a refund policy will be published here before anything can be bought.']],
     ['Changes',
       'These terms change with the build they describe. This draft was written on 29 September 2026.'],
@@ -29764,6 +30016,21 @@ function learnData() {
   lg.append(legendTable(['Absence', 'Meaning'], Object.entries(ABSENCE).map(([k, a]) => [el('span', { class: 'chip chip-bronze' }, `Unavailable — ${k}`), a.legend])));
   lg.append(el('p', { class: 'metaline' }, 'Every empty cell on the screener prints the short form of its reason and opens the drawer that names the line, the flag or the price behind it.'));
   wrap.append(lg);
+
+  /* THE BADGE WORDS (plan item 3.7; D6). Every kind badge links here: the
+     eight words, each with its shape, and what it means — KIND_BADGES'
+     own notes, so a badge's title and this list cannot word one twice. */
+  const kinds = el('section', { class: 'card kinds-card', id: 'kinds', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'kinds-h' });
+  kinds.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'kinds-h' }, 'The badge words'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'A figure’s badge is one of eight words, each with its own shape. Where two apply, the first in this list wins.'),
+  ])));
+  kinds.append(el('dl', { class: 'kinds-list' }, KIND_ORDER.flatMap(k => [
+    el('dt', {}, kindBadge(k, { link: false })),
+    el('dd', {}, KIND_BADGES[k].note),
+  ])));
+  kinds.append(el('p', { class: 'metaline' }, 'The kinds in the table above read as badges this way: reported as Filed, calculated as Derived, market as Yours.'));
+  wrap.append(kinds);
 
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
@@ -52705,13 +52972,47 @@ VIEWS.boundaries = () => {
     'So the boundary is built into the product rather than applied to it afterwards. There are no ratings to suppress, no target prices to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
   wrap.append(legal);
 
+  wrap.append(notMonetisedCard());
+
   const back = el('div', { class: 'card' });
-  back.append(cardHead('Prices', 'What the product costs, on its own page.'));
+  back.append(cardHead('Prices', 'What the product would cost, on its own page — proposed, and not on sale yet.'));
   back.append(el('a', { class: 'btn btn-primary', href: href('/pricing'),
     onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/pricing'); } }, 'See plans and prices'));
   wrap.append(back);
   return wrap;
 };
+
+/* WHAT IS DELIBERATELY NOT MONETISED. It stood on /pricing as a card of its
+   own; since N8 (D21) the pricing page links here for it, beside the
+   boundary it belongs with. Unchanged. */
+function notMonetisedCard() {
+  const mp = el('div', { class: 'card' });
+  mp.append(cardHead('What is deliberately not monetised',
+    'Revenue that would compromise the research is not taken, at any price. This list is a product constraint, not a phase.'));
+  const g2 = el('div', { class: 'grid g-2' });
+  const never = el('div');
+  never.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Never'));
+  const nl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+  ['Sponsored or paid placement in any score, ranking or valuation',
+   'Developer-paid property recommendations',
+   'Advertising inside a valuation or a research report',
+   'Copy trading or automated buy-now signals',
+   'Selling user portfolio data, or publishing crowd positioning as a signal'].forEach(x =>
+    nl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
+  never.append(nl); g2.append(never);
+  const later = el('div');
+  later.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Possible later, with disclosure and after legal review'));
+  const ll2 = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+  ['Mortgage eligibility introductions', 'Licensed broker introductions',
+   'Valuer and inspection bookings', 'Team and investment-club accounts',
+   'White-label reports and education partnerships'].forEach(x =>
+    ll2.append(el('li', { class: 'evidence', style: 'font-size:13px' }, x)));
+  later.append(ll2); g2.append(later);
+  mp.append(g2);
+  mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'Compensation of any kind must never influence a score, a valuation or a ranking. Where an introduction earns a fee, the fee is disclosed at the point of the introduction — not in a terms page.'));
+  return mp;
+}
 
 function scopeCard() {
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
@@ -52758,140 +53059,109 @@ function scopeCard() {
   return card;
 }
 
+/* PRICING AS THREE CONCEPT CARDS AND ONE CLOSED "COMPARE DETAILS" (N8, the
+   5 Oct audit; the owner's decision D21 — presentation only: every price,
+   plan, limit and line is the registry's as it was, PLANS and
+   PROPERTY_REPORT_PRICE, 05-plans.js). The page was 1,002 visible words:
+   three cards of fourteen rows each and a button apiece, the coverage line
+   twice, the per-report table and two cards of policy. Now, before the
+   cards and unchanged: the heading, "Nothing on this page can be bought."
+   and "No payment is processed anywhere in this build". Then three cards —
+   a name, a price, "Not on sale" or "Nothing to buy" and one line, with no
+   button and no link in any of them — and one <details>, closed, that
+   holds the comparison (one table in place of three lists), All-Access
+   marked not launched, the per-report table with its RM89 line as it
+   reads today, the coverage and price-data lines once each, and the
+   preview controls. Pricing stays in the header. */
+let plansCompareOpen = false;
+const PLAN_CARDS = [
+  { id: 'free', name: () => PLANS.free.name, price: 'RM0', per: null, mark: 'Nothing to buy',
+    line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.' },
+  { id: 'pro', name: () => PLANS.pro.name, price: `RM${PLANS.pro.priceMo}`, per: '/month, proposed', mark: 'Not on sale',
+    line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.' },
+  { id: 'report', name: () => 'Property reports', price: `from RM${PROPERTY_REPORT_PRICE.basic}`, per: 'per report, proposed', mark: 'Not on sale',
+    line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.' },
+];
 VIEWS.plans = () => {
-  const wrap = el('div');
-  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026). The owner's
-     decision: the page stays in the header, and says plainly that the plans
-     are proposals — nothing can be bought, no payment provider exists, and
-     no refund policy is needed because nothing is charged. The heading was
-     "A research subscription, and a report fee for property", which reads as
-     an offer; the rationale for the two shapes of price follows the facts
-     rather than standing in for them. */
+  const wrap = el('div', { class: 'plans-page' });
+  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026), word for word. */
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Plans'),
     el('h1', {}, 'Proposed plans — not on sale yet'),
-    /* plan-lede: shown whole on a phone, where a page's standfirst is
-       clamped to two lines — here it is the answer, not preamble. */
     el('p', { class: 'body-lg plan-lede', style: 'margin-top:8px' },
       'Nothing on this page can be bought. These are the prices proposed for a launch, shown so you can see what is planned and what each plan would include. There is no checkout and no payment provider, nothing is charged, and so there is no refund policy yet — there is nothing to refund.'),
-    el('p', { class: 'body', style: 'margin-top:8px' },
-      'Equity research is proposed as a subscription because it is used every week. Property research is episodic — most people buy a home every several years, not every month — so it is proposed as a fee per report.'),
   ])));
-  /* The scope card used to open this page: two columns of what the product
-     deliberately will not do, before a reader had seen a single price. It is
-     the most important thing about the product and the wrong thing to lead a
-     pricing page with — someone who came to find out what it costs had to read
-     an argument first. It lives at /learn/product-boundaries in full now, and
-     what remains here is one line, below the plans rather than above them. */
-
-  const bar = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
-  bar.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
+  wrap.append(el('div', { class: 'plan-nopay' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
-    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' },
-      'No payment is processed anywhere in this build: no checkout, no card capture, no trial clock, no renewal. The button on each card previews that plan’s features in this browser only, so both sides of the free-to-paid boundary can be inspected. The choice is kept in this browser and changes nothing anywhere else.'),
+    el('p', { class: 'body' }, 'No payment is processed anywhere in this build: no checkout, no card capture, no trial clock, no renewal.'),
   ]));
-  wrap.append(bar);
 
-  /* Equal-height cards, each a column with its action at the foot, so the
-     three actions sit on one line; they stood at three heights. */
-  const grid = el('div', { class: 'grid g-3 plan-grid' });
-  Object.values(PLANS).forEach(pl => {
-    const active = State.plan === pl.id;
-    /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS.
-       All-Access carries launched:false, and the registry's own note says a
-       tier nobody can obtain must not appear purchasable — yet its card was
-       built exactly like the others: "Phase 2", RM79 a month in the price's
-       type, and a primary "Switch to All-Access" button. The switch is what
-       every card's button is, a local change of entitlements, and it still
-       is; what changes is what the card says.
-       Since the launch audit no paid tier is on sale, so what was true of
-       All-Access is true of Equities Research as well: "Switch to Equities
-       Research" was a filled primary button beside RM29 a month, the
-       page's one call to action, and it read as the way to pay. Every paid
-       card now carries the Not on sale chip, its price says it is proposed,
-       and its button — outlined, never the page's primary action — says it
-       previews the plan in this browser, which is all it does. Free is what
-       every visitor has; its button only returns to it. */
-    const paid = !!pl.priceMo;
-    const launched = pl.launched !== false;
-    const card = el('div', { class: 'card plan-card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
-    card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
-      el('h3', { class: 'h-card' }, pl.name),
-      active ? el('span', { class: 'chip chip-brand' }, paid ? 'Previewing' : 'Current') : null,
-      paid ? el('span', { class: 'chip chip-bronze' }, 'Not on sale') : null,
-    ]));
-    card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, pl.tagline));
-    card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
-      el('span', { class: paid ? 'plan-price plan-price-proposed' : 'plan-price' }, paid ? `RM${pl.priceMo}` : 'RM0'),
-      el('span', { class: 'metaline' }, !paid ? 'no charge' : launched ? '/month, proposed' : '/month, proposed — it cannot be bought'),
-    ]));
-    if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
-      `Proposed at RM${pl.priceYr} a year${pl.founding ? `, with a founding price of RM${pl.founding} for the first year for the first ${pl.foundingSeats} members` : ''}.`));
-    card.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, pl.blurb));
-    /* The size of what is being sold, taken from the universe on screen rather
-       than written into the copy, so it cannot be left behind when the universe
-       changes. */
-    if (pl.limits?.reportsPerMonth === Infinity) card.append(el('p', { class: 'metaline', style: 'margin:-8px 0 var(--md)' },
-      coverageSentence('market') + ' It is not a complete listing of either market.'));
+  /* The three concepts. Equity research is proposed as a subscription, used
+     every week; property research is episodic, so it is proposed per report.
+     The plan previewed in this browser says so on its card. */
+  wrap.append(el('div', { class: 'plan-concepts', role: 'list' }, PLAN_CARDS.map(pc => {
+    const on = pc.id !== 'report' && State.plan === pc.id;
+    return el('article', { class: `card plan-card plan-concept plan-${pc.id}`, role: 'listitem', 'aria-labelledby': `plan-${pc.id}-h` }, [
+      el('div', { class: 'plan-concept-hd' }, [
+        el('h3', { class: 'h-card', id: `plan-${pc.id}-h` }, pc.name()),
+        el('span', { class: `chip ${pc.id === 'free' ? '' : 'chip-bronze'}` }, pc.mark),
+      ]),
+      el('p', { class: 'plan-concept-price' }, [el('span', { class: pc.id === 'free' ? 'plan-price' : 'plan-price plan-price-proposed' }, pc.price),
+        pc.per ? el('span', { class: 'metaline' }, ` ${pc.per}`) : null]),
+      el('p', { class: 'plan-concept-line' }, pc.line),
+      on ? el('p', { class: 'plan-concept-on' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 14) }), pc.id === 'free' ? 'Current' : 'Previewing']) : null,
+    ]);
+  })));
 
-    const rows = [
-      ['Company reports', pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
-      ['Watchlists', `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
-      ['Portfolios', `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
-      ['Compare', `${pl.limits.compare} companies`],
-      /* Two of the plan's limits are recorded here and applied nowhere: every
-         plan can filter on every screener metric and sees the fact-change
-         alert feed. The card read "8 of 28" and "No" on Free, which sold a
-         boundary the build does not draw — and "28" was typed in by hand while
-         the screener carried 34. The count now comes from FIELDS, and a limit
-         that is not applied says so rather than being printed as a feature. */
-      ['Screener metrics', pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}`
-        : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
-      ['Peer-percentile screening', pl.limits.percentileMode ? 'Yes' : 'No'],
-      ['Editable valuation assumptions', pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
-      ['Fundamental alerts', pl.limits.fundamentalAlerts ? 'Yes'
-        : 'Shown — this plan excludes them, but that is not applied in this build'],
-      ['Price alerts', `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
-      ['Exports', pl.limits.exports ? 'Yes' : 'No'],
-      ['Property calculator', pl.limits.propertyCalculator ? 'Included' : 'No'],
-      ['Property reports', pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
-      ['Cross-asset net worth', pl.limits.crossAsset ? 'Yes' : 'No'],
-      /* No market-data licence has been signed for either exchange, so no plan
-         can deliver price data at any latency. Listing a delay tier here sold a
-         difference between plans that does not exist in the build. The tier is
-         still recorded on the plan so the row can state what it would become. */
-      ['Price data', 'Not available on any plan — no market-data licence is in place. '
-        + (pl.limits.priceDelayMin ? `Licensed, this plan would carry a ${pl.limits.priceDelayMin}-minute delay.`
-                                   : 'Licensed, this plan would carry real time where the exchange permits it.')],
-    ];
-    const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-    rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
-    card.append(dl);
-    if (paid) card.append(el('p', { class: 'metaline', style: 'margin:-4px 0 var(--md)' }, launched
-      ? `${pl.name} is not on sale yet. The preview turns on its features here so they can be inspected; nothing is charged.`
-      : `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the preview on every card does, so the view it adds can be inspected.`));
-    /* The plan in force is a state, said as one — a marked line with a tick —
-       not a disabled button at 45% opacity, which in the dark theme was
-       barely there. The others are full-height buttons (.btn, not .btn-sm):
-       a 30px "Switch to…" was outweighed by the header's 40px action. */
-    card.append(active
-      ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }),
-          paid ? 'Previewing in this browser' : 'Current plan'])
-      : el('button', { class: 'plan-cta btn btn-ghost', onclick: () => setPlan(pl.id) },
-          paid ? `Preview ${pl.name} in this browser` : `Return to ${pl.name} in this browser`));
-    grid.append(card);
-  });
-  wrap.append(grid);
+  /* Compare details: closed, and kept as the reader left it across a
+     redraw (a preview redraws the page). */
+  const det = el('details', { class: 'plan-compare', id: 'plan-compare', open: plansCompareOpen ? '' : null,
+    ontoggle: (e) => { plansCompareOpen = e.currentTarget.open; } });
+  det.append(el('summary', { class: 'plan-compare-sum' }, [el('span', { class: 'plan-compare-t' }, 'Compare details'), el('span', { class: 'plan-compare-chev', 'aria-hidden': 'true' })]));
+  const body = el('div', { class: 'plan-compare-body' });
+  body.append(el('p', { class: 'caption' }, 'Equity research is proposed as a subscription because it is used every week. Property research is episodic — most people buy a home every several years, not every month — so it is proposed as a fee per report.'));
+  const PL = Object.values(PLANS);
+  const head = (pl) => {
+    const paid = !!pl.priceMo, launched = pl.launched !== false;
+    return el('th', { scope: 'col' }, [el('span', { class: 'plan-col-name' }, pl.name),
+      el('span', { class: 'plan-col-price' }, paid ? `RM${pl.priceMo}/month, proposed${launched ? '' : ' — not launched'}` : 'RM0'),
+      paid && pl.priceYr ? el('span', { class: 'plan-col-yr' }, `RM${pl.priceYr} a year${pl.founding ? `; RM${pl.founding} founding, first ${pl.foundingSeats}` : ''}`) : null]);
+  };
+  const rows = [
+    ['Company reports', pl => pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
+    ['Watchlists', pl => `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
+    ['Portfolios', pl => `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
+    ['Compare', pl => `${pl.limits.compare} companies`],
+    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
+    ['Peer-percentile screening', pl => pl.limits.percentileMode ? 'Yes' : 'No'],
+    ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
+    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown — this plan excludes them, but that is not applied in this build'],
+    ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
+    ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
+    ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
+    ['Property reports', pl => pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
+    ['Cross-asset net worth', pl => pl.limits.crossAsset ? 'Yes' : 'No'],
+    /* No plan can deliver price data at any latency: the tier each would
+       carry is said once, in its cell. */
+    ['Price data, if licensed', pl => pl.limits.priceDelayMin ? `${pl.limits.priceDelayMin}-minute delay` : 'Real time where the exchange permits it'],
+  ];
+  const tw = el('div', { class: 'tablewrap' });
+  const t = el('table', { class: 'dt plan-table' });
+  t.append(el('caption', { class: 'sr-only' }, 'What each proposed plan would include'));
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL.map(head)])));
+  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
+  tw.append(t);
+  body.append(tw);
+  /* Said once each: the size of the universe, from the universe on screen,
+     and that no price is licensed on any plan. */
+  body.append(el('p', { class: 'metaline plan-coverage' }, `${coverageSentence('market')} It is not a complete listing of either market.`));
+  body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
+  body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* property report pricing */
-  const pr = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  pr.append(cardHead('Property Deal Check — proposed prices per report',
-    'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
+  /* The per-report prices, the RM89 line as it reads today (D11(d)). */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property Deal Check — proposed prices per report'));
+  body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
-  /* "What it adds" is prose, left-aligned in its cells, so its heading is
-     too — it sat right-aligned over them. Below 600px the rows stack (name
-     and price, then what it adds): the table ran 336px in a 308px scroller
-     and cut the description to a 100px column. */
   const pt = el('table', { class: 'dt dt-stack' });
   pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
@@ -52900,47 +53170,28 @@ VIEWS.plans = () => {
     ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', style: i === 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
-  ptw.append(pt); pr.append(ptw);
-  wrap.append(pr);
+  ptw.append(pt);
+  body.append(ptw);
 
-  /* what is deliberately not monetised */
-  const mp = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  /* One line where the argument used to be, with the argument a click away. */
-  /* Spaced from the report card above it, as every card on the page is:
-     the two touched with no gap. */
-  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand);margin-top:var(--md)' });
-  boundaryLine.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'What the proposed plans would charge for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
-  boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),
-    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/learn/product-boundaries'); } },
-    'What this product will not do, and why'));
-  wrap.append(boundaryLine);
+  /* The preview, in this browser only: each paid plan's features turned on
+     here so both sides of the boundary can be inspected; nothing charged. */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Preview a plan in this browser'));
+  body.append(el('p', { class: 'caption' }, 'A preview turns a plan’s features on in this browser only, so both sides of the free-to-paid boundary can be inspected. The choice is kept in this browser and changes nothing anywhere else.'));
+  body.append(el('div', { class: 'plan-previews' }, PL.map(pl => {
+    const paid = !!pl.priceMo;
+    return State.plan === pl.id
+      ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }), paid ? `Previewing ${pl.name} in this browser` : `${pl.name}: current plan`])
+      : el('button', { type: 'button', class: 'plan-cta btn btn-ghost', onclick: () => setPlan(pl.id) },
+          paid ? `Preview ${pl.name} in this browser — nothing is charged` : `Return to ${pl.name} in this browser — nothing is charged`);
+  })));
+  det.append(body);
+  wrap.append(det);
 
-  mp.append(cardHead('What is deliberately not monetised',
-    'Revenue that would compromise the research is not taken, at any price. This list is a product constraint, not a phase.'));
-  const g2 = el('div', { class: 'grid g-2' });
-  const never = el('div');
-  never.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Never'));
-  const nl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Sponsored or paid placement in any score, ranking or valuation',
-   'Developer-paid property recommendations',
-   'Advertising inside a valuation or a research report',
-   'Copy trading or automated buy-now signals',
-   'Selling user portfolio data, or publishing crowd positioning as a signal'].forEach(x =>
-    nl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
-  never.append(nl); g2.append(never);
-  const later = el('div');
-  later.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Possible later, with disclosure and after legal review'));
-  const ll2 = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Mortgage eligibility introductions', 'Licensed broker introductions',
-   'Valuer and inspection bookings', 'Team and investment-club accounts',
-   'White-label reports and education partnerships'].forEach(x =>
-    ll2.append(el('li', { class: 'evidence', style: 'font-size:13px' }, x)));
-  later.append(ll2); g2.append(later);
-  mp.append(g2);
-  mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Compensation of any kind must never influence a score, a valuation or a ranking. Where an introduction earns a fee, the fee is disclosed at the point of the introduction — not in a terms page.'));
-  wrap.append(mp);
+  /* What is deliberately not monetised, and why: one link. */
+  wrap.append(el('p', { class: 'plan-boundary' }, [
+    'What would never be charged for, or sold: ',
+    el('a', { href: href('/learn/product-boundaries'), 'data-path': '/learn/product-boundaries', class: 'plan-boundary-a' }, 'what this product will not do, and why'), '.',
+  ]));
   return wrap;
 };
 
@@ -54633,60 +54884,60 @@ const refreshSearchLabel = () => {
    about provenance is the worst kind. It now counts what is actually loaded and
    says which of the two a reader is looking at. */
 const refreshDisclosure = () => {
-  const node = $('#disclosureText');
+  /* THE STRIP, IN THREE PLACES (plan item 3.1). The summary's sentence is
+     the same on every page and in every state, word for word — "Beta
+     preview. Do not use figures here for investment decisions." — so it is
+     written here only to keep it so. The facts after it say what the
+     figures are: SEC-filed and illustrative while the filings are part of
+     the build, illustrative only when they did not load or are switched
+     off — never "SEC-filed" over a page that holds none. The breakdown,
+     inside Details, says how many of each, or what failed. */
+  const node = $('#disclosureText'), facts = $('#disclosureFacts'), body = $('#disclosureBreakdown');
   if (!node) return;
+  const SENTENCE = '<strong>Beta preview.</strong> Do not use figures here for investment decisions.';
+  if (node.innerHTML !== SENTENCE) node.innerHTML = SENTENCE;
+  const say = (f, b) => {
+    if (facts && facts.textContent !== f) facts.textContent = f;
+    if (body && b != null && body.textContent !== b) body.textContent = b;
+  };
+  const MIXED = '· SEC-filed and illustrative data, labelled · No licensed prices';
+  const ILLUS = '· Illustrative data only, labelled · No licensed prices';
   const real = U.filter(r => r.c.real).length;
-  const sample = U.length - real;
-  const priced = U.filter(r => r.c.real && isNum(r.c.px?.p)).length;
   /* A failed fetch used to fall through to the static wording, which describes a
      sample-only build without saying that this one was meant to be more. The
      reader then saw 36 illustrative companies presented as the whole product,
      permanently, with nothing indicating a load had failed. */
   if (!real && realStatus && realStatus.ok === false) {
-    node.innerHTML =
-      `<strong>Beta preview — filings did not load.</strong> Do not use figures here for investment decisions.`
-      + `<span class="disclosure-long"> The audited SEC statements this build normally carries could not be fetched`
-      + `, so only the ${U.length} illustrative companies are loaded and every figure on the site is synthetic.`
-      + ` Reload to try again.</span>`;
+    say(ILLUS, `The filings did not load. The audited SEC statements this build normally carries could not be fetched, so only the ${U.length} illustrative companies are loaded and every company figure on the site is synthetic. Reload to try again.`);
     return;
   }
   /* With the filings switched off (?real=0, or the dashboard's "Load SEC-filed
-     companies" unticked) every company loaded is synthetic. The static wording
-     — "some companies carry illustrative figures" — is written for a build
-     that also carries filings, and understated this one. */
+     companies" unticked) every company loaded is synthetic. */
   if (!real && !realEnabled()) {
-    node.innerHTML =
-      `<strong>Beta preview — illustrative figures only.</strong> Do not use figures here for investment decisions.`
-      + `<span class="disclosure-long"> Audited filings are switched off, so every one of the ${U.length} companies here`
-      + ` carries illustrative figures that are synthetic and do not represent real financials.`
-      + ` Add ?real=1 to the address to load the filings.</span>`;
+    say(ILLUS, `Audited filings are switched off, so every one of the ${U.length} companies here carries illustrative figures that are synthetic and do not represent real financials. Add ?real=1 to the address to load the filings.`);
     return;
   }
-  if (!real) return;                       /* the static wording is correct */
+  /* In flight, or none loaded yet: the facts are the build's, as served. */
+  if (!real) { say(MIXED, null); return; }
   /* Counted by the manifest, not here. This banner sits on every page, so a
      count of its own would be the one most likely to disagree with the rest. */
   const k = coverage();
-  /* The banner sits on every page, so while the audited set is in flight it is
-     the single largest source of wrong counts on the site — five of them, on
-     whatever route the reader happened to open. The warning itself does not
-     depend on the counts, so it is stated in full and the arithmetic waits. */
+  /* While the audited set is in flight the arithmetic waits: the strip sits
+     on every page, and a count written early is a wrong count on whatever
+     route the reader opened. The warning does not depend on it. */
   if (!k.resolved) {
-    node.innerHTML =
-      `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
-      `<span class="disclosure-long"> ${COVERAGE_PENDING} — this build mixes audited SEC filings with illustrative figures, `
-      + `and the exact split is stated here once the audited set has loaded. Every company page states which it is.</span>`;
+    say(MIXED, `${COVERAGE_PENDING} — this build mixes audited SEC filings with illustrative figures, and the exact split is stated here once the audited set has loaded. Every company page states which it is.`);
     return;
   }
-  node.innerHTML =
-    `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
-    `<span class="disclosure-long"> ${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
+  say(MIXED,
+    `${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
     (k.filedUnpriced ? `, of which ${k.filedUnpriced} ${k.filedUnpriced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
     /* The personal-research lane (?personal=1) is stated on its own: those are
-       Bursa statements from the reader's own file, not SEC filings. */
+       Bursa statements from the reader's own file, not SEC filings, not licensed. */
     (k.personal ? `. ${k.personal} ${k.personal === 1 ? 'carries' : 'carry'} Bursa statements from your personal-research file — not SEC filings, not licensed, and not for redistribution` : '') +
     `. ${k.illustrative} ${k.illustrative === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic` +
     (k.usIllustrative ? `, and ${k.usIllustrative === 1 ? 'one of those is a US listing' : `${k.usIllustrative} of those are US listings`} rather than Bursa` : '') +
-    `. Every company page states which it is.</span>`;
+    '. Every company page states which it is.');
 };
 
 /* Real data loads asynchronously and changes the size of the universe. The
@@ -54736,13 +54987,17 @@ refreshSearchLabel();
    once here; with them on it waits for the load, as above. */
 if (!realEnabled()) refreshDisclosure();
 
-$('#disclosureMore')?.addEventListener('click', (e) => {
-  const open = document.body.dataset.disclosure === 'open';
-  if (open) delete document.body.dataset.disclosure;
-  else document.body.dataset.disclosure = 'open';
-  e.currentTarget.setAttribute('aria-expanded', String(!open));
-  e.currentTarget.textContent = open ? 'Which sources?' : 'Hide sources';
-});
+/* THE STRIP OPENS FOR PRINT (plan item 3.1): a printed page carries the
+   whole disclosure, the source breakdown and Research mode with it, and
+   is closed again after, as the reader left it. The stylesheet opens it
+   too where the browser can (::details-content), for a print with no
+   script. */
+{
+  const strip = document.getElementById('disclosure');
+  let wasOpen = null;
+  addEventListener('beforeprint', () => { if (strip) { wasOpen = strip.open; strip.open = true; } });
+  addEventListener('afterprint', () => { if (strip && wasOpen === false) strip.open = false; wasOpen = null; });
+}
 /* No render() here: the router paints, and painting twice showed the previous
    view for a frame before the routed one replaced it. */
 /* Links of the old shape (#research/AAPL/valuation) are already in the wild —

@@ -224,3 +224,45 @@ function lsChipsInView(row) {
   const r = row.getBoundingClientRect(), b = on.getBoundingClientRect();
   if (b.left < r.left || b.right > r.right) row.scrollLeft += (b.left + b.width / 2) - (r.left + r.width / 2);
 }
+
+/* ------------------------------------------------------------ kind badges */
+/* THE EIGHT KIND BADGES (plan item 3.7; the owner's decision D6, with N6's
+   eighth word). One word for what kind of figure a number is, the same
+   word wherever the figure is shown — the metric card's data badge, the
+   homepage's visuals, and, a round at a time, every figure on the site.
+   Each badge is its word and a shape (.kind-shape: a square, a triangle, a
+   diamond, a disc, a quotation mark, a ring, a dashed box, a cross), never
+   a colour alone; it keeps the figure's fine label ("verified
+   transaction", "assumed default") in its title; and it links to where the
+   eight are defined, /data-sources#kinds. Badges are added beside what a
+   page already says — the strip, the footer's paragraph, /data-sources and
+   "Not a valuation" are unchanged by them.
+   The words' meanings are KIND_BADGES' notes, read by /data-sources too. */
+const KIND_BADGES = {
+  filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed. Not adjusted.' },
+  derived:      { word: 'Derived',      note: 'Arithmetic on figures of another kind, and exactly as reliable as they are. No assumption is involved.' },
+  modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see and change. Other assumptions give another figure.' },
+  yours:        { word: 'Yours',        note: 'A figure you entered or imported, or evidence you recorded: a price, a close, a rent, a transaction you have seen.' },
+  quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, and not checked against a transaction.' },
+  illustrative: { word: 'Illustrative', note: 'A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal.' },
+  placeholder:  { word: 'Placeholder',  note: 'A stand-in the tool carries so the sum runs — not a quote, not checked against its source; replace it before relying on the total.' },
+  unavailable:  { word: 'Unavailable',  note: 'No figure is shown, and the reason is stated beside it. Nothing is imputed.' },
+};
+/* When more than one applies to a figure, the first in this order wins. */
+const KIND_ORDER = ['unavailable', 'illustrative', 'placeholder', 'quoted', 'yours', 'modelled', 'derived', 'filed'];
+const kindFirst = (kinds) => KIND_ORDER.find(k => kinds.includes(k)) || null;
+/* Each source's kinds, to exactly one badge (build --check holds every
+   PROVENANCE kind, every EVIDENCE id and every fee status to one). */
+const KIND_OF_PROVENANCE = { reported: 'filed', calculated: 'derived', modelled: 'modelled', market: 'yours', illustrative: 'illustrative', unavailable: 'unavailable' };
+const KIND_OF_EVIDENCE = { verified: 'yours', public: 'yours', user: 'yours', developer: 'quoted', estimated: 'derived', assumed: 'illustrative', illustrative_default: 'illustrative' };
+const KIND_OF_FEE = { verified: 'derived', unverified: 'placeholder', placeholder: 'placeholder', unknown: 'unavailable' };
+/* The badge. `fine`: the figure's own label, in the title before the
+   word's meaning. `link`: false where the badge stands inside a link of
+   its own, or on /data-sources itself. */
+function kindBadge(kind, { fine = null, link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const b = KIND_BADGES[k];
+  const kids = [el('span', { class: 'kind-shape', 'aria-hidden': 'true' }), b.word];
+  const attrs = { class: `kind-badge kind-${k}`, 'data-kind-badge': k, title: fine ? `${fine} — ${b.note}` : b.note };
+  return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', attrs, kids);
+}

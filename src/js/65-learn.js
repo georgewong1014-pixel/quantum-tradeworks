@@ -278,6 +278,21 @@ function learnData() {
   lg.append(el('p', { class: 'metaline' }, 'Every empty cell on the screener prints the short form of its reason and opens the drawer that names the line, the flag or the price behind it.'));
   wrap.append(lg);
 
+  /* THE BADGE WORDS (plan item 3.7; D6). Every kind badge links here: the
+     eight words, each with its shape, and what it means — KIND_BADGES'
+     own notes, so a badge's title and this list cannot word one twice. */
+  const kinds = el('section', { class: 'card kinds-card', id: 'kinds', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'kinds-h' });
+  kinds.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'kinds-h' }, 'The badge words'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'A figure’s badge is one of eight words, each with its own shape. Where two apply, the first in this list wins.'),
+  ])));
+  kinds.append(el('dl', { class: 'kinds-list' }, KIND_ORDER.flatMap(k => [
+    el('dt', {}, kindBadge(k, { link: false })),
+    el('dd', {}, KIND_BADGES[k].note),
+  ])));
+  kinds.append(el('p', { class: 'metaline' }, 'The kinds in the table above read as badges this way: reported as Filed, calculated as Derived, market as Yours.'));
+  wrap.append(kinds);
+
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
      does; what does not yet exist is the right to republish it. Those are

@@ -634,60 +634,60 @@ const refreshSearchLabel = () => {
    about provenance is the worst kind. It now counts what is actually loaded and
    says which of the two a reader is looking at. */
 const refreshDisclosure = () => {
-  const node = $('#disclosureText');
+  /* THE STRIP, IN THREE PLACES (plan item 3.1). The summary's sentence is
+     the same on every page and in every state, word for word — "Beta
+     preview. Do not use figures here for investment decisions." — so it is
+     written here only to keep it so. The facts after it say what the
+     figures are: SEC-filed and illustrative while the filings are part of
+     the build, illustrative only when they did not load or are switched
+     off — never "SEC-filed" over a page that holds none. The breakdown,
+     inside Details, says how many of each, or what failed. */
+  const node = $('#disclosureText'), facts = $('#disclosureFacts'), body = $('#disclosureBreakdown');
   if (!node) return;
+  const SENTENCE = '<strong>Beta preview.</strong> Do not use figures here for investment decisions.';
+  if (node.innerHTML !== SENTENCE) node.innerHTML = SENTENCE;
+  const say = (f, b) => {
+    if (facts && facts.textContent !== f) facts.textContent = f;
+    if (body && b != null && body.textContent !== b) body.textContent = b;
+  };
+  const MIXED = '· SEC-filed and illustrative data, labelled · No licensed prices';
+  const ILLUS = '· Illustrative data only, labelled · No licensed prices';
   const real = U.filter(r => r.c.real).length;
-  const sample = U.length - real;
-  const priced = U.filter(r => r.c.real && isNum(r.c.px?.p)).length;
   /* A failed fetch used to fall through to the static wording, which describes a
      sample-only build without saying that this one was meant to be more. The
      reader then saw 36 illustrative companies presented as the whole product,
      permanently, with nothing indicating a load had failed. */
   if (!real && realStatus && realStatus.ok === false) {
-    node.innerHTML =
-      `<strong>Beta preview — filings did not load.</strong> Do not use figures here for investment decisions.`
-      + `<span class="disclosure-long"> The audited SEC statements this build normally carries could not be fetched`
-      + `, so only the ${U.length} illustrative companies are loaded and every figure on the site is synthetic.`
-      + ` Reload to try again.</span>`;
+    say(ILLUS, `The filings did not load. The audited SEC statements this build normally carries could not be fetched, so only the ${U.length} illustrative companies are loaded and every company figure on the site is synthetic. Reload to try again.`);
     return;
   }
   /* With the filings switched off (?real=0, or the dashboard's "Load SEC-filed
-     companies" unticked) every company loaded is synthetic. The static wording
-     — "some companies carry illustrative figures" — is written for a build
-     that also carries filings, and understated this one. */
+     companies" unticked) every company loaded is synthetic. */
   if (!real && !realEnabled()) {
-    node.innerHTML =
-      `<strong>Beta preview — illustrative figures only.</strong> Do not use figures here for investment decisions.`
-      + `<span class="disclosure-long"> Audited filings are switched off, so every one of the ${U.length} companies here`
-      + ` carries illustrative figures that are synthetic and do not represent real financials.`
-      + ` Add ?real=1 to the address to load the filings.</span>`;
+    say(ILLUS, `Audited filings are switched off, so every one of the ${U.length} companies here carries illustrative figures that are synthetic and do not represent real financials. Add ?real=1 to the address to load the filings.`);
     return;
   }
-  if (!real) return;                       /* the static wording is correct */
+  /* In flight, or none loaded yet: the facts are the build's, as served. */
+  if (!real) { say(MIXED, null); return; }
   /* Counted by the manifest, not here. This banner sits on every page, so a
      count of its own would be the one most likely to disagree with the rest. */
   const k = coverage();
-  /* The banner sits on every page, so while the audited set is in flight it is
-     the single largest source of wrong counts on the site — five of them, on
-     whatever route the reader happened to open. The warning itself does not
-     depend on the counts, so it is stated in full and the arithmetic waits. */
+  /* While the audited set is in flight the arithmetic waits: the strip sits
+     on every page, and a count written early is a wrong count on whatever
+     route the reader opened. The warning does not depend on it. */
   if (!k.resolved) {
-    node.innerHTML =
-      `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
-      `<span class="disclosure-long"> ${COVERAGE_PENDING} — this build mixes audited SEC filings with illustrative figures, `
-      + `and the exact split is stated here once the audited set has loaded. Every company page states which it is.</span>`;
+    say(MIXED, `${COVERAGE_PENDING} — this build mixes audited SEC filings with illustrative figures, and the exact split is stated here once the audited set has loaded. Every company page states which it is.`);
     return;
   }
-  node.innerHTML =
-    `<strong>Beta preview — mixed sources.</strong> Do not use figures here for investment decisions.` +
-    `<span class="disclosure-long"> ${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
+  say(MIXED,
+    `${k.filed} ${k.filed === 1 ? 'company carries' : 'companies carry'} audited statements filed with the SEC` +
     (k.filedUnpriced ? `, of which ${k.filedUnpriced} ${k.filedUnpriced === 1 ? 'has' : 'have'} no price because market data is not licensed for this build` : '') +
     /* The personal-research lane (?personal=1) is stated on its own: those are
-       Bursa statements from the reader's own file, not SEC filings. */
+       Bursa statements from the reader's own file, not SEC filings, not licensed. */
     (k.personal ? `. ${k.personal} ${k.personal === 1 ? 'carries' : 'carry'} Bursa statements from your personal-research file — not SEC filings, not licensed, and not for redistribution` : '') +
     `. ${k.illustrative} ${k.illustrative === 1 ? 'carries' : 'carry'} illustrative figures that are synthetic` +
     (k.usIllustrative ? `, and ${k.usIllustrative === 1 ? 'one of those is a US listing' : `${k.usIllustrative} of those are US listings`} rather than Bursa` : '') +
-    `. Every company page states which it is.</span>`;
+    '. Every company page states which it is.');
 };
 
 /* Real data loads asynchronously and changes the size of the universe. The
@@ -737,13 +737,17 @@ refreshSearchLabel();
    once here; with them on it waits for the load, as above. */
 if (!realEnabled()) refreshDisclosure();
 
-$('#disclosureMore')?.addEventListener('click', (e) => {
-  const open = document.body.dataset.disclosure === 'open';
-  if (open) delete document.body.dataset.disclosure;
-  else document.body.dataset.disclosure = 'open';
-  e.currentTarget.setAttribute('aria-expanded', String(!open));
-  e.currentTarget.textContent = open ? 'Which sources?' : 'Hide sources';
-});
+/* THE STRIP OPENS FOR PRINT (plan item 3.1): a printed page carries the
+   whole disclosure, the source breakdown and Research mode with it, and
+   is closed again after, as the reader left it. The stylesheet opens it
+   too where the browser can (::details-content), for a print with no
+   script. */
+{
+  const strip = document.getElementById('disclosure');
+  let wasOpen = null;
+  addEventListener('beforeprint', () => { if (strip) { wasOpen = strip.open; strip.open = true; } });
+  addEventListener('afterprint', () => { if (strip && wasOpen === false) strip.open = false; wasOpen = null; });
+}
 /* No render() here: the router paints, and painting twice showed the previous
    view for a frame before the routed one replaced it. */
 /* Links of the old shape (#research/AAPL/valuation) are already in the wild —

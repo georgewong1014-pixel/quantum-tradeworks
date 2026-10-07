@@ -370,6 +370,13 @@ function toast(msg) {
      — is labelled where it shows, and the note says so.
    - Business Intelligence is not built. It is text with a badge, never a
      link or a button, and SHOW_UNBUILT keeps it out of the app sidebar. */
+/* THE QUALIFIER (the owner's decisions D5 and D17, 2026-10-05): a few words
+   that say, beside the status word and in sight, what the status rests on.
+   The homepage card shows each product's; Property's is shown wherever its
+   badge is (qualifyBadge: the header's menu and the phone sheet, the
+   sidebar, the footer, the tab row, How it works, the search), because
+   "Live" alone read as live market data. The full note stays the badge's
+   title and the link's description, and the card's ⓘ prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
@@ -377,15 +384,25 @@ const PRODUCTS = [
        homepage card, How it works and the dashboard checklist all read it
        from here, so the three say the same words. */
     question: 'How is this company performing financially?', action: 'Start research', actionPath: '/research',
-    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
+    status: 'beta', qualifier: 'Filed + illustrative data',
+    statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
+  /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
+     promised a watch this site never keeps — it ships no prices, and the
+     worker that records a match runs on the reader's own computer. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
-    status: 'beta', statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
+    status: 'beta', qualifier: 'Your own price data',
+    statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
+    /* The Scenario Lab, offered beside the main action on the homepage card
+       (D5(d)) — until the map ships, when the card's action becomes
+       "Explore Property". */
+    also: { label: 'Try the Scenario Lab', path: '/property/lab' },
+    status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
     task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
@@ -406,20 +423,25 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 /* The badge a product wears, with its note as the title. It is an element,
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
-/* THE HOOK FOR D17 (N2a, the 5 Oct audit; not built yet). Property's badge
-   is to read "Live · Your figures, sample to start" wherever it appears — the
-   tab row above /property's Scenario Lab, the header's Products menu, the
-   phone sheet, the footer, /how-it-works, /about, /status and the homepage
-   card. Here is the one place to draw it: a `qualifier` on the product's
-   PRODUCTS row, drawn by this function as visible text beside the badge's
-   word, never in its title. /property's identity line (82-property-lab.js)
-   carries no badge of its own, so nothing there changes when it lands. */
-function productBadge(id) {
+/* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
+   "Live · Your figures, sample to start" wherever it appears — the tab row
+   above /property's Scenario Lab, the header's Products menu, the phone
+   sheet, the sidebar, the footer, /how-it-works and the homepage card. The
+   qualifier is drawn here, as visible text beside the badge's word, never
+   in its title: the badge and its words in one wrapper (.pbadge, laid out
+   by its row: display: contents), so a row that reads the badge's word
+   still reads "Live", and the qualifier is one more child of the row.
+   `qualified` draws any product's qualifier (the homepage card's);
+   `id` names the qualifier, for a link that is described by it. */
+function productBadge(id, { qualified = false, qualId = null } = {}) {
   const p = productById(id);
   if (!p) return null;
   const b = el('span', { class: `status-badge status-${p.status}`, title: p.statusNote }, PRODUCT_STATUS[p.status] || p.status);
-  b.toString = () => b.outerHTML;
-  return b;
+  const q = p.qualifier && (qualified || p.qualifyBadge)
+    ? el('span', { class: 'pbadge', 'data-badge-of': p.id }, [b, el('span', { class: 'pbadge-q', id: qualId }, p.qualifier)])
+    : b;
+  q.toString = () => q.outerHTML;
+  return q;
 }
 /* THE NOTE, FOR EVERYONE. A badge's qualifying sentence was only its
    `title`: a mouse's tooltip, never reached by a keyboard, a finger or a
@@ -1074,8 +1096,33 @@ function companyFromSlug(s) {
   return hit ? hit.c.id : null;
 }
 
+/* THE POSITIONING, ONE SOURCE (plan item 3.5, 2026-10-07). The site said
+   what it is in five places, typed five times, and they had drifted into
+   four variants of one sentence: the hero's lede, the site root's
+   description (with its og: and twitter: copies), the footer's line and
+   the template's own head. Each is written from here: the hero reads the
+   lede; the router (setDocumentMeta, below) the description, which the
+   build writes into the head, the og: and the twitter: tags of / alike;
+   build.mjs the footer's tagline and line into every page it writes.
+   wording-check fails on a copy of any of them typed anywhere else, and
+   served-check on a variant of one served anywhere. The headline (the h1)
+   is the page's own and is held (the owner's decision, 7 Oct 2026). */
+const POSITIONING = {
+  title: 'Quantum Tradeworks — your financial decision workspace',
+  /* The footer's tagline. Not on the hero any more (D5): the hero is the
+     h1, the lede and one action. */
+  kicker: 'Research · Monitor · Model · Plan',
+  /* The hero's lede under the held h1 (D5): with it, 14 words. */
+  lede: 'Companies, market setups and property, in one workspace.',
+  /* The footer's line on every page. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next.',
+  /* The site root's description, og:description and twitter:description:
+     the one-liner and what the site will not do. */
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next. Research only — no recommendations.',
+};
+
 const ROUTES = [
-  { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — your financial decision workspace' },
+  { path: '/',                    view: 'marketing', title: POSITIONING.title },
   { path: '/app',                 view: 'home',      title: 'My Dashboard' },
   /* Release A: how each product works, with the examples that left the
      homepage (55-views-public.js); and the Equities research queue, which
@@ -1211,7 +1258,7 @@ const ROUTES = [
 ];
 
 const META = {
-  marketing: 'Your financial decision workspace: research companies, build your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
+  marketing: POSITIONING.description,
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
@@ -2117,6 +2164,22 @@ let shellBuilt = false;
 function buildShell() {
   if (shellBuilt) return;
   shellBuilt = true;
+  /* PAGE CONTENT FIRST (plan item 3.5). A page is served with what the
+     reader does not see yet after its <main> — the other chrome's header,
+     hidden, and on an app page the sidebar, which is fixed beside the page
+     and moves nothing there — so a fetch reads the page before its
+     navigation (build.mjs, servedChrome). Put back, in the template's order
+     before the strip, the moment the script runs: the reader's keyboard
+     meets the sidebar before the page, as it always has, and a move to the
+     other chrome finds its header where it belongs. */
+  const strip = document.querySelector('.disclosure');
+  const chromeOrder = [shellEl.pubbar, shellEl.pubScrim, shellEl.appbar, shellEl.sidebar, shellEl.navScrim].filter(Boolean);
+  for (const n of chromeOrder) {
+    if (!n.hasAttribute('data-served-away')) continue;
+    if (n.getAttribute('data-served-away') === 'hidden') n.hidden = false;
+    n.removeAttribute('data-served-away');
+  }
+  if (strip && !chromeOrder.every((n, i) => n.nextElementSibling === (chromeOrder[i + 1] || strip))) chromeOrder.forEach(n => strip.before(n));
   /* The public header: Products, How it works, Pricing, Resources — drawn
      in place of the served copy of the same markup (NAV_MARKUP). */
   if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());

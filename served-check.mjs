@@ -68,7 +68,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
-  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord } from './build.mjs';
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -190,7 +190,7 @@ const NAV = navMarkup();
 const attrEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function withoutOwn(html, file) {
   const rd = file ? RENDERED.renders.get(file) : null;
-  const nav = NAV(rd ? rd.manifest.nav : null);
+  const nav = NAV(rd ? rd.manifest.nav : null, rd ? rd.manifest.chrome : 'public');
   let out = html;
   const take = (from, to) => { out = out.replace(from, () => to); };
   /* With what its render read, for the head's script (build.mjs, BEFORE THE
@@ -199,7 +199,9 @@ function withoutOwn(html, file) {
   for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) take(open + nav[slot] + close, open + close);
   if (rd && rd.tabs !== null) take(`<div class="ptabs-host" id="productTabs">${rd.tabs}</div>`, '<div class="ptabs-host" id="productTabs" hidden></div>');
   if (rd) take(`<div id="views" data-served="${attrEsc(rd.path)}">${servedViews(rd)}</div>`, '<div id="views"></div>');
-  return out;
+  /* And its chrome in the template's order: a page is served in its own
+     chrome first and the other after its page (plan item 3.5, servedChrome). */
+  return unservedChrome(out);
 }
 /* file: the page's file, whose render (if it has one) it may carry; none
    for a page that may carry none. */
@@ -831,7 +833,7 @@ const HOME_PAGE = read(HOME);
   }
   /* The parts of a served page that are its own. */
   const parts = (html) => {
-    const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<!-- What a page says/.exec(html);
+    const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<p class="sr-only" id="liveStatus"/.exec(html);
     const t = /<div class="ptabs-host" id="productTabs"( hidden)?>([\s\S]*?)<\/div>\n {2}<div id="views"/.exec(html);
     const chrome = /^<!DOCTYPE html>\n<html lang="en"(?: data-chrome="([a-z]+)" data-served(?: data-served-reads="[^"]*")?)?>/.exec(html);
     const slots = Object.fromEntries(Object.entries(NAV_SLOTS).map(([k, [open, close]]) => {
@@ -869,7 +871,7 @@ const HOME_PAGE = read(HOME);
       if (!said) p.push(`${path}: its #views holds no h1`);
       else if (said !== rd.manifest.h1) p.push(`${path}: its h1 reads ${JSON.stringify(said)}, where the page's is ${JSON.stringify(rd.manifest.h1)}`);
       else { if (!h1s.has(said)) h1s.set(said, new Map()); h1s.get(said).set(router.headAt(path).canonical, path); }
-      const want = nav(rd.manifest.nav);
+      const want = nav(rd.manifest.nav, rd.manifest.chrome);
       for (const k of Object.keys(NAV_SLOTS)) if (x.slots[k] !== want[k]) p.push(`${path}: its ${k} is not NAV_MARKUP's${k === 'pubnav' || k === 'appnav' ? ', marked as its render marked it' : ''}`);
     } else {
       empty++;
@@ -895,7 +897,12 @@ const HOME_PAGE = read(HOME);
   /* Crawlable: real links, from the tables; Business Intelligence is text. */
   const sample = parts(got.get('/pricing').body).slots;
   const links = (html) => [...(html || '').matchAll(/<a\b[^>]*\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(m => ({ href: m[1], text: words(m[2]) }));
-  const pub = links(sample.pubnav), foot = links(sample.footProducts), res = links(sample.footResources), side = links(sample.appnav);
+  /* The sidebar's list is served on an app page; a public page serves it
+     empty, and an app page the header's (plan item 3.5, servedChrome). */
+  const appSample = parts(got.get('/app').body).slots;
+  if (sample.appnav !== '') p.push('/pricing, a public page, serves the sidebar\x27s list, which the app draws when the reader enters the app');
+  if (appSample.pubnav !== '') p.push('/app, an app page, serves the public header\x27s list');
+  const pub = links(sample.pubnav), foot = links(sample.footProducts), res = links(sample.footResources), side = links(appSample.appnav);
   for (const [where, list, wantText] of [['#pubnav', pub, true], ['#footProducts', foot, true], ['#appnav', side, true]]) {
     for (const [name, href] of [['Equities Research', '/research'], ['Quantum Scanner', '/app/scanner'], ['Property Intelligence', '/property']]) {
       if (!list.some(l => l.href === href && (!wantText || l.text.startsWith(name)))) p.push(`${where} has no link to ${name} (${href})`);
@@ -1004,7 +1011,9 @@ const HOME_PAGE = read(HOME);
   for (const path of paths) {
     const r = got.get(path);
     if (!r.status || !/text\/html/.test(r.type || '')) { p.push(`${path}: ${described(r)}`); continue; }
-    const strip = /<span id="disclosureText">([\s\S]*?)<span class="disclosure-long">/.exec(r.body)?.[1];
+    /* Since plan item 3.1 the strip is a <details>: the sentence is in its
+       summary, the facts beside it (served-3a, below, holds the rest). */
+    const strip = /<summary class="disclosure-in">[\s\S]*?<span id="disclosureText">([\s\S]*?)<\/span> <span id="disclosureFacts">/.exec(r.body)?.[1];
     if (strip == null) p.push(`${path}: serves no #disclosureText`);
     else if (strip.replace(/\s+/g, ' ').trim() !== STRIP) p.push(`${path}: the strip reads "${text(strip).slice(0, 120)}", not "Beta preview. Do not use figures here for investment decisions."`);
     const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));

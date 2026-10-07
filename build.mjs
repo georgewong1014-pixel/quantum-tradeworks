@@ -177,6 +177,9 @@ const JOURNEYS_MARKER = '/*@INJECT:journeysServed*/ null';
 /* And the journeys' names, by id (91-health.js; JOURNEY_NAMES in
    journeys.mjs): /status names the journey that proves each Live badge. */
 const JOURNEY_NAMES_MARKER = '/*@INJECT:journeyNames*/ null';
+/* Where the homepage's filed example goes into the app (55-views-public.js;
+   homeFiled, below). */
+const HOME_FILED_MARKER = '/*@INJECT:homeFiled*/ null';
 const CSP_MARKER = '@CSP_HASH';
 /* The first-paint script's hash (BEFORE THE FIRST PAINT, below). */
 const CSP_FIRST_MARKER = '@CSP_FIRST_HASH';
@@ -348,6 +351,7 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'const ILLUS_TITLE = ', ';\n'),
     cut(UI, '35-ui.js', 'const COMPANY_LISTED = ', ';\n'),
     cut(UI, '35-ui.js', 'function companyMetaDescription(', '\n}\n'),
+    cut(UI, '35-ui.js', 'const POSITIONING = {', '\n};'),
     cut(UI, '35-ui.js', 'const ROUTES = [', '\n];'),
     cut(UI, '35-ui.js', 'const META = {', '\n};'),
     ...additions,
@@ -357,7 +361,7 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'function matchRoute(', '\n}\n'),
     cut(UI, '35-ui.js', 'function setDocumentMeta(', '\n}\n'),
     cut(UI, '35-ui.js', 'function canonicalPath(', '\n}\n'),
-    '({ ROUTES, META, ILLUS_TITLE, matchRoute, setDocumentMeta, companyPath })',
+    '({ POSITIONING, ROUTES, META, ILLUS_TITLE, matchRoute, setDocumentMeta, companyPath })',
   ].join('\n'), ctx, { filename: 'src/js (router)' });
 
   /* What setDocumentMeta writes on a first load of `path`: the route's title,
@@ -390,7 +394,7 @@ export function clientRouter(origin) {
     try { return { path, ...run(path) }; }
     finally { ctx.State = {}; ctx.BY_ID = new Map(); }
   };
-  return { ROUTES: api.ROUTES, META: api.META, ILLUS_TITLE: api.ILLUS_TITLE, matchRoute: api.matchRoute, headAt, companyHeadAt };
+  return { POSITIONING: api.POSITIONING, ROUTES: api.ROUTES, META: api.META, ILLUS_TITLE: api.ILLUS_TITLE, matchRoute: api.matchRoute, headAt, companyHeadAt };
 }
 
 /* The site's own address, read from the canonical link the template gives the
@@ -453,6 +457,32 @@ export function companyUniverse() {
     api.add(c);
   }
   return { companies: api.U.map(r => r.c), skipped };
+}
+
+/* THE HOMEPAGE'S FILED EXAMPLE (plan item 3.8; the owner's decision D5(e)).
+   The Equities card draws Apple's filed revenue and net income, by fiscal
+   year, in US$ — its filing currency, whatever the reader's base currency —
+   in the page's first draw, so it is served by the render and the page
+   waits for nothing (a page that waited for the filings would be kept out
+   of a reader's sight on localhost, and its draw would read their
+   currency). So the figures are written into the app here, from the file
+   the site serves: the statement tuple's revenue and net income columns
+   (F, 15-derivation.js — the page's own reading of the tuple) of the
+   filer's record in data/us.json, with the address the page gives it.
+   served-check holds the drawn columns to the served file. */
+export const HOME_FILED_ID = 'AAPL';
+export function homeFiled(plan, root = ROOT) {
+  const F = vm.runInContext(`${cut(js('15-derivation.js'), '15-derivation.js', 'const F = {', '};')}\nF`, vm.createContext({}));
+  const file = JSON.parse(readFileSync(join(root, 'data', 'us.json'), 'utf8'));
+  const r = (file.results || []).find(x => x.id === HOME_FILED_ID);
+  if (!r) throw new Error(`data/us.json has no ${HOME_FILED_ID}, the homepage's filed example (homeFiled)`);
+  const co = plan.companies.find(x => x.id === `${HOME_FILED_ID}-SEC`);
+  if (!co || !co.company.real) throw new Error(`${HOME_FILED_ID}-SEC has no page of a filed company, which the homepage's example links`);
+  if (r.ccy !== 'USD') throw new Error(`${HOME_FILED_ID}'s filed currency is ${r.ccy}, where the homepage's example is labelled US$`);
+  if (!Array.isArray(r.years) || r.years.length < 2 || r.fin.length !== r.years.length) throw new Error(`${HOME_FILED_ID}: its years and statement rows do not pair`);
+  const rev = r.fin.map(x => x[F.REV]), ni = r.fin.map(x => x[F.NI]);
+  if (rev.some(v => typeof v !== 'number') || ni.some(v => typeof v !== 'number')) throw new Error(`${HOME_FILED_ID}: a filed year has no revenue or net income, which the homepage's columns would leave blank`);
+  return { id: co.id, tk: r.id, name: r.name, path: co.path, ccy: r.ccy, cik: r.cik, years: r.years, rev, ni };
 }
 
 /* What a company's page is, in the line a link preview shows under its
@@ -548,7 +578,7 @@ export function routePlan(template) {
   const statics = new Set(pages.map(p => p.path));
   for (const co of companies) if (statics.has(co.path)) throw new Error(`${co.path} is both a route and ${co.id}'s address`);
   /* An address no route matches: setDocumentMeta(null)'s title and description. */
-  return { origin, pages, params, companies, skippedFilers: skipped, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES };
+  return { origin, pages, params, companies, skippedFilers: skipped, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES, POSITIONING: router.POSITIONING };
 }
 
 /* ─── THE NAVIGATION, IN EVERY PAGE (2026-10-03) ─────────────────────────────
@@ -663,7 +693,11 @@ export function navMarkup() {
   /* marks: what buildNav marked on the page's render — the indices of the
      current links among #pubnav's and #appnav's links, in document order,
      and the Resources menu's mark — or null for none. */
-  return (marks = null) => {
+  /* chrome: the chrome the page is served in (servedChrome, below). The
+     other chrome's list is served empty — its header is hidden, after the
+     page — and the app draws it when the reader enters that chrome
+     (buildShell, 35-ui.js; plan item 3.5). */
+  return (marks = null, chrome = 'public') => {
     const pubnav = api.NAV_MARKUP.pubnav(), appnav = [...api.NAV_MARKUP.appnav()];
     const footProducts = [...api.NAV_MARKUP.footProducts()], footResources = [...api.NAV_MARKUP.footResources()];
     if (marks) {
@@ -674,9 +708,9 @@ export function navMarkup() {
           links[i].setAttribute('aria-current', 'page');
         }
       };
-      mark([pubnav], marks.pubnav, '#pubnav');
-      mark(appnav, marks.appnav, '#appnav');
-      if (marks.resources) {
+      if (chrome !== 'app') mark([pubnav], marks.pubnav, '#pubnav');
+      if (chrome === 'app') mark(appnav, marks.appnav, '#appnav');
+      if (marks.resources && chrome !== 'app') {
         const btn = walk(pubnav).find(n => n.getAttribute('id') === 'menuResourcesBtn');
         if (!btn) throw new Error('the public header has no Resources menu to mark');
         btn.toggleAttribute('data-current', true);
@@ -684,12 +718,13 @@ export function navMarkup() {
       }
     }
     const out = {
-      pubnav: pubnav.outerHTML,
-      appnav: appnav.map(n => n.outerHTML).join(''),
+      pubnav: chrome === 'app' ? '' : pubnav.outerHTML,
+      appnav: chrome === 'app' ? appnav.map(n => n.outerHTML).join('') : '',
       footProducts: footProducts.map(n => n.outerHTML).join(''),
       footResources: footResources.map(n => n.outerHTML).join(''),
     };
     for (const [slot, html] of Object.entries(out)) {
+      if (!html && (slot === 'pubnav' || slot === 'appnav')) continue;
       if (!/<a\b[^>]*\bhref="\/[^"]*"/.test(html)) throw new Error(`the ${slot} the page is served carries no link`);
       for (const name of unbuilt) {
         const asLink = new RegExp(`<a\\b[^>]*>(?:(?!</a>)[\\s\\S])*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
@@ -699,6 +734,81 @@ export function navMarkup() {
     return out;
   };
 }
+/* ─── PAGE CONTENT FIRST IN THE SERVED TEXT (plan item 3.5, 2026-10-07) ────────
+   A fetcher that keeps the start of a page, or reads it as text in source
+   order, read every page's two headers, the sidebar's "My Dashboard" and
+   "Saved Models", and the template's notes to its maintainers before the
+   page: <div id="views"> stood at byte 30,000–34,000 of every page. Each page
+   is served
+   - without the template's HTML comments (they stay in src/, for whoever
+     edits the template; a page carries none);
+   - with the chrome it is drawn in first and the rest after its </main>:
+     a public page (and a page with no render, which a first frame draws in
+     the public header) is served the app's bar and sidebar after the page,
+     hidden, its sidebar's list empty; an app page its sidebar after the
+     page — fixed beside it from 1024px and a closed drawer below, so
+     nothing it shows moves — and the public header after that, hidden, its
+     list empty. The app puts each back in the template's order, and draws
+     both lists, the moment its script runs (buildShell, 35-ui.js).
+   So <div id="views"> is within the first SERVED_VIEWS_BYTES of every page
+   (--check and served-check hold it), and a text extraction of / reaches
+   its h1 before any of the workspace's navigation. */
+export const SERVED_VIEWS_BYTES = 16 * 1024;
+export const CHROME_PARTS = {
+  pubbar:  ['<header class="topbar pubbar" id="pubbar">', '<div class="pubscrim" id="pubScrim" hidden></div>\n'],
+  appbar:  ['<header class="topbar appbar" id="appbar">', '</header>\n'],
+  sidebar: ['<aside class="sidebar" id="sidebar" aria-label="Workspace">', '<div class="navscrim" id="navScrim" hidden></div>\n'],
+};
+const STRIP_AT = '<div class="disclosure" role="region" aria-label="Disclosure">';
+const MAIN_END = '\n</main>\n';
+/* The parts out of a page, wherever they stand, and the page without them. */
+function takeChrome(html) {
+  const parts = {};
+  for (const [k, [open, close]] of Object.entries(CHROME_PARTS)) {
+    const i = html.indexOf(open.slice(0, -1));
+    const j = i < 0 ? -1 : html.indexOf(close, i);
+    if (i < 0 || j < 0) throw new Error(`the page carries no ${k} (${open}) to place`);
+    parts[k] = html.slice(i, j + close.length);
+    html = html.slice(0, i) + html.slice(j + close.length);
+  }
+  return { html, parts };
+}
+const awayTag = (part, open, how) => part.replace(open, () => `${open.slice(0, -1)}${how === 'hidden' ? ' hidden' : ''} data-served-away="${how}">`);
+export function servedChrome(html, chrome) {
+  const { html: rest, parts } = takeChrome(html);
+  const before = chrome === 'app' ? [parts.appbar] : [parts.pubbar];
+  const after = chrome === 'app'
+    ? [awayTag(parts.sidebar, CHROME_PARTS.sidebar[0], ''), awayTag(parts.pubbar, CHROME_PARTS.pubbar[0], 'hidden')]
+    : [awayTag(parts.appbar, CHROME_PARTS.appbar[0], 'hidden'), awayTag(parts.sidebar, CHROME_PARTS.sidebar[0], 'hidden')];
+  const s = rest.indexOf(STRIP_AT), m = rest.indexOf(MAIN_END, s);
+  if (s < 0 || m < 0) throw new Error('the page carries no strip, or no </main> after it, to place its chrome around');
+  return rest.slice(0, s) + before.join('') + rest.slice(s, m + MAIN_END.length) + after.join('') + rest.slice(m + MAIN_END.length);
+}
+/* The page as the template orders it: what served-check compares. */
+export function unservedChrome(html) {
+  const { html: rest, parts } = takeChrome(html);
+  const back = (part, open) => part.replace(new RegExp(`${open.slice(0, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: hidden)? data-served-away="[^"]*">`), () => open);
+  const s = rest.indexOf(STRIP_AT);
+  if (s < 0) throw new Error('the page carries no strip to put its chrome before');
+  return rest.slice(0, s) + Object.entries(CHROME_PARTS).map(([k, [open]]) => back(parts[k], open)).join('') + rest.slice(s);
+}
+/* The template as every page is made from it: its comments out, and the
+   positioning copy written in from the one table (POSITIONING, 35-ui.js). */
+export const POSITIONING_SLOTS = { '@POSITIONING_KICKER': 'kicker', '@POSITIONING_ONE_LINER': 'oneLiner' };
+export function servedTemplate(template, P) {
+  let t = template.replace(/^[ \t]*<!--[\s\S]*?-->[ \t]*\r?\n/gm, '');
+  if (/<!--/.test(t)) throw new Error('the template carries an HTML comment that does not stand on lines of its own — the build takes comments out of every page by whole lines');
+  for (const [slot, key] of Object.entries(POSITIONING_SLOTS)) {
+    if (t.split(slot).length !== 2) throw new Error(`the template carries ${t.split(slot).length - 1} of ${slot}, where the build writes POSITIONING.${key} exactly once`);
+    if (!P || typeof P[key] !== 'string' || !P[key]) throw new Error(`POSITIONING.${key} (35-ui.js) is not a string`);
+    const v = key === 'kicker'
+      ? P.kicker.split(' · ').map((w, i) => (i ? ` <i${i === 2 ? ' class="amber"' : ''}>·</i> ` : '') + escText(w)).join('')
+      : escText(P[key]);
+    t = t.replace(slot, () => v);
+  }
+  return t;
+}
+
 /* The served lists, put where the template carries each empty. */
 export function withNav(html, nav) {
   for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) {
@@ -1172,7 +1282,11 @@ export function linked(page, files) {
    asks for this, of the clean copy it renders from, so that what it reads
    back is the app's drawing and never a render committed before it. */
 export function build({ bare = false } = {}) {
-  const template = lf(readFileSync(src('index.template.html'), 'utf8'));
+  const source = lf(readFileSync(src('index.template.html'), 'utf8'));
+  /* The route table first: it holds the positioning copy the template is
+     written with (servedTemplate). */
+  const plan = routePlan(source);
+  const template = servedTemplate(source, plan.POSITIONING);
   if (!template.includes(STYLE_MARKER)) throw new Error('template lost its style marker');
   if (!template.includes(SCRIPT_MARKER)) throw new Error('template lost its script marker');
 
@@ -1209,6 +1323,8 @@ export function build({ bare = false } = {}) {
   js = js.replace(JOURNEYS_MARKER, () => `(${journeysServed.toString()})`);
   if (js.split(JOURNEY_NAMES_MARKER).length !== 2) throw new Error('src/js must carry the journeys\' names marker exactly once (91-health.js)');
   js = js.replace(JOURNEY_NAMES_MARKER, () => JSON.stringify(JOURNEY_NAMES));
+  if (js.split(HOME_FILED_MARKER).length !== 2) throw new Error('src/js must carry the homepage\'s filed-example marker exactly once (55-views-public.js)');
+  js = js.replace(HOME_FILED_MARKER, () => JSON.stringify(homeFiled(plan)));
 
   /* One stylesheet and one script, where linked() looks for them: the page's
      own markup must not carry a second of either, which linked() would take
@@ -1228,7 +1344,6 @@ export function build({ bare = false } = {}) {
      aliases share pages/us-options/wheel.html), else after the first.
      index.html carries the app inline; every other page loads it from the
      two files (appFiles, linked — THE APP ONCE, above). */
-  const plan = routePlan(template);
   /* Every page carries the navigation (navMarkup); a page in prerender's
      scope carries its render as well, and its navigation marked as the
      render marked it (withRender, readRenders). */
@@ -1243,10 +1358,14 @@ export function build({ bare = false } = {}) {
   /* Every page carries the first-paint script (BEFORE THE FIRST PAINT); an
      island page's render, the recorded journeys (THE RESULT, SERVED). */
   const served = journeysServed(readRecord());
+  /* And each in its own chrome first, the other after its page (PAGE
+     CONTENT FIRST): a page with no render is the public header's, as a
+     first frame draws it. */
   const page = (head, file, opts) => {
     const r = rendered.renders.get(file);
-    const p = withFirst(withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null)));
-    return r ? withRender(p, { ...r, views: withServedRecord(r, served) }) : p;
+    const chrome = r ? r.manifest.chrome : 'public';
+    const p = withFirst(withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null, chrome)));
+    return servedChrome(r ? withRender(p, { ...r, views: withServedRecord(r, served) }) : p, chrome);
   };
   const rootHead = plan.pages.find(p => p.path === '/').head;
   const html = page(rootHead, 'index.html');
