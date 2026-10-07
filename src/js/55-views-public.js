@@ -207,10 +207,10 @@ function pubVisProperty() {
   const paint = (price) => {
     const run = pubLabRun(price);
     const m = run?.m || {};
-    figs.replaceChildren(...PUB_LAB_KEYS.flatMap(k => {
+    figs.replaceChildren(...PUB_LAB_KEYS.map(k => {
       const f = LAB_FIGURES.find(x => x.key === k);
       const v = run ? f.read(m) : null;
-      return [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v))];
+      return el('div', { class: 'pub-lab-fig' }, [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v))]);
     }));
     /* Where the month's rent goes: the rent, against the repayment and the
        rest of the month's costs (vacancy and running costs, the rent less
