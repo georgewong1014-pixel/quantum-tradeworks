@@ -984,14 +984,18 @@ for (const route of ROUTES) {
 
   /* 5. The goal words. */
   await load(BASE + '/');
-  const home = await ev(`({ cards: [...document.querySelectorAll('#views .pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
-      go: (c.querySelector('.pub-card-go')?.textContent || '').trim(), note: (c.querySelector('.pub-card-note')?.firstChild?.textContent || '').trim(), links: c.querySelectorAll('a').length })),
-    want: PRODUCTS.map(p => ({ action: p.action, href: p.actionPath ? href(p.actionPath) : null })) })`);
+  /* Since the homepage cleanup (plan 3.3; D5) a card is an <article> whose
+     task is its one action — an <h3> link to where the goal starts, the
+     action's own address — and Business is a line of text. */
+  const home = await ev(`({ cards: [...document.querySelectorAll('#views .pub-card')].map(c => { const a = c.querySelector('.pub-card-link'); return { tag: c.tagName, href: a?.getAttribute('href') || null,
+      task: (a?.textContent || '').trim() }; }),
+    soon: (() => { const s = document.querySelector('#views .pub-soon'); return s ? { text: s.textContent.replace(/\\s+/g, ' ').trim(), links: s.querySelectorAll('a').length } : null; })(),
+    want: PRODUCTS.map(p => ({ action: p.action, task: p.task, href: p.actionPath ? href(p.actionPath) : null })) })`);
   const words = ['Start research', 'Create a setup', 'Analyse a property'];
   if (JSON.stringify(home.want.slice(0, 3).map(w => w.action)) !== JSON.stringify(words)) p.push(`PRODUCTS' actions: ${JSON.stringify(home.want.map(w => w.action))}`);
-  home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'A' || c.go !== words[i] || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${words[i]}" to ${home.want[i].href}`); });
-  const biz = home.cards[3];
-  if (!biz || biz.tag === 'A' || biz.links || biz.note !== 'Coming soon') p.push(`the Business card: ${JSON.stringify(biz)}, not "Coming soon" as text`);
+  home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'ARTICLE' || c.task !== home.want[i].task || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${home.want[i].task}" to ${home.want[i].href}`); });
+  if (home.cards.length !== 3) p.push(`${home.cards.length} homepage cards, not three`);
+  if (!home.soon || home.soon.links || !/Business Intelligence · Plan my business · Coming soon/.test(home.soon.text)) p.push(`Business on the homepage: ${JSON.stringify(home.soon)}, not "Coming soon" as text`);
   await load(BASE + '/how-it-works');
   const hiw = await ev(`[...document.querySelectorAll('#views .hiw-product-ft a')].map(a => a.textContent.trim())`);
   if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);
@@ -1001,7 +1005,7 @@ for (const route of ROUTES) {
   for (const w of words) if (!steps.includes(w)) p.push(`the dashboard checklist does not say "${w}": ${JSON.stringify(steps)}`);
 
   if (p.length) { bad++; console.log(`FAIL registry-ctas: the tool registry, what a tool that cannot be used offers, and one next action per result screen (${p.length} problems)`); p.slice(0, 60).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, and the homepage, How it works and the checklist say "${words.join('", "')}"`);
+  else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, How it works and the checklist say "${words.join('", "')}", and each homepage card's task opens where it starts`);
 }
 /* ---- end audit1: registry-ctas ---- */
 /* ---- audit1: registry-ctas-verify ---- */
@@ -1393,7 +1397,10 @@ for (const route of ROUTES) {
     const tabs = nav ? [...nav.querySelectorAll('.ptabs-list > li > .ptab')] : [];
     const word = (n) => (n.childNodes[0]?.textContent || '').trim().replace(/ · \\d+\\+?$/, '');
     const name = nav?.querySelector('.ptabs-name');
-    return { navs: navs.length, name: name ? (name.childNodes.length ? [...name.childNodes].filter(c => !c.classList?.contains('status-badge')).map(c => c.textContent).join('').trim() : '') : null,
+    /* The badge, and since D17 Property's qualifier beside it (.pbadge), are
+       not the name. */
+    return { navs: navs.length, name: name ? (name.childNodes.length ? [...name.childNodes].filter(c => !c.classList?.contains('status-badge') && !c.classList?.contains('pbadge')).map(c => c.textContent).join('').trim() : '') : null,
+      qual: name?.querySelector('.pbadge-q')?.textContent.trim() || null,
       badge: name?.querySelector('.status-badge')?.textContent.trim() || null,
       tabs: tabs.map(word), current: tabs.filter(n => n.getAttribute('aria-current') === 'page').map(word),
       hrefs: tabs.map(n => n.getAttribute('href')).filter(Boolean).map(h => new URL(h, location.href).pathname) };
@@ -1417,7 +1424,7 @@ for (const route of ROUTES) {
     ['equities', ['/research', '/discover/screener', '/discover/value-map', '/compare', '/research/queue', '/discover/sarawak', '/us-options/wheel']],
     ['scanner', ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/setups/new', '/app/scanner/alerts',
       '/app/scanner/backtest', '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index']],
-    ['property', ['/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/opportunities']],
+    ['property', ['/property', '/property/models', '/property/calculator', '/property/areas', '/property/comparables', '/property/opportunities']],
   ];
   /* My Alerts is being rebuilt beside this (Release B, B1): it is held to
      the workspace header, which the shell draws, and not to a head its own
@@ -1442,6 +1449,7 @@ for (const route of ROUTES) {
       if (h.navs !== 1) p.push(`${path}: ${h.navs} navs in the product header, not one`);
       else {
         if (h.name !== want.name || h.badge !== want.badge) p.push(`${path}: the header names ${JSON.stringify(h.name)} ${JSON.stringify(h.badge)}, not ${want.name} ${want.badge}`);
+        if (pid === 'property' && h.qual !== 'Your figures, sample to start') p.push(`${path}: Property's badge carries ${JSON.stringify(h.qual)} beside it, not "Your figures, sample to start" (D17)`);
         if (JSON.stringify(h.tabs) !== JSON.stringify(want.tabs)) p.push(`${path}: the header's tabs ${JSON.stringify(h.tabs)} are not the registry's ${JSON.stringify(want.tabs)}`);
         if (JSON.stringify(h.current) !== JSON.stringify(want.here)) p.push(`${path}: the current tab is ${JSON.stringify(h.current)}, not ${JSON.stringify(want.here)}`);
       }
@@ -2678,6 +2686,62 @@ for (const route of ROUTES) {
   else console.log(`ok   scenario-lab: ${LAB_PATHS.join(', ')} each open the Scenario Lab on the comparison the address names, ?model=nope saying the property is not saved here — no error, exception, failed request, NaN or sideways scroll`);
 }
 /* ---- end scenario-lab ---- */
+/* ---- n3-addresses ---- */
+/* /PROPERTY OPENS THE SCENARIO LAB, AND EVERY ADDRESS STILL WORKS (N3, the
+   owner's decision D18). /property and /property/lab open the Lab — with
+   its ?by= — and /property/calculator the calculator. A calculator link
+   written before, on /property, still opens the calculator with what it
+   carries: the deal's ?city and ?d= (a shared deal), or a section's #hash,
+   the address becoming /property/calculator with them, in place — Back does
+   not return to an address that only redirects. Fails before N3: /property
+   opened the calculator. */
+{
+  const p = [];
+  const CASES = [
+    ['/property', 'propertyLab', '/property'],
+    ['/property?by=risk', 'propertyLab', '/property', { metric: 'risk' }],
+    ['/property/lab', 'propertyLab', '/property/lab'],
+    ['/property/calculator', 'property', '/property/calculator'],
+    ['/property?city=sibu&d=price:600000', 'property', '/property/calculator', { city: 'sibu', price: 600000 }],
+    ['/property#scenarios', 'property', '/property/calculator', { hash: '' }],
+  ];
+  for (const [path, view, at, want = {}] of CASES) {
+    bucket = [];
+    await send('Page.navigate', { url: BASE + '/privacy' }, sessionId);
+    await sleep(600);
+    await send('Runtime.evaluate', { expression: `Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k))` }, sessionId);
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    let st = null;
+    for (let i = 0; i < 60; i++) {
+      await sleep(150);
+      const r = await send('Runtime.evaluate', { returnByValue: true, expression: `typeof State !== 'undefined' && document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending
+        ? ({ view: State.view, path: location.pathname, search: location.search, hash: location.hash, city: State.deal?.city, price: State.deal?.price, depth: history.length,
+             metric: typeof labSubject !== 'undefined' && labSubject && LAB[labSubject] ? LAB[labSubject].metric : null }) : null` }, sessionId);
+      st = r.result?.result?.value;
+      if (st) break;
+    }
+    await sleep(300);
+    if (!st) { p.push(`${path}: the page never settled`); continue; }
+    if (st.view !== view) p.push(`${path}: opened ${st.view}, not ${view}`);
+    if (st.path !== at) p.push(`${path}: the address is ${st.path}, not ${at}`);
+    if (want.metric && st.metric !== want.metric) p.push(`${path}: compares by ${st.metric}, not ${want.metric}`);
+    if (want.city && (st.city !== want.city || st.price !== want.price)) p.push(`${path}: the calculator holds ${st.city} at ${st.price}, not the link's ${want.city} at ${want.price}`);
+    if (want.city && !/[?&]d=/.test(st.search)) p.push(`${path}: the calculator's address carries no deal (${st.search})`);
+    /* Back from the redirected page is the page before it, not the address
+       that only redirected (a history entry of its own would be). */
+    if (at !== path.split(/[?#]/)[0]) {
+      await send('Runtime.evaluate', { expression: 'history.back()' }, sessionId);
+      let back = null;
+      for (let i = 0; i < 30; i++) { await sleep(150); back = (await send('Runtime.evaluate', { returnByValue: true, expression: 'location.pathname + location.search' }, sessionId)).result?.result?.value; if (back === '/privacy') break; }
+      if (back !== '/privacy') p.push(`${path}: Back from the calculator went to ${back}, not the page before it — the redirect left an entry of its own`);
+    }
+    bucket.filter(x => !/data\/(prices|personal-[a-z-]+|price-history|price-adjustments|scan-[a-z-]+|ingest-runs|sarawak-income|watchlists)\.json/.test(x))
+      .forEach(x => p.push(`${path}: ${x}`));
+  }
+  if (p.length) { bad++; console.log(`FAIL n3-addresses: /property and the addresses beside it (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   n3-addresses: /property and /property/lab open the Scenario Lab (with ?by=), /property/calculator the calculator; a calculator link written on /property — a shared deal's ?city and ?d=, or #scenarios — opens the calculator at /property/calculator with what it carries, in place (no history entry for the redirect), and nothing logs an error`);
+}
+/* ---- end n3-addresses ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

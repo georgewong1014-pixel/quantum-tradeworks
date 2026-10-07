@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, scanner, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, scanner, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -862,7 +862,7 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
     await sleep(200);
   };
   tab.key = async (key) => {
-    const map = { Enter: [13, '\r'], Tab: [9, ''], Escape: [27, ''] };
+    const map = { Enter: [13, '\r'], Tab: [9, ''], Escape: [27, ''], ArrowLeft: [37, ''], ArrowUp: [38, ''], ArrowRight: [39, ''], ArrowDown: [40, ''] };
     const [code, text] = map[key] || [key.toUpperCase().charCodeAt(0), key];
     await S('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: code, ...(text ? { text } : {}) });
     await S('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code });
@@ -1252,6 +1252,86 @@ const JOURNEYS = [
     },
   },
   {
+    /* PROPERTY'S LANDING, THE SCENARIO LAB (plan item 2.2; N3, the owner's
+       decision D18). /property opens the Lab on the sample deal: its identity
+       line and four figures first; a slider moved by the keyboard works the
+       chain out again with nothing pressed — the rent moves the monthly
+       position and the net yield and not the repayment, the rate the
+       repayment and not the net yield — and writes nothing; the comparison
+       by cash flow keeps A before B; Save beside the identity line saves the
+       property and then B as its scenario; and My properties lists it. */
+    id: 'lab', name: 'Property landing: the Scenario Lab moves, compares and saves',
+    outcomes: ['Move the rent: the monthly position and the net yield follow, the repayment does not', 'Move the rate: the repayment follows, the net yield does not',
+      'Compare by cash flow: A, then B', 'Save the property, then B as a scenario', 'It is listed with the saved properties'],
+    async run(j, tab) {
+      /* The chain's figures as the page holds them, by row. */
+      const chain = `Object.fromEntries([...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].map(n => [n.dataset.lab, n.dataset.value]))`;
+      /* A knob's slider, picked first where a phone shows one at a time. */
+      const knob = (k) => `(() => { const r = document.getElementById('lab-in-${k}'); if (r && !r.checked && !document.getElementById('lab-r-${k}')?.getClientRects().length) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
+        const n = document.getElementById('lab-r-${k}'); if (!n) return false; n.scrollIntoView({ block: 'center', behavior: 'instant' }); n.focus(); return document.activeElement === n; })()`;
+      const press = async (k, key, times) => {
+        if (!await tab.eval(knob(k))) throw new StepError(`the ${k} slider is not on the page or cannot take the keyboard`);
+        for (let i = 0; i < times; i++) await tab.key(key);
+      };
+      /* What exploring may not do: write the calculator's deal. */
+      const dealAt = `JSON.stringify(store.read('deal', null))`;
+      let deal0, before;
+      const name = `Lab journey ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+      await step(j, tab, 'Open /property: the Scenario Lab on the sample deal', BUDGET.load, async () => {
+        await tab.goto('/property');
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('lab-r-rent')`, async () => `/property opened ${await tab.eval('State.view')}, not the Scenario Lab with its sliders`);
+        const id = await tab.eval(`(document.getElementById('lab-status')?.textContent || '').trim()`);
+        if (!/^Sample deal/.test(id)) throw new StepError(`the identity line reads “${id.slice(0, 60)}”, not the sample deal`);
+        const tiles = await tab.eval(`[...document.querySelectorAll('main .lab-tile .lab-tile-label')].map(n => n.textContent.trim()).join(' | ')`);
+        if (tiles !== 'Cash required | Monthly position | Net yield | Next step') throw new StepError(`the four tiles read “${tiles}”`);
+        deal0 = await tab.eval(dealAt);
+      });
+      await step(j, tab, 'Move the rent: the monthly position and the net yield follow, the repayment does not', BUDGET.action, async () => {
+        before = await tab.eval(chain);
+        await press('rent', 'ArrowRight', 5);
+        const t0 = Date.now();
+        let now;
+        do { now = await tab.eval(chain); if (now.cashflowMonthly !== before.cashflowMonthly && now.netYield !== before.netYield) break; await sleep(50); } while (Date.now() - t0 < 1000);
+        if (now.cashflowMonthly === before.cashflowMonthly) throw new StepError(`the monthly position stayed ${before.cashflowMonthly} when the rent rose five steps`);
+        if (now.netYield === before.netYield) throw new StepError(`the net yield stayed ${before.netYield} when the rent rose five steps`);
+        if (now.instalment !== before.instalment) throw new StepError(`the repayment moved from ${before.instalment} to ${now.instalment} with the rent`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('moving a slider wrote the calculator’s deal — exploring is a what-if until it is saved');
+        before = now;
+      });
+      await step(j, tab, 'Move the rate: the repayment follows, the net yield does not', BUDGET.action, async () => {
+        await press('ratePct', 'ArrowUp', 1);
+        const t0 = Date.now();
+        let now;
+        do { now = await tab.eval(chain); if (now.instalment !== before.instalment) break; await sleep(50); } while (Date.now() - t0 < 1000);
+        if (now.instalment === before.instalment) throw new StepError(`the repayment stayed ${before.instalment} when the rate rose a step`);
+        if (now.netYield !== before.netYield) throw new StepError(`the net yield moved from ${before.netYield} to ${now.netYield} with the rate`);
+      });
+      await step(j, tab, 'Compare by cash flow: A, then B', BUDGET.action, async () => {
+        await tab.click(`document.querySelector('label[for="lab-by-cashflow"]')`, 'Compare by “Cash flow”');
+        await tab.expect(`!!document.querySelector('#lab-cmp table[data-field="cashflowMonthly"]')`, 'the comparison did not change to the monthly position');
+        const rows = await tab.eval(`[...document.querySelectorAll('#lab-cmp table[data-field="cashflowMonthly"] tr.lab-cmp-row')].map(r => r.dataset.labCol + ' ' + r.dataset.value)`);
+        if (rows.map(r => r.split(' ')[0]).join('') !== 'AB') throw new StepError(`the comparison by cash flow lists ${rows.join(', ') || 'nothing'}, not A then B`);
+        if (rows[0].split(' ')[1] === rows[1].split(' ')[1]) throw new StepError(`A and B show the same monthly position (${rows[0].split(' ')[1]}) after B's rent and rate moved`);
+      });
+      await step(j, tab, 'Save the property, then B as a scenario', BUDGET.action * 3, async () => {
+        await tab.click(`document.getElementById('lab-id-save')`, 'Save this property, beside the identity line');
+        await tab.expect(`!!document.getElementById('lab-property-name')`, 'Save asked for no name');
+        await tab.fill(`document.getElementById('lab-property-name')`, name, 'The property’s name');
+        await tab.click(`document.getElementById('lab-name-save')`, 'Save');
+        await tab.expect(`/Saved “/.test(document.getElementById('toast')?.textContent || '') && !!pmFind(State.deal.modelId)`, 'the property was not saved', 4000);
+        await tab.expect(`/^Save B as a scenario/.test(document.getElementById('lab-id-save')?.textContent || '')`, async () => `beside the identity line: “${await tab.eval(`document.querySelector('.lab-id-act')?.textContent || ''`)}”, not “Save B as a scenario”`);
+        await tab.click(`document.getElementById('lab-id-save')`, 'Save B as a scenario');
+        await tab.expect(`!!document.getElementById('lab-scenario-name')`, 'Save B asked for no name');
+        await tab.click(`document.getElementById('lab-name-save')`, 'Save');
+        await tab.expect(`/^Saved B as the scenario/.test(document.getElementById('toast')?.textContent || '')`, async () => `saving B said “${await tab.eval(`document.getElementById('toast')?.textContent || ''`)}”`, 4000);
+      });
+      await step(j, tab, 'It is listed with the saved properties', BUDGET.load, async () => {
+        await tab.goto('/property/models');
+        await tab.expect(`(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(name)})`, `“${name}” is not listed on My properties`);
+      });
+    },
+  },
+  {
     id: 'scanner', name: 'Scanner: build, save and evaluate a setup',
     /* Not the evaluate step: on the live site it passes by checking a
        refusal (gated), and a refusal proves no evaluation. */
@@ -1389,12 +1469,14 @@ const JOURNEYS = [
         if (r.ok) checked++;
         else failures.push({ step: stepName, route: r.route, why: r.why });
       };
-      /* The product cards under "What would you like to do?" — not the
-         disclosure line's link beside them, which is not a card. */
-      const CARDS = '#products a.pub-card[href], #products .pub-cards a[href]';
+      /* The product cards under "What would you like to do?": each card's
+         task (its one action, plan 3.3), the Property card's "Try the
+         Scenario Lab", and the Equities chart's link to Apple's page — not
+         what a closed ⓘ holds. */
+      const CARDS = '#products a.pub-card-link[href], #products .pub-card-also a[href], #products a.pub-vis-link[href]';
       /* A control's name as a reader reads it: a card's or a link's heading
          where it has one, else its text. */
-      const LABEL = `(n) => (n.querySelector('h3, strong')?.textContent || n.textContent).trim().replace(/\\s+/g, ' ').slice(0, 60)`;
+      const LABEL = `(n) => (n.getAttribute('aria-label') || n.querySelector('h3, strong')?.textContent || n.textContent).trim().replace(/\\s+/g, ' ').slice(0, 60)`;
       const list = (sel) => tab.eval(`[...document.querySelectorAll(${JSON.stringify(sel)})].filter(n => n.getClientRects().length).map(${LABEL})`);
 
       /* The pages the calls to action are pressed FROM. press() judges the
@@ -1433,9 +1515,37 @@ const JOURNEYS = [
         await press('/', `[...document.querySelectorAll(${JSON.stringify(CARDS)})].filter(n => n.getClientRects().length)[${i}]`, cards[i], `Homepage card “${cards[i]}”`);
       }
 
+      /* THE HOMEPAGE'S PROPERTY CARD (plan item 3.8): the compact Scenario
+         Lab on the sample deal. Its price, moved to the far end of its
+         span, moves all three of its figures — Monthly repayment, Cash
+         required and Monthly position — in place. A failure here is
+         recorded with the presses. */
+      await load('/').catch(() => {});
+      {
+        const r = await timed(j, tab, 'Homepage Property card: moving the price moves its three figures', BUDGET.action, async () => {
+          const m = await tab.eval(`(async () => {
+            const r = document.querySelector('#pub-lab-price');
+            if (!r) return null;
+            const read = () => [...document.querySelectorAll('[data-product="property"] .pub-lab-figs dd')].map(d => d.textContent.trim());
+            const before = read();
+            r.focus();
+            r.value = String(Number(r.max)); r.dispatchEvent(new Event('input', { bubbles: true }));
+            await new Promise(res => setTimeout(res, 150));
+            return { before, after: read(), price: document.querySelector('#pub-lab-price-v')?.textContent.trim() };
+          })()`);
+          if (!m) throw new StepError('the homepage has no Property price to move');
+          if (m.before.length !== 3) throw new StepError(`the Property card shows ${m.before.length} figures, not three`);
+          const still = m.after.map((v, i) => (v === m.before[i] ? i : -1)).filter(i => i >= 0);
+          if (still.length) throw new StepError(`at ${m.price} the Property card's figures ${m.before.join(', ')} became ${m.after.join(', ')} — ${still.length} did not move`);
+        });
+        if (r.ok) checked++;
+        else failures.push({ step: 'Homepage Property card: moving the price moves its three figures', route: '/', why: r.why });
+      }
+
       /* Each product's own row of tabs, pressed along the row as a reader
-         moves through a product. */
-      for (const [product, source] of [['Equities', '/research'], ['Property', '/property/calculator'], ['Scanner', '/app/scanner']]) {
+         moves through a product — from its landing: Property's is the
+         Scenario Lab since N3 (D18), the calculator one of its tabs. */
+      for (const [product, source] of [['Equities', '/research'], ['Property', '/property'], ['Scanner', '/app/scanner']]) {
         await load(source).catch(() => {});
         const tabs = await list('nav.ptabs a[href]');
         if (!tabs.length) { failures.push({ step: `${product} tabs`, route: source, why: `no row of product tabs on ${source}` }); continue; }

@@ -1410,6 +1410,111 @@ try {
       else console.log(`ok   ${what}`);
     }
     /* ---- end journeys-served ---- */
+    /* ---- layout-system ---- */
+    /* THE PAGES ON THE LAYOUT SYSTEM HOLD STILL (the owner's decision, 7 Oct
+       2026; 37-layout-system.js). /property and /property/calculator:
+       - SERVED AND DRAWN: at 390 (the phone's layout: the action bar, the
+         chips, the tables as cards, a knob on two lines), 1024 and 1440
+         (the evidence drawer's column), a fresh visitor's served page and
+         the script's first drawing over it put every run of words in the
+         tab row and the page in the same place — every rule of the system
+         is the window's, never the script's (above the first chart,
+         which the script draws at the window's width on every page);
+       - AN L3 DRAWER MOVES NOTHING: at 1440, opening and closing each
+         section of the evidence drawer, and pressing a row of the chain
+         (whose formula the drawer shows), moves no run of words outside the
+         drawer; under 1440 (1024, 390), where the evidence is a collapsed
+         section, and on the calculator, whose drawers stand where they are
+         at every width, opening and closing one moves nothing above it and
+         not its own summary, with the scroll unanchored (Safari's).
+       Fails on 740ceab merged with main: at 1440 "Why U" opened under the
+       grade and a row's formula under its row, moving every row below. */
+    {
+      const said = [];
+      const W390 = { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, W1024 = { width: 1024, height: 800, deviceScaleFactor: 1, mobile: false },
+        W1440 = { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false };
+      let n = 0, drawers = 0;
+      try {
+        for (const path of ['/property', '/property/calculator']) for (const metrics of [W390, W1024, W1440]) {
+          const at = `${path} at ${metrics.width}`;
+          await send('Emulation.setDeviceMetricsOverride', metrics, sid);
+          await firstVisit({ script: true });
+          await send('Page.navigate', { url: live + path }, sid);
+          if (!await until(SERVED_PAINTED)) { said.push(`${at}: the served page was not painted before the script`); continue; }
+          await painted();
+          const served = await value(`(${positions})()`);
+          /* Above the first chart: a chart is drawn again by the script at
+             the window's own width (drawChartsInPlace, 35-ui.js), so below
+             it every page's words move with it away from the 1280px the
+             render was drawn at — the main check above holds them there. */
+          const chartTop = await value(`Math.min(...[...document.querySelectorAll('#views svg')].map(s => s.getBoundingClientRect()).filter(b => b.height >= 60).map(b => Math.round(b.top + scrollY)), 1e9)`);
+          await releaseScript();
+          await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete' && !document.getElementById('views').hasAttribute('data-served')`);
+          await painted();
+          const drawn = await value(`(${positions})()`);
+          n++;
+          const moved = movedBetween(served, drawn).filter(x => served[x.k][1] < chartTop);
+          if (moved.length) said.push(`${at}: ${moved.length} run${moved.length === 1 ? '' : 's'} of words moved when the page was drawn over the served one: ${moved.slice(0, 4).map(x => `"${x.k.replace(/ #\d+$/, '')}" ${x.dx ? `${x.dx > 0 ? '+' : ''}${x.dx}px across ` : ''}${x.dy ? `${x.dy > 0 ? '+' : ''}${x.dy}px down` : ''}`).join('; ')}`);
+          await releaseAll();
+          await quiet(`typeof realPending !== 'undefined' && !realPending`);
+          /* The L3 drawers, on the page drawn. */
+          const wide = metrics.width >= 1440, lab = path === '/property';
+          const L3 = lab ? `[...document.querySelectorAll('#views .ls-evidence details, #views #lab-grade-why')].filter((d, i, a) => a.indexOf(d) === i)`
+            : `[...document.querySelectorAll('#views details')].filter(d => d.getClientRects().length && !d.open && !d.closest('details:not([open]) details'))`;
+          const count = await value(`(() => { document.documentElement.style.overflowAnchor = 'none'; document.body.style.overflowAnchor = 'none'; document.documentElement.style.scrollBehavior = 'auto'; return ${L3}.length; })()`);
+          if (lab && wide && !count) { said.push(`${at}: no evidence drawer — no L3 section to open beside the figures`); continue; }
+          const rows = lab && wide ? 2 : 0;
+          for (let i = 0; i < Math.min(count, lab ? 4 : 6) + rows; i++) {
+            const r = await value(`(async () => {
+              const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+              const pos = ${positions};
+              const isRow = ${i} >= ${Math.min(count, lab ? 4 : 6)};
+              const d = isRow ? [...document.querySelectorAll('#views .lab-row')][${i} - ${Math.min(count, lab ? 4 : 6)} + 1] : ${L3}[${i}];
+              if (!d) return null;
+              const sum = d.querySelector(':scope > summary');
+              const drawer = d.closest('.ls-evidence');
+              sum.scrollIntoView({ block: 'center' }); await frames();
+              const top = sum.getBoundingClientRect().top + scrollY;
+              const inDrawer = (() => { const s = new Set(); if (!drawer) return s; const w = document.createTreeWalker(drawer, NodeFilter.SHOW_TEXT); for (let t = w.nextNode(); t; t = w.nextNode()) s.add(t.data.replace(/\\s+/g, ' ').trim().slice(0, 50)); return s; })();
+              const a = pos();
+              const sumAt = () => Math.round(sum.getBoundingClientRect().top + scrollY);
+              const s0 = sumAt();
+              sum.click(); await frames();
+              const b = pos(); const s1 = sumAt();
+              const open = d.open;
+              if (d.open) { sum.click(); await frames(); }
+              const c = pos(); const s2 = sumAt();
+              return { name: sum.textContent.replace(/\\s+/g, ' ').trim().slice(0, 40), wide: ${wide}, isRow, top: Math.round(top), open, s: [s0, s1, s2], a, b, c,
+                drawer: [...inDrawer] };
+            })()`);
+            if (!r) continue;
+            drawers++;
+            const inDrawer = new Set(r.drawer);
+            const key = (k) => k.replace(/^views: /, '').replace(/ #\d+$/, '');
+            const judgeMove = (x, y, when) => {
+              const m = movedBetween(x, y).filter(z => {
+                if (r.wide && (inDrawer.has(key(z.k)))) return false;
+                if (!r.wide || !lab) return x[z.k][1] < r.top;
+                return true;
+              });
+              if (m.length) said.push(`${at}: ${when} "${r.name}" moved ${m.length} run${m.length === 1 ? '' : 's'} of words ${r.wide && lab ? 'outside the drawer' : 'above it'}: ${m.slice(0, 3).map(z => `"${key(z.k)}" ${z.dy ? `${z.dy > 0 ? '+' : ''}${z.dy}px down` : `${z.dx > 0 ? '+' : ''}${z.dx}px across`}`).join('; ')}`);
+            };
+            judgeMove(r.a, r.b, r.isRow ? 'pressing the row' : 'opening');
+            judgeMove(r.b, r.c, r.isRow ? 'pressing the row again' : 'closing');
+            if (Math.abs(r.s[1] - r.s[0]) > 1 || Math.abs(r.s[2] - r.s[0]) > 1) said.push(`${at}: "${r.name}" itself moved as it opened and closed (${r.s.join(' → ')})`);
+          }
+        }
+      } catch (e) {
+        said.push(`the checks could not run: ${e.message}`);
+      } finally {
+        await releaseAll();
+        await send('Emulation.setDeviceMetricsOverride', { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }, sid);
+      }
+      const what = `the pages on the layout system hold still: /property and /property/calculator at 390, 1024 and 1440 drawn over their served pages with every run of words where it stood (${n} pages), and ${drawers} L3 drawers opened and closed — at 1440 the evidence drawer's sections and the chain's rows moving nothing outside the drawer, elsewhere nothing above the drawer and not its summary`;
+      if (said.length) { bad.push('layout-system'); console.log(`FAIL ${what}`); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
+      else console.log(`ok   ${what}`);
+    }
+    /* ---- end layout-system ---- */
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });

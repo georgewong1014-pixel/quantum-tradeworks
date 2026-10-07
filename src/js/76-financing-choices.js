@@ -131,7 +131,7 @@ const PROTECTION_COMPARISON = [
 
 /* ---------------------------------------------------------------- panel --- */
 function financingChoicesPanel(d, m) {
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('The two quotes that are easy to misread',
     'A rate can be quoted two ways that mean very different things, and the loan insurance is usually offered '
     + 'added to the loan rather than paid. Both are decided quickly at the counter and both cost real money.'));
@@ -192,12 +192,12 @@ function financingChoicesPanel(d, m) {
     const reducingInterest = isNum(reducingPmt) ? reducingPmt * flatYrs * 12 - flatAmount : null;
 
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-    g.append(el('div', { class: 'panel' }, statTile('Quoted as flat',
+    g.append(el('div', { class: 'panel ls-fig' }, statTile('Quoted as flat',
       fmtPct(d.flatQuotePct, 2), { sub: `On ${fmtMoney(flatAmount, 'MYR', 0)} over ${flatYrs} years` })));
-    g.append(el('div', { class: 'panel' }, statTile('What that really costs',
+    g.append(el('div', { class: 'panel ls-fig' }, statTile('What that really costs',
       isNum(realRate) ? fmtPct(realRate, 2) : '—',
       { sub: isNum(realRate) ? 'The same monthly payment, charged the normal way' : (eq.why || 'Not computable'), tone: '--bronze' })));
-    g.append(el('div', { class: 'panel' }, statTile('Every month',
+    g.append(el('div', { class: 'panel ls-fig' }, statTile('Every month',
       isNum(eq.flat.monthly) ? fmtMoney(eq.flat.monthly, 'MYR', 0) : '—',
       { sub: isNum(reducingPmt) ? `Against ${fmtMoney(reducingPmt, 'MYR', 0)} at your ${fmtPct(num0(d.ratePct), 2)}` : 'Per month' })));
     card.append(g);
@@ -220,7 +220,7 @@ function financingChoicesPanel(d, m) {
 
     /* The picture: what you borrow against what the interest adds. */
     const block = el('div', { class: 'render-block', style: 'margin-top:var(--md)' });
-    block.append(el('h4', { style: 'font-size:var(--text-lead);font-weight:var(--weight-semibold);margin:0' },
+    block.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
       'What you borrow, and what you hand back on top'));
     const host = el('div', { style: 'margin-top:var(--sm)' });
     block.append(host);
@@ -301,10 +301,10 @@ function financingChoicesPanel(d, m) {
     const fin = premiumIfFinanced(d.mrtaPremium, num0(d.ratePct), mortgageYrs);
     const mltaTotal = d.mltaPremiumAnnual * mortgageYrs;
     const g2 = el('div', { class: 'grid g-2', style: 'margin-top:var(--md)' });
-    g2.append(el('div', { class: 'panel' }, statTile('Reducing cover, all in',
+    g2.append(el('div', { class: 'panel ls-fig' }, statTile('Reducing cover, all in',
       fmtMoney(fin ? fin.totalPaid : d.mrtaPremium, 'MYR', 0),
       { sub: fin ? 'Premium plus the interest, if added to the loan' : 'Premium' })));
-    g2.append(el('div', { class: 'panel' }, statTile('Level cover, all in',
+    g2.append(el('div', { class: 'panel ls-fig' }, statTile('Level cover, all in',
       fmtMoney(mltaTotal, 'MYR', 0), { sub: `${fmtMoney(d.mltaPremiumAnnual, 'MYR', 0)} a year for ${mortgageYrs} years` })));
     card.append(g2);
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },

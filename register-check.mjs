@@ -103,6 +103,9 @@ const SOURCES = readdirSync('src/js').filter(f => f.endsWith('.js')).map(f => re
 const ctx = vm.createContext({ URLSearchParams });
 const { FEATURE_STATUS, CAPABILITY_REGISTER, ROUTES, RESEARCH_TABS, matchRoute } = vm.runInContext([
   sliceArray(REG, 'FEATURE_STATUS'), sliceArray(REG, 'CAPABILITY_REGISTER'),
+  /* The route table names the site root by POSITIONING's title (plan 3.5),
+     so the table comes with it. */
+  UI.slice(UI.indexOf('const POSITIONING = {'), UI.indexOf('\n};', UI.indexOf('const POSITIONING = {')) + 3),
   sliceArray(UI, 'ROUTES'), sliceArray(RESEARCH, 'RESEARCH_TABS'),
   "const BASE = '';", sliceFunction(UI, 'matchRoute'),
   '({ FEATURE_STATUS, CAPABILITY_REGISTER, ROUTES, RESEARCH_TABS, matchRoute })',

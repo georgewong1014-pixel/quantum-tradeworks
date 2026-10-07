@@ -103,9 +103,14 @@ const startHereHidden = () => { const v = store.read('startHere', {}); return v 
    page, nor on a company page or its report, which keep their own tabs and
    head, nor on the Scanner's operations pages, which are read-only views of
    the worker's files where nothing is there to press. */
+/* Nor on the Scenario Lab, Property's landing (N3, D18): its identity line,
+   its four figures and its first slider are what a first-time reader starts
+   with, and the panel stood a screen of words above them — about 50 of the
+   page's 180 before its first control. The calculator and Property's other
+   tools keep it. */
 function startHereFor(view = State.view) {
   const pid = productOf(view);
-  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view)) return null;
+  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab') return null;
   if (!TOOLS.some(t => t.product === pid && toolViews(t).includes(view))) return null;
   return startHereHidden()[pid] ? null : pid;
 }

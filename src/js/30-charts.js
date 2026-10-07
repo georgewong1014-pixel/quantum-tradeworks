@@ -528,8 +528,13 @@ function timeframeScoreBars(container, tfs, floors) {
        number on the page.
      - it is a summary of what is already on screen, so it introduces no
        figure the reader cannot scroll up and check. */
-function decisionDock({ figs, blocker, next }) {
-  const dock = el('div', { class: 'dock', role: 'complementary', 'aria-label': 'Current result and next action' });
+/* actions: the page's sticky action bar under 640px (lsActionBar, the
+   layout system), in the dock's place for its own action and blocker; with
+   phoneOnly the dock is that bar alone and is not shown from 640px. */
+function decisionDock({ figs, blocker, next, actions = null, phoneOnly = false }) {
+  const dock = el('div', { class: `dock${actions ? ' ls-dock' : ''}${phoneOnly ? ' ls-dock-phone' : ''}`, role: 'complementary',
+    'aria-label': phoneOnly ? 'Page actions' : 'Current result and next action' });
+  if (phoneOnly) { dock.append(el('div', { class: 'dock-inner' }, lsActionBar(actions))); return dock; }
   const inner = el('div', { class: 'dock-inner' });
 
   const fg = el('div', { class: 'dock-figs' });
@@ -556,6 +561,7 @@ function decisionDock({ figs, blocker, next }) {
     acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: next.onclick }, next.label));
     inner.append(acts);
   }
+  if (actions) inner.append(lsActionBar(actions));
   dock.append(inner);
   return dock;
 }
@@ -642,7 +648,7 @@ function workBar(kind, onReset, { primary = false, saveLabel = 'Save' } = {}) {
 /* A collapsible table beneath a chart — the WCAG-clean equivalent. */
 function tableTwin(caption, headers, rows) {
   const det = el('details', { class: 'caption', style: 'margin-top:var(--sm)' });
-  det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:12px' }, caption));
+  det.append(el('summary', { style: 'cursor:pointer;color:var(--ink-3);font-size:var(--ls-meta)' }, caption));
   const wrap = el('div', { class: 'tablewrap', style: 'margin-top:var(--xs)' });
   const t = el('table', { class: 'dt' });
   /* A header left blank for the eye — the label column of a two-column

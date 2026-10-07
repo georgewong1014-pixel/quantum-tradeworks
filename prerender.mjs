@@ -1001,6 +1001,13 @@ async function main() {
             const i = html.indexOf(open), j = i < 0 ? -1 : html.indexOf(close, i + open.length);
             served[slot] = i < 0 || j < 0 ? '' : html.slice(i + open.length, j);
           }
+          /* The other chrome's list is served empty (plan item 3.5,
+             servedChrome in build.mjs): the app draws it when the reader
+             enters that chrome. Empty it must be; the page's own chrome's
+             list is the app's drawing, node for node. */
+          const other = m.chrome === 'app' ? 'pubnav' : 'appnav';
+          if (served[other] !== '') problems.push(`#${other}: served ${served[other].length} characters, where a page in the ${m.chrome} chrome serves it empty`);
+          delete served[other];
           problems.push(...await r.tab.eval(`(${sameNavigation})(${JSON.stringify(served)})`));
         } finally { await r.tab.close(); }
         say(!problems.length, `${s.path}  ${r.state}, "${r.h1}"${problems.length ? '' : ` — the committed render's markup (every element, attribute and word, a chart's figures with them; ${r.text.length} characters of text), chrome and current links, and the served navigation is the app's drawing`}`, problems);

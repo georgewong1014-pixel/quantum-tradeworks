@@ -82,7 +82,10 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 '/admin/scanner', '/admin/scanner/jobs', '/admin/scanner/data',
                 /* The Scenario Lab (3 Oct 2026): its sample, and the Location
                    comparison, the one view of facts in sentences. */
-                '/property/lab', '/property/lab?by=location'];
+                '/property/lab', '/property/lab?by=location',
+                /* Property's landing, the Lab with its identity line and four
+                   tiles over the sliders (N3, D18). */
+                '/property'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -922,7 +925,7 @@ for (const w of [360, 390]) {
   const PUBLIC = ['/', '/pricing', '/about', '/contact', '/privacy', '/terms', '/learn', '/learn/glossary', '/methodology', '/data-sources',
     '/corrections', '/learn/product-boundaries', '/status', '/methodology/ips', '/no-such-page'];
   const APP = ['/app', '/research', '/discover/screener', '/discover/value-map', '/compare', '/discover/sarawak', '/us-options/wheel',
-    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/areas',
+    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/calculator', '/property/areas',
     '/my/watchlists', '/my/alerts', '/my/workspace', '/my/data', '/my/portfolio', '/decision-record', '/welcome', '/start'];
   const chromeProbe = (paths) => `(async () => {
     const shown = (s) => { const n = document.querySelector(s); return !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden'; };
@@ -1152,7 +1155,7 @@ for (const w of [360, 390]) {
     }
     /* SHELL-10 — the dock is inert behind the open drawer, and a dock drawn
        while it is open is too; closing it gives the dock back. */
-    for (const path of ['/property', '/us-options/wheel']) {
+    for (const path of ['/property/calculator', '/us-options/wheel']) {
       await load(path, 390);
       await ev(`(() => { document.getElementById('navOpen').click(); return true; })()`); await sleep(350);
       const inert = `(() => { const d = document.querySelector('body > .dock'); return d ? !!d.closest('[inert]') : 'no dock'; })()`;
@@ -2345,7 +2348,7 @@ for (const w of [360, 390]) {
         const range = document.querySelector('.lab-knob.is-on .lab-range');
         const rb = range ? range.getBoundingClientRect() : null;
         const vals = [...document.querySelectorAll('.lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => ({ k: n.dataset.lab, b: n.getBoundingClientRect() }));
-        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: innerHeight };
+        return { knobs: knobs.length, under: Math.round(under), range: rb && [Math.round(rb.top), Math.round(rb.bottom)], vals: vals.map(x => [x.k, Math.round(x.b.top), Math.round(x.b.bottom)]), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })() };
       })()`);
       said.oneScreen = r;
       if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
@@ -2510,7 +2513,7 @@ for (const w of [360, 390]) {
         rg.value = String(v + step <= Number(rg.max) ? v + step : v - step);
         rg.dispatchEvent(new Event('input', { bubbles: true }));
         await ${frames};
-        return { under: Math.round(under), vh: innerHeight, before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves),
+        return { under: Math.round(under), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), before, after: at(), moved: Object.keys(labActive(LAB[labSubject]).moves),
           face: getComputedStyle(document.querySelector('#lab-root .lab-val')).fontFamily };
       })()`);
       said.knobs.push([`${k}${font ? ' (Verdana)' : ''}`, Math.max(...r.after.vals.map(v => v[2]))]);
@@ -2777,7 +2780,7 @@ for (const w of [360, 390]) {
         const warn = document.querySelector('#lab-knob-ratePct .lab-note-warn');
         const w = warn && warn.getClientRects().length ? warn.getBoundingClientRect() : null;
         const vals = [...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].filter(n => n.dataset.lab !== 'grade').map(n => { const b = n.getBoundingClientRect(); return [n.dataset.lab, Math.round(b.top), Math.round(b.bottom)]; });
-        return { under: Math.round(under), vh: innerHeight, rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
+        return { under: Math.round(under), vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), rate: nb.value, warn: w ? [Math.round(w.top), Math.round(w.bottom), warn.textContent] : null, vals };
       })()`);
       said.lab.push([font ? 'Verdana' : 'page font', Math.max(...r.vals.map(v => v[2]))]);
       if (r.rate !== '0') fails.push(`${at}: the rate did not take 0 (it reads ${r.rate})`);
@@ -2822,6 +2825,440 @@ for (const w of [360, 390]) {
   else console.log(`ok   batch1-phone: at 360×640 a 0% rate's warning stays whole and in sight and the seven results end on the screen (the last at ${said.lab.map(([f, b]) => `${b} in the ${f}`).join(', ')}); the app bar's Search word is whole or not shown, never cut, its magnifier whole and the button a 44px target (${said.search.join('; ')})`);
 }
 /* ---- end batch1-phone ---- */
+/* ---- n3-first-view ---- */
+/* /PROPERTY'S FIRST SCREEN (N3, the 5 Oct audit; the owner's decision D18).
+   Property's landing opens the Scenario Lab on the calculator's deal, and a
+   first visit sees, without scrolling, at 1440×900 and at 390×844, in the
+   page's font and in Verdana (CI's Linux sans is as wide): the identity line,
+   the four tiles — Cash required, Monthly position, Net yield, Next step —
+   and the first slider, each whole inside the window. /property served the
+   calculator, whose first field sat about 2,400px down at 1440 and 3,650px
+   at 390. On a phone the identity line's Save and the next step are 44px
+   targets, and nothing scrolls sideways.
+   ON THE LAYOUT SYSTEM (7 Oct 2026): on a phone Save is the sticky action
+   bar's (Analyse · Compare · Save this), and "the first screen" ends where
+   the bar begins — the slider must be whole above it, not under it. The
+   Lab's checks above measure the same screen (vh: the bar's top). */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[1440, 900], [390, 844]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      /* A first visit: nothing kept in this browser. */
+      await load('/privacy');
+      await forget();
+      const view = await load('/property');
+      if (view !== 'propertyLab') { fails.push(`${at}: /property opened ${view}, not the Scenario Lab`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(`(async () => {
+        await document.fonts.ready;
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const box = (n) => { if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+        const range = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length);
+        return { y: Math.round(scrollY), vw: innerWidth, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          identity: box(document.querySelector('#views .lab-identity')), name: (document.getElementById('lab-status')?.textContent || '').trim(),
+          tiles: [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: n.querySelector('.lab-tile-label')?.textContent.trim(), at: box(n) })),
+          slider: box(range), sliderOf: range?.id || null,
+          save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
+          face: getComputedStyle(document.querySelector('#views .lab-tile-val') || document.body).fontFamily };
+      })()`);
+      const whole = (b) => !!b && b.t >= 0 && b.b <= r.vh && b.l >= 0 && b.r <= r.vw;
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: the tiles were drawn in ${r.face}, not Verdana`);
+      if (r.y !== 0) fails.push(`${at}: the page opened scrolled to ${r.y}px, not at its top`);
+      if (!/^Sample deal/.test(r.name)) fails.push(`${at}: the identity line reads "${r.name.slice(0, 60)}", not the sample deal's on a first visit`);
+      if (!whole(r.identity)) fails.push(`${at}: the identity line ${r.identity ? `(${r.identity.t}–${r.identity.b}px)` : '(none)'} is not whole in the first ${r.vh}px`);
+      const labels = r.tiles.map(t => t.label);
+      if (JSON.stringify(labels) !== JSON.stringify(['Cash required', 'Monthly position', 'Net yield', 'Next step'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
+      r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
+      if (!whole(r.slider)) fails.push(`${at}: the first slider${r.sliderOf ? ` (#${r.sliderOf})` : ''} ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole in the first ${r.vh}px`);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (w < 600) {
+        if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: Save (the action bar's, on a phone) is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
+        if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
+      }
+      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
+    }
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
+}
+/* ---- end n3-first-view ---- */
+/* ---- layout-system ---- */
+/* THE QUANTUM RESPONSIVE LAYOUT SYSTEM, AS DRAWN (the owner's decision, 7
+   Oct 2026; 37-layout-system.js). On the pages on the system — /property
+   and /property/calculator — in the page's font and in Verdana (CI's Linux
+   sans is as wide):
+     - under 640px (360, 390, 430): the calculator's financing scenarios and
+       its cost breakdown are cards, not a table — nothing in them scrolls
+       sideways, and of the scenarios the entered one stands with the others
+       behind a 44px "Compare …" button that brings them;
+     - a row of tabs — the product's, the Lab's inputs and its "Compare by",
+       the calculator's sections — is one line, never two;
+     - the sticky action bar is in view at the foot of the window — Analyse,
+       Compare, Save this — each a 44px target inside the screen, clear of
+       the safe area, and nothing is under it: /property's first slider sits
+       above it on the first screen, and at the end of each page the
+       footer's last line does;
+     - every word on the page is set in one of the scale's sizes (the
+       --ls-* tokens at that width), at 390 and at 1440;
+     - and at 1024 and 1440 no block of text runs wider than 70 characters
+       (its width over its own font's "0").
+   Each fails on 740ceab merged with main: the tables were tables, "Compare
+   by" took two lines on a phone, there was no bar, sizes were 10–22px off
+   any scale, and the claim ran 96ch, the lede 82ch, a body block 72ch. */
+{
+  const fails = [], said = { tables: 0, rows: 0, bars: 0, words: 0, blocks: 0 };
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* 1. Phones. */
+    for (const w of [360, 390, 430]) for (const font of [null, 'Verdana, sans-serif']) {
+      const h = w === 360 ? 640 : w === 390 ? 844 : 932;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      for (const path of ['/property', '/property/calculator']) {
+        const at = `${w}×${h} ${path}${font ? ' in Verdana' : ''}`;
+        const view = await load(path);
+        if (view !== (path === '/property' ? 'propertyLab' : 'property')) { fails.push(`${at}: opened ${view}`); continue; }
+        await face(font);
+        const r = await ev(`(async () => {
+          const frames = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          document.documentElement.style.scrollBehavior = 'auto';
+          const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+          const out = { vw: document.documentElement.clientWidth, vh: innerHeight, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+          /* The bar. */
+          const bar = document.querySelector('body > .dock .ls-actbar');
+          const dock = bar && bar.closest('.dock');
+          out.bar = shown(bar) ? (() => { const b = dock.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), pos: getComputedStyle(dock).position,
+            acts: [...bar.querySelectorAll('.ls-act')].map(a => { const x = a.getBoundingClientRect(); return { word: a.textContent.trim(), w: Math.round(x.width), h: Math.round(x.height), l: Math.round(x.left), r: Math.round(x.right), cut: a.querySelector('.ls-act-word') ? a.querySelector('.ls-act-word').scrollWidth > a.querySelector('.ls-act-word').clientWidth + 1 : false }; }) }; })() : null;
+          /* Tab rows. */
+          const rows = [['the product\\'s tabs', '#productTabs .ptabs-list'], ['the Lab\\'s inputs', '#views .lab-pick-input .lab-seg'], ['the Lab\\'s "Compare by"', '#views .lab-seg-by'], ['the calculator\\'s sections', '#views .pc-index-list']];
+          out.rows = rows.map(([name, sel]) => { const n = document.querySelector(sel); if (!shown(n)) return [name, null];
+            const tops = [...n.children].filter(shown).map(c => Math.round(c.getBoundingClientRect().top));
+            return [name, { lines: new Set(tops.map(t => Math.round(t / 6))).size, spread: tops.length ? Math.max(...tops) - Math.min(...tops) : 0, n: tops.length }]; });
+          /* Tables the system calls cards. */
+          const tables = [...document.querySelectorAll('#views table')].filter(t => shown(t) && !t.closest('details:not([open])')).filter(t => /Margin of finance/.test(t.querySelector('thead')?.textContent || '') || /Total initial cash/.test(t.textContent));
+          out.tables = tables.map(t => { const wrap = t.closest('.tablewrap') || t.parentElement; const rowsShown = [...t.querySelectorAll('tbody tr')].filter(shown);
+            return { name: /Margin of finance/.test(t.textContent) ? 'financing scenarios' : 'cost breakdown', display: getComputedStyle(t).display,
+              sideways: wrap.scrollWidth - wrap.clientWidth, right: Math.round(t.getBoundingClientRect().right), rows: rowsShown.length, all: t.querySelectorAll('tbody tr').length,
+              more: (() => { const b = document.querySelector('[aria-controls="' + t.id + '"].ls-tcards-more'); if (!shown(b)) return null; const x = b.getBoundingClientRect(); return { w: Math.round(x.width), h: Math.round(x.height), id: t.id }; })() }; });
+          /* The first slider on /property's first screen. */
+          window.scrollTo(0, 0); await frames();
+          const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
+          out.slider = range && location.pathname === '/property' ? [Math.round(range.getBoundingClientRect().top), Math.round(range.getBoundingClientRect().bottom)] : null;
+          /* The footer's end, at the page's end. */
+          window.scrollTo(0, document.documentElement.scrollHeight); await frames(); await frames();
+          const legal = [...document.querySelectorAll('body > .footer *')].filter(n => shown(n) && n.childElementCount === 0 && n.textContent.trim()).pop();
+          out.footEnd = legal ? Math.round(legal.getBoundingClientRect().bottom) : null;
+          out.barTopAtEnd = dock ? Math.round(dock.getBoundingClientRect().top) : null;
+          return out;
+        })()`);
+        said.bars++;
+        if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+        if (!r.bar) fails.push(`${at}: no action bar in view`);
+        else {
+          if (r.bar.pos !== 'fixed' || Math.abs(r.bar.bottom - r.vh) > 1) fails.push(`${at}: the action bar is not fixed to the foot of the window (${r.bar.pos}, ${r.bar.top}–${r.bar.bottom} of ${r.vh})`);
+          const words = r.bar.acts.map(a => a.word);
+          if (words.length !== 3 || !/^Analyse/.test(words[0]) || !/^Compare/.test(words[1]) || !/^Save/.test(words[2])) fails.push(`${at}: the bar's actions are ${JSON.stringify(words)}, not Analyse · Compare · Save`);
+          r.bar.acts.forEach(a => {
+            if (a.w < 43.5 || a.h < 43.5) fails.push(`${at}: "${a.word}" in the bar is ${a.w}×${a.h}px, not a 44px target`);
+            if (a.l < 0 || a.r > r.vw) fails.push(`${at}: "${a.word}" runs out of the screen (${a.l}–${a.r} of ${r.vw})`);
+            if (a.cut) fails.push(`${at}: "${a.word}" in the bar is cut short`);
+          });
+          if (r.slider != null && r.slider[1] > r.bar.top && r.slider[0] < r.vh) fails.push(`${at}: the first slider (${r.slider.join("–")}px) is under the action bar from ${r.bar.top}px`);
+          if (r.footEnd == null || r.footEnd > r.barTopAtEnd + 1) fails.push(`${at}: at the page's end the footer's last line ends at ${r.footEnd}px, under the bar from ${r.barTopAtEnd}px`);
+        }
+        r.rows.forEach(([name, x]) => { if (x && x.lines > 1) fails.push(`${at}: ${name} take ${x.lines} lines (their tops ${x.spread}px apart), not one`); else if (x) said.rows++; });
+        if (path === '/property/calculator') {
+          if (r.tables.length < 2) fails.push(`${at}: the financing scenarios and the cost breakdown were not both found (${r.tables.map(t => t.name).join(', ') || 'none'})`);
+          for (const t of r.tables) {
+            said.tables++;
+            if (t.display === 'table') fails.push(`${at}: the ${t.name} is a table, not cards`);
+            if (t.sideways > 1 || t.right > r.vw) fails.push(`${at}: the ${t.name} scrolls ${t.sideways}px sideways`);
+            if (t.name === 'financing scenarios') {
+              if (t.rows !== 1) fails.push(`${at}: the financing scenarios show ${t.rows} of ${t.all} cards, not the entered one alone`);
+              if (!t.more || t.more.h < 43.5) fails.push(`${at}: the scenarios' "Compare …" button is ${t.more ? `${t.more.w}×${t.more.h}px` : 'not there'}`);
+              else {
+                const opened = await ev(`(async () => { document.querySelector('[aria-controls="${t.more.id}"]').click(); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                  const n = [...document.querySelectorAll('#${t.more.id} tbody tr')].filter(x => x.getClientRects().length).length; document.querySelector('[aria-controls="${t.more.id}"]').click(); return n; })()`);
+                if (opened !== t.all) fails.push(`${at}: "Compare …" brought ${opened} of ${t.all} scenarios`);
+              }
+            }
+          }
+        }
+      }
+    }
+    /* 2. The scale and the measure, at a phone's width and two desks'. */
+    for (const [w, h] of [[390, 844], [1024, 800], [1440, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const path of ['/property', '/property/calculator']) {
+        await load(path);
+        const r = await ev(`(() => {
+          const cs = getComputedStyle(document.documentElement);
+          const tokens = ['--ls-hero', '--ls-title', '--ls-section', '--ls-metric', '--ls-body', '--ls-support', '--ls-meta'].map(t => parseFloat(cs.getPropertyValue(t))).filter(Number.isFinite);
+          const views = document.getElementById('views');
+          const off = new Map();
+          const walker = document.createTreeWalker(views, NodeFilter.SHOW_TEXT);
+          for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+            const p = t.parentElement;
+            if (!t.data.trim() || p.closest('svg, .sr-only, [hidden], option') || !p.getClientRects().length || getComputedStyle(p).visibility === 'hidden') continue;
+            const r = document.createRange(); r.selectNodeContents(t); const b = r.getBoundingClientRect(); if (!b.width || !b.height) continue;
+            const fs = parseFloat(getComputedStyle(p).fontSize);
+            if (!tokens.some(x => Math.abs(x - fs) < 0.01)) { const k = fs + 'px ' + (p.className && typeof p.className === 'string' ? '.' + p.className.split(' ')[0] : p.tagName.toLowerCase()); if (!off.has(k)) off.set(k, t.data.trim().slice(0, 30)); }
+          }
+          /* The measure: a block of text, its width in its own font's "0". */
+          const cv = document.createElement('canvas').getContext('2d');
+          const wide = [];
+          let blocks = 0;
+          for (const n of views.querySelectorAll('p, li, dd, blockquote, figcaption, div')) {
+            if (!n.getClientRects().length || n.closest('svg, .sr-only, table, [hidden]')) continue;
+            const own = [...n.childNodes].filter(c => c.nodeType === 3).map(c => c.data).join('').trim();
+            if (n.tagName === 'DIV' && own.length < 40) continue;
+            if ((n.textContent || '').trim().length < 70) continue;
+            const s = getComputedStyle(n);
+            cv.font = s.fontStyle + ' ' + s.fontWeight + ' ' + s.fontSize + ' ' + s.fontFamily;
+            const ch = cv.measureText('0').width;
+            const box = n.getBoundingClientRect().width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+            blocks++;
+            if (box / ch > 70.5) wide.push(Math.round(box / ch) + 'ch ' + n.tagName.toLowerCase() + (n.className && typeof n.className === 'string' ? '.' + n.className.split(' ').join('.') : '') + ' “' + n.textContent.trim().slice(0, 40) + '”');
+          }
+          return { tokens, off: [...off].slice(0, 12), nOff: off.size, wide: wide.slice(0, 8), nWide: wide.length, blocks };
+        })()`);
+        const at = `${w} ${path}`;
+        if (r.tokens.length !== 7) fails.push(`${at}: the type scale's tokens are not defined (${r.tokens.length} of 7)`);
+        if (r.nOff) fails.push(`${at}: ${r.nOff} sizes off the scale (${r.tokens.join(', ')}px): ${r.off.map(([k, t]) => `${k} “${t}”`).join('; ')}`);
+        else said.words++;
+        if (w >= 1024) { said.blocks += r.blocks; if (r.nWide) fails.push(`${at}: ${r.nWide} text blocks wider than 70 characters: ${r.wide.join('; ')}`); }
+      }
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL layout-system — the pages on the layout system: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); if (fails.length > 40) console.log(`     … and ${fails.length - 40} more`); }
+  else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (the first slider above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
+}
+/* ---- end layout-system ---- */
+/* ---- home-3a ---- */
+/* THE HOMEPAGE CLEANUP, AS DRAWN (plan Phase 3A and 3B; the owner's
+   decisions D5, D17, D21 and D22) — the plan's [browser] lines, in the page's
+   font and in Verdana:
+   3.1  at 360, 390, 430, 768, 1024 and 1440, script on and off, on /, a
+        product page (/property) and /pricing, the strip's warning sentence
+        and "No licensed prices" are in sight with no action; the strip is 40px
+        tall or less at 1100 and 1440, and 76px or less at 360; Tab to
+        "Details" and Enter shows the source breakdown, Research mode, "No
+        advice · No recommendations" and a link to /data-sources; with the
+        filings blocked the strip says "Illustrative data only" and never
+        "SEC-filed";
+   3.2  with script off the hero reads the same — its h1, its lede and one
+        call to action;
+   3.3  Tab reaches each card's link and each ⓘ, one stop each; with script
+        off the Scanner's ⓘ opens on "this site ships no prices";
+   3.4  above the footer one disclosure line is in sight: the strip;
+   3.5  from /, "Open your workspace" opens /app with the whole sidebar;
+   3.8  a fresh headless Chrome in en-US and America/New_York has the h1 and
+        the Equities visual's source label in innerText at DOMContentLoaded;
+        moving the Property card's price moves its three figures;
+   and nothing on / runs sideways at any of the widths.
+   Each fails on the merged base 7d25484e: its strip was a line and a
+   "Which sources?" button with the facts behind it, its hero two calls to
+   action and the kicker, its cards whole-card links with no ⓘ, and a
+   second disclosure line under them. */
+{
+  const fails = [], said = { widths: 0, tabs: 0 };
+  const trace = process.env.QT_TRACE ? (m) => console.log(`     · ${m}`) : () => {};
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const settle = async (script) => {
+    for (let i = 0; i < 60; i++) {
+      await sleep(200);
+      try { if (await ev(script ? `document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending` : `document.readyState === 'complete'`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+  };
+  const load = async (path, script = true) => { await send('Page.navigate', { url: BASE + path }, sessionId); await settle(script); };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const key = async (k, code, vk) => {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...(k === 'Enter' ? { text: '\r' } : {}) }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk }, sessionId);
+  };
+  const SEEN = `(() => {
+    const vis = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden' && (() => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.left >= -1 && r.right <= innerWidth + 1; })();
+    const strip = document.querySelector('.disclosure');
+    const text = document.getElementById('disclosureText'), facts = document.getElementById('disclosureFacts');
+    const main = document.querySelector('main');
+    const DISC = /investment decision|no market prices are licensed|No licensed prices|filed with the SEC or illustrative|labelled on every page/i;
+    const lines = main ? [...main.querySelectorAll('p, li, div, span, section')].filter(n => vis(n) && !n.closest('figure') && ![...n.children].some(k => /^(P|LI|DIV|SECTION)$/.test(k.tagName)) && DISC.test(n.innerText || '')).map(n => (n.innerText || '').slice(0, 80)) : [];
+    const hero = document.querySelector('#views .pub-hero');
+    return { h: strip ? Math.round(strip.getBoundingClientRect().height) : null, sentence: vis(text) && /Beta preview\\. Do not use figures here for investment decisions\\./.test(text.innerText),
+      facts: vis(facts) ? facts.innerText.trim() : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, lines,
+      hero: hero ? { h1: hero.querySelector('h1')?.innerText.trim(), lede: hero.querySelector('.pub-lede')?.innerText.trim(), acts: [...hero.querySelectorAll('a, button')].filter(vis).length } : null };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* 3.1, 3.2, 3.4: every width, script on and off, two fonts. */
+    for (const font of [null, 'Verdana, sans-serif']) for (const script of [true, false]) for (const w of [360, 390, 430, 768, 1024, 1100, 1440]) {
+      if (font && !script) continue;
+      trace(`${w}px${script ? '' : ' no script'}${font ? ' Verdana' : ''}`);
+      const h = w < 700 ? 800 : 900;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }, sessionId);
+      await send('Emulation.setScriptExecutionDisabled', { value: !script }, sessionId);
+      for (const path of ['/', '/property', '/pricing']) {
+        /* Every page in Verdana too (CI on 00ece94c): /property's strip,
+           beside the sidebar, ran to two lines at 1100px in CI's wide Linux
+           sans and in Verdana, and only / was measured in it here. */
+        await load(path, script);
+        await face(font);
+        const at = `${path} ${w}px${script ? '' : ', no script'}${font ? ', Verdana' : ''}`;
+        const r = await ev(SEEN);
+        said.widths++;
+        if (!r.sentence) fails.push(`${at}: the warning sentence is not in sight`);
+        if (r.facts !== '· SEC-filed and illustrative data, labelled · No licensed prices') fails.push(`${at}: the strip's facts read ${JSON.stringify(r.facts)} in sight`);
+        if (w >= 1100 && !(r.h <= 40)) fails.push(`${at}: the strip is ${r.h}px tall, more than 40`);
+        if (w === 360 && !(r.h <= 76)) fails.push(`${at}: the strip is ${r.h}px tall, more than 76`);
+        if (path === '/') {
+          if (r.over > 1) fails.push(`${at}: the page runs ${r.over}px sideways`);
+          if (r.lines.length) fails.push(`${at}: a disclosure line in sight above the footer besides the strip: "${r.lines[0]}"`);
+          if (!r.hero || r.hero.h1 !== 'Make financial decisions with greater clarity.' || r.hero.lede !== 'Companies, market setups and property, in one workspace.' || r.hero.acts !== 1)
+            fails.push(`${at}: the hero reads ${JSON.stringify(r.hero)}`);
+        }
+      }
+      /* The Scanner's ⓘ, opened with no script. */
+      if (!script && !font && (w === 390 || w === 1440)) {
+        await load('/', false);
+        const box = await ev(`(() => { const s = document.querySelector('[data-product="scanner"] .pub-info > summary'); if (!s) return null; s.scrollIntoView({ block: 'center', inline: 'center' }); const r = s.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+        if (!box) fails.push(`/ ${w}px, no script: no ⓘ on the Scanner card`);
+        else {
+          await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId);
+          await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId);
+          await sleep(200);
+          const t = await ev(`(() => { const b = document.querySelector('[data-product="scanner"] .pub-info-body'); return b && b.getClientRects().length ? b.innerText : null; })()`);
+          if (!t || !/this site ships no prices/.test(t)) fails.push(`/ ${w}px, no script: the Scanner's ⓘ opens on ${JSON.stringify(t)}`);
+        }
+      }
+    }
+    await send('Emulation.setScriptExecutionDisabled', { value: false }, sessionId);
+    for (const w of [390, 1440]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 700 ? 844 : 900, deviceScaleFactor: 1, mobile: w < 700 }, sessionId);
+      await load('/');
+      /* 3.1: Tab to Details, then Enter. */
+      await ev(`(() => { const s = document.querySelector('#disclosure > summary'); const all = [...document.querySelectorAll('a[href], button, summary, input, [tabindex]')].filter(n => n.getClientRects().length && n.tabIndex >= 0); const i = all.indexOf(s); (all[i - 1] || document.body).focus(); return i; })()`);
+      await key('Tab', 'Tab', 9);
+      const onSum = await ev(`document.activeElement === document.querySelector('#disclosure > summary')`);
+      if (!onSum) fails.push(`/ ${w}px: Tab does not reach the strip's Details (${await ev('document.activeElement?.outerHTML.slice(0, 80)')})`);
+      await key('Enter', 'Enter', 13);
+      await sleep(250);
+      const open = await ev(`(() => { const d = document.getElementById('disclosure'); if (!d) return { open: false, strip: 'no <details id="disclosure">' }; const b = d.querySelector('.disclosure-body'); const t = b && b.getClientRects().length ? b.innerText : ''; return { open: d.open, breakdown: /companies? carr|illustrative/.test(t), mode: /Research mode/.test(t), advice: /No advice · No recommendations/.test(t), ds: !!b && !!b.querySelector('a[href="/data-sources"]') && b.querySelector('a[href="/data-sources"]').getClientRects().length > 0 }; })()`);
+      if (!open.open || !open.breakdown || !open.mode || !open.advice || !open.ds) fails.push(`/ ${w}px: Tab and Enter on Details show ${JSON.stringify(open)}`);
+      /* 3.3: the keyboard's stops on the cards. */
+      await load('/');
+      await ev(`(document.querySelector('#views .pub-hero a') || document.body).focus()`);
+      const stops = [];
+      for (let i = 0; i < 40; i++) {
+        await key('Tab', 'Tab', 9);
+        const s = await ev(`(() => { const a = document.activeElement; const c = a?.closest('article.pub-card'); return c ? \`\${c.dataset.product}:\${a.classList.contains('pub-card-link') ? 'link' : a.tagName === 'SUMMARY' ? 'info' : a.className || a.tagName}\` : a?.closest('.pub-path') ? 'path' : null; })()`);
+        if (s === 'path') break;
+        if (s) stops.push(s);
+      }
+      said.tabs = stops.length;
+      for (const id of ['equities', 'scanner', 'property']) for (const k of ['link', 'info']) {
+        const n = stops.filter(s => s === `${id}:${k}`).length;
+        if (n !== 1) fails.push(`/ ${w}px: Tab stops on the ${id} card's ${k === 'link' ? 'link' : 'ⓘ'} ${n} times, not once (${stops.join(' ')})`);
+      }
+    }
+    trace('filings blocked');
+    /* 3.1: the filings blocked. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Network.enable', {}, sessionId);
+    await send('Network.setBlockedURLs', { urls: ['*/data/us.json*', '*/data/us.*.json*'] }, sessionId);
+    await load('/');
+    await sleep(1500);
+    const blocked = await ev(`document.getElementById('disclosureFacts')?.innerText.trim()`);
+    if (!/Illustrative data only/.test(blocked || '') || /SEC-filed/.test(blocked || '')) fails.push(`/ with the filings blocked: the strip's facts read ${JSON.stringify(blocked)}`);
+    await send('Network.setBlockedURLs', { urls: [] }, sessionId);
+    /* 3.5: from / to /app, the whole sidebar. */
+    await load('/');
+    await ev(`document.querySelector('#views .pub-hero a[href="/app"]').click()`);
+    await sleep(1200);
+    const side = await ev(`({ path: location.pathname, links: [...document.querySelectorAll('#appnav a.sb-link')].filter(a => a.getClientRects().length).length, labels: [...document.querySelectorAll('#appnav .sb-text')].map(n => n.textContent.trim()) })`);
+    if (side.path !== '/app' || side.links < 8 || !side.labels.includes('My Dashboard') || !side.labels.includes('Property Intelligence')) fails.push(`/ → "Open your workspace": ${JSON.stringify(side)}`);
+    /* 3.8: the Property card's price moves its three figures. */
+    await load('/');
+    const moved = await ev(`(async () => {
+      const r = document.querySelector('#pub-lab-price');
+      if (!r) return { before: [], after: [], none: 'no price knob on the Property card' };
+      const read = () => [...document.querySelectorAll('[data-product="property"] .pub-lab-figs dd')].map(d => d.textContent);
+      const before = read();
+      r.value = String(Number(r.max)); r.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(res => setTimeout(res, 100));
+      return { before, after: read() };
+    })()`);
+    if (moved.before.length !== 3 || moved.after.some((v, i) => v === moved.before[i])) fails.push(`/: moving the Property card's price leaves its figures ${JSON.stringify(moved)}`);
+    trace('New York');
+    /* 3.8: a reader in New York, at DOMContentLoaded. */
+    const { result: { targetId: t2 } } = await send('Target.createTarget', { url: 'about:blank' });
+    const { result: { sessionId: s2 } } = await send('Target.attachToTarget', { targetId: t2, flatten: true });
+    try {
+      await send('Page.enable', {}, s2); await send('Runtime.enable', {}, s2);
+      await send('Emulation.setTimezoneOverride', { timezoneId: 'America/New_York' }, s2);
+      await send('Emulation.setLocaleOverride', { locale: 'en-US' }, s2);
+      await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36', acceptLanguage: 'en-US' }, s2);
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.clear(); } catch (e) {} document.addEventListener('DOMContentLoaded', () => { const t = document.body.innerText; window.__dcl = { h1: t.includes('Make financial decisions with greater clarity.'), src: t.includes('Apple · SEC 10-K · US$'), hidden: document.documentElement.hasAttribute('data-served-hidden') }; });` }, s2);
+      await Promise.race([send('Page.navigate', { url: BASE + '/' }, s2), sleep(15000)]);
+      let dcl = null;
+      for (let i = 0; i < 40 && !dcl; i++) { await sleep(200); dcl = (await send('Runtime.evaluate', { expression: 'window.__dcl || null', returnByValue: true }, s2)).result?.result?.value; }
+      if (!dcl || !dcl.h1 || !dcl.src || dcl.hidden) fails.push(`/ in en-US, America/New_York: at DOMContentLoaded ${JSON.stringify(dcl)}`);
+      said.dcl = dcl;
+    } finally { await Promise.race([send('Target.closeTarget', { targetId: t2 }), sleep(5000)]); }
+  } finally {
+    await send('Emulation.setScriptExecutionDisabled', { value: false }, sessionId).catch(() => {});
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL home-3a — the homepage cleanup as drawn: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); if (fails.length > 40) console.log(`     … and ${fails.length - 40} more`); }
+  else console.log(`ok   home-3a: the strip's warning and "No licensed prices" in sight with no action on /, /property and /pricing at 360–1440, script on and off, in the page's font and Verdana (${said.widths} views); 40px or less from 1100, 76 or less at 360; Tab and Enter on Details open the breakdown, Research mode and /data-sources; "Illustrative data only" with the filings blocked; the hero one action with script off; one disclosure line above the footer; Tab stops once on each card link and each ⓘ (${said.tabs} stops); the Scanner's ⓘ opens with no script; / → /app draws the whole sidebar; the Property price moves its three figures; a reader in New York has the h1 and Apple's source label at DOMContentLoaded`);
+}
+/* ---- end home-3a ---- */
+
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */

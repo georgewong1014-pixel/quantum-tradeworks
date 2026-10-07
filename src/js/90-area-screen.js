@@ -1109,13 +1109,47 @@ VIEWS.boundaries = () => {
     'So the boundary is built into the product rather than applied to it afterwards. There are no ratings to suppress, no target prices to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
   wrap.append(legal);
 
+  wrap.append(notMonetisedCard());
+
   const back = el('div', { class: 'card' });
-  back.append(cardHead('Prices', 'What the product costs, on its own page.'));
+  back.append(cardHead('Prices', 'What the product would cost, on its own page — proposed, and not on sale yet.'));
   back.append(el('a', { class: 'btn btn-primary', href: href('/pricing'),
     onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/pricing'); } }, 'See plans and prices'));
   wrap.append(back);
   return wrap;
 };
+
+/* WHAT IS DELIBERATELY NOT MONETISED. It stood on /pricing as a card of its
+   own; since N8 (D21) the pricing page links here for it, beside the
+   boundary it belongs with. Unchanged. */
+function notMonetisedCard() {
+  const mp = el('div', { class: 'card' });
+  mp.append(cardHead('What is deliberately not monetised',
+    'Revenue that would compromise the research is not taken, at any price. This list is a product constraint, not a phase.'));
+  const g2 = el('div', { class: 'grid g-2' });
+  const never = el('div');
+  never.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Never'));
+  const nl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+  ['Sponsored or paid placement in any score, ranking or valuation',
+   'Developer-paid property recommendations',
+   'Advertising inside a valuation or a research report',
+   'Copy trading or automated buy-now signals',
+   'Selling user portfolio data, or publishing crowd positioning as a signal'].forEach(x =>
+    nl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
+  never.append(nl); g2.append(never);
+  const later = el('div');
+  later.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Possible later, with disclosure and after legal review'));
+  const ll2 = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
+  ['Mortgage eligibility introductions', 'Licensed broker introductions',
+   'Valuer and inspection bookings', 'Team and investment-club accounts',
+   'White-label reports and education partnerships'].forEach(x =>
+    ll2.append(el('li', { class: 'evidence', style: 'font-size:13px' }, x)));
+  later.append(ll2); g2.append(later);
+  mp.append(g2);
+  mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'Compensation of any kind must never influence a score, a valuation or a ranking. Where an introduction earns a fee, the fee is disclosed at the point of the introduction — not in a terms page.'));
+  return mp;
+}
 
 function scopeCard() {
   const card = el('div', { class: 'card', style: 'border-left:3px solid var(--brand)' });
@@ -1162,140 +1196,109 @@ function scopeCard() {
   return card;
 }
 
+/* PRICING AS THREE CONCEPT CARDS AND ONE CLOSED "COMPARE DETAILS" (N8, the
+   5 Oct audit; the owner's decision D21 — presentation only: every price,
+   plan, limit and line is the registry's as it was, PLANS and
+   PROPERTY_REPORT_PRICE, 05-plans.js). The page was 1,002 visible words:
+   three cards of fourteen rows each and a button apiece, the coverage line
+   twice, the per-report table and two cards of policy. Now, before the
+   cards and unchanged: the heading, "Nothing on this page can be bought."
+   and "No payment is processed anywhere in this build". Then three cards —
+   a name, a price, "Not on sale" or "Nothing to buy" and one line, with no
+   button and no link in any of them — and one <details>, closed, that
+   holds the comparison (one table in place of three lists), All-Access
+   marked not launched, the per-report table with its RM89 line as it
+   reads today, the coverage and price-data lines once each, and the
+   preview controls. Pricing stays in the header. */
+let plansCompareOpen = false;
+const PLAN_CARDS = [
+  { id: 'free', name: () => PLANS.free.name, price: 'RM0', per: null, mark: 'Nothing to buy',
+    line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.' },
+  { id: 'pro', name: () => PLANS.pro.name, price: `RM${PLANS.pro.priceMo}`, per: '/month, proposed', mark: 'Not on sale',
+    line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.' },
+  { id: 'report', name: () => 'Property reports', price: `from RM${PROPERTY_REPORT_PRICE.basic}`, per: 'per report, proposed', mark: 'Not on sale',
+    line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.' },
+];
 VIEWS.plans = () => {
-  const wrap = el('div');
-  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026). The owner's
-     decision: the page stays in the header, and says plainly that the plans
-     are proposals — nothing can be bought, no payment provider exists, and
-     no refund policy is needed because nothing is charged. The heading was
-     "A research subscription, and a report fee for property", which reads as
-     an offer; the rationale for the two shapes of price follows the facts
-     rather than standing in for them. */
+  const wrap = el('div', { class: 'plans-page' });
+  /* NOT ON SALE, SAID FIRST (launch audit, 29 Sep 2026), word for word. */
   wrap.append(el('div', { class: 'page-hd' }, el('div', {}, [
     el('p', { class: 'eyebrow' }, 'Plans'),
     el('h1', {}, 'Proposed plans — not on sale yet'),
-    /* plan-lede: shown whole on a phone, where a page's standfirst is
-       clamped to two lines — here it is the answer, not preamble. */
     el('p', { class: 'body-lg plan-lede', style: 'margin-top:8px' },
       'Nothing on this page can be bought. These are the prices proposed for a launch, shown so you can see what is planned and what each plan would include. There is no checkout and no payment provider, nothing is charged, and so there is no refund policy yet — there is nothing to refund.'),
-    el('p', { class: 'body', style: 'margin-top:8px' },
-      'Equity research is proposed as a subscription because it is used every week. Property research is episodic — most people buy a home every several years, not every month — so it is proposed as a fee per report.'),
   ])));
-  /* The scope card used to open this page: two columns of what the product
-     deliberately will not do, before a reader had seen a single price. It is
-     the most important thing about the product and the wrong thing to lead a
-     pricing page with — someone who came to find out what it costs had to read
-     an argument first. It lives at /learn/product-boundaries in full now, and
-     what remains here is one line, below the plans rather than above them. */
-
-  const bar = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
-  bar.append(el('div', { class: 'row row-wrap', style: 'gap:10px' }, [
+  wrap.append(el('div', { class: 'plan-nopay' }, [
     el('span', { class: 'chip chip-bronze' }, 'Not on sale'),
-    el('p', { class: 'body', style: 'font-size:13px;flex:1 1 320px' },
-      'No payment is processed anywhere in this build: no checkout, no card capture, no trial clock, no renewal. The button on each card previews that plan’s features in this browser only, so both sides of the free-to-paid boundary can be inspected. The choice is kept in this browser and changes nothing anywhere else.'),
+    el('p', { class: 'body' }, 'No payment is processed anywhere in this build: no checkout, no card capture, no trial clock, no renewal.'),
   ]));
-  wrap.append(bar);
 
-  /* Equal-height cards, each a column with its action at the foot, so the
-     three actions sit on one line; they stood at three heights. */
-  const grid = el('div', { class: 'grid g-3 plan-grid' });
-  Object.values(PLANS).forEach(pl => {
-    const active = State.plan === pl.id;
-    /* A TIER THAT IS NOT ON SALE DOES NOT LOOK LIKE ONE THAT IS.
-       All-Access carries launched:false, and the registry's own note says a
-       tier nobody can obtain must not appear purchasable — yet its card was
-       built exactly like the others: "Phase 2", RM79 a month in the price's
-       type, and a primary "Switch to All-Access" button. The switch is what
-       every card's button is, a local change of entitlements, and it still
-       is; what changes is what the card says.
-       Since the launch audit no paid tier is on sale, so what was true of
-       All-Access is true of Equities Research as well: "Switch to Equities
-       Research" was a filled primary button beside RM29 a month, the
-       page's one call to action, and it read as the way to pay. Every paid
-       card now carries the Not on sale chip, its price says it is proposed,
-       and its button — outlined, never the page's primary action — says it
-       previews the plan in this browser, which is all it does. Free is what
-       every visitor has; its button only returns to it. */
-    const paid = !!pl.priceMo;
-    const launched = pl.launched !== false;
-    const card = el('div', { class: 'card plan-card', style: active ? 'outline:2px solid var(--brand);outline-offset:-1px' : '' });
-    card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
-      el('h3', { class: 'h-card' }, pl.name),
-      active ? el('span', { class: 'chip chip-brand' }, paid ? 'Previewing' : 'Current') : null,
-      paid ? el('span', { class: 'chip chip-bronze' }, 'Not on sale') : null,
-    ]));
-    card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, pl.tagline));
-    card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;align-items:baseline;margin-bottom:2px' }, [
-      el('span', { class: paid ? 'plan-price plan-price-proposed' : 'plan-price' }, paid ? `RM${pl.priceMo}` : 'RM0'),
-      el('span', { class: 'metaline' }, !paid ? 'no charge' : launched ? '/month, proposed' : '/month, proposed — it cannot be bought'),
-    ]));
-    if (pl.priceYr) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' },
-      `Proposed at RM${pl.priceYr} a year${pl.founding ? `, with a founding price of RM${pl.founding} for the first year for the first ${pl.foundingSeats} members` : ''}.`));
-    card.append(el('p', { class: 'body', style: 'font-size:13px;margin-bottom:var(--md)' }, pl.blurb));
-    /* The size of what is being sold, taken from the universe on screen rather
-       than written into the copy, so it cannot be left behind when the universe
-       changes. */
-    if (pl.limits?.reportsPerMonth === Infinity) card.append(el('p', { class: 'metaline', style: 'margin:-8px 0 var(--md)' },
-      coverageSentence('market') + ' It is not a complete listing of either market.'));
+  /* The three concepts. Equity research is proposed as a subscription, used
+     every week; property research is episodic, so it is proposed per report.
+     The plan previewed in this browser says so on its card. */
+  wrap.append(el('div', { class: 'plan-concepts', role: 'list' }, PLAN_CARDS.map(pc => {
+    const on = pc.id !== 'report' && State.plan === pc.id;
+    return el('article', { class: `card plan-card plan-concept plan-${pc.id}`, role: 'listitem', 'aria-labelledby': `plan-${pc.id}-h` }, [
+      el('div', { class: 'plan-concept-hd' }, [
+        el('h3', { class: 'h-card', id: `plan-${pc.id}-h` }, pc.name()),
+        el('span', { class: `chip ${pc.id === 'free' ? '' : 'chip-bronze'}` }, pc.mark),
+      ]),
+      el('p', { class: 'plan-concept-price' }, [el('span', { class: pc.id === 'free' ? 'plan-price' : 'plan-price plan-price-proposed' }, pc.price),
+        pc.per ? el('span', { class: 'metaline' }, ` ${pc.per}`) : null]),
+      el('p', { class: 'plan-concept-line' }, pc.line),
+      on ? el('p', { class: 'plan-concept-on' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 14) }), pc.id === 'free' ? 'Current' : 'Previewing']) : null,
+    ]);
+  })));
 
-    const rows = [
-      ['Company reports', pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
-      ['Watchlists', `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
-      ['Portfolios', `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
-      ['Compare', `${pl.limits.compare} companies`],
-      /* Two of the plan's limits are recorded here and applied nowhere: every
-         plan can filter on every screener metric and sees the fact-change
-         alert feed. The card read "8 of 28" and "No" on Free, which sold a
-         boundary the build does not draw — and "28" was typed in by hand while
-         the screener carried 34. The count now comes from FIELDS, and a limit
-         that is not applied says so rather than being printed as a feature. */
-      ['Screener metrics', pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}`
-        : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
-      ['Peer-percentile screening', pl.limits.percentileMode ? 'Yes' : 'No'],
-      ['Editable valuation assumptions', pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
-      ['Fundamental alerts', pl.limits.fundamentalAlerts ? 'Yes'
-        : 'Shown — this plan excludes them, but that is not applied in this build'],
-      ['Price alerts', `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
-      ['Exports', pl.limits.exports ? 'Yes' : 'No'],
-      ['Property calculator', pl.limits.propertyCalculator ? 'Included' : 'No'],
-      ['Property reports', pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
-      ['Cross-asset net worth', pl.limits.crossAsset ? 'Yes' : 'No'],
-      /* No market-data licence has been signed for either exchange, so no plan
-         can deliver price data at any latency. Listing a delay tier here sold a
-         difference between plans that does not exist in the build. The tier is
-         still recorded on the plan so the row can state what it would become. */
-      ['Price data', 'Not available on any plan — no market-data licence is in place. '
-        + (pl.limits.priceDelayMin ? `Licensed, this plan would carry a ${pl.limits.priceDelayMin}-minute delay.`
-                                   : 'Licensed, this plan would carry real time where the exchange permits it.')],
-    ];
-    const dl = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
-    rows.forEach(([k, v]) => { dl.append(el('dt', {}, k)); dl.append(el('dd', {}, v)); });
-    card.append(dl);
-    if (paid) card.append(el('p', { class: 'metaline', style: 'margin:-4px 0 var(--md)' }, launched
-      ? `${pl.name} is not on sale yet. The preview turns on its features here so they can be inspected; nothing is charged.`
-      : `${pl.name} has not launched and cannot be bought. The preview turns on its entitlements here, as the preview on every card does, so the view it adds can be inspected.`));
-    /* The plan in force is a state, said as one — a marked line with a tick —
-       not a disabled button at 45% opacity, which in the dark theme was
-       barely there. The others are full-height buttons (.btn, not .btn-sm):
-       a 30px "Switch to…" was outweighed by the header's 40px action. */
-    card.append(active
-      ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }),
-          paid ? 'Previewing in this browser' : 'Current plan'])
-      : el('button', { class: 'plan-cta btn btn-ghost', onclick: () => setPlan(pl.id) },
-          paid ? `Preview ${pl.name} in this browser` : `Return to ${pl.name} in this browser`));
-    grid.append(card);
-  });
-  wrap.append(grid);
+  /* Compare details: closed, and kept as the reader left it across a
+     redraw (a preview redraws the page). */
+  const det = el('details', { class: 'plan-compare', id: 'plan-compare', open: plansCompareOpen ? '' : null,
+    ontoggle: (e) => { plansCompareOpen = e.currentTarget.open; } });
+  det.append(el('summary', { class: 'plan-compare-sum' }, [el('span', { class: 'plan-compare-t' }, 'Compare details'), el('span', { class: 'plan-compare-chev', 'aria-hidden': 'true' })]));
+  const body = el('div', { class: 'plan-compare-body' });
+  body.append(el('p', { class: 'caption' }, 'Equity research is proposed as a subscription because it is used every week. Property research is episodic — most people buy a home every several years, not every month — so it is proposed as a fee per report.'));
+  const PL = Object.values(PLANS);
+  const head = (pl) => {
+    const paid = !!pl.priceMo, launched = pl.launched !== false;
+    return el('th', { scope: 'col' }, [el('span', { class: 'plan-col-name' }, pl.name),
+      el('span', { class: 'plan-col-price' }, paid ? `RM${pl.priceMo}/month, proposed${launched ? '' : ' — not launched'}` : 'RM0'),
+      paid && pl.priceYr ? el('span', { class: 'plan-col-yr' }, `RM${pl.priceYr} a year${pl.founding ? `; RM${pl.founding} founding, first ${pl.foundingSeats}` : ''}`) : null]);
+  };
+  const rows = [
+    ['Company reports', pl => pl.limits.reportsPerMonth === Infinity ? 'Unlimited' : `${pl.limits.reportsPerMonth} a month`],
+    ['Watchlists', pl => `${pl.limits.watchlists} × ${pl.limits.watchlistStocks} companies`],
+    ['Portfolios', pl => `${pl.limits.portfolios} × ${pl.limits.holdings} holdings`],
+    ['Compare', pl => `${pl.limits.compare} companies`],
+    ['Screener metrics', pl => pl.limits.screenerFields === Infinity ? `All ${FIELDS.length}` : `All ${FIELDS.length} — the limit of ${pl.limits.screenerFields} is not applied in this build`],
+    ['Peer-percentile screening', pl => pl.limits.percentileMode ? 'Yes' : 'No'],
+    ['Editable valuation assumptions', pl => pl.limits.valuationEditable ? 'Yes' : 'Read-only'],
+    ['Fundamental alerts', pl => pl.limits.fundamentalAlerts ? 'Yes' : 'Shown — this plan excludes them, but that is not applied in this build'],
+    ['Price alerts', pl => `${pl.limits.priceAlerts} — inactive until a price source is licensed`],
+    ['Exports', pl => pl.limits.exports ? 'Yes' : 'No'],
+    ['Property calculator', pl => pl.limits.propertyCalculator ? 'Included' : 'No'],
+    ['Property reports', pl => pl.limits.propertyReports ? `${pl.limits.propertyReports} a month` : 'Per report, proposed'],
+    ['Cross-asset net worth', pl => pl.limits.crossAsset ? 'Yes' : 'No'],
+    /* No plan can deliver price data at any latency: the tier each would
+       carry is said once, in its cell. */
+    ['Price data, if licensed', pl => pl.limits.priceDelayMin ? `${pl.limits.priceDelayMin}-minute delay` : 'Real time where the exchange permits it'],
+  ];
+  const tw = el('div', { class: 'tablewrap' });
+  const t = el('table', { class: 'dt plan-table' });
+  t.append(el('caption', { class: 'sr-only' }, 'What each proposed plan would include'));
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col' }, 'Included'), ...PL.map(head)])));
+  t.append(el('tbody', {}, rows.map(([k, f]) => el('tr', {}, [el('th', { scope: 'row' }, k), ...PL.map(pl => el('td', { 'data-label': pl.name }, f(pl)))]))));
+  tw.append(t);
+  body.append(tw);
+  /* Said once each: the size of the universe, from the universe on screen,
+     and that no price is licensed on any plan. */
+  body.append(el('p', { class: 'metaline plan-coverage' }, `${coverageSentence('market')} It is not a complete listing of either market.`));
+  body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
+  body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* property report pricing */
-  const pr = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  pr.append(cardHead('Property Deal Check — proposed prices per report',
-    'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
+  /* The per-report prices, the RM89 line as it reads today (D11(d)). */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property Deal Check — proposed prices per report'));
+  body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
-  /* "What it adds" is prose, left-aligned in its cells, so its heading is
-     too — it sat right-aligned over them. Below 600px the rows stack (name
-     and price, then what it adds): the table ran 336px in a 308px scroller
-     and cut the description to a 100px column. */
   const pt = el('table', { class: 'dt dt-stack' });
   pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
@@ -1304,47 +1307,28 @@ VIEWS.plans = () => {
     ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', style: i === 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
-  ptw.append(pt); pr.append(ptw);
-  wrap.append(pr);
+  ptw.append(pt);
+  body.append(ptw);
 
-  /* what is deliberately not monetised */
-  const mp = el('div', { class: 'card', style: 'margin-top:var(--md)' });
-  /* One line where the argument used to be, with the argument a click away. */
-  /* Spaced from the report card above it, as every card on the page is:
-     the two touched with no gap. */
-  const boundaryLine = el('div', { class: 'card', style: 'border-left:3px solid var(--brand);margin-top:var(--md)' });
-  boundaryLine.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'What the proposed plans would charge for is research: analysis, evidence and tools that let you reach your own conclusion — not a conclusion. There are no ratings, no target prices and no suitability questions, and that is a product boundary rather than a backlog.'));
-  boundaryLine.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:10px', href: href('/learn/product-boundaries'),
-    onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/learn/product-boundaries'); } },
-    'What this product will not do, and why'));
-  wrap.append(boundaryLine);
+  /* The preview, in this browser only: each paid plan's features turned on
+     here so both sides of the boundary can be inspected; nothing charged. */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Preview a plan in this browser'));
+  body.append(el('p', { class: 'caption' }, 'A preview turns a plan’s features on in this browser only, so both sides of the free-to-paid boundary can be inspected. The choice is kept in this browser and changes nothing anywhere else.'));
+  body.append(el('div', { class: 'plan-previews' }, PL.map(pl => {
+    const paid = !!pl.priceMo;
+    return State.plan === pl.id
+      ? el('p', { class: 'plan-cta plan-current' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 15) }), paid ? `Previewing ${pl.name} in this browser` : `${pl.name}: current plan`])
+      : el('button', { type: 'button', class: 'plan-cta btn btn-ghost', onclick: () => setPlan(pl.id) },
+          paid ? `Preview ${pl.name} in this browser — nothing is charged` : `Return to ${pl.name} in this browser — nothing is charged`);
+  })));
+  det.append(body);
+  wrap.append(det);
 
-  mp.append(cardHead('What is deliberately not monetised',
-    'Revenue that would compromise the research is not taken, at any price. This list is a product constraint, not a phase.'));
-  const g2 = el('div', { class: 'grid g-2' });
-  const never = el('div');
-  never.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Never'));
-  const nl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Sponsored or paid placement in any score, ranking or valuation',
-   'Developer-paid property recommendations',
-   'Advertising inside a valuation or a research report',
-   'Copy trading or automated buy-now signals',
-   'Selling user portfolio data, or publishing crowd positioning as a signal'].forEach(x =>
-    nl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
-  never.append(nl); g2.append(never);
-  const later = el('div');
-  later.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Possible later, with disclosure and after legal review'));
-  const ll2 = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
-  ['Mortgage eligibility introductions', 'Licensed broker introductions',
-   'Valuer and inspection bookings', 'Team and investment-club accounts',
-   'White-label reports and education partnerships'].forEach(x =>
-    ll2.append(el('li', { class: 'evidence', style: 'font-size:13px' }, x)));
-  later.append(ll2); g2.append(later);
-  mp.append(g2);
-  mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Compensation of any kind must never influence a score, a valuation or a ranking. Where an introduction earns a fee, the fee is disclosed at the point of the introduction — not in a terms page.'));
-  wrap.append(mp);
+  /* What is deliberately not monetised, and why: one link. */
+  wrap.append(el('p', { class: 'plan-boundary' }, [
+    'What would never be charged for, or sold: ',
+    el('a', { href: href('/learn/product-boundaries'), 'data-path': '/learn/product-boundaries', class: 'plan-boundary-a' }, 'what this product will not do, and why'), '.',
+  ]));
   return wrap;
 };
 

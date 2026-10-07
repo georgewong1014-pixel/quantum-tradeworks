@@ -235,22 +235,22 @@ function renderFromControl(control) {
    RETURN AND TAX — the panel for the two figures that were wrong
    ========================================================================== */
 function returnsAndTaxPanel(d, m) {
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Return, and tax on the rent',
     'The internal rate of return discounts every year’s cash flow at the time it actually arrives. '
     + 'The annualised multiple beside it does not, and the gap between them is what the timing costs.'));
 
   /* ---- the rate ---- */
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  g.append(el('div', { class: 'panel' }, statTile('Internal rate of return',
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Internal rate of return',
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
         ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`
         : (m.irrWhy || 'Not computable') })));
-  g.append(el('div', { class: 'panel' }, statTile('Annualised multiple',
+  g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
     { sub: 'Total money back, spread evenly. Ignores when it arrives' })));
-  g.append(el('div', { class: 'panel' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
+  g.append(el('div', { class: 'panel ls-fig' }, statTile(`Value against ${fmtPct(m.hurdlePct, 1)} elsewhere`,
     isNum(m.npvAtHurdle) ? fmtMoney(m.npvAtHurdle, 'MYR', 0) : '—',
     { sub: isNum(m.npvAtHurdle)
         ? (m.npvAtHurdle >= 0 ? 'Beats the alternative you named' : 'Falls short of the alternative you named')
@@ -287,7 +287,7 @@ function returnsAndTaxPanel(d, m) {
      citizen or permanent resident". The arrow keys still move between them,
      and each redraw hands focus back to the one chosen. */
   const who = el('fieldset', { id: 'disposerCategory', style: 'margin:var(--lg) 0 0;padding:0;border:0;min-width:0' });
-  who.append(el('legend', { style: 'padding:0;margin-bottom:6px;font-size:14px;line-height:20px;color:var(--ink-2)' }, 'Who would be selling'));
+  who.append(el('legend', { style: 'padding:0;margin-bottom:6px;font-size:var(--ls-support);line-height:20px;color:var(--ink-2)' }, 'Who would be selling'));
   RPGT_CATEGORY_IDS.forEach(id => {
     const c = RPGT_SCHEDULE.categories[id];
     const l = el('label', { class: 'checkline', style: 'align-items:flex-start' });
@@ -353,11 +353,11 @@ function returnsAndTaxPanel(d, m) {
 
   /* ---- what tax does to the deal ---- */
   const g2 = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
-  g2.append(el('div', { class: 'panel' }, statTile('Tax on rent over the hold',
+  g2.append(el('div', { class: 'panel ls-fig' }, statTile('Tax on rent over the hold',
     fmtMoney(m.cumTax, 'MYR', 0), { sub: `At ${fmtPct(d.marginalTaxPct, 0)} on taxable rental income` })));
-  g2.append(el('div', { class: 'panel' }, statTile('Rental cash, before tax',
+  g2.append(el('div', { class: 'panel ls-fig' }, statTile('Rental cash, before tax',
     fmtMoney(m.cumPreTax, 'MYR', 0), { sub: 'What the older figures on this page showed' })));
-  g2.append(el('div', { class: 'panel' }, statTile('Rental cash, after tax',
+  g2.append(el('div', { class: 'panel ls-fig' }, statTile('Rental cash, after tax',
     fmtMoney(m.cumCash, 'MYR', 0), { sub: 'What you keep' })));
   card.append(g2);
 

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- These are the '/' route's title, description and canonical, for
-     index.html. Every other page build.mjs writes (pages/*.html, the company
-     pages and 404.html) carries its own, as the router sets them on that
+<!-- Every page build.mjs writes carries its own title, description and
+     canonical (index.html the site root's), as the router sets them on its
      address (setDocumentMeta, 35-ui.js), so a crawler that does not run the
-     script reads each page's own. -->
-<title>Quantum Tradeworks — your financial decision workspace</title>
-<meta name="description" content="Research companies, build your own market setups and evaluate property investments in one workspace. Business planning is next. Research only — no recommendations, no ratings, no target prices.">
+     script reads each page's own. They are empty here: the site root's
+     words are POSITIONING's (35-ui.js), never typed a second time. -->
+<title></title>
+<meta name="description" content="">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#2764E7">
 <link rel="canonical" href="https://quantum-tradeworks.vercel.app/">
@@ -18,22 +18,25 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Quantum Tradeworks">
 <meta property="og:url" content="https://quantum-tradeworks.vercel.app/">
-<meta property="og:title" content="Quantum Tradeworks — your financial decision workspace">
-<meta property="og:description" content="Research companies, build your own market setups and evaluate property investments in one workspace. Every number shows its formula, period and source. Research only — no recommendations, ratings or target prices.">
+<meta property="og:title" content="">
+<meta property="og:description" content="">
 <meta property="og:image" content="https://quantum-tradeworks.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Quantum Tradeworks — evidence-led equity and property research for Malaysian investors.">
 <meta property="og:locale" content="en_MY">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Quantum Tradeworks — your financial decision workspace">
-<meta name="twitter:description" content="Research companies, build your own market setups and evaluate property investments in one workspace. Research only — no recommendations, ratings or target prices.">
+<meta name="twitter:title" content="">
+<meta name="twitter:description" content="">
 <meta name="twitter:image" content="https://quantum-tradeworks.vercel.app/og.png">
 
 <!-- App-icon variant of the mark. The chart and building are dropped here:
-     at 16px they turn to mush, and the ring plus tail is what reads. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232764E7'/%3E%3Cpath d='M66.5 76.6 A29 29 0 1 1 78.6 60.9' fill='none' stroke='%23fff' stroke-width='10' stroke-linecap='round'/%3E%3Crect x='34' y='40' width='10' height='10' rx='3' fill='%2321C1A2'/%3E%3Crect x='48' y='40' width='10' height='10' rx='3' fill='%23FBB040'/%3E%3Cpath d='M62 66 L79 83' fill='none' stroke='%2321C1A2' stroke-width='12' stroke-linecap='round'/%3E%3C/svg%3E">
+     at 16px they turn to mush, and the ring plus tail is what reads. A file
+     of its own (/icon.svg), not a data: address written into every page:
+     the two copies were 3.2kB at the head of each, before the page itself
+     (plan item 3.5). -->
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
 <style>
 /*@INJECT:styles*/
 </style>
@@ -206,19 +209,26 @@
 <!-- A landmark of its own, named, so the notice is found by landmark
      navigation: outside every landmark, a reader moving by landmarks went
      from the header to the page and never met it. -->
+<!-- THE STRIP IS A NATIVE <details> (plan item 3.1; the owner's decision
+     D5). Its summary is in sight at every width, with no action: the
+     warning sentence word for word, then what the figures are and that no
+     price is licensed. "Details" opens the rest — the source breakdown,
+     Research mode, and where each is explained — with or without the
+     script, from the keyboard as from a finger. No link sits inside the
+     summary. refreshDisclosure (95-boot.js) writes the bold words, the
+     facts and the breakdown, each in its own place. -->
 <div class="disclosure" role="region" aria-label="Disclosure">
-  <div class="disclosure-in">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-    <span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.<span class="disclosure-long"> Some companies carry illustrative figures that are synthetic and do not represent real financials.</span></span>
-    <button type="button" id="disclosureMore" class="linklike" aria-expanded="false">Which sources?</button>
-    <span class="disclosure-chips">
-      <span class="chip chip-brand" title="Research mode: factual and analytical outputs only">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 6 9 17l-5-5"/></svg>
-        Research mode
-      </span>
-      <span class="chip">No advice · No recommendations</span>
-    </span>
-  </div>
+  <details class="disclosure-d" id="disclosure">
+    <summary class="disclosure-in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <span class="disclosure-line"><span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.</span> <span id="disclosureFacts">· SEC-filed and illustrative data, labelled · No licensed prices</span> <span class="disclosure-more">Details</span></span>
+    </summary>
+    <div class="disclosure-body">
+      <p id="disclosureBreakdown">Some companies carry illustrative figures that are synthetic and do not represent real financials.</p>
+      <p class="disclosure-mode"><span class="chip chip-brand">Research mode</span> — factual and analytical outputs only. No advice · No recommendations.</p>
+      <p class="disclosure-links"><a href="/data-sources" data-path="/data-sources">Data sources</a><span aria-hidden="true"> · </span><a href="/how-it-works#hiw-status">What the labels mean</a></p>
+    </div>
+  </details>
 </div>
 
 <main id="main">
@@ -268,8 +278,10 @@
           </span>
           <div class="foot-brand-body">
             <span class="brand-name">Quantum <span>Tradeworks</span></span>
-            <span class="brand-tagline" style="display:block">Research <i>·</i> Monitor <i class="amber">·</i> Model <i>·</i> Plan</span>
-            <p class="body foot-desc">A financial decision workspace: research a company, build your own setups, model a property. Business planning is next.</p>
+            <!-- The tagline and the line: POSITIONING's kicker and one-liner,
+                 written here by build.mjs on every page (35-ui.js). -->
+            <span class="brand-tagline" style="display:block">@POSITIONING_KICKER</span>
+            <p class="body foot-desc">@POSITIONING_ONE_LINER</p>
             <div class="row row-wrap" style="margin-top:var(--md);gap:6px">
               <span class="chip chip-us">United States</span>
               <span class="chip chip-my">Bursa Malaysia</span>

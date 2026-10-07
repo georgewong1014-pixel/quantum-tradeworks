@@ -177,6 +177,9 @@ const JOURNEYS_MARKER = '/*@INJECT:journeysServed*/ null';
 /* And the journeys' names, by id (91-health.js; JOURNEY_NAMES in
    journeys.mjs): /status names the journey that proves each Live badge. */
 const JOURNEY_NAMES_MARKER = '/*@INJECT:journeyNames*/ null';
+/* Where the homepage's filed example goes into the app (55-views-public.js;
+   homeFiled, below). */
+const HOME_FILED_MARKER = '/*@INJECT:homeFiled*/ null';
 const CSP_MARKER = '@CSP_HASH';
 /* The first-paint script's hash (BEFORE THE FIRST PAINT, below). */
 const CSP_FIRST_MARKER = '@CSP_FIRST_HASH';
@@ -348,6 +351,7 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'const ILLUS_TITLE = ', ';\n'),
     cut(UI, '35-ui.js', 'const COMPANY_LISTED = ', ';\n'),
     cut(UI, '35-ui.js', 'function companyMetaDescription(', '\n}\n'),
+    cut(UI, '35-ui.js', 'const POSITIONING = {', '\n};'),
     cut(UI, '35-ui.js', 'const ROUTES = [', '\n];'),
     cut(UI, '35-ui.js', 'const META = {', '\n};'),
     ...additions,
@@ -357,7 +361,7 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'function matchRoute(', '\n}\n'),
     cut(UI, '35-ui.js', 'function setDocumentMeta(', '\n}\n'),
     cut(UI, '35-ui.js', 'function canonicalPath(', '\n}\n'),
-    '({ ROUTES, META, ILLUS_TITLE, matchRoute, setDocumentMeta, companyPath })',
+    '({ POSITIONING, ROUTES, META, ILLUS_TITLE, matchRoute, setDocumentMeta, companyPath })',
   ].join('\n'), ctx, { filename: 'src/js (router)' });
 
   /* What setDocumentMeta writes on a first load of `path`: the route's title,
@@ -390,7 +394,7 @@ export function clientRouter(origin) {
     try { return { path, ...run(path) }; }
     finally { ctx.State = {}; ctx.BY_ID = new Map(); }
   };
-  return { ROUTES: api.ROUTES, META: api.META, ILLUS_TITLE: api.ILLUS_TITLE, matchRoute: api.matchRoute, headAt, companyHeadAt };
+  return { POSITIONING: api.POSITIONING, ROUTES: api.ROUTES, META: api.META, ILLUS_TITLE: api.ILLUS_TITLE, matchRoute: api.matchRoute, headAt, companyHeadAt };
 }
 
 /* The site's own address, read from the canonical link the template gives the
@@ -453,6 +457,38 @@ export function companyUniverse() {
     api.add(c);
   }
   return { companies: api.U.map(r => r.c), skipped };
+}
+
+/* THE HOMEPAGE'S FILED EXAMPLE (plan item 3.8; the owner's decision D5(e)).
+   The Equities card draws Apple's filed revenue and net income, by fiscal
+   year, in US$ — its filing currency, whatever the reader's base currency —
+   in the page's first draw, so it is served by the render and the page
+   waits for nothing (a page that waited for the filings would be kept out
+   of a reader's sight on localhost, and its draw would read their
+   currency). So the figures are written into the app here, from the file
+   the site serves: the statement tuple's revenue and net income columns
+   (F, 15-derivation.js — the page's own reading of the tuple) of the
+   filer's record in data/us.json, with the address the page gives it.
+   served-check holds the drawn columns to the served file. */
+export const HOME_FILED_ID = 'AAPL';
+/* The filer's revenue and net income by fiscal year, out of a us.json as
+   parsed — the committed file here, the served one in served-check. */
+export function filedSeries(file, id = HOME_FILED_ID) {
+  const F = vm.runInContext(`${cut(js('15-derivation.js'), '15-derivation.js', 'const F = {', '};')}\nF`, vm.createContext({}));
+  const r = (file.results || []).find(x => x.id === id);
+  return r ? { r, years: r.years, rev: r.fin.map(x => x[F.REV]), ni: r.fin.map(x => x[F.NI]) } : null;
+}
+export function homeFiled(plan, root = ROOT) {
+  const file = JSON.parse(readFileSync(join(root, 'data', 'us.json'), 'utf8'));
+  const r = filedSeries(file)?.r;
+  if (!r) throw new Error(`data/us.json has no ${HOME_FILED_ID}, the homepage's filed example (homeFiled)`);
+  const co = plan.companies.find(x => x.id === `${HOME_FILED_ID}-SEC`);
+  if (!co || !co.company.real) throw new Error(`${HOME_FILED_ID}-SEC has no page of a filed company, which the homepage's example links`);
+  if (r.ccy !== 'USD') throw new Error(`${HOME_FILED_ID}'s filed currency is ${r.ccy}, where the homepage's example is labelled US$`);
+  if (!Array.isArray(r.years) || r.years.length < 2 || r.fin.length !== r.years.length) throw new Error(`${HOME_FILED_ID}: its years and statement rows do not pair`);
+  const { rev, ni } = filedSeries(file);
+  if (rev.some(v => typeof v !== 'number') || ni.some(v => typeof v !== 'number')) throw new Error(`${HOME_FILED_ID}: a filed year has no revenue or net income, which the homepage's columns would leave blank`);
+  return { id: co.id, tk: r.id, name: r.name, path: co.path, ccy: r.ccy, cik: r.cik, years: r.years, rev, ni };
 }
 
 /* What a company's page is, in the line a link preview shows under its
@@ -548,7 +584,7 @@ export function routePlan(template) {
   const statics = new Set(pages.map(p => p.path));
   for (const co of companies) if (statics.has(co.path)) throw new Error(`${co.path} is both a route and ${co.id}'s address`);
   /* An address no route matches: setDocumentMeta(null)'s title and description. */
-  return { origin, pages, params, companies, skippedFilers: skipped, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES };
+  return { origin, pages, params, companies, skippedFilers: skipped, notFound: router.headAt('/404.html'), ROUTES: router.ROUTES, POSITIONING: router.POSITIONING };
 }
 
 /* ─── THE NAVIGATION, IN EVERY PAGE (2026-10-03) ─────────────────────────────
@@ -663,7 +699,11 @@ export function navMarkup() {
   /* marks: what buildNav marked on the page's render — the indices of the
      current links among #pubnav's and #appnav's links, in document order,
      and the Resources menu's mark — or null for none. */
-  return (marks = null) => {
+  /* chrome: the chrome the page is served in (servedChrome, below). The
+     other chrome's list is served empty — its header is hidden, after the
+     page — and the app draws it when the reader enters that chrome
+     (buildShell, 35-ui.js; plan item 3.5). */
+  return (marks = null, chrome = 'public') => {
     const pubnav = api.NAV_MARKUP.pubnav(), appnav = [...api.NAV_MARKUP.appnav()];
     const footProducts = [...api.NAV_MARKUP.footProducts()], footResources = [...api.NAV_MARKUP.footResources()];
     if (marks) {
@@ -674,9 +714,9 @@ export function navMarkup() {
           links[i].setAttribute('aria-current', 'page');
         }
       };
-      mark([pubnav], marks.pubnav, '#pubnav');
-      mark(appnav, marks.appnav, '#appnav');
-      if (marks.resources) {
+      if (chrome !== 'app') mark([pubnav], marks.pubnav, '#pubnav');
+      if (chrome === 'app') mark(appnav, marks.appnav, '#appnav');
+      if (marks.resources && chrome !== 'app') {
         const btn = walk(pubnav).find(n => n.getAttribute('id') === 'menuResourcesBtn');
         if (!btn) throw new Error('the public header has no Resources menu to mark');
         btn.toggleAttribute('data-current', true);
@@ -684,12 +724,13 @@ export function navMarkup() {
       }
     }
     const out = {
-      pubnav: pubnav.outerHTML,
-      appnav: appnav.map(n => n.outerHTML).join(''),
+      pubnav: chrome === 'app' ? '' : pubnav.outerHTML,
+      appnav: chrome === 'app' ? appnav.map(n => n.outerHTML).join('') : '',
       footProducts: footProducts.map(n => n.outerHTML).join(''),
       footResources: footResources.map(n => n.outerHTML).join(''),
     };
     for (const [slot, html] of Object.entries(out)) {
+      if (!html && (slot === 'pubnav' || slot === 'appnav')) continue;
       if (!/<a\b[^>]*\bhref="\/[^"]*"/.test(html)) throw new Error(`the ${slot} the page is served carries no link`);
       for (const name of unbuilt) {
         const asLink = new RegExp(`<a\\b[^>]*>(?:(?!</a>)[\\s\\S])*${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
@@ -699,6 +740,81 @@ export function navMarkup() {
     return out;
   };
 }
+/* ─── PAGE CONTENT FIRST IN THE SERVED TEXT (plan item 3.5, 2026-10-07) ────────
+   A fetcher that keeps the start of a page, or reads it as text in source
+   order, read every page's two headers, the sidebar's "My Dashboard" and
+   "Saved Models", and the template's notes to its maintainers before the
+   page: <div id="views"> stood at byte 30,000–34,000 of every page. Each page
+   is served
+   - without the template's HTML comments (they stay in src/, for whoever
+     edits the template; a page carries none);
+   - with the chrome it is drawn in first and the rest after its </main>:
+     a public page (and a page with no render, which a first frame draws in
+     the public header) is served the app's bar and sidebar after the page,
+     hidden, its sidebar's list empty; an app page its sidebar after the
+     page — fixed beside it from 1024px and a closed drawer below, so
+     nothing it shows moves — and the public header after that, hidden, its
+     list empty. The app puts each back in the template's order, and draws
+     both lists, the moment its script runs (buildShell, 35-ui.js).
+   So <div id="views"> is within the first SERVED_VIEWS_BYTES of every page
+   (--check and served-check hold it), and a text extraction of / reaches
+   its h1 before any of the workspace's navigation. */
+export const SERVED_VIEWS_BYTES = 16 * 1024;
+export const CHROME_PARTS = {
+  pubbar:  ['<header class="topbar pubbar" id="pubbar">', '<div class="pubscrim" id="pubScrim" hidden></div>\n'],
+  appbar:  ['<header class="topbar appbar" id="appbar">', '</header>\n'],
+  sidebar: ['<aside class="sidebar" id="sidebar" aria-label="Workspace">', '<div class="navscrim" id="navScrim" hidden></div>\n'],
+};
+const STRIP_AT = '<div class="disclosure" role="region" aria-label="Disclosure">';
+const MAIN_END = '\n</main>\n';
+/* The parts out of a page, wherever they stand, and the page without them. */
+function takeChrome(html) {
+  const parts = {};
+  for (const [k, [open, close]] of Object.entries(CHROME_PARTS)) {
+    const i = html.indexOf(open.slice(0, -1));
+    const j = i < 0 ? -1 : html.indexOf(close, i);
+    if (i < 0 || j < 0) throw new Error(`the page carries no ${k} (${open}) to place`);
+    parts[k] = html.slice(i, j + close.length);
+    html = html.slice(0, i) + html.slice(j + close.length);
+  }
+  return { html, parts };
+}
+const awayTag = (part, open, how) => part.replace(open, () => `${open.slice(0, -1)}${how === 'hidden' ? ' hidden' : ''} data-served-away="${how}">`);
+export function servedChrome(html, chrome) {
+  const { html: rest, parts } = takeChrome(html);
+  const before = chrome === 'app' ? [parts.appbar] : [parts.pubbar];
+  const after = chrome === 'app'
+    ? [awayTag(parts.sidebar, CHROME_PARTS.sidebar[0], ''), awayTag(parts.pubbar, CHROME_PARTS.pubbar[0], 'hidden')]
+    : [awayTag(parts.appbar, CHROME_PARTS.appbar[0], 'hidden'), awayTag(parts.sidebar, CHROME_PARTS.sidebar[0], 'hidden')];
+  const s = rest.indexOf(STRIP_AT), m = rest.indexOf(MAIN_END, s);
+  if (s < 0 || m < 0) throw new Error('the page carries no strip, or no </main> after it, to place its chrome around');
+  return rest.slice(0, s) + before.join('') + rest.slice(s, m + MAIN_END.length) + after.join('') + rest.slice(m + MAIN_END.length);
+}
+/* The page as the template orders it: what served-check compares. */
+export function unservedChrome(html) {
+  const { html: rest, parts } = takeChrome(html);
+  const back = (part, open) => part.replace(new RegExp(`${open.slice(0, -1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?: hidden)? data-served-away="[^"]*">`), () => open);
+  const s = rest.indexOf(STRIP_AT);
+  if (s < 0) throw new Error('the page carries no strip to put its chrome before');
+  return rest.slice(0, s) + Object.entries(CHROME_PARTS).map(([k, [open]]) => back(parts[k], open)).join('') + rest.slice(s);
+}
+/* The template as every page is made from it: its comments out, and the
+   positioning copy written in from the one table (POSITIONING, 35-ui.js). */
+export const POSITIONING_SLOTS = { '@POSITIONING_KICKER': 'kicker', '@POSITIONING_ONE_LINER': 'oneLiner' };
+export function servedTemplate(template, P) {
+  let t = template.replace(/^[ \t]*<!--[\s\S]*?-->[ \t]*\r?\n/gm, '');
+  if (/<!--/.test(t)) throw new Error('the template carries an HTML comment that does not stand on lines of its own — the build takes comments out of every page by whole lines');
+  for (const [slot, key] of Object.entries(POSITIONING_SLOTS)) {
+    if (t.split(slot).length !== 2) throw new Error(`the template carries ${t.split(slot).length - 1} of ${slot}, where the build writes POSITIONING.${key} exactly once`);
+    if (!P || typeof P[key] !== 'string' || !P[key]) throw new Error(`POSITIONING.${key} (35-ui.js) is not a string`);
+    const v = key === 'kicker'
+      ? P.kicker.split(' · ').map((w, i) => (i ? ` <i${i === 2 ? ' class="amber"' : ''}>·</i> ` : '') + escText(w)).join('')
+      : escText(P[key]);
+    t = t.replace(slot, () => v);
+  }
+  return t;
+}
+
 /* The served lists, put where the template carries each empty. */
 export function withNav(html, nav) {
   for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) {
@@ -1172,7 +1288,11 @@ export function linked(page, files) {
    asks for this, of the clean copy it renders from, so that what it reads
    back is the app's drawing and never a render committed before it. */
 export function build({ bare = false } = {}) {
-  const template = lf(readFileSync(src('index.template.html'), 'utf8'));
+  const source = lf(readFileSync(src('index.template.html'), 'utf8'));
+  /* The route table first: it holds the positioning copy the template is
+     written with (servedTemplate). */
+  const plan = routePlan(source);
+  const template = servedTemplate(source, plan.POSITIONING);
   if (!template.includes(STYLE_MARKER)) throw new Error('template lost its style marker');
   if (!template.includes(SCRIPT_MARKER)) throw new Error('template lost its script marker');
 
@@ -1209,6 +1329,8 @@ export function build({ bare = false } = {}) {
   js = js.replace(JOURNEYS_MARKER, () => `(${journeysServed.toString()})`);
   if (js.split(JOURNEY_NAMES_MARKER).length !== 2) throw new Error('src/js must carry the journeys\' names marker exactly once (91-health.js)');
   js = js.replace(JOURNEY_NAMES_MARKER, () => JSON.stringify(JOURNEY_NAMES));
+  if (js.split(HOME_FILED_MARKER).length !== 2) throw new Error('src/js must carry the homepage\'s filed-example marker exactly once (55-views-public.js)');
+  js = js.replace(HOME_FILED_MARKER, () => JSON.stringify(homeFiled(plan)));
 
   /* One stylesheet and one script, where linked() looks for them: the page's
      own markup must not carry a second of either, which linked() would take
@@ -1228,7 +1350,6 @@ export function build({ bare = false } = {}) {
      aliases share pages/us-options/wheel.html), else after the first.
      index.html carries the app inline; every other page loads it from the
      two files (appFiles, linked — THE APP ONCE, above). */
-  const plan = routePlan(template);
   /* Every page carries the navigation (navMarkup); a page in prerender's
      scope carries its render as well, and its navigation marked as the
      render marked it (withRender, readRenders). */
@@ -1243,10 +1364,14 @@ export function build({ bare = false } = {}) {
   /* Every page carries the first-paint script (BEFORE THE FIRST PAINT); an
      island page's render, the recorded journeys (THE RESULT, SERVED). */
   const served = journeysServed(readRecord());
+  /* And each in its own chrome first, the other after its page (PAGE
+     CONTENT FIRST): a page with no render is the public header's, as a
+     first frame draws it. */
   const page = (head, file, opts) => {
     const r = rendered.renders.get(file);
-    const p = withFirst(withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null)));
-    return r ? withRender(p, { ...r, views: withServedRecord(r, served) }) : p;
+    const chrome = r ? r.manifest.chrome : 'public';
+    const p = withFirst(withNav(withHead(shell, head, opts), nav(r ? r.manifest.nav : null, chrome)));
+    return servedChrome(r ? withRender(p, { ...r, views: withServedRecord(r, served) }) : p, chrome);
   };
   const rootHead = plan.pages.find(p => p.path === '/').head;
   const html = page(rootHead, 'index.html');
@@ -1454,6 +1579,255 @@ export function mapShapeProblems({ root = ROOT } = {}) {
   return out;
 }
 
+/* THE LAYOUT SYSTEM'S TYPE AND MEASURE, IN THE STYLESHEET (the owner's
+   decision, 7 Oct 2026; 37-layout-system.js). The pages on the system set
+   their type in seven tokens on the brief's scale, and hold text to a
+   measure of 70 characters at most. Held here, in src/styles.css:
+   - its layout-system section stands, and defines --ls-hero, --ls-title,
+     --ls-section, --ls-metric, --ls-body, --ls-support and --ls-meta, each
+     inside the brief's range on a phone (the base) and on a desk (from
+     1024px and from 1440px, as the media queries leave it);
+   - --ls-measure is 70ch or less;
+   - every font-size in that section, and in every rule of the families the
+     system's pages draw with (.ls-, .lab-, .pc-), is a token (var(--ls-…));
+   - no rule of those families lets a block wider than 70ch.
+   mobile.mjs holds what is drawn to the same; served-check what is served. */
+const LS_SCALE = {
+  '--ls-hero': [[36, 42], [52, 64]], '--ls-title': [[28, 32], [36, 44]], '--ls-section': [[21, 24], [24, 28]], '--ls-metric': [[26, 32], [28, 36]],
+  '--ls-body': [[16, 16], [16, 16]], '--ls-support': [[14, 14], [14, 14]], '--ls-meta': [[12, 12], [12, 13]],
+};
+export function layoutSystemProblems({ root = ROOT } = {}) {
+  const raw = lf(readFileSync(join(root, 'src', 'styles.css'), 'utf8'));
+  const css = raw.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+  const out = [];
+  const a = raw.indexOf('/* ---- layout-system ---- */'), b = raw.indexOf('/* ---- end layout-system ---- */');
+  if (a < 0 || b < a) out.push('src/styles.css has no layout-system section (/* ---- layout-system ---- */ … /* ---- end layout-system ---- */): the pages on the layout system have no type scale or measure to be held to');
+  const sec = a < 0 || b < a ? '' : css.slice(a, b);
+  /* The tokens' values: the section's base :root, then each media query's. */
+  const at = { base: {}, 640: {}, 1024: {}, 1440: {} };
+  for (const m of sec.matchAll(/(?:@media\s*\(min-width:\s*(\d+)px\)\s*\{\s*)?:root\s*\{([^}]*)\}/g)) {
+    const into = m[1] ? at[m[1]] : at.base;
+    if (!into) continue;
+    for (const d of m[2].matchAll(/(--ls-[a-z0-9-]+)\s*:\s*([^;]+);/g)) into[d[1]] = d[2].trim();
+  }
+  const px = (v) => (/^\d+(\.\d+)?px$/.test(v || '') ? parseFloat(v) : null);
+  for (const [t, [phone, desk]] of Object.entries(LS_SCALE)) {
+    const base = px(at.base[t]);
+    if (base == null) { out.push(`src/styles.css: the layout system's ${t} is ${at.base[t] ? `"${at.base[t]}", not a size in px` : 'not defined'}`); continue; }
+    if (base < phone[0] || base > phone[1]) out.push(`src/styles.css: ${t} is ${base}px on a phone, outside the brief's ${phone.join('–')}px`);
+    for (const w of [1024, 1440]) {
+      const v = px([at[w][t], at[1024][t], at[640][t], at.base[t]].slice(w === 1440 ? 0 : 1).find(x => x != null));
+      if (v == null || v < desk[0] || v > desk[1]) out.push(`src/styles.css: ${t} is ${v}px at ${w}px, outside the brief's ${desk.join('–')}px for a desk`);
+    }
+  }
+  const measure = /^(\d+(?:\.\d+)?)ch$/.exec(at.base['--ls-measure'] || '');
+  if (!measure || Number(measure[1]) > 70) out.push(`src/styles.css: --ls-measure is ${at.base['--ls-measure'] || 'not defined'}, not a measure of 70ch or less`);
+  /* Every rule of the system's families. */
+  let n = 0;
+  for (const m of css.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    const sel = m[1].trim(), body = m[2], inSec = m.index >= a && m.index < b;
+    if (!inSec && !/\.(ls|lab|pc)-/.test(sel)) continue;
+    const line = css.slice(0, m.index + m[0].indexOf('{')).split('\n').length;
+    for (const d of body.matchAll(/font-size\s*:\s*([^;!]+)/g)) {
+      n++;
+      if (!/^var\(--ls-[a-z0-9-]+\)$/.test(d[1].trim()) && d[1].trim() !== 'inherit') out.push(`src/styles.css:${line} ${sel.split('\n').pop().trim().slice(0, 70)} sets font-size: ${d[1].trim()}, not a token of the layout system's scale`);
+    }
+    for (const d of body.matchAll(/max-width\s*:\s*(\d+(?:\.\d+)?)ch/g)) if (Number(d[1]) > 70) out.push(`src/styles.css:${line} ${sel.split('\n').pop().trim().slice(0, 70)} lets a block ${d[1]}ch wide, more than the 70ch measure`);
+  }
+  if (!n) out.push('src/styles.css: no rule of the layout system\'s families sets a size — the check read nothing');
+  return out;
+}
+
+/* ─── THE HOMEPAGE'S BUDGETS (plan item 3.6, 2026-10-07) ─────────────────────
+   The homepage was 557 drawn words and no figure. Its cleanup (Phase 3A and
+   3B; D5, D21, D22) is held here, on the page / is served, by the plan's
+   counting rule, so a word added back, a disclosure line under the cards
+   again, or a visual taken out fails --check in CI's first job:
+   - the hero: its h1 and lede 15 words or fewer, and one call to action;
+   - each card (article.pub-card): 12 words or fewer outside its figure,
+     its second action (.pub-card-also) left out;
+   - each figure: 20 words or fewer — its caption, legend and state rows,
+     inside the <figure>, the <svg>'s words with them;
+   - <main>: 110 words or fewer outside its figures;
+   - at least two data visuals: a figure with an <svg> of three or more
+     data marks (data-v) and a source label in sight (.pub-vis-src);
+   - one disclosure line above the footer — the strip's summary, with its
+     sentence and "No licensed prices" — and no other in <main>;
+   - p.footer-legal, word for word (FOOTER_LEGAL_SHA).
+   A word is what a reader reads as one: a run with a letter in it, not a
+   number, an amount or a date ("RM572,000", "$416.2B", "FY2025"), and not
+   what is hidden, said only to a screen reader (.sr-only), or inside a
+   closed <details> (its summary is in sight). served-check reads the
+   served / with this same function. */
+export const HOME_BUDGET = { hero: 15, card: 12, figure: 20, main: 110, visuals: 2 };
+/* p.footer-legal's words as on 4 Oct 2026 (served-check's disclosure-guard
+   holds them word for word on every page; this, on /, in CI's first job). */
+export const FOOTER_LEGAL_SHA = 'd73676dac857efbf';
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+/* An HTML page as a tree: tags, their attributes, and their text, enough to
+   say what is in sight and what a part of the page holds. */
+export function htmlTree(html) {
+  const root = { tag: '#root', raw: '', kids: [], parent: null };
+  const stack = [root];
+  const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const top = stack[stack.length - 1];
+    if (m[4] != null) { top.kids.push({ tag: '#text', text: m[4], parent: top }); continue; }
+    if (!m[2]) continue;
+    const tag = m[2].toLowerCase();
+    if (m[1]) { for (let i = stack.length - 1; i > 0; i--) if (stack[i].tag === tag) { stack.length = i; break; } continue; }
+    const n = { tag, raw: m[0], kids: [], parent: top };
+    top.kids.push(n);
+    if (tag === 'script' || tag === 'style') { const e = html.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? html.length : e; continue; }
+    if (!VOID_TAGS.has(tag) && !m[0].endsWith('/>')) stack.push(n);
+  }
+  return root;
+}
+export const attrOf = (n, k) => { const m = new RegExp(`\\s${k}(?:="([^"]*)"|='([^']*)'|(?=[\\s>/]))`, 'i').exec(n.raw || ''); return m ? (m[1] ?? m[2] ?? '') : null; };
+export const classOf = (n) => ` ${attrOf(n, 'class') || ''} `;
+export const hasClass = (n, c) => classOf(n).includes(` ${c} `);
+export const allOf = (n, out = []) => { for (const k of n.kids || []) if (k.tag !== '#text') { out.push(k); allOf(k, out); } return out; };
+/* Out of sight, or said only to a screen reader. (What is aria-hidden is
+   still drawn — a legend, an arrow — so its words are read by the eye.) */
+const hiddenNode = (n) => n.tag === 'script' || n.tag === 'style' || n.tag === 'template' || attrOf(n, 'hidden') !== null || hasClass(n, 'sr-only');
+/* Whether a node is in sight: no hidden ancestor, and inside a closed
+   <details> only within its summary. */
+export function inSight(n) {
+  for (let c = n, child = null; c && c.tag !== '#root'; child = c, c = c.parent) {
+    if (c.tag !== '#text' && hiddenNode(c)) return false;
+    if (c.tag === 'details' && attrOf(c, 'open') === null && child && child.tag !== 'summary') return false;
+  }
+  return true;
+}
+const unEntity = (s) => s.replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+/* The text in sight under n, leaving out any subtree `skip` names. */
+export function sightText(n, skip = () => false) {
+  let out = '';
+  const walk = (x) => {
+    for (const k of x.kids || []) {
+      if (k.tag === '#text') { out += unEntity(k.text); continue; }
+      if (hiddenNode(k) || skip(k)) continue;
+      if (x.tag === 'details' && attrOf(x, 'open') === null && k.tag !== 'summary') continue;
+      /* Every element apart from its neighbours: a badge and its words are
+         set apart on screen by the layout, not by a space in the markup. */
+      out += ' ';
+      walk(k);
+      out += ' ';
+    }
+  };
+  if (inSight(n)) walk(n);
+  return out.replace(/\s+/g, ' ').trim();
+}
+/* The words a reader reads: a run with a letter in it that is not a
+   number, an amount, a percentage or a fiscal year. */
+const NUMERIC = /^[(]?[−–+-]?(?:US\$|RM|\$)?[\d.,]+(?:[%kmbtKMBT×]|bn|pp)?[)]?$/;
+export const wordsIn = (text) => String(text).split(/\s+/).map(t => t.replace(/^[“"‘'(]+|[”"’'),.;:!?]+$/g, '')).filter(t => /\p{L}/u.test(t) && !NUMERIC.test(t) && !/^FY\d{2,4}$/.test(t));
+export const DISCLOSURE_WORDS = /investment decision|no market prices are licensed|No licensed prices|filed with the SEC or illustrative|labelled on every page/i;
+export function homeBudgets(html) {
+  const p = [], said = {};
+  const root = htmlTree(html);
+  const nodes = allOf(root);
+  const main = nodes.find(n => n.tag === 'main');
+  if (!main) return { problems: ['/ serves no <main>'], said };
+  const inMain = allOf(main);
+  const figures = inMain.filter(n => n.tag === 'figure' && inSight(n));
+  const isFig = (n) => n.tag === 'figure';
+  /* The hero. */
+  const hero = inMain.find(n => hasClass(n, 'pub-hero'));
+  if (!hero) p.push('/ serves no .pub-hero');
+  else {
+    const h1 = allOf(hero).find(n => n.tag === 'h1'), lede = allOf(hero).find(n => hasClass(n, 'pub-lede'));
+    said.hero = wordsIn(`${h1 ? sightText(h1) : ''} ${lede ? sightText(lede) : ''}`).length;
+    if (said.hero > HOME_BUDGET.hero) p.push(`the hero's h1 and lede are ${said.hero} words, more than ${HOME_BUDGET.hero}`);
+    const acts = allOf(hero).filter(n => (n.tag === 'a' || n.tag === 'button') && inSight(n));
+    said.heroActions = acts.length;
+    if (acts.length !== 1) p.push(`the hero has ${acts.length} calls to action, not one`);
+  }
+  /* The cards. */
+  const cards = inMain.filter(n => n.tag === 'article' && hasClass(n, 'pub-card'));
+  said.cards = cards.map(c => {
+    const name = sightText(allOf(c).find(n => hasClass(n, 'pub-card-product')) || { kids: [] }) || attrOf(c, 'data-product');
+    const w = wordsIn(sightText(c, n => isFig(n) || hasClass(n, 'pub-card-also'))).length;
+    if (w > HOME_BUDGET.card) p.push(`the ${name} card is ${w} words outside its figure and its second action, more than ${HOME_BUDGET.card}`);
+    return [name, w];
+  });
+  if (cards.length < 3) p.push(`/ serves ${cards.length} product cards, not three`);
+  /* The figures. */
+  said.figures = figures.map(f => {
+    const w = wordsIn(sightText(f)).length;
+    const name = attrOf(f, 'class') || 'figure';
+    if (w > HOME_BUDGET.figure) p.push(`a figure (${name}) is ${w} words, more than ${HOME_BUDGET.figure}: "${sightText(f).slice(0, 120)}"`);
+    return w;
+  });
+  /* Main, outside its figures. */
+  const mainText = sightText(main, isFig);
+  said.main = wordsIn(mainText).length;
+  if (said.main > HOME_BUDGET.main) p.push(`<main> is ${said.main} words outside its figures, more than ${HOME_BUDGET.main}`);
+  /* The data visuals. */
+  said.visuals = figures.filter(f => {
+    const svgs = allOf(f).filter(n => n.tag === 'svg');
+    const marks = svgs.reduce((a, s) => a + allOf(s).filter(n => attrOf(n, 'data-v') !== null).length, 0);
+    const src = allOf(f).find(n => hasClass(n, 'pub-vis-src'));
+    return marks >= 3 && src && wordsIn(sightText(src)).length > 0;
+  }).length;
+  if (said.visuals < HOME_BUDGET.visuals) p.push(`<main> holds ${said.visuals} data visuals (an <svg> of three or more data marks with a source label in sight), fewer than ${HOME_BUDGET.visuals}`);
+  /* One disclosure line above the footer: the strip. */
+  const strip = nodes.find(n => n.tag === 'summary' && hasClass(n, 'disclosure-in'));
+  const stripText = strip ? sightText(strip) : '';
+  if (!strip || !stripText.includes('Beta preview. Do not use figures here for investment decisions.') || !stripText.includes('No licensed prices'))
+    p.push(`the strip's summary does not read "Beta preview. Do not use figures here for investment decisions." and "No licensed prices" in sight (${JSON.stringify(stripText.slice(0, 120))})`);
+  const lines = inMain.filter(n => /^(p|div|li|span|section)$/.test(n.tag) && !allOf(n).some(k => /^(p|div|li|section)$/.test(k.tag)) && !figures.some(f => allOf(f).includes(n)) && DISCLOSURE_WORDS.test(sightText(n)));
+  said.disclosures = (strip ? 1 : 0) + lines.length;
+  if (lines.length) p.push(`<main> carries ${lines.length} disclosure line${lines.length === 1 ? '' : 's'} besides the strip: "${sightText(lines[0]).slice(0, 120)}"`);
+  /* The footer's legal paragraph, word for word. */
+  const legal = nodes.filter(n => n.tag === 'p' && hasClass(n, 'footer-legal'));
+  const legalSha = legal.length === 1 ? createHash('sha256').update(sightText(legal[0])).digest('hex').slice(0, 16) : null;
+  said.legal = legalSha;
+  if (legal.length !== 1) p.push(`/ serves ${legal.length} p.footer-legal, not one`);
+  else if (FOOTER_LEGAL_SHA && legalSha !== FOOTER_LEGAL_SHA) p.push(`p.footer-legal is not its text of 4 Oct 2026 (sha ${legalSha}, not ${FOOTER_LEGAL_SHA})`);
+  return { problems: p, said };
+}
+/* Every served page has its own <div id="views"> within SERVED_VIEWS_BYTES
+   (PAGE CONTENT FIRST, above). */
+export function viewsLateProblems(pages) {
+  const out = [];
+  for (const [file, html] of pages) {
+    const at = Buffer.from(html, 'utf8').indexOf('<div id="views"');
+    if (at < 0 || at >= SERVED_VIEWS_BYTES) out.push(`${file}: <div id="views"> ${at < 0 ? 'is not in the page' : `is at byte ${at.toLocaleString('en')}`}, not within its first ${SERVED_VIEWS_BYTES / 1024}kB`);
+  }
+  return out;
+}
+/* THE KIND BADGES' MAPPING (plan item 3.7; D6): every PROVENANCE kind,
+   every EVIDENCE id and every fee status maps to exactly one of the eight
+   words, and the eight are the owner's, in the precedence order. */
+export const KIND_WORDS = ['Filed', 'Derived', 'Modelled', 'Yours', 'Quoted', 'Illustrative', 'Placeholder', 'Unavailable'];
+export function kindProblems() {
+  const out = [];
+  const LS = js('37-layout-system.js'), DISC = js('40-views-discover.js'), PROP = js('70-property.js');
+  const api = vm.runInContext([
+    cut(LS, '37-layout-system.js', 'const KIND_BADGES = {', '\n};'),
+    cut(LS, '37-layout-system.js', 'const KIND_ORDER = ', ';\n'),
+    cut(LS, '37-layout-system.js', 'const KIND_OF_PROVENANCE = ', ';\n'),
+    cut(LS, '37-layout-system.js', 'const KIND_OF_EVIDENCE = ', ';\n'),
+    cut(LS, '37-layout-system.js', 'const KIND_OF_FEE = ', ';\n'),
+    cut(DISC, '40-views-discover.js', 'const PROVENANCE = {', '\n};'),
+    cut(PROP, '70-property.js', 'const EVIDENCE = [', '\n];'),
+    '({ KIND_BADGES, KIND_ORDER, KIND_OF_PROVENANCE, KIND_OF_EVIDENCE, KIND_OF_FEE, PROVENANCE, EVIDENCE })',
+  ].join('\n'), vm.createContext({}), { filename: 'src/js (kind badges)' });
+  const keys = Object.keys(api.KIND_BADGES);
+  const words = keys.map(k => api.KIND_BADGES[k].word);
+  if (JSON.stringify([...words].sort()) !== JSON.stringify([...KIND_WORDS].sort())) out.push(`the kind badges' words are ${words.join(' · ')}, not the owner's eight (${KIND_WORDS.join(' · ')})`);
+  if (api.KIND_ORDER.length !== keys.length || keys.some(k => !api.KIND_ORDER.includes(k))) out.push(`KIND_ORDER (${api.KIND_ORDER.join(', ')}) is not the eight kinds, each once`);
+  const FEE = [...new Set([...PROP.matchAll(/^\s+status: '([a-z_]+)',/gm)].map(m => m[1]))];
+  for (const [name, from, map] of [['PROVENANCE kind', Object.keys(api.PROVENANCE), api.KIND_OF_PROVENANCE], ['EVIDENCE id', api.EVIDENCE.map(e => e.id), api.KIND_OF_EVIDENCE],
+    ['fee status', [...FEE, 'verified', 'unknown'], api.KIND_OF_FEE]]) {
+    for (const k of from) if (!keys.includes(map[k])) out.push(`the ${name} "${k}" maps to ${map[k] === undefined ? 'no badge' : `"${map[k]}", which is not a badge`}`);
+    for (const k of Object.keys(map)) if (!from.includes(k)) out.push(`the ${name} map names "${k}", which is not a ${name}`);
+  }
+  return out;
+}
+
 /* What would make the committed files serve something other than what they
    say, beyond drift from src/.
 
@@ -1644,7 +2018,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f)),
     ...filesUnder(NAPIC_DIR).filter(f => !napic.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
-  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...(sitemap ? sitemap.problems : [])];
+  /* The homepage's budgets (plan 3.6), on / as served with its render. */
+  const homeBudget = !bare && rendered.renders.has('index.html') ? homeBudgets(pages.get(HOME)) : null;
+  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
+    ...kindProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);

@@ -233,8 +233,8 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
    setups"; on this site a setup can be written and saved, and nothing runs
    it — there are no prices here (the Scanner's own card says so). Daily
    audits #2 and #3 both flagged it, and the owner chose "build" (2026-10-03).
-   The goal card's title, "Monitor my setups", stays: it carries the Beta
-   badge and the note that says where setups run. Page code and the
+   The goal card's title was "Monitor my setups" until the owner's D5 (5 Oct
+   2026) made it "Build my setups": what a visitor does here. Page code and the
    template's meta tags; comments are history. */
 {
   const files = [...readdirSync(join(ROOT, 'src', 'js')).filter(x => x.endsWith('.js')).map(f => join(ROOT, 'src', 'js', f)), join(ROOT, 'src', 'index.template.html')];
@@ -342,6 +342,44 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
   }
 }
 /* ---- end scenario-lab ---- */
+
+/* ---- positioning ---- */
+/* ONE SOURCE FOR THE POSITIONING COPY (plan item 3.5, 2026-10-07). What the
+   site says it is — the title, the kicker, the lede, the one-liner and the
+   description — is POSITIONING's, in 35-ui.js, and nowhere typed again: the
+   hero, the router (the head, og: and twitter:) and the build (the footer's
+   tagline and line) read it. Four variants of one sentence had drifted
+   apart across the hero, the head, the og: and twitter: tags and the
+   footer. Any module or the template that types one of POSITIONING's
+   strings, or the phrases that mark the family ("decision workspace",
+   "market setups", "Research · Monitor"), outside the table, fails —
+   comments are history and are left out. */
+{
+  const ui = readFileSync(join(ROOT, 'src', 'js', '35-ui.js'), 'utf8');
+  const at = ui.indexOf('const POSITIONING = {'), end = at < 0 ? -1 : ui.indexOf('\n};', at);
+  const typed = [];
+  if (at < 0 || end < 0) typed.push('src/js/35-ui.js has no POSITIONING table');
+  const table = at < 0 ? '' : ui.slice(at, end);
+  const values = [...table.matchAll(/^\s+[a-zA-Z]+: '([^']+)',$/gm)].map(m => m[1]);
+  const FAMILY = /decision workspace|market setups|Research · Monitor|Research <i>·<\/i> Monitor/i;
+  const files = [...readdirSync(join(ROOT, 'src', 'js')).filter(x => x.endsWith('.js')).map(f => join(ROOT, 'src', 'js', f)), join(ROOT, 'src', 'index.template.html')];
+  for (const f of files) {
+    let raw = readFileSync(f, 'utf8');
+    if (f.endsWith('35-ui.js') && at >= 0) raw = raw.slice(0, at) + raw.slice(end);
+    const text = f.endsWith('.html') ? raw.replace(/<!--[\s\S]*?-->/g, '') : raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    text.split('\n').forEach((line) => {
+      const hit = values.find(v => line.includes(v)) || (FAMILY.exec(line) || [])[0];
+      if (hit) typed.push(`${f.slice(ROOT.length + 1).replace(/\\/g, '/')}: "${hit.slice(0, 60)}" — ${line.trim().slice(0, 100)}`);
+    });
+  }
+  if (values.length < 5) typed.push(`POSITIONING holds ${values.length} strings, not the five (title, kicker, lede, one-liner, description)`);
+  if (typed.length) {
+    bad += typed.length;
+    console.error(`FAIL  ${typed.length} line(s) type the positioning copy outside POSITIONING (35-ui.js):`);
+    typed.forEach(x => console.error(`      ${x}`));
+  } else console.log(`ok    the positioning copy is typed once, in POSITIONING (${values.length} strings): no module or the template types one of them, or "decision workspace", "market setups" or "Research · Monitor", anywhere else`);
+}
+/* ---- end positioning ---- */
 
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`

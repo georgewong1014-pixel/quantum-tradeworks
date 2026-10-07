@@ -25,7 +25,7 @@
       },
       "inert": {
         "buttons": 0,
-        "fields": 0,
+        "fields": 1,
         "choices": 0,
         "roles": 0,
         "forms": 0,
@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "db40d83c2ec177df",
-      "changed": "2026-10-03"
+      "digest": "c2fcb72ceb036545",
+      "changed": "2026-10-07"
     },
     "pages/about.html": {
       "path": "/about",
@@ -644,8 +644,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bec59f9c9ed31eaa",
-      "changed": "2026-10-04"
+      "digest": "25b57761ef684a80",
+      "changed": "2026-10-07"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -673,8 +673,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "a61effc6f6b63372",
-      "changed": "2026-10-04"
+      "digest": "20daef4457b1413d",
+      "changed": "2026-10-06"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -789,8 +789,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "78deea0c746ed516",
-      "changed": "2026-10-04"
+      "digest": "bf71f8a8dae00eb0",
+      "changed": "2026-10-06"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",
@@ -818,8 +818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "af1d2e9b799b9896",
-      "changed": "2026-10-06"
+      "digest": "54b3e0639942b369",
+      "changed": "2026-10-07"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -905,8 +905,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6eb0271c47c30cef",
-      "changed": "2026-10-03"
+      "digest": "cac2f82d2bbf66b2",
+      "changed": "2026-10-07"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -1021,8 +1021,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e36c37c59224ee03",
-      "changed": "2026-10-04"
+      "digest": "4706b7adfd60a4a2",
+      "changed": "2026-10-07"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -1055,10 +1055,10 @@
     },
     "pages/property.html": {
       "path": "/property",
-      "view": "property",
+      "view": "propertyLab",
       "state": "first draw",
       "chrome": "app",
-      "h1": "Turn a property into a financial model",
+      "h1": "Scenario Lab",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -1068,19 +1068,19 @@
         ]
       },
       "inert": {
-        "buttons": 55,
-        "fields": 78,
+        "buttons": 24,
+        "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 5,
-        "now": 2,
-        "cellStops": 4,
+        "notShown": 8,
+        "now": 1,
+        "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a01e55c4a4b1e61b",
-      "changed": "2026-10-06"
+      "digest": "78a79c1223a2ddb7",
+      "changed": "2026-10-07"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1108,8 +1108,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "22d380924e2c136b",
-      "changed": "2026-10-04"
+      "digest": "08f0e52b918b6c60",
+      "changed": "2026-10-07"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -1126,19 +1126,19 @@
         ]
       },
       "inert": {
-        "buttons": 55,
+        "buttons": 57,
         "fields": 78,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 5,
+        "notShown": 6,
         "now": 1,
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "e872d19762da2022",
-      "changed": "2026-10-06"
+      "digest": "3ba9ced2c75139c4",
+      "changed": "2026-10-07"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1166,8 +1166,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "880a19522f9b56e6",
-      "changed": "2026-10-04"
+      "digest": "aa4206fbb32af87e",
+      "changed": "2026-10-07"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -1184,19 +1184,19 @@
         ]
       },
       "inert": {
-        "buttons": 19,
+        "buttons": 24,
         "fields": 10,
         "choices": 13,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 11,
+        "notShown": 8,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2baf47465675e7a0",
-      "changed": "2026-10-06"
+      "digest": "2e835b1c50a43252",
+      "changed": "2026-10-07"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -1224,8 +1224,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9bce34d0599d9efd",
-      "changed": "2026-10-04"
+      "digest": "cc7c947f04c4e699",
+      "changed": "2026-10-07"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -1253,8 +1253,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e684289e538ac098",
-      "changed": "2026-10-04"
+      "digest": "c58987e0100f5604",
+      "changed": "2026-10-07"
     },
     "pages/research.html": {
       "path": "/research",
@@ -1398,8 +1398,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8afaf42d199c28a0",
-      "changed": "2026-10-06"
+      "digest": "057b8c05d666d430",
+      "changed": "2026-10-07"
     },
     "pages/terms.html": {
       "path": "/terms",
@@ -1427,8 +1427,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f1644f61a43a43ff",
-      "changed": "2026-10-03"
+      "digest": "a9ce75e520d48545",
+      "changed": "2026-10-07"
     },
     "pages/us-options/wheel.html": {
       "path": "/us-options/wheel",

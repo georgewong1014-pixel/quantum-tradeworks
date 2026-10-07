@@ -30,6 +30,8 @@ const ICON = {
   chev:'<path d="m6 9 6 6 6-6"/>',
   /* The Scenario Lab's way back to a figure as saved (82-property-lab.js). */
   undo:'<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  /* The layout system's action bar: Save this (37-layout-system.js). */
+  bookmark:'<path d="M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2Z"/>',
 };
 const icon = (name, size = 14) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:${size}px;height:${size}px;flex:none">${ICON[name] || ''}</svg>`;
@@ -368,6 +370,13 @@ function toast(msg) {
      — is labelled where it shows, and the note says so.
    - Business Intelligence is not built. It is text with a badge, never a
      link or a button, and SHOW_UNBUILT keeps it out of the app sidebar. */
+/* THE QUALIFIER (the owner's decisions D5 and D17, 2026-10-05): a few words
+   that say, beside the status word and in sight, what the status rests on.
+   The homepage card shows each product's; Property's is shown wherever its
+   badge is (qualifyBadge: the header's menu and the phone sheet, the
+   sidebar, the footer, the tab row, How it works, the search), because
+   "Live" alone read as live market data. The full note stays the badge's
+   title and the link's description, and the card's ⓘ prints it. */
 const PRODUCTS = [
   { id: 'equities', name: 'Equities Research', short: 'Equities', path: '/research',
     task: 'Research a company', blurb: 'Financial statements, ratios and valuation models.',
@@ -375,15 +384,25 @@ const PRODUCTS = [
        homepage card, How it works and the dashboard checklist all read it
        from here, so the three say the same words. */
     question: 'How is this company performing financially?', action: 'Start research', actionPath: '/research',
-    status: 'beta', statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
+    status: 'beta', qualifier: 'Filed + illustrative data',
+    statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
+  /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
+     promised a watch this site never keeps — it ships no prices, and the
+     worker that records a match runs on the reader's own computer. */
   { id: 'scanner', name: 'Quantum Scanner', short: 'Scanner', path: '/app/scanner',
-    task: 'Monitor my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
+    task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
-    status: 'beta', statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
+    status: 'beta', qualifier: 'Your own price data',
+    statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
     question: 'What are the financial implications of this investment?', action: 'Analyse a property', actionPath: '/property/calculator',
-    status: 'live', statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
+    /* The Scenario Lab, offered beside the main action on the homepage card
+       (D5(d)) — until the map ships, when the card's action becomes
+       "Explore Property". */
+    also: { label: 'Try the Scenario Lab', path: '/property/lab' },
+    status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
     task: 'Plan my business', blurb: 'Cash flow, profitability and financing scenarios.',
@@ -404,12 +423,25 @@ const productById = (id) => PRODUCTS.find(p => p.id === id) || null;
 /* The badge a product wears, with its note as the title. It is an element,
    for el() children; its own markup when put in a template string, because
    the pages that call it build both ways. */
-function productBadge(id) {
+/* D17 (N2a, the 5 Oct audit; the owner's decision). Property's badge reads
+   "Live · Your figures, sample to start" wherever it appears — the tab row
+   above /property's Scenario Lab, the header's Products menu, the phone
+   sheet, the sidebar, the footer, /how-it-works and the homepage card. The
+   qualifier is drawn here, as visible text beside the badge's word, never
+   in its title: the badge and its words in one wrapper (.pbadge, laid out
+   by its row: display: contents), so a row that reads the badge's word
+   still reads "Live", and the qualifier is one more child of the row.
+   `qualified` draws any product's qualifier (the homepage card's);
+   `id` names the qualifier, for a link that is described by it. */
+function productBadge(id, { qualified = false, qualId = null } = {}) {
   const p = productById(id);
   if (!p) return null;
   const b = el('span', { class: `status-badge status-${p.status}`, title: p.statusNote }, PRODUCT_STATUS[p.status] || p.status);
-  b.toString = () => b.outerHTML;
-  return b;
+  const q = p.qualifier && (qualified || p.qualifyBadge)
+    ? el('span', { class: 'pbadge', 'data-badge-of': p.id }, [b, el('span', { class: 'pbadge-q', id: qualId }, p.qualifier)])
+    : b;
+  q.toString = () => q.outerHTML;
+  return q;
 }
 /* THE NOTE, FOR EVERYONE. A badge's qualifying sentence was only its
    `title`: a mouse's tooltip, never reached by a keyboard, a finger or a
@@ -883,11 +915,11 @@ const PRODUCT_ICON = { equities: 'chart', scanner: 'target', property: 'home', b
    among them (Release B): it drew them as a strip of its own inside each of
    its pages, and now wears the row the other two products wear.
 
-   Property has no Overview tab. /property and /property/calculator are one
-   view — the calculator, whose canonical address is /property — so an
-   "Overview" beside "Calculator" would be two names for the same page, the
-   second one promising a summary that does not exist. The row gains it when
-   a Property overview is built (docs/route-map.md). */
+   Property has no Overview tab. /property, the product's landing, opens the
+   Scenario Lab on the calculator's deal (N3, the owner's decision D18), so
+   the "Scenario Lab" tab is current there as on /property/lab; the
+   calculator is /property/calculator, a page of its own. An "Overview"
+   beside them would be a third name for one of the two (docs/route-map.md). */
 /* Read from the registry (TOOLS, above): the tools of the product marked as
    tabs and in this build, in the registry's order — so a tab's name, its
    address and its badge cannot differ from How it works or the dashboard,
@@ -1064,8 +1096,33 @@ function companyFromSlug(s) {
   return hit ? hit.c.id : null;
 }
 
+/* THE POSITIONING, ONE SOURCE (plan item 3.5, 2026-10-07). The site said
+   what it is in five places, typed five times, and they had drifted into
+   four variants of one sentence: the hero's lede, the site root's
+   description (with its og: and twitter: copies), the footer's line and
+   the template's own head. Each is written from here: the hero reads the
+   lede; the router (setDocumentMeta, below) the description, which the
+   build writes into the head, the og: and the twitter: tags of / alike;
+   build.mjs the footer's tagline and line into every page it writes.
+   wording-check fails on a copy of any of them typed anywhere else, and
+   served-check on a variant of one served anywhere. The headline (the h1)
+   is the page's own and is held (the owner's decision, 7 Oct 2026). */
+const POSITIONING = {
+  title: 'Quantum Tradeworks — your financial decision workspace',
+  /* The footer's tagline. Not on the hero any more (D5): the hero is the
+     h1, the lede and one action. */
+  kicker: 'Research · Monitor · Model · Plan',
+  /* The hero's lede under the held h1 (D5): with it, 14 words. */
+  lede: 'Companies, market setups and property, in one workspace.',
+  /* The footer's line on every page. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next.',
+  /* The site root's description, og:description and twitter:description:
+     the one-liner and what the site will not do. */
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next. Research only — no recommendations.',
+};
+
 const ROUTES = [
-  { path: '/',                    view: 'marketing', title: 'Quantum Tradeworks — your financial decision workspace' },
+  { path: '/',                    view: 'marketing', title: POSITIONING.title },
   { path: '/app',                 view: 'home',      title: 'My Dashboard' },
   /* Release A: how each product works, with the examples that left the
      homepage (55-views-public.js); and the Equities research queue, which
@@ -1146,7 +1203,14 @@ const ROUTES = [
   { path: '/my/workspace',        view: 'workspace', title: 'Workspace' },
   { path: '/app/workspace',       view: 'workspace', title: 'Workspace', alias: true },
   { path: '/discover/sarawak',    view: 'sarawak',   title: 'Sarawak Economy Watch' },
-  { path: '/property',            view: 'property',  title: 'Property' },
+  /* /PROPERTY OPENS THE SCENARIO LAB (N3, the owner's decision D18). The
+     product's landing is the Lab on the calculator's deal — the sample on a
+     first visit — so it is the Lab's canonical address, and /property/lab,
+     which stays, names it. The calculator is /property/calculator, its own
+     canonical now. A link to the calculator written before — /property
+     with the deal's ?city, ?district, ?type or ?d=, or a section's #hash —
+     is still the calculator's (calculatorLegacy, below). */
+  { path: '/property',            view: 'propertyLab', title: 'Property' },
   { path: '/property/calculator', view: 'property',  title: 'Property deal calculator' },
   { path: '/property/models',     view: 'propertyModels', title: 'My properties' },
   /* A saved property's client proposal (72-property-proposal.js), under My
@@ -1194,7 +1258,7 @@ const ROUTES = [
 ];
 
 const META = {
-  marketing: 'Your financial decision workspace: research companies, build your own market setups and evaluate property investments in one place. Business planning is next. Research only — no recommendations.',
+  marketing: POSITIONING.description,
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
@@ -1564,6 +1628,25 @@ function focusMain() {
 /* The views whose :id is a company. register-check's route rule reads the
    same two, so the checker and the router agree on what a path names. */
 const COMPANY_ROUTE_VIEWS = new Set(['research', 'researchReport']);
+/* A LINK TO THE CALCULATOR WRITTEN BEFORE /property OPENED THE SCENARIO LAB
+   (N3, D18). The calculator wrote its deal into its own address — ?city,
+   ?district, ?type and ?d= (syncPropertyUrl, 70-property.js) — on /property
+   as on /property/calculator, and other pages linked a section of it by its
+   #hash. Copied, bookmarked and shared, those links still mean the
+   calculator: the address becomes /property/calculator with its query and
+   its hash, in place (Back does not return to a page that only redirects).
+   The Lab's own ?model=, ?cols= and ?by= stay the Lab's. */
+const CALC_LINK_PARAMS = ['city', 'district', 'type', 'd'];
+function calculatorLegacy() {
+  const q = new URLSearchParams(location.search);
+  const hash = location.hash.replace(/^#/, '');
+  const section = /^d-[A-Za-z]+$/.test(hash) || (typeof PC_SECTIONS !== 'undefined' && PC_SECTIONS.some(s => s.id === hash));
+  if (!CALC_LINK_PARAMS.some(k => q.has(k)) && !section) return false;
+  const was = location.pathname;
+  history.replaceState(history.state, '', href('/property/calculator') + location.search + location.hash);
+  if (lastPath === was) lastPath = location.pathname;
+  return true;
+}
 function applyRoute() {
   /* And the address becomes the route's own (see matchRoute), so a link or a
      reload taken from it is the clean one. */
@@ -1571,7 +1654,8 @@ function applyRoute() {
     const at = location.pathname.slice(BASE.length).replace(/\/index\.html$/, '') || '/';
     history.replaceState(history.state, '', href(at) + location.search + location.hash);
   }
-  const route = matchRoute(location.pathname);
+  let route = matchRoute(location.pathname);
+  if (route?.path === '/property' && calculatorLegacy()) route = matchRoute(location.pathname);
   if (!route) { State.view = 'notfound'; setDocumentMeta(null); render(); return; }
   /* A route whose view is defined in a module this build does not carry —
      How it works and the research queue arrive with their own branches — is
@@ -2077,9 +2161,47 @@ function closeShellMenus({ restore = false } = {}) {
 }
 
 let shellBuilt = false;
+/* How much of the strip is in view, for the sidebar's top (buildShell). */
+let sidebarPlaceQueued = false;
+function placeSidebar() {
+  sidebarPlaceQueued = false;
+  const strip = document.querySelector('.disclosure');
+  const v = `${strip ? Math.max(0, Math.round(strip.getBoundingClientRect().bottom)) : 0}px`;
+  const root = document.documentElement;
+  if (root.style.getPropertyValue('--strip-in-view') !== v) root.style.setProperty('--strip-in-view', v);
+}
+function askPlaceSidebar() {
+  if (sidebarPlaceQueued) return;
+  sidebarPlaceQueued = true;
+  requestAnimationFrame(placeSidebar);
+}
 function buildShell() {
   if (shellBuilt) return;
   shellBuilt = true;
+  /* PAGE CONTENT FIRST (plan item 3.5). A page is served with what the
+     reader does not see yet after its <main> — the other chrome's header,
+     hidden, and on an app page the sidebar, which is fixed beside the page
+     and moves nothing there — so a fetch reads the page before its
+     navigation (build.mjs, servedChrome). Put back, in the template's order
+     before the strip, the moment the script runs: the reader's keyboard
+     meets the sidebar before the page, as it always has, and a move to the
+     other chrome finds its header where it belongs. */
+  const strip = document.querySelector('.disclosure');
+  const chromeOrder = [shellEl.pubbar, shellEl.pubScrim, shellEl.appbar, shellEl.sidebar, shellEl.navScrim].filter(Boolean);
+  for (const n of chromeOrder) {
+    if (!n.hasAttribute('data-served-away')) continue;
+    if (n.getAttribute('data-served-away') === 'hidden') n.hidden = false;
+    n.removeAttribute('data-served-away');
+  }
+  if (strip && !chromeOrder.every((n, i) => n.nextElementSibling === (chromeOrder[i + 1] || strip))) chromeOrder.forEach(n => strip.before(n));
+  /* The sidebar stands under the strip, which spans the window over it from
+     1024px, while the strip is in view (styles.css); as the page scrolls
+     it rises to the top. Measured on scroll, on resize, when the strip
+     opens or closes, and on every render (buildNav: a move between the
+     chromes moves the strip). */
+  addEventListener('scroll', askPlaceSidebar, { passive: true });
+  addEventListener('resize', askPlaceSidebar);
+  if (strip && typeof ResizeObserver === 'function') new ResizeObserver(askPlaceSidebar).observe(strip);
   /* The public header: Products, How it works, Pricing, Resources — drawn
      in place of the served copy of the same markup (NAV_MARKUP). */
   if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());
@@ -2139,6 +2261,7 @@ function buildShell() {
      the stylesheet's size containers answer again (styles.css, prerender —
      until now they were laid out by the window). */
   document.documentElement.removeAttribute('data-served');
+  placeSidebar();
 }
 
 /* The current page, in both chromes, on every render. */
@@ -2190,6 +2313,7 @@ function buildNav() {
     resBtn.toggleAttribute('data-current', !!res);
     if (res) resBtn.setAttribute('aria-description', `Current page: ${res.label}`); else resBtn.removeAttribute('aria-description');
   }
+  placeSidebar();
 }
 
 /* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,
@@ -2219,14 +2343,17 @@ function renderProductTabs() {
   /* The tools' states are part of what the strip says: a tool the filings
      failed under is text in it, and comes back a link when they load. So is
      a tab's count: a match read changes the Scanner's Alerts tab. */
-  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null]);
+  /* On a page of the layout system (lsOn, 37-layout-system.js) the row is
+     its chips under 640px: drawn again when that changes. */
+  const chips = lsOn();
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips]);
   if (!host.hidden && host.dataset.strip === strip) return;
   const items = tabs.map(t => {
     const n = tabCount(t);
     return { label: n ? `${t.label} · ${n}` : t.label, path: t.path, current: t === here, ariaLabel: n ? `${t.label}, ${n} unread` : null };
   });
   const nav = p
-    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: pid === 'scanner' ? 'scan-subnav' : '' })
+    ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
     : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
@@ -2586,7 +2713,7 @@ function bootSkeleton() {
      cannot reach sec.gov at all (the policy allows connections to this origin
      only), so "being fetched from SEC EDGAR" described a request that never
      happens and made a stored snapshot sound live. */
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px;max-width:60ch' },
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:8px;max-width:60ch' },
     'The US companies’ annual statements, retrieved from SEC EDGAR when this dataset was built, are loading from this site. This page waits for them '
     + 'rather than showing the illustrative sample first — a sample company and a filed one can share a '
     + 'ticker, and the sample carries a price the filed company does not have.'));
@@ -2774,13 +2901,14 @@ const SERVED_READS = {
   propertyModels: ['deal', 'dealBeforeLink', 'savedWork', 'startHere'],
   property: ['deal', 'dealBeforeLink', 'savedWork', 'startHere', 'observations', 'areaProfiles', 'demand', 'borrowerProfile',
     'lang', 'plan', 'propertyReportsBought'],
-  /* /property/lab: the calculator's deal and whether it is a saved property
-     (its columns come from it), the labels in the reader's language, the
-     report a figure is withheld behind and the plan that may include it,
-     the comparables the grade reads, and the Start here panel. Its
+  /* /property and /property/lab: the calculator's deal and whether it is a
+     saved property (its columns, its identity line and its four figures come
+     from it), the labels in the reader's language, the report a figure is
+     withheld behind and the plan that may include it, and the comparables
+     the grade reads — no Start here panel since N3 (startHereFor). Its
      ?model=, ?cols= and ?by= are read by the app as it draws (a page that
      does not wait: its first draw replaces the served page at once). */
-  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'startHere'],
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -3358,7 +3486,9 @@ function drawPage(samePage) {
      with its journey's last recorded result (N1e; 91-health.js), and the
      product's Start here panel, until the reader hides it (Release B, B6;
      36-layouts.js). */
-  const section = el('section', { class: 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
+  /* ls-view: a page on the layout system, its journey line and Start here
+     with it (37-layout-system.js; styles.css, layout-system). */
+  const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
     'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [journeyLineNode(), startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */

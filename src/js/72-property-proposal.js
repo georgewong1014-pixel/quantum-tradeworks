@@ -283,7 +283,7 @@ function cpLink(rec, { id = null, cls = 'btn btn-ghost btn-sm', label = 'Client 
    while the deal is not saved — the one thing to do first. */
 function propertyProposalNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card', id: 'cp-next' });
+  const card = el('div', { class: 'card ls-section', id: 'cp-next' });
   if (st.kind !== 'model') {
     card.append(cardHead('A proposal for a client',
       'A client proposal is made from a saved property, so that it can be opened again and read the same. Save this property first.'));

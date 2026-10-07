@@ -94,13 +94,13 @@ page of its own, with the company's own head (see Company pages, below).
 | `/my/workspace` | workspace | app | Saved Models (workspace) | canonical |
 | `/app/workspace` | workspace | app | Saved Models (workspace) | alias of `/my/workspace` |
 | `/discover/sarawak` | sarawak | app | Equities Research (product) | canonical |
-| `/property` | property | app | Property Intelligence (product) | canonical |
-| `/property/calculator` | property | app | Property Intelligence (product) | alias of `/property` |
+| `/property` | propertyLab | app | Property Intelligence (product) | canonical — the product's landing: the Scenario Lab on the calculator's deal (N3, the owner's decision D18, 7 Oct 2026); a calculator link written before it — `?city`, `?district`, `?type` or `?d=`, or a section's `#hash` — is replaced in place by `/property/calculator` with its query and hash |
+| `/property/calculator` | property | app | Property Intelligence (product) | canonical — the full calculator (its own canonical since N3; it was an alias of `/property`); `#d-<input>` opens at that input |
 | `/property/models` | propertyModels | app | Property Intelligence (product) | canonical — My properties, the reader's saved properties (audit #1, 30 Sep 2026) |
 | `/property/opportunities` | opportunities | app | Property Intelligence (product) | canonical |
 | `/property/comparables` | comparables | app | Property Intelligence (product) | canonical |
 | `/property/areas` | areas | app | Property Intelligence (product) | canonical |
-| `/property/lab` | propertyLab | app | Property Intelligence (product) | canonical — the Scenario Lab (3 Oct 2026); reads `?model=`, `?cols=` and `?by=` on arrival; not in the sitemap, as it opens on the sample deal |
+| `/property/lab` | propertyLab | app | Property Intelligence (product) | alias of `/property` since N3 (7 Oct 2026) — the Scenario Lab (3 Oct 2026); reads `?model=`, `?cols=` and `?by=` on arrival, as `/property` does |
 | `/us-options/wheel` | wheel | app | Equities Research (product) | canonical |
 | `/wheel` | wheel | app | Equities Research (product) | alias of `/us-options/wheel` |
 | `/cash-wheel` | wheel | app | Equities Research (product) | alias of `/us-options/wheel` |
@@ -206,7 +206,7 @@ built, so that one address now has a page of its own.
 ## Sitemap
 
 `sitemap.xml` lists canonical, crawlable pages only: `/`, `/how-it-works`,
-`/research/queue`, `/property`, `/property/opportunities`,
+`/research/queue`, `/property`, `/property/calculator`, `/property/opportunities`,
 `/property/comparables`, `/research`, `/research/trading-index`,
 `/us-options/wheel`, `/discover/screener`, `/discover/value-map`,
 `/discover/sarawak`, `/compare`, `/methodology`, `/learn/glossary`,
@@ -220,7 +220,7 @@ own counts and saved work — and `/app/scanner/*`, which `robots.txt` allows
 and vercel.json serves with `X-Robots-Tag: noindex` (plan item 1.1, 6 Oct
 2026), so a fetcher can read them and a search engine leaves them out; `/welcome` and `/start`, which are
 application shells rather than destinations; `/property/lab`, the Scenario
-Lab, which opens on the sample deal (the owner's answer, 3 Oct 2026);
+Lab, whose canonical is `/property` since N3 (7 Oct 2026);
 parameterised pages. The
 company pages above are not listed either: whether search engines should be
 invited to index them — 19 of them show synthetic figures under a real
@@ -307,16 +307,15 @@ badge and the page's one primary action (`pageHead`, 36-layouts.js):
   Value map is not a product tab as well, where it repeated the strip
   beneath it, and it stays one click away.
 - **Property Intelligence** — My properties (`/property/models`) · Calculator
-  (`/property/calculator`, current on `/property` too) · Scenario Lab
-  (`/property/lab`, beta) · Area screen
+  (`/property/calculator`) · Scenario Lab
+  (`/property/lab`, beta; current on `/property` too) · Area screen
   (`/property/areas`) · Comparables (`/property/comparables`) · Opportunities
   (`/property/opportunities`). The calculator's five sections (Acquisition,
   Financing, Rental & expenses, Scenarios, Report) are anchors on its page,
   not routes: `/property/calculator#scenarios` opens at Scenarios.
-  There is no Overview tab: `/property` and `/property/calculator` are one
-  view (the calculator; its canonical is `/property`), so an Overview tab
-  would be a second name for the same page. The row gains it when a Property
-  overview view is built.
+  There is no Overview tab: `/property`, the product's landing, opens the
+  Scenario Lab on the calculator's deal (N3, D18), and an Overview tab would
+  be a third name for one of the two pages.
 - The company page (`research`) and its report keep their own tabs and get
   no product row.
 - **Quantum Scanner** — since Release B its sections are TOOLS rows like the

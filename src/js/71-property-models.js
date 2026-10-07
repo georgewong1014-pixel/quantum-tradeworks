@@ -574,7 +574,7 @@ function usePlaceControl(city, area, { id } = {}) {
    bar's did (renderKeepFocus). */
 function propertyModelBar(d = State.deal) {
   const st = propertyStatus(d);
-  const bar = el('section', { class: 'card pm-bar', 'aria-label': 'The property on the calculator' });
+  const bar = el('section', { class: 'card pm-bar ls-bar', 'aria-label': 'The property on the calculator' });
   const status = el('p', { class: 'pm-status', id: 'pm-status', tabindex: '-1' });
   if (st.kind === 'model') {
     status.append('Editing: ', el('strong', {}, st.rec.name));
@@ -648,17 +648,27 @@ const PC_SECTIONS = [
   { id: 'scenarios',   label: 'Scenarios' },
   { id: 'report',      label: 'Report' },
 ];
+const PC_CONTRACT_OPEN = new Set();
 function propertySection(id, { provide, calculates }) {
   const i = PC_SECTIONS.findIndex(s => s.id === id);
   const s = PC_SECTIONS[i];
-  const inputs = el('div', { class: 'card rail-sticky pc-inputs' });
+  const inputs = el('div', { class: 'card rail-sticky pc-inputs ls-form' });
   const outputs = el('div', { class: 'pc-outputs' });
+  /* The section's contract — what it asks and what it works out, 40 to 80
+     words — is a drawer under its heading (N3, the owner's decision D18):
+     the section opens on its fields and its figures, the contract a tap
+     away. Open across a redraw once opened, as each field redraws the page. */
+  const contract = el('details', { class: 'pc-more pc-contract-more', open: PC_CONTRACT_OPEN.has(id) ? '' : null }, [
+    el('summary', { class: 'pc-more-sum' }, 'What this section asks, and what it works out'),
+    el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'You provide: '), provide]),
+    el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'Quantum calculates: '), calculates]),
+  ]);
+  contract.addEventListener('toggle', () => { if (contract.open) PC_CONTRACT_OPEN.add(id); else PC_CONTRACT_OPEN.delete(id); });
   const node = el('section', { class: 'pc-sec', id, 'aria-labelledby': `pc-h-${id}` }, [
     el('header', { class: 'pc-sec-hd' }, [
       el('p', { class: 'eyebrow' }, `${i + 1} of ${PC_SECTIONS.length}`),
       el('h2', { class: 'h-section', id: `pc-h-${id}`, tabindex: '-1' }, s.label),
-      el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'You provide: '), provide]),
-      el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'Quantum calculates: '), calculates]),
+      contract,
     ]),
     el('div', { class: 'studio-layout pc-sec-body' }, [inputs, outputs]),
   ]);
@@ -727,10 +737,14 @@ function pcMarkCurrent() {
    node, so the browser has nothing to anchor the scroll to). Held until the
    pages settle (propertyPagesSettled), for ten seconds at most. */
 let pcArrivalSeen = null, pcArrivalWant = null, pcArrivalAt = 0;
+/* Or a field: /property/calculator#d-price — the Scenario Lab's "Next step"
+   (N3), the first figure still the tool's, opens the calculator at its box,
+   the keyboard in it, in its own section. */
+const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
   const want = location.hash.replace(/^#/, '');
   const key = location.pathname + location.search + location.hash;
-  if (PC_SECTIONS.some(s => s.id === want) && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
+  if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
   const go = () => {
     if (!pcArrivalWant || State.view !== 'property') { pcArrivalWant = null; return; }
@@ -739,6 +753,25 @@ function propertyArrivalSection() {
     pcArrivalWant = null;
     /* At once, as a browser lands on an anchor: a page's length of smooth
        scrolling is not an arrival. */
+    /* Or the review list — the Scenario Lab's alert, "Review →": opened,
+       in sight, the keyboard on its summary. */
+    if (id === 'review') {
+      const det = document.getElementById('pc-review-list');
+      if (!det) return;
+      det.open = true;
+      document.getElementById('review')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      det.querySelector('summary')?.focus({ preventScroll: true });
+      return;
+    }
+    if (PC_FIELD_HASH.test(id)) {
+      const field = document.getElementById(id);
+      if (!field) return;
+      (field.closest('.assumption') || field).scrollIntoView({ block: 'center', behavior: 'instant' });
+      field.focus({ preventScroll: true });
+      field.select?.();
+      pcMarkCurrent();
+      return;
+    }
     goToPropertySection(id, { instant: true });
   };
   setTimeout(go, 0);
@@ -749,7 +782,7 @@ function propertyArrivalSection() {
    link chooses the property. */
 function propertyReportNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card' });
+  const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Take the report with you',
     `The decision record prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open. It reads the same inputs as every section above.`));
   card.append(el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
@@ -837,7 +870,7 @@ function pmColumns(rec, d, st) {
 }
 function propertyScenariosPanel(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card pm-scenarios' });
+  const card = el('div', { class: 'card pm-scenarios ls-section' });
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h3', { class: 'h-card', id: 'pm-sc-title', tabindex: '-1' }, st.kind === 'model' ? `Scenarios of “${st.rec.name}”` : 'Scenarios'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' },

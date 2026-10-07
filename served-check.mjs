@@ -68,7 +68,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
-  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord } from './build.mjs';
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -190,7 +190,7 @@ const NAV = navMarkup();
 const attrEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 function withoutOwn(html, file) {
   const rd = file ? RENDERED.renders.get(file) : null;
-  const nav = NAV(rd ? rd.manifest.nav : null);
+  const nav = NAV(rd ? rd.manifest.nav : null, rd ? rd.manifest.chrome : 'public');
   let out = html;
   const take = (from, to) => { out = out.replace(from, () => to); };
   /* With what its render read, for the head's script (build.mjs, BEFORE THE
@@ -199,7 +199,9 @@ function withoutOwn(html, file) {
   for (const [slot, [open, close]] of Object.entries(NAV_SLOTS)) take(open + nav[slot] + close, open + close);
   if (rd && rd.tabs !== null) take(`<div class="ptabs-host" id="productTabs">${rd.tabs}</div>`, '<div class="ptabs-host" id="productTabs" hidden></div>');
   if (rd) take(`<div id="views" data-served="${attrEsc(rd.path)}">${servedViews(rd)}</div>`, '<div id="views"></div>');
-  return out;
+  /* And its chrome in the template's order: a page is served in its own
+     chrome first and the other after its page (plan item 3.5, servedChrome). */
+  return unservedChrome(out);
 }
 /* file: the page's file, whose render (if it has one) it may carry; none
    for a page that may carry none. */
@@ -831,7 +833,7 @@ const HOME_PAGE = read(HOME);
   }
   /* The parts of a served page that are its own. */
   const parts = (html) => {
-    const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<!-- What a page says/.exec(html);
+    const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<p class="sr-only" id="liveStatus"/.exec(html);
     const t = /<div class="ptabs-host" id="productTabs"( hidden)?>([\s\S]*?)<\/div>\n {2}<div id="views"/.exec(html);
     const chrome = /^<!DOCTYPE html>\n<html lang="en"(?: data-chrome="([a-z]+)" data-served(?: data-served-reads="[^"]*")?)?>/.exec(html);
     const slots = Object.fromEntries(Object.entries(NAV_SLOTS).map(([k, [open, close]]) => {
@@ -869,7 +871,7 @@ const HOME_PAGE = read(HOME);
       if (!said) p.push(`${path}: its #views holds no h1`);
       else if (said !== rd.manifest.h1) p.push(`${path}: its h1 reads ${JSON.stringify(said)}, where the page's is ${JSON.stringify(rd.manifest.h1)}`);
       else { if (!h1s.has(said)) h1s.set(said, new Map()); h1s.get(said).set(router.headAt(path).canonical, path); }
-      const want = nav(rd.manifest.nav);
+      const want = nav(rd.manifest.nav, rd.manifest.chrome);
       for (const k of Object.keys(NAV_SLOTS)) if (x.slots[k] !== want[k]) p.push(`${path}: its ${k} is not NAV_MARKUP's${k === 'pubnav' || k === 'appnav' ? ', marked as its render marked it' : ''}`);
     } else {
       empty++;
@@ -895,7 +897,12 @@ const HOME_PAGE = read(HOME);
   /* Crawlable: real links, from the tables; Business Intelligence is text. */
   const sample = parts(got.get('/pricing').body).slots;
   const links = (html) => [...(html || '').matchAll(/<a\b[^>]*\bhref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].map(m => ({ href: m[1], text: words(m[2]) }));
-  const pub = links(sample.pubnav), foot = links(sample.footProducts), res = links(sample.footResources), side = links(sample.appnav);
+  /* The sidebar's list is served on an app page; a public page serves it
+     empty, and an app page the header's (plan item 3.5, servedChrome). */
+  const appSample = parts(got.get('/app').body).slots;
+  if (sample.appnav !== '') p.push('/pricing, a public page, serves the sidebar\x27s list, which the app draws when the reader enters the app');
+  if (appSample.pubnav !== '') p.push('/app, an app page, serves the public header\x27s list');
+  const pub = links(sample.pubnav), foot = links(sample.footProducts), res = links(sample.footResources), side = links(appSample.appnav);
   for (const [where, list, wantText] of [['#pubnav', pub, true], ['#footProducts', foot, true], ['#appnav', side, true]]) {
     for (const [name, href] of [['Equities Research', '/research'], ['Quantum Scanner', '/app/scanner'], ['Property Intelligence', '/property']]) {
       if (!list.some(l => l.href === href && (!wantText || l.text.startsWith(name)))) p.push(`${where} has no link to ${name} (${href})`);
@@ -1004,7 +1011,9 @@ const HOME_PAGE = read(HOME);
   for (const path of paths) {
     const r = got.get(path);
     if (!r.status || !/text\/html/.test(r.type || '')) { p.push(`${path}: ${described(r)}`); continue; }
-    const strip = /<span id="disclosureText">([\s\S]*?)<span class="disclosure-long">/.exec(r.body)?.[1];
+    /* Since plan item 3.1 the strip is a <details>: the sentence is in its
+       summary, the facts beside it (served-3a, below, holds the rest). */
+    const strip = /<summary class="disclosure-in">[\s\S]*?<span id="disclosureText">([\s\S]*?)<\/span> <span id="disclosureFacts">/.exec(r.body)?.[1];
     if (strip == null) p.push(`${path}: serves no #disclosureText`);
     else if (strip.replace(/\s+/g, ' ').trim() !== STRIP) p.push(`${path}: the strip reads "${text(strip).slice(0, 120)}", not "Beta preview. Do not use figures here for investment decisions."`);
     const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
@@ -1352,6 +1361,538 @@ const HOME_PAGE = read(HOME);
     'a Property page serves its readiness other than as it is');
 }
 /* ---- end readiness-served ---- */
+
+/* ---- n3-property-landing ---- */
+/* /PROPERTY OPENS THE SCENARIO LAB, AND THE CALCULATOR'S TOP IS DRAWERS
+   (N3, the 5 Oct audit; the owner's decision D18). /property served the
+   calculator: about 730 words before its first field, 571 of them prose in
+   20 blocks of eight words or more — a Start here panel, the methodology,
+   the blockers, a Summary table, notes and two section contracts — and the
+   cash and the monthly position three times. Now, read as a fetch reads it
+   (what is visible: not under [hidden], aria-hidden, .sr-only, an <svg> or
+   a closed <details> but its <summary>):
+   - /property: at most 290 words in <main> before the first form control
+     (an input, select or textarea, or a served control made inert as a
+     field, a slider or a choice), at most 228 of them in blocks of eight
+     words or more;
+   - before that control, in this order: the identity line, naming the
+     property or "Sample deal", then four tiles labelled Cash required,
+     Monthly position, Net yield and Next step, each with a kind tag;
+   - "Not an official property valuation" and "not a real listing" visible
+     before it;
+   - /property/calculator: the methodology ("The score and the grade are
+     not the same claim"), the pillar table and the list of blockers inside
+     closed <details>, with the worst blocker in sight on one line, and the
+     cash to complete and the monthly position stated once above the
+     sections. */
+{
+  const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+  const BLOCK = new Set(['p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'header', 'footer', 'nav', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+    'caption', 'dl', 'dt', 'dd', 'details', 'summary', 'form', 'fieldset', 'legend', 'figure', 'figcaption', 'article', 'aside', 'main', 'br', 'hr', 'blockquote', 'pre',
+    'label', 'button', 'select', 'textarea', 'input']);
+  const ent = (s) => s.replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const attr = (tag, k) => { const m = new RegExp(`\\s${k}(?:="([^"]*)"|='([^']*)'|(?=[\\s>/]))`, 'i').exec(tag); return m ? (m[1] ?? m[2] ?? '') : null; };
+  /* One pass over <main>: each tag and each run of text with whether it is
+     visible there and whether a closed <details> holds it; the visible words
+     in blocks (a block-level tag ends one); and the first form control. */
+  const scan = (html) => {
+    const from = html.search(/<main\b/), to = html.indexOf('</main>', from);
+    const body = from < 0 ? '' : html.slice(from, to < 0 ? undefined : to);
+    const stack = [], blocks = [], tags = [], runs = [];
+    let cur = [], control = null;
+    const visible = () => stack.every(f => !f.skip && !(f.closed && !f.inSummary));
+    const inClosed = () => stack.some(f => f.closed && !f.inSummary);
+    const flush = () => { const w = cur.join(' ').split(/\s+/).filter(t => /[\p{L}\p{N}]/u.test(t)); if (w.length) blocks.push(w); cur = []; };
+    const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+    let m;
+    while ((m = re.exec(body))) {
+      if (m[4] != null) { const s = ent(m[4]); runs.push({ at: m.index, s, visible: visible(), closed: inClosed() }); if (visible()) cur.push(s); continue; }
+      if (!m[2]) continue;
+      const close = m[1] === '/', tag = m[2].toLowerCase(), raw = m[0];
+      if (BLOCK.has(tag)) flush();
+      if (close) {
+        for (let i = stack.length - 1; i >= 0; i--) if (stack[i].tag === tag) { if (tag === 'summary' && stack[i - 1]?.closed) stack[i - 1].inSummary = false; stack.length = i; break; }
+        continue;
+      }
+      if (tag === 'script' || tag === 'style' || tag === 'template') { const e = body.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? body.length : e; continue; }
+      const inert = attr(raw, 'data-inert'), type = (attr(raw, 'type') || '').toLowerCase();
+      const isControl = (tag === 'input' && type !== 'hidden') || tag === 'select' || tag === 'textarea' || ['field', 'range', 'choice'].includes(inert);
+      tags.push({ at: m.index, tag, raw, visible: visible(), closed: inClosed() });
+      if (isControl && visible() && !control) { flush(); control = { at: m.index, tag, inert, blocks: blocks.length }; }
+      if (VOID.has(tag) || raw.endsWith('/>')) continue;
+      const cls = ` ${attr(raw, 'class') || ''} `;
+      const f = { tag, skip: tag === 'svg' || attr(raw, 'hidden') !== null || attr(raw, 'aria-hidden') === 'true' || / sr-only /.test(cls),
+        closed: tag === 'details' && attr(raw, 'open') === null, inSummary: false };
+      if (tag === 'summary' && stack[stack.length - 1]?.closed) stack[stack.length - 1].inSummary = true;
+      stack.push(f);
+    }
+    flush();
+    /* The visible text of the element whose tag opens at `at`, to its end
+       (all of its text, with `all`). */
+    const textOf = (at, all = false) => {
+      const t = tags.find(x => x.at === at);
+      if (!t) return '';
+      let depth = 0, out = '';
+      const re2 = /<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+      re2.lastIndex = at;
+      let n;
+      while ((n = re2.exec(body))) {
+        if (n[4] != null) { const run = runs.find(r => r.at === n.index); if (run && (all || run.visible)) out += run.s; continue; }
+        const tg = n[2].toLowerCase();
+        if (VOID.has(tg) || n[0].endsWith('/>')) continue;
+        if (tg !== t.tag) continue;
+        depth += n[1] ? -1 : 1;
+        if (!depth) break;
+      }
+      return out.replace(/\s+/g, ' ').trim();
+    };
+    return { body, blocks, tags, runs, control, textOf };
+  };
+  const p = [], said = {};
+  const got = await getAll(['/property', '/property/calculator']);
+  const land = got.get('/property'), calc = got.get('/property/calculator');
+  if (land.status !== 200) p.push(`/property: ${described(land)}`);
+  if (calc.status !== 200) p.push(`/property/calculator: ${described(calc)}`);
+  const L = scan(land.body || '');
+  if (!L.control) p.push('/property: serves no form control in <main>');
+  else {
+    const before = L.blocks.slice(0, L.control.blocks);
+    const words = before.flat().length, prose = before.filter(b => b.length >= 8);
+    const proseWords = prose.reduce((a, b) => a + b.length, 0);
+    said.words = words; said.prose = proseWords; said.proseBlocks = prose.length;
+    if (words > 290) p.push(`/property: ${words} visible words in <main> before the first form control, more than 290`);
+    if (proseWords > 228) p.push(`/property: ${proseWords} of them in ${prose.length} blocks of eight words or more, more than 228`);
+    const seen = L.runs.filter(r => r.at < L.control.at && r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
+    for (const want of ['Not an official property valuation', 'not a real listing']) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    const id = L.tags.find(t => / lab-identity /.test(` ${attr(t.raw, 'class') || ''} `));
+    if (!id || !id.visible || id.at > L.control.at) p.push(`/property: ${!id ? 'no identity line (.lab-identity)' : !id.visible ? 'its identity line is not visible' : 'its identity line comes after the first form control'}`);
+    else {
+      const name = L.textOf(L.tags.find(t => t.at > id.at && attr(t.raw, 'id') === 'lab-status')?.at ?? -1);
+      said.identity = name;
+      if (!/^(Sample deal|“[^”]+”)/.test(name)) p.push(`/property: the identity line names "${name.slice(0, 60)}", not the property or "Sample deal"`);
+    }
+    const WANT = ['Cash required', 'Monthly position', 'Net yield', 'Next step'];
+    const tiles = L.tags.filter(t => attr(t.raw, 'data-tile') !== null && / lab-tile /.test(` ${attr(t.raw, 'class') || ''} `));
+    const labels = tiles.map(t => L.textOf(L.tags.find(x => x.at > t.at && / lab-tile-label /.test(` ${attr(x.raw, 'class') || ''} `))?.at ?? -1));
+    const kinds = tiles.map((t, i) => { const k = L.tags.find(x => x.at > t.at && (i + 1 >= tiles.length || x.at < tiles[i + 1].at) && attr(x.raw, 'data-kind') !== null); return k ? [attr(k.raw, 'data-kind'), L.textOf(k.at)] : null; });
+    said.tiles = labels.map((l, i) => `${l} [${kinds[i]?.[1] || 'no tag'}]`);
+    if (JSON.stringify(labels) !== JSON.stringify(WANT)) p.push(`/property: its tiles are labelled ${JSON.stringify(labels)}, not ${JSON.stringify(WANT)}`);
+    tiles.forEach((t, i) => {
+      if (!t.visible || t.at > L.control.at || (id && t.at < id.at)) p.push(`/property: the "${labels[i]}" tile is ${!t.visible ? 'not visible' : t.at > L.control.at ? 'after the first form control' : 'before the identity line'}`);
+      if (!kinds[i] || !kinds[i][0] || !kinds[i][1]) p.push(`/property: the "${labels[i]}" tile carries no kind tag`);
+    });
+  }
+  const C = scan(calc.body || '');
+  const firstSection = C.tags.find(t => attr(t.raw, 'id') === 'acquisition')?.at ?? Infinity;
+  const method = C.runs.find(r => r.s.includes('The score and the grade are not the same claim'));
+  if (!method) p.push('/property/calculator: serves no "The score and the grade are not the same claim" — the check has nothing to read');
+  else if (!method.closed) p.push('/property/calculator: "The score and the grade are not the same claim" is not inside a closed <details>');
+  const pillar = C.tags.find(t => t.tag === 'th' && C.textOf(t.at, true) === 'Pillar');
+  if (!pillar) p.push('/property/calculator: serves no pillar table');
+  else if (!pillar.closed) p.push('/property/calculator: the pillar table is not inside a closed <details>');
+  const gates = C.tags.filter(t => t.tag === 'li' && / evidence counter /.test(` ${attr(t.raw, 'class') || ''} `) && t.at < firstSection);
+  if (!gates.length) p.push('/property/calculator: serves no blockers above its sections — the check has nothing to read');
+  else if (gates.some(t => !t.closed)) p.push(`/property/calculator: ${gates.filter(t => !t.closed).length} of its ${gates.length} blockers stand outside a closed <details>`);
+  const worst = C.tags.find(t => / pc-worst /.test(` ${attr(t.raw, 'class') || ''} `));
+  if (!worst || !worst.visible) p.push('/property/calculator: the worst blocker is not in sight on its own line (.pc-worst)');
+  else said.worst = C.textOf(worst.at).slice(0, 60);
+  /* Stated once above the sections: the capstrip and the Summary table
+     said the cash and the monthly position again. */
+  const top = C.runs.filter(r => r.visible && r.at < firstSection).map(r => r.s).join(' ').replace(/\s+/g, ' ');
+  for (const k of ['Cash to complete', 'Monthly position']) {
+    const n = top.split(k).length - 1;
+    if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times above its sections, not once`);
+  }
+  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and "not a real listing" in sight; /property/calculator keeps the methodology, the pillar table and its blockers in closed drawers, the worst in sight ("${said.worst}…"), and says the cash to complete and the monthly position once above its sections`,
+    '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
+}
+/* ---- end n3-property-landing ---- */
+/* ---- layout-system ---- */
+/* THE PAGES ON THE LAYOUT SYSTEM, AS SERVED (the owner's decision, 7 Oct
+   2026; 37-layout-system.js). /property and /property/calculator, read as a
+   fetch reads them:
+   - the page is on the system: its view is .ls-view, its root .ls-page;
+   - every card is one of the four types, and holds what its type holds —
+     a metric its label, its value and its data badge; an action its title,
+     one line and one call to action; an alert its count of what needs
+     evidence and "Review"; an insight its figure, its finding and "See
+     why" — and every other surface drawn as a card is a named one: a
+     section (with its heading), the page's bar (with its controls), a form
+     (with its fields), a figure of a section (with its figure) or L3
+     evidence (a <details> or an <aside>);
+   - the type is the scale's: a size written on the page is a token
+     (var(--ls-…)), and the stylesheet the page loads defines the seven;
+   - no block of text is let wider than 70 characters: the measure is a
+     token of 70ch or less, the stylesheet holds every paragraph, item and
+     definition on these pages to it, and no width written on the page is
+     wider.
+   Each fails on 740ceab merged with main: no page carried the system, the
+   tiles and the calculator's 32 panels were none of the four, and sizes and
+   widths were px and ch written past it (mobile.mjs holds what is drawn). */
+{
+  const p = [], said = { cards: {}, surfaces: {}, sizes: 0 };
+  const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+  const attrOf = (raw, k) => { const m = new RegExp(`\\s${k}(?:="([^"]*)"|='([^']*)'|(?=[\\s>/]))`, 'i').exec(raw); return m ? (m[1] ?? m[2] ?? '') : null; };
+  /* <main> as a tree: enough to ask what an element holds. */
+  const tree = (html) => {
+    const from = html.search(/<main\b/), to = html.indexOf('</main>', from);
+    const body = from < 0 ? '' : html.slice(from, to < 0 ? undefined : to);
+    const root = { tag: '#root', kids: [], text: '' }, stack = [root];
+    const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+    let m;
+    while ((m = re.exec(body))) {
+      if (m[4] != null) { stack.forEach(n => { n.text += m[4]; }); continue; }
+      if (!m[2]) continue;
+      const tag = m[2].toLowerCase();
+      if (m[1]) { for (let i = stack.length - 1; i > 0; i--) if (stack[i].tag === tag) { stack.length = i; break; } continue; }
+      if (tag === 'script' || tag === 'style') { const e = body.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? body.length : e; continue; }
+      const raw = m[0], cls = (attrOf(raw, 'class') || '').split(/\s+/).filter(Boolean);
+      const n = { tag, raw, cls, kids: [], text: '', parent: stack[stack.length - 1] };
+      n.parent.kids.push(n);
+      if (!VOID.has(tag) && !raw.endsWith('/>')) stack.push(n);
+    }
+    return root;
+  };
+  const all = (n, out = []) => { for (const k of n.kids) { out.push(k); all(k, out); } return out; };
+  const has = (n, test) => all(n).filter(test);
+  const hasCls = (c) => (x) => x.cls.includes(c);
+  const words = (n) => n.text.replace(/\s+/g, ' ').trim();
+  const CARDISH = ['card', 'panel', 'ls-card', 'lab-tile', 'tile'];
+  const FIELD = (x) => ['input', 'select', 'textarea'].includes(x.tag) || ['field', 'range', 'choice'].includes(attrOf(x.raw, 'data-inert'));
+  const CONTROL = (x) => x.tag === 'button' || x.tag === 'a' || attrOf(x.raw, 'data-inert') !== null || FIELD(x);
+  const got = await getAll(['/property', '/property/calculator']);
+  /* The stylesheet the pages load. */
+  const cssHref = ((got.get('/property')?.body || '').match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];
+  const css = cssHref ? (await get(cssHref)).body : '';
+  const TOKENS = ['--ls-hero', '--ls-title', '--ls-section', '--ls-metric', '--ls-body', '--ls-support', '--ls-meta'];
+  const missing = TOKENS.filter(t => !new RegExp(`${t}\\s*:`).test(css));
+  if (!css) p.push(`the pages load no stylesheet that could be read (${cssHref || 'none named'})`);
+  else if (missing.length) p.push(`the stylesheet defines no ${missing.join(', ')} — the type scale's tokens`);
+  const measure = (css.match(/--ls-measure\s*:\s*([\d.]+)ch/) || [])[1];
+  if (!measure || Number(measure) > 70) p.push(`the measure token --ls-measure is ${measure ? `${measure}ch, wider than 70ch` : 'not defined in ch'}`);
+  if (!/\.ls-view\s+:is\(p,\s*li,\s*dd[^)]*\)\s*\{\s*max-width:\s*var\(--ls-measure\)/.test(css)) p.push('the stylesheet does not hold a page\'s paragraphs, items and definitions to --ls-measure');
+  for (const [path, r] of got) {
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    const root = tree(r.body);
+    const view = has(root, x => x.tag === 'section' && x.cls.includes('view'))[0];
+    if (!view) { p.push(`${path}: serves no view`); continue; }
+    /* Not on the system, its cards are still read: what it would have to change. */
+    if (!view.cls.includes('ls-view')) p.push(`${path}: its view is not on the system (.ls-view)`);
+    if (!has(view, hasCls('ls-page')).length) p.push(`${path}: no .ls-page in its view`);
+    for (const n of all(view)) {
+      if (!n.cls.some(c => CARDISH.includes(c))) continue;
+      const type = attrOf(n.raw, 'data-card');
+      const name = `${path}: ${n.tag}.${n.cls.join('.')} “${words(n).slice(0, 48)}”`;
+      if (n.cls.includes('ls-card') && type) {
+        if (!['metric', 'action', 'alert', 'insight'].includes(type)) { p.push(`${name} is a card of no type of the four ("${type}")`); continue; }
+        said.cards[type] = (said.cards[type] || 0) + 1;
+        const q = (test) => has(n, test);
+        if (type === 'metric') {
+          if (!q(x => x.cls.includes('ls-card-label') || x.cls.includes('stat-label')).length) p.push(`${name}: a metric card with no label`);
+          if (!q(x => x.cls.includes('ls-card-value') || x.cls.includes('stat-value')).length) p.push(`${name}: a metric card with no value`);
+          if (!q(x => x.cls.includes('ls-badge') && words(x)).length) p.push(`${name}: a metric card with no data badge`);
+        } else if (type === 'action') {
+          if (!q(x => x.cls.includes('ls-card-label') || x.cls.includes('ls-card-title')).length) p.push(`${name}: an action card with no title`);
+          if (!q(hasCls('ls-card-sub')).length) p.push(`${name}: an action card with no line`);
+          if (q(hasCls('ls-card-cta')).length !== 1) p.push(`${name}: an action card with ${q(hasCls('ls-card-cta')).length} calls to action, not one`);
+        } else if (type === 'alert') {
+          const t = q(hasCls('ls-card-title'))[0];
+          if (!t || !/^\d+ .*\bneeds?\b/.test(words(t))) p.push(`${name}: an alert that does not count what needs the reader ("${t ? words(t) : ''}")`);
+          if (!q(x => x.cls.includes('ls-card-cta') && /^Review\b/.test(words(x))).length) p.push(`${name}: an alert with no "Review"`);
+        } else if (type === 'insight') {
+          if (!q(hasCls('ls-card-figure')).length) p.push(`${name}: an insight with no figure`);
+          if (!q(hasCls('ls-card-title')).length) p.push(`${name}: an insight with no finding`);
+          if (!q(x => x.cls.includes('ls-card-cta') && /^See why\b/.test(words(x))).length) p.push(`${name}: an insight with no "See why"`);
+        }
+        continue;
+      }
+      const kind = ['ls-section', 'ls-bar', 'ls-form', 'ls-fig', 'ls-l3'].find(k => n.cls.includes(k));
+      if (!kind) { p.push(`${name} is drawn as a card and is none of the four types, nor a named surface`); continue; }
+      said.surfaces[kind] = (said.surfaces[kind] || 0) + 1;
+      if (kind === 'ls-section' && !has(n, x => /^h[1-6]$/.test(x.tag)).length) p.push(`${name}: a section with no heading`);
+      if (kind === 'ls-bar' && !has(n, CONTROL).length) p.push(`${name}: a bar with no control`);
+      if (kind === 'ls-form' && !has(n, FIELD).length) p.push(`${name}: a form with no field`);
+      if (kind === 'ls-fig' && !has(n, x => x.cls.includes('stat-value') || x.cls.includes('num')).length) p.push(`${name}: a figure with no figure`);
+      if (kind === 'ls-l3' && !['details', 'aside'].includes(n.tag)) p.push(`${name}: L3 evidence that is not a <details> or an <aside>`);
+    }
+    /* Sizes and widths written on the page. */
+    for (const n of all(view)) {
+      const st = attrOf(n.raw, 'style');
+      if (!st) continue;
+      for (const [, v] of st.matchAll(/font-size\s*:\s*([^;]+)/g)) { said.sizes++; if (!/^var\(--ls-[a-z0-9-]+\)$/.test(v.trim())) p.push(`${path}: ${n.tag}.${n.cls.join('.')} is sized ${v.trim()}, not a token of the scale`); }
+      for (const [, v] of st.matchAll(/max-width\s*:\s*([\d.]+)ch/g)) if (Number(v) > 70) p.push(`${path}: ${n.tag}.${n.cls.join('.')} is let ${v}ch wide, more than 70`);
+    }
+  }
+  const tally = (o) => Object.entries(o).map(([k, v]) => `${v} ${k}`).join(', ');
+  judge(p, `the pages on the layout system (/property, /property/calculator): every card one of the four types with what its type holds (${tally(said.cards)}), every other card-drawn surface a named one (${tally(said.surfaces)}); the seven type tokens defined and all ${said.sizes} sizes written on the pages tokens; the measure --ls-measure ${measure}ch, held on every paragraph, item and definition, and no width written past 70ch`,
+    'a page on the layout system serves a card that is none of the four types, a size off the scale, or a text block let wider than 70ch');
+}
+/* ---- end layout-system ---- */
+
+/* ---- home-3a ---- */
+/* THE HOMEPAGE CLEANUP, AS SERVED (plan Phase 3A and 3B; the owner's
+   decisions D5, D6, D17, D21 and D22, 5 Oct 2026), read as a fetch reads
+   it — each item a [fetch] acceptance line of the plan, the addendum's N8,
+   N9 and N2a. Each fails on the merged base 7d25484e (the homepage of
+   557 drawn words, the strip a line and a button, Pricing of 1,002 words):
+   3.1  the strip is a native <details> on every page — its summary holds
+        "Beta preview. Do not use figures here for investment decisions."
+        and "· SEC-filed and illustrative data, labelled · No licensed
+        prices", with no link in it; its body Research mode, "No advice · No
+        recommendations", /data-sources and /how-it-works#hiw-status;
+   3.2  /'s hero: the held h1, POSITIONING's lede, 15 words or fewer, one
+        call to action;
+   3.3  three cards, each an <article> of 12 words or fewer outside its
+        figure, its link described by its qualifier and its note (both
+        served), no link, button or <details> inside a link; the Property
+        card links /property/lab; the Scanner's ⓘ says "this site ships no
+        prices"; the badges on /, /how-it-works and the footer read Beta,
+        Beta, Live and Coming soon; Business is text;
+   3.4, N9  the example path: an "Example" label, 50 words or fewer, two
+        <ol>s of 5 and 4 links each served 200, no digit, ticker or company
+        name; "Saved in this browser" once, one link to /my/data;
+        /how-it-works#hiw-journey still holds its five steps;
+   3.5  <div id="views"> within the first 16kB of every served page; no
+        "My Dashboard" or "Saved Models" before /'s h1, no "My workspace" on
+        /about; each positioning string one variant across the served pages;
+   3.6  / within its budgets (homeBudgets, build.mjs);
+   3.8  two cards or more with an <svg> of data marks and a source label;
+        the Equities columns equal Apple's revenue and net income in the
+        served data/us.json, in US$; no baseCcy among /'s served reads; no
+        digit in the Scanner card but the 50; no "matched", "approaching" or
+        "watching" on /;
+   N8   /pricing: its h1 and "Nothing on this page can be bought." first,
+        three cards of 20 words or fewer besides name and price, each saying
+        "Not on sale" or "Nothing to buy", no link, button or .btn in a card,
+        no btn-primary in main, buttons only in the closed "Compare
+        details", 300 words or fewer outside it, the coverage line once, and
+        "not on sale" beside every link to /pricing in a page's main;
+   N2a  on /, /property, /property/calculator, /property/lab, /how-it-works,
+        /about and /status, every Property Live badge with "Your figures,
+        sample to start" in sight beside it, as many qualifiers as badges. */
+{
+  const B = await import('./build.mjs');
+  const P = RENDER_PLAN.POSITIONING || {};
+  const p = [], said = {};
+  const T = (html) => B.htmlTree(html);
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf, sight = B.sightText, wordsIn = B.wordsIn;
+  const mainOf = (html) => all(T(html)).find(n => n.tag === 'main');
+  /* Every word under n, in sight or not (what a closed <details> holds). */
+  const rawText = (n) => { let o = ''; const w = (x) => { for (const k of x.kids || []) { if (k.tag === '#text') o += k.text; else { o += ' '; w(k); } } }; w(n); return o.replace(/\s+/g, ' ').trim(); };
+  const { companies } = companyPlan(ORIGIN, router);
+  const STRIP_PAGES = ['/', '/property', '/company/aapl-apple-inc', '/nope-for-home-3a'];
+  const got = await getAll([...new Set([...statics, ...STRIP_PAGES, '/data/us.json'])]);
+  /* 3.1 */
+  for (const path of [...new Set([...STRIP_PAGES, ...statics])]) {
+    const body = got.get(path)?.body || '';
+    const nodes = all(T(body));
+    const region = nodes.find(n => n.tag === 'div' && has(n, 'disclosure') && attr(n, 'role') === 'region');
+    const det = region && all(region).find(n => n.tag === 'details');
+    const sum = det && det.kids.find(k => k.tag === 'summary');
+    if (!det || !sum) { p.push(`${path}: the strip is not a <details> with a summary inside its region`); continue; }
+    if (attr(det, 'open') !== null) p.push(`${path}: the strip is served open`);
+    const s = sight(sum);
+    if (!s.includes('Beta preview. Do not use figures here for investment decisions.')) p.push(`${path}: the strip's summary does not hold the warning sentence word for word: "${s.slice(0, 100)}"`);
+    if (!s.includes('· SEC-filed and illustrative data, labelled · No licensed prices')) p.push(`${path}: the strip's summary does not say "· SEC-filed and illustrative data, labelled · No licensed prices"`);
+    if (all(sum).some(n => n.tag === 'a')) p.push(`${path}: a link inside the strip's summary`);
+    const inside = all(det).filter(n => n !== sum && !all(sum).includes(n));
+    const txt = rawText(det);
+    for (const w of ['Research mode', 'No advice · No recommendations']) if (!txt.includes(w)) p.push(`${path}: the strip's Details do not hold "${w}"`);
+    for (const h of ['/data-sources', '/how-it-works#hiw-status']) if (!inside.some(n => n.tag === 'a' && attr(n, 'href') === h)) p.push(`${path}: the strip's Details do not link ${h}`);
+  }
+  said.strips = STRIP_PAGES.length + statics.length;
+  /* 3.2 */
+  const home = got.get('/')?.body || '';
+  const hm = mainOf(home);
+  const hero = hm && all(hm).find(n => has(n, 'pub-hero'));
+  if (!hero) p.push('/: no .pub-hero');
+  else {
+    const h1 = all(hero).find(n => n.tag === 'h1'), lede = all(hero).find(n => has(n, 'pub-lede'));
+    if (!h1 || sight(h1) !== 'Make financial decisions with greater clarity.') p.push(`/: the h1 reads "${h1 ? sight(h1) : ''}", not the held headline`);
+    if (!lede || sight(lede) !== P.lede) p.push(`/: the lede reads "${lede ? sight(lede) : ''}", not POSITIONING's "${P.lede}"`);
+    said.hero = wordsIn(`${h1 ? sight(h1) : ''} ${lede ? sight(lede) : ''}`).length;
+    if (said.hero > 15) p.push(`/: the h1 and the lede are ${said.hero} words, more than 15`);
+    const acts = all(hero).filter(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button');
+    if (acts.length !== 1) p.push(`/: the hero has ${acts.length} calls to action, not one`);
+  }
+  /* 3.3 */
+  const cards = hm ? all(hm).filter(n => n.tag === 'article' && has(n, 'pub-card')) : [];
+  if (cards.length !== 3) p.push(`/: ${cards.length} product cards (<article>), not three`);
+  for (const c of cards) {
+    const id = attr(c, 'data-product') || '?';
+    const w = wordsIn(sight(c, n => n.tag === 'figure' || has(n, 'pub-card-also'))).length;
+    if (w > 12) p.push(`/: the ${id} card is ${w} words outside its figure, more than 12`);
+    const link = all(c).find(n => n.tag === 'a' && has(n, 'pub-card-link'));
+    const ids = (link && attr(link, 'aria-describedby') || '').split(/\s+/).filter(Boolean);
+    const q = ids.find(x => /-q$/.test(x)), note = ids.find(x => /-note$/.test(x));
+    if (!q || !note || !home.includes(`id="${q}"`) || !home.includes(`id="${note}"`)) p.push(`/: the ${id} card's link is not described by its qualifier and its note, both served (${ids.join(' ')})`);
+    if (!all(c).some(n => n.tag === 'details' && has(n, 'pub-info'))) p.push(`/: the ${id} card has no ⓘ (<details>)`);
+  }
+  if (hm) for (const a of all(hm).filter(n => n.tag === 'a')) if (all(a).some(n => ['a', 'button', 'details'].includes(n.tag))) p.push(`/: a link holds a ${all(a).find(n => ['a', 'button', 'details'].includes(n.tag)).tag}`);
+  const cardOf = (id) => cards.find(c => attr(c, 'data-product') === id);
+  if (!cardOf('property') || !all(cardOf('property')).some(n => n.tag === 'a' && attr(n, 'href') === '/property/lab')) p.push('/: the Property card does not link /property/lab');
+  const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
+  if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
+  const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Live', business: 'Coming soon' };
+  const badgeIn = (n) => { const b = n && all(n).find(x => has(x, 'status-badge')); return b ? sight(b) : null; };
+  for (const [id, want] of Object.entries(WANT)) {
+    const onHome = id === 'business' ? badgeIn(hm && all(hm).find(n => has(n, 'pub-soon'))) : badgeIn(cardOf(id));
+    if (onHome !== want) p.push(`/: the ${id} badge reads ${JSON.stringify(onHome)}, not "${want}"`);
+  }
+  const soon = hm && all(hm).find(n => has(n, 'pub-soon'));
+  if (!soon || all(soon).some(n => n.tag === 'a') || !/Business Intelligence · Plan my business ·/.test(sight(soon))) p.push(`/: Business is not one line of text, "Business Intelligence · Plan my business · Coming soon" (${soon ? sight(soon) : 'none'})`);
+  const hiw = got.get('/how-it-works')?.body || '';
+  const hiwNodes = all(T(hiw));
+  for (const [id, want] of Object.entries(WANT)) {
+    const sec = hiwNodes.find(n => attr(n, 'id') === `hiw-${id}`);
+    const st = sec && all(sec).find(n => has(n, 'hiw-product-status'));
+    if (badgeIn(st) !== want) p.push(`/how-it-works: the ${id} badge reads ${JSON.stringify(badgeIn(st))}, not "${want}"`);
+  }
+  const foot = all(T(home)).find(n => attr(n, 'id') === 'footProducts');
+  const footBadges = foot ? foot.kids.filter(k => k.tag === 'li').map(li => badgeIn(li)) : [];
+  if (JSON.stringify(footBadges) !== JSON.stringify(Object.values(WANT))) p.push(`/: the footer's badges read ${JSON.stringify(footBadges)}, not ${JSON.stringify(Object.values(WANT))}`);
+  /* 3.4 and N9 */
+  const path = hm && all(hm).find(n => has(n, 'pub-path'));
+  if (!path) p.push('/: no example path (.pub-path)');
+  else {
+    const text = sight(path);
+    said.path = wordsIn(text).length;
+    if (said.path > 50) p.push(`/: the example path is ${said.path} words, more than 50`);
+    if (!/\bExample\b/.test(text)) p.push('/: the example path carries no "Example" label');
+    const ols = all(path).filter(n => n.tag === 'ol');
+    const counts = ols.map(o => all(o).filter(n => n.tag === 'a').length);
+    if (JSON.stringify(counts) !== '[5,4]') p.push(`/: the example path's lists hold ${JSON.stringify(counts)} links, not two of 5 and 4`);
+    const hrefs = [...new Set(ols.flatMap(o => all(o).filter(n => n.tag === 'a').map(n => attr(n, 'href'))))];
+    const st = await getAll(hrefs);
+    for (const h of hrefs) if (st.get(h)?.status !== 200) p.push(`/: the example path links ${h}, served ${described(st.get(h))}`);
+    if (/\d/.test(text)) p.push(`/: the example path carries a digit: "${text.match(/.{0,20}\d.{0,20}/)[0]}"`);
+    const tickers = new Set(companies.map(co => co.company.tk).filter(t => t && t.length > 1));
+    const names = new Set(companies.map(co => co.company.name.split(/\s+/)[0]).filter(x => x.length > 3));
+    const hit = text.split(/[\s,.]+/).find(t => tickers.has(t) || names.has(t));
+    if (hit) p.push(`/: the example path names "${hit}", a ticker or a company`);
+  }
+  const homeText = pageText(home);
+  const savedN = homeText.split('Saved in this browser').length - 1;
+  const myData = hm ? all(hm).filter(n => n.tag === 'a' && attr(n, 'href') === '/my/data').length : 0;
+  if (savedN !== 1 || myData !== 1) p.push(`/: "Saved in this browser" ${savedN} times and ${myData} links to /my/data in main, not one of each`);
+  const journey = hiwNodes.find(n => attr(n, 'id') === 'hiw-journey');
+  if (!journey || all(journey).filter(n => has(n, 'hiw-path-step')).length !== 5) p.push('/how-it-works#hiw-journey does not hold its five steps');
+  /* 3.5 */
+  const late = [];
+  const pagesToCheck = [...statics, ...companies.map(co => co.path), params[0].replace(/:[A-Za-z]+/g, 'home-3a'), '/nope-for-home-3a'];
+  const pg = await getAll(pagesToCheck);
+  for (const path of pagesToCheck) {
+    const r = pg.get(path);
+    const at = Buffer.from(r?.body || '', 'utf8').indexOf('<div id="views"');
+    if (at < 0 || at >= B.SERVED_VIEWS_BYTES) late.push(`${path} (${at < 0 ? 'none' : `byte ${at.toLocaleString('en')}`})`);
+  }
+  said.views = pagesToCheck.length;
+  if (late.length) p.push(`<div id="views"> is not within the first 16kB of ${late.length} served page(s): ${late.slice(0, 6).join(', ')}${late.length > 6 ? ' …' : ''}`);
+  const beforeH1 = pageText(home.slice(0, home.indexOf('<h1')));
+  for (const w of ['My Dashboard', 'Saved Models']) if (beforeH1.includes(w)) p.push(`/: "${w}" in its text before the h1`);
+  if (pageText(got.get('/about')?.body || '').includes('My workspace')) p.push('/about: its text holds "My workspace"');
+  const allowed = [P.title, P.oneLiner, P.description, P.lede, P.kicker].filter(Boolean);
+  const variants = [];
+  for (const path of statics) {
+    const body = got.get(path)?.body || '';
+    const metas = [...body.matchAll(/<meta (?:name|property)="(?:description|og:description|twitter:description|og:title|twitter:title)" content="([^"]*)">/g)].map(m => m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"'));
+    let text = `${pageText(body)} ${metas.join(' ')} ${(/<title>([^<]*)<\/title>/.exec(body) || [])[1] || ''}`;
+    for (const a of allowed) text = text.split(a).join(' ');
+    const m = /.{0,40}(decision workspace|market setups|evaluate property investments|Research · Monitor).{0,40}/i.exec(text);
+    if (m) variants.push(`${path}: …${m[0].trim()}…`);
+    const desc = /<p class="body foot-desc">([^<]*)<\/p>/.exec(body)?.[1];
+    if (desc !== undefined && desc.replace(/&amp;/g, '&') !== P.oneLiner) variants.push(`${path}: the footer's line is "${desc}"`);
+  }
+  const hd = (k) => (new RegExp(`<meta (?:name|property)="${k}" content="([^"]*)">`).exec(home) || [])[1];
+  if (![hd('description'), hd('og:description'), hd('twitter:description')].every(x => (x || '').replace(/&amp;/g, '&') === P.description)) variants.push(`/: its description, og:description and twitter:description are not POSITIONING's one description`);
+  if (variants.length) p.push(`a positioning string served in another variant: ${variants.slice(0, 4).join(' · ')}${variants.length > 4 ? ` … and ${variants.length - 4} more` : ''}`);
+  /* 3.6 */
+  const budget = B.homeBudgets(home);
+  budget.problems.forEach(x => p.push(`/ budgets: ${x}`));
+  said.budget = budget.said;
+  /* 3.8 */
+  const visuals = cards.filter(c => all(c).some(n => n.tag === 'svg' && all(n).filter(x => attr(x, 'data-v') !== null).length >= 3) && all(c).some(n => has(n, 'pub-vis-src') && wordsIn(sight(n)).length));
+  said.visuals = visuals.length;
+  if (visuals.length < 2) p.push(`/: ${visuals.length} cards carry an <svg> of data marks with a source label, fewer than two`);
+  let usj = null; try { usj = JSON.parse(got.get('/data/us.json')?.body || 'null'); } catch { usj = null; }
+  const ser = usj && B.filedSeries(usj);
+  const eq = cardOf('equities');
+  if (!ser) p.push('/data/us.json: no Apple to compare the Equities columns with');
+  else if (!eq) p.push('/: no Equities card');
+  else {
+    const marks = all(eq).filter(n => attr(n, 'data-fy') !== null);
+    const bad = [];
+    ser.years.forEach((fy, i) => {
+      for (const [line, want] of [['rev', ser.rev[i]], ['ni', ser.ni[i]]]) {
+        const m = marks.find(n => attr(n, 'data-fy') === String(fy) && attr(n, 'data-line') === line);
+        if (!m || Number(attr(m, 'data-v')) !== want) bad.push(`FY${fy} ${line} ${m ? attr(m, 'data-v') : 'missing'} (filed ${want})`);
+      }
+    });
+    if (marks.length !== ser.years.length * 2) bad.push(`${marks.length} columns for ${ser.years.length} years`);
+    if (bad.length) p.push(`/: the Equities columns are not Apple's filed revenue and net income in the served data/us.json: ${bad.slice(0, 4).join('; ')}`);
+    if (!/US\$/.test(sight(eq))) p.push('/: the Equities visual does not say US$');
+    said.years = `${ser.years[0]}–${ser.years[ser.years.length - 1]}`;
+  }
+  const reads = /<html[^>]*data-served-reads="([^"]*)"/.exec(home)?.[1] || '';
+  if (/baseCcy/.test(reads)) p.push(`/: its served reads name the base currency (${reads})`);
+  const sc = cardOf('scanner');
+  const scDigits = sc ? (sight(sc).match(/\d+/g) || []) : ['no card'];
+  if (scDigits.some(d => d !== '50')) p.push(`/: the Scanner card carries digits other than the 50: ${scDigits.join(', ')}`);
+  if (/\b(matched|approaching|watching)\b/i.test(sight(hm || { kids: [] }))) p.push('/: "matched", "approaching" or "watching" on the homepage');
+  /* N8 */
+  const pr = got.get('/pricing')?.body || '';
+  const pm = mainOf(pr);
+  const pmText = pm ? sight(pm) : '';
+  const h1At = pmText.indexOf('Proposed plans — not on sale yet'), buyAt = pmText.indexOf('Nothing on this page can be bought.');
+  const pcards = pm ? all(pm).filter(n => n.tag === 'article' && has(n, 'plan-concept')) : [];
+  const firstCard = pcards[0] ? pmText.indexOf(sight(pcards[0]).slice(0, 12)) : -1;
+  if (h1At < 0 || buyAt < 0 || (firstCard >= 0 && (h1At > firstCard || buyAt > firstCard))) p.push('/pricing: the h1 and "Nothing on this page can be bought." do not both come before the cards');
+  if (!pmText.includes('No payment is processed anywhere in this build')) p.push('/pricing: "No payment is processed anywhere in this build" is gone');
+  if (pcards.length !== 3) p.push(`/pricing: ${pcards.length} concept cards, not three`);
+  for (const c of pcards) {
+    const name = sight(all(c).find(n => n.tag === 'h3') || { kids: [] });
+    const w = wordsIn(sight(c, n => n.tag === 'h3' || has(n, 'plan-concept-price'))).length;
+    if (w > 20) p.push(`/pricing: the ${name} card is ${w} words besides its name and price, more than 20`);
+    if (!/Not on sale|Nothing to buy/.test(sight(c))) p.push(`/pricing: the ${name} card says neither "Not on sale" nor "Nothing to buy"`);
+    if (all(c).some(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button' || has(n, 'btn'))) p.push(`/pricing: the ${name} card holds a link or a button`);
+  }
+  const det = pm && all(pm).find(n => n.tag === 'details' && attr(n, 'id') === 'plan-compare');
+  if (!det || attr(det, 'open') !== null || !/Compare details/.test(sight(det.kids.find(k => k.tag === 'summary') || { kids: [] }))) p.push('/pricing: no closed "Compare details"');
+  if (pm && all(pm).some(n => has(n, 'btn-primary'))) p.push('/pricing: a btn-primary in main');
+  const buttons = pm ? all(pm).filter(n => n.tag === 'button' || attr(n, 'data-inert') === 'button' || has(n, 'btn')) : [];
+  if (buttons.some(b => !det || !all(det).includes(b))) p.push(`/pricing: ${buttons.filter(b => !det || !all(det).includes(b)).length} button(s) in main outside "Compare details"`);
+  said.pricing = pm ? wordsIn(sight(pm)).length : null;
+  if (said.pricing > 300) p.push(`/pricing: ${said.pricing} words in main outside the closed details, more than 300`);
+  const cov = pageText(pr).split('It is not a complete listing of either market').length - 1;
+  if (cov !== 1) p.push(`/pricing: the coverage line ${cov} times, not once`);
+  const noSale = [];
+  for (const path of statics) {
+    const m = mainOf(got.get(path)?.body || '');
+    if (!m) continue;
+    for (const a of all(m).filter(n => n.tag === 'a' && attr(n, 'href') === '/pricing')) {
+      let blk = a.parent; while (blk && !/^(p|li|section|article|div)$/.test(blk.tag)) blk = blk.parent;
+      while (blk && blk.parent && blk.tag !== '#root' && wordsIn(sight(blk)).length < 6) blk = blk.parent;
+      if (!/not on sale/i.test(blk ? sight(blk) : '')) noSale.push(`${path}: "${sight(a)}"`);
+    }
+  }
+  if (noSale.length) p.push(`a link to /pricing with no "not on sale" beside it: ${noSale.join(', ')}`);
+  /* N2a (D17) */
+  const PROPERTY_NOTE = 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.';
+  said.qual = [];
+  for (const path of ['/', '/property', '/property/calculator', '/property/lab', '/how-it-works', '/about', '/status']) {
+    const body = got.get(path)?.body || (await get(path)).body || '';
+    const nodes = all(T(body));
+    const badges = nodes.filter(n => has(n, 'status-live') && attr(n, 'title') === PROPERTY_NOTE && B.inSight(n));
+    const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Your figures, sample to start');
+    const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Your figures, sample to start'); });
+    said.qual.push(`${path} ${badges.length}`);
+    if (!badges.length) p.push(`${path}: serves no Property Live badge in sight`);
+    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
+  }
+  judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
+    'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
+}
+/* ---- end home-3a ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

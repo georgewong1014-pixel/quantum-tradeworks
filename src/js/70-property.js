@@ -2752,12 +2752,12 @@ function affordabilityPanel(cityName) {
   const latest = series[series.length - 1];
   if (!isNum(latest.median)) return null;
 
-  const card = el('div', { class: 'panel' });
+  const card = el('div', { class: 'panel ls-section' });
   card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, `${cityName} district household income`));
   card.append(el('div', { class: 'row', style: 'gap:var(--lg);flex-wrap:wrap' }, [
-    el('div', {}, [el('div', { style:'font-size:20px;font-weight:700' }, `RM${latest.median.toLocaleString()}`),
+    el('div', {}, [el('div', { style:'font-size:var(--ls-l2);font-weight:700' }, `RM${latest.median.toLocaleString()}`),
                    el('div', { class:'metaline' }, `median, ${latest.year}`)]),
-    el('div', {}, [el('div', { style:'font-size:20px;font-weight:700' }, `RM${latest.mean.toLocaleString()}`),
+    el('div', {}, [el('div', { style:'font-size:var(--ls-l2);font-weight:700' }, `RM${latest.mean.toLocaleString()}`),
                    el('div', { class:'metaline' }, `mean, ${latest.year}`)]),
   ]));
 
@@ -2769,7 +2769,7 @@ function affordabilityPanel(cityName) {
      RM2,250: a rule stated one way and computed another. */
   const lo = Math.round(latest.median / 4 / 10) * 10;
   const hi = Math.round(latest.median / 3 / 10) * 10;
-  card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:10px' },
+  card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:10px' },
     `A household on the median here sustains roughly RM${lo.toLocaleString()}–${hi.toLocaleString()} a month in rent.`));
   card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'Derived from published income at a quarter to a third of it — a convention, not a measurement, and not an observed rent. No source consulted carries transacted rents for Sarawak. It describes the whole district, so it cannot tell one area here from another.'));

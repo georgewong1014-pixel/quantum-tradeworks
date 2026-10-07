@@ -69,108 +69,261 @@ const pubArrow = () => el('span', { class: 'pub-arrow', 'aria-hidden': 'true', h
 const pubIcon = (id) => el('span', { class: 'pub-ico', 'aria-hidden': 'true', html: pubSvg(PRODUCT_ICON[id] || 'grid', 22) });
 const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true', html: pubSvg(name, 18) });
 
-/* One product as a card. The whole card is the link, named by its task and
-   its product and described by its blurb and status, so a screen reader hears
-   "Research a company, Equities Research" rather than every word on the card.
-   A product with no path (Business Intelligence) is text: a card that looks
-   like a way in and leads nowhere is the one thing the brief rules out. */
-function pubProductCard(p) {
-  const id = (k) => `pub-${p.id}-${k}`;
-  /* A GOAL, NOT A PLACE (audit 1, #3). The card said "Open Equities
-     Research" and opened the product's front page, where the reader then had
-     to find the thing they came to do. It now says the goal — "Start
-     research", "Create a setup", "Analyse a property", the product's one
-     action as PRODUCTS words it — and opens the page where that starts; the
-     dashboard's checklist and How it works say the same words. The card is
-     named by that action and its product ("Create a setup, Quantum
-     Scanner"), and described by its task, blurb and status. */
-  const open = !!(p.path && p.action && p.actionPath);
-  const card = open
-    ? pubLink(p.actionPath, { class: `pub-card pub-acc-${p.id}`, 'aria-labelledby': `${id('go')} ${id('n')}`, 'aria-describedby': `${id('t')} ${id('b')} ${id('s')}` })
-    : el('div', { class: `pub-card pub-card-soon pub-acc-${p.id}` });
-  const badge = pubBadge(p);
-  card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), badge]));
-  if (open) card.append(el('span', { class: 'sr-only', id: id('s') }, productNote(p.id)));
-  card.append(el('p', { class: 'pub-card-product', id: id('n') }, p.name));
-  card.append(el('h3', { class: 'pub-card-title', id: id('t') }, p.task));
-  card.append(el('p', { class: 'pub-card-blurb', id: id('b') }, p.blurb));
-  /* Not built: "Coming soon", as words — nothing to press — with why beside
-     it for a screen reader, as the badge's title gives it to a mouse. */
-  card.append(open
-    ? el('span', { class: 'pub-card-go' }, el('span', { id: id('go') }, p.action), pubArrow())
-    : el('p', { class: 'pub-card-note' }, [PRODUCT_STATUS[p.status] || PRODUCT_STATUS.soon, el('span', { class: 'sr-only' }, ` — ${p.statusNote || 'not built yet, nothing to open'}`)]));
-  return card;
-}
+/* ==========================================================================
+   THE HOMEPAGE, DECLUTTERED (plan Phase 3A and 3B; the owner's decisions D5,
+   D6, D17 and D22, 5 Oct 2026), on the layout system (37-layout-system.js).
+   It said everything in prose — 557 drawn words, no figure — and twice
+   said what the data is. Now: the held headline, a lede of eight words and
+   one action; three products, each a task, a qualifier with its ⓘ, and a
+   visual of what the product does, drawn from its own engine; Business as
+   one line of text; and an example path through the work, drawn, with no
+   figure, name or count in it. The strip above every page carries the one
+   disclosure line; every sentence that left is one action away — in an ⓘ,
+   the strip's Details, /how-it-works or /my/data.
+   THE BUDGETS (plan 3.6; build --check holds the served page to them):
+   the hero 15 words or fewer; a card 12 outside its figure and its action;
+   a figure 20 (numbers, dates and axis ticks not counted); main 110 outside
+   its figures; at least two data visuals; one disclosure line above the
+   footer — the strip.
+   What it reads: nothing the reader keeps, and no base currency — Apple's
+   figures are in its filing currency, the sample deal's in ringgit — so the
+   served page stands for every reader, wherever they are (the head's
+   script never hides it).
+   ========================================================================== */
 
-/* The research disclaimers the body used to repeat, as one line: the badge,
-   the sentence that matters, and where the whole account is. The footer's
-   legal paragraph and the disclosure strip above the page are unchanged. */
-function pubDisclosure() {
-  return el('p', { class: 'pub-disclose' }, [
-    pubStatusBadge('beta', 'This build is a beta preview.'),
-    el('span', {}, 'Company figures are either filed with the SEC or illustrative, every company is labelled with which, and no market prices are licensed.'),
-    pubLink('/data-sources', { class: 'pub-textlink' }, 'Data sources', pubArrow()),
+/* APPLE'S FILED REVENUE AND NET INCOME, from data/us.json, written into the
+   app by the build (homeFiled, build.mjs) so the page draws them in its
+   first draw, before the filings load, and served-check holds them to the
+   file the site serves. US$ billions, by fiscal year. */
+const HOME_FILED = /*@INJECT:homeFiled*/ null;
+
+/* A product's qualifier and its ⓘ: the badge and its few words in sight,
+   and the full note one press away — a native <details>, so it opens with
+   no script, from the keyboard as from a finger — with where every label is
+   explained. The card's link is described by both (aria-describedby). */
+function pubQualifier(p, id) {
+  return el('div', { class: 'pub-card-qual' }, [
+    productBadge(p.id, { qualified: true, qualId: id('q') }),
+    el('details', { class: 'pub-info' }, [
+      el('summary', { class: 'pub-info-btn' }, [
+        el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }),
+        el('span', { class: 'sr-only' }, `What ${PRODUCT_STATUS[p.status]} means for ${p.name}`),
+      ]),
+      el('p', { class: 'pub-info-body' }, [
+        el('span', { id: id('note') }, p.statusNote), ' ',
+        el('a', { href: '/how-it-works#hiw-status', class: 'pub-textlink' }, 'What the labels mean'),
+      ]),
+    ]),
   ]);
 }
 
-VIEWS.marketing = () => {
-  const wrap = el('div', { class: 'pub' });
-
-  /* -- 1. hero: what this is, and the one thing to do ------------------- */
-  const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
-  hero.append(el('p', { class: 'pub-kicker' }, 'Research', el('span', { class: 'pub-kicker-dot' }, ' · '), 'Monitor',
-    el('span', { class: 'pub-kicker-dot' }, ' · '), 'Model', el('span', { class: 'pub-kicker-dot' }, ' · '), 'Plan'));
-  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
-  /* True to what is built: three products work today and business planning
-     does not exist yet, so it is named as next rather than listed as done. */
-  hero.append(el('p', { class: 'pub-lede' },
-    'Research companies, build your own market setups and evaluate property investments — in one workspace. Business planning is next.'));
-  hero.append(el('div', { class: 'pub-ctas' }, [
-    pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow()),
-    pubJump('products', { class: 'btn btn-ghost pub-btn' }, 'Explore products'),
+/* -------------------------------------------------------------- the visuals */
+/* EQUITIES: Apple's filed revenue and net income, a pair of columns a
+   fiscal year, in US$ whatever the reader's base currency; the Filed badge;
+   and the measure no filed company can carry here. Linked to Apple's page. */
+function pubVisEquities() {
+  const F = HOME_FILED;
+  const fig = el('figure', { class: 'pub-vis pub-vis-eq', 'aria-labelledby': 'pub-vis-eq-src' });
+  if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-cap', id: 'pub-vis-eq-src' }, kindBadge('unavailable'), ' Filed example not loaded')); return fig; }
+  const n = F.years.length, W = 300, H = 136, top = 16, base = 116, gap = 6;
+  const max = Math.max(...F.rev.filter(isNum), ...F.ni.filter(isNum));
+  const slot = W / n, bw = (slot - gap) / 2;
+  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
+  const marks = F.years.map((fy, i) => {
+    const x = i * slot + gap / 2;
+    return [
+      isNum(F.rev[i]) ? `<rect class="pub-col pub-col-rev" x="${x.toFixed(1)}" y="${y(F.rev[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.rev[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '',
+      isNum(F.ni[i]) ? `<rect class="pub-col pub-col-ni" x="${(x + bw).toFixed(1)}" y="${y(F.ni[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.ni[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="ni" data-v="${F.ni[i]}"/>` : '',
+    ].join('');
+  }).join('');
+  const last = n - 1;
+  const svg = `<svg class="pub-vis-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue and net income, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars. Revenue ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}; net income ${fmtCap(F.ni[0], 'USD')} to ${fmtCap(F.ni[last], 'USD')}.`)}">`
+    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${marks}`
+    + `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(1)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>`
+    + `<text class="pub-vis-tick" x="0" y="${H - 4}">FY${F.years[0]}</text><text class="pub-vis-tick" x="${W}" y="${H - 4}" text-anchor="end">FY${F.years[last]}</text></svg>`;
+  fig.append(el('a', { class: 'pub-vis-link', href: href(F.path), 'data-path': F.path, 'aria-label': `${F.name}’s filed statements` }, el('span', { class: 'pub-vis-plot', html: svg })));
+  fig.append(el('figcaption', { class: 'pub-vis-cap' }, [
+    el('p', { class: 'pub-vis-src', id: 'pub-vis-eq-src' }, [kindBadge('filed', { fine: `${F.name}, SEC 10-K` }), el('span', {}, `${F.name.replace(/ Inc\.?$/, '')} · SEC 10-K · US$`)]),
+    el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rev' }), 'Revenue', el('i', { class: 'pub-sw pub-sw-ni' }), 'Net income']),
+    el('p', { class: 'pub-vis-row' }, [el('span', { class: 'pub-vis-k' }, 'P/E'), kindBadge('unavailable', { fine: 'P/E needs a price' }), el('span', {}, 'no licensed price')]),
   ]));
+  return fig;
+}
+
+/* SCANNER: the rule the builder starts from, as its condition chips, read
+   from the builder's own blank (scanBlankCondition) and the engine's
+   labels; and where a match is recorded. No chart and no count: no price
+   ships with this site, so nothing here could match. */
+function pubVisScanner() {
+  const c = typeof scanBlankCondition === 'function' ? scanBlankCondition() : null;
+  /* Each side as the builder names it, short: the price, or the indicator
+     and its period ("EMA 50"). */
+  const side = (s) => {
+    const def = SCAN_INDICATORS[s?.indicator];
+    if (s?.indicator === 'price') return 'Price';
+    const n = def ? scanParams(s).params.n : null;
+    const w = def && isNum(n) ? `${def.label} ${n}` : scanSideLabel(s);
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  };
+  const chips = c ? [side(c.left), SCAN_OPERATORS[scanOpName(c.op)]?.label || c.op, side(c.right)] : [];
+  return el('figure', { class: 'pub-vis pub-vis-scan' }, [
+    el('p', { class: 'pub-vis-k pub-vis-k-top' }, 'Starting rule'),
+    el('p', { class: 'pub-rule', role: 'list', 'aria-label': 'The builder’s starting rule' }, chips.map((t, i) => el('span', { class: `pub-chip${i === 1 ? ' pub-chip-op' : ''}`, role: 'listitem' }, t))),
+    el('div', { class: 'pub-record', 'aria-hidden': 'true' }, [0, 1, 2].map(() => el('div', { class: 'pub-record-row' }, [el('i'), el('i'), el('i')]))),
+    el('figcaption', { class: 'pub-vis-cap pub-vis-empty' }, [
+      el('span', { class: 'pub-vis-empty-mark', 'aria-hidden': 'true' }),
+      el('span', {}, 'Matches are recorded by a worker you run, not by this site'),
+    ]),
+  ]);
+}
+
+/* PROPERTY: the Scenario Lab, compact, on the sample deal — its price knob
+   (the Lab's own span and step) and three of its figures (LAB_FIGURES: the
+   Lab's reading, wording and format), with where the month's rent goes.
+   The sample deal only, never the reader's own deal: the page reads nothing
+   the reader keeps, so it is the same page for every reader. Moving the
+   price redraws the figures in place. */
+const PUB_LAB_KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly'];
+/* The price the reader moved it to, kept in this tab's memory only (never
+   stored: the page reads nothing the reader keeps) so a redraw — the
+   filings landing a moment after the page opens — leaves it where it was. */
+let pubLabAt = null;
+function pubLabRun(price) {
+  const d = pmCopy(PROPERTY_DEFAULT_DEAL);
+  d.price = price;
+  return price > 0 ? { m: dealModel(d) } : null;
+}
+function pubVisProperty() {
+  const inp = LAB_INPUT_BY_K.price;
+  const base = num0(PROPERTY_DEFAULT_DEAL.price);
+  const [lo, hi] = inp.span(base);
+  const at = isNum(pubLabAt) ? Math.min(hi, Math.max(lo, pubLabAt)) : base;
+  const fig = el('figure', { class: 'pub-vis pub-vis-lab', 'aria-labelledby': 'pub-vis-lab-src' });
+  const val = el('output', { class: 'pub-lab-price num', for: 'pub-lab-price', id: 'pub-lab-price-v' }, inp.shown(at));
+  const range = el('input', { type: 'range', class: 'pub-lab-range', id: 'pub-lab-price', min: String(lo), max: String(hi), step: String(inp.step), value: String(at),
+    'aria-valuetext': inp.shown(at) });
+  const figs = el('dl', { class: 'pub-lab-figs' });
+  const bars = el('span', { class: 'pub-lab-bars' });
+  const paint = (price) => {
+    const run = pubLabRun(price);
+    const m = run?.m || {};
+    figs.replaceChildren(...PUB_LAB_KEYS.map(k => {
+      const f = LAB_FIGURES.find(x => x.key === k);
+      const v = run ? f.read(m) : null;
+      return el('div', { class: 'pub-lab-fig' }, [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v))]);
+    }));
+    /* Where the month's rent goes: the rent, against the repayment and the
+       rest of the month's costs (vacancy and running costs, the rent less
+       what is left of it before the loan). What is left over, or short, is
+       the monthly position above. */
+    const rent = isNum(m.grossAnnualRent) ? m.grossAnnualRent / 12 : null;
+    const rep = isNum(m.instalment) ? m.instalment : null;
+    const costs = isNum(m.noi) && isNum(rent) ? rent - m.noi / 12 : null;
+    const top = Math.max(rent || 0, (rep || 0) + (costs || 0)) || 1;
+    const w = (v) => (Math.max(0, v || 0) / top * 100).toFixed(2);
+    bars.innerHTML = `<svg class="pub-lab-svg" viewBox="0 0 100 22" preserveAspectRatio="none" role="img" aria-label="${esc(`A month: rent ${labMoney(rent)}; repayment ${labMoney(rep)} and other costs ${labMoney(costs)}.`)}">`
+      + `<rect class="pub-bar pub-bar-rent" x="0" y="0" width="${w(rent)}" height="9" rx="1" data-v="${isNum(rent) ? rent : ''}"/>`
+      + `<rect class="pub-bar pub-bar-rep" x="0" y="13" width="${w(rep)}" height="9" rx="1" data-v="${isNum(rep) ? rep : ''}"/>`
+      + `<rect class="pub-bar pub-bar-cost" x="${w(rep)}" y="13" width="${w(costs)}" height="9" rx="1" data-v="${isNum(costs) ? costs : ''}"/></svg>`;
+  };
+  let said = null;
+  range.addEventListener('input', () => {
+    const v = Number(range.value);
+    pubLabAt = v;
+    val.textContent = inp.shown(v);
+    range.setAttribute('aria-valuetext', inp.shown(v));
+    paint(v);
+    clearTimeout(said);
+    said = setTimeout(() => {
+      const t = [...figs.querySelectorAll('dt')].map((dt, i) => `${dt.textContent} ${figs.querySelectorAll('dd')[i].textContent}`).join(', ');
+      const live = document.getElementById('liveStatus');
+      if (live) live.textContent = `At ${inp.shown(v)}: ${t}.`;
+    }, 700);
+  });
+  paint(at);
+  fig.append(
+    el('div', { class: 'pub-lab-knob' }, [el('label', { class: 'pub-vis-k', for: 'pub-lab-price' }, 'Price'), val, range]),
+    figs,
+    el('div', { class: 'pub-lab-flow' }, [bars,
+      el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rent' }), 'Rent', el('i', { class: 'pub-sw pub-sw-rep' }), 'Repayment', el('i', { class: 'pub-sw pub-sw-cost' }), 'Costs'])]),
+    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-lab-src' }, [kindBadge('illustrative', { fine: 'The sample deal' }), el('span', {}, 'Sample deal — not a real listing')])),
+  );
+  return fig;
+}
+const PUB_VISUALS = { equities: pubVisEquities, scanner: pubVisScanner, property: pubVisProperty };
+
+/* ONE PRODUCT, AS A CARD (plan 3.3). An <article>: its name, its task — the
+   card's one action, an <h3> link stretched over the card — its qualifier
+   with the ⓘ, and its visual. What sits over the stretched link (the ⓘ,
+   the visual's own link and control, a badge, the Property card's second
+   action) is its own target: no link, button or <details> inside a link.
+   Business, which is not built, is not a card: one line of text below. */
+function pubProductCard(p) {
+  const id = (k) => `pub-${p.id}-${k}`;
+  const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
+  card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
+  card.append(el('h3', { class: 'pub-card-title', id: id('t') },
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')} ${id('q')} ${id('note')}` }, p.task, pubArrow())));
+  card.append(pubQualifier(p, id));
+  const vis = PUB_VISUALS[p.id];
+  if (vis) card.append(vis());
+  if (p.also) card.append(el('p', { class: 'pub-card-also' }, pubLink(p.also.path, { class: 'pub-textlink' }, p.also.label, pubArrow())));
+  return card;
+}
+
+VIEWS.marketing = () => {
+  const wrap = el('div', { class: 'pub pub-home' });
+
+  /* -- 1. the hero: the held headline, the lede, one action ---------------- */
+  const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
+  hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
+  hero.append(el('p', { class: 'pub-lede' }, POSITIONING.lede));
+  hero.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
   wrap.append(hero);
 
-  /* -- 2. the four products --------------------------------------------- */
-  const products = el('section', { class: 'pub-section', id: 'products', 'aria-labelledby': 'pub-products-h' });
-  products.append(el('div', { class: 'pub-section-hd' }, el('h2', { class: 'pub-h2', id: 'pub-products-h' }, 'What would you like to do?')));
-  products.append(el('div', { class: 'pub-cards' }, PRODUCTS.map(pubProductCard)));
-  products.append(pubDisclosure());
+  /* -- 2. the products, in the menu's order --------------------------------
+     The question stays for the ear; to the eye the cards are the answer. */
+  const products = el('section', { class: 'pub-section pub-products', id: 'products', 'aria-labelledby': 'pub-products-h' });
+  products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
+  const built = PRODUCTS.filter(p => p.path && p.actionPath);
+  products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
+  for (const p of PRODUCTS.filter(x => !x.path)) {
+    products.append(el('p', { class: 'pub-soon', 'data-product': p.id }, [
+      el('span', { class: 'pub-soon-name' }, p.name), ' · ', p.task, ' · ', pubStatusBadge(p.status, p.statusNote),
+    ]));
+  }
   wrap.append(products);
 
-  /* -- 3. where the work lives ------------------------------------------
-     Said plainly, because it is the one thing a visitor would otherwise
-     assume wrongly: there is no account, so the workspace is this browser,
-     and the export is the only copy that goes anywhere else. */
-  const conn = el('section', { class: 'pub-section', 'aria-labelledby': 'pub-conn-h' });
-  const panel = el('div', { class: 'pub-connected' });
-  panel.append(el('div', { class: 'pub-connected-copy' }, [
-    el('h2', { class: 'pub-h2', id: 'pub-conn-h' }, 'Your research, connected.'),
-    el('p', { class: 'pub-body' },
-      'The companies you research, the watchlists you keep, your scanner setups and your property models are saved in one personal workspace — '
-      + 'so a company can go on a watchlist, a watchlist can be what a setup checks, and a match leads back to the company.'),
-    el('div', { class: 'pub-local' }, [
-      pubGlyph('browser'),
-      el('div', {}, [
-        el('p', { class: 'pub-local-t' }, 'It lives in this browser.'),
-        el('p', { class: 'pub-local-b' },
-          'There are no accounts and no copy on a server. The export on Your data is the copy that travels — to another browser, another device, or a backup.'),
-        pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export', pubArrow()),
-      ]),
-    ]),
+  /* -- 3. an example path through the work (plan 3.4, D22) ------------------
+     Two step diagrams — research and property — each step a link to where
+     it happens. Labelled an example; no figure, name or count. Saved work
+     lives in this browser, said once, with where to read more. */
+  const path = el('section', { class: 'pub-section pub-path', 'aria-labelledby': 'pub-path-h' });
+  path.append(el('div', { class: 'pub-path-hd' }, [
+    el('p', { class: 'pub-tag' }, 'Example path'),
+    el('h2', { class: 'pub-h2', id: 'pub-path-h' }, 'Your research, connected.'),
   ]));
-  const kinds = el('ul', { class: 'pub-kinds' });
-  /* Each kind in its product's icon and accent, as on the cards above. */
-  [[PRODUCT_ICON.equities, 'Companies', 'Valuation runs, comparisons and investment cases you save.', 'equities'],
-   ['list', 'Watchlists', 'The companies you follow — and a universe a scanner setup can check.', null],
-   [PRODUCT_ICON.scanner, 'Scanner setups', 'Your own rules, with every version of each kept.', 'scanner'],
-   [PRODUCT_ICON.property, 'Property models', 'Deals saved from the calculator, and the properties you record.', 'property'],
-  ].forEach(([g, t, b, acc]) => kinds.append(el('li', { class: `pub-kind${acc ? ` pub-acc-${acc}` : ''}` }, [
-    pubGlyph(g), el('div', {}, [el('h3', { class: 'pub-kind-t' }, t), el('p', { class: 'pub-kind-b' }, b)]),
-  ])));
-  panel.append(kinds);
-  conn.append(panel);
-  wrap.append(conn);
+  const steps = (label, rows) => el('div', { class: 'pub-route' }, [
+    el('h3', { class: 'pub-route-t', id: `pub-route-${label.toLowerCase()}` }, label),
+    el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph]) => el('li', { class: 'pub-step' },
+      pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-t' }, t)])))),
+  ]);
+  path.append(el('div', { class: 'pub-routes' }, [
+    steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
+      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
+    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
+      ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
+  ]));
+  path.append(el('div', { class: 'pub-path-ft' }, [
+    el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
+    el('details', { class: 'pub-info' }, [
+      el('summary', { class: 'pub-info-btn' }, [el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }), el('span', { class: 'sr-only' }, 'Where saved work is kept')]),
+      el('p', { class: 'pub-info-body' }, ['There are no accounts and no copy on a server. ',
+        pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export'), ' is the copy that travels.']),
+    ]),
+    el('a', { class: 'pub-textlink pub-path-more', href: '/how-it-works#hiw-journey' }, 'How it connects', pubArrow()),
+  ]));
+  wrap.append(path);
 
   const wl = waitlistCard();
   if (wl) wrap.append(wl);
@@ -1787,7 +1940,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['No accounts',
       'There is no sign-in and no account, so there is nothing to register, close or cancel.'],
     ['Pricing: not on sale',
-      [tp('The plans on the ', tlink('pricing page', '/pricing'), ' are proposed prices, shown so you can see what is planned. Nothing can be bought: there is no checkout and no payment provider, nothing is charged or renewed, and so there is no refund policy yet. A plan’s button previews its features in this browser only.'),
+      [tp('The plans on the ', tlink('pricing page', '/pricing'), ' are proposed prices, not on sale yet, shown so you can see what is planned. Nothing can be bought: there is no checkout and no payment provider, nothing is charged or renewed, and so there is no refund policy yet. A plan’s button previews its features in this browser only.'),
        'If sales ever open, terms of sale and a refund policy will be published here before anything can be bought.']],
     ['Changes',
       'These terms change with the build they describe. This draft was written on 29 September 2026.'],

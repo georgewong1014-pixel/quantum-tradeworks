@@ -633,17 +633,17 @@ try {
     else ok('a shared link shows the sender\'s deal whole, keeps the recipient\'s to restore, and one\'s own address changes nothing', r);
   }
 
-  /* 32 — an edit on /property survives the next render (the address used to
+  /* 32 — an edit on the calculator (/property until N3, /property/calculator since) survives the next render (the address used to
          read the stale deal back over it). */
   {
     const r = await evaluate(`(async () => {
-      navigate('/property'); await new Promise(res => setTimeout(res, 300));
+      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
       State.deal.rent = 2345; saveDeal(); render(); await new Promise(res => setTimeout(res, 100));
       render(); await new Promise(res => setTimeout(res, 100));
       return { rent: State.deal.rent, stored: store.read('deal', {}).rent, inAddress: /rent%3A2345|rent:2345/.test(location.search) };
     })()`);
-    if (r.rent !== 2345 || r.stored !== 2345 || !r.inAddress) fail('an edit on /property is reverted by the address on the next render', r);
-    else ok('an edit on /property survives the next render and is written to the address', r);
+    if (r.rent !== 2345 || r.stored !== 2345 || !r.inAddress) fail('an edit on /property/calculator is reverted by the address on the next render', r);
+    else ok('an edit on /property/calculator survives the next render and is written to the address', r);
   }
 
   /* 33 — a register record is modelled on what it records: its own checklist,
@@ -1490,15 +1490,18 @@ try {
       for (const [name, d] of [['low', graded(1200, 'user')], ['cond', graded(4000, 'developer')]]) {
         State.deal = d; render(); await new Promise(res => setTimeout(res, 150));
         const hs = [...document.querySelectorAll('main h1, main h2, main h3, main h4, main h5, main h6')];
-        const lead = hs.find(h => /^Why this|^Still to check/.test(h.textContent));
-        out[name] = { grade: propertyGrade(d, dealModel(d)).grade, second: hs[1]?.tagName, lead: lead?.textContent || null };
+        /* Since N3 (D18) the findings are a drawer under the worst of them,
+           named in its summary: "Why this falls short: all 4 blockers…". */
+        const lead = document.querySelector('#views .pc-blockers > summary');
+        out[name] = { grade: propertyGrade(d, dealModel(d)).grade, second: hs[1]?.tagName, lead: lead ? lead.textContent.split(':')[0].trim() : null,
+          closed: !!lead && !lead.parentElement.open };
       }
       State.deal = kept; saveDeal(); render();
       return JSON.stringify(out);
     })()`));
     const skip = [r.low, r.cond].find(x => x.second !== 'H2' && x.second !== 'H3');
     if (skip) fail('the calculator\'s first heading after its title skips a level', r);
-    else if (r.low.grade !== 'D' || r.low.lead !== 'Why this falls short') fail('a D grade calls its findings conditions', r.low);
+    else if (r.low.grade !== 'D' || r.low.lead !== 'Why this falls short' || !r.low.closed) fail('a D grade calls its findings conditions, or they are not a closed drawer', r.low);
     else if (r.cond.grade !== 'B' || r.cond.lead !== 'Why this is conditional') fail('a B grade no longer says why it is conditional', r.cond);
     else ok(`the grade card is a heading, and its findings are named for the grade — D: "${r.low.lead}", B: "${r.cond.lead}"`, r);
   }
@@ -1878,7 +1881,9 @@ try {
         const tile = (re) => [...document.querySelectorAll('#views .panel')].map(p => p.innerText.replace(/\\n+/g, ' | ')).find(t => re.test(t)) || null;
         const out = { reserveCash: m.reserveCash, gate: (g.gates.find(x => x.id === 'no-reserve') || {}).text || null,
           buffer: lr.scores.buffer, bufferNote: lr.notes.buffer,
-          strip: document.querySelector('#views .capstrip')?.innerText.replace(/\\n+/g, ' | ') || null,
+          /* The strip said the safe cash a second time above the sections;
+             since N3 (D18) the tile is the one place it is said. */
+          strip: document.querySelector('#views .capstrip') ? 'present' : null,
           untouched: tile(/^Cash to keep untouched/i), safeTile: tile(/^Safe cash required/i) };
         let rec = '';
         try { rec = decisionRecordProperty().textContent; } finally { State.deal = kept; }
@@ -1895,14 +1900,13 @@ try {
     if (!r.none.untouched || /RM0\b/.test(r.none.untouched)) p.push(`ledger: ${r.none.untouched}`);
     if (!r.none.gate || /No safe reserve is held/.test(r.none.gate)) p.push(`gate: ${r.none.gate}`);
     if (r.none.buffer !== null || /including the reserve/.test(r.none.bufferNote)) p.push(`buffer ${r.none.buffer}: ${r.none.bufferNote}`);
-    /* The strip's labels are eyebrows, upper-cased in the rendered text. */
-    if (!/Safe cash required \| [^|]+ \| So far/i.test(r.none.strip || '')) p.push(`strip: ${r.none.strip}`);
-    if (!r.none.safeTile || /Including rent-ready and the reserve/.test(r.none.safeTile)) p.push(`tile: ${r.none.safeTile}`);
+    if (r.none.strip || r.whole.strip) p.push('a capstrip says the safe cash again above the sections (N3: the tile says it once)');
+    if (!r.none.safeTile || /Including rent-ready and the reserve/.test(r.none.safeTile) || !/So far/.test(r.none.safeTile)) p.push(`tile: ${r.none.safeTile}`);
     if (!r.none.recShort) p.push('the decision record presents the safe cash as whole');
-    if (!(r.whole.reserveCash > 0) || !isFinite(r.whole.buffer) || /So far/.test(r.whole.strip || '') || r.whole.recShort
+    if (!(r.whole.reserveCash > 0) || !isFinite(r.whole.buffer) || /So far/.test(r.whole.safeTile || '') || r.whole.recShort
       || !/Including rent-ready and the reserve/.test(r.whole.safeTile || '')) p.push(`a priced reserve is now flagged too: ${JSON.stringify(r.whole)}`);
     if (p.length) fail('misc: an unpriced reserve reads as RM0, as absent, or as a whole total', p);
-    else ok('misc: an unpriced reserve (tenure 0) is unknown in the ledger, the gate, the buffer, the strip, the tile and the record; a priced one is unchanged', r.none);
+    else ok('misc: an unpriced reserve (tenure 0) is unknown in the ledger, the gate, the buffer, the tile ("So far", the one place above the sections it is said) and the record; a priced one is unchanged', r.none);
   }
 
   /* M3 — "Cash to complete" is one figure wherever it is printed. With a
@@ -1917,7 +1921,8 @@ try {
       const m = dealModel(d);
       State.deal = d; navigate('/property/calculator'); render();
       await new Promise(res => setTimeout(res, 200));
-      const strip = document.querySelector('#views .capstrip')?.innerText.replace(/\\n+/g, ' | ') || '';
+      /* Said once above the sections since N3 (D18): the tile; the strip went. */
+      const strip = document.querySelector('#views .capstrip') ? 'present' : '';
       const tile = [...document.querySelectorAll('#views .panel')].map(p => p.innerText.replace(/\\n+/g, ' | ')).find(t => /^Cash to complete/i.test(t)) || '';
       let rec = '';
       try { rec = [...decisionRecordProperty().querySelectorAll('.dr-fig')].map(f => f.textContent).find(t => /^Cash to complete/.test(t)) || ''; }
@@ -1925,11 +1930,10 @@ try {
       return JSON.stringify({ still: fmtAmount(m.cashStillRequiredToComplete, 'MYR'), whole: fmtAmount(m.transactionCash, 'MYR'),
         stillExact: fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0), strip, tile, rec });
     })()`));
-    const stripV = (r.strip.match(/Cash to complete \| ([^|]+)/i) || [])[1]?.trim();
     const tileV = (r.tile.match(/Cash to complete \| ([^|]+)/i) || [])[1]?.trim();
-    if (stripV !== r.still || tileV !== r.still || !r.rec.includes(r.stillExact) || r.still === r.whole)
-      fail('misc: "Cash to complete" is a different figure on the calculator and in the decision record once a booking deposit is paid', { stripV, tileV, ...r });
-    else ok(`misc: "Cash to complete" reads ${r.still} on the strip, the tile and the record with RM5,000 paid at offer (the whole completion figure is ${r.whole})`);
+    if (r.strip || tileV !== r.still || !r.rec.includes(r.stillExact) || r.still === r.whole)
+      fail('misc: "Cash to complete" is a different figure on the calculator and in the decision record once a booking deposit is paid, or is said twice above the sections', { tileV, ...r });
+    else ok(`misc: "Cash to complete" reads ${r.still} on the tile — the one place above the sections it is said — and in the record with RM5,000 paid at offer (the whole completion figure is ${r.whole})`);
   }
   /* ---- end bugfix4: misc ---- */
   /* ---- bugfix5: views ---- */
@@ -3020,7 +3024,10 @@ try {
           const secs = [...document.querySelectorAll('main section.pc-sec')];
           const out = {
             ids: secs.map(s => s.id), titles: secs.map(s => txt(s.querySelector('h2'))),
-            contracts: secs.map(s => [...s.querySelectorAll('.pc-contract')].map(p => txt(p).split(':')[0])),
+            /* In a closed drawer under the heading since N3 (D18): read as
+               text, not as rendered. */
+            contracts: secs.map(s => [...s.querySelectorAll('.pc-contract')].map(p => p.textContent.replace(/\\s+/g, ' ').trim().split(':')[0])),
+            drawers: secs.map(s => { const d = s.querySelector('.pc-sec-hd > details.pc-contract-more'); return !!d && !d.open && d.querySelectorAll('.pc-contract').length === 2; }),
             links: [...document.querySelectorAll('.pc-index .pc-index-link')].map(a => [txt(a), a.getAttribute('href')]),
             sticky: getComputedStyle(document.querySelector('.pc-index')).position,
             inputs: secs.map(s => s.querySelectorAll('.pc-inputs input, .pc-inputs select').length),
@@ -3042,13 +3049,14 @@ try {
         if (JSON.stringify(r7.ids) !== JSON.stringify(order)) p7.push(`sections: ${JSON.stringify(r7.ids)}`);
         if (JSON.stringify(r7.titles) !== JSON.stringify(['Acquisition', 'Financing', 'Rental & expenses', 'Scenarios', 'Report'])) p7.push(`titles: ${JSON.stringify(r7.titles)}`);
         if (!r7.contracts.every(c => JSON.stringify(c) === JSON.stringify(['You provide', 'Quantum calculates']))) p7.push(`contracts: ${JSON.stringify(r7.contracts)}`);
+        if (!r7.drawers.every(Boolean)) p7.push(`each contract a closed drawer under its heading (N3): ${JSON.stringify(r7.drawers)}`);
         if (JSON.stringify(r7.links.map(l => l[1])) !== JSON.stringify(order.map(x => '#' + x))) p7.push(`index: ${JSON.stringify(r7.links)}`);
         if (r7.sticky !== 'sticky') p7.push(`the index is ${r7.sticky}, not sticky`);
         if (r7.inputs.some(n => !n)) p7.push(`a section asks for nothing: ${JSON.stringify(r7.inputs)}`);
         if (!r7.jump.below || r7.jump.focus !== 'pc-h-rental' || r7.jump.current !== 'rental' || r7.jump.path !== '/property/calculator') p7.push(`the index's Rental link: ${JSON.stringify(r7.jump)}`);
         if (!r7b.inView) p7.push(`/property/calculator#scenarios did not open at Scenarios: ${JSON.stringify(r7b)}`);
         if (p7.length) fail('audit1 property-model A7: the calculator is five sections in the brief\'s order, each with its contract, reached from a sticky index', p7);
-        else ok('audit1 property-model A7: Acquisition, Financing, Rental & expenses, Scenarios and Report, each opening "You provide" / "Quantum calculates" with its own inputs; the sticky index reaches each without a route, the heading clear of it and marked current, and /property/calculator#scenarios opens at Scenarios');
+        else ok('audit1 property-model A7: Acquisition, Financing, Rental & expenses, Scenarios and Report, each opening on its own inputs, its "You provide" / "Quantum calculates" a closed drawer under its heading; the sticky index reaches each without a route, the heading clear of it and marked current, and /property/calculator#scenarios opens at Scenarios');
       });
 
       /* THE VERIFICATION'S OWN CHECKS (audit1/property-model-verify). Each
@@ -3148,10 +3156,10 @@ try {
         const r = await evaluate(`(async () => { ${A1}
           window.__a1Prompt = [];
           const read = () => ({
-            rentalProvide: txt(document.querySelector('#rental .pc-contract')),
+            rentalProvide: (document.querySelector('#rental .pc-contract')?.textContent || '').replace(/\\s+/g, ' ').trim(),
             rentInput: !!document.querySelector('#rental #d-rent'), vacInput: !!document.querySelector('#rental #d-vacancyPct'),
             scInput: !!document.querySelector('#rental #d-maintenance'),
-            reportProvide: txt(document.querySelector('#report .pc-contract')),
+            reportProvide: (document.querySelector('#report .pc-contract')?.textContent || '').replace(/\\s+/g, ' ').trim(),
             demandInputs: document.querySelectorAll('#report select[id^="demand-"]').length,
           });
           newPropertyDeal({ show: false }); navigate('/property/calculator'); await w(300);
@@ -4786,7 +4794,7 @@ try {
           navigate('/property/lab'); await w(400); await frame();
           return { was, subject: labSubject, status: txt(document.getElementById('lab-status')), cols: L().cols.map(c => c.source + ' ' + c.name), price: A().work.price };
         })()`);
-        if (a.subject !== `m:${id}` || !/^Columns from “V2 other”/.test(a.status)) p.push(`another property opened, then the lab: subject ${a.subject}, columns ${JSON.stringify(a.cols)}, "${a.status.slice(0, 110)}"`);
+        if (a.subject !== `m:${id}` || !/^“V2 other” · saved /.test(a.status)) p.push(`another property opened, then the lab: subject ${a.subject}, columns ${JSON.stringify(a.cols)}, "${a.status.slice(0, 110)}"`);
         await vDeal({});
         const b = await evaluate(`(async () => { ${VH}
           await setRange('rent', 2100); await setRange('ratePct', 4.8);
@@ -5082,7 +5090,7 @@ try {
         const want = `m:${id}`;
         if (!r.ok) p.push('labOpen refused a saved property');
         for (const [when, s] of [['opened', r.opened], ['after a theme change', r.themed], ['after render()', r.drawn]]) {
-          if (s.subject !== want || !/^Columns from “V15 opened”/.test(s.status)) p.push(`${when}: subject ${s.subject}, "${s.status}"`);
+          if (s.subject !== want || !/^“V15 opened” · saved /.test(s.status)) p.push(`${when}: subject ${s.subject}, "${s.status}"`);
           if (!new URLSearchParams(s.url.split('?')[1] || '').get('model')) p.push(`${when}: the address ${s.url} does not name the property`);
         }
         if (p.length) fail('scenario-lab-verify V15: a property opened with labOpen stays open, and the address names it', p.slice(0, 6));
@@ -5153,6 +5161,88 @@ try {
     }
   }
   /* ---- end napic-1.6 ---- */
+
+  /* ---- n3-landing ---- */
+  /* N3 — /PROPERTY'S FOUR TILES ARE THE MODEL'S OWN FIGURES (the 5 Oct audit;
+         the owner's decision D18). The Scenario Lab opens on the
+         calculator's deal with four tiles under its identity line. Each is a
+         definition, not a copy:
+         - Cash required, Monthly position and Net yield are dealModel's
+           safeCashRequired, cashflowMonthly and netYield of the deal on the
+           calculator, in the chain's formats; Cash required says what of it
+           rests on unverified fees (m.unconfirmedCost) and Net yield its
+           gross (m.grossYield) — and moving a slider, a what-if on column
+           B, moves none of them;
+         - each wears "Illustrative default" while a figure it is worked from
+           is the tool's, and the weakest evidence among them once none is;
+         - Next step is the first figure still the tool's — the review
+           queue's first — linked to its box in the calculator, which the
+           link opens with the keyboard in it; with none left, Save; once
+           saved, Compare;
+         - the grade's "Why" holds every gate the grade has. */
+  {
+    try {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const kept = JSON.parse(JSON.stringify(State.deal));
+        const tiles = () => Object.fromEntries([...document.querySelectorAll('#views .lab-tile')].map(n => [n.dataset.tile, {
+          value: n.querySelector('.lab-tile-val')?.textContent.trim(), sub: n.querySelector('.lab-tile-sub')?.textContent.trim(),
+          kind: n.querySelector('[data-kind]')?.dataset.kind, go: n.querySelector('.lab-next-go') ? { text: n.querySelector('.lab-next-go').firstChild.textContent.trim(), href: n.querySelector('.lab-next-go').getAttribute('href') } : null }]));
+        const out = {};
+        newPropertyDeal({ show: false });
+        navigate('/property'); await w(400);
+        const d = pmBare(State.deal), m = dealModel(d), g = propertyGrade(d, m);
+        out.view = State.view;
+        out.want = { cash: labMoney(m.safeCashRequired), monthly: labMoney(m.cashflowMonthly), yield: fmtPct(m.netYield, 2), fees: labMoney(m.unconfirmedCost), gross: fmtPct(m.grossYield, 2),
+          first: propertyReviewQueue(d)[0]?.k, gates: g.gates.length };
+        out.sample = tiles();
+        const why = document.getElementById('lab-grade-why');
+        why.open = true; await w(100);
+        out.why = why.querySelectorAll('.lab-grade-gates > li').length;
+        why.open = false;
+        /* A what-if on B: the tiles are the deal's, not B's. */
+        const rg = document.getElementById('lab-r-rent');
+        rg.value = String(Number(rg.value) + 5 * Number(rg.step)); rg.dispatchEvent(new Event('input', { bubbles: true })); await w(120);
+        out.moved = tiles();
+        /* Every figure the queue lists made the reader's: Save, then Compare. */
+        PROPERTY_REVIEW.forEach(f => markTouched(State.deal, f.k)); saveDeal();
+        navigate('/property/calculator'); await w(150); navigate('/property'); await w(300);
+        out.touched = tiles();
+        out.save = document.getElementById('lab-id-save')?.textContent.trim();
+        const rec = saveActiveProperty({ name: 'N3 tiles' });
+        navigate('/property/calculator'); await w(150); navigate('/property'); await w(300);
+        out.saved = tiles();
+        out.savedName = (document.getElementById('lab-status')?.textContent || '').trim();
+        if (rec) deletePropertyModel(rec.id);
+        /* The next step's link opens the calculator at its box. */
+        State.deal = JSON.parse(JSON.stringify(kept)); newPropertyDeal({ show: false });
+        navigate('/property'); await w(300);
+        document.querySelector('#views .lab-tile-next .lab-next-go').click();
+        for (let i = 0; i < 40 && !(document.activeElement && document.activeElement.id === 'd-price'); i++) await w(150);
+        out.go = { view: State.view, path: location.pathname, focus: document.activeElement?.id || null };
+        State.deal = kept; saveDeal();
+        return JSON.stringify(out);
+      })()`));
+      const p = [], s = r.sample, W = r.want;
+      if (r.view !== 'propertyLab') p.push(`/property opened ${r.view}`);
+      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified fees`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified fees`);
+      if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
+      if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
+      if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'next'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default": ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
+      if (W.first !== 'price' || s.next?.go?.href !== '/property/calculator#d-price' || s.next?.go?.text !== 'Replace the price') p.push(`Next step on the sample: ${JSON.stringify(s.next)} (the queue's first is ${W.first})`);
+      if (r.why !== W.gates) p.push(`the grade's "Why" lists ${r.why} gates, the grade has ${W.gates}`);
+      if (['safeCashRequired', 'cashflowMonthly', 'netYield'].some(k => r.moved[k]?.value !== s[k]?.value)) p.push(`a what-if on B moved a tile: ${JSON.stringify(r.moved)}`);
+      if (['safeCashRequired', 'cashflowMonthly', 'netYield'].some(k => r.touched[k]?.kind === 'illustrative_default')) p.push(`with every figure the reader's a tile still says illustrative: ${JSON.stringify(r.touched)}`);
+      if (r.touched.next?.go?.text !== 'Save this property' || r.save !== 'Save this property') p.push(`with nothing left to replace, the next step is ${JSON.stringify(r.touched.next)} and the identity line's Save "${r.save}"`);
+      if (r.saved.next?.go?.text !== 'Compare scenarios' || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the next step ${JSON.stringify(r.saved.next)}, the identity "${r.savedName}"`);
+      if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`the next step's link: ${JSON.stringify(r.go)}`);
+      if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified fees), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; Next step "Replace the price" opens the calculator with the keyboard in #d-price, then Save, then Compare; "Why" holds all ${W.gates} gates`);
+    } catch (e) {
+      fail('n3 T1: /property\'s tiles could not be read', e.message);
+    }
+  }
+  /* ---- end n3-landing ---- */
 
 } catch (e) {
   fail('harness error', e.message);
