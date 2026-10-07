@@ -2161,6 +2161,20 @@ function closeShellMenus({ restore = false } = {}) {
 }
 
 let shellBuilt = false;
+/* How much of the strip is in view, for the sidebar's top (buildShell). */
+let sidebarPlaceQueued = false;
+function placeSidebar() {
+  sidebarPlaceQueued = false;
+  const strip = document.querySelector('.disclosure');
+  const v = `${strip ? Math.max(0, Math.round(strip.getBoundingClientRect().bottom)) : 0}px`;
+  const root = document.documentElement;
+  if (root.style.getPropertyValue('--strip-in-view') !== v) root.style.setProperty('--strip-in-view', v);
+}
+function askPlaceSidebar() {
+  if (sidebarPlaceQueued) return;
+  sidebarPlaceQueued = true;
+  requestAnimationFrame(placeSidebar);
+}
 function buildShell() {
   if (shellBuilt) return;
   shellBuilt = true;
@@ -2180,6 +2194,14 @@ function buildShell() {
     n.removeAttribute('data-served-away');
   }
   if (strip && !chromeOrder.every((n, i) => n.nextElementSibling === (chromeOrder[i + 1] || strip))) chromeOrder.forEach(n => strip.before(n));
+  /* The sidebar stands under the strip, which spans the window over it from
+     1024px, while the strip is in view (styles.css); as the page scrolls
+     it rises to the top. Measured on scroll, on resize, when the strip
+     opens or closes, and on every render (buildNav: a move between the
+     chromes moves the strip). */
+  addEventListener('scroll', askPlaceSidebar, { passive: true });
+  addEventListener('resize', askPlaceSidebar);
+  if (strip && typeof ResizeObserver === 'function') new ResizeObserver(askPlaceSidebar).observe(strip);
   /* The public header: Products, How it works, Pricing, Resources — drawn
      in place of the served copy of the same markup (NAV_MARKUP). */
   if (shellEl.pubnav) shellEl.pubnav.replaceChildren(NAV_MARKUP.pubnav());
@@ -2239,6 +2261,7 @@ function buildShell() {
      the stylesheet's size containers answer again (styles.css, prerender —
      until now they were laid out by the window). */
   document.documentElement.removeAttribute('data-served');
+  placeSidebar();
 }
 
 /* The current page, in both chromes, on every render. */
@@ -2290,6 +2313,7 @@ function buildNav() {
     resBtn.toggleAttribute('data-current', !!res);
     if (res) resBtn.setAttribute('aria-description', `Current page: ${res.label}`); else resBtn.removeAttribute('aria-description');
   }
+  placeSidebar();
 }
 
 /* THE PRODUCT'S TABS, above its pages. Drawn into their own host in <main>,

@@ -2487,6 +2487,18 @@ a.pp-row:active { transform: translateY(1px); }
   /* The company strip stuck 1px above the edge (the measure less the old
      bar's border); with no bar it rests on the edge. */
   :root[data-chrome="app"] .ticker-sticky { top: 0; }
+  /* THE STRIP ACROSS THE WINDOW, OVER THE SIDEBAR (plan item 3.1; CI on
+     00ece94c). Beside the sidebar the strip was the page column's width —
+     836px at a 1100px window — and its summary, about 905px of words in a
+     wide sans (Verdana, CI's Linux sans), ran to two lines: 51px, where the
+     plan holds it to one line of 40px or less from 1100px. On every page,
+     in both chromes, it now spans the window, as the public header's page
+     has it: one line from 1024px. The sidebar stands under it while it is
+     in view and rises to the top as it scrolls away (--strip-in-view,
+     placeSidebar in 35-ui.js); 33px — the closed strip's one line — until
+     the script has measured it. */
+  :root[data-chrome="app"] .disclosure { position: relative; z-index: 31; margin-left: calc(var(--sidebar-w) * -1); }
+  :root[data-chrome="app"] .sidebar { top: var(--strip-in-view, 33px); }
 }
 /* A page-length table's header row sticks under whatever bar is measured,
    not the 60px design height — with the sidebar there is none. A header in

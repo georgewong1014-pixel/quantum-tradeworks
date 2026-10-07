@@ -3144,7 +3144,9 @@ for (const w of [360, 390]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }, sessionId);
       await send('Emulation.setScriptExecutionDisabled', { value: !script }, sessionId);
       for (const path of ['/', '/property', '/pricing']) {
-        if (path !== '/' && font) continue;
+        /* Every page in Verdana too (CI on 00ece94c): /property's strip,
+           beside the sidebar, ran to two lines at 1100px in CI's wide Linux
+           sans and in Verdana, and only / was measured in it here. */
         await load(path, script);
         await face(font);
         const at = `${path} ${w}px${script ? '' : ', no script'}${font ? ', Verdana' : ''}`;
