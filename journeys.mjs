@@ -1476,7 +1476,7 @@ const JOURNEYS = [
       const CARDS = '#products a.pub-card-link[href], #products .pub-card-also a[href], #products a.pub-vis-link[href]';
       /* A control's name as a reader reads it: a card's or a link's heading
          where it has one, else its text. */
-      const LABEL = `(n) => (n.querySelector('h3, strong')?.textContent || n.textContent).trim().replace(/\\s+/g, ' ').slice(0, 60)`;
+      const LABEL = `(n) => (n.getAttribute('aria-label') || n.querySelector('h3, strong')?.textContent || n.textContent).trim().replace(/\\s+/g, ' ').slice(0, 60)`;
       const list = (sel) => tab.eval(`[...document.querySelectorAll(${JSON.stringify(sel)})].filter(n => n.getClientRects().length).map(${LABEL})`);
 
       /* The pages the calls to action are pressed FROM. press() judges the
