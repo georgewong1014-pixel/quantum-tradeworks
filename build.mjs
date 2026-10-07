@@ -471,16 +471,22 @@ export function companyUniverse() {
    filer's record in data/us.json, with the address the page gives it.
    served-check holds the drawn columns to the served file. */
 export const HOME_FILED_ID = 'AAPL';
-export function homeFiled(plan, root = ROOT) {
+/* The filer's revenue and net income by fiscal year, out of a us.json as
+   parsed — the committed file here, the served one in served-check. */
+export function filedSeries(file, id = HOME_FILED_ID) {
   const F = vm.runInContext(`${cut(js('15-derivation.js'), '15-derivation.js', 'const F = {', '};')}\nF`, vm.createContext({}));
+  const r = (file.results || []).find(x => x.id === id);
+  return r ? { r, years: r.years, rev: r.fin.map(x => x[F.REV]), ni: r.fin.map(x => x[F.NI]) } : null;
+}
+export function homeFiled(plan, root = ROOT) {
   const file = JSON.parse(readFileSync(join(root, 'data', 'us.json'), 'utf8'));
-  const r = (file.results || []).find(x => x.id === HOME_FILED_ID);
+  const r = filedSeries(file)?.r;
   if (!r) throw new Error(`data/us.json has no ${HOME_FILED_ID}, the homepage's filed example (homeFiled)`);
   const co = plan.companies.find(x => x.id === `${HOME_FILED_ID}-SEC`);
   if (!co || !co.company.real) throw new Error(`${HOME_FILED_ID}-SEC has no page of a filed company, which the homepage's example links`);
   if (r.ccy !== 'USD') throw new Error(`${HOME_FILED_ID}'s filed currency is ${r.ccy}, where the homepage's example is labelled US$`);
   if (!Array.isArray(r.years) || r.years.length < 2 || r.fin.length !== r.years.length) throw new Error(`${HOME_FILED_ID}: its years and statement rows do not pair`);
-  const rev = r.fin.map(x => x[F.REV]), ni = r.fin.map(x => x[F.NI]);
+  const { rev, ni } = filedSeries(file);
   if (rev.some(v => typeof v !== 'number') || ni.some(v => typeof v !== 'number')) throw new Error(`${HOME_FILED_ID}: a filed year has no revenue or net income, which the homepage's columns would leave blank`);
   return { id: co.id, tk: r.id, name: r.name, path: co.path, ccy: r.ccy, cik: r.cik, years: r.years, rev, ni };
 }
@@ -1632,6 +1638,196 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
   return out;
 }
 
+/* ─── THE HOMEPAGE'S BUDGETS (plan item 3.6, 2026-10-07) ─────────────────────
+   The homepage was 557 drawn words and no figure. Its cleanup (Phase 3A and
+   3B; D5, D21, D22) is held here, on the page / is served, by the plan's
+   counting rule, so a word added back, a disclosure line under the cards
+   again, or a visual taken out fails --check in CI's first job:
+   - the hero: its h1 and lede 15 words or fewer, and one call to action;
+   - each card (article.pub-card): 12 words or fewer outside its figure,
+     its second action (.pub-card-also) left out;
+   - each figure: 20 words or fewer — its caption, legend and state rows,
+     inside the <figure>, the <svg>'s words with them;
+   - <main>: 110 words or fewer outside its figures;
+   - at least two data visuals: a figure with an <svg> of three or more
+     data marks (data-v) and a source label in sight (.pub-vis-src);
+   - one disclosure line above the footer — the strip's summary, with its
+     sentence and "No licensed prices" — and no other in <main>;
+   - p.footer-legal, word for word (FOOTER_LEGAL_SHA).
+   A word is what a reader reads as one: a run with a letter in it, not a
+   number, an amount or a date ("RM572,000", "$416.2B", "FY2025"), and not
+   what is hidden, said only to a screen reader (.sr-only), or inside a
+   closed <details> (its summary is in sight). served-check reads the
+   served / with this same function. */
+export const HOME_BUDGET = { hero: 15, card: 12, figure: 20, main: 110, visuals: 2 };
+/* p.footer-legal's words as on 4 Oct 2026 (served-check's disclosure-guard
+   holds them word for word on every page; this, on /, in CI's first job). */
+export const FOOTER_LEGAL_SHA = 'd73676dac857efbf';
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+/* An HTML page as a tree: tags, their attributes, and their text, enough to
+   say what is in sight and what a part of the page holds. */
+export function htmlTree(html) {
+  const root = { tag: '#root', raw: '', kids: [], parent: null };
+  const stack = [root];
+  const re = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)([^>]*)>|([^<]+)/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const top = stack[stack.length - 1];
+    if (m[4] != null) { top.kids.push({ tag: '#text', text: m[4], parent: top }); continue; }
+    if (!m[2]) continue;
+    const tag = m[2].toLowerCase();
+    if (m[1]) { for (let i = stack.length - 1; i > 0; i--) if (stack[i].tag === tag) { stack.length = i; break; } continue; }
+    const n = { tag, raw: m[0], kids: [], parent: top };
+    top.kids.push(n);
+    if (tag === 'script' || tag === 'style') { const e = html.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? html.length : e; continue; }
+    if (!VOID_TAGS.has(tag) && !m[0].endsWith('/>')) stack.push(n);
+  }
+  return root;
+}
+export const attrOf = (n, k) => { const m = new RegExp(`\\s${k}(?:="([^"]*)"|='([^']*)'|(?=[\\s>/]))`, 'i').exec(n.raw || ''); return m ? (m[1] ?? m[2] ?? '') : null; };
+export const classOf = (n) => ` ${attrOf(n, 'class') || ''} `;
+export const hasClass = (n, c) => classOf(n).includes(` ${c} `);
+export const allOf = (n, out = []) => { for (const k of n.kids || []) if (k.tag !== '#text') { out.push(k); allOf(k, out); } return out; };
+/* Out of sight, or said only to a screen reader. (What is aria-hidden is
+   still drawn — a legend, an arrow — so its words are read by the eye.) */
+const hiddenNode = (n) => n.tag === 'script' || n.tag === 'style' || n.tag === 'template' || attrOf(n, 'hidden') !== null || hasClass(n, 'sr-only');
+/* Whether a node is in sight: no hidden ancestor, and inside a closed
+   <details> only within its summary. */
+export function inSight(n) {
+  for (let c = n, child = null; c && c.tag !== '#root'; child = c, c = c.parent) {
+    if (c.tag !== '#text' && hiddenNode(c)) return false;
+    if (c.tag === 'details' && attrOf(c, 'open') === null && child && child.tag !== 'summary') return false;
+  }
+  return true;
+}
+const unEntity = (s) => s.replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+/* The text in sight under n, leaving out any subtree `skip` names. */
+export function sightText(n, skip = () => false) {
+  let out = '';
+  const walk = (x) => {
+    for (const k of x.kids || []) {
+      if (k.tag === '#text') { out += unEntity(k.text); continue; }
+      if (hiddenNode(k) || skip(k)) continue;
+      if (x.tag === 'details' && attrOf(x, 'open') === null && k.tag !== 'summary') continue;
+      /* Every element apart from its neighbours: a badge and its words are
+         set apart on screen by the layout, not by a space in the markup. */
+      out += ' ';
+      walk(k);
+      out += ' ';
+    }
+  };
+  if (inSight(n)) walk(n);
+  return out.replace(/\s+/g, ' ').trim();
+}
+/* The words a reader reads: a run with a letter in it that is not a
+   number, an amount, a percentage or a fiscal year. */
+const NUMERIC = /^[(]?[−–+-]?(?:US\$|RM|\$)?[\d.,]+(?:[%kmbtKMBT×]|bn|pp)?[)]?$/;
+export const wordsIn = (text) => String(text).split(/\s+/).map(t => t.replace(/^[“"‘'(]+|[”"’'),.;:!?]+$/g, '')).filter(t => /\p{L}/u.test(t) && !NUMERIC.test(t) && !/^FY\d{2,4}$/.test(t));
+export const DISCLOSURE_WORDS = /investment decision|no market prices are licensed|No licensed prices|filed with the SEC or illustrative|labelled on every page/i;
+export function homeBudgets(html) {
+  const p = [], said = {};
+  const root = htmlTree(html);
+  const nodes = allOf(root);
+  const main = nodes.find(n => n.tag === 'main');
+  if (!main) return { problems: ['/ serves no <main>'], said };
+  const inMain = allOf(main);
+  const figures = inMain.filter(n => n.tag === 'figure' && inSight(n));
+  const isFig = (n) => n.tag === 'figure';
+  /* The hero. */
+  const hero = inMain.find(n => hasClass(n, 'pub-hero'));
+  if (!hero) p.push('/ serves no .pub-hero');
+  else {
+    const h1 = allOf(hero).find(n => n.tag === 'h1'), lede = allOf(hero).find(n => hasClass(n, 'pub-lede'));
+    said.hero = wordsIn(`${h1 ? sightText(h1) : ''} ${lede ? sightText(lede) : ''}`).length;
+    if (said.hero > HOME_BUDGET.hero) p.push(`the hero's h1 and lede are ${said.hero} words, more than ${HOME_BUDGET.hero}`);
+    const acts = allOf(hero).filter(n => (n.tag === 'a' || n.tag === 'button') && inSight(n));
+    said.heroActions = acts.length;
+    if (acts.length !== 1) p.push(`the hero has ${acts.length} calls to action, not one`);
+  }
+  /* The cards. */
+  const cards = inMain.filter(n => n.tag === 'article' && hasClass(n, 'pub-card'));
+  said.cards = cards.map(c => {
+    const name = sightText(allOf(c).find(n => hasClass(n, 'pub-card-product')) || { kids: [] }) || attrOf(c, 'data-product');
+    const w = wordsIn(sightText(c, n => isFig(n) || hasClass(n, 'pub-card-also'))).length;
+    if (w > HOME_BUDGET.card) p.push(`the ${name} card is ${w} words outside its figure and its second action, more than ${HOME_BUDGET.card}`);
+    return [name, w];
+  });
+  if (cards.length < 3) p.push(`/ serves ${cards.length} product cards, not three`);
+  /* The figures. */
+  said.figures = figures.map(f => {
+    const w = wordsIn(sightText(f)).length;
+    const name = attrOf(f, 'class') || 'figure';
+    if (w > HOME_BUDGET.figure) p.push(`a figure (${name}) is ${w} words, more than ${HOME_BUDGET.figure}: "${sightText(f).slice(0, 120)}"`);
+    return w;
+  });
+  /* Main, outside its figures. */
+  const mainText = sightText(main, isFig);
+  said.main = wordsIn(mainText).length;
+  if (said.main > HOME_BUDGET.main) p.push(`<main> is ${said.main} words outside its figures, more than ${HOME_BUDGET.main}`);
+  /* The data visuals. */
+  said.visuals = figures.filter(f => {
+    const svgs = allOf(f).filter(n => n.tag === 'svg');
+    const marks = svgs.reduce((a, s) => a + allOf(s).filter(n => attrOf(n, 'data-v') !== null).length, 0);
+    const src = allOf(f).find(n => hasClass(n, 'pub-vis-src'));
+    return marks >= 3 && src && wordsIn(sightText(src)).length > 0;
+  }).length;
+  if (said.visuals < HOME_BUDGET.visuals) p.push(`<main> holds ${said.visuals} data visuals (an <svg> of three or more data marks with a source label in sight), fewer than ${HOME_BUDGET.visuals}`);
+  /* One disclosure line above the footer: the strip. */
+  const strip = nodes.find(n => n.tag === 'summary' && hasClass(n, 'disclosure-in'));
+  const stripText = strip ? sightText(strip) : '';
+  if (!strip || !stripText.includes('Beta preview. Do not use figures here for investment decisions.') || !stripText.includes('No licensed prices'))
+    p.push(`the strip's summary does not read "Beta preview. Do not use figures here for investment decisions." and "No licensed prices" in sight (${JSON.stringify(stripText.slice(0, 120))})`);
+  const lines = inMain.filter(n => /^(p|div|li|span|section)$/.test(n.tag) && !allOf(n).some(k => /^(p|div|li|section)$/.test(k.tag)) && !figures.some(f => allOf(f).includes(n)) && DISCLOSURE_WORDS.test(sightText(n)));
+  said.disclosures = (strip ? 1 : 0) + lines.length;
+  if (lines.length) p.push(`<main> carries ${lines.length} disclosure line${lines.length === 1 ? '' : 's'} besides the strip: "${sightText(lines[0]).slice(0, 120)}"`);
+  /* The footer's legal paragraph, word for word. */
+  const legal = nodes.filter(n => n.tag === 'p' && hasClass(n, 'footer-legal'));
+  const legalSha = legal.length === 1 ? createHash('sha256').update(sightText(legal[0])).digest('hex').slice(0, 16) : null;
+  said.legal = legalSha;
+  if (legal.length !== 1) p.push(`/ serves ${legal.length} p.footer-legal, not one`);
+  else if (FOOTER_LEGAL_SHA && legalSha !== FOOTER_LEGAL_SHA) p.push(`p.footer-legal is not its text of 4 Oct 2026 (sha ${legalSha}, not ${FOOTER_LEGAL_SHA})`);
+  return { problems: p, said };
+}
+/* Every served page has its own <div id="views"> within SERVED_VIEWS_BYTES
+   (PAGE CONTENT FIRST, above). */
+export function viewsLateProblems(pages) {
+  const out = [];
+  for (const [file, html] of pages) {
+    const at = Buffer.from(html, 'utf8').indexOf('<div id="views"');
+    if (at < 0 || at >= SERVED_VIEWS_BYTES) out.push(`${file}: <div id="views"> ${at < 0 ? 'is not in the page' : `is at byte ${at.toLocaleString('en')}`}, not within its first ${SERVED_VIEWS_BYTES / 1024}kB`);
+  }
+  return out;
+}
+/* THE KIND BADGES' MAPPING (plan item 3.7; D6): every PROVENANCE kind,
+   every EVIDENCE id and every fee status maps to exactly one of the eight
+   words, and the eight are the owner's, in the precedence order. */
+export const KIND_WORDS = ['Filed', 'Derived', 'Modelled', 'Yours', 'Quoted', 'Illustrative', 'Placeholder', 'Unavailable'];
+export function kindProblems() {
+  const out = [];
+  const LS = js('37-layout-system.js'), DISC = js('40-views-discover.js'), PROP = js('70-property.js');
+  const api = vm.runInContext([
+    cut(LS, '37-layout-system.js', 'const KIND_BADGES = {', '\n};'),
+    cut(LS, '37-layout-system.js', 'const KIND_ORDER = ', ';\n'),
+    cut(LS, '37-layout-system.js', 'const KIND_OF_PROVENANCE = ', ';\n'),
+    cut(LS, '37-layout-system.js', 'const KIND_OF_EVIDENCE = ', ';\n'),
+    cut(LS, '37-layout-system.js', 'const KIND_OF_FEE = ', ';\n'),
+    cut(DISC, '40-views-discover.js', 'const PROVENANCE = {', '\n};'),
+    cut(PROP, '70-property.js', 'const EVIDENCE = [', '\n];'),
+    '({ KIND_BADGES, KIND_ORDER, KIND_OF_PROVENANCE, KIND_OF_EVIDENCE, KIND_OF_FEE, PROVENANCE, EVIDENCE })',
+  ].join('\n'), vm.createContext({}), { filename: 'src/js (kind badges)' });
+  const keys = Object.keys(api.KIND_BADGES);
+  const words = keys.map(k => api.KIND_BADGES[k].word);
+  if (JSON.stringify([...words].sort()) !== JSON.stringify([...KIND_WORDS].sort())) out.push(`the kind badges' words are ${words.join(' · ')}, not the owner's eight (${KIND_WORDS.join(' · ')})`);
+  if (api.KIND_ORDER.length !== keys.length || keys.some(k => !api.KIND_ORDER.includes(k))) out.push(`KIND_ORDER (${api.KIND_ORDER.join(', ')}) is not the eight kinds, each once`);
+  const FEE = [...new Set([...PROP.matchAll(/^\s+status: '([a-z_]+)',/gm)].map(m => m[1]))];
+  for (const [name, from, map] of [['PROVENANCE kind', Object.keys(api.PROVENANCE), api.KIND_OF_PROVENANCE], ['EVIDENCE id', api.EVIDENCE.map(e => e.id), api.KIND_OF_EVIDENCE],
+    ['fee status', [...FEE, 'verified', 'unknown'], api.KIND_OF_FEE]]) {
+    for (const k of from) if (!keys.includes(map[k])) out.push(`the ${name} "${k}" maps to ${map[k] === undefined ? 'no badge' : `"${map[k]}", which is not a badge`}`);
+    for (const k of Object.keys(map)) if (!from.includes(k)) out.push(`the ${name} map names "${k}", which is not a ${name}`);
+  }
+  return out;
+}
+
 /* What would make the committed files serve something other than what they
    say, beyond drift from src/.
 
@@ -1822,7 +2018,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const stale = [...filesUnder(PAGES).filter(f => !pages.has(f)), ...filesUnder(ASSETS).filter(f => !current.has(f)),
     ...filesUnder(NAPIC_DIR).filter(f => !napic.has(f))];
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
-  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : [])];
+  /* The homepage's budgets (plan 3.6), on / as served with its render. */
+  const homeBudget = !bare && rendered.renders.has('index.html') ? homeBudgets(pages.get(HOME)) : null;
+  const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
+    ...kindProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);

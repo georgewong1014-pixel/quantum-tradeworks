@@ -397,7 +397,7 @@ const CAPABILITY_REGISTER = [
   { name:'Learn and methodology', status:'maintenance', path:'/learn',
     now:'Formulas, weights, anchor ranges and limitations.' },
   { name:'Plans and pricing', status:'maintenance', path:'/pricing',
-    now:'Tiers and what each includes.',
+    now:'Proposed tiers and what each would include — not on sale.',
     gate:'No payment is processed anywhere in this build, and none will be until the operating entity is registered.' },
   { name:'Brokerage connection and execution', status:'compliance', path:null,
     gate:'Not built and not activated. Requires licensing, suitability, custody and consent work well beyond this product’s current boundary.' },

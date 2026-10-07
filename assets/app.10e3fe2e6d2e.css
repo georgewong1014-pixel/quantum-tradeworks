@@ -2208,6 +2208,10 @@ table.scan-dt th, table.scan-dt td { text-align: left; }
 .bar-actions { display: flex; align-items: center; gap: var(--xs); margin-left: auto; flex: none; }
 @media (max-width: 900px) { .bar-in { padding: 0 var(--lg); gap: var(--md); } }
 @media (max-width: 560px) { .bar-in { padding: 0 var(--md); gap: var(--xs); } }
+/* The narrowest phones in a wider sans (Verdana, CI's Linux sans): the
+   wordmark, the theme, "Open" and the menu ran 4px past a 360px screen.
+   A step less gutter, and they fit. */
+@media (max-width: 374.98px) { .pubbar .bar-in { padding: 0 var(--sm); } }
 
 /* ------------------------------------------------------- status badges */
 /* Live, Beta, Demo, Coming soon — always the word, never a colour alone.
@@ -2845,6 +2849,8 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-info > summary.pub-info-btn::-webkit-details-marker { display: none; }
 .pub-info-i { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor;
   font: 700 11px/1 var(--sans); font-style: normal; }
+/* The letter is drawn, not written: an ⓘ is a mark, not a word. */
+.pub-info-i::before { content: "i"; content: "i" / ""; }
 .pub-info > summary.pub-info-btn:hover { color: var(--brand); }
 .pub-info > summary.pub-info-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
 .pub-info[open] > summary.pub-info-btn { color: var(--brand); }

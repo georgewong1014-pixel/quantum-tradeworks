@@ -1629,5 +1629,270 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end layout-system ---- */
 
+/* ---- home-3a ---- */
+/* THE HOMEPAGE CLEANUP, AS SERVED (plan Phase 3A and 3B; the owner's
+   decisions D5, D6, D17, D21 and D22, 5 Oct 2026), read as a fetch reads
+   it — each item a [fetch] acceptance line of the plan, the addendum's N8,
+   N9 and N2a. Each fails on the merged base 7d25484e (the homepage of
+   557 drawn words, the strip a line and a button, Pricing of 1,002 words):
+   3.1  the strip is a native <details> on every page — its summary holds
+        "Beta preview. Do not use figures here for investment decisions."
+        and "· SEC-filed and illustrative data, labelled · No licensed
+        prices", with no link in it; its body Research mode, "No advice · No
+        recommendations", /data-sources and /how-it-works#hiw-status;
+   3.2  /'s hero: the held h1, POSITIONING's lede, 15 words or fewer, one
+        call to action;
+   3.3  three cards, each an <article> of 12 words or fewer outside its
+        figure, its link described by its qualifier and its note (both
+        served), no link, button or <details> inside a link; the Property
+        card links /property/lab; the Scanner's ⓘ says "this site ships no
+        prices"; the badges on /, /how-it-works and the footer read Beta,
+        Beta, Live and Coming soon; Business is text;
+   3.4, N9  the example path: an "Example" label, 50 words or fewer, two
+        <ol>s of 5 and 4 links each served 200, no digit, ticker or company
+        name; "Saved in this browser" once, one link to /my/data;
+        /how-it-works#hiw-journey still holds its five steps;
+   3.5  <div id="views"> within the first 16kB of every served page; no
+        "My Dashboard" or "Saved Models" before /'s h1, no "My workspace" on
+        /about; each positioning string one variant across the served pages;
+   3.6  / within its budgets (homeBudgets, build.mjs);
+   3.8  two cards or more with an <svg> of data marks and a source label;
+        the Equities columns equal Apple's revenue and net income in the
+        served data/us.json, in US$; no baseCcy among /'s served reads; no
+        digit in the Scanner card but the 50; no "matched", "approaching" or
+        "watching" on /;
+   N8   /pricing: its h1 and "Nothing on this page can be bought." first,
+        three cards of 20 words or fewer besides name and price, each saying
+        "Not on sale" or "Nothing to buy", no link, button or .btn in a card,
+        no btn-primary in main, buttons only in the closed "Compare
+        details", 300 words or fewer outside it, the coverage line once, and
+        "not on sale" beside every link to /pricing in a page's main;
+   N2a  on /, /property, /property/calculator, /property/lab, /how-it-works,
+        /about and /status, every Property Live badge with "Your figures,
+        sample to start" in sight beside it, as many qualifiers as badges. */
+{
+  const B = await import('./build.mjs');
+  const P = RENDER_PLAN.POSITIONING || {};
+  const p = [], said = {};
+  const T = (html) => B.htmlTree(html);
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf, sight = B.sightText, wordsIn = B.wordsIn;
+  const mainOf = (html) => all(T(html)).find(n => n.tag === 'main');
+  /* Every word under n, in sight or not (what a closed <details> holds). */
+  const rawText = (n) => { let o = ''; const w = (x) => { for (const k of x.kids || []) { if (k.tag === '#text') o += k.text; else { o += ' '; w(k); } } }; w(n); return o.replace(/\s+/g, ' ').trim(); };
+  const { companies } = companyPlan(ORIGIN, router);
+  const STRIP_PAGES = ['/', '/property', '/company/aapl-apple-inc', '/nope-for-home-3a'];
+  const got = await getAll([...new Set([...statics, ...STRIP_PAGES, '/data/us.json'])]);
+  /* 3.1 */
+  for (const path of [...new Set([...STRIP_PAGES, ...statics])]) {
+    const body = got.get(path)?.body || '';
+    const nodes = all(T(body));
+    const region = nodes.find(n => n.tag === 'div' && has(n, 'disclosure') && attr(n, 'role') === 'region');
+    const det = region && all(region).find(n => n.tag === 'details');
+    const sum = det && det.kids.find(k => k.tag === 'summary');
+    if (!det || !sum) { p.push(`${path}: the strip is not a <details> with a summary inside its region`); continue; }
+    if (attr(det, 'open') !== null) p.push(`${path}: the strip is served open`);
+    const s = sight(sum);
+    if (!s.includes('Beta preview. Do not use figures here for investment decisions.')) p.push(`${path}: the strip's summary does not hold the warning sentence word for word: "${s.slice(0, 100)}"`);
+    if (!s.includes('· SEC-filed and illustrative data, labelled · No licensed prices')) p.push(`${path}: the strip's summary does not say "· SEC-filed and illustrative data, labelled · No licensed prices"`);
+    if (all(sum).some(n => n.tag === 'a')) p.push(`${path}: a link inside the strip's summary`);
+    const inside = all(det).filter(n => n !== sum && !all(sum).includes(n));
+    const txt = rawText(det);
+    for (const w of ['Research mode', 'No advice · No recommendations']) if (!txt.includes(w)) p.push(`${path}: the strip's Details do not hold "${w}"`);
+    for (const h of ['/data-sources', '/how-it-works#hiw-status']) if (!inside.some(n => n.tag === 'a' && attr(n, 'href') === h)) p.push(`${path}: the strip's Details do not link ${h}`);
+  }
+  said.strips = STRIP_PAGES.length + statics.length;
+  /* 3.2 */
+  const home = got.get('/')?.body || '';
+  const hm = mainOf(home);
+  const hero = hm && all(hm).find(n => has(n, 'pub-hero'));
+  if (!hero) p.push('/: no .pub-hero');
+  else {
+    const h1 = all(hero).find(n => n.tag === 'h1'), lede = all(hero).find(n => has(n, 'pub-lede'));
+    if (!h1 || sight(h1) !== 'Make financial decisions with greater clarity.') p.push(`/: the h1 reads "${h1 ? sight(h1) : ''}", not the held headline`);
+    if (!lede || sight(lede) !== P.lede) p.push(`/: the lede reads "${lede ? sight(lede) : ''}", not POSITIONING's "${P.lede}"`);
+    said.hero = wordsIn(`${h1 ? sight(h1) : ''} ${lede ? sight(lede) : ''}`).length;
+    if (said.hero > 15) p.push(`/: the h1 and the lede are ${said.hero} words, more than 15`);
+    const acts = all(hero).filter(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button');
+    if (acts.length !== 1) p.push(`/: the hero has ${acts.length} calls to action, not one`);
+  }
+  /* 3.3 */
+  const cards = hm ? all(hm).filter(n => n.tag === 'article' && has(n, 'pub-card')) : [];
+  if (cards.length !== 3) p.push(`/: ${cards.length} product cards (<article>), not three`);
+  for (const c of cards) {
+    const id = attr(c, 'data-product') || '?';
+    const w = wordsIn(sight(c, n => n.tag === 'figure' || has(n, 'pub-card-also'))).length;
+    if (w > 12) p.push(`/: the ${id} card is ${w} words outside its figure, more than 12`);
+    const link = all(c).find(n => n.tag === 'a' && has(n, 'pub-card-link'));
+    const ids = (link && attr(link, 'aria-describedby') || '').split(/\s+/).filter(Boolean);
+    const q = ids.find(x => /-q$/.test(x)), note = ids.find(x => /-note$/.test(x));
+    if (!q || !note || !home.includes(`id="${q}"`) || !home.includes(`id="${note}"`)) p.push(`/: the ${id} card's link is not described by its qualifier and its note, both served (${ids.join(' ')})`);
+    if (!all(c).some(n => n.tag === 'details' && has(n, 'pub-info'))) p.push(`/: the ${id} card has no ⓘ (<details>)`);
+  }
+  if (hm) for (const a of all(hm).filter(n => n.tag === 'a')) if (all(a).some(n => ['a', 'button', 'details'].includes(n.tag))) p.push(`/: a link holds a ${all(a).find(n => ['a', 'button', 'details'].includes(n.tag)).tag}`);
+  const cardOf = (id) => cards.find(c => attr(c, 'data-product') === id);
+  if (!cardOf('property') || !all(cardOf('property')).some(n => n.tag === 'a' && attr(n, 'href') === '/property/lab')) p.push('/: the Property card does not link /property/lab');
+  const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
+  if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
+  const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Live', business: 'Coming soon' };
+  const badgeIn = (n) => { const b = n && all(n).find(x => has(x, 'status-badge')); return b ? sight(b) : null; };
+  for (const [id, want] of Object.entries(WANT)) {
+    const onHome = id === 'business' ? badgeIn(hm && all(hm).find(n => has(n, 'pub-soon'))) : badgeIn(cardOf(id));
+    if (onHome !== want) p.push(`/: the ${id} badge reads ${JSON.stringify(onHome)}, not "${want}"`);
+  }
+  const soon = hm && all(hm).find(n => has(n, 'pub-soon'));
+  if (!soon || all(soon).some(n => n.tag === 'a') || !/Business Intelligence · Plan my business ·/.test(sight(soon))) p.push(`/: Business is not one line of text, "Business Intelligence · Plan my business · Coming soon" (${soon ? sight(soon) : 'none'})`);
+  const hiw = got.get('/how-it-works')?.body || '';
+  const hiwNodes = all(T(hiw));
+  for (const [id, want] of Object.entries(WANT)) {
+    const sec = hiwNodes.find(n => attr(n, 'id') === `hiw-${id}`);
+    const st = sec && all(sec).find(n => has(n, 'hiw-product-status'));
+    if (badgeIn(st) !== want) p.push(`/how-it-works: the ${id} badge reads ${JSON.stringify(badgeIn(st))}, not "${want}"`);
+  }
+  const foot = all(T(home)).find(n => attr(n, 'id') === 'footProducts');
+  const footBadges = foot ? foot.kids.filter(k => k.tag === 'li').map(li => badgeIn(li)) : [];
+  if (JSON.stringify(footBadges) !== JSON.stringify(Object.values(WANT))) p.push(`/: the footer's badges read ${JSON.stringify(footBadges)}, not ${JSON.stringify(Object.values(WANT))}`);
+  /* 3.4 and N9 */
+  const path = hm && all(hm).find(n => has(n, 'pub-path'));
+  if (!path) p.push('/: no example path (.pub-path)');
+  else {
+    const text = sight(path);
+    said.path = wordsIn(text).length;
+    if (said.path > 50) p.push(`/: the example path is ${said.path} words, more than 50`);
+    if (!/\bExample\b/.test(text)) p.push('/: the example path carries no "Example" label');
+    const ols = all(path).filter(n => n.tag === 'ol');
+    const counts = ols.map(o => all(o).filter(n => n.tag === 'a').length);
+    if (JSON.stringify(counts) !== '[5,4]') p.push(`/: the example path's lists hold ${JSON.stringify(counts)} links, not two of 5 and 4`);
+    const hrefs = [...new Set(ols.flatMap(o => all(o).filter(n => n.tag === 'a').map(n => attr(n, 'href'))))];
+    const st = await getAll(hrefs);
+    for (const h of hrefs) if (st.get(h)?.status !== 200) p.push(`/: the example path links ${h}, served ${described(st.get(h))}`);
+    if (/\d/.test(text)) p.push(`/: the example path carries a digit: "${text.match(/.{0,20}\d.{0,20}/)[0]}"`);
+    const tickers = new Set(companies.map(co => co.company.tk).filter(t => t && t.length > 1));
+    const names = new Set(companies.map(co => co.company.name.split(/\s+/)[0]).filter(x => x.length > 3));
+    const hit = text.split(/[\s,.]+/).find(t => tickers.has(t) || names.has(t));
+    if (hit) p.push(`/: the example path names "${hit}", a ticker or a company`);
+  }
+  const homeText = pageText(home);
+  const savedN = homeText.split('Saved in this browser').length - 1;
+  const myData = hm ? all(hm).filter(n => n.tag === 'a' && attr(n, 'href') === '/my/data').length : 0;
+  if (savedN !== 1 || myData !== 1) p.push(`/: "Saved in this browser" ${savedN} times and ${myData} links to /my/data in main, not one of each`);
+  const journey = hiwNodes.find(n => attr(n, 'id') === 'hiw-journey');
+  if (!journey || all(journey).filter(n => has(n, 'hiw-path-step')).length !== 5) p.push('/how-it-works#hiw-journey does not hold its five steps');
+  /* 3.5 */
+  const late = [];
+  const pagesToCheck = [...statics, ...companies.map(co => co.path), params[0].replace(/:[A-Za-z]+/g, 'home-3a'), '/nope-for-home-3a'];
+  const pg = await getAll(pagesToCheck);
+  for (const path of pagesToCheck) {
+    const r = pg.get(path);
+    const at = Buffer.from(r?.body || '', 'utf8').indexOf('<div id="views"');
+    if (at < 0 || at >= B.SERVED_VIEWS_BYTES) late.push(`${path} (${at < 0 ? 'none' : `byte ${at.toLocaleString('en')}`})`);
+  }
+  said.views = pagesToCheck.length;
+  if (late.length) p.push(`<div id="views"> is not within the first 16kB of ${late.length} served page(s): ${late.slice(0, 6).join(', ')}${late.length > 6 ? ' …' : ''}`);
+  const beforeH1 = pageText(home.slice(0, home.indexOf('<h1')));
+  for (const w of ['My Dashboard', 'Saved Models']) if (beforeH1.includes(w)) p.push(`/: "${w}" in its text before the h1`);
+  if (pageText(got.get('/about')?.body || '').includes('My workspace')) p.push('/about: its text holds "My workspace"');
+  const allowed = [P.title, P.oneLiner, P.description, P.lede, P.kicker].filter(Boolean);
+  const variants = [];
+  for (const path of statics) {
+    const body = got.get(path)?.body || '';
+    const metas = [...body.matchAll(/<meta (?:name|property)="(?:description|og:description|twitter:description|og:title|twitter:title)" content="([^"]*)">/g)].map(m => m[1].replace(/&amp;/g, '&').replace(/&quot;/g, '"'));
+    let text = `${pageText(body)} ${metas.join(' ')} ${(/<title>([^<]*)<\/title>/.exec(body) || [])[1] || ''}`;
+    for (const a of allowed) text = text.split(a).join(' ');
+    const m = /.{0,40}(decision workspace|market setups|evaluate property investments|Research · Monitor).{0,40}/i.exec(text);
+    if (m) variants.push(`${path}: …${m[0].trim()}…`);
+    const desc = /<p class="body foot-desc">([^<]*)<\/p>/.exec(body)?.[1];
+    if (desc !== undefined && desc.replace(/&amp;/g, '&') !== P.oneLiner) variants.push(`${path}: the footer's line is "${desc}"`);
+  }
+  const hd = (k) => (new RegExp(`<meta (?:name|property)="${k}" content="([^"]*)">`).exec(home) || [])[1];
+  if (![hd('description'), hd('og:description'), hd('twitter:description')].every(x => (x || '').replace(/&amp;/g, '&') === P.description)) variants.push(`/: its description, og:description and twitter:description are not POSITIONING's one description`);
+  if (variants.length) p.push(`a positioning string served in another variant: ${variants.slice(0, 4).join(' · ')}${variants.length > 4 ? ` … and ${variants.length - 4} more` : ''}`);
+  /* 3.6 */
+  const budget = B.homeBudgets(home);
+  budget.problems.forEach(x => p.push(`/ budgets: ${x}`));
+  said.budget = budget.said;
+  /* 3.8 */
+  const visuals = cards.filter(c => all(c).some(n => n.tag === 'svg' && all(n).filter(x => attr(x, 'data-v') !== null).length >= 3) && all(c).some(n => has(n, 'pub-vis-src') && wordsIn(sight(n)).length));
+  said.visuals = visuals.length;
+  if (visuals.length < 2) p.push(`/: ${visuals.length} cards carry an <svg> of data marks with a source label, fewer than two`);
+  let usj = null; try { usj = JSON.parse(got.get('/data/us.json')?.body || 'null'); } catch { usj = null; }
+  const ser = usj && B.filedSeries(usj);
+  const eq = cardOf('equities');
+  if (!ser) p.push('/data/us.json: no Apple to compare the Equities columns with');
+  else if (!eq) p.push('/: no Equities card');
+  else {
+    const marks = all(eq).filter(n => attr(n, 'data-fy') !== null);
+    const bad = [];
+    ser.years.forEach((fy, i) => {
+      for (const [line, want] of [['rev', ser.rev[i]], ['ni', ser.ni[i]]]) {
+        const m = marks.find(n => attr(n, 'data-fy') === String(fy) && attr(n, 'data-line') === line);
+        if (!m || Number(attr(m, 'data-v')) !== want) bad.push(`FY${fy} ${line} ${m ? attr(m, 'data-v') : 'missing'} (filed ${want})`);
+      }
+    });
+    if (marks.length !== ser.years.length * 2) bad.push(`${marks.length} columns for ${ser.years.length} years`);
+    if (bad.length) p.push(`/: the Equities columns are not Apple's filed revenue and net income in the served data/us.json: ${bad.slice(0, 4).join('; ')}`);
+    if (!/US\$/.test(sight(eq))) p.push('/: the Equities visual does not say US$');
+    said.years = `${ser.years[0]}–${ser.years[ser.years.length - 1]}`;
+  }
+  const reads = /<html[^>]*data-served-reads="([^"]*)"/.exec(home)?.[1] || '';
+  if (/baseCcy/.test(reads)) p.push(`/: its served reads name the base currency (${reads})`);
+  const sc = cardOf('scanner');
+  const scDigits = sc ? (sight(sc).match(/\d+/g) || []) : ['no card'];
+  if (scDigits.some(d => d !== '50')) p.push(`/: the Scanner card carries digits other than the 50: ${scDigits.join(', ')}`);
+  if (/\b(matched|approaching|watching)\b/i.test(sight(hm || { kids: [] }))) p.push('/: "matched", "approaching" or "watching" on the homepage');
+  /* N8 */
+  const pr = got.get('/pricing')?.body || '';
+  const pm = mainOf(pr);
+  const pmText = pm ? sight(pm) : '';
+  const h1At = pmText.indexOf('Proposed plans — not on sale yet'), buyAt = pmText.indexOf('Nothing on this page can be bought.');
+  const pcards = pm ? all(pm).filter(n => n.tag === 'article' && has(n, 'plan-concept')) : [];
+  const firstCard = pcards[0] ? pmText.indexOf(sight(pcards[0]).slice(0, 12)) : -1;
+  if (h1At < 0 || buyAt < 0 || (firstCard >= 0 && (h1At > firstCard || buyAt > firstCard))) p.push('/pricing: the h1 and "Nothing on this page can be bought." do not both come before the cards');
+  if (!pmText.includes('No payment is processed anywhere in this build')) p.push('/pricing: "No payment is processed anywhere in this build" is gone');
+  if (pcards.length !== 3) p.push(`/pricing: ${pcards.length} concept cards, not three`);
+  for (const c of pcards) {
+    const name = sight(all(c).find(n => n.tag === 'h3') || { kids: [] });
+    const w = wordsIn(sight(c, n => n.tag === 'h3' || has(n, 'plan-concept-price'))).length;
+    if (w > 20) p.push(`/pricing: the ${name} card is ${w} words besides its name and price, more than 20`);
+    if (!/Not on sale|Nothing to buy/.test(sight(c))) p.push(`/pricing: the ${name} card says neither "Not on sale" nor "Nothing to buy"`);
+    if (all(c).some(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button' || has(n, 'btn'))) p.push(`/pricing: the ${name} card holds a link or a button`);
+  }
+  const det = pm && all(pm).find(n => n.tag === 'details' && attr(n, 'id') === 'plan-compare');
+  if (!det || attr(det, 'open') !== null || !/Compare details/.test(sight(det.kids.find(k => k.tag === 'summary') || { kids: [] }))) p.push('/pricing: no closed "Compare details"');
+  if (pm && all(pm).some(n => has(n, 'btn-primary'))) p.push('/pricing: a btn-primary in main');
+  const buttons = pm ? all(pm).filter(n => n.tag === 'button' || attr(n, 'data-inert') === 'button' || has(n, 'btn')) : [];
+  if (buttons.some(b => !det || !all(det).includes(b))) p.push(`/pricing: ${buttons.filter(b => !det || !all(det).includes(b)).length} button(s) in main outside "Compare details"`);
+  said.pricing = pm ? wordsIn(sight(pm)).length : null;
+  if (said.pricing > 300) p.push(`/pricing: ${said.pricing} words in main outside the closed details, more than 300`);
+  const cov = pageText(pr).split('It is not a complete listing of either market').length - 1;
+  if (cov !== 1) p.push(`/pricing: the coverage line ${cov} times, not once`);
+  const noSale = [];
+  for (const path of statics) {
+    const m = mainOf(got.get(path)?.body || '');
+    if (!m) continue;
+    for (const a of all(m).filter(n => n.tag === 'a' && attr(n, 'href') === '/pricing')) {
+      let blk = a.parent; while (blk && !/^(p|li|section|article|div)$/.test(blk.tag)) blk = blk.parent;
+      while (blk && blk.parent && blk.tag !== '#root' && wordsIn(sight(blk)).length < 6) blk = blk.parent;
+      if (!/not on sale/i.test(blk ? sight(blk) : '')) noSale.push(`${path}: "${sight(a)}"`);
+    }
+  }
+  if (noSale.length) p.push(`a link to /pricing with no "not on sale" beside it: ${noSale.join(', ')}`);
+  /* N2a (D17) */
+  const PROPERTY_NOTE = 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.';
+  said.qual = [];
+  for (const path of ['/', '/property', '/property/calculator', '/property/lab', '/how-it-works', '/about', '/status']) {
+    const body = got.get(path)?.body || (await get(path)).body || '';
+    const nodes = all(T(body));
+    const badges = nodes.filter(n => has(n, 'status-live') && attr(n, 'title') === PROPERTY_NOTE && B.inSight(n));
+    const quals = nodes.filter(n => has(n, 'pbadge-q') && sight(n) === 'Your figures, sample to start');
+    const beside = badges.filter(b => { const i = b.parent.kids.indexOf(b); return has(b.parent, 'pbadge') && b.parent.kids.slice(i + 1).some(k => has(k, 'pbadge-q') && sight(k) === 'Your figures, sample to start'); });
+    said.qual.push(`${path} ${badges.length}`);
+    if (!badges.length) p.push(`${path}: serves no Property Live badge in sight`);
+    if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
+  }
+  judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
+    'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
+}
+/* ---- end home-3a ---- */
+
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

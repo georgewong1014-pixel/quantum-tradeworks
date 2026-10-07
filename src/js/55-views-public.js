@@ -106,7 +106,7 @@ function pubQualifier(p, id) {
     productBadge(p.id, { qualified: true, qualId: id('q') }),
     el('details', { class: 'pub-info' }, [
       el('summary', { class: 'pub-info-btn' }, [
-        el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }, 'i'),
+        el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }),
         el('span', { class: 'sr-only' }, `What ${PRODUCT_STATUS[p.status]} means for ${p.name}`),
       ]),
       el('p', { class: 'pub-info-body' }, [
@@ -311,7 +311,7 @@ VIEWS.marketing = () => {
   path.append(el('div', { class: 'pub-path-ft' }, [
     el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
     el('details', { class: 'pub-info' }, [
-      el('summary', { class: 'pub-info-btn' }, [el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }, 'i'), el('span', { class: 'sr-only' }, 'Where saved work is kept')]),
+      el('summary', { class: 'pub-info-btn' }, [el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }), el('span', { class: 'sr-only' }, 'Where saved work is kept')]),
       el('p', { class: 'pub-info-body' }, ['There are no accounts and no copy on a server. ',
         pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export'), ' is the copy that travels.']),
     ]),

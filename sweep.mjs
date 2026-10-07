@@ -984,14 +984,18 @@ for (const route of ROUTES) {
 
   /* 5. The goal words. */
   await load(BASE + '/');
-  const home = await ev(`({ cards: [...document.querySelectorAll('#views .pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
-      go: (c.querySelector('.pub-card-go')?.textContent || '').trim(), note: (c.querySelector('.pub-card-note')?.firstChild?.textContent || '').trim(), links: c.querySelectorAll('a').length })),
-    want: PRODUCTS.map(p => ({ action: p.action, href: p.actionPath ? href(p.actionPath) : null })) })`);
+  /* Since the homepage cleanup (plan 3.3; D5) a card is an <article> whose
+     task is its one action — an <h3> link to where the goal starts, the
+     action's own address — and Business is a line of text. */
+  const home = await ev(`({ cards: [...document.querySelectorAll('#views .pub-card')].map(c => { const a = c.querySelector('.pub-card-link'); return { tag: c.tagName, href: a?.getAttribute('href') || null,
+      task: (a?.textContent || '').trim() }; }),
+    soon: (() => { const s = document.querySelector('#views .pub-soon'); return s ? { text: s.textContent.replace(/\\s+/g, ' ').trim(), links: s.querySelectorAll('a').length } : null; })(),
+    want: PRODUCTS.map(p => ({ action: p.action, task: p.task, href: p.actionPath ? href(p.actionPath) : null })) })`);
   const words = ['Start research', 'Create a setup', 'Analyse a property'];
   if (JSON.stringify(home.want.slice(0, 3).map(w => w.action)) !== JSON.stringify(words)) p.push(`PRODUCTS' actions: ${JSON.stringify(home.want.map(w => w.action))}`);
-  home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'A' || c.go !== words[i] || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${words[i]}" to ${home.want[i].href}`); });
-  const biz = home.cards[3];
-  if (!biz || biz.tag === 'A' || biz.links || biz.note !== 'Coming soon') p.push(`the Business card: ${JSON.stringify(biz)}, not "Coming soon" as text`);
+  home.cards.slice(0, 3).forEach((c, i) => { if (c.tag !== 'ARTICLE' || c.task !== home.want[i].task || c.href !== home.want[i].href) p.push(`homepage card ${i + 1}: ${JSON.stringify(c)}, not "${home.want[i].task}" to ${home.want[i].href}`); });
+  if (home.cards.length !== 3) p.push(`${home.cards.length} homepage cards, not three`);
+  if (!home.soon || home.soon.links || !/Business Intelligence · Plan my business · Coming soon/.test(home.soon.text)) p.push(`Business on the homepage: ${JSON.stringify(home.soon)}, not "Coming soon" as text`);
   await load(BASE + '/how-it-works');
   const hiw = await ev(`[...document.querySelectorAll('#views .hiw-product-ft a')].map(a => a.textContent.trim())`);
   if (JSON.stringify(hiw) !== JSON.stringify(words)) p.push(`How it works' product actions: ${JSON.stringify(hiw)}`);
@@ -1001,7 +1005,7 @@ for (const route of ROUTES) {
   for (const w of words) if (!steps.includes(w)) p.push(`the dashboard checklist does not say "${w}": ${JSON.stringify(steps)}`);
 
   if (p.length) { bad++; console.log(`FAIL registry-ctas: the tool registry, what a tool that cannot be used offers, and one next action per result screen (${p.length} problems)`); p.slice(0, 60).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, and the homepage, How it works and the checklist say "${words.join('", "')}"`);
+  else console.log(`ok   registry-ctas: ${reg.length} tools in the registry (${absent.length ? `${absent.join(', ')} not in this build, listed nowhere` : 'all in this build'}), ${opened} addresses open their view; as production serves it ${offLinks} scanner tabs are text with the reason and no page offers an unusable tool; with us.json held back the four Equities tools that read it are Unavailable with its error${heldOk ? '' : ' (not reached)'}, 400 days past its date they are Delayed links; ${scanned ? 'a synthetic history and record bring Market, Alerts and Historical back and ten days old make them Delayed; the alert opens Apple Inc. research; ' : ''}the company page, the calculator and the dashboard each have one primary action, How it works and the checklist say "${words.join('", "')}", and each homepage card's task opens where it starts`);
 }
 /* ---- end audit1: registry-ctas ---- */
 /* ---- audit1: registry-ctas-verify ---- */

@@ -1513,6 +1513,33 @@ const JOURNEYS = [
         await press('/', `[...document.querySelectorAll(${JSON.stringify(CARDS)})].filter(n => n.getClientRects().length)[${i}]`, cards[i], `Homepage card “${cards[i]}”`);
       }
 
+      /* THE HOMEPAGE'S PROPERTY CARD (plan item 3.8): the compact Scenario
+         Lab on the sample deal. Its price, moved to the far end of its
+         span, moves all three of its figures — Monthly repayment, Cash
+         required and Monthly position — in place. A failure here is
+         recorded with the presses. */
+      await load('/').catch(() => {});
+      {
+        const r = await timed(j, tab, 'Homepage Property card: moving the price moves its three figures', BUDGET.action, async () => {
+          const m = await tab.eval(`(async () => {
+            const r = document.querySelector('#pub-lab-price');
+            if (!r) return null;
+            const read = () => [...document.querySelectorAll('[data-product="property"] .pub-lab-figs dd')].map(d => d.textContent.trim());
+            const before = read();
+            r.focus();
+            r.value = String(Number(r.max)); r.dispatchEvent(new Event('input', { bubbles: true }));
+            await new Promise(res => setTimeout(res, 150));
+            return { before, after: read(), price: document.querySelector('#pub-lab-price-v')?.textContent.trim() };
+          })()`);
+          if (!m) throw new StepError('the homepage has no Property price to move');
+          if (m.before.length !== 3) throw new StepError(`the Property card shows ${m.before.length} figures, not three`);
+          const still = m.after.map((v, i) => (v === m.before[i] ? i : -1)).filter(i => i >= 0);
+          if (still.length) throw new StepError(`at ${m.price} the Property card's figures ${m.before.join(', ')} became ${m.after.join(', ')} — ${still.length} did not move`);
+        });
+        if (r.ok) checked++;
+        else failures.push({ step: 'Homepage Property card: moving the price moves its three figures', route: '/', why: r.why });
+      }
+
       /* Each product's own row of tabs, pressed along the row as a reader
          moves through a product — from its landing: Property's is the
          Scenario Lab since N3 (D18), the calculator one of its tabs. */

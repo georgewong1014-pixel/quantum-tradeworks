@@ -7236,16 +7236,20 @@ try {
   {
     const r = await evaluate(`(async () => {
       const w = (ms) => new Promise(res => setTimeout(res, ms));
-      const card = () => [...document.querySelectorAll('#views .grid.g-3 > .card')].find(c => c.querySelector('h3')?.textContent.trim() === PLANS.all.name);
+      /* Since N8 (D21) All-Access is in the closed "Compare details": its
+         column and its preview button, which every plan's preview is. */
+      const card = () => { const d = document.getElementById('plan-compare'); if (d && !d.open) d.open = true; return d; };
+      const allBtn = () => [...(card()?.querySelectorAll('.plan-previews > *') || [])].find(n => n.textContent.includes(PLANS.all.name));
       State.plan = 'free'; store.write('plan', 'free');
       navigate('/pricing'); await w(150);
-      const c = card(), b = c?.querySelector('button');
-      const out = { launched: PLANS.all.launched, chips: [...(c?.querySelectorAll('.chip') || [])].map(x => x.textContent.trim()),
+      const c = card(), b = allBtn();
+      const col = [...(c?.querySelectorAll('thead th') || [])].find(th => th.textContent.includes(PLANS.all.name));
+      const out = { launched: PLANS.all.launched, chips: col && /not launched/.test(col.textContent) ? ['Not on sale'] : [],
         text: c?.innerText.replace(/\\n+/g, ' / ') || '', btn: b?.textContent.trim(), primary: !!b?.classList.contains('btn-primary') };
       b.focus(); b.click(); await w(150);
       out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
       /* The plan in force is a marked line, not a disabled button (release-a fix). */
-      out.after = card()?.querySelector('.plan-cta')?.textContent.trim();
+      out.after = allBtn()?.textContent.trim();
       State.plan = 'pro'; store.write('plan', 'pro');
       /* A portfolio holding cash, so the page draws past its empty state. */
       const keep = { pf: JSON.stringify(State.portfolios), pfIdx: State.pfIdx };
@@ -7263,7 +7267,7 @@ try {
     if (!r.chips.includes('Not on sale') || r.chips.includes('Phase 2')) p.push(`chips ${JSON.stringify(r.chips)}`);
     if (!/proposed/i.test(r.text) || !/cannot be bought/.test(r.text)) p.push('the card does not say its price is proposed and cannot be paid');
     if (r.plan !== 'all' || /^Switched to/.test(r.toast) || !/Previewing/.test(r.toast)) p.push(`after the press: plan ${r.plan}, toast "${r.toast}"`);
-    if (r.after !== 'Previewing in this browser') p.push(`after the press the button reads "${r.after}"`);
+    if (r.after !== 'Previewing All-Access in this browser') p.push(`after the press the button reads "${r.after}"`);
     if (/All-Access adds/.test(r.offer) || !/not launched and cannot be bought/.test(r.offer)) p.push(`portfolio offer: ${r.offer.slice(0, 160)}`);
     if (p.length) fail('misc: the unlaunched All-Access tier is offered as a plan that can be switched to or bought', p);
     else ok('misc: All-Access reads "Not on sale", its price as proposed, its button as a preview in this browser, and the portfolio offer as a tier that has not launched');
@@ -7638,13 +7642,15 @@ try {
         h1: m.querySelector('h1')?.textContent,
         kicker: m.querySelector('.pub-kicker')?.textContent,
         primary: [...m.querySelectorAll('.btn-primary')].map(b => [b.textContent.trim(), b.getAttribute('href')]),
-        explore: [...m.querySelectorAll('a')].find(a => a.textContent.trim() === 'Explore products')?.getAttribute('href'),
-        cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.getAttribute('href'),
+        explore: [...m.querySelectorAll('a')].find(a => a.textContent.trim() === 'Explore products')?.getAttribute('href') || null,
+        tagline: document.querySelector('.footer .brand-tagline')?.textContent.replace(/s+/g, ' ').trim(),
+        soon: (() => { const x = m.querySelector('.pub-soon'); return x ? { text: x.textContent.replace(/s+/g, ' ').trim(), links: x.querySelectorAll('a').length, badge: x.querySelector('.status-badge')?.textContent.trim() } : null; })(),
+        cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.querySelector('.pub-card-link')?.getAttribute('href'),
           title: c.querySelector('.pub-card-title')?.textContent, links: c.querySelectorAll('a').length,
           badge: c.querySelector('.status-badge')?.textContent.trim() })),
         want: P.map(p => ({ path: p.path && p.actionPath ? href(p.actionPath) : null, task: p.task, badge: LABEL[p.status] })), /* audit1 registry-ctas: a card opens where its goal starts */
-        figures: m.querySelectorAll('svg[aria-label], canvas, table, .proof-card, .stat, .segmented, .hero-proof').length,
-        dataSources: !!m.querySelector('.pub-disclose a[href$="/data-sources"]'),
+        figures: m.querySelectorAll('figure svg[role="img"]').length, terminal: m.querySelectorAll('canvas, table, .proof-card, .segmented, .hero-proof').length,
+        dataSources: !!document.querySelector('#disclosure a[href$="/data-sources"]'),
         myData: !!m.querySelector('a[href$="/my/data"]'),
         dead: dead(m),
       };
@@ -7678,19 +7684,23 @@ try {
     const { home, hiw, pick } = r;
     if (home.view !== 'marketing') p.push(`/ renders ${home.view}`);
     if (home.h1 !== 'Make financial decisions with greater clarity.') p.push(`homepage h1: "${home.h1}"`);
-    if (home.kicker !== 'Research · Monitor · Model · Plan') p.push(`homepage eyebrow: "${home.kicker}"`);
+    /* D5: the kicker is the footer's tagline only; the hero is the h1, the
+       lede and one action, with no "Explore products". */
+    if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
     if (home.primary.length !== 1 || home.primary[0][0] !== 'Open your workspace' || !/\/app$/.test(home.primary[0][1] || ''))
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
-    if (home.explore !== '#products') p.push(`"Explore products" goes to ${home.explore}`);
-    if (home.cards.length !== home.want.length) p.push(`${home.cards.length} product cards for ${home.want.length} products`);
-    home.want.forEach((want, i) => {
+    if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
+    if (home.cards.length !== home.want.filter(w => w.path).length) p.push(`${home.cards.length} product cards for ${home.want.filter(w => w.path).length} built products`);
+    if (!home.soon || home.soon.links || home.soon.badge !== 'Coming soon') p.push(`Business on the homepage: ${JSON.stringify(home.soon)}`);
+    home.want.filter(w => w.path).forEach((want, i) => {
       const c = home.cards[i] || {};
       if (c.title !== want.task) p.push(`card ${i + 1} is titled "${c.title}", not "${want.task}"`);
       if (c.badge !== want.badge) p.push(`card "${want.task}" wears "${c.badge}", not "${want.badge}"`);
-      if (want.path && (c.tag !== 'A' || c.href !== want.path)) p.push(`card "${want.task}" is ${c.tag} to ${c.href}, not a link to ${want.path}`);
-      if (!want.path && (c.tag === 'A' || c.links)) p.push(`card "${want.task}" has no product to open and still links (${c.tag}, ${c.links} links)`);
+      if (c.tag !== 'ARTICLE' || c.href !== want.path) p.push(`card "${want.task}" is ${c.tag} with its task to ${c.href}, not an article whose task links ${want.path}`);
     });
-    if (home.figures) p.push(`the homepage carries ${home.figures} figures, charts, tables or examples`);
+    /* Since 3.8 the cards carry the products' visuals — two charts at least —
+       and still no terminal: no table, canvas or worked example. */
+    if (home.figures < 2 || home.terminal) p.push(`the homepage carries ${home.figures} charts in figures and ${home.terminal} tables, canvases or examples`);
     if (!home.dataSources || !home.myData) p.push(`homepage links: data sources ${home.dataSources}, your data ${home.myData}`);
     if (home.dead.length) p.push(`homepage links to no page: ${home.dead.join(', ')}`);
     if (hiw.view !== 'howItWorks') p.push(`/how-it-works renders ${hiw.view}`);
@@ -7712,7 +7722,7 @@ try {
     if (pick.illus && !/illustrative figures/.test(pick.illus.label)) p.push(`an illustrative company's preview is not labelled: "${pick.illus.label}"`);
     if (pick.real && !/filed with the SEC/.test(pick.real.label)) p.push(`a filed company's preview does not say so: "${pick.real.label}"`);
     if (p.length) fail('release-a public: the homepage and /how-it-works say what the brief says, and every link on them opens a page', p);
-    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS and no figures; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
+    else ok(`release-a public: the homepage has one action, ${home.cards.length} product cards from PRODUCTS with ${home.figures} charts and Business as text; /how-it-works has the steps, ${hiw.legend} labels, ${hiw.journey} journey steps and ${hiw.proofs.length} computed examples, and a pick keeps focus`);
   }
   /* ---- end release-a: public ---- */
   /* ---- release-a: dashboard ---- */
@@ -7847,15 +7857,15 @@ try {
       for (const p of ['/', '/how-it-works', '/pricing', '/about', '/learn/glossary', '/data-sources', '/status', '/app', '/discover/screener', '/research/trading-index']) {
         navigate(p); await w(40);
         out.surfaces[p] = { chrome: document.documentElement.dataset.chrome, surface: document.body.dataset.surface,
-          chips: [...document.querySelectorAll('.disclosure-in .chip')].some(shown), long: shown(document.querySelector('.disclosure-long')),
-          more: shown(document.getElementById('disclosureMore')) };
+          details: !!document.querySelector('.disclosure details#disclosure'), open: !!document.getElementById('disclosure')?.open,
+          facts: shown(document.getElementById('disclosureFacts')), body: shown(document.querySelector('#disclosure .disclosure-body')) };
       }
       navigate('/how-it-works'); await w(40);
-      const more = document.getElementById('disclosureMore');
+      const more = document.querySelector('#disclosure > summary');
       more.click(); await w(20);
-      out.opened = { long: shown(document.querySelector('.disclosure-long')), exp: more.getAttribute('aria-expanded') };
+      out.opened = { long: shown(document.querySelector('#disclosure .disclosure-body')), exp: String(document.getElementById('disclosure').open) };
       more.click(); await w(20);
-      out.closed = { long: shown(document.querySelector('.disclosure-long')), exp: more.getAttribute('aria-expanded') };
+      out.closed = { long: shown(document.querySelector('#disclosure .disclosure-body')), exp: String(document.getElementById('disclosure').open) };
       for (const p of ['/discover/screener', '/discover/value-map', '/discover?tab=ideas', '/discover?tab=heatmap', '/research/queue']) {
         navigate(p); await w(40);
         out.tabs[p] = { labels: [...document.querySelectorAll('#productTabs .ptab')].map(a => a.textContent),
@@ -7901,10 +7911,11 @@ try {
     for (const [path, s] of Object.entries(r.surfaces)) {
       const pub = s.chrome === 'public';
       if (s.surface !== s.chrome) p.push(`${path}: surface ${s.surface} under the ${s.chrome} chrome`);
-      if (pub && (s.chips || s.long || !s.more)) p.push(`${path} (public) shows the app's strip: ${JSON.stringify(s)}`);
-      if (!pub && s.long === false && s.more === false) p.push(`${path} (app) hides the long disclosure with no way to it: ${JSON.stringify(s)}`);
+      /* Since plan item 3.1 one strip on both chromes: a <details>, closed,
+         its facts in sight and the rest behind Details. */
+      if (!s.details || s.open || !s.facts || s.body) p.push(`${path} (${pub ? 'public' : 'app'}): the strip is not the closed <details> with its facts in sight: ${JSON.stringify(s)}`);
     }
-    if (!r.opened.long || r.opened.exp !== 'true' || r.closed.long || r.closed.exp !== 'false') p.push(`"Which sources?" on /how-it-works: opened ${JSON.stringify(r.opened)}, closed ${JSON.stringify(r.closed)}`);
+    if (!r.opened.long || r.opened.exp !== 'true' || r.closed.long || r.closed.exp !== 'false') p.push(`the strip's Details on /how-it-works: opened ${JSON.stringify(r.opened)}, closed ${JSON.stringify(r.closed)}`);
     for (const [path, t] of Object.entries(r.tabs)) {
       if (t.labels.includes('Value map')) p.push(`${path}: the product row still carries "Value map" (${t.labels.join(' · ')})`);
       if (t.side !== 'Equities Research') p.push(`${path}: the sidebar marks ${t.side}`);
@@ -7917,8 +7928,8 @@ try {
     if (!r.count || r.count.label !== 'My Alerts, 3 unread' || r.count.href !== '/my/alerts' || r.count.text !== '3' || r.count.links !== 1) p.push(`the unread count on My Alerts: ${JSON.stringify(r.count)}`);
     if (r.welcome.length < 2 || r.welcome.some(b => b.h < 44 || b.w < 44)) p.push(`/welcome's Back and Skip: ${JSON.stringify(r.welcome)}`);
     if (r.foot !== 'Research queue') p.push(`the dashboard's footnote link to /research/queue reads "${r.foot}"`);
-    if (p.length) fail('release-a integration: public pages wear the short disclosure, one navigation row per level, the Trading Index in the scanner strip, a named unread count, 44px on /welcome', p);
-    else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} public pages wear the short disclosure with every word behind "Which sources?"; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in the Scanner's row; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
+    if (p.length) fail('release-a integration: every page wears the strip as a closed <details>, one navigation row per level, the Trading Index in the scanner strip, a named unread count, 44px on /welcome', p);
+    else ok(`release-a integration: ${Object.values(r.surfaces).filter(s => s.chrome === 'public').length} pages wear the strip, a closed <details> with its facts in sight and every other word behind Details; one "Screener" product tab, current on all four screener tabs, over the page's own strip; the Trading Index last in the Scanner's row; the unread count named "${r.count.label}"; /welcome's ${r.welcome.map(b => b.t.split(' ')[0]).join(' and ')} at ${Math.min(...r.welcome.map(b => b.h))}px; the footnote's link says "${r.foot}"`);
   }
   /* ---- end release-a: integration ---- */
 
@@ -10436,18 +10447,21 @@ try {
       out.lead = main().querySelector('.page-hd .body-lg')?.textContent.trim() || '';
       const controls = () => [...main().querySelectorAll('button, a[href], [role=button]')].filter(n => n.getClientRects().length)
         .map(n => ((n.getAttribute('aria-label') || '') + ' ' + n.textContent).trim().replace(/\\s+/g, ' '));
-      const cards = () => [...main().querySelectorAll('.plan-card')].map(c => ({ name: c.querySelector('h3')?.textContent.trim(),
-        chips: [...c.querySelectorAll('.chip')].map(x => x.textContent.trim()),
-        cta: c.querySelector('.plan-cta')?.textContent.trim(), primary: !!c.querySelector('.plan-cta.btn-primary'),
-        text: c.innerText.replace(/\\n+/g, ' / ') }));
+      /* The three concept cards (N8, D21), and each plan's preview in the
+         closed "Compare details", opened. */
+      const det = () => { const d = document.getElementById('plan-compare'); if (d && !d.open) d.open = true; return d; };
+      const cta = (name) => [...(det()?.querySelectorAll('.plan-previews > *') || [])].find(n => n.textContent.includes(name));
+      const cards = () => [...main().querySelectorAll('.plan-card')].map(c => { const name = c.querySelector('h3')?.textContent.trim(); const b = cta(name);
+        return { name, chips: [...c.querySelectorAll('.chip')].map(x => x.textContent.trim()),
+          cta: b ? b.textContent.trim() : name === 'Property reports' ? '(per report)' : null, primary: !!c.querySelector('.btn-primary') || !!b?.classList.contains('btn-primary'),
+          text: c.innerText.replace(/\\n+/g, ' / ') }; });
       out.free = PLANS.free.name;
       out.controls = controls(); out.cards = cards();
-      const card = (id) => [...main().querySelectorAll('.plan-card')].find(c => c.querySelector('h3')?.textContent.trim() === PLANS[id].name);
-      const pro = card('pro')?.querySelector('button');
+      const pro = cta(PLANS.pro.name);
       pro?.focus(); pro?.click(); await w(200);
       out.plan = State.plan; out.toast = document.getElementById('toast')?.textContent || '';
       out.controlsAfter = controls(); out.cardsAfter = cards();
-      const free = card('free')?.querySelector('button');
+      const free = cta(PLANS.free.name);
       free?.focus(); free?.click(); await w(200);
       out.planBack = State.plan; out.toastFree = document.getElementById('toast')?.textContent || '';
       out.header = [...document.querySelectorAll('#pubnav a, #pubSheet a')].some(a => (a.dataset.path || a.getAttribute('href')) === '/pricing');
@@ -10468,7 +10482,7 @@ try {
     for (const c of paid) {
       if (!c.chips.includes('Not on sale')) p.push(`${c.name}: chips ${JSON.stringify(c.chips)}`);
       if (!/proposed/i.test(c.text)) p.push(`${c.name}: its price is not said to be proposed`);
-      if (!/^Preview .+ in this browser$/.test(c.cta || '')) p.push(`${c.name}: its button reads "${c.cta}"`);
+      if (c.cta !== '(per report)' && !/^Preview .+ in this browser — nothing is charged$/.test(c.cta || '')) p.push(`${c.name}: its preview reads "${c.cta}"`);
     }
     if ([...r.cards, ...r.cardsAfter].some(c => c.primary)) p.push('a plan button is drawn as the page\'s primary action');
     if (r.plan !== 'pro' || !/^Previewing .+ in this browser/.test(r.toast) || !/not on sale/.test(r.toast)) p.push(`after the preview: plan ${r.plan}, toast "${r.toast}"`);

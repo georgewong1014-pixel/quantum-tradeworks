@@ -26109,7 +26109,7 @@ function pubQualifier(p, id) {
     productBadge(p.id, { qualified: true, qualId: id('q') }),
     el('details', { class: 'pub-info' }, [
       el('summary', { class: 'pub-info-btn' }, [
-        el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }, 'i'),
+        el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }),
         el('span', { class: 'sr-only' }, `What ${PRODUCT_STATUS[p.status]} means for ${p.name}`),
       ]),
       el('p', { class: 'pub-info-body' }, [
@@ -26314,7 +26314,7 @@ VIEWS.marketing = () => {
   path.append(el('div', { class: 'pub-path-ft' }, [
     el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
     el('details', { class: 'pub-info' }, [
-      el('summary', { class: 'pub-info-btn' }, [el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }, 'i'), el('span', { class: 'sr-only' }, 'Where saved work is kept')]),
+      el('summary', { class: 'pub-info-btn' }, [el('span', { class: 'pub-info-i', 'aria-hidden': 'true' }), el('span', { class: 'sr-only' }, 'Where saved work is kept')]),
       el('p', { class: 'pub-info-body' }, ['There are no accounts and no copy on a server. ',
         pubLink('/my/data', { class: 'pub-textlink' }, 'Your data and the export'), ' is the copy that travels.']),
     ]),
@@ -42317,7 +42317,7 @@ const CAPABILITY_REGISTER = [
   { name:'Learn and methodology', status:'maintenance', path:'/learn',
     now:'Formulas, weights, anchor ranges and limitations.' },
   { name:'Plans and pricing', status:'maintenance', path:'/pricing',
-    now:'Tiers and what each includes.',
+    now:'Proposed tiers and what each would include — not on sale.',
     gate:'No payment is processed anywhere in this build, and none will be until the operating entity is registered.' },
   { name:'Brokerage connection and execution', status:'compliance', path:null,
     gate:'Not built and not activated. Requires licensing, suitability, custody and consent work well beyond this product’s current boundary.' },

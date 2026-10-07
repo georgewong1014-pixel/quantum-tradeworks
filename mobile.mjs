@@ -3075,6 +3075,187 @@ for (const w of [360, 390]) {
   else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (the first slider above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
 }
 /* ---- end layout-system ---- */
+/* ---- home-3a ---- */
+/* THE HOMEPAGE CLEANUP, AS DRAWN (plan Phase 3A and 3B; the owner's
+   decisions D5, D17, D21 and D22) — the plan's [browser] lines, in the page's
+   font and in Verdana:
+   3.1  at 360, 390, 430, 768, 1024 and 1440, script on and off, on /, a
+        product page (/property) and /pricing, the strip's warning sentence
+        and "No licensed prices" are in sight with no action; the strip is 40px
+        tall or less at 1100 and 1440, and 76px or less at 360; Tab to
+        "Details" and Enter shows the source breakdown, Research mode, "No
+        advice · No recommendations" and a link to /data-sources; with the
+        filings blocked the strip says "Illustrative data only" and never
+        "SEC-filed";
+   3.2  with script off the hero reads the same — its h1, its lede and one
+        call to action;
+   3.3  Tab reaches each card's link and each ⓘ, one stop each; with script
+        off the Scanner's ⓘ opens on "this site ships no prices";
+   3.4  above the footer one disclosure line is in sight: the strip;
+   3.5  from /, "Open your workspace" opens /app with the whole sidebar;
+   3.8  a fresh headless Chrome in en-US and America/New_York has the h1 and
+        the Equities visual's source label in innerText at DOMContentLoaded;
+        moving the Property card's price moves its three figures;
+   and nothing on / runs sideways at any of the widths.
+   Each fails on the merged base 7d25484e: its strip was a line and a
+   "Which sources?" button with the facts behind it, its hero two calls to
+   action and the kicker, its cards whole-card links with no ⓘ, and a
+   second disclosure line under them. */
+{
+  const fails = [], said = { widths: 0, tabs: 0 };
+  const trace = process.env.QT_TRACE ? (m) => console.log(`     · ${m}`) : () => {};
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const settle = async (script) => {
+    for (let i = 0; i < 60; i++) {
+      await sleep(200);
+      try { if (await ev(script ? `document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending` : `document.readyState === 'complete'`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+  };
+  const load = async (path, script = true) => { await send('Page.navigate', { url: BASE + path }, sessionId); await settle(script); };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const key = async (k, code, vk) => {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, ...(k === 'Enter' ? { text: '\r' } : {}) }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk }, sessionId);
+  };
+  const SEEN = `(() => {
+    const vis = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden' && (() => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight && r.left >= -1 && r.right <= innerWidth + 1; })();
+    const strip = document.querySelector('.disclosure');
+    const text = document.getElementById('disclosureText'), facts = document.getElementById('disclosureFacts');
+    const main = document.querySelector('main');
+    const DISC = /investment decision|no market prices are licensed|No licensed prices|filed with the SEC or illustrative|labelled on every page/i;
+    const lines = main ? [...main.querySelectorAll('p, li, div, span, section')].filter(n => vis(n) && !n.closest('figure') && ![...n.children].some(k => /^(P|LI|DIV|SECTION)$/.test(k.tagName)) && DISC.test(n.innerText || '')).map(n => (n.innerText || '').slice(0, 80)) : [];
+    const hero = document.querySelector('#views .pub-hero');
+    return { h: strip ? Math.round(strip.getBoundingClientRect().height) : null, sentence: vis(text) && /Beta preview\\. Do not use figures here for investment decisions\\./.test(text.innerText),
+      facts: vis(facts) ? facts.innerText.trim() : null, over: document.documentElement.scrollWidth - document.documentElement.clientWidth, lines,
+      hero: hero ? { h1: hero.querySelector('h1')?.innerText.trim(), lede: hero.querySelector('.pub-lede')?.innerText.trim(), acts: [...hero.querySelectorAll('a, button')].filter(vis).length } : null };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    /* 3.1, 3.2, 3.4: every width, script on and off, two fonts. */
+    for (const font of [null, 'Verdana, sans-serif']) for (const script of [true, false]) for (const w of [360, 390, 430, 768, 1024, 1100, 1440]) {
+      if (font && !script) continue;
+      trace(`${w}px${script ? '' : ' no script'}${font ? ' Verdana' : ''}`);
+      const h = w < 700 ? 800 : 900;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 700 }, sessionId);
+      await send('Emulation.setScriptExecutionDisabled', { value: !script }, sessionId);
+      for (const path of ['/', '/property', '/pricing']) {
+        if (path !== '/' && font) continue;
+        await load(path, script);
+        await face(font);
+        const at = `${path} ${w}px${script ? '' : ', no script'}${font ? ', Verdana' : ''}`;
+        const r = await ev(SEEN);
+        said.widths++;
+        if (!r.sentence) fails.push(`${at}: the warning sentence is not in sight`);
+        if (r.facts !== '· SEC-filed and illustrative data, labelled · No licensed prices') fails.push(`${at}: the strip's facts read ${JSON.stringify(r.facts)} in sight`);
+        if (w >= 1100 && !(r.h <= 40)) fails.push(`${at}: the strip is ${r.h}px tall, more than 40`);
+        if (w === 360 && !(r.h <= 76)) fails.push(`${at}: the strip is ${r.h}px tall, more than 76`);
+        if (path === '/') {
+          if (r.over > 1) fails.push(`${at}: the page runs ${r.over}px sideways`);
+          if (r.lines.length) fails.push(`${at}: a disclosure line in sight above the footer besides the strip: "${r.lines[0]}"`);
+          if (!r.hero || r.hero.h1 !== 'Make financial decisions with greater clarity.' || r.hero.lede !== 'Companies, market setups and property, in one workspace.' || r.hero.acts !== 1)
+            fails.push(`${at}: the hero reads ${JSON.stringify(r.hero)}`);
+        }
+      }
+      /* The Scanner's ⓘ, opened with no script. */
+      if (!script && !font && (w === 390 || w === 1440)) {
+        await load('/', false);
+        const box = await ev(`(() => { const s = document.querySelector('[data-product="scanner"] .pub-info > summary'); if (!s) return null; s.scrollIntoView({ block: 'center', inline: 'center' }); const r = s.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+        if (!box) fails.push(`/ ${w}px, no script: no ⓘ on the Scanner card`);
+        else {
+          await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId);
+          await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 }, sessionId);
+          await sleep(200);
+          const t = await ev(`(() => { const b = document.querySelector('[data-product="scanner"] .pub-info-body'); return b && b.getClientRects().length ? b.innerText : null; })()`);
+          if (!t || !/this site ships no prices/.test(t)) fails.push(`/ ${w}px, no script: the Scanner's ⓘ opens on ${JSON.stringify(t)}`);
+        }
+      }
+    }
+    await send('Emulation.setScriptExecutionDisabled', { value: false }, sessionId);
+    for (const w of [390, 1440]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: w < 700 ? 844 : 900, deviceScaleFactor: 1, mobile: w < 700 }, sessionId);
+      await load('/');
+      /* 3.1: Tab to Details, then Enter. */
+      await ev(`(() => { const s = document.querySelector('#disclosure > summary'); const all = [...document.querySelectorAll('a[href], button, summary, input, [tabindex]')].filter(n => n.getClientRects().length && n.tabIndex >= 0); const i = all.indexOf(s); (all[i - 1] || document.body).focus(); return i; })()`);
+      await key('Tab', 'Tab', 9);
+      const onSum = await ev(`document.activeElement === document.querySelector('#disclosure > summary')`);
+      if (!onSum) fails.push(`/ ${w}px: Tab does not reach the strip's Details (${await ev('document.activeElement?.outerHTML.slice(0, 80)')})`);
+      await key('Enter', 'Enter', 13);
+      await sleep(250);
+      const open = await ev(`(() => { const d = document.getElementById('disclosure'); const b = d.querySelector('.disclosure-body'); const t = b && b.getClientRects().length ? b.innerText : ''; return { open: d.open, breakdown: /companies? carr|illustrative/.test(t), mode: /Research mode/.test(t), advice: /No advice · No recommendations/.test(t), ds: !!b.querySelector('a[href="/data-sources"]') && b.querySelector('a[href="/data-sources"]').getClientRects().length > 0 }; })()`);
+      if (!open.open || !open.breakdown || !open.mode || !open.advice || !open.ds) fails.push(`/ ${w}px: Tab and Enter on Details show ${JSON.stringify(open)}`);
+      /* 3.3: the keyboard's stops on the cards. */
+      await load('/');
+      await ev(`(document.querySelector('#views .pub-hero a') || document.body).focus()`);
+      const stops = [];
+      for (let i = 0; i < 40; i++) {
+        await key('Tab', 'Tab', 9);
+        const s = await ev(`(() => { const a = document.activeElement; const c = a?.closest('article.pub-card'); return c ? \`\${c.dataset.product}:\${a.classList.contains('pub-card-link') ? 'link' : a.tagName === 'SUMMARY' ? 'info' : a.className || a.tagName}\` : a?.closest('.pub-path') ? 'path' : null; })()`);
+        if (s === 'path') break;
+        if (s) stops.push(s);
+      }
+      said.tabs = stops.length;
+      for (const id of ['equities', 'scanner', 'property']) for (const k of ['link', 'info']) {
+        const n = stops.filter(s => s === `${id}:${k}`).length;
+        if (n !== 1) fails.push(`/ ${w}px: Tab stops on the ${id} card's ${k === 'link' ? 'link' : 'ⓘ'} ${n} times, not once (${stops.join(' ')})`);
+      }
+    }
+    trace('filings blocked');
+    /* 3.1: the filings blocked. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await send('Network.enable', {}, sessionId);
+    await send('Network.setBlockedURLs', { urls: ['*/data/us.json*', '*/data/us.*.json*'] }, sessionId);
+    await load('/');
+    await sleep(1500);
+    const blocked = await ev(`document.getElementById('disclosureFacts')?.innerText.trim()`);
+    if (!/Illustrative data only/.test(blocked || '') || /SEC-filed/.test(blocked || '')) fails.push(`/ with the filings blocked: the strip's facts read ${JSON.stringify(blocked)}`);
+    await send('Network.setBlockedURLs', { urls: [] }, sessionId);
+    /* 3.5: from / to /app, the whole sidebar. */
+    await load('/');
+    await ev(`document.querySelector('#views .pub-hero a[href="/app"]').click()`);
+    await sleep(1200);
+    const side = await ev(`({ path: location.pathname, links: [...document.querySelectorAll('#appnav a.sb-link')].filter(a => a.getClientRects().length).length, labels: [...document.querySelectorAll('#appnav .sb-text')].map(n => n.textContent.trim()) })`);
+    if (side.path !== '/app' || side.links < 8 || !side.labels.includes('My Dashboard') || !side.labels.includes('Property Intelligence')) fails.push(`/ → "Open your workspace": ${JSON.stringify(side)}`);
+    /* 3.8: the Property card's price moves its three figures. */
+    await load('/');
+    const moved = await ev(`(async () => {
+      const r = document.querySelector('#pub-lab-price');
+      const read = () => [...document.querySelectorAll('[data-product="property"] .pub-lab-figs dd')].map(d => d.textContent);
+      const before = read();
+      r.value = String(Number(r.max)); r.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(res => setTimeout(res, 100));
+      return { before, after: read() };
+    })()`);
+    if (moved.before.length !== 3 || moved.after.some((v, i) => v === moved.before[i])) fails.push(`/: moving the Property card's price leaves its figures ${JSON.stringify(moved)}`);
+    trace('New York');
+    /* 3.8: a reader in New York, at DOMContentLoaded. */
+    const { result: { targetId: t2 } } = await send('Target.createTarget', { url: 'about:blank' });
+    const { result: { sessionId: s2 } } = await send('Target.attachToTarget', { targetId: t2, flatten: true });
+    try {
+      await send('Page.enable', {}, s2); await send('Runtime.enable', {}, s2);
+      await send('Emulation.setTimezoneOverride', { timezoneId: 'America/New_York' }, s2);
+      await send('Emulation.setLocaleOverride', { locale: 'en-US' }, s2);
+      await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36', acceptLanguage: 'en-US' }, s2);
+      await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.clear(); } catch (e) {} document.addEventListener('DOMContentLoaded', () => { const t = document.body.innerText; window.__dcl = { h1: t.includes('Make financial decisions with greater clarity.'), src: t.includes('Apple · SEC 10-K · US$'), hidden: document.documentElement.hasAttribute('data-served-hidden') }; });` }, s2);
+      await Promise.race([send('Page.navigate', { url: BASE + '/' }, s2), sleep(15000)]);
+      let dcl = null;
+      for (let i = 0; i < 40 && !dcl; i++) { await sleep(200); dcl = (await send('Runtime.evaluate', { expression: 'window.__dcl || null', returnByValue: true }, s2)).result?.result?.value; }
+      if (!dcl || !dcl.h1 || !dcl.src || dcl.hidden) fails.push(`/ in en-US, America/New_York: at DOMContentLoaded ${JSON.stringify(dcl)}`);
+      said.dcl = dcl;
+    } finally { await Promise.race([send('Target.closeTarget', { targetId: t2 }), sleep(5000)]); }
+  } finally {
+    await send('Emulation.setScriptExecutionDisabled', { value: false }, sessionId).catch(() => {});
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL home-3a — the homepage cleanup as drawn: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); if (fails.length > 40) console.log(`     … and ${fails.length - 40} more`); }
+  else console.log(`ok   home-3a: the strip's warning and "No licensed prices" in sight with no action on /, /property and /pricing at 360–1440, script on and off, in the page's font and Verdana (${said.widths} views); 40px or less from 1100, 76 or less at 360; Tab and Enter on Details open the breakdown, Research mode and /data-sources; "Illustrative data only" with the filings blocked; the hero one action with script off; one disclosure line above the footer; Tab stops once on each card link and each ⓘ (${said.tabs} stops); the Scanner's ⓘ opens with no script; / → /app draws the whole sidebar; the Property price moves its three figures; a reader in New York has the h1 and Apple's source label at DOMContentLoaded`);
+}
+/* ---- end home-3a ---- */
+
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
