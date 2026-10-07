@@ -1469,9 +1469,11 @@ const JOURNEYS = [
         if (r.ok) checked++;
         else failures.push({ step: stepName, route: r.route, why: r.why });
       };
-      /* The product cards under "What would you like to do?" — not the
-         disclosure line's link beside them, which is not a card. */
-      const CARDS = '#products a.pub-card[href], #products .pub-cards a[href]';
+      /* The product cards under "What would you like to do?": each card's
+         task (its one action, plan 3.3), the Property card's "Try the
+         Scenario Lab", and the Equities chart's link to Apple's page — not
+         what a closed ⓘ holds. */
+      const CARDS = '#products a.pub-card-link[href], #products .pub-card-also a[href], #products a.pub-vis-link[href]';
       /* A control's name as a reader reads it: a card's or a link's heading
          where it has one, else its text. */
       const LABEL = `(n) => (n.querySelector('h3, strong')?.textContent || n.textContent).trim().replace(/\\s+/g, ' ').slice(0, 60)`;

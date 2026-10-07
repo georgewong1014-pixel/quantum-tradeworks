@@ -184,6 +184,10 @@ function pubVisScanner() {
    the reader keeps, so it is the same page for every reader. Moving the
    price redraws the figures in place. */
 const PUB_LAB_KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly'];
+/* The price the reader moved it to, kept in this tab's memory only (never
+   stored: the page reads nothing the reader keeps) so a redraw — the
+   filings landing a moment after the page opens — leaves it where it was. */
+let pubLabAt = null;
 function pubLabRun(price) {
   const d = pmCopy(PROPERTY_DEFAULT_DEAL);
   d.price = price;
@@ -191,8 +195,9 @@ function pubLabRun(price) {
 }
 function pubVisProperty() {
   const inp = LAB_INPUT_BY_K.price;
-  const at = num0(PROPERTY_DEFAULT_DEAL.price);
-  const [lo, hi] = inp.span(at);
+  const base = num0(PROPERTY_DEFAULT_DEAL.price);
+  const [lo, hi] = inp.span(base);
+  const at = isNum(pubLabAt) ? Math.min(hi, Math.max(lo, pubLabAt)) : base;
   const fig = el('figure', { class: 'pub-vis pub-vis-lab', 'aria-labelledby': 'pub-vis-lab-src' });
   const val = el('output', { class: 'pub-lab-price num', for: 'pub-lab-price', id: 'pub-lab-price-v' }, inp.shown(at));
   const range = el('input', { type: 'range', class: 'pub-lab-range', id: 'pub-lab-price', min: String(lo), max: String(hi), step: String(inp.step), value: String(at),
@@ -224,6 +229,7 @@ function pubVisProperty() {
   let said = null;
   range.addEventListener('input', () => {
     const v = Number(range.value);
+    pubLabAt = v;
     val.textContent = inp.shown(v);
     range.setAttribute('aria-valuetext', inp.shown(v));
     paint(v);

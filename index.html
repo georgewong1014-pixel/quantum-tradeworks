@@ -501,7 +501,10 @@ html { scroll-padding-top: calc(var(--sticky-h, var(--topbar-live, var(--topbar-
   .disclosure-body { padding: 0 var(--lg) 10px calc(var(--lg) + 22px); }
 }
 @media (max-width: 560px) {
-  .disclosure-in { padding: 8px var(--md); }
+  /* A step tighter on a phone, where it runs to three lines: the page's
+     first control stays on the first screen above the action bar. */
+  .disclosure-in { padding: 5px var(--md); line-height: 16px; }
+  .disclosure-in > svg { margin-top: 1px; }
   .disclosure-body { padding: 0 var(--md) 10px calc(var(--md) + 22px); }
 }
 /* Opened for print, with or without the script (95-boot.js opens it before
@@ -2922,8 +2925,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-info[open] > summary.pub-info-btn { color: var(--brand); }
 /* A finger's 44px, without the row growing to hold it. */
 @media (pointer: coarse), (max-width: 768px) {
-  .pub-info > summary.pub-info-btn { position: relative; }
-  .pub-info > summary.pub-info-btn::after { content: ""; position: absolute; inset: -10px; }
+  .pub-info > summary.pub-info-btn { width: 44px; height: 44px; margin: -10px; }
 }
 /* The note floats over what is under it, so opening it moves nothing. */
 .pub-info-body {
@@ -3133,7 +3135,8 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
    product's name, so the name keeps one line. */
 @media (max-width: 639.98px) {
   .ptabs-name:has(.pbadge-q) { flex-wrap: wrap; row-gap: 0; }
-  .ptabs-name .pbadge-q { flex: 1 0 100%; padding-left: 26px; line-height: 16px; }
+  .ptabs-name .pbadge-q { flex: 1 0 100%; padding-left: 26px; line-height: 13px; font-size: 12px; }
+  :root .ptabs .ptabs-name:has(.pbadge-q) { padding-top: 4px; }
   .ptabs-name .pbadge-q::before { content: none; }
 }
 .sb-link:has(.pbadge-q) { flex-wrap: wrap; row-gap: 0; padding-top: 6px; padding-bottom: 6px; }
@@ -5655,11 +5658,14 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    carries its unit — so the knob and the seven results it moves share one
    360×640 screen above the action bar (mobile.mjs, scenario-lab-verify). */
 @container lab (max-width: 599px) {
-  .ls-page .lab-knob.is-on { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--ls-related); padding-top: 2px; }
+  /* No padding above the knob's slider: the strip a line taller and the
+     tab row's qualifier (plan 3.1, D17) took the four pixels from the first
+     screen's foot, and the slider stays above the action bar. */
+  .ls-page .lab-knob.is-on { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--ls-related); padding-top: 0; }
   .ls-page .lab-knob-hd { display: contents; }
   .ls-page .lab-knob.is-on .lab-knob-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .ls-page .lab-knob > * { grid-column: 1 / -1; }
-  .ls-page .lab-knob > .lab-knob-ctl { grid-row: 1; margin-top: 2px; }
+  .ls-page .lab-knob > .lab-knob-ctl { grid-row: 1; margin-top: 0; }
   .ls-page .lab-knob > .lab-knob-ft { grid-column: 1; grid-row: 2; align-self: center; margin-top: 0; }
   .ls-page .lab-knob-hd > .lab-about-btn { grid-column: 2; grid-row: 2; align-self: center; }
   .ls-page .lab-knob-ctl[data-unit]::before { content: attr(data-unit); order: 1; flex: none; font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-3); }
@@ -5692,11 +5698,11 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .ls-page .lab-ticks { position: absolute; left: 8px; right: 8px; bottom: 6px; margin: 0; }
 }
 @media (max-width: 662px) {
-  :root[data-served] .ls-page .lab-knob.is-on { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--ls-related); padding-top: 2px; }
+  :root[data-served] .ls-page .lab-knob.is-on { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--ls-related); padding-top: 0; }
   :root[data-served] .ls-page .lab-knob-hd { display: contents; }
   :root[data-served] .ls-page .lab-knob.is-on .lab-knob-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   :root[data-served] .ls-page .lab-knob > * { grid-column: 1 / -1; }
-  :root[data-served] .ls-page .lab-knob > .lab-knob-ctl { grid-row: 1; margin-top: 2px; }
+  :root[data-served] .ls-page .lab-knob > .lab-knob-ctl { grid-row: 1; margin-top: 0; }
   :root[data-served] .ls-page .lab-knob > .lab-knob-ft { grid-column: 1; grid-row: 2; align-self: center; margin-top: 0; }
   :root[data-served] .ls-page .lab-knob-hd > .lab-about-btn { grid-column: 2; grid-row: 2; align-self: center; }
   :root[data-served] .ls-page .lab-knob-ctl[data-unit]::before { content: attr(data-unit); order: 1; flex: none; font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-3); }
@@ -32185,6 +32191,10 @@ function pubVisScanner() {
    the reader keeps, so it is the same page for every reader. Moving the
    price redraws the figures in place. */
 const PUB_LAB_KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly'];
+/* The price the reader moved it to, kept in this tab's memory only (never
+   stored: the page reads nothing the reader keeps) so a redraw — the
+   filings landing a moment after the page opens — leaves it where it was. */
+let pubLabAt = null;
 function pubLabRun(price) {
   const d = pmCopy(PROPERTY_DEFAULT_DEAL);
   d.price = price;
@@ -32192,8 +32202,9 @@ function pubLabRun(price) {
 }
 function pubVisProperty() {
   const inp = LAB_INPUT_BY_K.price;
-  const at = num0(PROPERTY_DEFAULT_DEAL.price);
-  const [lo, hi] = inp.span(at);
+  const base = num0(PROPERTY_DEFAULT_DEAL.price);
+  const [lo, hi] = inp.span(base);
+  const at = isNum(pubLabAt) ? Math.min(hi, Math.max(lo, pubLabAt)) : base;
   const fig = el('figure', { class: 'pub-vis pub-vis-lab', 'aria-labelledby': 'pub-vis-lab-src' });
   const val = el('output', { class: 'pub-lab-price num', for: 'pub-lab-price', id: 'pub-lab-price-v' }, inp.shown(at));
   const range = el('input', { type: 'range', class: 'pub-lab-range', id: 'pub-lab-price', min: String(lo), max: String(hi), step: String(inp.step), value: String(at),
@@ -32225,6 +32236,7 @@ function pubVisProperty() {
   let said = null;
   range.addEventListener('input', () => {
     const v = Number(range.value);
+    pubLabAt = v;
     val.textContent = inp.shown(v);
     range.setAttribute('aria-valuetext', inp.shown(v));
     paint(v);

@@ -1517,7 +1517,9 @@ try {
       out.valueWeights = (typeof VALUE_PILLAR === 'undefined' ? [] : VALUE_PILLAR.all).map(i => Math.round(i.w * 100) + '%');
       out.parts = (U.find(x => isNum(x.scores.value?.score)) || U[0]).scores.value.parts.map(p => [p.k, p.w, p.lo, p.hi]);
       navigate('/pricing');
-      const dd = (k) => [...document.querySelectorAll('main dl.kv dt')].find(d => d.textContent === k)?.nextElementSibling.textContent;
+      /* Since N8 (D21) the limits are rows of the comparison in "Compare
+         details"; Free's is its first column. */
+      const dd = (k) => [...document.querySelectorAll('main table.plan-table tbody tr')].find(tr => tr.querySelector('th')?.textContent === k)?.querySelector('td')?.textContent;
       out.metrics = dd('Screener metrics'); out.alerts = dd('Fundamental alerts'); out.nFields = FIELDS.length;
       navigate('/app/equities/1155.KL/financials');
       out.dotted = { path: location.pathname, view: State.view, ticker: State.ticker, tab: State.researchTab };
@@ -2832,7 +2834,8 @@ try {
       let settled = false;
       for (let i = 0; i < 40 && !settled; i++) { await sleep(250); try { settled = await evaluate(`typeof realPending !== 'undefined' && !realPending && !!realStatus`); } catch { /* booting */ } }
       const st = settled ? await evaluate(`({ ok: realStatus.ok, error: realStatus.error, filed: U.filter(r => r.c.real).length, n: U.length,
-        banner: document.getElementById('disclosureText')?.textContent || '', rows: document.querySelectorAll('main table.dt tbody tr').length,
+        /* The strip: its facts in sight, its breakdown behind Details (3.1). */
+        banner: [document.getElementById('disclosureText'), document.getElementById('disclosureFacts'), document.getElementById('disclosureBreakdown')].map(n => n?.textContent || '').join(' '), rows: document.querySelectorAll('main table.dt tbody tr').length,
         skeleton: /Reading the audited statements/.test(document.querySelector('main')?.textContent || '') })`) : null;
       const thrown = events.filter(m => m.method === 'Runtime.exceptionThrown').map(m => m.params.exceptionDetails?.exception?.description?.split('\n')[0]);
       const q = [];
@@ -2841,7 +2844,7 @@ try {
       else {
         if (st.ok !== false || !st.error) q.push(`realStatus ${JSON.stringify({ ok: st.ok, error: st.error })}`);
         if (st.filed) q.push(`${st.filed} filed companies after a failed load`);
-        if (!/filings did not load/.test(st.banner)) q.push(`the banner reads "${st.banner.slice(0, 90)}"`);
+        if (!/filings did not load/.test(st.banner) || !/Illustrative data only/.test(st.banner) || /SEC-filed/.test(st.banner)) q.push(`the banner reads "${st.banner.slice(0, 90)}"`);
         if (st.skeleton || !st.rows) q.push(`the screener shows ${st.rows} rows${st.skeleton ? ' and the skeleton' : ''}`);
       }
       if (thrown.length) q.push(`exceptions: ${thrown.join('; ')}`);
@@ -6551,12 +6554,15 @@ try {
       navigate('/pricing'); await w(150);
       /* The buttons say they preview a plan in this browser since the launch
          audit (audit: content) — no plan is on sale to switch to. */
-      out.free = await press(btn('Return to Free in this browser')) && at();
-      out.pro = await press(btn('Preview Equities Research in this browser')) && at();
+      /* In the closed "Compare details" since N8 (D21), kept open across the
+         redraw a preview makes. */
+      const det = document.getElementById('plan-compare'); if (det) det.open = true; await w(50);
+      out.free = await press(btn('Return to Free in this browser — nothing is charged')) && at();
+      out.pro = await press(btn('Preview Equities Research in this browser — nothing is charged')) && at();
       return out;
     })()`);
     await evaluate(`State.plan = 'pro'; store.write('plan', 'pro'); true`);
-    if (r.free !== 'H3 Free' || r.pro !== 'H3 Equities Research') fail('sweep: a plan switch on /pricing leaves focus on the heading of the plan now in force', r);
+    if (!/^H3(#\S+)? Free$/.test(r.free || '') || !/^H3(#\S+)? Equities Research$/.test(r.pro || '')) fail('sweep: a plan switch on /pricing leaves focus on the heading of the plan now in force', r);
     else ok('sweep: a plan switch on /pricing leaves focus on the heading of the plan now in force, not on <body>');
   }
   {
@@ -7643,8 +7649,8 @@ try {
         kicker: m.querySelector('.pub-kicker')?.textContent,
         primary: [...m.querySelectorAll('.btn-primary')].map(b => [b.textContent.trim(), b.getAttribute('href')]),
         explore: [...m.querySelectorAll('a')].find(a => a.textContent.trim() === 'Explore products')?.getAttribute('href') || null,
-        tagline: document.querySelector('.footer .brand-tagline')?.textContent.replace(/s+/g, ' ').trim(),
-        soon: (() => { const x = m.querySelector('.pub-soon'); return x ? { text: x.textContent.replace(/s+/g, ' ').trim(), links: x.querySelectorAll('a').length, badge: x.querySelector('.status-badge')?.textContent.trim() } : null; })(),
+        tagline: document.querySelector('.footer .brand-tagline')?.textContent.replace(/\\s+/g, ' ').trim(),
+        soon: (() => { const x = m.querySelector('.pub-soon'); return x ? { text: x.textContent.replace(/\\s+/g, ' ').trim(), links: x.querySelectorAll('a').length, badge: x.querySelector('.status-badge')?.textContent.trim() } : null; })(),
         cards: [...m.querySelectorAll('.pub-card')].map(c => ({ tag: c.tagName, href: c.querySelector('.pub-card-link')?.getAttribute('href'),
           title: c.querySelector('.pub-card-title')?.textContent, links: c.querySelectorAll('a').length,
           badge: c.querySelector('.status-badge')?.textContent.trim() })),
@@ -7858,14 +7864,14 @@ try {
         navigate(p); await w(40);
         out.surfaces[p] = { chrome: document.documentElement.dataset.chrome, surface: document.body.dataset.surface,
           details: !!document.querySelector('.disclosure details#disclosure'), open: !!document.getElementById('disclosure')?.open,
-          facts: shown(document.getElementById('disclosureFacts')), body: shown(document.querySelector('#disclosure .disclosure-body')) };
+          facts: shown(document.getElementById('disclosureFacts')), body: !!document.querySelector('#disclosure .disclosure-body')?.checkVisibility() };
       }
       navigate('/how-it-works'); await w(40);
       const more = document.querySelector('#disclosure > summary');
       more.click(); await w(20);
-      out.opened = { long: shown(document.querySelector('#disclosure .disclosure-body')), exp: String(document.getElementById('disclosure').open) };
+      out.opened = { long: !!document.querySelector('#disclosure .disclosure-body')?.checkVisibility(), exp: String(document.getElementById('disclosure').open) };
       more.click(); await w(20);
-      out.closed = { long: shown(document.querySelector('#disclosure .disclosure-body')), exp: String(document.getElementById('disclosure').open) };
+      out.closed = { long: !!document.querySelector('#disclosure .disclosure-body')?.checkVisibility(), exp: String(document.getElementById('disclosure').open) };
       for (const p of ['/discover/screener', '/discover/value-map', '/discover?tab=ideas', '/discover?tab=heatmap', '/research/queue']) {
         navigate(p); await w(40);
         out.tabs[p] = { labels: [...document.querySelectorAll('#productTabs .ptab')].map(a => a.textContent),
@@ -8622,16 +8628,20 @@ try {
           .push(`${w}px, ${was.at} ${was.top}px down → after three redraws ${said(now)}`);
       }
 
-      /* V3 — a heading focus was sent to (a jump link on the home page)
-         keeps it when the filings land. */
+      /* V3 — the home page's price knob, moved by the keyboard, keeps the
+         focus and its price when the filings land and the page is drawn
+         again. (It was the "Explore products" jump link's heading until the
+         homepage cleanup took that link out, D5.) */
       await view(1440, 900);
-      await open('/', /us\.json/, `!!document.querySelector('#main a[href="#products"]')`);
-      await evaluate(`document.querySelector('#main a[href="#products"]').focus()`);
-      await key('Enter', 13, '\r'); await sleep(200);
-      const jumped = await at();
+      await open('/', /us\.json/, `!!document.querySelector('#pub-lab-price')`);
+      await evaluate(`document.querySelector('#pub-lab-price').focus()`);
+      for (let i = 0; i < 3; i++) { await key('ArrowRight', 39); await sleep(60); }
+      const moved = await at();
+      const price = await evaluate(`document.querySelector('#pub-lab-price-v')?.textContent`);
       await release('/');
-      const onHead = await at();
-      (jumped.at === 'pub-products-h' && onHead.at === 'pub-products-h' ? kept : lost).push(`the Products heading, reached by its jump link → ${said(jumped)}; the filings land → ${said(onHead)}`);
+      const onKnob = await at();
+      const priceAfter = await evaluate(`document.querySelector('#pub-lab-price-v')?.textContent`);
+      (moved.at === 'pub-lab-price' && onKnob.at === 'pub-lab-price' && price === priceAfter ? kept : lost).push(`the homepage's price, moved to ${price} by the keyboard → ${said(moved)}; the filings land → ${said(onKnob)} at ${priceAfter}`);
 
       /* V4 — a card's "Delete", pressed, does not hand focus to the next
          card's: three watchlists, the first deleted by keyboard. */
