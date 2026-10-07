@@ -5388,7 +5388,10 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    padding on an inline link grows what it answers to, not its line (as the
    journey line's link does), so the tile keeps its height. */
 @media (pointer: coarse), (max-width: 768px) {
-  .lab-next-go { padding: 13px 6px; margin: 0 -6px; min-height: 0; }
+  /* 15px: the target's height is the glyph box plus the padding, and CI's
+     Linux sans has a glyph box 2px shorter than Windows' — 13px gave 42px
+     there (CI on 1b47c74d). */
+  .lab-next-go { padding: 15px 6px; margin: 0 -6px; min-height: 0; }
 }
 @container lab (min-width: 760px) {
   .lab-tiles { grid-template-columns: repeat(2, minmax(0, 1.15fr)) repeat(2, minmax(0, 1fr)); gap: var(--sm); }

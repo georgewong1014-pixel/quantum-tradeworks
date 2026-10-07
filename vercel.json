@@ -924,7 +924,7 @@
       ]
     },
     {
-      "source": "/assets/app.f9ce73f89423.css",
+      "source": "/assets/app.77ee9b478f90.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -941,7 +941,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.16fbfd266739\\.js$|assets/app\\.f9ce73f89423\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.16fbfd266739\\.js$|assets/app\\.77ee9b478f90\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
