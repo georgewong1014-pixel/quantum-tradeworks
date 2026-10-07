@@ -1397,7 +1397,10 @@ for (const route of ROUTES) {
     const tabs = nav ? [...nav.querySelectorAll('.ptabs-list > li > .ptab')] : [];
     const word = (n) => (n.childNodes[0]?.textContent || '').trim().replace(/ · \\d+\\+?$/, '');
     const name = nav?.querySelector('.ptabs-name');
-    return { navs: navs.length, name: name ? (name.childNodes.length ? [...name.childNodes].filter(c => !c.classList?.contains('status-badge')).map(c => c.textContent).join('').trim() : '') : null,
+    /* The badge, and since D17 Property's qualifier beside it (.pbadge), are
+       not the name. */
+    return { navs: navs.length, name: name ? (name.childNodes.length ? [...name.childNodes].filter(c => !c.classList?.contains('status-badge') && !c.classList?.contains('pbadge')).map(c => c.textContent).join('').trim() : '') : null,
+      qual: name?.querySelector('.pbadge-q')?.textContent.trim() || null,
       badge: name?.querySelector('.status-badge')?.textContent.trim() || null,
       tabs: tabs.map(word), current: tabs.filter(n => n.getAttribute('aria-current') === 'page').map(word),
       hrefs: tabs.map(n => n.getAttribute('href')).filter(Boolean).map(h => new URL(h, location.href).pathname) };
@@ -1446,6 +1449,7 @@ for (const route of ROUTES) {
       if (h.navs !== 1) p.push(`${path}: ${h.navs} navs in the product header, not one`);
       else {
         if (h.name !== want.name || h.badge !== want.badge) p.push(`${path}: the header names ${JSON.stringify(h.name)} ${JSON.stringify(h.badge)}, not ${want.name} ${want.badge}`);
+        if (pid === 'property' && h.qual !== 'Your figures, sample to start') p.push(`${path}: Property's badge carries ${JSON.stringify(h.qual)} beside it, not "Your figures, sample to start" (D17)`);
         if (JSON.stringify(h.tabs) !== JSON.stringify(want.tabs)) p.push(`${path}: the header's tabs ${JSON.stringify(h.tabs)} are not the registry's ${JSON.stringify(want.tabs)}`);
         if (JSON.stringify(h.current) !== JSON.stringify(want.here)) p.push(`${path}: the current tab is ${JSON.stringify(h.current)}, not ${JSON.stringify(want.here)}`);
       }

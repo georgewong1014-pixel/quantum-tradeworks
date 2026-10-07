@@ -2986,8 +2986,8 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-lab-knob { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 8px; }
 .pub-lab-knob .pub-vis-k { grid-column: 1; }
 .pub-lab-price { grid-column: 2; justify-self: end; font-size: var(--ls-body); font-weight: var(--weight-bold); color: var(--ink); }
-.pub-lab-range { grid-column: 1 / -1; width: 100%; height: 30px; margin: 2px 0 0; accent-color: var(--acc, var(--brand)); cursor: pointer; }
-@media (pointer: coarse), (max-width: 768px) { .pub-lab-range { height: 44px; margin: -4px 0; } }
+.pub-lab-knob > .pub-lab-range { grid-column: 1 / -1; width: 100%; height: 30px; margin: 2px 0 0; accent-color: var(--acc, var(--brand)); cursor: pointer; }
+@media (pointer: coarse), (max-width: 768px) { .pub-lab-knob > .pub-lab-range { height: 44px; margin: -4px 0; } }
 .pub-lab-range:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
 .pub-lab-figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: auto auto; column-gap: 8px; row-gap: 2px; margin: 0; }
 .pub-lab-figs dt { font-size: var(--ls-meta); line-height: 15px; color: var(--ink-2); min-width: 0; }
@@ -3003,9 +3003,12 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-card-also { margin: 0; }
 .pub-card-also .pub-textlink { min-height: 40px; font-size: var(--ls-support); }
 @media (pointer: coarse), (max-width: 768px) { .pub-card-also .pub-textlink { min-height: 44px; } }
-/* Served before the script: the knob is its words, and its figures as
-   drawn (prerender makes the range inert text). */
-#views .pub-lab-knob > [data-inert] { display: none !important; }
+/* Served before the script: the range is inert text (prerender), kept
+   the slider's own box — a track, its words out of sight — so nothing
+   moves when the page is drawn over it. */
+#views[data-served] .pub-lab-knob > .pub-lab-range[data-inert] { display: block; width: 100%; height: 30px; color: transparent; overflow: hidden;
+  background: linear-gradient(var(--line-2), var(--line-2)) center / 100% 4px no-repeat; border-radius: 2px; }
+@media (pointer: coarse), (max-width: 768px) { #views[data-served] .pub-lab-knob > .pub-lab-range[data-inert] { height: 44px; } }
 
 /* Not built: one line of text, never a card and never a link. */
 .pub-soon { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 8px; margin: var(--md) 0 0;
