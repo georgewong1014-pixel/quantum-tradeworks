@@ -1074,13 +1074,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 9,
+        "notShown": 8,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "18ef9573b8f0f4da",
-      "changed": "2026-10-06"
+      "digest": "e55405ec4176ba76",
+      "changed": "2026-10-07"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1190,13 +1190,13 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 9,
+        "notShown": 8,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "606a44702a8392df",
-      "changed": "2026-10-06"
+      "digest": "4a7a2d720e5c7006",
+      "changed": "2026-10-07"
     },
     "pages/property/models.html": {
       "path": "/property/models",

@@ -5255,10 +5255,11 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .ls-ev-body > * + * { margin-top: var(--ls-related); }
 .ls-ev-k { margin: 0; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
 /* A section only the drawer has (a figure's formula, which below 1440px
-   opens under its own row). */
-.ls-ev-wide { display: none; }
+   opens under its own row): out of sight and reach below it, never
+   display: none, so the page served at 1280 carries it as 1440 draws it. */
+.ls-ev-wide { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
 @media (min-width: 1440px) {
-  .ls-ev-wide { display: block; }
+  .ls-ev-wide { position: static; width: auto; height: auto; overflow: visible; clip: auto; visibility: visible; }
   /* The drawer itself: the right-hand column, its own scroll, stuck under
      the topbar as the knobs are; a section opened or closed in it moves
      nothing beside it. */
