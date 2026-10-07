@@ -3054,10 +3054,11 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
    where there is room and under it where there is not. */
 .pp-head { flex-wrap: wrap; }
 .pp-head .pbadge-q, .foot-product .pbadge-q, .ptabs-name .pbadge-q { font-size: 12px; font-weight: var(--weight-medium); color: var(--ink-2); }
-/* The footer: the qualifier under the name and its badge, its own line. */
-.foot-product:has(.pbadge-q) { flex-wrap: wrap; row-gap: 0; }
-.foot-product .pbadge-q { flex: 1 0 100%; line-height: 16px; }
-.foot-product .pbadge-q::before { content: none; }
+/* The footer and the Products menu: the qualifier under the name and its
+   badge, a line of its own. */
+.foot-product:has(.pbadge-q), .pp-head:has(.pbadge-q) { flex-wrap: wrap; row-gap: 0; }
+.foot-product .pbadge-q, .pp-head .pbadge-q { flex: 1 0 100%; line-height: 16px; }
+.foot-product .pbadge-q::before, .pp-head .pbadge-q::before { content: none; }
 /* The tab row on a phone: the qualifier on a line of its own, under the
    product's name, so the name keeps one line. */
 @media (max-width: 639.98px) {
