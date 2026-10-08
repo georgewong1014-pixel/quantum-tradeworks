@@ -49870,11 +49870,14 @@ const LAB_FIGURES = [
     read: (m) => m.safeCashRequired,
     /* While any fee line is not Verified, the headline says how much of it
        rests on those lines; the row's calculation names each one (the fee
-       rulebook, 70-property.js). Two lines at most on a phone's half-width
-       tile, in Verdana too: longer, it pushed the first slider under the
-       action bar (mobile.mjs, n3-first-view). */
+       rulebook, 70-property.js). Short, because the note is the tile's and
+       the chain row's: one line in the row at 360px in Verdana, or the last
+       result left the screen (mobile.mjs, batch1-phone), and two on the
+       tile, or the first slider went under the action bar (n3-first-view).
+       An unknown rule is unverified too; the row's calculation, the
+       calculator and its ledger say which of the two each line is. */
     note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
-      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified or unknown lines` : null].filter(Boolean).join(' · '),
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · '),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
       + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `

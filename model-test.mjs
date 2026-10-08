@@ -5441,7 +5441,7 @@ try {
       })()`));
       const p = [], s = r.sample, W = r.want;
       if (r.view !== 'propertyLab') p.push(`/property opened ${r.view}`);
-      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified or unknown lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified or unknown lines`);
+      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified lines`);
       if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
       if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'next'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default": ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
@@ -5455,7 +5455,7 @@ try {
       if (r.saved.next?.go?.text !== 'Compare scenarios' || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the next step ${JSON.stringify(r.saved.next)}, the identity "${r.savedName}"`);
       if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`the next step's link: ${JSON.stringify(r.go)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
-      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified or unknown lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; Next step "Replace the price" opens the calculator with the keyboard in #d-price, then Save, then Compare; "Why" holds all ${W.gates} gates`);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; Next step "Replace the price" opens the calculator with the keyboard in #d-price, then Save, then Compare; "Why" holds all ${W.gates} gates`);
     } catch (e) {
       fail('n3 T1: /property\'s tiles could not be read', e.message);
     }
