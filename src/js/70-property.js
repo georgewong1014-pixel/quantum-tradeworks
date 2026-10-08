@@ -1016,15 +1016,15 @@ const SARAWAK_CHECKS = [
     why:'Secondary markets outside the main centres are commonly reported as slower to transact. Whatever that period turns out to be, its carrying cost falls on you — the exit assumption below sets it explicitly.' },
 ];
 
-/* Malaysian acquisition costs. Rates are editable elsewhere in a real build;
-   here they are the published scales, labelled illustrative. */
 /* ==========================================================================
-   FEE AND DUTY REGISTRY
+   THE FEE RULEBOOK — Malaysian acquisition costs, as a versioned rule set
 
    Section 46 of the migration specification: every rate, threshold and fee
    carries an effective date and a review owner. Section 29.4: fee tables are
    versioned by effective date and transaction type, and one legal-fee number
    cannot serve developer/HDA, secondary-market, auction and commercial cases.
+   The owner's property track (8 Oct 2026): a verified, versioned rulebook —
+   every line says what it rests on, and where it comes from.
 
    THE RULE THAT MAKES THIS SAFE
 
@@ -1035,204 +1035,457 @@ const SARAWAK_CHECKS = [
    Every consumer of this registry must handle null by showing the line as unset
    rather than by adding nothing to a total.
 
-   THREE STATUSES, AND THEY MEAN DIFFERENT THINGS
+   FOUR PROVENANCES, AND THEY MEAN DIFFERENT THINGS (FEE_PROVENANCE)
 
-     verified     someone checked this against the cited source on a date, and
-                  their name is against it
-     unverified   a working figure inherited from the prototype. It computes,
-                  and nobody has checked it against the source.
-     placeholder  a commonly-quoted approximation, entered so the calculator
-                  runs end to end. It computes and it is NOT evidence.
-     unset        no value. Returns null and reports itself as missing.
+     verified   the rule was read in an official text — a statute, a gazetted
+                order or rules, the authority's own published copy — on the
+                checked date, and the amount is that rule computed. Any
+                assumption the computation needs (which of the rule's cases
+                applies) is stated on the line (`assumes`), at every appearance.
+     estimated  an approximation the tool carries so the sum runs: no official
+                scale fixes it, or the one found could not be confirmed. It
+                computes and it is NOT evidence.
+     quote      the reader's own quotation, entered (the MRTA premium today).
+     unknown    no rule could be verified for the line's jurisdiction. Such a
+                line carries no amount of another jurisdiction's rule silently.
 
-   ON PLACEHOLDERS, WHICH ARE THE DANGEROUS ONES
+   A line charged on other lines (service tax on fees) is no better than its
+   base: resolveFee takes the weakest of its own provenance and theirs.
 
-   An unset line is safe because it is visibly absent. A placeholder is the
+   ON ESTIMATES, WHICH ARE THE DANGEROUS ONES
+
+   An unset line is safe because it is visibly absent. An estimate is the
    opposite: it is plausible, it produces a total that looks finished, and a
    reader has no way to tell it from a checked figure unless the product keeps
-   telling them. So every placeholder is marked at every appearance, the total
-   states what share of it rests on placeholders, and no placeholder can ever be
-   reported as verified. They exist to make the workflow testable, not to make
-   the number usable.
+   telling them. So every estimate is marked at every appearance (the D6
+   Placeholder badge), the total states how much of it rests on unverified or
+   unknown lines, and no estimate can ever be reported as verified.
 
-   The values below are approximations in general circulation. They are not
-   quotations, not read off the current schedules, and several — mortgage
-   protection above all — vary so widely per case that the placeholder should be
-   understood as a shape rather than an amount.
+   JURISDICTION. The property data is Sarawak's. Duties and service tax are
+   federal; solicitors' fees are not — Peninsular Malaysia's Solicitors'
+   Remuneration Order does not govern a Sarawak advocate, whose scale is the
+   Advocates' Remuneration Rules made under the Advocates Ordinance (Cap.
+   110). Each line names its jurisdiction, and the Peninsular scale is held
+   only as a reference (FEE_TABLE.reference), applied to nothing here.
 
-   Nothing here is marked verified. Verification is a person reading the
-   Solicitors' Remuneration Order 2023, the current rate orders and a lender's
-   actual quote, and recording that they did.
+   Research, not advice: the rulebook says what the cited texts said on the
+   checked date. Budgets amend them; re-check after each one (nextReviewDue).
+   The sources, and what could not be verified, are written out for the owner
+   in the handoff's results/fee-rulebook-sources.md as well as below.
    ========================================================================== */
+const FEE_PROVENANCE = {
+  verified: { word: 'Verified', note: 'Computed from the rule in an official text, read on the checked date; any case the rule leaves open is stated on the line.' },
+  estimated: { word: 'Estimated', note: 'An approximation carried so the total runs — no official scale fixes it, or the one found could not be confirmed. Not a quotation.' },
+  quote: { word: 'User quote', note: 'A figure you entered from a quotation you were given.' },
+  unknown: { word: 'Unknown', note: 'No rule could be verified from an official source for this jurisdiction.' },
+};
 const FEE_TABLE = {
   id: 'my-property-fees',
-  version: '0.1.0-unverified',
-  jurisdiction: 'MY',
-  /* Fill these two first. Without an owner, nothing below gets re-checked when
-     a schedule changes, and a stale fee table is worse than an empty one
-     because it looks maintained. */
+  /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
+     seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
+  version: '1.0.0',
+  checkedOn: '2026-10-08',
+  /* The property data's state. Each line names its own jurisdiction. */
+  jurisdiction: 'Sarawak',
+  /* Fill the owner first. Without one, nothing below gets re-checked when a
+     schedule changes, and a stale rulebook is worse than an empty one
+     because it looks maintained. Due again after Budget 2027 is tabled. */
   reviewOwner: null,
-  nextReviewDue: null,
+  nextReviewDue: '2026-10-31',
+  categories: {
+    statutory: 'Statutory charge',
+    professional: 'Professional fee',
+    disbursement: 'Disbursements',
+    insurance: 'Optional insurance',
+    deposit: 'Deposits',
+  },
 
   lines: {
     transferStampDuty: {
       label: 'Transfer stamp duty (MOT)',
+      category: 'statutory',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'unverified',
-      /* Inherited from the prototype: 1% first 100k, 2% next 400k, 3% next
-         500k, 4% above 1m. Widely quoted and not verified here against the
-         current Stamp Act schedule or any exemption order in force. */
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      /* "For every RM100 or fractional part of RM100" of the consideration or
+         the market value, whichever is the greater. */
+      unit: 100,
       scale: [[100000, 0.01], [400000, 0.02], [500000, 0.03], [Infinity, 0.04]],
-      source: 'Stamp Act 1949, First Schedule',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Check whether any first-home or threshold exemption applies to the buyer and the price before relying on this.',
+      effectiveFrom: '2019-01-01',
+      effectiveNote: 'The 4% band above RM1,000,000 was added by the Finance Act 2018 (Act 812) from 1 January 2019, and a remission order kept 3% on the RM1m–2.5m slice for instruments stamped to 30 June 2019 — both dates from secondary sources; the bands themselves are read in the official text.',
+      source: { title: 'Stamp Act 1949 (Act 378), First Schedule, Item 32(a) — LHDN’s updated text as at 1 January 2024',
+                url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf',
+                citation: 'Act 378, First Schedule, Item 32(a)(i)–(iv)' },
+      checkedOn: '2026-10-08',
+      assumes: 'a buyer who is a citizen or permanent resident, on the price',
+      note: 'RM1 per RM100 on the first RM100,000, RM2 to RM500,000, RM3 to RM1,000,000 and RM4 above, on the price or the market value, whichever is greater — this tool charges it on the price. A buyer who is not a citizen or permanent resident, or a foreign company, is charged otherwise (Items 32(aa) and 32(ab), held below and not applied). The Act applies throughout Malaysia, in Sarawak since 1 October 1989.',
     },
     purchaseLegal: {
       label: 'Purchase legal fees (SPA and transfer)',
+      category: 'professional',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'placeholder',
-      /* The prototype used max(500, price x 1.1%) as a single flat rate. A flat
-         percentage cannot reproduce a banded order at any price, so this is a
-         band structure rather than a rate — and the BOUNDARIES need checking as
-         much as the rates. If the real bands differ, filling correct rates into
-         wrong boundaries produces a confidently wrong fee. */
-      scale: [[500000, 0.0125], [500000, 0.01], [2000000, 0.007], [2000000, 0.006], [Infinity, 0.005]],
+      provenance: 'verified',
+      jurisdiction: 'Sarawak',
+      scale: [[10000, 0.025], [40000, 0.01], [50000, 0.009], [200000, 0.008], [400000, 0.007],
+              [500000, 0.006], [1000000, 0.0055], [3000000, 0.005], [5000000, 0.0045], [Infinity, 0.0045]],
       minimumFee: 500,
-      permittedDiscountPct: null,
-      source: "Solicitors' Remuneration Order 2023, First Schedule",
-      sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Scales and any permitted discount differ by transaction type. Record HDA/developer, secondary market, auction and commercial separately rather than reusing one set.',
+      effectiveFrom: '2023-01-01',
+      source: { title: 'Advocates’ Remuneration Rules, 1988 (Swk. L.N. (F) 72/88), First Schedule, as substituted by the Advocates’ Remuneration (Amendment) Rules, 2022 (Swk. L.N. (F) 348)',
+                url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_Issue%20No.%2083_L.N.%20348%20Advocates%20Rules.pdf',
+                citation: 'Advocates Ordinance (Cap. 110), s. 17(c); Swk. L.N. (F) 348 of 2022, First Schedule and its rule 1' },
+      checkedOn: '2026-10-08',
+      assumes: 'an SPA and the memorandum of transfer: the purchaser’s advocate charges the full scale (rule 1)',
+      note: 'Sarawak’s own scale, not Peninsular Malaysia’s Solicitors’ Remuneration Order. Rule 14: no discount on any fee in the Rules. Where the transaction is only an SPA, only a memorandum of transfer, a deed of assignment before title issues, or a subsale under rule 4, the purchaser’s advocate charges three-quarters of the scale (rules 2–4). Above RM10,000,000 the fee is negotiable up to 0.45% of the excess (the 2022 text says RM10,000,000 where its bands add to RM10,200,000). Scales for developer (HDA) and auction purchases are not modelled yet.',
     },
     loanLegal: {
       label: 'Loan legal fees',
+      category: 'professional',
       basis: 'scale',
       appliesTo: 'loan',
-      status: 'placeholder',
-      scale: [[500000, 0.0125], [500000, 0.01], [2000000, 0.007], [2000000, 0.006], [Infinity, 0.005]],
+      provenance: 'verified',
+      jurisdiction: 'Sarawak',
+      scale: [[10000, 0.025], [40000, 0.01], [50000, 0.009], [200000, 0.008], [400000, 0.007],
+              [500000, 0.006], [1000000, 0.0055], [3000000, 0.005], [5000000, 0.0045], [Infinity, 0.0045]],
       minimumFee: 500,
-      source: "Solicitors' Remuneration Order 2023",
-      sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Charged on the loan amount, not the purchase price. Absent entirely from the prototype, which understated completion cash on every financed purchase.',
+      /* Rule 7: one advocate for the chargee and the chargor — the full
+         scale as the chargee's advocate, one-quarter as the chargor's. */
+      multiplier: 1.25,
+      /* No loan, nothing to document: no fee, not the minimum. */
+      needsBase: true,
+      effectiveFrom: '2023-01-01',
+      source: { title: 'Advocates’ Remuneration Rules, 1988 (Swk. L.N. (F) 72/88), First Schedule, as substituted by the Advocates’ Remuneration (Amendment) Rules, 2022 (Swk. L.N. (F) 348)',
+                url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_Issue%20No.%2083_L.N.%20348%20Advocates%20Rules.pdf',
+                citation: 'Swk. L.N. (F) 348 of 2022, First Schedule, rules 6–8' },
+      checkedOn: '2026-10-08',
+      assumes: 'one advocate acts for you and the bank: the full scale plus one-quarter on the loan (rule 7)',
+      note: 'Charged on the amount of the charge — the loan — not the price. With separate advocates the bank’s charges the full scale and yours one-half (rules 6–8): one and a half times the scale where you bear both, as a letter of offer commonly requires. Rule 14: no discount.',
     },
     loanStampDuty: {
       label: 'Loan agreement stamp duty',
-      basis: 'percent',
+      category: 'statutory',
+      basis: 'scale',
       appliesTo: 'loan',
-      status: 'unverified',
-      percent: 0.5,
-      source: 'Stamp Act 1949',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Inherited from the prototype as a flat 0.5% of the loan.',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      /* "For each RM1,000 or part thereof RM5.00". */
+      unit: 1000,
+      scale: [[Infinity, 0.005]],
+      effectiveFrom: '2024-01-01',
+      effectiveAsAt: true,
+      source: { title: 'Stamp Act 1949 (Act 378), First Schedule, Item 27(a)(iii) — LHDN’s updated text as at 1 January 2024',
+                url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf',
+                citation: 'Act 378, First Schedule, Item 27(a)(iii) and 27(b)' },
+      checkedOn: '2026-10-08',
+      assumes: 'the loan agreement is the principal security, stamped on the loan',
+      note: 'RM5 for each RM1,000 of the loan or part of it. The charge, as collateral security, is then stamped at one-fifth of that duty capped at RM10 (Item 27(b)) — within the disbursements line. Since 1 January 2026 a loan agreement is stamped by self-assessment (STSDS, below): the procedure changed, not the rate.',
     },
     valuationFee: {
       label: 'Valuation fee',
+      category: 'professional',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'placeholder',
-      scale: [[100000, 0.0025], [2000000, 0.002], [Infinity, 0.00167]],
-      minimumFee: 300,
-      source: 'Valuers, Appraisers, Estate Agents and Property Managers Rules',
-      sourceUrl: 'https://lppeh.gov.my/',
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Usually required by the lender and paid by the buyer. Confirm whether the selected lender absorbs it.',
+      provenance: 'estimated',
+      jurisdiction: 'Federal',
+      scale: [[100000, 0.0025], [1900000, 0.002], [5000000, 1 / 600], [8000000, 0.00125], [35000000, 0.001],
+              [150000000, 1 / 1500], [300000000, 0.0005], [Infinity, 0.0004]],
+      minimumFee: 400,
+      effectiveFrom: null,
+      source: { title: 'Valuers, Appraisers and Estate Agents Rules 1986 (P.U.(A) 64/1986), rule 48 and the Seventh Schedule — the scale as the Board of Valuers publishes it',
+                url: 'https://lpeph.gov.my/fees',
+                citation: 'Act 242; P.U.(A) 64/1986, r. 48(1), Seventh Schedule item 3' },
+      checkedOn: '2026-10-08',
+      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, and the page carries injected third-party text. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it.',
     },
     disbursements: {
       label: 'Registration, searches and disbursements',
+      category: 'disbursement',
       basis: 'fixed',
       appliesTo: null,
-      status: 'placeholder',
+      provenance: 'estimated',
+      jurisdiction: 'Sarawak',
       fixed: 1200,
-      source: 'Land and Survey Department Sarawak, and the acting firm',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Title search, registration, land-office and firm disbursements. Ask the acting firm for a written quotation rather than estimating.',
+      effectiveFrom: null,
+      source: { title: 'An approximation — no single official schedule covers it. Registration of an instrument on one title is RM10 under the Land (Registration of Title) Rules (Land and Survey Department, Sarawak)',
+                url: 'https://landsurvey.sarawak.gov.my/web/subpage/webpage_view/1647' },
+      checkedOn: '2026-10-08',
+      note: 'Title searches, registration, land-office and the firm’s disbursements, and the charge’s RM10 stamp. Ask the acting firm for a written quotation rather than estimating.',
     },
     professionalServiceTax: {
-      label: 'Service tax on professional fees',
+      label: 'Service tax on legal fees',
+      category: 'statutory',
       basis: 'percentOfFees',
       appliesTo: 'legalFees',
-      status: 'placeholder',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
       percent: 8,
-      source: 'Service Tax Act 2018 and current rate orders',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Applies to the professional fee, not to the purchase price. Confirm the current rate and which of the fees above it attaches to.',
+      effectiveFrom: '2024-03-01',
+      source: { title: 'Service Tax (Rate of Tax) (Amendment) Order 2024 (P.U.(A) 64/2024); legal services taxable under the Service Tax Regulations 2018 (Customs’ Guide on Professional Services)',
+                url: 'https://pub-359af8e1f79c472292a7e44ec60f3027.r2.dev/Industry%20Guides/EN/Guide%20on%20Professional%20Services%2020210921.pdf',
+                citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
+      checkedOn: '2026-10-08',
+      assumes: 'it is charged on the purchase and loan legal fees, not on disbursements',
+      note: '8% on the advocate’s fees for the purchase and the loan. Service tax applies in Sarawak; only Labuan, Langkawi, Tioman, Pangkor and Pulau 1 and certain special zones are outside it. The 2026 orders seen (P.U.(A) 125/2026, 337/2026) do not touch legal services.',
+    },
+    valuationServiceTax: {
+      label: 'Service tax on the valuation fee',
+      category: 'statutory',
+      basis: 'percentOfFees',
+      appliesTo: 'valuationFee',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      percent: 8,
+      effectiveFrom: '2024-03-01',
+      source: { title: 'Service Tax (Rate of Tax) (Amendment) Order 2024 (P.U.(A) 64/2024); valuation of property a taxable professional service (Customs’ Guide on Professional Services)',
+                url: 'https://pub-359af8e1f79c472292a7e44ec60f3027.r2.dev/Industry%20Guides/EN/Guide%20on%20Professional%20Services%2020210921.pdf',
+                citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
+      checkedOn: '2026-10-08',
+      note: 'The rate is verified; the fee it is charged on is an estimate, so the amount is too.',
     },
     mortgageProtection: {
       label: 'Mortgage protection (MRTA/MLTA)',
+      category: 'insurance',
       basis: 'quote',
       appliesTo: null,
-      status: 'placeholder',
+      provenance: 'estimated',
+      jurisdiction: 'Federal',
       fixed: 8000,
       financedByDefault: false,
-      source: 'Insurer quotation',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Depends on age, sum assured, tenure and product. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash.',
+      effectiveFrom: null,
+      source: { title: 'An insurer’s quotation — no rule sets it' },
+      checkedOn: '2026-10-08',
+      note: 'Optional cover, though a lender may ask for it. Depends on age, sum assured, tenure and product. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash. Your own quote, entered on the financing panel, replaces this.',
     },
     utilityDeposits: {
       label: 'Utility and management deposits',
+      category: 'deposit',
       basis: 'fixed',
       appliesTo: null,
-      status: 'placeholder',
+      provenance: 'estimated',
+      jurisdiction: 'Sarawak',
       fixed: 1500,
-      source: 'Utility providers and the management body',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      effectiveFrom: null,
+      source: { title: 'Set by the utility providers and the management body — no rule sets it' },
+      checkedOn: '2026-10-08',
       note: 'Refundable, and still cash the buyer must have on completion day.',
     },
   },
+
+  /* Verified rules held for reference and applied to nothing here: the
+     property data is Sarawak's. */
+  reference: {
+    solicitorsPeninsular: {
+      label: 'Solicitors’ fees, Peninsular Malaysia',
+      short: 'the Peninsular Malaysia scale (SRO 2023)',
+      title: 'Solicitors’ Remuneration Order 2023 (P.U.(A) 207/2023), First Schedule Table A and Third Schedule Table A',
+      provenance: 'verified',
+      jurisdiction: 'Peninsular Malaysia',
+      scale: [[500000, 0.0125], [7000000, 0.01], [Infinity, 0.01]],
+      minimumFee: 500,
+      effectiveFrom: '2023-07-15',
+      source: { title: 'Solicitors’ Remuneration Order 2023 (P.U.(A) 207/2023) — the gazetted text, Malaysian Bar',
+                url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Solicitors%20Remuneration%20Order%202023.pdf',
+                citation: 'P.U.(A) 207/2023, in operation 15 July 2023; paragraph 6' },
+      checkedOn: '2026-10-08',
+      note: '1.25% of the first RM500,000 (minimum RM500), 1% of the next RM7,000,000, and above RM7,500,000 negotiable up to 1%. A solicitor may discount Table A fees by up to 25%. Made under the Legal Profession Act 1976, which reaches Sabah and Sarawak only as modified by order — none was found, and both states have their own scales — so it is not applied to a Sarawak property.',
+    },
+  },
+
+  /* Held, and not applied by default: whether they apply turns on facts about
+     the buyer this tool does not ask for. */
+  notApplied: [
+    { title: 'First-home stamp duty exemption', applied: false,
+      what: '100% of the duty on the transfer (P.U.(A) 53/2021, amended by P.U.(A) 448/2025) and on the loan agreement (P.U.(A) 54/2021, amended by P.U.(A) 449/2025), for one residential unit with a market value of RM500,000 or less, bought by a Malaysian citizen who has never owned a residential property, under an SPA executed from 1 January 2021 to 31 December 2027; the loan from a listed lender. LHDN’s declaration excludes SOHO, SOFO, SOVO and serviced apartments, which the Malaysian Bar disputes. Expired: the 75% remission for RM500,001–1,000,000 (SPAs of 1 June 2022 to 31 December 2023).',
+      source: { title: 'Malaysian Bar Circular No 128/2026 (16 April 2026)', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Circular%20No%20128-2026.pdf' } },
+    { title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
+      what: 'A flat RM8 per RM100 on residential property from 1 January 2026 (Item 32(ab), Finance Act 2025, Act 874), and RM4 per RM100 on other property from 1 January 2024 (Item 32(aa)). This tool charges Item 32(a), the scale for a citizen or permanent resident.',
+      source: { title: 'Stamp Act 1949, First Schedule, Items 32(aa)–(ab); Finance Act 2025 (Act 874)', url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf' } },
+    { title: 'Stamp duty self-assessment (STSDS)', applied: false,
+      what: 'A change of procedure, not of rate. LHDN phases it in: from 1 January 2026 leases and tenancies, securities (loan agreements and charges) and general stamping; from 1 January 2027 transfers of real property not needing a JPPH valuation; from 1 January 2028 every other instrument. The duty payable is unchanged; who assesses it, and when, changes.',
+      source: { title: 'LHDN — Sistem Taksir Sendiri Duti Setem (STSDS)', url: 'https://www.hasil.gov.my/en/stamp-duty/sistem-taksir-sendiri-duti-setem-stsds/' } },
+  ],
+
+  /* What could not be verified, and why — said, not discovered. */
+  unverified: [
+    { what: 'Valuation fee', why: 'the Board of Valuers’ published scale could not be checked against a gazetted copy: the date its current bands took effect was not found, and the page carries injected third-party text. Carried at that scale’s ceiling as an estimate.' },
+    { what: 'Registration, searches and disbursements', why: 'no single official schedule covers the bundle; only the RM10 registration fee per instrument is published (Land and Survey Department, Sarawak). Ask the acting firm for a quotation.' },
+    { what: 'Mortgage protection and utility deposits', why: 'set by an insurer, the utility providers and the management body for each case; no rule fixes them.' },
+    { what: 'When the 4% transfer band took effect in practice', why: 'the remission order that kept 3% on the RM1m–2.5m slice to 30 June 2019 was found only in secondary sources, and its P.U.(A) number not confirmed. The bands in force are read in the official text.' },
+    { what: 'The loan agreement duty’s start date', why: 'the rate is read in LHDN’s updated text as at 1 January 2024; when it was set was not established, so the rulebook dates it as at that text.' },
+    { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
+    { what: 'That the Solicitors’ Remuneration Order 2023 reaches only Peninsular Malaysia', why: 'inferred from the Legal Profession Act 1976, s. 2 and from Sarawak and Sabah having their own scales; no extending order was found, and its absence cannot be proven.' },
+    { what: 'Sabah’s advocates’ scale', why: 'a separate Advocates’ Remuneration Rules 1988 (G.N.S. 17 of 1988) exists; its bands were not checked, and no property here is in Sabah.' },
+    { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
+  ],
 };
 
+/* A banded scale applied to a base: each band's slice at its rate. `unit`
+   rounds the base UP to the scale's own unit first — the Stamp Act's "for
+   every RM100 or fractional part", "RM5 for every RM1,000 or fractional
+   part" — which, every band boundary being a multiple of the unit, is the
+   same as rounding the last band's slice. */
+function feeScaleAmount(scale, base, { unit = null, minimumFee = null } = {}) {
+  let left = isNum(unit) && unit > 0 ? Math.ceil(base / unit - 1e-9) * unit : base, total = 0;
+  for (const [size, rate] of scale) {
+    const slice = Math.min(left, size);
+    total += slice * rate; left -= slice;
+    if (left <= 0) break;
+  }
+  /* Whole sen: a band's rate times a whole-ringgit slice is exact in sen,
+     and floating point is not. */
+  total = Math.round(total * 100) / 100;
+  return isNum(minimumFee) ? Math.max(total, minimumFee) : total;
+}
+/* The weaker of two provenances, for a line charged on other lines: a tax
+   at a verified rate on an unknown fee is an unknown amount. */
+const FEE_PROVENANCE_ORDER = ['unknown', 'estimated', 'quote', 'verified'];
+const feeWeaker = (a, b) => (FEE_PROVENANCE_ORDER.indexOf(a) <= FEE_PROVENANCE_ORDER.indexOf(b) ? a : b);
+
 /* Resolves one line to an amount, or to an explicit reason it has none.
-   Returns { amount, status, label, why } — the amount is null unless the line
-   can actually be computed, and callers must not coerce that null to zero. */
-function resolveFee(lineId, bases = {}) {
+   Returns { id, amount, provenance, status, label, line, why } — the amount
+   is null unless the line can actually be computed, and callers must not
+   coerce that null to zero. `provenance` is the line's own, or the weakest
+   of it and the lines it is charged on (`basedOn`); `status` is what the
+   ledger's older readers ask: 'verified', 'placeholder' (an estimate, or
+   an amount resting on one), 'quote', or 'unset' (no amount). */
+function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   const line = FEE_TABLE.lines[lineId];
-  if (!line) return { amount: null, status: 'unknown', label: lineId, why: 'No such fee line.' };
-  const out = { amount: null, status: line.status, label: line.label, line,
-                why: line.status === 'unset' ? 'No value has been entered for this line.' : null };
-  if (line.status === 'unset') return out;
+  if (!line) return { id: lineId, amount: null, provenance: 'unknown', status: 'unset', label: lineId, why: 'No such fee line.' };
+  let provenance = line.provenance;
+  for (const p of [].concat(basedOn || [])) if (p) provenance = feeWeaker(provenance, p);
+  const out = { id: lineId, amount: null, provenance, status: 'unset', label: line.label, line,
+                why: line.unset ? 'No value has been entered for this line.' : null };
+  if (line.unset) return out;
 
   const base = line.appliesTo ? bases[line.appliesTo] : null;
+  /* A line that documents its base (the loan's legal fees) has nothing to
+     charge without one: no loan is no fee, not the scale's minimum. */
+  if (line.needsBase && isNum(base) && !(base > 0)) { out.amount = 0; out.status = provenance === 'verified' ? 'verified' : 'placeholder'; out.why = 'Nothing to charge it on.'; return out; }
   if (line.basis === 'percent') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or base is missing.'; return out; }
     out.amount = base * line.percent / 100;
   } else if (line.basis === 'percentOfFees') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or fee base is missing.'; return out; }
-    out.amount = base * line.percent / 100;
+    out.amount = Math.round(base * line.percent) / 100;
   } else if (line.basis === 'fixed' || line.basis === 'quote') {
     if (!isNum(line.fixed)) { out.why = 'No amount has been entered.'; return out; }
     out.amount = line.fixed;
   } else if (line.basis === 'scale') {
     if (!Array.isArray(line.scale) || !isNum(base)) { out.why = 'The scale has not been filled in.'; return out; }
-    let left = base, total = 0;
-    for (const [size, rate] of line.scale) {
-      const slice = Math.min(left, size);
-      total += slice * rate; left -= slice;
-      if (left <= 0) break;
-    }
-    if (isNum(line.minimumFee)) total = Math.max(total, line.minimumFee);
-    out.amount = total;
+    out.amount = feeScaleAmount(line.scale, base, { unit: line.unit, minimumFee: line.minimumFee });
+    /* The share of the scale the rule charges in the case the line assumes
+       (Sarawak's rule 7: the full scale plus one-quarter). */
+    if (isNum(line.multiplier)) out.amount = Math.round(out.amount * line.multiplier * 100) / 100;
   }
+  if (isNum(out.amount)) out.status = provenance === 'verified' ? 'verified' : provenance === 'quote' ? 'quote' : 'placeholder';
   return out;
 }
 
-/* What the registry still needs, so it can be reported rather than discovered. */
-const feeLinesWith = (...statuses) => Object.entries(FEE_TABLE.lines)
-  .filter(([, l]) => statuses.includes(l.status)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
-const unsetFeeLines = () => feeLinesWith('unset');
-const unverifiedFeeLines = () => feeLinesWith('unverified');
-const placeholderFeeLines = () => feeLinesWith('placeholder');
-/* Anything that is not a checked figure. The distinction the reader needs is
-   not which of the three unchecked statuses applies — it is checked or not. */
-const unconfirmedFeeLines = () => feeLinesWith('unverified', 'placeholder', 'unset');
+/* What the rulebook still needs, so it can be reported rather than discovered. */
+const feeLinesWith = (...provenances) => Object.entries(FEE_TABLE.lines)
+  .filter(([, l]) => provenances.includes(l.provenance)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
+/* Anything that is not a checked figure. The distinction the reader needs
+   first is checked or not; the line says which of the two it is. */
+const unconfirmedFeeLines = () => feeLinesWith('estimated', 'unknown');
+
+/* ---- how a fee line says what it is, wherever it is shown ---- */
+const feeDay = (iso) => {
+  const t = new Date(`${iso}T12:00:00Z`);
+  return Number.isFinite(t.getTime()) ? t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : String(iso || '');
+};
+/* The D6 badge of a resolved line: by its provenance (KIND_OF_FEE), and
+   Unavailable where it has no amount. */
+function feeBadge(r, amount = r?.amount) {
+  const kind = KIND_OF_FEE[isNum(amount) ? r.provenance : 'unset'] || 'unavailable';
+  const line = r.line || {};
+  const fine = `${FEE_PROVENANCE[r.provenance]?.word || r.provenance} — ${line.jurisdiction || 'no jurisdiction'}${line.source?.title ? `; ${line.source.title}` : ''}`;
+  return kindBadge(kind, { fine });
+}
+/* "Verified · Sarawak — assumes one advocate acts for you and the bank…",
+   "Estimated · Federal — a verified rate on an estimated fee". A quote is
+   the reader's own, whatever line it stands in. */
+function feeProvenanceLine(r) {
+  const line = r.line || {};
+  const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
+  if (r.provenance === 'quote') return `${word} — yours, not the rulebook’s`;
+  const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');
+  const via = r.provenance !== line.provenance && FEE_PROVENANCE[line.provenance]
+    ? ` — a ${FEE_PROVENANCE[line.provenance].word.toLowerCase()} rate on an ${FEE_PROVENANCE[r.provenance]?.word.toLowerCase()} fee` : '';
+  const assumes = line.assumes && r.provenance === 'verified' ? ` — assumes ${line.assumes}` : '';
+  return `${parts}${via}${assumes}`;
+}
+/* The uncertain lines, named with their amounts: "valuation fee RM1,194
+   (estimated), …". `money`: the format of the place it is said. */
+function feeUncertainWords(m, money = (v) => fmtAmount(v, 'MYR')) {
+  return (m.unconfirmedLines || []).map(x => `${x.label.charAt(0).toLowerCase()}${x.label.slice(1)} ${money(x.amount)} (${FEE_PROVENANCE[x.provenance]?.word.toLowerCase() || x.provenance})`).join(', ');
+}
+const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on unverified or unknown lines`;
+
+/* A rule's jurisdiction, dates and source, as list entries. */
+const feeBookFacts = (x) => {
+  const src = x.source || {};
+  return [
+    el('dt', {}, 'Jurisdiction'), el('dd', {}, x.jurisdiction),
+    el('dt', {}, x.effectiveAsAt ? 'In force as at' : 'Effective from'),
+    el('dd', {}, x.effectiveFrom ? `${feeDay(x.effectiveFrom)}${x.effectiveAsAt ? ' — the date of the text read; the rate is older' : ''}` : 'No date: no rule fixes it'),
+    el('dt', {}, 'Source'), el('dd', {}, [src.url ? el('a', { href: src.url, target: '_blank', rel: 'noopener noreferrer' }, src.title) : src.title,
+      src.citation ? el('span', { class: 'fee-book-cite' }, ` (${src.citation})`) : null]),
+    el('dt', {}, 'Checked'), el('dd', {}, feeDay(x.checkedOn)),
+  ];
+};
+/* THE RULEBOOK, PUBLISHED (/data-sources#fee-rulebook): its version and
+   the day it was checked, then each line — its provenance badge and word,
+   jurisdiction, effective date and source — the rules held for reference,
+   what is held but not applied, and what could not be verified and why.
+   One entry a line rather than a wide table: a phone reads it as cards
+   without a sideways scroll. */
+function feeRulebookCard() {
+  const card = el('section', { class: 'card fee-book', id: 'fee-rulebook', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'fee-rulebook-h' });
+  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'fee-rulebook-h' }, 'Property fee rulebook'),
+    el('p', { class: 'caption', style: 'margin-top:2px' },
+      `Version ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. The duties and fees the property calculator charges on a purchase, each with the rule it comes from. Research, not advice: confirm every line with the lender, the solicitor and the authority before relying on it.`),
+  ])));
+  card.append(el('dl', { class: 'fee-book-dl fee-book-key', 'aria-label': 'What each provenance means' },
+    Object.values(FEE_PROVENANCE).flatMap(v => [el('dt', {}, v.word), el('dd', {}, v.note)])));
+  const list = el('ul', { class: 'fee-book-list' });
+  for (const [id, line] of Object.entries(FEE_TABLE.lines)) {
+    const kind = KIND_OF_FEE[line.provenance] || 'unavailable';
+    list.append(el('li', { class: 'fee-book-line', 'data-fee-line': id, 'data-fee-provenance': line.provenance }, [
+      el('p', { class: 'fee-book-name' }, [el('strong', {}, line.label), ' ', kindBadge(kind, { fine: FEE_PROVENANCE[line.provenance]?.word }),
+        el('span', { class: 'fee-book-cat' }, FEE_TABLE.categories[line.category] || line.category)]),
+      el('dl', { class: 'fee-book-dl' }, [
+        el('dt', {}, 'Provenance'), el('dd', {}, FEE_PROVENANCE[line.provenance]?.word || line.provenance),
+        ...feeBookFacts(line),
+        ...(line.assumes ? [el('dt', {}, 'Assumes'), el('dd', {}, line.assumes)] : []),
+      ]),
+      line.effectiveNote ? el('p', { class: 'metaline' }, line.effectiveNote) : null,
+      line.note ? el('p', { class: 'metaline' }, line.note) : null,
+    ]));
+  }
+  card.append(list);
+  /* Verified, and applied to nothing here: another jurisdiction's rule. */
+  const refs = Object.entries(FEE_TABLE.reference || {});
+  if (refs.length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'Held for reference: another jurisdiction’s rule'));
+    card.append(el('ul', { class: 'fee-book-list' }, refs.map(([id, ref]) => el('li', { class: 'fee-book-line', 'data-fee-ref': id }, [
+      el('p', { class: 'fee-book-name' }, [el('strong', {}, ref.label), el('span', { class: 'fee-book-cat' }, 'Not applied')]),
+      el('dl', { class: 'fee-book-dl' }, [el('dt', {}, 'Provenance'), el('dd', {}, FEE_PROVENANCE[ref.provenance]?.word || ref.provenance), ...feeBookFacts(ref)]),
+      ref.note ? el('p', { class: 'metaline' }, ref.note) : null,
+    ]))));
+  }
+  if ((FEE_TABLE.notApplied || []).length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'Held, and not applied by default'));
+    card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.notApplied.map(x => el('li', {}, [el('strong', {}, x.title), ` — ${x.what} Source: `,
+      x.source?.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.source.title) : (x.source?.title || 'none'), '.']))));
+  }
+  if ((FEE_TABLE.unverified || []).length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'What could not be verified, and why'));
+    card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.unverified.map(x => el('li', {}, [el('strong', {}, x.what), ` — ${x.why}`]))));
+  }
+  return card;
+}
 
 /* Kept as thin wrappers so existing callers keep working while the registry
    becomes the single source of the numbers. */
@@ -1244,11 +1497,10 @@ const loanStampDuty = (loan) => {
   const r = resolveFee('loanStampDuty', { loan });
   return isNum(r.amount) ? r.amount : 0;
 };
-/* Deliberately NOT restored to a working percentage. The prototype's flat 1.1%
-   could not reproduce any banded remuneration order, and leaving it in place
-   would keep a number on screen that nobody can check against the cited
-   source — which is the defect, not the size of the number. It returns null
-   until the scale is filled, and the ledger shows the line as unset. */
+/* Deliberately NOT a working percentage. The prototype's flat 1.1% could not
+   reproduce any banded remuneration rules, and a number nobody can check
+   against the cited source is the defect, not the size of the number. It is
+   the Sarawak scale now (the rulebook), and null where it cannot be priced. */
 const legalFeesBuy = (price) => {
   const r = resolveFee('purchaseLegal', { price });
   return isNum(r.amount) ? r.amount : null;

@@ -258,7 +258,12 @@ const kindFirst = (kinds) => KIND_ORDER.find(k => kinds.includes(k)) || null;
    PROVENANCE kind, every EVIDENCE id and every fee status to one). */
 const KIND_OF_PROVENANCE = { reported: 'filed', calculated: 'derived', modelled: 'modelled', market: 'yours', illustrative: 'illustrative', unavailable: 'unavailable' };
 const KIND_OF_EVIDENCE = { verified: 'yours', public: 'yours', user: 'yours', developer: 'quoted', estimated: 'derived', assumed: 'illustrative', illustrative_default: 'illustrative' };
-const KIND_OF_FEE = { verified: 'derived', unverified: 'placeholder', placeholder: 'placeholder', unknown: 'unavailable' };
+/* A fee line by its provenance in the fee rulebook (70-property.js): a
+   verified scale computed is Derived; an estimate, or an amount resting on
+   a rule unknown for its jurisdiction, is a Placeholder; the reader's own
+   quotation is Yours; a line with no amount at all ('unset') is
+   Unavailable. */
+const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'placeholder', quote: 'yours', unset: 'unavailable' };
 /* The badge. `fine`: the figure's own label, in the title before the
    word's meaning. `link`: false where the badge stands inside a link of
    its own, or on /data-sources itself. */

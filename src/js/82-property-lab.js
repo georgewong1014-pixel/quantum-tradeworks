@@ -128,12 +128,23 @@ const LAB_FIGURES = [
     } },
   { key: 'safeCashRequired', label: () => 'Cash required', fmt: 'money0', help: 'propSafeCash',
     read: (m) => m.safeCashRequired,
+    /* While any fee line is not Verified, the headline says how much of it
+       rests on those lines; the row's calculation names each one (the fee
+       rulebook, 70-property.js). Short, because the note is the tile's and
+       the chain row's: one line in the row at 360px in Verdana, or the last
+       result left the screen (mobile.mjs, batch1-phone), and two on the
+       tile, or the first slider went under the action bar (n3-first-view).
+       An unknown rule is unverified too; the row's calculation, the
+       calculator and its ledger say which of the two each line is. */
     note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
-      `${labMoney(m.unconfirmedCost)} on unverified fees`].filter(Boolean).join(' · '),
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · '),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
       + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
-      + `${labMoney(m.unconfirmedCost)} of it rests on fee lines not yet verified against their schedules, ${(m.placeholderCostLines || []).length} of them placeholders (fee table ${FEE_TABLE.version}).` },
+      + (m.unconfirmedCost > 0
+        ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
+        : 'Every fee line in it is verified against its official source or is your own quote')
+      + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
     read: (m) => m.cashflowMonthly,
     note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan has no schedule'
@@ -671,6 +682,32 @@ const labScenarioNaming = (lab, col, at = null) => {
   const rec = pmFind(lab.model);
   return { kind: 'scenario', at, value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(rec)), pmInputsOf(rec)) || `Scenario ${(rec.scenarios || []).length + 1}` };
 };
+/* THE GUIDED SAVE (the owner's property track, 8 Oct 2026). A scenario
+   belongs to a saved property, and an unsaved deal has none: "Save this
+   property first" made that the reader's errand — save, then find the
+   column's Save again. One action now asks for both names, the property's
+   and, where the column the sliders move holds figures a scenario would
+   keep, that column's as its scenario; and one Save saves the property,
+   then the scenario, the column's moves carried across (labSaveProperty).
+   The identity line, the commit card, the next step and the phone's bar
+   all start it. Where the column holds nothing a scenario would keep, it
+   is the property's save alone, as before. */
+/* The column holds what-ifs of the reader's — its moves, or those it was
+   copied with — that differ from the deal. Compared figure by figure, not
+   as whole deals: it is asked as the column's moves change, beside a drag
+   (scenario-lab-verify V6). */
+function labScenarioAfterProperty(lab, col) {
+  if (lab.model || !col || !(labMoveCount(col) > 0 || labSourceKind(col) === 'variant')) return false;
+  const deal = State.deal || {};
+  return labMarked(col).some(k => pmCanon(col.work[k]) !== pmCanon(deal[k]));
+}
+const labGuidedWords = (lab, col) => (labScenarioAfterProperty(lab, col) ? `Save this property and ${col.key} as a scenario` : 'Save this property');
+function labGuidedScenario(lab, col) {
+  if (!labScenarioAfterProperty(lab, col)) return null;
+  const base = pmBare(State.deal);
+  return { key: col.key, on: true, value: cpScenarioName(pmDiff(labNext(col), base), base) || 'Scenario 1' };
+}
+const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNameOf(State.deal), scenario: labGuidedScenario(lab, labActive(lab)) });
 /* THE IDENTITY LINE. The name — "Sample deal — not a real listing", or the
    property's — with its place, type and size; Save as the page's one
    primary button; and the regulated claim and the lab's own, whole at
@@ -698,7 +735,7 @@ function labIdentityAct(P, lab) {
      one to press: one primary, not two. */
   if (lab.naming?.at === 'identity') return box;
   if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
-    onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property'));
+    onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, labGuidedWords(lab, col)));
   else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
@@ -768,7 +805,7 @@ function labNextTile(P, lab, d) {
     sub = `The sample’s: ${isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'}`;
   } else if (!lab.model) {
     kind = { kind: 'unsaved', words: 'Not saved' };
-    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property');
+    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, 'Save this property');
     sub = 'Then compare its scenarios';
   } else {
     kind = { kind: 'saved', words: 'Saved' };
@@ -801,7 +838,9 @@ function labBarSave() {
   if (!lab) return { aria: 'Nothing to save', disabled: true };
   const col = labActive(lab);
   if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
-  if (!lab.model) return { aria: 'Save this property', run: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) };
+  /* The same guided save as the identity line's: the property's name and,
+     where the column holds figures a scenario would keep, its own. */
+  if (!lab.model) return { aria: labGuidedWords(lab, col), run: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) };
   if (labCanSave(lab, col)) return { aria: `Save ${col.key} as a scenario`, run: () => labNaming(P, lab, labScenarioNaming(lab, col, 'identity')) };
   return { aria: 'Saved in this browser', disabled: true, said: `Saved in this browser — move a figure to save ${col.key} as a scenario.` };
 }
@@ -1317,10 +1356,10 @@ function labMetricView(metric, lab) {
         { part: 'improvementCash', value: r.m.improvementCash, label: 'renovation and set-up' },
         ...(isNum(r.m.reserveCash) ? [{ part: 'reserveCash', value: r.m.reserveCash, label: 'reserve' }] : [])],
       note: r => [(r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
-        `${labMoney(r.m.unconfirmedCost)} on unverified fee lines`].filter(Boolean).join(' · '),
+        `${labMoney(r.m.unconfirmedCost)} on unverified or unknown fee lines`].filter(Boolean).join(' · '),
       table: { form: 'stacked', title: 'Cash required: to complete, renovation and set-up, and the reserve' } }));
     vm.words.push('Each bar, from nought: what completion takes, then renovation and set-up (the stronger shade), then the reserve (outlined).');
-    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified fee lines'],
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified or unknown fee lines'],
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(r.m.transactionCash), labMoney(r.m.improvementCash), isNum(r.m.reserveCash) ? labMoney(r.m.reserveCash) : 'cannot be priced',
         `${labMoney(r.m.safeCashRequired)}${(r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
   } else if (metric === 'appreciation') {
@@ -1601,8 +1640,9 @@ function labCommits(P, lab, col) {
     if (kind === 'sc' && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
       `Update scenario “${col.name}”${yours}`));
   } else {
+    /* The guided save: one action, both names (labGuidedNaming). */
     acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
-      onclick: () => labNaming(P, lab, { kind: 'property', value: pmNameOf(State.deal) }) }, 'Save this property first'));
+      onclick: () => labNaming(P, lab, labGuidedNaming(lab)) }, labGuidedWords(lab, col)));
   }
   acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
     `Open ${col.key} in the calculator${yours}`));
@@ -1613,7 +1653,9 @@ function labCommits(P, lab, col) {
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
   const why = [];
-  if (!rec) why.push(`A scenario belongs to a saved property. “Save this property first” saves the deal on the calculator as a property — then ${col.key} can be saved as its scenario.`);
+  if (!rec) why.push(labScenarioAfterProperty(lab, col)
+    ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
+    : `A scenario belongs to a saved property. Save keeps the deal on the calculator as a property; move a figure of ${col.key} and the same Save keeps ${col.key} as its scenario too.`);
   else if (!canSave) why.push(differs ? `${col.key} is saved already, as “${col.name}” — move a figure to save a new scenario, or to update this one.`
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
@@ -1660,10 +1702,36 @@ function labNaming(P, lab, naming) {
 function labNameForm(P, lab, col) {
   const isProp = lab.naming.kind === 'property';
   const fid = labId(P, isProp ? 'property-name' : 'scenario-name');
-  const form = el('form', { class: 'lab-name-form', onsubmit: (e) => { e.preventDefault(); isProp ? labSaveProperty(P, lab, input.value) : labCommitScenario(P, lab, input.value); } });
+  /* The guided save's second name: the column the sliders move now, as its
+     scenario — asked for again if another column was picked meanwhile, and
+     not at all where that column holds nothing a scenario would keep. */
+  let sc = null;
+  if (isProp) {
+    if (!labScenarioAfterProperty(lab, col)) lab.naming.scenario = null;
+    else if (!lab.naming.scenario || lab.naming.scenario.key !== col.key) lab.naming.scenario = labGuidedScenario(lab, col);
+    sc = lab.naming.scenario;
+  }
+  const form = el('form', { class: 'lab-name-form', onsubmit: (e) => {
+    e.preventDefault();
+    if (!isProp) { labCommitScenario(P, lab, input.value); return; }
+    labSaveProperty(P, lab, input.value, sc && sc.on ? { name: scInput.value } : null);
+  } });
   const input = el('input', { type: 'text', class: 'input', id: fid, maxlength: '80', value: lab.naming.value || '', autocomplete: 'off',
     oninput: (e) => { lab.naming.value = e.target.value; } });
-  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${pmFind(lab.model)?.name || ''}”`), input,
+  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${pmFind(lab.model)?.name || ''}”`), input);
+  let scInput = null;
+  if (sc) {
+    const sid = labId(P, 'scenario-name'), cid = labId(P, 'name-with-sc');
+    scInput = el('input', { type: 'text', class: 'input', id: sid, maxlength: '80', value: sc.value || '', autocomplete: 'off', disabled: sc.on ? null : '',
+      oninput: (e) => { sc.value = e.target.value; } });
+    const check = el('input', { type: 'checkbox', id: cid, checked: sc.on ? '' : null, onchange: (e) => {
+      sc.on = e.target.checked; scInput.disabled = !sc.on;
+    } });
+    form.append(el('div', { class: 'lab-name-sc' }, [
+      el('label', { for: cid, class: 'checkline lab-name-check' }, [check, el('span', {}, `Also save ${col.key} as its scenario — ${col.key}’s moves become yours`)]),
+      el('label', { for: sid, class: 'lab-name-label' }, `Name ${col.key} as a scenario of this property`), scInput]));
+  }
+  form.append(
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
@@ -1680,7 +1748,10 @@ function labNameForm(P, lab, col) {
    with as well as its own moves. Rebuilt on the property's figures, a
    copy of a moved column lost what it had copied and went on calling
    itself "Copy of A" (the verification of 4 Oct 2026, F4). */
-function labSaveProperty(P, lab, name) {
+/* `scenario`: the guided save's second half ({ name }) — the active
+   column, once on the property, saved as its scenario (labCommitScenario),
+   in the same action. */
+function labSaveProperty(P, lab, name, scenario = null) {
   const fromId = lab.naming?.at === 'identity';
   const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
   if (!rec) return;
@@ -1696,13 +1767,22 @@ function labSaveProperty(P, lab, name) {
   next.active = lab.active;
   if (P.key === lab.key) P.key = next.key;
   if (labSubject === lab.key) labSubject = next.key;
+  /* The second half of the guided save: the column the sliders move, its
+     moves now moves on the property, kept as a scenario of it. Its own
+     drawing, address and toast follow (labCommitScenario); the property is
+     saved whatever becomes of it, and a refusal is said. */
+  if (scenario) {
+    next.naming = { kind: 'scenario', at: fromId ? 'identity' : null };
+    if (labCommitScenario(P, next, scenario.name, { withProperty: rec })) return;
+    next.naming = null;
+  }
   /* The keyboard on the next thing to do with the column, which the
      property's save leaves enabled — beside the identity line where the
      save was asked for there. */
   labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'save'), labId(P, 'open')]);
   labAfterStructure(P, next, { address: true });
 }
-function labCommitScenario(P, lab, name) {
+function labCommitScenario(P, lab, name, { withProperty = null } = {}) {
   const rec = pmFind(lab.model);
   const col = labActive(lab);
   if (!rec) { toast('That property is no longer saved in this browser'); return null; }
@@ -1724,7 +1804,9 @@ function labCommitScenario(P, lab, name) {
      next thing to do with the column, not to <body>. */
   labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
   labAfterStructure(P, lab, { address: true });
-  toast(`Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
+  toast(withProperty
+    ? `Saved “${rec.name}” and ${col.key} as its scenario “${sc.name}” — both are listed in My properties${yours}.${labGateWords(next)}`
+    : `Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
   return sc;
 }
 function labUpdateScenario(P, lab) {

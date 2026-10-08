@@ -293,6 +293,10 @@ function learnData() {
   kinds.append(el('p', { class: 'metaline' }, 'The kinds in the table above read as badges this way: reported as Filed, calculated as Derived, market as Yours.'));
   wrap.append(kinds);
 
+  /* THE PROPERTY FEE RULEBOOK (the owner's property track, 8 Oct 2026):
+     its version, the day it was checked, and every line's source. */
+  wrap.append(feeRulebookCard());
+
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
      does; what does not yet exist is the right to republish it. Those are

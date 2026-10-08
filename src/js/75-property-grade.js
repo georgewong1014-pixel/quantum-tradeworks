@@ -620,12 +620,19 @@ function dealModel(d) {
      and whether it is unset. A line the registry cannot price is listed with a
      null amount rather than omitted — an absent row reads as a cost that does
      not exist, and these all exist. */
-  const feeLine = (id, bases) => { const r = resolveFee(id, bases); return [r.label, r.amount, r]; };
-  /* Null, not zero. Coercing an unpriced legal fee to 0 made the tax on it
-     resolve to a priced RM0 line — a real-looking row for a cost that exists
-     and has not been calculated, absent from the missing-lines list because it
-     had a number. A tax on an unknown fee is unknown. */
-  const legalBase = isNum(legal) ? legal : null;
+  const feeLine = (id, bases, opts) => { const r = resolveFee(id, bases, opts); return [r.label, r.amount, r]; };
+  /* The fees service tax is charged on (the rulebook: the purchase and loan
+     legal fees; the valuation fee, on its own line), resolved once so the
+     tax and the fee cannot disagree. Null, not zero: coercing an unpriced
+     legal fee to 0 made the tax on it resolve to a priced RM0 line — a
+     real-looking row for a cost that exists and has not been calculated,
+     absent from the missing-lines list because it had a number. A tax on
+     an unknown fee is unknown, and no better than the fee it is on. */
+  const purchaseLegalR = resolveFee('purchaseLegal', { price: d.price });
+  const loanLegalR = resolveFee('loanLegal', { loan });
+  const valuationR = resolveFee('valuationFee', { price: d.price });
+  const legalBase = isNum(purchaseLegalR.amount) && isNum(loanLegalR.amount) ? purchaseLegalR.amount + loanLegalR.amount : null;
+  const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
         ['Deposit', deposit],
@@ -633,14 +640,15 @@ function dealModel(d) {
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
         feeLine('transferStampDuty', { price: d.price }),
-        feeLine('purchaseLegal', { price: d.price }),
+        asLine(purchaseLegalR),
         feeLine('disbursements', {}),
-        feeLine('professionalServiceTax', { legalFees: legalBase }),
+        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
-        feeLine('loanLegal', { loan }),
-        feeLine('valuationFee', { price: d.price }),
+        asLine(loanLegalR),
+        asLine(valuationR),
+        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -649,7 +657,7 @@ function dealModel(d) {
            it is not a placeholder either, and it is marked as what it is. */
         isNum(d.mrtaPremium) && d.mrtaPremium > 0
           ? ['Mortgage protection — your quote', d.mrtaPremium,
-             { status:'quote', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
+             { status:'quote', provenance:'quote', id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
                why:null, note:'The one-off premium you entered on the financing panel. A quote from an insurer, not a figure from the fee registry.' }]
           : feeLine('mortgageProtection', {}),
       ] },
@@ -673,12 +681,16 @@ function dealModel(d) {
      a scatter of markers. */
   /* A figure the reader took from their own quotation is theirs to stand
      behind; it is not one "nobody has checked". */
-  const unconfirmedCost = costGroups.flatMap(g => g.items)
-    .filter(it => it[2] && it[2].status !== 'verified' && it[2].status !== 'quote' && isNum(it[1]))
-    .reduce((t, it) => t + it[1], 0);
-  const placeholderCostLines = costGroups.flatMap(g => g.items)
-    .filter(it => it[2]?.status === 'placeholder' && isNum(it[1]))
-    .map(it => ({ label: it[0], amount: it[1] }));
+  /* By the fee rulebook's provenance (70-property.js): a line is checked
+     when it is Verified — its rule, and every fee it is charged on — or the
+     reader's own quotation. An Estimated line, and one resting on a rule
+     Unknown for its jurisdiction, are not; each is listed, so the
+     total can say which lines and how much (unconfirmedLines). */
+  const unconfirmedLines = costGroups.flatMap(g => g.items)
+    .filter(it => it[2]?.provenance && it[2].provenance !== 'verified' && it[2].provenance !== 'quote' && isNum(it[1]))
+    .map(it => ({ id: it[2].id || null, label: it[0], amount: it[1], provenance: it[2].provenance, jurisdiction: it[2].line?.jurisdiction || null }));
+  const unconfirmedCost = unconfirmedLines.reduce((t, x) => t + x.amount, 0);
+  const placeholderCostLines = unconfirmedLines.map(x => ({ label: x.label, amount: x.amount, provenance: x.provenance }));
 
   /* Three months of instalment and running cost, held back rather than spent.
      Not part of the purchase, but part of what the purchase requires.
@@ -1264,7 +1276,7 @@ function dealModel(d) {
   const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows) : null;
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
-           costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
+           costGroups, missingCostLines, unconfirmedCost, unconfirmedLines, placeholderCostLines,
            transactionCash, improvementCash, reserveCash, safeCashRequired,
            cashAlreadyPaid, cashStillRequiredToComplete,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
@@ -1894,10 +1906,14 @@ VIEWS.property = () => {
      its data badge — what its figures rest on, in the Lab's tiles' words
      (labTileKind), the lowest-ranked input it is worked from. */
   const answerFigs = {
+    /* While any fee line is not Verified, the headline says how much of
+       it rests on those lines (the fee rulebook, 70-property.js); the
+       ledger below names them. */
     safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-      unpricedLines.length
+      (unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-        : 'Including rent-ready and the reserve'],
+        : 'Including rent-ready and the reserve')
+      + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
     monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
       m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
       isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
@@ -3062,18 +3078,16 @@ VIEWS.property = () => {
     /* An unpriced line is shown as unpriced. Omitting it would read as a cost
        that does not exist, and every one of these exists. */
     g.items.forEach(it => {
-      const st = it[2]?.status;
       cashB.append(el('tr', {}, [
         el('td', { style: 'padding-left:var(--md)' }, [
           it[0],
-          /* Marked at every appearance. A placeholder is plausible, which is
-             precisely why it cannot be left to look like a checked figure. */
-          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:var(--ls-meta)',
-            title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
-          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:var(--ls-meta)',
-            title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
-          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:var(--ls-meta)',
-            title: it[2]?.note || 'A figure you entered from a quotation.' }, 'your quote') : null,
+          /* Marked at every appearance, by the fee rulebook (70-property.js):
+             the D6 kind badge — Placeholder for an estimate,
+             Derived for a verified scale computed, Yours for the reader's
+             quote — and, under the name, the line's provenance and
+             jurisdiction. A placeholder is plausible, which is precisely why
+             it cannot be left to look like a checked figure. */
+          ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2]))] : []),
         ]),
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
@@ -3104,11 +3118,14 @@ VIEWS.property = () => {
      them how much of the answer is affected. */
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && isNum(m.totalInitialCash) && m.totalInitialCash > 0)
     cashB.append(el('tr', {}, [
-      el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
-        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — comes from fee lines nobody has checked against their source. `
-        + (m.placeholderCostLines.length
-            ? `${m.placeholderCostLines.length} ${m.placeholderCostLines.length === 1 ? 'is a placeholder' : 'are placeholders'}: approximations entered so the workflow runs, not quotations. Replace them with real quotes before this figure means anything.`
-            : 'They compute, and they are not evidence.'))]));
+      el('td', { colspan: 2, class: 'metaline pc-fee-uncertain', style: 'color:var(--bronze);white-space:normal' },
+        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — rests on unverified or unknown lines: ${feeUncertainWords(m)}. `
+        + 'They compute so the total runs; they are not quotations and not checked against an official source. Replace them with real quotes before this figure means anything.')]));
+  /* The rulebook this ledger was charged by, and where its sources are. */
+  cashB.append(el('tr', {}, [
+    el('td', { colspan: 2, class: 'metaline', style: 'white-space:normal' }, [
+      `Fees and duties from the fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. Research, not advice: confirm each with the lender, the solicitor and the authority. `,
+      el('a', { href: href('/data-sources#fee-rulebook') }, 'Every line’s source →')])]));
   lsTableCards(cashT, { id: 'pc-cost-table' });
   cash.append(el('div', { class: 'tablewrap' }, cashT));
 

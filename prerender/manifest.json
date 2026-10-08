@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c2fcb72ceb036545",
-      "changed": "2026-10-07"
+      "digest": "5441dd1b7063c27a",
+      "changed": "2026-10-08"
     },
     "pages/about.html": {
       "path": "/about",
@@ -315,7 +315,7 @@
       },
       "inert": {
         "buttons": 5,
-        "fields": 1,
+        "fields": 0,
         "choices": 0,
         "roles": 0,
         "forms": 0,
@@ -325,8 +325,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2be639adc3a88e72",
-      "changed": "2026-10-08"
+      "digest": "27af10e85c99908d",
+      "changed": "2026-10-06"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -644,8 +644,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "25b57761ef684a80",
-      "changed": "2026-10-07"
+      "digest": "4e6bc38f7cf79a98",
+      "changed": "2026-10-08"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -673,8 +673,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "20daef4457b1413d",
-      "changed": "2026-10-06"
+      "digest": "2b16492714b6530f",
+      "changed": "2026-10-08"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -808,7 +808,7 @@
       },
       "inert": {
         "buttons": 3,
-        "fields": 1,
+        "fields": 0,
         "choices": 0,
         "roles": 0,
         "forms": 0,
@@ -818,7 +818,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "95b30d3d19a058c8",
+      "digest": "619dba0f11bf7f89",
       "changed": "2026-10-08"
     },
     "pages/learn.html": {
@@ -1079,8 +1079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "78a79c1223a2ddb7",
-      "changed": "2026-10-07"
+      "digest": "0ecc16bb3c288a15",
+      "changed": "2026-10-08"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1137,8 +1137,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "3ba9ced2c75139c4",
-      "changed": "2026-10-07"
+      "digest": "673ab839391971c7",
+      "changed": "2026-10-08"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1195,8 +1195,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2e835b1c50a43252",
-      "changed": "2026-10-07"
+      "digest": "5326979168121893",
+      "changed": "2026-10-08"
     },
     "pages/property/models.html": {
       "path": "/property/models",

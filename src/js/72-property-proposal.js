@@ -678,15 +678,20 @@ function cpAcquisitionSection(d, m, cash) {
       m.valuationGapCash > 0 ? ', the deposit and the valuation-gap cash below.' : ' and the deposit below.',
       ' The other lines are the cost of buying on top of the price, and what is set aside.']));
   const rows = [];
-  const mark = (st) => st === 'placeholder' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder')
-    : st === 'unverified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A working figure nobody has checked against its cited source.' }, 'unverified')
-    : st === 'quote' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A figure from a quotation the preparer was given.' }, 'quoted')
-    : null;
+  /* Each fee line by its provenance in the fee rulebook (70-property.js). */
+  const mark = (r) => {
+    const pv = r?.provenance;
+    return pv === 'estimated' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off an official scale.' }, 'estimated')
+      : pv === 'unknown' ? el('span', { class: 'cp-mark', title: 'The rule for this jurisdiction could not be verified from an official source; the amount rests on it — see the fee rulebook.' }, 'unknown rule')
+      : pv === 'verified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: `Computed from the official scale the fee rulebook ${FEE_TABLE.version} cites, checked ${feeDay(FEE_TABLE.checkedOn)}.` }, 'verified scale')
+      : pv === 'quote' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A figure from a quotation the preparer was given.' }, 'quoted')
+      : null;
+  };
   cash.groups.forEach(g => {
     rows.push(el('tr', { class: 'cp-grp' }, el('th', { scope: 'rowgroup', colspan: 2 }, g.label)));
     g.items.forEach((it, j) => {
       rows.push(el('tr', {}, [
-        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2]?.status)]),
+        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2])]),
         el('td', { class: 'num' }, isNum(g.lines[j]) ? cpFig('line', cpMoney(g.lines[j]), { 'data-cp-line': it[0], 'data-cp-group': g.id })
           : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, 'not priced')),
       ]));
@@ -703,7 +708,7 @@ function cpAcquisitionSection(d, m, cash) {
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && m.totalInitialCash > 0)
     s.append(el('p', { class: 'cp-note cp-warn' }, [cpFig('unconfirmedCost', cpMoney(m.unconfirmedCost)),
       ' of the total — ', cpFig('unconfirmedShare', fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)),
-      ' — comes from fee lines marked placeholder or unverified: working figures nobody has checked against their source. Confirm each with the lender, the solicitor and the local authority before relying on it.']));
+      ' — rests on unverified or unknown fee lines: estimates, or amounts resting on a rule that could not be verified for this jurisdiction — none checked against an official source. Confirm each with the lender, the solicitor and the local authority before relying on it.']));
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
@@ -895,8 +900,10 @@ function cpExitSection(d, m, paid = false) {
 
 function cpDisclosures(rec, d, m) {
   const s = cpSection('disclosures', 'What this proposal is, and is not');
-  const placeholders = (m.placeholderCostLines || []).length;
-  const unverified = m.costGroups.flatMap(g => g.items).filter(it => it[2]?.status === 'unverified' && isNum(it[1])).length;
+  /* By the fee rulebook's provenance (70-property.js): estimates, and
+     amounts resting on a rule unknown for the jurisdiction. */
+  const placeholders = (m.unconfirmedLines || []).filter(x => x.provenance === 'estimated').length;
+  const unverified = (m.unconfirmedLines || []).filter(x => x.provenance === 'unknown').length;
   const samples = cpSampleKeys(d, m).length;
   const ul = el('ul', { class: 'cp-points' });
   [
@@ -907,7 +914,7 @@ function cpDisclosures(rec, d, m) {
     'Every figure is computed by the model the Quantum Tradeworks property calculator runs: from the inputs listed under “The property and what it assumes”, and — for the duties and fees — from the amounts and scales of the fee registry this build carries, each fee line marked as it stands. None is a forecast, a quotation or an offer.',
     'Not a valuation. In Malaysia an official valuation must be carried out by a registered valuer, and nothing here is a price opinion.',
     placeholders || unverified
-      ? `Fee lines are marked as they stand: ${placeholders ? `${placeholders} ${placeholders === 1 ? 'is a placeholder' : 'are placeholders'} — a commonly quoted approximation` : ''}${placeholders && unverified ? ', and ' : ''}${unverified ? `${unverified} ${unverified === 1 ? 'is' : 'are'} unverified against ${unverified === 1 ? 'its' : 'their'} source` : ''}. Duties and fees change without notice; confirm every one with the lender, the solicitor and the local authority.`
+      ? `Fee lines are marked as they stand, by the fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}): ${placeholders ? `${placeholders} ${placeholders === 1 ? 'is an estimate' : 'are estimates'} — a commonly quoted approximation, not a quotation` : ''}${placeholders && unverified ? ', and ' : ''}${unverified ? `${unverified} ${unverified === 1 ? 'rests' : 'rest'} on a rule that could not be verified for this jurisdiction from an official source` : ''}. Duties and fees change without notice; confirm every one with the lender, the solicitor and the local authority.`
       : 'Duties and fees follow the fee registry this build carries, which changes without notice; confirm every one with the lender, the solicitor and the local authority.',
     samples
       ? `Sample marks ${samples === 1 ? 'an input' : `${samples} inputs`} still at the calculator’s illustrative starting value, chosen for no property and taken from no market.`

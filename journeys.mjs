@@ -1258,8 +1258,10 @@ const JOURNEYS = [
        chain out again with nothing pressed — the rent moves the monthly
        position and the net yield and not the repayment, the rate the
        repayment and not the net yield — and writes nothing; the comparison
-       by cash flow keeps A before B; Save beside the identity line saves the
-       property and then B as its scenario; and My properties lists it. */
+       by cash flow keeps A before B; one Save beside the identity line asks
+       for both names and saves the property and then B as its scenario, B's
+       unsaved moves kept (the guided save, 8 Oct 2026); and My properties
+       lists it. */
     id: 'lab', name: 'Property landing: the Scenario Lab moves, compares and saves',
     outcomes: ['Move the rent: the monthly position and the net yield follow, the repayment does not', 'Move the rate: the repayment follows, the net yield does not',
       'Compare by cash flow: A, then B', 'Save the property, then B as a scenario', 'It is listed with the saved properties'],
@@ -1313,17 +1315,39 @@ const JOURNEYS = [
         if (rows.map(r => r.split(' ')[0]).join('') !== 'AB') throw new StepError(`the comparison by cash flow lists ${rows.join(', ') || 'nothing'}, not A then B`);
         if (rows[0].split(' ')[1] === rows[1].split(' ')[1]) throw new StepError(`A and B show the same monthly position (${rows[0].split(' ')[1]}) after B's rent and rate moved`);
       });
+      /* THE GUIDED SAVE (the owner's property track, 8 Oct 2026): on the
+         unsaved deal one Save asks for the property's name and B's, and
+         saves the property and then B as its scenario — B's rent and rate,
+         moved above and never saved, kept in it and in its column. */
       await step(j, tab, 'Save the property, then B as a scenario', BUDGET.action * 3, async () => {
-        await tab.click(`document.getElementById('lab-id-save')`, 'Save this property, beside the identity line');
-        await tab.expect(`!!document.getElementById('lab-property-name')`, 'Save asked for no name');
+        const moved = await tab.eval(`(() => { const c = LAB.deal?.cols.find(x => x.key === 'B'); return c ? JSON.stringify({ rent: c.work.rent, ratePct: c.work.ratePct, moves: Object.keys(c.moves).sort() }) : null; })()`);
+        if (!moved) throw new StepError('the Lab holds no column B on the unsaved deal');
+        const was = JSON.parse(moved);
+        if (was.moves.join() !== 'ratePct,rent') throw new StepError(`B's unsaved moves are ${was.moves.join(', ') || 'none'}, not the rent and the rate moved above`);
+        await tab.expect(`/^Save this property and B as a scenario/.test(document.getElementById('lab-id-save')?.textContent || '')`, async () => `beside the identity line: “${await tab.eval(`document.querySelector('.lab-id-act')?.textContent || ''`)}”, not one Save for the property and B`);
+        /* The phone's bar (Analyse · Compare · Save this) starts the same save. */
+        const bar = await tab.eval(`labBarSave().aria`);
+        if (bar !== 'Save this property and B as a scenario') throw new StepError(`the phone bar's “Save this” says “${bar}”, not the identity line's guided save`);
+        await tab.click(`document.getElementById('lab-id-save')`, 'Save this property and B as a scenario, beside the identity line');
+        await tab.expect(`!!document.getElementById('lab-property-name') && !!document.getElementById('lab-scenario-name') && document.getElementById('lab-name-with-sc')?.checked === true`,
+          async () => `one Save asked for ${await tab.eval(`[...document.querySelectorAll('.lab-name-form input[type=text]')].map(n => n.id).join(', ') || 'no name'`)}, not the property's name and B's`);
         await tab.fill(`document.getElementById('lab-property-name')`, name, 'The property’s name');
-        await tab.click(`document.getElementById('lab-name-save')`, 'Save');
-        await tab.expect(`/Saved “/.test(document.getElementById('toast')?.textContent || '') && !!pmFind(State.deal.modelId)`, 'the property was not saved', 4000);
-        await tab.expect(`/^Save B as a scenario/.test(document.getElementById('lab-id-save')?.textContent || '')`, async () => `beside the identity line: “${await tab.eval(`document.querySelector('.lab-id-act')?.textContent || ''`)}”, not “Save B as a scenario”`);
-        await tab.click(`document.getElementById('lab-id-save')`, 'Save B as a scenario');
-        await tab.expect(`!!document.getElementById('lab-scenario-name')`, 'Save B asked for no name');
-        await tab.click(`document.getElementById('lab-name-save')`, 'Save');
-        await tab.expect(`/^Saved B as the scenario/.test(document.getElementById('toast')?.textContent || '')`, async () => `saving B said “${await tab.eval(`document.getElementById('toast')?.textContent || ''`)}”`, 4000);
+        await tab.click(`document.getElementById('lab-name-save')`, 'Save — once, for both');
+        await tab.expect(`/^Saved “/.test(document.getElementById('toast')?.textContent || '') && / and B as its scenario “/.test(document.getElementById('toast')?.textContent || '')`,
+          async () => `one Save said “${await tab.eval(`document.getElementById('toast')?.textContent || ''`)}”, not that the property and B were saved`, 4000);
+        const r = JSON.parse(await tab.eval(`(() => {
+          const rec = pmFind(State.deal.modelId), sc = (rec?.scenarios || [])[0];
+          const lab = rec && LAB['m:' + rec.id], col = lab?.cols.find(c => c.key === 'B');
+          const inputs = sc ? pmSavedInputs(rec, sc) : null;
+          return JSON.stringify({ name: rec?.name || null, scenarios: (rec?.scenarios || []).length, source: col?.source || null,
+            saved: inputs ? { rent: inputs.rent, ratePct: inputs.ratePct } : null, col: col ? { rent: col.work.rent, ratePct: col.work.ratePct } : null,
+            identity: (document.querySelector('.lab-id-act')?.textContent || '').trim() });
+        })()`));
+        if (r.name !== name) throw new StepError(`the property saved is “${r.name}”, not “${name}”`);
+        if (r.scenarios !== 1 || !String(r.source).startsWith('sc:')) throw new StepError(`after one Save the property has ${r.scenarios} scenarios and B is ${r.source}, not its saved scenario`);
+        if (r.saved?.rent !== was.rent || r.saved?.ratePct !== was.ratePct) throw new StepError(`B's moves were rent ${was.rent} and rate ${was.ratePct}; the scenario saved rent ${r.saved?.rent} and rate ${r.saved?.ratePct}`);
+        if (r.col?.rent !== was.rent || r.col?.ratePct !== was.ratePct) throw new StepError(`B's column went from rent ${was.rent} and rate ${was.ratePct} to ${r.col?.rent} and ${r.col?.ratePct} with the save`);
+        if (r.identity !== 'Saved in this browser') throw new StepError(`beside the identity line after the save: “${r.identity}”`);
       });
       await step(j, tab, 'It is listed with the saved properties', BUDGET.load, async () => {
         await tab.goto('/property/models');

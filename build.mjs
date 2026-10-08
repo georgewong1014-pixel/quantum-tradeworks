@@ -1819,12 +1819,73 @@ export function kindProblems() {
   const words = keys.map(k => api.KIND_BADGES[k].word);
   if (JSON.stringify([...words].sort()) !== JSON.stringify([...KIND_WORDS].sort())) out.push(`the kind badges' words are ${words.join(' · ')}, not the owner's eight (${KIND_WORDS.join(' · ')})`);
   if (api.KIND_ORDER.length !== keys.length || keys.some(k => !api.KIND_ORDER.includes(k))) out.push(`KIND_ORDER (${api.KIND_ORDER.join(', ')}) is not the eight kinds, each once`);
-  const FEE = [...new Set([...PROP.matchAll(/^\s+status: '([a-z_]+)',/gm)].map(m => m[1]))];
+  /* The fee rulebook's provenances (FEE_PROVENANCE, 70-property.js), and
+     'unset' — a line with no amount, whatever its provenance. */
+  const provText = cut(PROP, '70-property.js', 'const FEE_PROVENANCE = ', '\n};').replace(/^const FEE_PROVENANCE = /, '').replace(/;$/, '');
+  const FEE = [...Object.keys(vm.runInContext(`(${provText})`, vm.createContext({}))), 'unset'];
   for (const [name, from, map] of [['PROVENANCE kind', Object.keys(api.PROVENANCE), api.KIND_OF_PROVENANCE], ['EVIDENCE id', api.EVIDENCE.map(e => e.id), api.KIND_OF_EVIDENCE],
-    ['fee status', [...FEE, 'verified', 'unknown'], api.KIND_OF_FEE]]) {
+    ['fee provenance', FEE, api.KIND_OF_FEE]]) {
     for (const k of from) if (!keys.includes(map[k])) out.push(`the ${name} "${k}" maps to ${map[k] === undefined ? 'no badge' : `"${map[k]}", which is not a badge`}`);
     for (const k of Object.keys(map)) if (!from.includes(k)) out.push(`the ${name} map names "${k}", which is not a ${name}`);
   }
+  return out;
+}
+
+/* THE FEE RULEBOOK'S SHAPE (the owner's property track, 8 Oct 2026). The
+   property calculator's duties and fees are a versioned rule set
+   (FEE_TABLE, 70-property.js), and each line must say what it rests on:
+   - the table has a released version (not the 0.1.0-unverified it began
+     as) and the day it was checked;
+   - every line has a provenance (FEE_PROVENANCE: Verified, Estimated, User
+     quote or Unknown), a jurisdiction (Peninsular Malaysia, Sarawak, Sabah
+     or Federal), a category the table names, an effective date or none, a
+     source with a title, and a checked date;
+   - a Verified line names its effective date and a URL or a citation, and
+     its scale is a list of bands;
+   - an Unknown line says why (unknownWhy) and carries no amount's rule:
+     never one jurisdiction's rule passed off as another's;
+   - a reference rule (held, applied to nothing) is verified, dated and
+     cited in a jurisdiction other than the property data's;
+   - every date is a real ISO date. */
+export const FEE_JURISDICTIONS = ['Peninsular Malaysia', 'Sarawak', 'Sabah', 'Federal'];
+export function feeRulebookProblems({ root = ROOT } = {}) {
+  const P = lf(readFileSync(join(root, 'src', 'js', '70-property.js'), 'utf8'));
+  const out = [];
+  let T, PROV;
+  try {
+    ({ T, PROV } = vm.runInContext([cut(P, '70-property.js', 'const FEE_PROVENANCE = ', '\n};'), cut(P, '70-property.js', 'const FEE_TABLE = {', '\n};'),
+      '({ T: FEE_TABLE, PROV: FEE_PROVENANCE })'].join('\n'), vm.createContext({})));
+  } catch (e) { return [`the fee rulebook (70-property.js) cannot be read: ${e.message}`]; }
+  const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+  if (!/^\d+\.\d+\.\d+$/.test(T.version || '')) out.push(`the fee rulebook's version is "${T.version}", not a released version (major.minor.patch)`);
+  if (!isDay(T.checkedOn)) out.push(`the fee rulebook's checkedOn is "${T.checkedOn}", not a date`);
+  for (const [id, l] of Object.entries(T.lines || {})) {
+    const at = `fee line ${id}`;
+    if (!PROV[l.provenance]) out.push(`${at}: provenance "${l.provenance}" is not one of ${Object.keys(PROV).join(', ')}`);
+    if (!FEE_JURISDICTIONS.includes(l.jurisdiction)) out.push(`${at}: jurisdiction "${l.jurisdiction}" is not one of ${FEE_JURISDICTIONS.join(', ')}`);
+    if (!T.categories?.[l.category]) out.push(`${at}: category "${l.category}" is not one the rulebook names`);
+    if (l.effectiveFrom !== null && !isDay(l.effectiveFrom)) out.push(`${at}: effectiveFrom "${l.effectiveFrom}" is neither a date nor null`);
+    if (!l.source || !String(l.source.title || '').trim()) out.push(`${at}: no source title`);
+    if (!isDay(l.checkedOn)) out.push(`${at}: checkedOn "${l.checkedOn}" is not a date`);
+    if (l.provenance === 'verified') {
+      if (!isDay(l.effectiveFrom)) out.push(`${at}: Verified with no effective date`);
+      if (!l.source?.url && !l.source?.citation) out.push(`${at}: Verified with neither a URL nor a citation`);
+      if (l.basis === 'scale' && !(Array.isArray(l.scale) && l.scale.length && l.scale.every(b => Array.isArray(b) && b.length === 2 && b[0] > 0 && b[1] >= 0)))
+        out.push(`${at}: Verified, and its scale is not a list of [band, rate]`);
+    }
+    if (l.provenance === 'unknown') {
+      if (!String(l.unknownWhy || '').trim()) out.push(`${at}: Unknown, and it does not say why (unknownWhy)`);
+      /* No amount from a rule nobody verified for its jurisdiction — least
+         of all another jurisdiction's, carried silently. */
+      if (l.scale || l.percent != null || l.fixed != null) out.push(`${at}: Unknown, and it carries an amount's rule (scale, percent or fixed) — an unknown rule has no amount`);
+    }
+  }
+  for (const [id, r] of Object.entries(T.reference || {})) {
+    if (r.provenance !== 'verified' || !FEE_JURISDICTIONS.includes(r.jurisdiction) || !isDay(r.effectiveFrom) || !(r.source?.url || r.source?.citation) || !isDay(r.checkedOn))
+      out.push(`the rulebook's reference rule ${id} is not a verified, dated, cited rule with its jurisdiction and checked date`);
+    if (r.jurisdiction === T.jurisdiction) out.push(`the rulebook's reference rule ${id} is ${r.jurisdiction}'s — the property data's own jurisdiction, so it belongs among the lines, not held aside`);
+  }
+  for (const x of T.notApplied || []) if (x.applied !== false) out.push(`the rulebook's "${x.title}" is listed as not applied, and does not say applied: false`);
   return out;
 }
 
@@ -2021,7 +2082,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   /* The homepage's budgets (plan 3.6), on / as served with its render. */
   const homeBudget = !bare && rendered.renders.has('index.html') ? homeBudgets(pages.get(HOME)) : null;
   const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
-    ...kindProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : [])];
+    ...kindProblems(), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);
