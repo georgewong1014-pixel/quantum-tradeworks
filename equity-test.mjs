@@ -7765,7 +7765,7 @@ try {
         .filter(p => { const rt = matchRoute(p); return !rt || !VIEWS[rt.view]; });
       /* audit1 registry-ctas: a count whose tool cannot be used here is text
          (no href) — the scanner's alerts with no record visible. */
-      const tiles = () => Object.fromEntries([...main().querySelectorAll('.dash-tile')].map(t => [t.querySelector('.stat-label').textContent, { v: t.querySelector('.dash-tile-v').textContent, href: t.href ? new URL(t.href).pathname : null, off: t.classList.contains('tool-off') }]));
+      const tiles = () => Object.fromEntries([...main().querySelectorAll('.dash-tile')].map(t => [t.querySelector('.stat-label').textContent, { v: t.querySelector('.dash-tile-v').textContent, sub: t.querySelector('.stat-sub')?.textContent || '', href: t.href ? new URL(t.href).pathname : null, off: t.classList.contains('tool-off') }]));
       const out = {};
       /* The deployed site: the worker's files are never there. */
       scanSetupsFile = null; scanAlertsFile = null; navigate('/app'); await w(200);
@@ -7795,7 +7795,7 @@ try {
         rows: rows().map(a => ({ href: new URL(a.href).pathname, text: a.textContent.replace(/\\s+/g, ' ').trim() })), dead: deadLinks() };
       /* A redraw inside the same visit keeps the count. */
       render(); await w(100);
-      out.redraw = tiles()['New scanner alerts']?.v;
+      out.redraw = tiles()['Your alerts']?.v;
       /* The research queue is the old dashboard, whole. */
       navigate('/research/queue'); if (State.view !== 'researchQueue') { State.view = 'researchQueue'; render(); } await w(200);
       out.queue = { h1: main().querySelector('h1')?.textContent, fresh: /Freshness/.test(main().textContent), largest: /Largest differences/.test(main().textContent),
@@ -7805,25 +7805,27 @@ try {
     const p = [];
     const f = r.first;
     if (f.view !== 'home' || !f.start || f.tiles !== 0) p.push(`first time: view ${f.view}, checklist ${f.start}, ${f.tiles} tiles`);
-    if (f.steps !== '0000' || f.progress !== '0 of 4 done') p.push(`first time: steps ${f.steps}, "${f.progress}" — the seeded samples were counted as the visitor's`);
+    /* D12: a first visit shows no count, not even of the steps done. */
+    if (f.steps !== '0000' || f.progress != null) p.push(`first time: steps ${f.steps}, "${f.progress}" — the seeded samples were counted as the visitor's, or the steps were counted`);
     if (f.primary !== 1) p.push(`first time: ${f.primary} primary actions in the checklist, not one`);
     if (!f.seeded || !f.samples) p.push(`first time: the seeded samples (${f.seeded}) are not named on the page (${f.samples})`);
     if (!f.prefs || !f.start2) p.push(`first time: "Set your preferences" ${f.prefs}, "Not sure where to start?" ${f.start2}`);
     const s = r.second, t2 = s.tiles;
     if (t2['Instruments watchlisted']?.v !== '2') p.push(`one list of two companies reads ${JSON.stringify(t2['Instruments watchlisted'])} — the samples were counted`);
-    if (t2['Scanner alerts']?.v !== 'No record') p.push(`with no record visible the alerts tile reads ${JSON.stringify(t2['Scanner alerts'])}, not "No record"`);
-    if (t2['Active setups']?.v !== '0' || t2['Saved models']?.v !== '0') p.push(`counts with nothing saved: ${JSON.stringify(t2)}`);
+    /* D12: Your alerts — none set, no record here: a true nought, and the samples said not counted. */
+    if (t2['Your alerts']?.v !== '0' || !/sample alerts not counted/.test(t2['Your alerts']?.sub || '')) p.push(`with no alert of its own and no record visible the alerts tile reads ${JSON.stringify(t2['Your alerts'])}`);
+    if (t2['Active setups']?.v !== '0' || t2['Saved properties']?.v !== '0') p.push(`counts with nothing saved: ${JSON.stringify(t2)}`);
     if (s.steps !== 2) p.push(`next steps list ${s.steps} steps, not the two not taken`);
-    const hrefs = { 'Active setups': '/app/scanner/setups', 'Instruments watchlisted': '/my/watchlists', 'Saved models': '/my/workspace' };
+    const hrefs = { 'Active setups': '/app/scanner/setups', 'Instruments watchlisted': '/my/watchlists', 'Saved properties': '/property/models', 'Your alerts': '/my/alerts' };
     for (const [k, h] of Object.entries(hrefs)) if (!t2[k] || !(t2[k].href || '').endsWith(h)) p.push(`the ${k} tile opens ${t2[k]?.href}, not ${h}`);
     /* audit1 registry-ctas: with no record here the Alerts tool is
        unavailable, so its count is text, not a door to a page with nothing
        to show; with a record (below) it opens the alerts. */
-    if (!t2['Scanner alerts'] || t2['Scanner alerts'].href || !t2['Scanner alerts'].off) p.push(`with no record visible the alerts tile is ${JSON.stringify(t2['Scanner alerts'])}, not text`);
-    if (!(r.third.tiles['New scanner alerts']?.href || '').endsWith('/app/scanner/alerts')) p.push(`with a record the alerts tile opens ${r.third.tiles['New scanner alerts']?.href}, not /app/scanner/alerts`);
+    /* Since D12 the alerts are the reader's of every kind (/my/alerts, always open); with a record its line counts the new matches. */
+    if (!/2 new scanner matches since/.test(r.third.tiles['Your alerts']?.sub || '')) p.push(`with a record the alerts tile says ${JSON.stringify(r.third.tiles['Your alerts'])}, not the 2 new scanner matches`);
     if (!/MSFT/.test(s.text) || !/illustrative/i.test(s.text)) p.push('the recently read companies are not named, or the illustrative one is not marked');
     const t = r.third;
-    if (t.tiles['New scanner alerts']?.v !== '2' || r.redraw !== '2') p.push(`new since the visit: ${t.tiles['New scanner alerts']?.v}, after a redraw ${r.redraw} — want 2 and 2`);
+    if (t.tiles['Your alerts']?.v !== '2' || r.redraw !== '2') p.push(`new since the visit: ${t.tiles['Your alerts']?.v}, after a redraw ${r.redraw} — want 2 and 2`);
     if (!/2 new matches/.test(t.lede)) p.push(`the lede does not say what changed: "${t.lede}"`);
     if (t.rows.length !== 3 || t.rows.some(x => !/^\/app\/scanner\/alerts\/a0ra0000[123]$/.test(x.href))) p.push(`match rows: ${JSON.stringify(t.rows.map(x => x.href))}`);
     if (t.rows.some(x => !/Your setup “WaveTrend Buy”/.test(x.text))) p.push(`a setup's name is not quoted as the visitor's own: ${JSON.stringify(t.rows.map(x => x.text))}`);
@@ -7832,7 +7834,7 @@ try {
     if (dead.length) p.push(`links to routes that do not render: ${[...new Set(dead)].join(', ')}`);
     if (r.queue.h1 !== 'Research queue' || !r.queue.fresh || !r.queue.largest || !r.queue.waits) p.push(`the research queue: ${JSON.stringify(r.queue)}`);
     if (p.length) fail('release-a dashboard: the visitor’s own counts, doors and record', p);
-    else ok(`release-a dashboard: a clean profile gets the four-step checklist (0 of 4, samples named and not counted, one primary action); a list of its own reads 2 instruments, an absent record reads "No record", and ${t.tiles['New scanner alerts'].v} matches recorded since the last visit stay ${r.redraw} after a redraw; each of ${t.rows.length} rows opens its alert as “your setup”, no link leads to a route that does not render, and the research queue keeps the old dashboard`);
+    else ok(`release-a dashboard: a clean profile gets the four-step checklist (no count, samples named and not counted, one primary action); a list of its own reads 2 instruments, no alert of its own and no record a true nought, and ${t.tiles['Your alerts'].v} matches recorded since the last visit stay ${r.redraw} after a redraw; each of ${t.rows.length} rows opens its alert as “your setup”, no link leads to a route that does not render, and the research queue keeps the old dashboard`);
     await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(keepLs)});
       Object.keys(localStorage).forEach(k => { if (!(k in keep)) localStorage.removeItem(k); });
       Object.entries(keep).forEach(([k, v]) => localStorage.setItem(k, v)); return true; })()`);
@@ -9338,7 +9340,7 @@ try {
           const mk = (setupId, sym, d) => ({ key: setupId + '|' + sym + '|daily|' + d, setupId, setupName: setupId, symbol: sym, timeframe: 'daily', bar: d, close: 10, recordedAt: d + 'T01:00:00Z', rules: [{ text: 'price above SMA20', met: true }], engine: 'scan 0.2.0' });
           scanAlertsFile = { alerts: [mk('ws-muted', 'AAA', '2026-09-01'), mk('ws-muted', 'BBB', '2026-09-02'), mk('ws-muted', 'CCC', '2026-09-03'), mk('ws-on', 'DDD', '2026-09-04'), mk('ws-on', 'EEE', '2026-09-05')], lastRun: null };
           navigate('/app'); await w(200);
-          const tile = [...document.querySelectorAll('main .dash-tile')].find(t => /scanner alerts/i.test(t.querySelector('.stat-label')?.textContent || ''));
+          const tile = [...document.querySelectorAll('main .dash-tile')].find(t => /^Your alerts$/i.test(t.querySelector('.stat-label')?.textContent || ''));
           const out = { label: txt(tile?.querySelector('.stat-label')), value: txt(tile?.querySelector('.dash-tile-v')), sub: txt(tile?.querySelector('.stat-sub')), badge: scanUnreadCount() };
           scanAlertsFile = keep.a;
           [['vl.scanAlertState', keep.st], ['vl.scanPrefs', keep.pr], ['vl.dashVisit', keep.dv]].forEach(([k, v]) => v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v));

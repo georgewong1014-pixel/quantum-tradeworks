@@ -14286,7 +14286,7 @@ function renderProductTabs() {
   });
   const nav = p
     ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
-    : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
+    : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: chips ? 'ws-tabs ls-chips-row' : 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
   host.dataset.strip = strip;
@@ -14789,7 +14789,11 @@ const SERVED_READS = {
      samples, and the first steps. The last visit (dashVisit, which the page
      itself keeps as it draws) is said only to a visitor with something of
      their own, which these already name: a reload of the dashboard is
-     served. */
+     served. As a workspace (D12, 8 Oct 2026) it reads nothing more: the
+     company last opened (recentCompanies), the saved properties
+     (savedWork), the research, price and screen alerts (theses,
+     priceAlerts, savedScreens) — a returning reader holding any of them
+     is never shown the first visit's page. */
   home: ['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
     'comparisons', 'runs', 'reviews', 'scanSetups', 'deal'],
   /* /research/queue: the cards' arrangement, the active list, the
@@ -16004,11 +16008,12 @@ function startHereSettings() {
    Pages on the system (LS_VIEWS): /property (and /property/lab, the same
    view), /property/calculator and the Scanner's dashboard, /app/scanner
    (N5: in its first view the example on a generated series beside the
-   state, and how to run the worker an L3 <details>). The rest come later,
-   one at a time.
+   state, and how to run the worker an L3 <details>), and My Dashboard,
+   /app (D12: five metric cards of the reader's own work, each section a
+   named one). The rest come later, one at a time.
    ========================================================================== */
 
-const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard'];
+const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home'];
 const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
 const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
 const lsOn = (view = State.view) => LS_VIEWS.includes(view);
@@ -16720,6 +16725,22 @@ function myDashOwn() {
      first-time checklist into the returning dashboard. */
   const propertySnaps = typeof loadWork === 'function' ? loadWork().filter(w => w?.kind === 'property' && !workIsSample(w)).length : 0;
   const researched = (State.recentCompanies || []).filter(id => BY_ID.has(id));
+  /* SAVED PROPERTIES (D12, 8 Oct 2026): the properties saved in this
+     browser (pmIsProperty), newest first, each called a saved property —
+     never the "Tool snapshot" the saved-work store files it under. One
+     holding only the calculator's sample inputs is not the reader's
+     (workIsSample) and is named apart, never counted. */
+  const propsAll = typeof pmAll === 'function' ? pmAll() : [];
+  const propTime = (r) => Date.parse((typeof pmUpdated === 'function' ? pmUpdated(r) : null) || '') || 0;
+  const savedProps = propsAll.filter(r => !workIsSample(r)).sort((a, b) => propTime(b) - propTime(a));
+  const sampleProps = propsAll.length - savedProps.length;
+  /* YOUR ALERTS (D12): the research alerts (an investment case of the
+     reader's own with a condition to break), the price alerts and the
+     screen alerts they set, and the scanner's matches where its record is
+     held here. The seeded cases and price alerts are samples, left out. */
+  const seededTh = typeof SEEDED_THESIS_IDS !== 'undefined' ? SEEDED_THESIS_IDS : [];
+  const researchAlerts = (State.theses || []).filter(t => t && !seededTh.includes(t.id) && (t.conds || []).length);
+  const screenAlerts = (State.savedScreens || []).filter(s => s && s.alertOnMatch !== false);
   const setupsKnown = setups.length + (fileActive ? fileActive.valid : 0);
   /* The scanner's record counts as the visitor's own: its matches are of their
      setups. With a record and no readable setups file (renamed, or every setup
@@ -16727,7 +16748,7 @@ function myDashOwn() {
      the sidebar was counting as unread on the same screen. */
   const hasOwn = lists.length + setupsKnown + saved.length + portfolios.length + priceAlerts.length + propertySnaps + (alerts?.length || 0) > 0 || dealStarted;
   return { lists, createdLists, sampleLists, instruments, scanSt, setups, setupsDoc, scan, fileActive, alerts, saved, portfolios,
-           priceAlerts, dealStarted, propertySnaps, researched, setupsKnown, hasOwn,
+           priceAlerts, dealStarted, propertySnaps, researched, setupsKnown, hasOwn, savedProps, sampleProps, researchAlerts, screenAlerts,
            samples: typeof hasSeededData === 'function' && hasSeededData() };
 }
 
@@ -16759,13 +16780,30 @@ function myDashSteps(o) {
     { k: 'setup', product: 'scanner', tool: 'setups', title: 'Create a scanner setup', done: o.setupsKnown > 0,
       note: o.setupsKnown ? `${setupsText}.` : 'Conditions you choose, checked on each daily close of the price history you supply, with a record of every bar on which they held.',
       action: sc?.action || 'Create a setup', path: sc?.actionPath || '/app/scanner/setups/new' },
-    { k: 'property', product: 'property', tool: 'calculator', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
+    /* The property step opens Property's landing, the Scenario Lab (D12; N3
+       made /property the Lab): the price, the rent and the loan moved and
+       the figures following, before anything is typed into the calculator. */
+    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
       note: o.dealStarted || o.propertySnaps
-        ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved snapshot')}` : ''].filter(Boolean).join(' · ') + '.'
-        : 'A price, a rent and a loan in; the monthly cash flow, the rental yield and the cash needed up front out.',
-      action: pr?.action || 'Analyse a property', path: pr?.actionPath || '/property/calculator' },
+        ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
+        : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.',
+      action: pr?.action || 'Analyse a property', path: '/property' },
   ];
 }
+
+/* EACH STEP'S PICTURE (D12, 8 Oct 2026): a schematic of what the step
+   makes — a statement and its lens, a list, a line meeting a condition, a
+   house and three sliders — drawn without a figure, a name or a count, so
+   it can never be read as anyone's data. Decorative (aria-hidden): the
+   step's words say what it is. */
+const MYDASH_PICS = {
+  research: '<rect x="7" y="6" width="32" height="36" rx="4"/><path d="M13 14h20M13 20h13"/><path class="dsp-2" d="M14 36v-6M20 36v-9M26 36v-4M32 36v-11"/><circle cx="45" cy="29" r="7"/><path d="m50 34 7 7"/>',
+  watchlist: '<rect x="7" y="7" width="50" height="34" rx="4"/><path class="dsp-2" d="m15 13.6 1.5 3 3.3.5-2.4 2.3.6 3.3-3-1.6-3 1.6.6-3.3-2.4-2.3 3.3-.5z"/><path d="M25 18h24"/><circle cx="15" cy="27" r="1.8"/><path d="M25 27h18"/><circle cx="15" cy="34.5" r="1.8"/><path d="M25 34.5h21"/>',
+  setup: '<path d="M6 41h52" opacity=".45"/><path class="dsp-2" d="M6 20h52" stroke-dasharray="3 3"/><path d="m6 35 9-6 8 4 9-11 8 3 8-12 10 3"/><circle class="dsp-dot" cx="40" cy="19" r="3.4"/>',
+  property: '<path d="M6 25 20 13l14 12"/><path d="M10 22v18h20V22"/><path d="M17 40v-8h6v8"/><path d="M40 15h18M40 26h18M40 37h18"/><circle class="dsp-dot" cx="47" cy="15" r="3"/><circle class="dsp-dot" cx="53" cy="26" r="3"/><circle class="dsp-dot" cx="44" cy="37" r="3"/>',
+};
+const myDashPic = (k) => el('span', { class: 'dash-step-pic', 'aria-hidden': 'true',
+  html: `<svg viewBox="0 0 64 48" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">${MYDASH_PICS[k] || ''}</svg>` });
 
 const MYDASH_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
@@ -16774,8 +16812,9 @@ const MYDASH_CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
    done, and its action. Only the first step not yet done carries the primary
    button, so the page has one thing to do next rather than four. */
 function myDashStepRow(s, primary) {
-  const li = el('li', { class: 'dash-step', data: { done: s.done ? '1' : '0' } });
+  const li = el('li', { class: 'dash-step', data: { done: s.done ? '1' : '0', step: s.k } });
   li.append(el('span', { class: 'dash-step-mark', 'aria-hidden': 'true', html: s.done ? MYDASH_CHECK : '' }));
+  li.append(myDashPic(s.k));
   const body = el('div', { class: 'dash-step-body' });
   body.append(el('div', { class: 'dash-step-t' }, [
     el('h3', { class: 'h-card' }, [el('span', { class: 'sr-only' }, s.done ? 'Done: ' : 'Not done yet: '), s.title]),
@@ -16789,22 +16828,128 @@ function myDashStepRow(s, primary) {
 
 /* A count that opens the page it counts. `value` is text, so an absent record
    reads as what it is ("No record") and never as a nought. */
-function myDashTile({ icon: ic, label, value, sub, path, note }) {
-  return myDashLink(path, { class: 'dash-tile' }, [
-    el('span', { class: 'dash-tile-hd' }, [el('span', { class: 'dash-tile-ic', 'aria-hidden': 'true', html: icon(ic, 16) }), el('span', { class: 'stat-label' }, label)]),
-    el('span', { class: 'dash-tile-v' + (/^\d+$/.test(value) ? '' : ' is-text') }, value),
-    el('span', { class: 'stat-sub' }, sub),
+/* A metric card of the layout system (37-layout-system.js): its label, its
+   value and its data badge — the kind of what it shows (D6): the reader's
+   own, counted from this browser, or a company's own kind. */
+function myDashTile({ icon: ic, label, value, sub, path, note, kind = 'yours', fine = 'Counted from what you made in this browser', tile = null }) {
+  const badge = kindBadge(kind, { fine, link: false });
+  badge.classList.add('ls-badge');
+  return myDashLink(path, { class: 'dash-tile ls-card ls-l1', 'data-card': 'metric', 'data-level': '1', 'data-tile': tile }, [
+    el('span', { class: 'dash-tile-hd ls-card-hd' }, [el('span', { class: 'dash-tile-ic', 'aria-hidden': 'true', html: icon(ic, 16) }), el('span', { class: 'stat-label ls-card-label' }, label)]),
+    el('span', { class: 'dash-tile-v ls-card-value' + (/^\d+$/.test(value) ? '' : ' is-text') }, value),
+    el('span', { class: 'stat-sub ls-card-sub' }, sub),
     note ? el('span', { class: 'dash-tile-note' }, note) : null,
+    badge,
     el('span', { class: 'dash-tile-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON }),
   ]);
+}
+
+/* WHAT IS THE READER'S, BY SECTION (D12, 8 Oct 2026). The five parts of
+   the workspace — the company last opened, the saved properties, the
+   watchlists, the setups and the alerts — read from the same stores in
+   both states. A first visit lists them with what each holds now, which
+   is nothing: "None yet", never a count; a returning reader gets them as
+   five counts (myDashTiles). Samples are never one of them. */
+const myDashRecent = (o) => o.researched.map(id => BY_ID.get(id)).filter(Boolean);
+const myDashPropPath = (rec) => `/property?model=${encodeURIComponent(rec.id)}`;
+function myDashSections(o) {
+  const sec = el('section', { class: 'card ls-section dash-secs', 'aria-labelledby': 'dash-secs-hd' });
+  sec.append(el('h2', { id: 'dash-secs-hd', class: 'h-card' }, 'Your workspace'));
+  sec.append(el('p', { class: 'caption dash-secs-lede' }, 'What you make here is listed here, and nothing else is: sample data is never shown as yours.'));
+  const recent = myDashRecent(o)[0] || null;
+  const row = ({ k, ic, name, path, t, s, chip = null }) => el('li', { 'data-sec': k }, myDashLink(path, { class: 'dash-row dash-sec' }, [
+    el('span', { class: 'dash-sec-ic', 'aria-hidden': 'true', html: icon(ic, 16) }),
+    el('span', { class: 'dash-row-main' }, [
+      el('span', { class: 'dash-row-k' }, name),
+      el('span', { class: 'dash-row-t' }, [el('strong', {}, t), chip]),
+      el('span', { class: 'dash-row-s' }, s),
+    ]),
+    el('span', { class: 'dash-row-go', 'aria-hidden': 'true', html: MYDASH_CHEVRON }),
+  ]));
+  const kindOf = (c) => { const b = kindBadge(rowKind(c), { link: false }); b.classList.add('ls-badge'); return b; };
+  sec.append(el('ul', { class: 'dash-list dash-sec-list' }, [
+    recent
+      ? row({ k: 'recent', ic: 'search', name: 'Recently opened', path: companyPath(recent.c), t: `${recent.c.tk} — ${recent.c.name}`,
+          s: 'The company you opened last. Open it again from here.', chip: kindOf(recent.c) })
+      : row({ k: 'recent', ic: 'search', name: 'Recently opened', path: '/research', t: 'None yet',
+          s: 'The company you open last is listed here, one press away.' }),
+    row({ k: 'properties', ic: 'home', name: 'Saved properties', path: '/property/models', t: 'None yet',
+      s: o.sampleProps ? 'Saved with only the sample inputs, a property is not counted as yours.' : 'A property you save in the Scenario Lab or the calculator.' }),
+    row({ k: 'watchlists', ic: 'list', name: 'Watchlists', path: '/my/watchlists', t: 'None of your own yet',
+      s: o.sampleLists.length ? 'The sample lists are not yours, and are not counted.' : 'The companies you follow, in a list of your own.' }),
+    row({ k: 'setups', ic: 'target', name: 'Scanner setups', path: '/app/scanner/setups', t: 'None yet',
+      s: 'Conditions you write, checked on the price history you supply.' }),
+    row({ k: 'alerts', ic: 'bell', name: 'Your alerts', path: '/my/alerts', t: 'None yet',
+      s: 'Research, price and screen alerts you set, and your setups’ matches where the scanner’s record is held. Sample alerts are not counted.' }),
+  ]));
+  return sec;
+}
+
+/* The five counts of a returning reader, each a door to the page it counts. */
+function myDashTiles(o, visit, st) {
+  const tiles = el('div', { class: 'dash-tiles' });
+  /* Recently opened: the last company, by name, a press away. */
+  const recent = myDashRecent(o);
+  const last = recent[0] || null;
+  tiles.append(last
+    ? myDashTile({ icon: 'search', label: 'Recently opened', tile: 'recent', path: companyPath(last.c), value: last.c.tk,
+        sub: `${last.c.name}${recent.length > 1 ? ` · before it ${recent.slice(1, 3).map(r => r.c.tk).join(', ')}` : ''}`,
+        kind: rowKind(last.c), fine: { filed: 'Its statements, as filed with the US SEC', yours: 'Statements you supplied' }[rowKind(last.c)] || ILLUS_TITLE.replace(/\.$/, '') })
+    : myDashTile({ icon: 'search', label: 'Recently opened', tile: 'recent', path: '/research', value: 'None yet',
+        sub: 'The company you open last is listed here' }));
+  /* Saved properties: the reader's own, the newest named. */
+  const props = o.savedProps;
+  tiles.append(myDashTile({ icon: 'home', label: 'Saved properties', tile: 'properties', path: '/property/models', value: String(props.length),
+    sub: props.length ? `Newest: “${props[0].name}”` : 'None saved yet',
+    note: o.sampleProps ? `${myDashPlural(o.sampleProps, 'property', 'properties')} with only the sample inputs, not counted` : null }));
+  tiles.append(myDashTile({ icon: 'grid', label: 'Instruments watchlisted', tile: 'watchlists', path: '/my/watchlists',
+    value: String(o.instruments.size),
+    sub: o.instruments.size ? `Added by you, in ${myDashPlural(o.lists.length, 'list')}` : 'None added by you yet',
+    note: o.sampleLists.length ? 'Sample companies not counted' : null }));
+  const fa = o.fileActive;
+  /* Active as the worker counts it: enabled, and not past its expiry date. */
+  const today = new Date().toISOString().slice(0, 10);
+  const browserOn = o.setups.filter(s => s.enabled !== false && !(s.expires && s.expires < today)).length;
+  tiles.append(myDashTile({ icon: 'target', label: 'Active setups', tile: 'setups', path: '/app/scanner/setups',
+    value: String(fa ? Math.max(0, fa.enabled - fa.expired) : browserOn),
+    sub: fa ? `Of ${fa.valid} valid in the worker’s file${o.setups.length ? ` · ${o.setups.length} saved here` : ''}`
+      : o.setups.length ? `Of ${myDashPlural(o.setups.length, 'setup')} saved in this browser — the worker runs them once exported` : 'None saved yet' }));
+  /* YOUR ALERTS. The research, price and screen alerts the reader set, and
+     the scanner's matches where its record is held here — new since the
+     last visit, else unread as the sidebar's badge counts them
+     (scanUnreadCount: a muted setup's left out, and named). Each part is
+     said; the seeded samples are not one of them, and the line says so. */
+  const alertTime = (a) => Date.parse(a?.detectedAt || a?.recordedAt || '');
+  const since = o.alerts && visit.prev ? o.alerts.filter(a => alertTime(a) > Date.parse(visit.prev)) : null;
+  const undated = o.alerts ? o.alerts.filter(a => !Number.isFinite(alertTime(a))).length : 0;
+  const newN = o.alerts && typeof scanAlertStatus === 'function' ? o.alerts.filter(a => scanAlertStatus(a, st) === 'NEW').length : null;
+  const counted = newN !== null && typeof scanUnreadCount === 'function' ? scanUnreadCount() : null;
+  const unread = counted ?? newN;
+  const mutedN = counted !== null ? newN - counted : 0;
+  const scanN = !o.alerts ? 0 : since ? since.length : unread;
+  const scanSaid = !o.alerts ? (o.setupsKnown ? 'scanner matches: the record stays on the machine the worker runs on' : null)
+    : since ? `${myDashPlural(since.length, 'new scanner match', 'new scanner matches')} since ${myDashWhen(visit.prev)} · ${unread} unread${undated ? ` · ${undated} with no recorded time` : ''}`
+    : `${myDashPlural(unread, 'unread scanner match', 'unread scanner matches')}`;
+  const mutedSaid = mutedN > 0 ? `${mutedN} more from muted setups, not counted` : null;
+  const parts = [
+    o.researchAlerts.length ? myDashPlural(o.researchAlerts.length, 'research alert') : null,
+    o.priceAlerts.length ? myDashPlural(o.priceAlerts.length, 'price alert') : null,
+    o.screenAlerts.length ? myDashPlural(o.screenAlerts.length, 'screen alert') : null,
+    scanSaid, mutedSaid,
+  ].filter(Boolean);
+  const total = o.researchAlerts.length + o.priceAlerts.length + o.screenAlerts.length + scanN;
+  tiles.append(myDashTile({ icon: 'bell', label: 'Your alerts', tile: 'alerts', path: '/my/alerts', value: String(total),
+    sub: `${parts.length ? parts.join(' · ') : 'No research, price or screen alert set'} · sample alerts not counted` }));
+  return tiles;
 }
 
 VIEWS.home = () => {
   const visit = myDashVisit();
   const o = myDashOwn();
   const steps = myDashSteps(o);
-  const done = steps.filter(s => s.done).length;
-  const wrap = el('div', { class: 'dash' });
+  /* On the layout system (37-layout-system.js; D12): its metric cards, its
+     named sections, its type scale and its measure. */
+  const wrap = el('div', { class: 'dash ls-page' });
 
   /* -- header ------------------------------------------------------------ */
   /* New is by when the worker recorded the match (detectedAt), not by its
@@ -16817,7 +16962,7 @@ VIEWS.home = () => {
   /* The lede is one line — what changed — and what qualifies it is the
      head's note (pageHead, 36-layouts.js; Release B). */
   const [lede, ledeNote] = !o.hasOwn
-    ? ['Four first steps, each with its one action.', 'As you take them, this page fills with your own work — never with sample data or anyone else’s activity.']
+    ? ['Your first steps, each with its one action.', 'As you take them, this page fills with your own work — never with sample data or anyone else’s activity.']
     : !visit.prev ? ['This is the first visit this browser has recorded.', 'From the next one, the line above says what changed in between.']
     : !o.alerts ? [`Welcome back — you were last here ${myDashWhen(visit.prev)}.`, o.setupsKnown ? 'The scanner’s record of matches stays on the machine its worker runs on, so nothing new can be counted from it here.' : null]
     : since.length ? [`Since you were last here — ${myDashWhen(visit.prev)} — the scanner recorded ${myDashPlural(since.length, 'new match', 'new matches')} of your setups.`, null]
@@ -16837,29 +16982,25 @@ VIEWS.home = () => {
   wrap.append(pageHead({ cls: 'dash-hd', title: [el('span', { class: 'sr-only' }, 'My Dashboard: '),
     el('span', { 'data-now': 'Welcome' }, myDashGreeting())], lede, note: ledeNote }));
 
-  /* -- first time: the checklist, and nothing else ------------------------ */
+  /* -- first time: the steps, and what the workspace holds (nothing yet) --- */
   if (!o.hasOwn) {
-    const card = el('section', { class: 'card dash-start', 'aria-labelledby': 'dash-start-hd' });
+    const card = el('section', { class: 'card ls-section dash-start', 'aria-labelledby': 'dash-start-hd' });
     const top = el('div', { class: 'dash-start-top' });
     top.append(el('div', {}, [
       el('h2', { id: 'dash-start-hd', class: 'h-section' }, 'Set up your workspace'),
       /* "…and stays ticked once it is true" was kept by nothing: each step
          is read afresh, so Clear recent, which forgets the companies opened,
-         un-ticked "Research a company". The step follows what it reads. */
-      el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' }, 'Each step is ticked from what this browser holds now.'),
-    ]));
-    top.append(el('div', { class: 'dash-progress' }, [
-      el('span', { class: 'dash-progress-t' }, `${done} of ${steps.length} done`),
-      el('span', { class: 'dash-progress-bar', role: 'progressbar', 'aria-label': 'First steps done', 'aria-valuemin': '0',
-        'aria-valuemax': String(steps.length), 'aria-valuenow': String(done) },
-        el('i', { style: `transform:scaleX(${done / steps.length})` })),
+         un-ticked "Research a company". The step follows what it reads.
+         No count of steps done (D12: a first visit shows no counts); each
+         step's mark says whether it is. */
+      el('p', { class: 'caption dash-start-lede' }, 'Each step is ticked from what this browser holds now.'),
     ]));
     card.append(top);
     const firstOpen = steps.findIndex(s => !s.done);
     card.append(el('ol', { class: 'dash-steps' }, steps.map((s, i) => myDashStepRow(s, i === firstOpen))));
     /* Beside the steps, the two ways in that are not steps: the preferences
        questions and the goal launcher. */
-    const ways = el('section', { class: 'card dash-ways', 'aria-labelledby': 'dash-ways-hd' });
+    const ways = el('section', { class: 'card ls-section dash-ways', 'aria-labelledby': 'dash-ways-hd' });
     ways.append(el('h2', { id: 'dash-ways-hd', class: 'h-card' }, 'Other ways in'));
     ways.append(el('div', { class: 'dash-more' }, [
       myDashLink('/welcome', { class: 'dash-more-link' }, [el('strong', {}, 'Set your preferences'),
@@ -16867,51 +17008,23 @@ VIEWS.home = () => {
       myDashLink('/start', { class: 'dash-more-link' }, [el('strong', {}, 'Not sure where to start?'),
         el('span', { class: 'caption' }, 'Pick what you want to find out, and the right tool opens.')]),
     ]));
+    /* The workspace's five parts, each "None yet" — and the company last
+       opened, which a first visit can already have (D12 (b), (d)). */
+    const main = el('div', { class: 'dash-side' }, [card, myDashSections(o)]);
     const aside = el('div', { class: 'dash-side' }, [ways, o.samples ? myDashSampleNote() : null]);
-    wrap.append(el('div', { class: 'dash-first' }, [card, aside]));
+    wrap.append(el('div', { class: 'dash-first' }, [main, aside]));
     wrap.append(myDashFoot());
     return wrap;
   }
 
-  /* -- returning: four counts, each a door --------------------------------- */
-  const tiles = el('div', { class: 'dash-tiles' });
-  const fa = o.fileActive;
-  /* Active as the worker counts it: enabled, and not past its expiry date. */
-  const today = new Date().toISOString().slice(0, 10);
-  const browserOn = o.setups.filter(s => s.enabled !== false && !(s.expires && s.expires < today)).length;
-  tiles.append(myDashTile({ icon: 'target', label: 'Active setups', path: '/app/scanner/setups',
-    value: String(fa ? Math.max(0, fa.enabled - fa.expired) : browserOn),
-    sub: fa ? `Of ${fa.valid} valid in the worker’s file${o.setups.length ? ` · ${o.setups.length} saved here` : ''}`
-      : o.setups.length ? `Of ${myDashPlural(o.setups.length, 'setup')} saved in this browser — the worker runs them once exported` : 'None saved yet' }));
+  /* -- returning: the reader's work first, as five counts, each a door ----- */
+  /* (D12 (e)): the company last opened, the saved properties, the
+     watchlists, the setups and the alerts, before any step not yet taken.
+     Unread scanner matches are as the sidebar's badge counts them
+     (scanUnreadCount): a setup muted in the scanner's settings is left out,
+     and named. */
   const st = typeof scanAlertStateRead === 'function' ? scanAlertStateRead() : {};
-  /* Unread as the sidebar's badge counts it (scanUnreadCount): a setup muted
-     in the scanner's settings is left out. This counted every NEW match, so
-     with one setup muted the tile read 5 unread beside a badge reading 2 on
-     the same screen. The muted ones are named, as the scanner's own tile
-     names them; with the in-app count switched off there is no badge, and
-     every new match is counted. */
-  const newN = o.alerts && typeof scanAlertStatus === 'function' ? o.alerts.filter(a => scanAlertStatus(a, st) === 'NEW').length : null;
-  const counted = newN !== null && typeof scanUnreadCount === 'function' ? scanUnreadCount() : null;
-  const unread = counted ?? newN;
-  const mutedN = counted !== null ? newN - counted : 0;
-  const unreadSaid = `${unread} unread${mutedN > 0 ? ` — ${mutedN} more from muted setups, not counted` : ''}`;
-  tiles.append(myDashTile({ icon: 'bell', path: '/app/scanner/alerts',
-    label: since ? 'New scanner alerts' : o.alerts ? 'Unread scanner alerts' : 'Scanner alerts',
-    value: since ? String(since.length) : o.alerts ? String(unread) : 'No record',
-    sub: since ? `Since ${myDashWhen(visit.prev)} · ${unreadSaid}${undated ? ` · ${undated} with no recorded time` : ''}`
-      : o.alerts ? `Of ${myDashPlural(o.alerts.length, 'match', 'matches')} recorded — no earlier visit to count from${mutedN > 0 ? ` · ${mutedN} from muted setups, not counted` : ''}`
-      : o.setupsKnown ? 'The record stays on the machine the worker runs on' : 'You have no scanner setup yet' }));
-  tiles.append(myDashTile({ icon: 'grid', label: 'Instruments watchlisted', path: '/my/watchlists',
-    value: String(o.instruments.size),
-    sub: o.instruments.size ? `Added by you, in ${myDashPlural(o.lists.length, 'list')}` : 'None added by you yet',
-    note: o.sampleLists.length ? 'Sample companies not counted' : null }));
-  const moved = o.saved.filter(i => ['model', 'data', 'both'].includes(i.diff?.status)).length;
-  const kinds = (typeof WORKSPACE_KINDS !== 'undefined' ? WORKSPACE_KINDS : []).map(k => [k, o.saved.filter(i => i.kind === k.id).length]).filter(([, n]) => n);
-  tiles.append(myDashTile({ icon: 'doc', label: 'Saved models', path: '/my/workspace',
-    value: String(o.saved.length),
-    sub: o.saved.length ? kinds.slice(0, 2).map(([k, n]) => `${n} ${(n === 1 && typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE[k.id] : k.label).toLowerCase()}`).join(' · ') + (kinds.length > 2 ? ' · …' : '') : 'Nothing saved yet',
-    note: moved ? `${moved} saved under a model or data version since replaced` : null }));
-  wrap.append(tiles);
+  wrap.append(myDashTiles(o, visit, st));
 
   /* ONE NEXT ACTION (audit 1, #9). A returning reader's next action is to
      carry on with the most recent thing they made, so "Continue" on it is the
@@ -16932,7 +17045,7 @@ VIEWS.home = () => {
   main.append(myDashMatches(o, st));
   const open = steps.filter(s => !s.done);
   if (open.length) {
-    const ns = el('section', { class: 'card', 'aria-labelledby': 'dash-next-hd' });
+    const ns = el('section', { class: 'card ls-section', 'aria-labelledby': 'dash-next-hd' });
     ns.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
       el('h2', { id: 'dash-next-hd', class: 'h-card' }, 'Next steps'),
       el('p', { class: 'caption', style: 'margin-top:2px' }, `${myDashPlural(open.length, 'first step')} not taken yet.`),
@@ -16954,7 +17067,7 @@ VIEWS.home = () => {
    ("your setup"), so a name like "Buy on the cross" reads as what they called
    a rule, not as something this page says. */
 function myDashMatches(o, st) {
-  const card = el('section', { class: 'card dash-matches', 'aria-labelledby': 'dash-matches-hd' });
+  const card = el('section', { class: 'card ls-section dash-matches', 'aria-labelledby': 'dash-matches-hd' });
   const hd = el('div', { class: 'card-hd' });
   hd.append(el('div', {}, [
     el('h2', { id: 'dash-matches-hd', class: 'h-card' }, 'Latest setup matches'),
@@ -17008,7 +17121,7 @@ function myDashMatches(o, st) {
    the companies they last read. A company with illustrative figures says so
    wherever it is named. */
 function myDashContinue(o) {
-  const card = el('section', { class: 'card', 'aria-labelledby': 'dash-cont-hd' });
+  const card = el('section', { class: 'card ls-section dash-cont-card', 'aria-labelledby': 'dash-cont-hd' });
   card.append(el('div', { class: 'card-hd card-hd-tight' }, el('div', {}, [
     el('h2', { id: 'dash-cont-hd', class: 'h-card' }, 'Continue where you left off'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'Your most recent work in this browser, newest first.'),
@@ -17016,9 +17129,15 @@ function myDashContinue(o) {
   const t = (v) => { const n = Date.parse(String(v || '').replace(' ', 'T') + (/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(String(v || '')) ? 'Z' : '')); return Number.isFinite(n) ? n : -Infinity; };
   const kindOne = typeof WORKSPACE_KIND_ONE !== 'undefined' ? WORKSPACE_KIND_ONE : {};
   const rows = [
-    ...o.saved.map(i => ({ at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
-      illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(), opens: i.path || null,
-      act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
+    /* A saved property is called one (D12), not a "Tool snapshot", and
+       reopens where Property opens — the Scenario Lab, at its own address
+       (/property?model=…, labArrive), a link like any other. */
+    ...o.saved.map(i => (i.prop
+      ? { at: t(i.created), when: i.created, kind: 'Saved property', name: i.name, detail: i.detail,
+          moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, path: myDashPropPath({ id: i.key }) }
+      : { at: t(i.created), when: i.created, kind: kindOne[i.kind] || 'Saved item', name: i.name, detail: i.detail,
+          illus: i.illustrative, moved: ['model', 'data', 'both'].includes(i.diff?.status) ? i.diff : null, open: () => i.open(), opens: i.path || null,
+          act: el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': `${i.kind === 'work' ? 'Resume' : 'Open'} ${i.name}`, 'data-tool-path': i.path || null, onclick: () => i.open() }, i.kind === 'work' ? 'Resume' : 'Open') })),
     /* A list names what the visitor put in it; a sample list says how many of
        its companies are samples. Its chip is the workspace's rule: every
        company illustrative, or some. */
@@ -17043,9 +17162,10 @@ function myDashContinue(o) {
   if (!rows.length) {
     card.append(el('div', { class: 'dash-empty' }, [
       el('p', { class: 'dash-empty-t' }, 'Nothing saved in this browser yet'),
-      el('p', { class: 'caption' }, 'A valuation run, a comparison, a screen, an investment case or a tool snapshot appears here with the action that reopens it.'),
+      el('p', { class: 'caption' }, 'A saved property, a valuation run, a comparison, a screen or an investment case appears here with the action that reopens it.'),
       myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved models')]));
   } else {
+    card.querySelector('.card-hd').append(myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm dash-all' }, 'All saved work'));
     const ul = el('ul', { class: 'dash-list dash-cont' });
     rows.forEach((r, i) => {
       /* One clock on the page: the reader's. The lede gives the last visit in
@@ -28293,11 +28413,11 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
-        : 'Your own inputs to the tool, as saved') + (nSc ? ` · ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''),
+        : prop ? 'Your own figures for this property, as saved' : 'Your own inputs to the tool, as saved') + (nSc ? ` · ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''),
       open: () => {
         if (prop) { openPropertyModel(w.id); return; }
         if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
@@ -28437,7 +28557,7 @@ VIEWS.workspace = () => {
     list.append(el('li', { class: 'ws-row' }, [
       el('div', { class: 'ws-name' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
-          el('span', { class: 'chip' }, WORKSPACE_KIND_ONE[i.kind]),
+          el('span', { class: 'chip' }, i.prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind]),
           i.sample ? el('span', { class: 'chip chip-bronze', title: i.sampleWhy || 'Seeded on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
           i.illustrative === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
             : i.illustrative === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,
@@ -54162,7 +54282,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","scanner":"Scanner: build, save and evaluate a setup","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';

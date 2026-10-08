@@ -1676,8 +1676,9 @@ const HOME_PAGE = read(HOME);
   const CARDISH = ['card', 'panel', 'ls-card', 'lab-tile', 'tile'];
   const FIELD = (x) => ['input', 'select', 'textarea'].includes(x.tag) || ['field', 'range', 'choice'].includes(attrOf(x.raw, 'data-inert'));
   const CONTROL = (x) => x.tag === 'button' || x.tag === 'a' || attrOf(x.raw, 'data-inert') !== null || FIELD(x);
-  /* /app/scanner joined with its first view (N5, 8 Oct 2026). */
-  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner'];
+  /* /app/scanner joined with its first view (N5, 8 Oct 2026); /app, My
+     Dashboard, as a workspace (D12, 8 Oct 2026). */
+  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner', '/app'];
   const got = await getAll(LS_PAGES);
   /* The stylesheet the pages load. */
   const cssHref = ((got.get('/property')?.body || '').match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];
@@ -2163,6 +2164,66 @@ const HOME_PAGE = read(HOME);
     'the Scanner\'s first view and its example (N5a, N5b) are not served as accepted');
 }
 /* ---- end scanner-first-view ---- */
+
+/* ---- d12-workspace ---- */
+/* MY DASHBOARD AS A WORKSPACE, AS SERVED (the owner's decision D12, 8 Oct
+   2026; 40-views-discover.js). The served /app is a fresh visitor's page —
+   a first visit — read as a fetch reads it (in sight: build.mjs's
+   sightText):
+   - every step (li.dash-step) carries its schematic picture, an <svg>
+     with no <text> in it, and the property step opens Property's landing,
+     the Scenario Lab: a link to /property;
+   - the workspace's five parts are listed — Recently opened, Saved
+     properties, Watchlists, Scanner setups, Your alerts — each with what it
+     holds, which is nothing yet ("None yet", "None of your own yet");
+   - no count: not one digit is in sight in #views (no "0 of 4 done", no
+     "0" read as a figure of the reader's), and no "Tool snapshot";
+   - the alerts' line says the samples are not counted.
+   Each fails on 877e5eb4, which served the steps with no picture, the
+   property step to /property/calculator, "0 of 4 done" and no list of the
+   workspace's parts. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const r = await get('/app');
+  if (r.status !== 200) p.push(`/app: ${described(r)}`);
+  else {
+    const views = all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views');
+    if (!views) p.push('/app: serves no #views');
+    else {
+      const steps = all(views).filter(n => n.tag === 'li' && has(n, 'dash-step'));
+      said.steps = steps.length;
+      if (steps.length < 4) p.push(`/app: ${steps.length} steps served, not four`);
+      steps.forEach((li, i) => {
+        const svg = all(li).filter(n => n.tag === 'svg');
+        if (!svg.length) p.push(`/app: step ${i + 1} ("${sight(li).slice(0, 40)}") carries no <svg> picture`);
+        if (all(li).some(n => n.tag === 'text')) p.push(`/app: step ${i + 1}'s picture has words in it`);
+      });
+      said.pics = steps.filter(li => all(li).some(n => n.tag === 'svg')).length;
+      const prop = all(views).filter(n => n.tag === 'a' && attr(n, 'href') === '/property');
+      if (!prop.length) p.push('/app: no link to /property (the property step opens the Scenario Lab)');
+      const propStep = steps.find(li => attr(li, 'data-step') === 'property');
+      if (propStep && !all(propStep).some(n => n.tag === 'a' && attr(n, 'href') === '/property')) p.push('/app: the property step does not open /property');
+      const WANT = { recent: 'Recently opened', properties: 'Saved properties', watchlists: 'Watchlists', setups: 'Scanner setups', alerts: 'Your alerts' };
+      for (const [k, name] of Object.entries(WANT)) {
+        const li = all(views).find(n => n.tag === 'li' && attr(n, 'data-sec') === k);
+        const text = li ? sight(li) : '';
+        if (!li) p.push(`/app: the workspace's "${name}" is not listed`);
+        else if (!text.includes(name) || !/\bNone (of your own )?yet\b/.test(text)) p.push(`/app: "${name}" reads "${text.slice(0, 90)}", not "None yet"`);
+      }
+      const seen = sight(views);
+      const digits = seen.match(/[^\s]*\d[^\s]*/g) || [];
+      said.digits = digits.length;
+      if (digits.length) p.push(`/app: a count or figure is served in sight: ${digits.slice(0, 6).map(x => `"${x}"`).join(', ')}`);
+      if (/Tool snapshot/i.test(seen)) p.push('/app: "Tool snapshot" is served');
+      if (!/Sample alerts are not counted/.test(seen)) p.push('/app: the alerts\' line does not say the sample alerts are not counted');
+    }
+  }
+  judge(p, `/app served as a first visit (D12): ${said.pics} of ${said.steps} steps with a schematic <svg> and no words in it, the property step to /property (the Scenario Lab); Recently opened, Saved properties, Watchlists, Scanner setups and Your alerts listed, each "None yet"; no digit in sight (${said.digits}), no "Tool snapshot", and the sample alerts said not counted`,
+    '/app is not served as D12\'s first visit');
+}
+/* ---- end d12-workspace ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

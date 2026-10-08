@@ -3325,6 +3325,88 @@ for (const w of [360, 390]) {
   else console.log(`ok   second-track: the screener at 360, 390, 430 and 600, in the page's font and in Verdana — the Coverage selector in sight with SEC-filed chosen and each choice a 44px target; the results are cards (${seen.join(', ')}), one per match, each badged Filed; no table; the results before the advanced metric directory; nothing scrolls sideways`);
 }
 /* ---- end second-track ---- */
+/* ---- d12-workspace ---- */
+/* MY DASHBOARD ON A PHONE (the owner's decision D12, 8 Oct 2026). /app as
+   a first visit and as a returning reader's workspace (a filed company
+   opened, a property of their own saved), at 360, 390 and 430, in the
+   page's font and in Verdana (CI's Linux sans is as wide):
+     - the page does not scroll sideways;
+     - every control drawn in it — each button, each step's action, each
+       of the five counts, each row of the workspace's parts, each way in,
+       the workspace's tabs — is a 44px target on both axes; a link inside
+       a sentence of prose (the footnote's) is the sentence's, and is not
+       one;
+     - a first visit has a picture on every step and no count; a returning
+       reader has the five counts, before any step not taken.
+   Each fails on 877e5eb4: no step had a picture, a first visit read
+   "0 of 4 done", and a returning reader had four counts. */
+{
+  const fails = [], said = { pages: 0, targets: 0 };
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await ev('window.__d12m = 1').catch(() => {});
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 100; i++) {
+      await sleep(200);
+      try { if (await ev(`!window.__d12m && document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev('State.view');
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const PROBE = `(() => {
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const views = document.getElementById('views');
+    const sel = 'button, a.btn, .btn, .dash-tile, a.dash-row, .dash-more-link, a.dash-co, summary, a.ls-cta';
+    const controls = [...views.querySelectorAll(sel), ...document.querySelectorAll('#productTabs a[href]')].filter(n => shown(n) && !n.closest('.sr-only'));
+    const small = controls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.width < 43.5 || b.height < 43.5)
+      .map(([n, b]) => (n.className || n.tagName).toString().split(' ')[0] + ' ' + Math.round(b.width) + '×' + Math.round(b.height) + ' “' + n.textContent.trim().replace(/\\s+/g, ' ').slice(0, 28) + '”');
+    const steps = [...views.querySelectorAll('li.dash-step')];
+    const tiles = views.querySelector('.dash-tiles'), firstStep = views.querySelector('.dash-steps');
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, n: controls.length, small,
+      first: !!views.querySelector('.dash-start'), steps: steps.length, pics: steps.filter(li => li.querySelector('svg')).length,
+      digits: views.querySelector('.dash-start') ? (views.innerText.match(/\\d/g) || []).length : null,
+      tiles: views.querySelectorAll('.dash-tile').length,
+      order: !tiles || !firstStep || !!(tiles.compareDocumentPosition(firstStep) & Node.DOCUMENT_POSITION_FOLLOWING) };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const w of [360, 390, 430]) for (const font of [null, 'Verdana, sans-serif']) for (const state of ['first', 'returning']) {
+      const h = w === 360 ? 640 : w === 390 ? 844 : 932;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      if (state === 'returning') {
+        await load('/company/aapl-apple-inc');
+        await load('/property/calculator');
+        await ev(`(() => { State.deal.price = 615000; markTouched(State.deal, 'price'); saveDeal(); return !!saveActiveProperty({ name: 'Phone check property' }); })()`);
+      }
+      const at = `${w}×${h} /app, ${state === 'first' ? 'a first visit' : 'a returning reader'}${font ? ' in Verdana' : ''}`;
+      const view = await load('/app');
+      if (view !== 'home') { fails.push(`${at}: opened ${view}`); continue; }
+      await face(font);
+      const r = await ev(PROBE);
+      said.pages++; said.targets += r.n;
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.n} controls under 44px: ${r.small.slice(0, 5).join('; ')}`);
+      if (state === 'first') {
+        if (!r.first || r.steps !== 4 || r.pics !== 4) fails.push(`${at}: the first visit shows ${r.steps} steps, ${r.pics} with a picture`);
+        if (r.digits) fails.push(`${at}: ${r.digits} digits on a first visit's page`);
+      } else if (r.first || r.tiles !== 5 || !r.order) fails.push(`${at}: the returning reader's page has ${r.tiles} counts${r.first ? ', and the first visit\'s steps' : ''}${r.order ? '' : ', after the steps'}`);
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL d12-workspace — /app on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   d12-workspace: /app at 360, 390 and 430, in the page's font and in Verdana, as a first visit and as a returning reader (${said.pages} pages) — nothing scrolls sideways; all ${said.targets} controls 44px each way; a picture on each of the four steps and no digit on a first visit; the returning reader's five counts before any step`);
+}
+/* ---- end d12-workspace ---- */
 
 
 } catch (e) {

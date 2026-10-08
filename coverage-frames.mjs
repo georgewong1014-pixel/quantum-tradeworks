@@ -918,7 +918,7 @@ try {
               say('first', r.before.hidden && !r.before.shown && r.before.stops === 0, `${at}: the fresh visitor's page was on screen before the script (or took focus)`, r.before);
               say('first', r.ignored !== false, `${at}: the served page's heading was in the accessibility tree while out of sight`);
               say('first', !never(r), `${at}: a frame showed the served page`, r.frames);
-              say('first', !r.after.served && r.after.text !== read(pages.find(s => s.path === path).render).replace(/\n$/, '') && (path === '/app' ? !/0 of 4 done/.test(r.after.text) : /Frames own property/.test(r.after.text)),
+              say('first', !r.after.served && r.after.text !== read(pages.find(s => s.path === path).render).replace(/\n$/, '') && /Frames own property/.test(r.after.text) && (path !== '/app' || (/Saved properties/.test(r.after.text) && !/Set up your workspace/.test(r.after.text))),
                 `${at}: the page drawn is not the reader's own`, r.after.text.slice(0, 160));
             }
           }
