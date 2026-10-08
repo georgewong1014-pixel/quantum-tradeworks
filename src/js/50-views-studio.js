@@ -3128,7 +3128,7 @@ function completeOnboarding(answers) {
      "Which market?" step writes it. Compare has no market filter, so the
      question no longer claims to set one there. */
   if (answers.market && answers.market !== 'both' && State.screen) {
-    State.screen.universe = answers.market; store.write('screen', State.screen);
+    State.screen.universe = answers.market; screenFitClass(State.screen); store.write('screen', State.screen);
   }
   /* "Skip — take me to the app" goes to the app. It followed the goal
      answered before it, so a reader who picked "Learn investment

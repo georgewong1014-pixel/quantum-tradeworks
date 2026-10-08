@@ -1836,7 +1836,15 @@ for (const route of ROUTES) {
       await judge(`/company/${co}/report`, { subject: [id] });
     }
     await load(BASE + '/discover/screener');
-    await judge('/discover/screener', {}, ['filed', 'illustrative']);
+    /* Each class is labelled in the default screen (filed) and the other
+       (illustrative); both together, the explicit mixed choice, carries
+       both kinds side by side, where a label matters most — so it is the
+       screen walked below (second track, 8 Oct 2026). */
+    await judge('/discover/screener (SEC-filed, the default)', {}, ['filed']);
+    await ev(`(document.getElementById('scr-class-illustrative').click(), true)`); await sleep(500);
+    await judge('/discover/screener (Illustrative)', {}, ['illustrative']);
+    await ev(`(document.getElementById('scr-class-mixed').click(), true)`); await sleep(500);
+    await judge('/discover/screener (both classes together)', {}, ['filed', 'illustrative']);
     /* A metric's definition lists its top twelve: the filed companies lead
        return on capital, the priced illustrative set leads dividend yield. */
     for (const [k, want] of [['roic', 'filed'], ['dy', 'illustrative']]) {
@@ -2742,6 +2750,118 @@ for (const route of ROUTES) {
   else console.log(`ok   n3-addresses: /property and /property/lab open the Scenario Lab (with ?by=), /property/calculator the calculator; a calculator link written on /property — a shared deal's ?city and ?d=, or #scenarios — opens the calculator at /property/calculator with what it carries, in place (no history entry for the redirect), and nothing logs an error`);
 }
 /* ---- end n3-addresses ---- */
+/* ---- second-track ---- */
+/* NO UNAVAILABLE PRICE ENTERS A PRICE FILTER AS ZERO (the owner's second
+   track, 8 Oct 2026). Every SEC-filed company has no price — no licensed
+   feed — so every measure that needs one (P/E, yield, market
+   capitalisation, the difference to the model estimate…) and every one
+   that needs observed closes is unavailable for it. Held on the screener's
+   own functions, with the filings in, for every such measure and every
+   company without a price, in both evidence classes:
+   - the value a threshold is tested against is null, never 0 (critValue),
+     in absolute and in peer-percentile mode;
+   - no threshold passes it — not a minimum far below zero, not a maximum
+     of 0, not "between 0 and 0", not the 0th percentile — and the reason
+     given is that the figure is not available (evaluateScreen);
+   - a sort on the measure puts every such company after every priced one,
+     either way round (sortScreenRows), and a median over them is none;
+   and, drawn, on the default screen with those measures as its columns:
+   no such company's cell, and no phone card's yield, reads as a zero, and
+   the exported CSV leaves its cell empty. */
+{
+  const p = [];
+  await send('Page.navigate', { url: BASE + '/privacy' }, sessionId);
+  await sleep(600);
+  await send('Runtime.evaluate', { expression: `Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k))` }, sessionId);
+  await send('Page.navigate', { url: BASE + '/discover/screener' }, sessionId);
+  let ready = false;
+  for (let i = 0; i < 80 && !ready; i++) { await sleep(200); ready = (await send('Runtime.evaluate', { returnByValue: true, expression: `typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && State.view === 'discover' && !!document.querySelector('#views table.dt')` }, sessionId)).result?.result?.value === true; }
+  const r = (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    const PRICE = FIELDS.filter(f => (FIELD_INPUTS[f.k] || []).some(x => x === 'price' || x === 'history')).map(f => f.k);
+    const unpriced = U.filter(r => !isNum(r.c.px?.p));
+    const priced = U.filter(r => isNum(r.c.px?.p));
+    const classes = typeof inScreenClass === 'function' ? ['mixed', 'filed'] : ['mixed'];
+    const out = { fields: PRICE, unpriced: unpriced.length, filedUnpriced: unpriced.filter(r => r.c.real).length, tests: 0, zero: [], passed: [], reason: [], sort: [], median: [], cells: [], cards: [], csv: [], drawnRows: 0 };
+    const mk = (k, range, mode, cls) => { const s = blankScreen(); s.evidence = cls; s.minCoverage = 0; s.local.excludePn17 = false; s.mode = mode; s.crit = { [k]: range }; return s; };
+    for (const k of PRICE) for (const r of unpriced) {
+      if (isNum(r.m[k])) continue;
+      for (const [mode, range] of [['abs', { min: -1e12, max: null }], ['abs', { min: null, max: 0 }], ['abs', { min: 0, max: 0 }], ['pct', { min: 0, max: null }], ['pct', { min: null, max: 100 }]]) {
+        for (const cls of classes) {
+          const s = mk(k, range, mode, cls);
+          out.tests++;
+          const v = critValue(r, k, s);
+          if (v !== null && v !== undefined) out.zero.push(r.c.tk + ' ' + k + ' ' + mode + ' reads ' + v);
+          const e = evaluateScreen(r, s);
+          if (e.pass) out.passed.push(r.c.tk + ' ' + k + ' ' + mode + ' ' + JSON.stringify(range));
+          else if (!e.fails.some(x => / is not available/.test(x))) out.reason.push(r.c.tk + ' ' + k + ': ' + e.fails.join('; ').slice(0, 120));
+        }
+      }
+    }
+    for (const k of PRICE) {
+      for (const dir of [1, -1]) {
+        const s = mk(k, { min: null, max: null }, 'abs', 'mixed'); s.cols = [k]; s.sort = { k, dir };
+        const vals = sortScreenRows(U, s).map(x => (FIELD_BY_K[k].money ? convertTo(x.m[k], x.c.ccy, screenCcy()) : x.m[k]));
+        const firstGap = vals.findIndex(x => !isNum(x));
+        if (firstGap > -1 && vals.slice(firstGap).some(isNum)) out.sort.push(k + (dir === 1 ? ' ascending' : ' descending'));
+      }
+      const m = median(unpriced.filter(x => !isNum(x.m[k])).map(x => x.m[k]));
+      if (m !== null) out.median.push(k + ' ' + m);
+    }
+    /* Drawn: the default screen, these measures as its columns. */
+    const keep = { plan: State.plan, screen: State.screen };
+    const s = blankScreen(); s.minCoverage = 0; s.local.excludePn17 = false; s.cols = PRICE.slice(0, 8); s.sort = { k: 'coverage', dir: -1 };
+    State.screen = s; render();
+    await new Promise(res => setTimeout(res, 400));
+    const heads = [...document.querySelectorAll('#views table.dt thead th')].map(th => th.textContent.replace(/[▲▼↕]/g, '').trim());
+    const ZERO = /^[−+-]?(US\\$|RM|\\$)?0(\\.0+)?\\s*(%|×|x|B|bn|USD|MYR)?$/;
+    for (const tr of document.querySelectorAll('#views table.dt tbody tr')) {
+      const tk = tr.querySelector('.tk')?.childNodes[0]?.textContent?.trim();
+      const row = U.find(x => x.c.tk === tk);
+      if (!row || isNum(row.c.px?.p)) continue;
+      out.drawnRows++;
+      [...tr.children].forEach((td, i) => {
+        const k = PRICE.find(k2 => heads[i] && heads[i].startsWith(FIELD_BY_K[k2].label));
+        if (k && !isNum(row.m[k]) && ZERO.test(td.textContent.trim())) out.cells.push(tk + ' ' + heads[i] + ' reads ' + td.textContent.trim());
+      });
+    }
+    for (const card of document.querySelectorAll('.screener-card')) {
+      const tk = card.querySelector('span')?.textContent.trim(); const row = U.find(x => x.c.tk === tk);
+      if (!row || isNum(row.m.dy)) continue;
+      const cells = [...card.querySelectorAll('.screener-card-metrics > div')].map(d => [d.children[0]?.textContent.trim(), d.children[1]?.textContent.trim()]);
+      const y = cells.find(c => c[0] === 'Yield');
+      if (!y || ZERO.test(y[1]) || y[1] === '—') out.cards.push(tk + ' yield reads ' + JSON.stringify(y && y[1]));
+    }
+    /* The export, read where the page hands it to the browser. */
+    State.plan = 'pro';
+    const realUrl = URL.createObjectURL; let csv = null;
+    URL.createObjectURL = (b) => { b.text().then(t => { csv = t; }); return 'blob:sweep'; };
+    const click = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () {};
+    try { exportScreen(); } finally { URL.createObjectURL = realUrl; HTMLAnchorElement.prototype.click = click; }
+    for (let i = 0; i < 20 && csv === null; i++) await new Promise(res => setTimeout(res, 50));
+    if (csv === null) out.csv.push('the export wrote nothing');
+    else {
+      const lines = csv.split('\\n'), hd = lines[0].split(',');
+      for (const line of lines.slice(1).filter(l => l && !l.startsWith('#'))) {
+        const cells = line.match(/("([^"]|"")*"|[^,]*)(,|$)/g).map(c => c.replace(/,$/, ''));
+        const row = U.find(x => x.c.tk === cells[0]);
+        if (!row || isNum(row.c.px?.p)) continue;
+        hd.forEach((h, i) => { const k = PRICE.find(k2 => h === k2 || h.startsWith(k2 + '_')); if ((k || h === 'price_local') && cells[i] !== '' && Number(cells[i]) === 0) out.csv.push(cells[0] + ' ' + h + ' = ' + cells[i]); });
+      }
+    }
+    State.plan = keep.plan; State.screen = keep.screen; render();
+    return out;
+  })()` }, sessionId)).result?.result?.value;
+  if (!r) p.push('the screener could not be read');
+  else {
+    if (!r.unpriced || r.fields.length < 5) p.push(`nothing to test: ${r.unpriced} companies without a price, ${r.fields.length} price-based measures`);
+    for (const [what, list] of [['tested as a figure, not null', r.zero], ['passed a threshold', r.passed], ['failed for another reason than "not available"', r.reason],
+      ['sorted among the priced', r.sort], ['gave a median', r.median], ['drawn as a zero', r.cells], ['a phone card\'s yield reads as a zero or a bare dash', r.cards], ['exported as 0', r.csv]])
+      if (list.length) p.push(`${list.length} ${what}: ${list.slice(0, 4).join(' · ')}`);
+  }
+  if (p.length) { bad++; console.log(`FAIL second-track: an unavailable price in a price filter (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   second-track: no unavailable price enters a price filter as zero — ${r.tests} tests of ${r.fields.length} price-based measures (${r.fields.join(', ')}) on the ${r.unpriced} companies without a price (${r.filedUnpriced} filed), in absolute and percentile mode and in both classes: the value tested is null, no threshold passes it and the reason is "not available"; sorted after every priced company both ways; no median; drawn on ${r.drawnRows} rows and their phone cards, no cell reads as a zero; the CSV leaves the cells empty`);
+}
+/* ---- end second-track ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();

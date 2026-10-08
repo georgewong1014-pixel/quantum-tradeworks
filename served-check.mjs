@@ -68,7 +68,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
-  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome } from './build.mjs';
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome, filedSeries } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -706,7 +706,9 @@ const HOME_PAGE = read(HOME);
       ogDescription: h.description, twitterTitle: h.title, twitterDescription: h.description, robots: h.noindex ? 'noindex' : null };
     const have = headOf(r.body);
     for (const k of Object.keys(want)) if (have[k] !== want[k]) p.push(`${co.path}: ${k} is ${JSON.stringify(have[k])}, not ${JSON.stringify(want[k])}`);
-    if (skeleton(r.body) !== PAGE_SKELETON) p.push(`${co.path}: differs from index.html outside its own head and the two app files it loads`);
+    /* A filer's page carries its committed render as well (company-prerender,
+       below); an illustrative company's carries none. */
+    if (skeleton(r.body, renderFileOf(co.path)) !== PAGE_SKELETON) p.push(`${co.path}: differs from index.html outside its own head, ${co.company.real ? 'its committed render, ' : ''}and the two app files it loads`);
     p.push(...headerProblems(r));
     const size = Buffer.byteLength(r.body, 'utf8');
     total += size;
@@ -769,7 +771,7 @@ const HOME_PAGE = read(HOME);
   }
   for (const [a, b] of QUERY) if (more.get(a).status !== 200 || more.get(a).body !== more.get(b).body) p.push(`${a}: ${described(more.get(a))}, not the page ${b} is served`);
 
-  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files, carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
+  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files (and a filer's page its committed render), carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
     'a company\'s own address is not served its own head, or another form of it is not the generic page');
 }
 /* ---- end releaseB: D ---- */
@@ -788,7 +790,9 @@ const HOME_PAGE = read(HOME);
          words are the page's own (its render's, and different from every
          other page's but those drawn as the same page);
        - every other page — My Workspace's, the generic page, the 404 page
-         and each company's — is served with #views empty and no chrome;
+         and each illustrative company's — is served with #views empty and
+         no chrome (each SEC filer's own page carries its overview since
+         8 Oct 2026: company-prerender, below);
        - every page's header, sidebar and footer lists are the app's own
          markup (NAV_MARKUP, as build.mjs makes it), marked as the page's
          render marked them: a link for each product with a path and each
@@ -888,7 +892,10 @@ const HOME_PAGE = read(HOME);
      passed as "one view". */
   for (const [h, canon] of h1s) if (canon.size > 1) p.push(`the h1 ${JSON.stringify(h)} is served on ${canon.size} pages with different canonical addresses: ${[...canon.values()].join(', ')}`);
   /* The pages that are never a render's: empty, unmarked navigation. */
-  const others = await getAll(['/company/aapl', '/company/aapl-apple-inc', '/nope-for-served-check']);
+  /* A filer's own page carries its overview since 8 Oct 2026 (company-
+     prerender, below); every other form of a company address, and an
+     illustrative company's page, still carries none. */
+  const others = await getAll(['/company/aapl', '/company/aapl-apple-inc/report', '/company/1155-malayan-banking', '/nope-for-served-check']);
   for (const [path, r] of others) {
     const x = parts(r.body), want = nav();
     if (x.views !== '' || x.chrome !== null) p.push(`${path}: carries a render or a chrome`);
@@ -931,6 +938,115 @@ const HOME_PAGE = read(HOME);
     'a page is not served its own content or its navigation');
 }
 /* ---- end prerender ---- */
+/* ---- second-track ---- */
+/* 12b. EACH SEC FILER'S OWN PAGE SERVES ITS OVERVIEW (the owner's second
+        track, 8 Oct 2026). A fetch of /company/aapl-apple-inc read the
+        company's head and an empty #views: no heading, no figure, no source.
+        Held here, as served, before any script, for every company in the
+        universe — the filed set read from data/us.json itself, not from the
+        build:
+        - a filer's page serves #views marked data-served with its own
+          address, its committed render exactly; its h1 is the company's
+          name as filed; its overview's headline figures wear the Filed
+          badge (D6) with the fiscal year, and at least one of them is the
+          filed revenue or net income of that year as the page prints it;
+          the source is named (SEC EDGAR and the CIK); and what needs a
+          price says "Unavailable" with "no licensed price";
+        - an illustrative company's page serves #views empty, no chrome, and
+          asks not to be indexed, as before. */
+{
+  const p = [];
+  const { companies } = companyPlan(ORIGIN, router);
+  const US_FILE = JSON.parse(read('data/us.json'));
+  const US = new Map((US_FILE.results || []).map(r => [r.id, r]));
+  const got = await getAll(companies.map(co => co.path));
+  const ent = (s) => s.replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const words = (html) => ent(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  const num = (v) => new Intl.NumberFormat('en-US', { minimumFractionDigits: Math.abs(v) < 10 ? 2 : 1, maximumFractionDigits: Math.abs(v) < 10 ? 2 : 1 }).format(v);
+  let filed = 0, illus = 0, figures = 0, largest = 0;
+  for (const co of companies) {
+    const r = got.get(co.path);
+    if (r.status !== 200) { p.push(`${co.path}: ${described(r)}`); continue; }
+    const body = r.body;
+    const v = /<div id="views"( data-served="([^"]*)")?>([\s\S]*?)<\/div>\n {2}<p class="sr-only" id="liveStatus"/.exec(body);
+    const tag = /<html\b[^>]*>/.exec(body)?.[0] || '';
+    const noindex = (body.match(/<meta name="robots" content="noindex">/g) || []).length;
+    if (!v) { p.push(`${co.path}: no <div id="views"> where the template has it`); continue; }
+    if (!co.company.real) {
+      illus++;
+      if (v[3] !== '' || v[1]) p.push(`${co.path}: an illustrative company's page serves something in #views, where it is drawn by the script alone`);
+      if (/data-chrome=/.test(tag)) p.push(`${co.path}: an illustrative company's page is served a chrome`);
+      if (noindex !== 1) p.push(`${co.path}: an illustrative company's page carries ${noindex} noindex tags, not one`);
+      continue;
+    }
+    filed++;
+    largest = Math.max(largest, Buffer.byteLength(body));
+    const f = US.get(String(co.id).replace(/-SEC$/, ''));
+    if (!f) { p.push(`${co.path}: ${co.id} is not in data/us.json`); continue; }
+    const views = v[3];
+    if (!views) { p.push(`${co.path}: #views is served empty — no h1, no filed figure, no source before the script runs`); continue; }
+    if (v[2] !== co.path) p.push(`${co.path}: #views is marked data-served=${JSON.stringify(v[2] ?? null)}, not its own address`);
+    const rd = RENDERED.renders.get(renderFileOf(co.path));
+    if (!rd) p.push(`${co.path}: no committed render for its page`);
+    else if (views !== servedViews(rd)) p.push(`${co.path}: #views is not ${rd.render} exactly`);
+    if (noindex) p.push(`${co.path}: a filed company's page asks not to be indexed`);
+    const h = /<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(views);
+    if (!h || words(h[1]) !== f.name) p.push(`${co.path}: its h1 reads ${JSON.stringify(h ? words(h[1]) : null)}, not ${JSON.stringify(f.name)} as filed`);
+    const tilesAt = views.indexOf('overview-tiles');
+    /* The overview's card: from its tiles to the next card. */
+    const tilesEnd = tilesAt < 0 ? -1 : views.indexOf('<div class="card"', tilesAt);
+    const tiles = tilesAt < 0 ? '' : views.slice(tilesAt, tilesEnd < 0 ? undefined : tilesEnd);
+    const fy = f.years[f.years.length - 1];
+    const badges = (tiles.match(/data-kind-badge="filed"/g) || []).length;
+    if (badges < 3) p.push(`${co.path}: its overview's headline figures wear ${badges} Filed badges (D6), not one each`);
+    if (!new RegExp(`\\bFY${fy}\\b`).test(words(tiles))) p.push(`${co.path}: its overview names no fiscal year FY${fy}`);
+    const s = filedSeries(US_FILE, f.id);
+    const want = [s.rev[s.rev.length - 1], s.ni[s.ni.length - 1]].filter(x => typeof x === 'number').map(num);
+    const shown = [...tiles.matchAll(/class="stat-value[^"]*"[^>]*>([^<]*)</g)].map(m => ent(m[1]).trim());
+    if (!want.some(x => shown.includes(x))) p.push(`${co.path}: its overview shows ${JSON.stringify(shown)}, and neither its filed revenue nor its net income for FY${fy} (${want.join(', ')})`);
+    else figures++;
+    const text = words(views);
+    if (!/SEC EDGAR/.test(text) || !text.includes(`CIK ${Number(f.cik)}`)) p.push(`${co.path}: the source — SEC EDGAR and CIK ${Number(f.cik)} — is not named`);
+    if (!/data-kind-badge="unavailable"/.test(views) || !/Unavailable · no licensed price/.test(text)) p.push(`${co.path}: what needs a price does not say "Unavailable · no licensed price"`);
+  }
+  if (!filed) p.push('no company page is a filer\'s');
+  judge(p, `the ${filed} SEC filers' own pages serve their overview in #views before any script — each its committed render at its own address, its h1 the company's name as filed, its headline figures badged Filed with FY and ${figures} showing the filed revenue or net income, SEC EDGAR and the CIK named, and "Unavailable · no licensed price" where a price is needed (the largest page ${(largest / 1024).toFixed(0)}kB); the ${illus} illustrative companies' pages serve #views empty, no chrome, noindex`,
+    'a filed company\'s page does not serve its overview, or an illustrative one\'s is not as before');
+}
+/* 12c. THE SCREENER COVERS ONE EVIDENCE CLASS BY DEFAULT (the same track).
+        Served, /discover/screener holds the Coverage selector with its two
+        classes, the SEC-filed one chosen, and every result row it serves is
+        of that one class (its D6 badge), as many rows as its count says. */
+{
+  const p = [];
+  const SCREEN_WORD = { filed: 'SEC-filed', illustrative: 'Illustrative' };
+  const r = await get('/discover/screener');
+  const v = /<div id="views"[^>]*>([\s\S]*?)<\/div>\n {2}<p class="sr-only" id="liveStatus"/.exec(r.body)?.[1] || '';
+  const ent = (s) => s.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
+  const at = v.indexOf('class="scr-class"');
+  if (at < 0) p.push('/discover/screener: no Coverage selector is served');
+  else {
+    const bar = v.slice(at, v.indexOf('class="screener-layout', at));
+    /* Each choice is served as its words (prerender.mjs: a button made
+       inert), the chosen one marked data-on. */
+    const choices = [...bar.matchAll(/<span\b(?=[^>]*\bid="scr-class-(filed|illustrative)")([^>]*)>/g)].map(m => ({ on: /\bdata-on\b/.test(m[2]), what: SCREEN_WORD[m[1]] }));
+    if (choices.length !== 2) p.push(`/discover/screener: the Coverage selector serves ${choices.length} classes, not SEC-filed and Illustrative`);
+    const on = choices.filter(c => c.on).map(c => c.what);
+    if (on.length !== 1 || on[0] !== 'SEC-filed') p.push(`/discover/screener: the Coverage selector serves ${JSON.stringify(on)} chosen, not SEC-filed alone`);
+  }
+  const body = /<tbody>([\s\S]*?)<\/tbody>/.exec(v)?.[1] || '';
+  const rows = body.split('<tr').slice(1);
+  const kinds = rows.map(tr => /data-kind-badge="([a-z]+)"/.exec(tr)?.[1] || null);
+  const count = /(\d+) of (\d+) compan(?:y|ies) match/.exec(ent(v));
+  if (!rows.length) p.push('/discover/screener: no result row is served');
+  if (kinds.some(k => k === null)) p.push(`/discover/screener: ${kinds.filter(k => k === null).length} served rows carry no kind badge`);
+  const classes = [...new Set(kinds.filter(Boolean))];
+  if (classes.length !== 1 || classes[0] !== 'filed') p.push(`/discover/screener: the served rows are of ${JSON.stringify(classes)}, not the filed class alone`);
+  if (!count || +count[1] !== rows.length) p.push(`/discover/screener: the served count reads ${count ? count[0] : 'nothing'}, and ${rows.length} rows are served`);
+  judge(p, `/discover/screener is served covering one evidence class: the Coverage selector with SEC-filed chosen and Illustrative beside it, and ${rows.length} result rows (${count?.[0]}), each badged Filed`,
+    'the served screener mixes the evidence classes, or serves no Coverage selector');
+}
+/* ---- end second-track ---- */
 /* ---- integration-final ---- */
 /* 13. BEFORE THE FIRST PAINT (2026-10-04, the integration's final
        verification). A served page is a fresh visitor's, drawn in Kuala

@@ -1798,7 +1798,7 @@ function applyRoute() {
      tab change inside Discover does not reload it over the reader's edits. */
   if (route.view === 'discover' && qs.get('template')) {
     const t = SCREEN_TEMPLATES.find(x => x.id === qs.get('template'));
-    if (t) { const s = blankScreen(); t.apply(s); State.screen = s; State.appliedTemplate = t.id; }
+    if (t) { const s = blankScreen(); t.apply(s); State.screen = screenFitClass(s); State.appliedTemplate = t.id; }
     qs.delete('template');
     const rest = qs.toString();
     history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));
@@ -2782,6 +2782,8 @@ const SERVED_READ = {
      example says what this month's company reports leave (reportLog). */
   startHere: () => startHereFor(),
   reportLog: () => (State.reportLog?.month === meterMonth() ? servedIds(State.reportLog.ids) : []),
+  /* Whether a company report is left this month (SERVED_READS.research). */
+  reportRoom: () => (State.reportLog?.month === meterMonth() ? (State.reportLog.ids || []).length : 0) < lim('reportsPerMonth'),
   onboarding: () => State.onboarding,
   dash: () => State.dash,
   watchlists: () => (State.watchlists || []).map(w => [w.id, w.name, servedIds(w.ids),
@@ -2799,6 +2801,9 @@ const SERVED_READ = {
   runs: () => store.read('runs', []),
   reviews: () => store.read('reviews', {}),
   manualPrices: () => manualPrices,
+  /* What the company page's overview reports on (SERVED_READS.research). */
+  valuation: () => valuationEdits(),
+  requiredDiscount: () => State.requiredDiscount ?? null,
   wht: () => State.wht,
   sarawakExposure: () => State.sarawakExposure,
   deal: () => dealIsTheReaders(State.deal),
@@ -2865,6 +2870,23 @@ const SERVED_READS = {
   discover: ['discoverTab', 'screen', 'savedScreens', 'density', 'baseCcy', 'screenCcy', 'plan', 'manualPrices', 'startHere', 'reportLog'],
   /* /research, /app/equities, /app/equities/explore. */
   researchHome: ['plan', 'theses', 'recentCompanies', 'startHere', 'reportLog'],
+  /* A filed company's own page (/company/<ticker>-<name>; the owner's second
+     track, 8 Oct 2026: build.mjs, companyScope): the report meter (a month's
+     reports used refuses the page) and the plan's limits, the list the
+     watch button reads, the comparison its Compare link extends, a case
+     kept for the company, a price typed in, the valuation edits and the
+     discount required that the overview reports on, and the tab the
+     address opens. Found by drawing the page with each key a returning
+     reader keeps, one at a time, against a fresh visitor's (plan, compare,
+     reportLog, theses, manualPrices, requiredDiscount changed it), and by
+     reading the view (the watchlists and the valuation edits). The meter
+     is read as whether a report is left this month (reportRoom), not as the
+     list of reports read: the page adds itself to that list as it draws, so
+     on a reload it would never stand again, and a revisit is never refused.
+     reportRoom is no key this browser keeps, so the head's script lets the
+     served page show; the app holds it (servedIsReaders) — a reader whose
+     reports are used up meets the served overview until the script runs. */
+  research: ['plan', 'reportRoom', 'watchlists', 'wlActive', 'compare', 'theses', 'manualPrices', 'valuation', 'requiredDiscount', '?tab'],
   /* /compare, /app/equities/compare: the companies (?companies=, or kept),
      a saved comparison opened (?saved=) and the count saved, the
      currencies, the withholding rates, the plan's limit, a price typed in. */
@@ -2930,6 +2952,7 @@ const SERVED_HELD = {
   wlActive: () => State.watchlists?.[State.wlIdx]?.id ?? null, portfolios: () => State.portfolios, theses: () => State.theses,
   priceAlerts: () => State.priceAlerts, recentCompanies: () => State.recentCompanies, compare: () => State.compare,
   screen: () => State.screen, savedScreens: () => State.savedScreens, manualPrices: () => manualPrices, wht: () => State.wht,
+  requiredDiscount: () => State.requiredDiscount,
   sarawakExposure: () => State.sarawakExposure, deal: () => State.deal, observations: () => State.observations,
   areaProfiles: () => State.areaProfiles, demand: () => State.demand, borrowerProfile: () => State.borrower, lang: () => State.lang,
   propertyReportsBought: () => State.propertyReportsBought, opportunities: () => State.opportunities, qttiPlan: () => State.qtti,

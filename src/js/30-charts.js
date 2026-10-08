@@ -1273,7 +1273,10 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
      width: a microtask, as the Valuation tab's other charts are drawn, by
      when the caller has put the strip on the page, or the resize observer
      once it is laid out. */
-  const host = el('div', { style: 'min-height:56px;margin-top:var(--xs)' });
+  /* range-strip: its labels are placed in pixels of the width it was drawn
+     at, so a served page narrower than its render clips them (styles.css,
+     evidence-classes) until the script draws them again to its width. */
+  const host = el('div', { class: 'range-strip', style: 'min-height:56px;margin-top:var(--xs)' });
   queueMicrotask(() => chartHost(host, (W) => {
     /* The .metaline text, 12px. The canvas measures the semibold labels a few
        per cent narrow of the page (69.4px for 71.2px), so each width carries
@@ -1302,14 +1305,18 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
     const line = oneLine.join(' · ');
     const lineW = wOf(line);
     const tight = spread < 24 || meet;
-    const abs = (t, x, top, style = '') => el('div', { class: 'metaline',
+    /* data-measured: where these labels stand, and whether they stand as
+       three or as one line, is measured in this machine's font — a page
+       served before the script leaves them out (prerender.mjs, servedCopy),
+       and the Bear, Base and Bull panels under the strip carry the figures. */
+    const abs = (t, x, top, style = '') => el('div', { class: 'metaline', 'data-measured': '',
       style: `position:absolute;left:${x.toFixed(1)}px;top:${top}px;white-space:nowrap${style ? ';' + style : ''}` }, t);
 
     const labels = !tight ? row.map(l => abs(l.text, l.x, 36, l.style))
       : lineW <= W ? [abs(line, leftOf(clamp(mid, 0, 100), lineW), 36)]
       /* Too long for the strip even as one line: in the flow under the bar, so
          the strip grows to hold it, breaking only between the cases. */
-      : [el('div', { class: 'metaline', style: 'padding-top:36px' },
+      : [el('div', { class: 'metaline', 'data-measured': '', style: 'padding-top:36px' },
           oneLine.flatMap((t, i) => [i ? ' · ' : null, el('span', { style: 'white-space:nowrap' }, t)]).filter(Boolean))];
 
     const priceText = `Price ${fmtMoney(price, ccy)}`;

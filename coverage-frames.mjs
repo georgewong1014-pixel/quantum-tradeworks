@@ -598,7 +598,13 @@ try {
         const differs = dv ? `#views from token ${dv.at}: …${dv.drawn.slice(0, 200)}…` : dt ? `the tab row: …${String(dt.drawn).slice(0, 160)}…` : null;
         return { stood: st.pending && st.served && !st.skeleton && !skeleton, st: { ...st, skeleton }, differs };
       };
-      const waitingPages = pages.filter(s => manifest.pages[s.file]?.state === 'filings in');
+      /* The filed companies' pages (build.mjs, companyScope; 8 Oct 2026) are
+         one view at 119 addresses, each drawn above in full: three of them
+         — the first, Apple and the last — stand for the view here, three
+         loads each instead of 357. */
+      const companyPages = pages.filter(s => s.company);
+      const sampled = new Set([companyPages[0], companyPages.find(s => s.company === 'AAPL-SEC'), companyPages[companyPages.length - 1]].filter(Boolean));
+      const waitingPages = pages.filter(s => manifest.pages[s.file]?.state === 'filings in' && (!s.company || sampled.has(s)));
       const tally = { undeclared: 0, second: 0, tracking: 0, not: 0 };
       /* 1. */
       for (const s of waitingPages) {

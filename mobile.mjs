@@ -3258,6 +3258,73 @@ for (const w of [360, 390]) {
   else console.log(`ok   home-3a: the strip's warning and "No licensed prices" in sight with no action on /, /property and /pricing at 360–1440, script on and off, in the page's font and Verdana (${said.widths} views); 40px or less from 1100, 76 or less at 360; Tab and Enter on Details open the breakdown, Research mode and /data-sources; "Illustrative data only" with the filings blocked; the hero one action with script off; one disclosure line above the footer; Tab stops once on each card link and each ⓘ (${said.tabs} stops); the Scanner's ⓘ opens with no script; / → /app draws the whole sidebar; the Property price moves its three figures; a reader in New York has the h1 and Apple's source label at DOMContentLoaded`);
 }
 /* ---- end home-3a ---- */
+/* ---- second-track ---- */
+/* THE SCREENER ON A PHONE (the owner's second track, 8 Oct 2026; the layout
+   system: under 640px a table is a card a row). At 360, 390, 430 and 600,
+   in the page's font and in Verdana (as wide as CI's Linux sans), on a
+   fresh visitor's screener: the Coverage selector is there, one class
+   chosen (SEC-filed) and the other beside it; the results are cards, one
+   per match the count states, each with its D6 badge of that one class,
+   and no table is shown; the results stand before the advanced metric
+   directory; nothing scrolls sideways; and every Coverage choice is a 44px
+   target. */
+{
+  const fails = [];
+  const seen = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    return r.result?.exceptionDetails ? { error: r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text } : r.result?.result?.value;
+  };
+  try {
+    for (const font of [null, 'Verdana, sans-serif']) {
+      for (const w of [360, 390, 430, 600]) {
+        const at = `${w}px${font ? ' in Verdana' : ''}`;
+        await send('Emulation.setDeviceMetricsOverride', { width: w, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+        await send('Page.navigate', { url: BASE + '/privacy' }, sessionId);
+        await sleep(500);
+        await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`);
+        await send('Page.navigate', { url: BASE + '/discover/screener' }, sessionId);
+        let ok = false;
+        for (let i = 0; i < 80 && !ok; i++) { await sleep(200); ok = await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && State.view === 'discover' && !document.getElementById('views').hasAttribute('data-served')`) === true; }
+        if (!ok) { fails.push(`${at}: the screener never settled`); continue; }
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        await sleep(250);
+        const r = await ev(`(() => {
+          const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+          const bar = document.querySelector('#views .scr-class');
+          const choices = bar ? [...bar.querySelectorAll('button[aria-pressed]')].map(b => ({ t: b.textContent.trim(), on: b.getAttribute('aria-pressed') === 'true', h: Math.round(b.getBoundingClientRect().height), w: Math.round(b.getBoundingClientRect().width) })) : [];
+          const head = [...document.querySelectorAll('#views h3')].map(h => h.textContent).find(t => /companies match/.test(t)) || '';
+          const m = /(\\d+) of (\\d+) compan/.exec(head);
+          const cards = [...document.querySelectorAll('#views .screener-card')].filter(shown);
+          const kinds = cards.map(c => c.querySelector('[data-kind-badge]')?.getAttribute('data-kind-badge') || null);
+          const table = document.querySelector('#views table.dt');
+          const adv = document.getElementById('scr-advanced');
+          const firstCard = cards[0];
+          return { bar: !!bar && shown(bar), choices, count: m ? +m[1] : null, cards: cards.length, kinds: [...new Set(kinds)], unbadged: kinds.filter(k => !k).length,
+            table: shown(table), before: !!(firstCard && adv && (firstCard.compareDocumentPosition(adv) & Node.DOCUMENT_POSITION_FOLLOWING)),
+            over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            cardOver: cards.filter(c => c.getBoundingClientRect().right > document.documentElement.clientWidth + 1 || c.scrollWidth > c.clientWidth + 1).length };
+        })()`);
+        if (!r || r.error) { fails.push(`${at}: ${r?.error || 'no answer'}`); continue; }
+        if (!r.bar) fails.push(`${at}: no Coverage selector in sight`);
+        const on = r.choices.filter(c => c.on).map(c => c.t);
+        if (r.choices.length < 3 || on.length !== 1 || !/^SEC-filed/.test(on[0])) fails.push(`${at}: the Coverage choices are ${JSON.stringify(r.choices.map(c => c.t))}, chosen ${JSON.stringify(on)} — not SEC-filed alone`);
+        const small = r.choices.filter(c => c.h < 44 || c.w < 44);
+        if (small.length) fails.push(`${at}: Coverage choices under 44px: ${small.map(c => `${c.t} ${c.w}×${c.h}`).join(', ')}`);
+        if (r.table) fails.push(`${at}: the results are a table, not cards`);
+        if (r.count === null || r.cards !== r.count) fails.push(`${at}: ${r.cards} result cards for a count of ${r.count}`);
+        if (r.unbadged || r.kinds.length !== 1 || r.kinds[0] !== 'filed') fails.push(`${at}: the cards' kind badges are ${JSON.stringify(r.kinds)} (${r.unbadged} cards without one), not Filed on every one`);
+        if (!r.before) fails.push(`${at}: the results do not stand before the advanced metric directory`);
+        if (r.over > 1) fails.push(`${at}: the page scrolls sideways by ${r.over}px`);
+        if (r.cardOver) fails.push(`${at}: ${r.cardOver} cards overflow`);
+        seen.push(`${at} ${r.cards}`);
+      }
+    }
+  } catch (e) { fails.push(`harness: ${e.message}`); }
+  if (fails.length) { bad++; console.log(`FAIL second-track: the screener on a phone (${fails.length} problems)`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   second-track: the screener at 360, 390, 430 and 600, in the page's font and in Verdana — the Coverage selector in sight with SEC-filed chosen and each choice a 44px target; the results are cards (${seen.join(', ')}), one per match, each badged Filed; no table; the results before the advanced metric directory; nothing scrolls sideways`);
+}
+/* ---- end second-track ---- */
 
 
 } catch (e) {

@@ -1690,7 +1690,8 @@ try {
       const want = [row[F.REV], row[F.NI], row[F.OCF], row[F.EQ]].map(v => fmtNum(v, Math.abs(v) < 10 ? 2 : 1));
       const tiles = [...document.querySelectorAll('main .overview-tiles .tile-btn')];
       const got = tiles.map(t => t.querySelector('.stat-value').textContent.trim());
-      const badges = tiles.map(t => t.querySelector('.chip')?.textContent.trim());
+      /* The kind badge (D6) since the second track, 8 Oct 2026. */
+      const badges = tiles.map(t => t.querySelector('.kind-badge, .chip')?.textContent.trim());
       const fyOk = tiles.every(t => t.textContent.includes('FY' + latestFy(c)));
       tiles[0]?.click();
       const d = document.querySelector('#drawer');
@@ -1735,7 +1736,7 @@ try {
       for (const id of ['MAYBANK', 'AAPL-SEC']) {
         openResearch(id, 'snapshot');
         const head = document.querySelector('main .card');
-        out[id] = { badges: [...document.querySelectorAll('main .overview-tiles .chip')].map(x => x.textContent.trim()),
+        out[id] = { badges: [...document.querySelectorAll('main .overview-tiles .kind-badge, main .overview-tiles .chip')].map(x => x.textContent.trim()),
                     prov: head.querySelector('.prov')?.textContent || '' };
       }
       navigate('/compare?companies=MSFT-SEC');
@@ -8438,7 +8439,9 @@ try {
       await sleep(400);
       const onSlider = await at();
       (onSlider.at === 'covRange' ? kept : lost).os.push(`the completeness slider → ${onSlider.at}`);
-      const adv = await evaluate(`(() => { const d = [...document.querySelectorAll('main details')].find(x => /Advanced filters/.test(x.querySelector('summary')?.textContent || ''));
+      /* The advanced filters are a section after the results since the
+         second track (8 Oct 2026), each family a disclosure of its own. */
+      const adv = await evaluate(`(() => { const d = document.getElementById('scr-advanced') || [...document.querySelectorAll('main details')].find(x => /Advanced filters/.test(x.querySelector('summary')?.textContent || ''));
         const f = d.querySelector('input'); for (let x = f.closest('details'); x; x = x.parentElement.closest('details')) x.open = true;
         f.scrollIntoView({ block: 'center' }); f.focus(); return document.activeElement === f ? f.id : null; })()`);
       await typeIn('7');

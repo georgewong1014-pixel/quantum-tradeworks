@@ -866,7 +866,7 @@ VIEWS.researchHome = () => {
      each now goes to the screener it has just set up, as the market cards do. */
   const viaTemplate = (id) => () => { applyTemplate(SCREEN_TEMPLATES.find(t => t.id === id)); navigate('/discover/screener'); };
   const colls = [
-    ['Bursa Malaysia',  'Malaysian listings in the beta universe.',      () => { const s = blankScreen(); s.universe='MY'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
+    ['Bursa Malaysia',  'Malaysian listings in the beta universe.',      () => { const s = blankScreen(); s.universe='MY'; State.screen=screenFitClass(s); State.appliedTemplate=null; navigate('/discover/screener'); }],
     ['US equities',     'US listings, filed with the SEC.',              () => { const s = blankScreen(); s.universe='US'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
     ['Banks',           'Deposit takers, on measures that fit a bank balance sheet.', viaTemplate('my-banks')],
     ['REITs',           'Property trusts, on distribution and gearing.', viaTemplate('my-reits')],
@@ -1014,7 +1014,12 @@ VIEWS.research = () => {
   top.append(idBlock);
 
   const pxBlock = el('div', { style: 'text-align:right;flex:none' });
-  pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
+  /* NO PRICE IS SAID AS ONE (the owner's second track, 8 Oct 2026): a
+     company with no price showed a large dash where the price stands, and a
+     dash reads as a figure. It wears the Unavailable badge (D6) and says
+     why, in the words the page uses for every price-based measure. */
+  if (isNum(c.px.p)) pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
+  else pxBlock.append(el('p', { class: 'px-na' }, [kindBadge('unavailable', { fine: 'Price' }), el('span', { class: 'px-na-why' }, ' · no licensed price')]));
   /* The change and its date render only when there is a price to have changed.
      Previously this printed "— today" on every filed company, which dates a
      figure that was never observed. */
@@ -1022,8 +1027,6 @@ VIEWS.research = () => {
     el('span', { class: 'num ' + signClass(c.px.d1), style: 'font-size:13px;font-weight:600' }, withSign(c.px.d1, 2)),
     el('span', { class: 'metaline' }, priceAsOfLabel(c)),
   ]));
-  else if (!isNum(c.px.p)) pxBlock.append(el('div', { class: 'metaline', style: 'margin-top:2px' },
-    'No licensed price'));
   /* toBase returns null for an absent price, and this called .toFixed on it.
      Every SEC-filed company has no price — SEC publishes filings, not market
      data — so on the deployed site this threw on every company page opened in
@@ -1462,11 +1465,12 @@ function overviewTiles(r) {
   const yrs = yearsOf(c), i = yrs.length - 1, fy = yrs[i];
   const lines = statementLines(r);
   const end = fyEndOf(c, fy);
+  /* The kind badge (D6), not a link: each tile is a button of its own. */
   const badge = c.real
     ? (c.personal
-        ? el('span', { class: 'chip chip-bronze', title: 'Annual statements you supplied for personal research. Not redistributable.' }, 'Personal')
-        : el('span', { class: 'chip chip-ok', title: `Filed with the SEC. From EDGAR companyfacts, CIK ${c.cik}.` }, 'Filed'))
-    : el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'Illustrative');
+        ? kindBadge('yours', { link: false, fine: 'Annual statements you supplied for personal research. Not redistributable' })
+        : kindBadge('filed', { link: false, fine: `From EDGAR companyfacts, CIK ${c.cik}` }))
+    : kindBadge('illustrative', { link: false, fine: ILLUS_TITLE.replace(/\.$/, '') });
   const card = el('div', { class: 'card' });
   card.append(cardHead('Latest reported year',
     `FY${fy}${end ? `, ended ${fmtFyEnd(end)}` : ''} · ${c.ccy} billions${c.real && !c.personal && !end ? ' · the period end date is not in this dataset yet' : ''}. Select a figure for its source.`,
@@ -1629,6 +1633,14 @@ function tabSnapshot(r) {
     tiles.append(el('p', { class: 'body', style: 'font-size:13px' },
       c.real ? 'No licensed price is connected, so none is shown rather than a row of dashes. Enter a price in the header to compute them, labelled as a figure you supplied.'
         : 'This illustrative company carries no sample price.'));
+    /* Each by name, with the Unavailable badge (D6) and its reason — one
+       line each, never a dash that reads as a figure (the owner's second
+       track, 8 Oct 2026). */
+    const why = c.real ? 'no licensed price' : 'no sample price';
+    tiles.append(el('ul', { class: 'mm-na' }, [
+      'Market capitalisation', c.type === 'bank' ? 'Price / book' : 'Price / earnings',
+      c.type === 'reit' ? 'Distribution yield' : 'Dividend yield', 'vs base-case value',
+    ].map(label => el('li', {}, [el('span', { class: 'mm-na-label' }, label), kindBadge('unavailable', { fine: label }), el('span', { class: 'mm-na-why' }, ` · ${why}`)]))));
     main.append(tiles);
   } else {
     const tg = el('div', { class: 'grid g-4' });
