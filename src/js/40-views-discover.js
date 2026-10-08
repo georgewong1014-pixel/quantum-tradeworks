@@ -953,9 +953,39 @@ const SECTOR_FMT = {
 const fmtFor = (k) => FIELD_BY_K[k]?.fmt || SECTOR_FMT[k] || ((v) => fmtNum(v, 2));
 
 function blankScreen() {
-  return { universe:'all', sectors:[], types:[], mode:'abs', minCoverage:60,
+  return { evidence:'filed', universe:'all', sectors:[], types:[], mode:'abs', minCoverage:60,
            crit:{}, local:{ shariahOnly:false, excludePn17:true, klciOnly:false },
            cols:['roic','om','pe','dy','fcfy','ndEbit'], sort:{ k:'quality', dir:-1 } };
+}
+
+/* THE TWO EVIDENCE CLASSES ARE NEVER MIXED BY DEFAULT (the owner's second
+   track, 8 Oct 2026). The screener ranked 119 companies' audited SEC
+   statements and 19 illustrative companies' synthetic figures in one table,
+   under one count and one set of medians — the filed set with no price, the
+   synthetic set with sample prices — so a price filter emptied the filed
+   half and a quality sort interleaved real and made-up numbers. A screen now
+   covers one class: SEC-filed (the default) or Illustrative, chosen in the
+   Coverage selector above the results. Both together stays available, as an
+   explicit choice that says in one line what mixing means. A screen saved
+   before this carries no class and is read as both together, as it ran. */
+const SCREEN_CLASSES = {
+  filed:        { label: 'SEC-filed',    note: 'Audited annual statements filed with the US SEC. No licensed prices, so every price-based measure is unavailable for these companies.' },
+  illustrative: { label: 'Illustrative', note: 'Synthetic figures that describe no real company, with sample prices. For trying the screener, not for research.' },
+};
+const SCREEN_MIX_WARNING = 'Both classes together: illustrative figures are synthetic, and the SEC-filed companies have no licensed prices — the two are not comparable.';
+const screenClassOf = (sc) => (sc && (sc.evidence === 'filed' || sc.evidence === 'illustrative' || sc.evidence === 'mixed') ? sc.evidence : 'mixed');
+const inScreenClass = (row, cls) => cls === 'mixed' || (cls === 'filed' ? !!row.c.real : !row.c.real);
+/* The kind a result's figures are (D6): a filer's Filed, the owner's own
+   statements Yours, a synthetic company Illustrative. */
+const rowKind = (c) => (c.real ? (c.personal ? 'yours' : 'filed') : 'illustrative');
+/* No company filed with the SEC is listed on Bursa Malaysia: the Bursa set
+   is illustrative only. A screen that asks for Bursa on the filed class —
+   a template, the research home's Bursa card, the market chosen at
+   onboarding — covers the illustrative set instead, rather than coming up
+   empty. */
+function screenFitClass(s) {
+  if (s && s.universe === 'MY' && screenClassOf(s) === 'filed') s.evidence = 'illustrative';
+  return s;
 }
 /* The market chosen at onboarding, or in the launcher's "Screen a market",
    is the screener's default from then on — the question says it "sets the
@@ -965,7 +995,7 @@ function blankScreen() {
 State.screen = State.screen || (() => {
   const s = blankScreen(), kept = store.read('screen', null);
   if (['US', 'MY'].includes(kept?.universe)) s.universe = kept.universe;
-  return s;
+  return screenFitClass(s);
 })();
 State.density = store.read('density', 'comfortable');
 State.compareCcy = store.read('compareCcy', 'common');
@@ -1046,7 +1076,10 @@ const SCREEN_TEMPLATES = [
 function applyTemplate(t) {
   const s = blankScreen();
   t.apply(s);
-  State.screen = s;
+  /* A template sets thresholds, not the evidence class: the class the
+     reader chose stays, unless the template's market holds only the other. */
+  if (State.screen) s.evidence = screenClassOf(State.screen);
+  State.screen = screenFitClass(s);
   State.appliedTemplate = t.id;
   render();
 }
@@ -1079,6 +1112,10 @@ function templateStillApplies(sc) {
 function evaluateScreen(row, sc) {
   const fails = [];
   const { c, m } = row;
+  /* The evidence class first: a company of the other class is outside the
+     screen, whatever its figures. */
+  const cls = screenClassOf(sc);
+  if (!inScreenClass(row, cls)) fails.push(cls === 'filed' ? 'Illustrative figures — this screen covers the SEC-filed companies' : 'Filed with the SEC — this screen covers the illustrative set');
   if (sc.universe === 'US' && c.mkt !== 'US') fails.push('Not in the US universe');
   if (sc.universe === 'MY' && c.mkt !== 'MY') fails.push('Not in the Bursa universe');
   if (sc.universe === 'watchlist' && !State.watchlist.includes(c.id)) fails.push('Not on the watchlist');
@@ -1218,6 +1255,11 @@ function renderScreener() {
      its pressed state and its banner go with it. */
   if (State.appliedTemplate && !templateStillApplies(sc)) State.appliedTemplate = null;
   const wrap = el('div', { class: 'screener-layout' });
+  /* The evidence class the screen covers, and the companies in it: every
+     count, exclusion and median below is of these. */
+  const cls = screenClassOf(sc);
+  const scope = U.filter(r => inScreenClass(r, cls));
+  const page = el('div', { class: 'scr-page' }, [screenClassBar(sc, cls), wrap]);
 
   /* Absolute and percentile thresholds are different scales. The criteria used
      to survive the switch, so "ROIC min 50" — the median rank — silently became
@@ -1293,8 +1335,14 @@ function renderScreener() {
   /* universe */
   const uni = el('div', { class: 'field', style: 'margin-bottom:var(--md)' });
   uni.append(el('label', { for: 'uniSel' }, 'Universe'));
-  const uniSel = el('select', { class: 'select', id: 'uniSel', onchange: e => { sc.universe = e.target.value; renderKeepFocus(); } });
-  [['all', `All markets (${U.length})`], ['US', 'United States'], ['MY', 'Bursa Malaysia'], ['watchlist', 'Only companies I follow']]
+  const uniSel = el('select', { class: 'select', id: 'uniSel', onchange: e => {
+    sc.universe = e.target.value;
+    const was = screenClassOf(sc);
+    screenFitClass(sc);
+    if (screenClassOf(sc) !== was) toast('Bursa Malaysia is held as illustrative figures only, so the screen now covers the illustrative set');
+    renderKeepFocus();
+  } });
+  [['all', `All markets (${scope.length})`], ['US', 'United States'], ['MY', 'Bursa Malaysia'], ['watchlist', 'Only companies I follow']]
     .forEach(([v, l]) => uniSel.append(el('option', { value: v, selected: sc.universe === v ? '' : null }, l)));
   uni.append(uniSel);
   railScope.append(uni);
@@ -1372,20 +1420,31 @@ function renderScreener() {
   primaryFields.forEach(f => prim.append(critRow(f)));
   railRules.append(prim);
 
-  const adv = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
+  /* THE ADVANCED FILTERS AFTER THE RESULTS (the owner's second track, 8 Oct
+     2026). Thirty-odd thresholds in six families sat in the rail, above the
+     results in the page's order: on a phone, where the rail stands over the
+     results, a reader passed the whole metric directory before the first
+     company, and a fetch read it before the count. They are a section of
+     their own after the results now, each family a collapsible group (open
+     where it holds an active threshold); the rail keeps the main filters and
+     a link down to the rest. */
   const advActive = FIELDS.filter(f => !PRIMARY.includes(f.k) && sc.crit[f.k]
     && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
-  adv.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0' },
-    el('span', { class: 'row' }, ['Advanced filters',
-      advActive ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(advActive)) : null])));
-  if (advActive) adv.setAttribute('open', '');
-  railRules.append(adv);
+  const adv = el('section', { class: 'card scr-adv', id: 'scr-advanced', 'aria-labelledby': 'scr-advanced-h' });
+  adv.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
+    el('h3', { class: 'h-card', id: 'scr-advanced-h' }, 'Advanced filters'),
+    advActive ? el('span', { class: 'chip chip-brand' }, `${advActive} active`) : null,
+  ]));
+  adv.append(el('p', { class: 'metaline', style: 'margin-top:2px' }, 'Every other measure, by family. Open a family to set a minimum or a maximum.'));
+  railRules.append(el('p', { class: 'scr-adv-link' }, el('a', { href: '#scr-advanced',
+    onclick: (e) => { e.preventDefault(); const t = document.getElementById('scr-advanced'); if (t) lsGoTo(t, t.querySelector('summary')); } },
+    [`Advanced filters${advActive ? ` · ${advActive} active` : ''}`, el('span', { 'aria-hidden': 'true' }, ' ↓')])));
 
   /* metric families */
   FIELD_GROUPS.forEach(g => {
     const groupFields = FIELDS.filter(f => f.g === g && !PRIMARY.includes(f.k));
     if (!groupFields.length) return;
-    const det = el('details', { style: 'border-top:1px solid var(--grid);padding:8px 0' });
+    const det = el('details', { class: 'scr-adv-group' });
     const activeCount = groupFields.filter(f => sc.crit[f.k] && (sc.crit[f.k].min != null || sc.crit[f.k].max != null)).length;
     det.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0' },
       el('span', { class: 'row' }, [g, activeCount ? el('span', { class: 'chip chip-brand', style: 'margin-left:auto' }, String(activeCount)) : null])));
@@ -1403,7 +1462,7 @@ function renderScreener() {
 
   /* ---------- results ---------- */
   const main = el('div', { style: 'min-width:0' });
-  const evald = U.map(r => ({ r, ev: evaluateScreen(r, sc) }));
+  const evald = scope.map(r => ({ r, ev: evaluateScreen(r, sc) }));
   const passed = evald.filter(x => x.ev.pass).map(x => x.r);
   const failed = evald.filter(x => !x.ev.pass);
 
@@ -1437,15 +1496,30 @@ function renderScreener() {
   const usedPriceFields = Object.entries(sc.crit || {})
     .filter(([k, c]) => PRICE_FIELDS[k] && c && (c.min != null || c.max != null)).map(([k]) => k);
   if (usedPriceFields.length) {
-    const backed = U.filter(r => r.m.pxPoints >= 20).length;
-    if (backed < U.length) {
+    const backed = scope.filter(r => r.m.pxPoints >= 20).length;
+    if (backed < scope.length) {
       resCard.append(el('div', { class: 'note', style: 'margin:0;border-radius:0;border-left:3px solid var(--bronze)' }, [
         el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' },
-          `${U.length - backed} of ${U.length} companies have no observed price history`),
+          `${scope.length - backed} of ${scope.length} companies have no observed price history`),
         el('p', { class: 'metaline' },
           `This screen filters on ${usedPriceFields.map(k => PRICE_FIELDS[k]).join(' and ')}, which ${usedPriceFields.length > 1 ? 'are' : 'is'} computed from imported closes rather than a stored figure. Companies without history are excluded — they are unmeasured, not unqualified. Add your own closes under Your data & settings.`),
       ]));
     }
+  }
+
+  /* A threshold on a measure that needs a price (P/E, yield, market
+     capitalisation…) is never met by a company with no price: its figure is
+     unavailable, not zero (evaluateScreen). Said beside the results, where
+     a filed screen would otherwise read "nothing qualifies". */
+  const usedPriced = Object.entries(sc.crit || {})
+    .filter(([k, c]) => (FIELD_INPUTS[k] || []).includes('price') && c && (c.min != null || c.max != null)).map(([k]) => k);
+  const unpriced = scope.filter(r => !isNum(r.c.px?.p)).length;
+  if (usedPriced.length && unpriced) {
+    resCard.append(el('div', { class: 'note', style: 'margin:0;border-radius:0;border-left:3px solid var(--bronze)' }, [
+      el('p', { style: 'margin:0 0 4px;font-weight:600;font-size:13px' }, `${unpriced} of ${scope.length} companies have no price`),
+      el('p', { class: 'metaline' },
+        `${usedPriced.map(k => FIELD_BY_K[k]?.label).filter(Boolean).join(' and ')} ${usedPriced.length > 1 ? 'need' : 'needs'} a price, and no licensed feed supplies one. A company without one is excluded as unavailable — never counted as a zero.`),
+    ]));
   }
 
   /* Active filters, above the results, each removable where it stands. A screen
@@ -1476,12 +1550,12 @@ function renderScreener() {
      Said through the live region that outlives the redraw (#liveStatus,
      index.template.html) whenever it differs from the count last drawn;
      the first draw after a load has nothing to differ from. */
-  const matchSaid = `${passed.length} of ${U.length} companies match`;
+  const matchSaid = `${passed.length} of ${scope.length} companies match`;
   if (screenMatchSaid !== null && screenMatchSaid !== matchSaid) liveSay(matchSaid);
   screenMatchSaid = matchSaid;
   hdRow.append(el('div', {}, [
     el('h3', { class: 'h-card' }, matchSaid),
-    el('p', { class: 'caption', style: 'margin-top:2px' }, 'Same as-of date, data version and model version reproduce this exact result.'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, `${cls === 'mixed' ? 'Both evidence classes together.' : `${SCREEN_CLASSES[cls].label} companies only.`} Same as-of date, data version and model version reproduce this exact result.`),
   ]));
 
   /* Reporting currency for this screen. Distinct from the base currency on
@@ -1605,8 +1679,10 @@ function renderScreener() {
       const tr = el('tr');
       cols.forEach(c2 => {
         if (c2.k === 'ident') {
+          /* And the kind of figures the row is (D6): Filed or Illustrative,
+             beside the ticker, in every row. */
           const th = el('th', { class: 'pin ident', scope: 'row' });
-          th.append(tickerCell(r)); tr.append(th); return;
+          th.append(tickerCell(r), kindBadge(rowKind(r.c), { link: false })); tr.append(th); return;
         }
         const v = c2.get(r);
         const td = el('td', { html: c2.fmt(v, r) });
@@ -1646,7 +1722,7 @@ function renderScreener() {
     /* Median comparison rows. A screen result means little on its own — what
        matters is whether it selected companies above the cohort it came from. */
     if (sc.showMedians !== false) {
-      const universeRows = U.filter(r =>
+      const universeRows = scope.filter(r =>
         sc.universe === 'all' ? true :
         sc.universe === 'watchlist' ? State.watchlist.includes(r.c.id) : r.c.mkt === sc.universe);
       const bands = [
@@ -1654,7 +1730,7 @@ function renderScreener() {
         ['Median — universe', universeRows, 'Median across every company in the selected universe, screened or not.'],
       ];
       if (sc.sectors.length === 1) bands.push(
-        [`Median — ${sc.sectors[0]}`, U.filter(r => r.c.sector === sc.sectors[0]), 'Median across the whole sector.']);
+        [`Median — ${sc.sectors[0]}`, scope.filter(r => r.c.sector === sc.sectors[0]), 'Median across the whole sector.']);
 
       const tf = el('tfoot');
       bands.forEach(([label, rowSet, note]) => {
@@ -1709,18 +1785,23 @@ function renderScreener() {
     sorted.forEach(r => {
       const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); openResearch(r.c.id); } });
-      card.append(el('div', { class: 'row', style: 'gap:8px;align-items:baseline' }, [
-        el('span', { style: 'font-weight:700' }, r.c.tk), dataChip(r.c),
+      /* The layout system's card (under 640px a table is a card a row; this
+         list takes over from 768px down): the company, the kind of its
+         figures as a D6 badge — not a link inside the card's own link — its
+         market, then four measures. */
+      card.append(el('div', { class: 'row screener-card-hd', style: 'gap:8px;align-items:baseline' }, [
+        el('span', { style: 'font-weight:700' }, r.c.tk), kindBadge(rowKind(r.c), { link: false }),
         el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
       const mini = el('div', { class: 'screener-card-metrics' });
       /* An absent score prints its reason, as the table cell does. String()
-         on it printed the word "null" on 55 of 77 phone cards. */
+         on it printed the word "null" on 55 of 77 phone cards. A yield with
+         no price says so too: it is unavailable, never a dash read as zero. */
       const score = (v, k) => isNum(v) ? String(v) : metricStatus(r, k).label;
       [['Quality', score(r.scores.quality.score, 'qscore')],
        ['Value', score(r.scores.value.score, 'vscore')],
-       ['Yield', isNum(r.m.dy) ? fmtPct(r.m.dy, 2) : '—'],
+       ['Yield', isNum(r.m.dy) ? fmtPct(r.m.dy, 2) : metricStatus(r, 'dy').label],
        ['Completeness', `${r.m.coverage}%`]].forEach(([k, v]) => {
         /* Not `metaline`. On desktop these four are table column headings; in
            the phone card they are the label half of a labelled value the
@@ -1749,6 +1830,8 @@ function renderScreener() {
     ]));
   }
   main.append(resCard);
+  /* The metric directory, after the results (above). */
+  main.append(adv);
 
   /* saved screens */
   if (State.savedScreens.length) {
@@ -1799,7 +1882,37 @@ function renderScreener() {
     ].join('<span class="dotsep"></span>') }));
   }
   wrap.append(main);
-  return wrap;
+  return page;
+}
+
+/* THE COVERAGE SELECTOR: which evidence class the screen covers, above the
+   results, at every width. Two choices, each with how many companies it
+   holds and the shape of its kind badge (D6); both together is a third,
+   separate choice, and while it is on the one-line warning stands under it. */
+function screenClassBar(sc, cls) {
+  const n = (k) => U.filter(r => inScreenClass(r, k)).length;
+  const set = (k) => {
+    if (screenClassOf(sc) === k) return;
+    sc.evidence = k;
+    /* A Bursa screen has no filed company to cover. */
+    if (k === 'filed' && sc.universe === 'MY') sc.universe = 'all';
+    renderKeepFocus();
+  };
+  const bar = el('div', { class: 'scr-class' });
+  const choice = (k) => el('button', { type: 'button', id: `scr-class-${k}`, 'aria-pressed': cls === k ? 'true' : 'false', onclick: () => set(k) }, [
+    el('span', { class: `kind-badge kind-${k} scr-class-shape`, 'aria-hidden': 'true' }, el('span', { class: 'kind-shape' })),
+    SCREEN_CLASSES[k].label, ' ', el('span', { class: 'scr-class-n' }, String(n(k))),
+  ]);
+  bar.append(el('div', { class: 'scr-class-row' }, [
+    el('span', { class: 'scr-class-label', id: 'scr-class-label' }, 'Coverage'),
+    el('div', { class: 'segmented scr-class-seg', role: 'group', 'aria-labelledby': 'scr-class-label' }, [choice('filed'), choice('illustrative')]),
+    el('button', { type: 'button', class: 'btn btn-quiet btn-sm scr-class-mix', id: 'scr-class-mixed', 'aria-pressed': cls === 'mixed' ? 'true' : 'false',
+      onclick: () => (cls === 'mixed' ? set('filed') : set('mixed')) }, 'Show both classes together'),
+  ]));
+  bar.append(cls === 'mixed'
+    ? el('p', { class: 'scr-class-warn', role: 'note' }, [el('span', { class: 'scr-class-warn-mark', 'aria-hidden': 'true' }, '!'), SCREEN_MIX_WARNING])
+    : el('p', { class: 'metaline scr-class-note' }, SCREEN_CLASSES[cls].note));
+  return bar;
 }
 
 function scorePill(v, pct) {
@@ -2690,7 +2803,7 @@ function exportScreen() {
   lines.push(`# Quantum Tradeworks screen export · ${MODEL_VERSION}`);
   /* The definition, as the chips above the results state it, and whole as
      JSON so it can be loaded back or compared. */
-  lines.push(`# Screen: ${sc.mode === 'pct' ? 'peer-percentile thresholds' : 'absolute thresholds'}; universe ${sc.universe}`);
+  lines.push(`# Screen: ${sc.mode === 'pct' ? 'peer-percentile thresholds' : 'absolute thresholds'}; universe ${sc.universe}; coverage ${screenClassOf(sc) === 'mixed' ? 'both evidence classes together' : `${SCREEN_CLASSES[screenClassOf(sc)].label} companies only`}`);
   const filters = activeFilters(sc);
   if (filters.length) filters.forEach(a => lines.push(`# Criterion: ${a.label}`));
   else lines.push('# Criterion: none — every company in the universe');

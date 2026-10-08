@@ -531,6 +531,3457 @@
       "digest": "936ed62a19d358cd",
       "changed": "2026-10-06"
     },
+    "pages/company/aapl-apple-inc.html": {
+      "path": "/company/aapl-apple-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Apple Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "2c2fe17072193226",
+      "changed": "2026-10-08"
+    },
+    "pages/company/abbv-abbvie-inc.html": {
+      "path": "/company/abbv-abbvie-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AbbVie Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "8fb598d44415a317",
+      "changed": "2026-10-08"
+    },
+    "pages/company/abt-abbott-laboratories.html": {
+      "path": "/company/abt-abbott-laboratories",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ABBOTT LABORATORIES",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "ea34a7832e512d31",
+      "changed": "2026-10-08"
+    },
+    "pages/company/acn-accenture-plc.html": {
+      "path": "/company/acn-accenture-plc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Accenture plc",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f6bcf6dda4c9980e",
+      "changed": "2026-10-08"
+    },
+    "pages/company/adbe-adobe-inc.html": {
+      "path": "/company/adbe-adobe-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ADOBE INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "4878678f4f79dafb",
+      "changed": "2026-10-08"
+    },
+    "pages/company/adi-analog-devices.html": {
+      "path": "/company/adi-analog-devices",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ANALOG DEVICES INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "05b059f421e21579",
+      "changed": "2026-10-08"
+    },
+    "pages/company/aep-american-electric.html": {
+      "path": "/company/aep-american-electric",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AMERICAN ELECTRIC POWER CO INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "36adf9edf4b58a68",
+      "changed": "2026-10-08"
+    },
+    "pages/company/amat-applied-materials.html": {
+      "path": "/company/amat-applied-materials",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "APPLIED MATERIALS INC /DE",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f5ad2123d652e835",
+      "changed": "2026-10-08"
+    },
+    "pages/company/amd-advanced-micro.html": {
+      "path": "/company/amd-advanced-micro",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ADVANCED MICRO DEVICES INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "0121cc361a466dad",
+      "changed": "2026-10-08"
+    },
+    "pages/company/amgn-amgen-inc.html": {
+      "path": "/company/amgn-amgen-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AMGEN INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "1a489fa999de53c3",
+      "changed": "2026-10-08"
+    },
+    "pages/company/amt-american-tower.html": {
+      "path": "/company/amt-american-tower",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AMERICAN TOWER CORP /MA/",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f6bbabf2510e72a6",
+      "changed": "2026-10-08"
+    },
+    "pages/company/amzn-amazon-com.html": {
+      "path": "/company/amzn-amazon-com",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AMAZON COM INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "ee521d308dc2400d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/apd-air-products.html": {
+      "path": "/company/apd-air-products",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Air Products & Chemicals, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "8b0dff6ba49603de",
+      "changed": "2026-10-08"
+    },
+    "pages/company/avgo-broadcom-inc.html": {
+      "path": "/company/avgo-broadcom-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Broadcom Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3660ed37eb30c4e2",
+      "changed": "2026-10-08"
+    },
+    "pages/company/axp-american-express.html": {
+      "path": "/company/axp-american-express",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AMERICAN EXPRESS CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "1feb16f9e8368726",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ba-boeing-co.html": {
+      "path": "/company/ba-boeing-co",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "BOEING CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3eec073df8bf85c3",
+      "changed": "2026-10-08"
+    },
+    "pages/company/bac-bank-of.html": {
+      "path": "/company/bac-bank-of",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "BANK OF AMERICA CORP /DE/",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3ccbf10dce89a01e",
+      "changed": "2026-10-08"
+    },
+    "pages/company/bkng-booking-holdings.html": {
+      "path": "/company/bkng-booking-holdings",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Booking Holdings Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6299511d683f9058",
+      "changed": "2026-10-08"
+    },
+    "pages/company/blk-blackrock-inc.html": {
+      "path": "/company/blk-blackrock-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "BlackRock, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "94dfe8548b6d461c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/bmy-bristol-myers.html": {
+      "path": "/company/bmy-bristol-myers",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "BRISTOL MYERS SQUIBB CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "14c6d2c875970ef4",
+      "changed": "2026-10-08"
+    },
+    "pages/company/brk-b-berkshire-hathaway.html": {
+      "path": "/company/brk-b-berkshire-hathaway",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "BERKSHIRE HATHAWAY INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 24,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "9554908c49f20675",
+      "changed": "2026-10-08"
+    },
+    "pages/company/c-citigroup-inc.html": {
+      "path": "/company/c-citigroup-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CITIGROUP INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "d34f62d19dd60ead",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cat-caterpillar-inc.html": {
+      "path": "/company/cat-caterpillar-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CATERPILLAR INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a4f651498e9ed0a1",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cdns-cadence-design.html": {
+      "path": "/company/cdns-cadence-design",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CADENCE DESIGN SYSTEMS INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "e5ffa10fff32adbd",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ci-cigna-group.html": {
+      "path": "/company/ci-cigna-group",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Cigna Group",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 24,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6e7c817f384dd53b",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cl-colgate-palmolive.html": {
+      "path": "/company/cl-colgate-palmolive",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "COLGATE PALMOLIVE CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "2f573244dc75303c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cmcsa-comcast-corp.html": {
+      "path": "/company/cmcsa-comcast-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "COMCAST CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "829f55b25de2c774",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cof-capital-one.html": {
+      "path": "/company/cof-capital-one",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CAPITAL ONE FINANCIAL CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "70a63db5689e95ab",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cop-conocophillips.html": {
+      "path": "/company/cop-conocophillips",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CONOCOPHILLIPS",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3f018aec37b610da",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cost-costco-wholesale.html": {
+      "path": "/company/cost-costco-wholesale",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "COSTCO WHOLESALE CORP /NEW",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "5af93c036c6e6453",
+      "changed": "2026-10-08"
+    },
+    "pages/company/crm-salesforce-inc.html": {
+      "path": "/company/crm-salesforce-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Salesforce, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "c4af512d299c1d69",
+      "changed": "2026-10-08"
+    },
+    "pages/company/csco-cisco-systems.html": {
+      "path": "/company/csco-cisco-systems",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CISCO SYSTEMS, INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "22d03241193bbab9",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cvs-cvs-health.html": {
+      "path": "/company/cvs-cvs-health",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CVS HEALTH Corp",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "ab38ee14630fd25c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/cvx-chevron-corp.html": {
+      "path": "/company/cvx-chevron-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "CHEVRON CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "c376e773a795bd1a",
+      "changed": "2026-10-08"
+    },
+    "pages/company/d-dominion-energy.html": {
+      "path": "/company/d-dominion-energy",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "DOMINION ENERGY, INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "2b0dd8eaa60d3b88",
+      "changed": "2026-10-08"
+    },
+    "pages/company/de-deere-co.html": {
+      "path": "/company/de-deere-co",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "DEERE & CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "56682600cdc56408",
+      "changed": "2026-10-08"
+    },
+    "pages/company/dhr-danaher-corp.html": {
+      "path": "/company/dhr-danaher-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "DANAHER CORP /DE/",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "c929b254cb57a062",
+      "changed": "2026-10-08"
+    },
+    "pages/company/dis-walt-disney.html": {
+      "path": "/company/dis-walt-disney",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Walt Disney Co",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "8146e334493451cb",
+      "changed": "2026-10-08"
+    },
+    "pages/company/duk-duke-energy.html": {
+      "path": "/company/duk-duke-energy",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Duke Energy CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "ea0f6a21b0488ab6",
+      "changed": "2026-10-08"
+    },
+    "pages/company/emr-emerson-electric.html": {
+      "path": "/company/emr-emerson-electric",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "EMERSON ELECTRIC CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "8f6349e752162569",
+      "changed": "2026-10-08"
+    },
+    "pages/company/eog-eog-resources.html": {
+      "path": "/company/eog-eog-resources",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "EOG RESOURCES INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "9e6ddb2891172fc8",
+      "changed": "2026-10-08"
+    },
+    "pages/company/eqix-equinix-inc.html": {
+      "path": "/company/eqix-equinix-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "EQUINIX INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6473994a0fbcdcab",
+      "changed": "2026-10-08"
+    },
+    "pages/company/etn-eaton-corp.html": {
+      "path": "/company/etn-eaton-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Eaton Corp plc",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a9c2181caa40ec1d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/f-ford-motor.html": {
+      "path": "/company/f-ford-motor",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "FORD MOTOR CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "97a7cb1823558515",
+      "changed": "2026-10-08"
+    },
+    "pages/company/fcx-freeport-mcmoran.html": {
+      "path": "/company/fcx-freeport-mcmoran",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "FREEPORT-MCMORAN INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "92a7d6f7db0da2f3",
+      "changed": "2026-10-08"
+    },
+    "pages/company/fdx-fedex-corp.html": {
+      "path": "/company/fdx-fedex-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "FEDEX CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "ab59f5c3ff08a68b",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ge-general-electric.html": {
+      "path": "/company/ge-general-electric",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "GENERAL ELECTRIC CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "2fbf4067888af989",
+      "changed": "2026-10-08"
+    },
+    "pages/company/gild-gilead-sciences.html": {
+      "path": "/company/gild-gilead-sciences",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "GILEAD SCIENCES, INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "d3f9bd96f0b06b15",
+      "changed": "2026-10-08"
+    },
+    "pages/company/gm-general-motors.html": {
+      "path": "/company/gm-general-motors",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "General Motors Co",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "46bb8fcfed842a29",
+      "changed": "2026-10-08"
+    },
+    "pages/company/googl-alphabet-inc.html": {
+      "path": "/company/googl-alphabet-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Alphabet Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3a7a7bbbb74d5838",
+      "changed": "2026-10-08"
+    },
+    "pages/company/gs-goldman-sachs.html": {
+      "path": "/company/gs-goldman-sachs",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "GOLDMAN SACHS GROUP INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a8cf1063666d8590",
+      "changed": "2026-10-08"
+    },
+    "pages/company/hd-home-depot.html": {
+      "path": "/company/hd-home-depot",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "HOME DEPOT, INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "d88016564d10cf99",
+      "changed": "2026-10-08"
+    },
+    "pages/company/hon-honeywell-international.html": {
+      "path": "/company/hon-honeywell-international",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "HONEYWELL INTERNATIONAL INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "2fbc528b98eccd6d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ibm-international-business.html": {
+      "path": "/company/ibm-international-business",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "INTERNATIONAL BUSINESS MACHINES CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a1bc47c3dacc322e",
+      "changed": "2026-10-08"
+    },
+    "pages/company/intc-intel-corp.html": {
+      "path": "/company/intc-intel-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "INTEL CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3222035a19746c6a",
+      "changed": "2026-10-08"
+    },
+    "pages/company/intu-intuit-inc.html": {
+      "path": "/company/intu-intuit-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "INTUIT INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "5b468244c1239e78",
+      "changed": "2026-10-08"
+    },
+    "pages/company/isrg-intuitive-surgical.html": {
+      "path": "/company/isrg-intuitive-surgical",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "INTUITIVE SURGICAL INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "8b81818a18688583",
+      "changed": "2026-10-08"
+    },
+    "pages/company/jnj-johnson-johnson.html": {
+      "path": "/company/jnj-johnson-johnson",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "JOHNSON & JOHNSON",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "23ddd55bd14f98e4",
+      "changed": "2026-10-08"
+    },
+    "pages/company/jpm-jpmorgan-chase.html": {
+      "path": "/company/jpm-jpmorgan-chase",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "JPMORGAN CHASE & CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "98ebffcda658634a",
+      "changed": "2026-10-08"
+    },
+    "pages/company/klac-kla-corp.html": {
+      "path": "/company/klac-kla-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "KLA CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "90d880493bd25f32",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ko-coca-cola.html": {
+      "path": "/company/ko-coca-cola",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "COCA COLA CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "ef56bd165a46c00d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/lin-linde-plc.html": {
+      "path": "/company/lin-linde-plc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "LINDE PLC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "130638dcec000867",
+      "changed": "2026-10-08"
+    },
+    "pages/company/lly-eli-lilly.html": {
+      "path": "/company/lly-eli-lilly",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ELI LILLY & Co",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a6135e059beac33c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/lmt-lockheed-martin.html": {
+      "path": "/company/lmt-lockheed-martin",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "LOCKHEED MARTIN CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "fbac5096327b4e3e",
+      "changed": "2026-10-08"
+    },
+    "pages/company/low-lowes-companies.html": {
+      "path": "/company/low-lowes-companies",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "LOWES COMPANIES INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "667f1d393cc70ac3",
+      "changed": "2026-10-08"
+    },
+    "pages/company/lrcx-lam-research.html": {
+      "path": "/company/lrcx-lam-research",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "LAM RESEARCH CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "63d3a48dac8e46f1",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ma-mastercard-inc.html": {
+      "path": "/company/ma-mastercard-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Mastercard Inc",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "4e983d323bc4bf0d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mcd-mcdonalds-corp.html": {
+      "path": "/company/mcd-mcdonalds-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "MCDONALDS CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "508ca0a31ce05bc8",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mdlz-mondelez-international.html": {
+      "path": "/company/mdlz-mondelez-international",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Mondelez International, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "04a0555998b8ab20",
+      "changed": "2026-10-08"
+    },
+    "pages/company/meta-meta-platforms.html": {
+      "path": "/company/meta-meta-platforms",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Meta Platforms, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "d1506fc1c293545f",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mmm-3m-co.html": {
+      "path": "/company/mmm-3m-co",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "3M CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "9a76d10dda6fc725",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mo-altria-group.html": {
+      "path": "/company/mo-altria-group",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ALTRIA GROUP, INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "894035b112c07771",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mpc-marathon-petroleum.html": {
+      "path": "/company/mpc-marathon-petroleum",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Marathon Petroleum Corp",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "206011ede9ef0f8c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mrk-merck-co.html": {
+      "path": "/company/mrk-merck-co",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Merck & Co., Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "7a67910f103ee6e6",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ms-morgan-stanley.html": {
+      "path": "/company/ms-morgan-stanley",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "MORGAN STANLEY",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "02682cda232c42fc",
+      "changed": "2026-10-08"
+    },
+    "pages/company/msft-microsoft-corp.html": {
+      "path": "/company/msft-microsoft-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "MICROSOFT CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "08475b78f7feb98f",
+      "changed": "2026-10-08"
+    },
+    "pages/company/mu-micron-technology.html": {
+      "path": "/company/mu-micron-technology",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "MICRON TECHNOLOGY INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "dffab46c7742179a",
+      "changed": "2026-10-08"
+    },
+    "pages/company/nee-nextera-energy.html": {
+      "path": "/company/nee-nextera-energy",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "NEXTERA ENERGY INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "32d42efd19641c7b",
+      "changed": "2026-10-08"
+    },
+    "pages/company/nflx-netflix-inc.html": {
+      "path": "/company/nflx-netflix-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "NETFLIX INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f1ed9e1ead953f40",
+      "changed": "2026-10-08"
+    },
+    "pages/company/nke-nike-inc.html": {
+      "path": "/company/nke-nike-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "NIKE, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "742b06dfb5c85cf2",
+      "changed": "2026-10-08"
+    },
+    "pages/company/now-servicenow-inc.html": {
+      "path": "/company/now-servicenow-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ServiceNow, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "91839711e90ad704",
+      "changed": "2026-10-08"
+    },
+    "pages/company/nvda-nvidia-corp.html": {
+      "path": "/company/nvda-nvidia-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "NVIDIA CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "857cb5c4c1a24045",
+      "changed": "2026-10-08"
+    },
+    "pages/company/o-realty-income.html": {
+      "path": "/company/o-realty-income",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "REALTY INCOME CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a5af0e775fd2ceed",
+      "changed": "2026-10-08"
+    },
+    "pages/company/orcl-oracle-corp.html": {
+      "path": "/company/orcl-oracle-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "ORACLE CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "bd1d53531cd21665",
+      "changed": "2026-10-08"
+    },
+    "pages/company/orly-o-reilly.html": {
+      "path": "/company/orly-o-reilly",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "O REILLY AUTOMOTIVE INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6091b6474efd44d2",
+      "changed": "2026-10-08"
+    },
+    "pages/company/panw-palo-alto.html": {
+      "path": "/company/panw-palo-alto",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Palo Alto Networks Inc",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "bea47038a8a35095",
+      "changed": "2026-10-08"
+    },
+    "pages/company/pep-pepsico-inc.html": {
+      "path": "/company/pep-pepsico-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "PEPSICO INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "029b637ac8d5721d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/pfe-pfizer-inc.html": {
+      "path": "/company/pfe-pfizer-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "PFIZER INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f82bd57204741be0",
+      "changed": "2026-10-08"
+    },
+    "pages/company/pg-procter-gamble.html": {
+      "path": "/company/pg-procter-gamble",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "PROCTER & GAMBLE Co",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "af5c69df7a43b749",
+      "changed": "2026-10-08"
+    },
+    "pages/company/pld-prologis-inc.html": {
+      "path": "/company/pld-prologis-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Prologis, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6313ecae8ea1145d",
+      "changed": "2026-10-08"
+    },
+    "pages/company/pm-philip-morris.html": {
+      "path": "/company/pm-philip-morris",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Philip Morris International Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "800f153cccdc85ce",
+      "changed": "2026-10-08"
+    },
+    "pages/company/pnc-pnc-financial.html": {
+      "path": "/company/pnc-pnc-financial",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "PNC FINANCIAL SERVICES GROUP, INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "9e817d923012e44e",
+      "changed": "2026-10-08"
+    },
+    "pages/company/psx-phillips-66.html": {
+      "path": "/company/psx-phillips-66",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Phillips 66",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "bb617285fdb2dcf9",
+      "changed": "2026-10-08"
+    },
+    "pages/company/qcom-qualcomm-inc.html": {
+      "path": "/company/qcom-qualcomm-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "QUALCOMM INC/DE",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "eac1db1f37af2b68",
+      "changed": "2026-10-08"
+    },
+    "pages/company/rivn-rivian-automotive.html": {
+      "path": "/company/rivn-rivian-automotive",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Rivian Automotive, Inc. / DE",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 20,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "25dd76c8f84feef0",
+      "changed": "2026-10-08"
+    },
+    "pages/company/rtx-rtx-corp.html": {
+      "path": "/company/rtx-rtx-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "RTX Corp",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "81ad65733fd5dbf8",
+      "changed": "2026-10-08"
+    },
+    "pages/company/sbux-starbucks-corp.html": {
+      "path": "/company/sbux-starbucks-corp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "STARBUCKS CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "b3d3a13d308d68e9",
+      "changed": "2026-10-08"
+    },
+    "pages/company/schw-schwab-charles.html": {
+      "path": "/company/schw-schwab-charles",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "SCHWAB CHARLES CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "fb34d38c331101c7",
+      "changed": "2026-10-08"
+    },
+    "pages/company/shw-sherwin-williams.html": {
+      "path": "/company/shw-sherwin-williams",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "SHERWIN WILLIAMS CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "e8e32cb89435a302",
+      "changed": "2026-10-08"
+    },
+    "pages/company/slb-slb-limited.html": {
+      "path": "/company/slb-slb-limited",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "SLB LIMITED/NV",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "c1d107c2fb4b8a59",
+      "changed": "2026-10-08"
+    },
+    "pages/company/snps-synopsys-inc.html": {
+      "path": "/company/snps-synopsys-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "SYNOPSYS INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "4b431ebc2917b3dc",
+      "changed": "2026-10-08"
+    },
+    "pages/company/so-southern-co.html": {
+      "path": "/company/so-southern-co",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "SOUTHERN CO",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "8fb461b3707d381f",
+      "changed": "2026-10-08"
+    },
+    "pages/company/spg-simon-property.html": {
+      "path": "/company/spg-simon-property",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "SIMON PROPERTY GROUP INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "4f3c3d55c31751ec",
+      "changed": "2026-10-08"
+    },
+    "pages/company/spgi-s-p.html": {
+      "path": "/company/spgi-s-p",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "S&P Global Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "7c694487dce26c57",
+      "changed": "2026-10-08"
+    },
+    "pages/company/t-at-t.html": {
+      "path": "/company/t-at-t",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "AT&T INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6a5c8630af724251",
+      "changed": "2026-10-08"
+    },
+    "pages/company/tjx-tjx-companies.html": {
+      "path": "/company/tjx-tjx-companies",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "TJX COMPANIES INC /DE/",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "6b38c4ea11bdb016",
+      "changed": "2026-10-08"
+    },
+    "pages/company/tmo-thermo-fisher.html": {
+      "path": "/company/tmo-thermo-fisher",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "THERMO FISHER SCIENTIFIC INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "fc8701238b74b15c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/tmus-t-mobile.html": {
+      "path": "/company/tmus-t-mobile",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "T-Mobile US, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "c5d8c53d228a84c7",
+      "changed": "2026-10-08"
+    },
+    "pages/company/tsla-tesla-inc.html": {
+      "path": "/company/tsla-tesla-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Tesla, Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "7207679f6f7f77e4",
+      "changed": "2026-10-08"
+    },
+    "pages/company/txn-texas-instruments.html": {
+      "path": "/company/txn-texas-instruments",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "TEXAS INSTRUMENTS INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f9454efbaf0abf59",
+      "changed": "2026-10-08"
+    },
+    "pages/company/unh-unitedhealth-group.html": {
+      "path": "/company/unh-unitedhealth-group",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "UNITEDHEALTH GROUP INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 24,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "4238927fdeec3859",
+      "changed": "2026-10-08"
+    },
+    "pages/company/unp-union-pacific.html": {
+      "path": "/company/unp-union-pacific",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "UNION PACIFIC CORP",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "319f8dd106ea470c",
+      "changed": "2026-10-08"
+    },
+    "pages/company/ups-united-parcel.html": {
+      "path": "/company/ups-united-parcel",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "UNITED PARCEL SERVICE INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "772f2467da8a9750",
+      "changed": "2026-10-08"
+    },
+    "pages/company/usb-us-bancorp.html": {
+      "path": "/company/usb-us-bancorp",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "US BANCORP DE",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "38d98a289c85086a",
+      "changed": "2026-10-08"
+    },
+    "pages/company/v-visa-inc.html": {
+      "path": "/company/v-visa-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "VISA INC.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "adc397e7ad94e406",
+      "changed": "2026-10-08"
+    },
+    "pages/company/vz-verizon-communications.html": {
+      "path": "/company/vz-verizon-communications",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "VERIZON COMMUNICATIONS INC",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "435d18c7101bd869",
+      "changed": "2026-10-08"
+    },
+    "pages/company/wfc-wells-fargo.html": {
+      "path": "/company/wfc-wells-fargo",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "WELLS FARGO & COMPANY/MN",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 26,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a6c2df84671286b9",
+      "changed": "2026-10-08"
+    },
+    "pages/company/wmt-walmart-inc.html": {
+      "path": "/company/wmt-walmart-inc",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Walmart Inc.",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "87a6141d52d981a9",
+      "changed": "2026-10-08"
+    },
+    "pages/company/xom-exxon-mobil.html": {
+      "path": "/company/xom-exxon-mobil",
+      "view": "research",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Exxon Mobil Corporation",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 27,
+        "fields": 3,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "c7635880a3f24acd",
+      "changed": "2026-10-08"
+    },
     "pages/compare.html": {
       "path": "/compare",
       "view": "compare",
@@ -691,10 +4142,10 @@
         ]
       },
       "inert": {
-        "buttons": 135,
+        "buttons": 120,
         "fields": 82,
         "choices": 3,
-        "roles": 504,
+        "roles": 342,
         "forms": 0,
         "removed": 0,
         "notShown": 1,
@@ -702,8 +4153,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "7388f02fc0993997",
-      "changed": "2026-10-04"
+      "digest": "0862261bb358e563",
+      "changed": "2026-10-08"
     },
     "pages/discover/sarawak.html": {
       "path": "/discover/sarawak",
@@ -749,10 +4200,10 @@
         ]
       },
       "inert": {
-        "buttons": 135,
+        "buttons": 120,
         "fields": 82,
         "choices": 3,
-        "roles": 504,
+        "roles": 342,
         "forms": 0,
         "removed": 0,
         "notShown": 1,
@@ -760,8 +4211,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "7388f02fc0993997",
-      "changed": "2026-10-04"
+      "digest": "0862261bb358e563",
+      "changed": "2026-10-08"
     },
     "pages/discover/value-map.html": {
       "path": "/discover/value-map",
@@ -789,8 +4240,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bf71f8a8dae00eb0",
-      "changed": "2026-10-06"
+      "digest": "4037c57c1e531d48",
+      "changed": "2026-10-08"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",

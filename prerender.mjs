@@ -76,6 +76,13 @@
  *   page replaces itself with itself. What changes once its data lands
  *   changes as it always has.
  *
+ * WHICH PAGES. Every page build.mjs writes for a static route but My
+ * Workspace's, and — since 8 Oct 2026 (the owner's second track) — each SEC
+ * filer's own page, /company/<ticker>-<name>, drawn as the research view's
+ * overview with the filings in (build.mjs, companyScope). An illustrative
+ * company's page, the report and every other form of a company address
+ * carry none: the script draws them.
+ *
  * WHAT A RENDER MAY NOT CARRY
  *
  * Before the script runs nothing on the page works, and anything typed into

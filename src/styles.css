@@ -1525,8 +1525,13 @@ h3.h-card[id], h2.h-section[id] {
   scroll-margin-top: 2px;
 }
 
+/* Centred, not on a baseline (8 Oct 2026): the row's baseline was the jump
+   select's, and the select served as its words (prerender.mjs) sets its
+   baseline 6px higher than the drawn control does — the strip's ticker,
+   name and price moved 6px when the filed company's served page was drawn.
+   Centred, the row is the same in both, as it already was on a phone. */
 .ts-ident {
-  display: flex; align-items: baseline; gap: 10px;
+  display: flex; align-items: center; gap: 10px;
   max-height: 0; overflow: hidden; opacity: 0;
   transition: max-height 200ms ease, opacity 200ms ease, padding 200ms ease;
 }
@@ -5793,3 +5798,75 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 }
 
 /* ---- end layout-system ---- */
+
+/* ---- evidence-classes ---- */
+/* THE SCREENER'S COVERAGE SELECTOR (40-views-discover.js, screenClassBar;
+   the owner's second track, 8 Oct 2026): which evidence class the screen
+   covers, above the results at every width. The two classes as one
+   segmented choice, each with its kind badge's shape and its count; both
+   together a separate, quieter choice, and while it is on, a one-line
+   warning in the warning colour under it. */
+.scr-page { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.scr-class { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.scr-class-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px var(--sm); min-width: 0; }
+.scr-class-label { font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.scr-class-seg > button, .scr-class-seg > [data-inert] { display: inline-flex; align-items: center; gap: 6px; }
+.scr-class-shape { height: auto; padding: 0; border: 0; background: none; }
+.scr-class-mix[aria-pressed="true"] { border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); color: var(--ink); }
+.scr-class-n { color: var(--ink-3); font-variant-numeric: tabular-nums; font-weight: var(--weight-medium); }
+.scr-class-note { margin: 0; max-width: 70ch; }
+.scr-class-warn {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px var(--sm); max-width: 80ch;
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--warn) 13%, var(--surface));
+  font-size: var(--ls-support); line-height: 1.45; font-weight: var(--weight-semibold); color: var(--ink);
+}
+.scr-class-warn-mark {
+  display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%;
+  background: var(--warn); color: #1d1606; font-size: var(--ls-meta); font-weight: var(--weight-bold); line-height: 1;
+}
+/* The metric directory, after the results: a card of collapsible families. */
+.scr-adv { margin-top: var(--md); }
+.scr-adv-group { border-top: 1px solid var(--grid); padding: 8px 0; }
+.scr-adv-group:first-of-type { margin-top: var(--sm); }
+.scr-adv-link { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--grid); font-size: var(--ls-support); }
+.scr-adv-link a { display: inline-flex; align-items: center; min-height: 32px; color: var(--brand); font-weight: var(--weight-semibold); text-decoration: none; }
+.scr-adv-link a:hover { text-decoration: underline; }
+.scr-adv-link a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-xs); }
+/* A result's kind badge sits under its ticker in the table's first column,
+   and beside the ticker in a phone's card. */
+.screener-table th.ident > .kind-badge { margin-top: 4px; }
+.screener-card-hd { flex-wrap: wrap; row-gap: 4px; }
+@media (max-width: 639.98px) {
+  .scr-class-row { gap: 8px; }
+  .scr-class-seg { flex: 1 1 100%; }
+  .scr-class-seg > button, .scr-class-seg > [data-inert] { flex: 1 1 0; justify-content: center; min-height: 44px; }
+  .scr-class-mix { min-height: 44px; }
+  .scr-adv-link a { min-height: 44px; }
+}
+/* A company with no price (45-views-research.js): where the price stands,
+   the Unavailable badge and its reason; under Market measures, each
+   price-based measure by name with the same. */
+.px-na { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+.px-na-why, .mm-na-why { font-size: var(--ls-meta); color: var(--ink-2); }
+.mm-na { list-style: none; margin: var(--sm) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 6px var(--md); }
+.mm-na li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: var(--ls-support); color: var(--ink-2); }
+.mm-na-label { font-weight: var(--weight-semibold); color: var(--ink); }
+/* A filed figure's tile opens its source, so it is a button — and with no
+   script an action is not shown (integration-final). The tile is the
+   figure itself: a reader with no script reads it, unboxed, as words. */
+@media (scripting: none) {
+  #views .tile-btn[data-inert="button"][data-act] { display: block !important; }
+}
+/* A button centres what it holds in the height its grid row gives it, and a
+   span does not: the overview's tiles, served as words, stood 9px higher
+   than the buttons drawn in their place. */
+#views[data-served] .tile-btn[data-inert="button"] { display: flex; flex-direction: column; justify-content: center; }
+/* The valuation range's labels stand in pixels of the 1280px render: on a
+   narrower served page they are clipped to the strip, not let past the
+   window (30-charts.js, rangeStrip), until the page is drawn. */
+#views[data-served] .range-strip { overflow: clip; }
+@media (scripting: none) {
+  #views .tile-btn[data-inert="button"][data-act] { display: flex !important; }
+}
+/* ---- end evidence-classes ---- */

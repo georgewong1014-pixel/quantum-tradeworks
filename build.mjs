@@ -847,8 +847,9 @@ export function withNav(html, nav) {
 
    for every page written for a static route — index.html for / — but My
    Workspace's (pages/my/: one reader's own, robots-disallowed, where a fresh
-   visitor sees only sample data). Not the 404 page, the parameter routes'
-   page, or a company's: those are served as before. --check fails if a page
+   visitor sees only sample data). And for each SEC filer's own page
+   (companyScope, below; since 8 Oct 2026). Not the 404 page, the parameter
+   routes' page, or an illustrative company's: those are served as before. --check fails if a page
    does not carry its committed render exactly, if one is missing, or if one
    is left for a page that no longer has a route; prerender.mjs --check says
    whether a render is still the app's. */
@@ -925,10 +926,27 @@ export const myWorkspace = (p) => p.path.startsWith('/my/') || new URL(p.head.ca
 /* Which pages carry a render, and where each render is committed: none of
    My Workspace's, by every address a page answers, not by its file name. */
 export function prerenderScope(plan) {
-  return routePages(plan).filter(p => !p.file.startsWith(`${PAGES}/my/`) && !p.routes.some(myWorkspace)).map(({ file, named }) => {
+  const routes = routePages(plan).filter(p => !p.file.startsWith(`${PAGES}/my/`) && !p.routes.some(myWorkspace)).map(({ file, named }) => {
     const stem = file === 'index.html' ? 'index' : file.slice(PAGES.length + 1, -'.html'.length);
     return { file, path: named.path, view: named.view, render: `${PRERENDER}/${stem}.html`, tabs: `${PRERENDER}/${stem}.tabs.html` };
   });
+  return [...routes, ...companyScope(plan)];
+}
+/* THE FILED COMPANIES' OWN PAGES CARRY THEIR OVERVIEW (the owner's second
+   track, 8 Oct 2026). A fetch of /company/aapl-apple-inc read the company's
+   head and an empty #views: no h1, no filed figure, no source — the 119
+   pages a search index may hold were blank to it. Each SEC filer's page now
+   carries the app's own render of its overview (the research view, its
+   first tab), drawn as every waiting page is (prerender.mjs: filings in,
+   SERVED_READS.research), at the company's own address. The illustrative
+   companies' pages stay as they were — noindex, drawn by the script, no
+   render — and so does every other form of a company address (the report,
+   /app/equities/…, a ticker alone): the generic page. */
+export function companyScope(plan) {
+  return (plan.companies || []).filter(co => co.company.real).map(co => ({
+    file: `${PAGES}${co.path}.html`, path: co.path, view: 'research', company: co.id,
+    render: `${PRERENDER}${co.path}.html`, tabs: `${PRERENDER}${co.path}.tabs.html`,
+  }));
 }
 /* A RENDER IS WRITTEN ONLY BY prerender.mjs (2026-10-04). A render edited by
    hand — a link pointed elsewhere, a heading's level changed, a figure or a

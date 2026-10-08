@@ -1690,7 +1690,8 @@ try {
       const want = [row[F.REV], row[F.NI], row[F.OCF], row[F.EQ]].map(v => fmtNum(v, Math.abs(v) < 10 ? 2 : 1));
       const tiles = [...document.querySelectorAll('main .overview-tiles .tile-btn')];
       const got = tiles.map(t => t.querySelector('.stat-value').textContent.trim());
-      const badges = tiles.map(t => t.querySelector('.chip')?.textContent.trim());
+      /* The kind badge (D6) since the second track, 8 Oct 2026. */
+      const badges = tiles.map(t => t.querySelector('.kind-badge, .chip')?.textContent.trim());
       const fyOk = tiles.every(t => t.textContent.includes('FY' + latestFy(c)));
       tiles[0]?.click();
       const d = document.querySelector('#drawer');
@@ -1735,7 +1736,7 @@ try {
       for (const id of ['MAYBANK', 'AAPL-SEC']) {
         openResearch(id, 'snapshot');
         const head = document.querySelector('main .card');
-        out[id] = { badges: [...document.querySelectorAll('main .overview-tiles .chip')].map(x => x.textContent.trim()),
+        out[id] = { badges: [...document.querySelectorAll('main .overview-tiles .kind-badge, main .overview-tiles .chip')].map(x => x.textContent.trim()),
                     prov: head.querySelector('.prov')?.textContent || '' };
       }
       navigate('/compare?companies=MSFT-SEC');

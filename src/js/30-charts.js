@@ -1273,7 +1273,10 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
      width: a microtask, as the Valuation tab's other charts are drawn, by
      when the caller has put the strip on the page, or the resize observer
      once it is laid out. */
-  const host = el('div', { style: 'min-height:56px;margin-top:var(--xs)' });
+  /* range-strip: its labels are placed in pixels of the width it was drawn
+     at, so a served page narrower than its render clips them (styles.css,
+     evidence-classes) until the script draws them again to its width. */
+  const host = el('div', { class: 'range-strip', style: 'min-height:56px;margin-top:var(--xs)' });
   queueMicrotask(() => chartHost(host, (W) => {
     /* The .metaline text, 12px. The canvas measures the semibold labels a few
        per cent narrow of the page (69.4px for 71.2px), so each width carries
