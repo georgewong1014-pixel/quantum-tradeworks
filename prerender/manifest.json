@@ -555,9 +555,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "2c2fe17072193226",
+      "digest": "b3423c88213ebffe",
       "changed": "2026-10-08"
     },
     "pages/company/abbv-abbvie-inc.html": {
@@ -642,9 +643,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "f6bcf6dda4c9980e",
+      "digest": "d04b5ff357a2fcd1",
       "changed": "2026-10-08"
     },
     "pages/company/adbe-adobe-inc.html": {
@@ -700,9 +702,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "05b059f421e21579",
+      "digest": "a2b93db410e300d1",
       "changed": "2026-10-08"
     },
     "pages/company/aep-american-electric.html": {
@@ -758,9 +761,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "f5ad2123d652e835",
+      "digest": "9b078d48622e4b33",
       "changed": "2026-10-08"
     },
     "pages/company/amd-advanced-micro.html": {
@@ -787,9 +791,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "0121cc361a466dad",
+      "digest": "54925ded4cc98300",
       "changed": "2026-10-08"
     },
     "pages/company/amgn-amgen-inc.html": {
@@ -816,9 +821,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 1
       },
-      "digest": "1a489fa999de53c3",
+      "digest": "2f46c186f59e3041",
       "changed": "2026-10-08"
     },
     "pages/company/amt-american-tower.html": {
@@ -845,9 +851,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "f6bbabf2510e72a6",
+      "digest": "5a93c2c6b26c10cb",
       "changed": "2026-10-08"
     },
     "pages/company/amzn-amazon-com.html": {
@@ -874,9 +881,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "ee521d308dc2400d",
+      "digest": "47e8e9ff7a41d2ab",
       "changed": "2026-10-08"
     },
     "pages/company/apd-air-products.html": {
@@ -932,9 +940,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "3660ed37eb30c4e2",
+      "digest": "286d00c6ef9cbc53",
       "changed": "2026-10-08"
     },
     "pages/company/axp-american-express.html": {
@@ -961,9 +970,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "1feb16f9e8368726",
+      "digest": "4a4e72316e40297e",
       "changed": "2026-10-08"
     },
     "pages/company/ba-boeing-co.html": {
@@ -1019,9 +1029,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "3ccbf10dce89a01e",
+      "digest": "903a267083e14e3d",
       "changed": "2026-10-08"
     },
     "pages/company/bkng-booking-holdings.html": {
@@ -1077,9 +1088,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "94dfe8548b6d461c",
+      "digest": "16d351c666969f39",
       "changed": "2026-10-08"
     },
     "pages/company/bmy-bristol-myers.html": {
@@ -1193,9 +1205,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "a4f651498e9ed0a1",
+      "digest": "1c7ab567dc408eea",
       "changed": "2026-10-08"
     },
     "pages/company/cdns-cadence-design.html": {
@@ -1251,9 +1264,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "6e7c817f384dd53b",
+      "digest": "456adf060e62a1ac",
       "changed": "2026-10-08"
     },
     "pages/company/cl-colgate-palmolive.html": {
@@ -1280,9 +1294,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 1
       },
-      "digest": "2f573244dc75303c",
+      "digest": "6ccf8ad662ac54ce",
       "changed": "2026-10-08"
     },
     "pages/company/cmcsa-comcast-corp.html": {
@@ -1309,9 +1324,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "829f55b25de2c774",
+      "digest": "8ccf716d7f9c0f91",
       "changed": "2026-10-08"
     },
     "pages/company/cof-capital-one.html": {
@@ -1338,9 +1354,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "70a63db5689e95ab",
+      "digest": "0b65a5528b172889",
       "changed": "2026-10-08"
     },
     "pages/company/cop-conocophillips.html": {
@@ -1396,9 +1413,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "5af93c036c6e6453",
+      "digest": "86b0b225818607fc",
       "changed": "2026-10-08"
     },
     "pages/company/crm-salesforce-inc.html": {
@@ -1425,9 +1443,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "c4af512d299c1d69",
+      "digest": "c77798f0150797bd",
       "changed": "2026-10-08"
     },
     "pages/company/csco-cisco-systems.html": {
@@ -1454,9 +1473,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "22d03241193bbab9",
+      "digest": "87d1cbb57501e502",
       "changed": "2026-10-08"
     },
     "pages/company/cvs-cvs-health.html": {
@@ -1483,9 +1503,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "ab38ee14630fd25c",
+      "digest": "0b34dcfb364b4c81",
       "changed": "2026-10-08"
     },
     "pages/company/cvx-chevron-corp.html": {
@@ -1599,9 +1620,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "c929b254cb57a062",
+      "digest": "9f304d4c0dfc831d",
       "changed": "2026-10-08"
     },
     "pages/company/dis-walt-disney.html": {
@@ -1628,9 +1650,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "8146e334493451cb",
+      "digest": "ecf12dbde7870448",
       "changed": "2026-10-08"
     },
     "pages/company/duk-duke-energy.html": {
@@ -1686,9 +1709,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "8f6349e752162569",
+      "digest": "b74158f05302ede0",
       "changed": "2026-10-08"
     },
     "pages/company/eog-eog-resources.html": {
@@ -1744,9 +1768,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "6473994a0fbcdcab",
+      "digest": "d4f0fe52d7245852",
       "changed": "2026-10-08"
     },
     "pages/company/etn-eaton-corp.html": {
@@ -1889,9 +1914,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "2fbf4067888af989",
+      "digest": "f01f4751f8d64203",
       "changed": "2026-10-08"
     },
     "pages/company/gild-gilead-sciences.html": {
@@ -1918,9 +1944,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "d3f9bd96f0b06b15",
+      "digest": "6af46d77c47c4f0b",
       "changed": "2026-10-08"
     },
     "pages/company/gm-general-motors.html": {
@@ -1976,9 +2003,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "3a7a7bbbb74d5838",
+      "digest": "3858f58672922aa5",
       "changed": "2026-10-08"
     },
     "pages/company/gs-goldman-sachs.html": {
@@ -2005,9 +2033,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "a8cf1063666d8590",
+      "digest": "b00dd490b72f04c1",
       "changed": "2026-10-08"
     },
     "pages/company/hd-home-depot.html": {
@@ -2092,9 +2121,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "a1bc47c3dacc322e",
+      "digest": "d0ad8e423b93836a",
       "changed": "2026-10-08"
     },
     "pages/company/intc-intel-corp.html": {
@@ -2150,9 +2180,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "5b468244c1239e78",
+      "digest": "fd34d28b66cb5d38",
       "changed": "2026-10-08"
     },
     "pages/company/isrg-intuitive-surgical.html": {
@@ -2237,9 +2268,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "98ebffcda658634a",
+      "digest": "f61b88ada7323ee8",
       "changed": "2026-10-08"
     },
     "pages/company/klac-kla-corp.html": {
@@ -2382,9 +2414,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "fbac5096327b4e3e",
+      "digest": "5040c7186044f3dd",
       "changed": "2026-10-08"
     },
     "pages/company/low-lowes-companies.html": {
@@ -2440,9 +2473,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "63d3a48dac8e46f1",
+      "digest": "1a0c7f5c053a88df",
       "changed": "2026-10-08"
     },
     "pages/company/ma-mastercard-inc.html": {
@@ -2469,9 +2503,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "4e983d323bc4bf0d",
+      "digest": "71d94fc402155f42",
       "changed": "2026-10-08"
     },
     "pages/company/mcd-mcdonalds-corp.html": {
@@ -2556,9 +2591,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "d1506fc1c293545f",
+      "digest": "b1fc77d69eb32857",
       "changed": "2026-10-08"
     },
     "pages/company/mmm-3m-co.html": {
@@ -2585,9 +2621,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "9a76d10dda6fc725",
+      "digest": "30840ebc6042fb22",
       "changed": "2026-10-08"
     },
     "pages/company/mo-altria-group.html": {
@@ -2701,9 +2738,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "02682cda232c42fc",
+      "digest": "710c3f37beb9d3b2",
       "changed": "2026-10-08"
     },
     "pages/company/msft-microsoft-corp.html": {
@@ -2730,9 +2768,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "08475b78f7feb98f",
+      "digest": "4d26b84702d00d67",
       "changed": "2026-10-08"
     },
     "pages/company/mu-micron-technology.html": {
@@ -2759,9 +2798,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "dffab46c7742179a",
+      "digest": "5f9e963af0fc8611",
       "changed": "2026-10-08"
     },
     "pages/company/nee-nextera-energy.html": {
@@ -2817,9 +2857,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "f1ed9e1ead953f40",
+      "digest": "c27ff979178c56a7",
       "changed": "2026-10-08"
     },
     "pages/company/nke-nike-inc.html": {
@@ -2846,9 +2887,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "742b06dfb5c85cf2",
+      "digest": "8c00c74f1f684b0f",
       "changed": "2026-10-08"
     },
     "pages/company/now-servicenow-inc.html": {
@@ -2875,9 +2917,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "91839711e90ad704",
+      "digest": "8441aec86c910720",
       "changed": "2026-10-08"
     },
     "pages/company/nvda-nvidia-corp.html": {
@@ -2904,9 +2947,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "857cb5c4c1a24045",
+      "digest": "11673bacac7e6c16",
       "changed": "2026-10-08"
     },
     "pages/company/o-realty-income.html": {
@@ -2933,9 +2977,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "a5af0e775fd2ceed",
+      "digest": "fc91fd1140fc2657",
       "changed": "2026-10-08"
     },
     "pages/company/orcl-oracle-corp.html": {
@@ -3136,9 +3181,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "6313ecae8ea1145d",
+      "digest": "874c1960529cdd04",
       "changed": "2026-10-08"
     },
     "pages/company/pm-philip-morris.html": {
@@ -3252,9 +3298,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "eac1db1f37af2b68",
+      "digest": "eb2c4a91995f3f41",
       "changed": "2026-10-08"
     },
     "pages/company/rivn-rivian-automotive.html": {
@@ -3397,9 +3444,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "e8e32cb89435a302",
+      "digest": "d4555f926afa5860",
       "changed": "2026-10-08"
     },
     "pages/company/slb-slb-limited.html": {
@@ -3455,9 +3503,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "4b431ebc2917b3dc",
+      "digest": "265536bf3580ecf0",
       "changed": "2026-10-08"
     },
     "pages/company/so-southern-co.html": {
@@ -3513,9 +3562,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "4f3c3d55c31751ec",
+      "digest": "a66731ac7f259f54",
       "changed": "2026-10-08"
     },
     "pages/company/spgi-s-p.html": {
@@ -3542,9 +3592,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "7c694487dce26c57",
+      "digest": "875ae5d1173dcab7",
       "changed": "2026-10-08"
     },
     "pages/company/t-at-t.html": {
@@ -3600,9 +3651,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "6b38c4ea11bdb016",
+      "digest": "d27b81f53790acbc",
       "changed": "2026-10-08"
     },
     "pages/company/tmo-thermo-fisher.html": {
@@ -3658,9 +3710,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "c5d8c53d228a84c7",
+      "digest": "1a1fe630d1b5c8e6",
       "changed": "2026-10-08"
     },
     "pages/company/tsla-tesla-inc.html": {
@@ -3687,9 +3740,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "7207679f6f7f77e4",
+      "digest": "ce1545ee3817b979",
       "changed": "2026-10-08"
     },
     "pages/company/txn-texas-instruments.html": {
@@ -3745,9 +3799,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "4238927fdeec3859",
+      "digest": "f8c377d3ed1d2770",
       "changed": "2026-10-08"
     },
     "pages/company/unp-union-pacific.html": {
@@ -3803,9 +3858,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "772f2467da8a9750",
+      "digest": "36cac47438e3c0de",
       "changed": "2026-10-08"
     },
     "pages/company/usb-us-bancorp.html": {
@@ -3832,9 +3888,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "38d98a289c85086a",
+      "digest": "bfaf0795b1fe8d33",
       "changed": "2026-10-08"
     },
     "pages/company/v-visa-inc.html": {
@@ -3919,9 +3976,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "a6c2df84671286b9",
+      "digest": "3fa2ccf5d4e01374",
       "changed": "2026-10-08"
     },
     "pages/company/wmt-walmart-inc.html": {
@@ -3948,9 +4006,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "87a6141d52d981a9",
+      "digest": "3b488f91d17c83d8",
       "changed": "2026-10-08"
     },
     "pages/company/xom-exxon-mobil.html": {
@@ -3977,9 +4036,10 @@
         "notShown": 0,
         "now": 0,
         "cellStops": 0,
-        "emptyDetails": 0
+        "emptyDetails": 0,
+        "measured": 3
       },
-      "digest": "c7635880a3f24acd",
+      "digest": "d7938812ad63a81e",
       "changed": "2026-10-08"
     },
     "pages/compare.html": {
