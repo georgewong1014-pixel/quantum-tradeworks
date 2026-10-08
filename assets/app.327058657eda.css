@@ -1690,6 +1690,11 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   border: 1px solid color-mix(in srgb, var(--critical) 32%, transparent);
   font-size:13px; color: var(--ink);
 }
+/* Its words break where they must: a withheld line names its XBRL tags
+   (LongTermDebtAndCapitalLeaseObligationsCurrent), one word wider than a
+   phone in a wide sans, and the page scrolled sideways by 23px. */
+.guardrail > span { min-width: 0; overflow-wrap: anywhere;
+}
 .guardrail svg { color: var(--critical); flex: none; }
 
 /* A feature-flagged surface, stated where it is read. Bronze, the colour the

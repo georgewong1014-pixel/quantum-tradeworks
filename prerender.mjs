@@ -101,7 +101,9 @@
  * state. Links keep their real hrefs: a reader without the script can still
  * go anywhere the page goes. What the page does not display at the width it
  * is drawn at is not served (the screener's phone cards beside its table: a
- * page may weigh 200kB). A <style> or <link> stops the run (a page may load
+ * page may weigh 200kB), nor words a chart places by measuring them in this
+ * machine's font (data-measured: the valuation range's labels). A <style>
+ * or <link> stops the run (a page may load
  * the app's stylesheet only). servedCopy, below, is the one place this is
  * done; the manifest counts each kind per page.
  *
@@ -447,6 +449,15 @@ export function servedCopy(live, counts = {}) {
     if (o.matches('input, select, textarea, button')) controls.push([o, b[i]]);
   }
   for (const c of drop) if (root.contains(c)) { c.remove(); add('notShown'); }
+  /* WHAT THE FONT PLACES (8 Oct 2026, the filed companies' pages). Words a
+     chart places in pixels it measured in this machine's font — the
+     valuation range's Bear, Base and Bull labels (rangeStrip, 30-charts.js),
+     which stand as three or as one line by that measure — are marked
+     data-measured, and a render leaves them out: drawn in Verdana, 60 of
+     the 119 company renders differed from their own render in the page's
+     font by where those labels stood or how many there were. The figures
+     they repeat stand beside them in the page as words. */
+  for (const n of root.querySelectorAll('[data-measured]')) if (root.contains(n)) { n.remove(); add('measured'); }
   for (const [o, c] of controls) {
     if (!root.contains(c)) continue;
     const tag = c.localName;
@@ -1054,7 +1065,7 @@ async function main() {
         const n = (k, one, many) => c[k] ? `${c[k]} ${c[k] === 1 ? one : many}` : null;
         const inertSaid = [n('buttons', 'button', 'buttons'), n('fields', 'field', 'fields'), n('choices', 'choice', 'choices'), n('roles', 'control role', 'control roles'),
           n('forms', 'form', 'forms'), n('removed', 'removed', 'removed'), n('notShown', 'not shown at this width', 'not shown at this width'),
-          n('now', 'of the tab’s own now', 'of the tab’s own now'), n('cellStops', 'cell tab stop', 'cell tab stops'), n('emptyDetails', 'empty disclosure', 'empty disclosures')].filter(Boolean).join(', ');
+          n('now', 'of the tab’s own now', 'of the tab’s own now'), n('cellStops', 'cell tab stop', 'cell tab stops'), n('emptyDetails', 'empty disclosure', 'empty disclosures'), n('measured', 'font-placed label left out', 'font-placed labels left out')].filter(Boolean).join(', ');
         say(!r.problems.length, `${s.path.padEnd(28)} ${r.state.padEnd(10)} ${String(Math.round(Buffer.byteLength(r.views) / 1024)).padStart(3)}kB  "${r.h1}"${r.tabs ? ' + tab row' : ''}${inertSaid ? `  inert: ${inertSaid}` : ''}${r.personal ? `  (${r.personal} personal-lane request${r.personal === 1 ? '' : 's'} answered 404 here)` : ''}`, r.problems);
         if (!r.problems.length) results.push({ s, r });
       }
@@ -1084,7 +1095,7 @@ async function main() {
         if (r.tabs) writeFileSync(join(ROOT, s.tabs), `${r.tabs}\n`); else rmSync(join(ROOT, s.tabs), { force: true });
         const digest = renderDigest(r.views, r.tabs), was = prior.pages?.[s.file];
         pages[s.file] = { path: s.path, view: r.view, state: r.state, chrome: r.chrome, h1: r.h1, tabs: !!r.tabs, nav: r.nav,
-          inert: Object.fromEntries(['buttons', 'fields', 'choices', 'roles', 'forms', 'removed', 'notShown', 'now', 'cellStops', 'emptyDetails'].map(k => [k, r.counts[k] || 0])),
+          inert: Object.fromEntries(['buttons', 'fields', 'choices', 'roles', 'forms', 'removed', 'notShown', 'now', 'cellStops', 'emptyDetails'].map(k => [k, r.counts[k] || 0]).concat(r.counts.measured ? [['measured', r.counts.measured]] : [])),
           digest, changed: was?.digest === digest ? (was.changed || lastCommit(s.render, s.tabs) || copy.day) : copy.day };
       }
       const ordered = Object.fromEntries(Object.keys(pages).sort((a, b) => (a === 'index.html' ? -1 : b === 'index.html' ? 1 : a.localeCompare(b))).map(k => [k, pages[k]]));
