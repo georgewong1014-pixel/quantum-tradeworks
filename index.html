@@ -18060,7 +18060,10 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
   /* A range at nil (equity wiped out in every case) has no width to divide by. */
   const hi0 = (hasPx ? Math.max(bull, price) : bull) * 1.06;
   const hi = hi0 > lo ? hi0 : lo + 1;
-  const at = v => clamp((v - lo) / (hi - lo) * 100, 0, 100);
+  /* Rounded to 1/10000 of a per cent: the full double differs in its last
+     digit between Windows and Linux Chromium (4.910813250826382% against
+     …383%), and a served company page must match its committed render. */
+  const at = v => Math.round(clamp((v - lo) / (hi - lo) * 100, 0, 100) * 1e4) / 1e4;
 
   /* When the price sits far outside the modelled range — a business trading at
      a large premium or discount to its own model — the scale has to span both,
@@ -18068,7 +18071,7 @@ function rangeStrip(bearIn, base, bullIn, price, ccy) {
      labels into unreadable overlap. Rather than distort the scale, which is the
      one thing the strip exists to show honestly, collapse the three labels into
      one line placed under the compressed range. */
-  const spread = at(bull) - at(bear);
+  const spread = Math.round((at(bull) - at(bear)) * 1e4) / 1e4;
   const mid = (at(bear) + at(bull)) / 2;
   const baseText = `Base ${fmtMoney(base, ccy)}${isNum(bearIn) ? '' : ' · bear not computable'}${isNum(bullIn) ? '' : ' · bull not computable'}`;
   const oneLine = [caseLabel('Bear', bearIn), `Base ${fmtMoney(base, ccy)}`, caseLabel('Bull', bullIn)];
