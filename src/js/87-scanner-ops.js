@@ -462,6 +462,115 @@ function scanOpsOpenFiles() {
   return box;
 }
 
+/* ============================================================== example === */
+/* THE EXAMPLE ON A GENERATED SERIES (the 5 Oct audit's N5b; the owner's
+   decision D14c, in its constrained form — a mock-up went to counsel, and
+   the example is withdrawn if the opinion objects). Shown on /app/scanner
+   when no file is open, and on /how-it-works#hiw-scanner.
+   It is the engine's self-test fixture, evaluated by the engine: scanFixture
+   (generated series A — sixty quiet closes, a drift down and a last close
+   through its average on twice the volume — and series B, flat) and its own
+   setup, three conditions that must all hold on one bar, read by
+   scanEvaluate exactly as the worker reads a reader's history. Nothing on
+   it is written by hand, and nothing on it is a market's.
+   WHAT IT MAY SAY, AND NO MORE. The chart is series A's closes with their
+   50-bar EMA over bars 1–66, ending on bar 66 — no bar after it, so no
+   outcome and no return. Each condition is the engine's own sentence, its
+   values in it, with Held, Not held or Unavailable; the verdict says one
+   of the same three words. No symbol, exchange, currency or date: the
+   series are "A" and "B", the bars numbered. Never a count of matches,
+   and never a word that leans toward a trade.
+   THE REPLAY, with the script: the slider takes the series back to any bar
+   from 1 to 66 and evaluates the rule there, on the closes up to that bar
+   and none after it (every indicator is causal). Bars 1–14 read
+   Unavailable — RSI14 needs fifteen closes, and an unread condition is
+   neither held nor broken — then Not held on every bar to 65, and Held at
+   66 alone. The served page is bar 66; without the script it stays so. */
+const SCAN_EX_WORD = { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' };
+let scanExRun = null;
+function scanExample() {
+  if (scanExRun) return scanExRun;
+  const fx = scanFixture();
+  const setup = scanNormaliseSetup(fx.setup);
+  const cache = scanCache();
+  const calendar = scanCalendar(fx.history, [], null);
+  const bars = (sym) => scanBars(fx.history, sym, { timeframe: '1D', now: fx.now, calendar });
+  const A = bars('MATCH'), B = bars('FLAT');
+  const b = scanEvaluate(setup.ruleTree, B, { cache });
+  scanExRun = { A, n: A.closes.length, ema: scanEma(A.closes, 50), at: (i) => scanEvaluate(setup.ruleTree, A, { at: i, cache }), b,
+    /* Series B's RSI is unread on a flat series: no gain and no loss. */
+    bRsiUnread: b.conditions.some(c => /^RSI/.test(c.leftLabel || '') && c.state === 'UNAVAILABLE') };
+  return scanExRun;
+}
+/* The chart at bar i (0-based): the closes and the EMA up to it, none after,
+   on the whole series' scale, with the bar marked. No words in it: its two
+   ends' bar numbers are the line under it, in the page's type. */
+function scanExSvg(ex, i) {
+  const W = 320, H = 116, L = 4, R = 4, T = 10, Bt = 8;
+  const vals = [...ex.A.closes, ...ex.ema.filter(isNum)];
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const x = (k) => L + k * (W - L - R) / (ex.n - 1);
+  const y = (v) => T + (hi - v) / (hi - lo) * (H - T - Bt);
+  const line = (arr) => arr.map((v, k) => (isNum(v) && k <= i ? [k, v] : null)).filter(Boolean)
+    .map(([k, v], j) => `${j ? 'L' : 'M'}${x(k).toFixed(2)} ${y(v).toFixed(2)}`).join(' ');
+  const close = line(ex.A.closes), ema = line(ex.ema);
+  const at = ex.A.closes[i];
+  return `<svg class="scan-ex-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`Generated series A: its closes and their 50-bar EMA, bars 1 to ${ex.n}, shown to bar ${i + 1}.`)}">`
+    + `<line class="scan-ex-base" x1="${L}" x2="${W - R}" y1="${H - Bt + 4}" y2="${H - Bt + 4}"/>`
+    + `<line class="scan-ex-at" x1="${x(i).toFixed(2)}" x2="${x(i).toFixed(2)}" y1="${T - 6}" y2="${H - Bt + 4}"/>`
+    + (ema ? `<path class="scan-ex-ema" d="${ema}"/>` : '')
+    + `<path class="scan-ex-close" d="${close}" data-points="${i + 1}"/>`
+    + `<circle class="scan-ex-dot" cx="${x(i).toFixed(2)}" cy="${y(at).toFixed(2)}" r="3.2"/></svg>`;
+}
+/* The figure. `id` keeps two on one page apart (there is one on each). */
+function scanExampleFigure({ id = 'scan-ex' } = {}) {
+  const ex = scanExample();
+  const plot = el('div', { class: 'scan-ex-plot' });
+  const conds = el('ol', { class: 'scan-ex-conds', 'aria-labelledby': `${id}-rule` });
+  const barNo = el('span', { class: 'num' });
+  const verdict = el('strong', { class: 'scan-ex-v' });
+  const range = el('input', { type: 'range', class: 'scan-ex-range', id: `${id}-bar`, min: '1', max: String(ex.n), step: '1', value: String(ex.n) });
+  const paint = (bar) => {
+    const r = ex.at(bar - 1);
+    plot.innerHTML = scanExSvg(ex, bar - 1);
+    barNo.textContent = String(bar);
+    verdict.textContent = SCAN_EX_WORD[r.state];
+    verdict.setAttribute('data-state', r.state);
+    conds.replaceChildren(...r.conditions.map(c => el('li', { class: 'scan-ex-c', 'data-state': c.state,
+      'data-left': JSON.stringify(c.leftValue ?? null), 'data-right': JSON.stringify(c.rightValue ?? null) }, [
+      el('span', { class: 'scan-ex-s' }, SCAN_EX_WORD[c.state]), ' ', el('span', { class: 'scan-ex-x' }, c.text)])));
+    return r;
+  };
+  let said = null;
+  range.addEventListener('input', () => {
+    const bar = Math.min(ex.n, Math.max(1, Math.round(Number(range.value)) || ex.n));
+    const r = paint(bar);
+    clearTimeout(said);
+    said = setTimeout(() => {
+      const status = document.getElementById('liveStatus');
+      if (status) status.textContent = `Bar ${bar}: ${SCAN_EX_WORD[r.state]}.`;
+    }, 600);
+  });
+  paint(ex.n);
+  const b = ex.b;
+  return el('figure', { class: 'scan-ex', id, 'aria-labelledby': `${id}-t` }, [
+    el('figcaption', { class: 'scan-ex-cap' }, [
+      el('span', { class: 'scan-ex-t', id: `${id}-t` }, 'Example — generated series, not a market’s prices'), ' ',
+      kindBadge('illustrative', { fine: 'A generated series' })]),
+    el('div', { class: 'scan-ex-chart' }, [plot,
+      el('p', { class: 'scan-ex-ticks', 'aria-hidden': 'true' }, [el('span', {}, '1'), el('span', {}, String(ex.n))]),
+      el('p', { class: 'scan-ex-legend', 'aria-hidden': 'true' }, [el('i', { class: 'scan-sw scan-sw-close' }), 'Series A', el('i', { class: 'scan-sw scan-sw-ema' }), 'EMA 50'])]),
+    el('div', { class: 'scan-ex-knob' }, [el('label', { class: 'scan-ex-k', for: range.id }, 'Replay'), range]),
+    el('p', { class: 'scan-ex-verdict' }, [el('span', { class: 'scan-ex-k' }, ['The rule at bar ', barNo]), ' ', verdict]),
+    el('p', { class: 'scan-ex-k scan-ex-rule', id: `${id}-rule` }, 'All three must hold on one bar:'),
+    conds,
+    el('p', { class: 'scan-ex-b' }, [el('span', { class: 'scan-ex-k' }, `Series B, flat, at bar ${ex.n}:`), ' ',
+      el('strong', { class: 'scan-ex-bv', 'data-state': b.state }, SCAN_EX_WORD[b.state]),
+      b.state === 'NOT_MET' && ex.bRsiUnread ? '; RSI cannot be computed on a flat series.' : '.']),
+    el('p', { class: 'scan-ex-note' }, 'Shows how a rule is evaluated — not whether it works, and nothing about any market.'),
+  ]);
+}
+
 /* ============================================================ dashboard === */
 /* /app/scanner (and /my/scanner). The four questions in the brief's order,
    from persisted records only. */
@@ -482,39 +591,53 @@ VIEWS.scannerDashboard = () => {
 
   const st = scanOpsStatus();
   const S = SCAN_STATE[st.state] || SCAN_STATE.never;
-  const wrap = el('div', { class: 'scan-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
+  /* THE FIRST VIEW (the 5 Oct audit's N5a and N5b; on the layout system):
+     no scan recorded and no file open — the public site, always, and a
+     machine whose worker has not run. The example on a generated series
+     beside the state and the four answers; how to run the worker, its
+     commands and its files, one press away in "Run the worker on your own
+     computer". With any file open, or any run recorded, the page is the
+     reader's, exactly as it was. */
+  const first = st.state === 'never' && !scanOpsOpened.length && !scanOpsHistory() && !scanOpsSetupsDoc() && !scanOpsAlertsDoc();
+  const wrap = el('div', { class: 'scan-page ls-page', style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The product's one action, as its entry in PRODUCTS names it, is the
      overview's primary: the page had none, and "Create a setup" was two
      clicks away under Setups. It stands at the head's end. */
   const sc = typeof productById === 'function' ? productById('scanner') : null;
   const head = scanOpsHead('Scanner dashboard', 'Your setups, the last scan and its matches, as the worker recorded them.',
-    'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine. Nothing here is a scan run by this page and presented as the worker’s.',
+    first ? 'Nothing here is a scan run by this page and presented as the worker’s.'
+      : 'Whether each setup is active, when the last scan succeeded, what matched and whether anything is delivered, read from the worker’s files on this machine. Nothing here is a scan run by this page and presented as the worker’s.',
     sc?.action && sc.actionPath && matchRoute(sc.actionPath) ? scanOpsLink(sc.actionPath, sc.action, { class: 'btn btn-primary' }) : null);
   wrap.append(head);
   if (alias && q.get('symbol') && !builder) wrap.append(el('p', { class: 'metaline' },
     `This link asked for the setup builder with ${q.get('symbol')}; the builder is not in this build, so the dashboard opened instead.`));
 
   /* ---- the band: the state, and every reason for it ---- */
-  const band = el('section', { class: 'card scan-band', data: { state: st.state }, 'aria-labelledby': 'scan-band-hd' });
+  const band = el('section', { class: 'card scan-band ls-section', data: { state: st.state }, 'aria-labelledby': 'scan-band-hd' });
   band.append(el('div', { class: 'scan-band-hd' }, [sevChip(S.sev, S.label), el('h2', { id: 'scan-band-hd', class: 'h-card' }, S.head)]));
-  if (st.reasons.length) band.append(el('ul', { class: 'rulelist', style: 'margin-top:10px' }, st.reasons.map(r => el('li', {}, r))));
+  if (st.reasons.length && !first) band.append(el('ul', { class: 'rulelist', style: 'margin-top:10px' }, st.reasons.map(r => el('li', {}, r))));
   if (st.state === 'current') band.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The last scan ran on the newest bar your history holds, with the setups and the engine as they stand. No exchange calendar is held, so “current” is judged against your own history and a four-day rule, not a trading calendar.`));
-  if (st.state === 'never') {
+  if (first) band.append(el('p', { class: 'body scan-band-why' },
+    'The worker’s run log and record of matches stay on the computer that runs it and are never deployed, so on the public site this page has nothing to read — by design, not by fault.'));
+  else if (st.state === 'never') {
     band.append(el('p', { class: 'body', style: 'margin-top:10px;font-size:13px;max-width:72ch' },
       'The worker writes its run log (data/scan-runs.json) and its record of matches (data/scan-alerts.json) on the machine that runs it. Neither is ever deployed, so on the public site this page has nothing to read — by design, not by fault. Locally, run the worker once and reload; or open your own files below.'));
     band.append(scanOpsOpenFiles());
   }
-  wrap.append(band);
+  if (!first) wrap.append(band);
 
   /* ---- the four questions ---- */
+  /* As tiles; in the first view, where every answer is "none yet", as four
+     lines of the band, each with its answer and its link. */
   const tiles = el('div', { class: 'scan-tiles', role: 'list' });
-  const tile = (q, value, subs, link) => el('div', { class: 'panel scan-q', role: 'listitem' }, [
+  const asked = [];
+  const tile = (q, value, subs, link) => (asked.push({ q, value, link }), el('div', { class: 'panel scan-q', role: 'listitem' }, [
     el('p', { class: 'stat-label' }, q),
     el('p', { class: 'stat-value sm' }, value),
     ...subs.filter(Boolean).map(s => el('p', { class: 'stat-sub' }, s)),
     link ? el('p', { class: 'scan-q-link' }, link) : null,
-  ]);
+  ]));
   const a = st.active;
   const setupsDoc = scanOpsSetupsDoc();
   const refused = scanOpsRefused(a);
@@ -554,7 +677,13 @@ VIEWS.scannerDashboard = () => {
     [st.notifications.text,
      unread == null ? (typeof scanUnreadCount === 'function' ? 'Unread in this browser: not counted — no alerts file is visible here.' : 'Unread in this browser: not counted — the alerts pages are not in this build.') : `${scanOpsPlural(unread, 'alert')} unread in this browser.`],
     el('span', {}, [scanOpsLink('/app/scanner/settings', 'Settings'), ' · ', scanOpsLink('/admin/scanner/delivery', 'Delivery')])));
-  wrap.append(tiles);
+  if (!first) wrap.append(tiles);
+  else {
+    /* A link built for a tile is moved here: one each, the same node. */
+    band.append(el('dl', { class: 'scan-qs' }, asked.map(x => el('div', { class: 'scan-qs-row' }, [
+      el('dt', {}, x.q), el('dd', {}, [el('span', { class: 'scan-qs-v' }, x.value), x.link ? el('span', { class: 'scan-qs-link' }, x.link) : null])]))));
+    wrap.append(el('div', { class: 'scan-first' }, [scanExampleFigure({ id: 'scan-ex' }), band]));
+  }
 
   /* ---- the matches of the last scan, under a heading that dates them ---- */
   const alerts = (() => { const d = scanOpsAlertsDoc(); return Array.isArray(d) ? d : Array.isArray(d?.alerts) ? d.alerts : []; })();
@@ -596,7 +725,7 @@ VIEWS.scannerDashboard = () => {
   /* ---- what the worker watches ---- */
   const h = scanOpsHistory();
   const hm = scanOpsHistoryMeta(h);
-  const mon = el('section', { class: 'card' });
+  const mon = el('section', { class: first ? 'scan-run-part' : 'card' });
   mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.'));
   const m = st.monitored;
   mon.append(el('dl', { class: 'kv scan-kv' }, [
@@ -605,10 +734,10 @@ VIEWS.scannerDashboard = () => {
     el('dt', {}, 'No market row'), el('dd', {}, m ? (m.unplaced.length ? m.unplaced.join(', ') : 'none') : '—'),
     el('dt', {}, 'Price history'), el('dd', {}, hm ? `${scanOpsPlural(hm.symbols.length, 'series', 'series')}, newest bar ${hm.newestBar || '—'}, ${hm.generated ? `written ${scanOpsDay(hm.generated)}` : 'no write date in the file'}` : 'none loaded'),
   ]));
-  wrap.append(mon);
+  if (!first) wrap.append(mon);
 
   /* ---- how it runs ---- */
-  const run = el('section', { class: 'card' });
+  const run = el('section', { class: first ? 'scan-run-part' : 'card' });
   run.append(cardHead('How the scan runs', 'The worker runs on your machine, after your own capture. This page never runs it.'));
   run.append(scanOpsCmd('node scanner/scan.mjs', 'Evaluates data/scan-setups.json on data/price-history.json and appends new matches to data/scan-alerts.json. A bar already recorded is never recorded again, so running it twice is safe.'));
   run.append(scanOpsCmd('node ingest/daily.mjs', 'The daily task: your capture, then the history, then the scan — the scan only if the history step succeeded.'));
@@ -616,7 +745,18 @@ VIEWS.scannerDashboard = () => {
   run.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, [
     'The worker’s runs, data health, errors and controls: ', scanOpsLink('/admin/scanner', 'Operations'), '.']));
   if (st.state !== 'never') run.append(el('div', { style: 'margin-top:var(--sm)' }, scanOpsOpenFiles()));
-  wrap.append(run);
+  if (!first) { wrap.append(run); return wrap; }
+  /* The first view's L3: closed, its summary in sight, everything the
+     worker needs in it — what it writes, the three commands, the eight
+     files a reader can open here, and what it would watch. */
+  const files = el('section', { class: 'scan-run-part' }, [cardHead('Your files', 'Open the worker’s files from your own disk to read them on these pages.'), scanOpsOpenFiles()]);
+  wrap.append(el('details', { class: 'scan-run-d ls-l3', id: 'scan-run' }, [
+    el('summary', { class: 'scan-run-sum' }, 'Run the worker on your own computer'),
+    el('div', { class: 'scan-run-body' }, [
+      el('p', { class: 'body' }, 'The worker writes its run log (data/scan-runs.json) and its record of matches (data/scan-alerts.json) on the machine that runs it. Run it once and reload; or open your own files.'),
+      run, files, mon,
+    ]),
+  ]));
   return wrap;
 };
 

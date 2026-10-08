@@ -315,7 +315,7 @@
       },
       "inert": {
         "buttons": 5,
-        "fields": 0,
+        "fields": 1,
         "choices": 0,
         "roles": 0,
         "forms": 0,
@@ -325,8 +325,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "27af10e85c99908d",
-      "changed": "2026-10-06"
+      "digest": "2be639adc3a88e72",
+      "changed": "2026-10-08"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -808,7 +808,7 @@
       },
       "inert": {
         "buttons": 3,
-        "fields": 0,
+        "fields": 1,
         "choices": 0,
         "roles": 0,
         "forms": 0,
@@ -818,8 +818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "54b3e0639942b369",
-      "changed": "2026-10-07"
+      "digest": "95b30d3d19a058c8",
+      "changed": "2026-10-08"
     },
     "pages/learn.html": {
       "path": "/learn",

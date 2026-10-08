@@ -2113,6 +2113,91 @@ table.scan-dt td { vertical-align: top; }
   .scan-notice, .scan-sim { padding: var(--sm) var(--md); }
   table.scan-dt td.scan-wrap { min-width: 13rem; }
 }
+
+/* ---- scanner-first-view ---- */
+/* THE SCANNER'S FIRST VIEW AND ITS EXAMPLE (the 5 Oct audit's N5a and N5b;
+   D14c; 87-scanner-ops.js). The example on a generated series beside the
+   state on a desk, before it on a phone; how to run the worker one closed
+   <details> under them. Sizes are the layout system's tokens. A state is
+   its word and a shape — a disc held, a ring not held, a dashed box
+   unavailable — never a colour alone, and no colour says good or bad. */
+.scan-first { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md); align-items: start; }
+@media (min-width: 1024px) { .scan-first { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.scan-band-why { margin: var(--ls-related) 0 0; font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); }
+.scan-qs { margin: var(--ls-group) 0 0; border-top: 1px solid var(--line); }
+.scan-qs-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px var(--ls-group); padding: 9px 0; border-bottom: 1px solid var(--line); }
+.scan-qs dt { font-size: var(--ls-meta); line-height: 18px; font-weight: var(--weight-semibold); color: var(--ink-2); }
+.scan-qs dd { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.scan-qs-v { font-size: var(--ls-support); font-weight: var(--weight-bold); color: var(--ink); }
+.scan-qs-link { font-size: var(--ls-meta); }
+.scan-qs-link a { color: var(--ink); text-underline-offset: 2px; }
+
+.scan-ex {
+  margin: 0; min-width: 0; display: flex; flex-direction: column; gap: var(--ls-related);
+  padding: 16px 18px 18px; border: 1px solid var(--line); border-radius: var(--r-md);
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--brand) 6%, transparent), transparent 42%),
+    var(--surface-2);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 18px 48px -30px color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.scan-ex-cap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.scan-ex-t { font-size: var(--ls-body); line-height: 1.3; font-weight: var(--weight-bold); color: var(--ink); letter-spacing: -.005em; }
+.scan-ex-chart { margin-top: 2px; }
+.scan-ex-plot { display: block; aspect-ratio: 320 / 116; }
+.scan-ex-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.scan-ex-close { fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.scan-ex-ema { fill: none; stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.scan-ex-at { stroke: var(--line-2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.scan-ex-base { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.scan-ex-dot { fill: var(--surface-2); stroke: var(--ink); stroke-width: 1.7; vector-effect: non-scaling-stroke; }
+.scan-ex-ticks { display: flex; justify-content: space-between; margin: 4px 0 0; font-size: var(--ls-meta); line-height: 16px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.scan-ex-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 6px 0 0; font-size: var(--ls-meta); color: var(--ink-2); }
+.scan-sw { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--ink); }
+.scan-sw-ema { border-top: 2px dashed var(--brand); margin-left: 6px; }
+.scan-ex-k { font-size: var(--ls-meta); line-height: 18px; font-weight: var(--weight-semibold); color: var(--ink-2); }
+.scan-ex-knob { display: flex; align-items: center; gap: 12px; padding-top: var(--ls-related); border-top: 1px solid var(--line); }
+.scan-ex-knob > :is(input, [data-inert]) { flex: 1 1 auto; min-width: 0; }
+.scan-ex-verdict { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin: 0;
+  padding: 8px 12px; border-radius: var(--r-sm); background: var(--surface-sunk); }
+.scan-ex-verdict .num { font-variant-numeric: tabular-nums; color: var(--ink); }
+.scan-ex-rule { margin: 4px 0 0; }
+.scan-ex-conds { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.scan-ex-c { display: grid; grid-template-columns: 6.75rem minmax(0, 1fr); gap: 2px 10px; align-items: baseline; font-size: var(--ls-support); line-height: 1.45; }
+.scan-ex-x { color: var(--ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.scan-ex-bv { color: var(--ink); font-weight: var(--weight-semibold); white-space: nowrap; }
+.scan-ex-bv::before { display: inline-block; margin-right: 6px; vertical-align: 0; }
+.scan-ex-s, .scan-ex-v { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-weight: var(--weight-semibold); color: var(--ink); }
+.scan-ex-v { font-size: var(--ls-support); }
+.scan-ex-s::before, .scan-ex-v::before, .scan-ex-bv::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+:is(.scan-ex-c[data-state="MET"] > .scan-ex-s, .scan-ex-v[data-state="MET"], .scan-ex-bv[data-state="MET"])::before { background: var(--brand); }
+:is(.scan-ex-c[data-state="NOT_MET"] > .scan-ex-s, .scan-ex-v[data-state="NOT_MET"], .scan-ex-bv[data-state="NOT_MET"])::before { border: 1.5px solid var(--ink-2); }
+:is(.scan-ex-c[data-state="UNAVAILABLE"] > .scan-ex-s, .scan-ex-v[data-state="UNAVAILABLE"], .scan-ex-bv[data-state="UNAVAILABLE"])::before { border: 1.5px dashed var(--ink-2); border-radius: 1px; }
+.scan-ex-c[data-state="UNAVAILABLE"] > .scan-ex-x { color: var(--ink-2); }
+.scan-ex-b { margin: 2px 0 0; padding-top: var(--ls-related); border-top: 1px solid var(--line); font-size: var(--ls-support); line-height: 1.5; color: var(--ink-2); }
+.scan-ex-note { margin: 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+@media (max-width: 639.98px) {
+  .scan-ex { padding: 14px 14px 16px; }
+  .scan-ex-c { grid-template-columns: minmax(0, 1fr); }
+}
+/* Rows that run the figure's width: the axis's two ends and the verdict
+   are not lines of text, so the page's measure (66ch) does not hold them. */
+:root .scan-ex :is(.scan-ex-ticks, .scan-ex-verdict) { max-width: none; }
+/* How to run the worker (L3): closed, its summary a 44px target. */
+.scan-run-d { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); box-shadow: var(--lift-1); }
+.scan-run-sum { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 10px 16px;
+  cursor: pointer; list-style: none; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); border-radius: var(--r-md); }
+.scan-run-sum::-webkit-details-marker { display: none; }
+.scan-run-sum::after { content: ""; flex: none; width: 7px; height: 7px; margin-right: 4px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
+  transform: translateY(-2px) rotate(45deg); transition: transform 160ms ease; }
+.scan-run-d[open] > .scan-run-sum::after { transform: translateY(2px) rotate(-135deg); }
+.scan-run-sum:hover { background: color-mix(in srgb, var(--surface-sunk) 60%, transparent); }
+.scan-run-sum:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.scan-run-body { display: flex; flex-direction: column; gap: var(--md); padding: 0 16px 16px; }
+.scan-run-body > .body { margin: 0; font-size: var(--ls-support); color: var(--ink-2); }
+.scan-run-part { padding-top: var(--sm); border-top: 1px solid var(--line); }
+/* On /how-it-works, beside its other examples. */
+.hiw-scan-ex { max-width: 46rem; }
+/* ---- end scanner-first-view ---- */
 /* Most of these tables are identifiers, dates and sentences, which read
    from the left; the numeric ones are short enough not to need a column
    of aligned digits. */

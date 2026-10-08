@@ -1338,6 +1338,68 @@ const JOURNEYS = [
     outcomes: ['Build a condition: price crosses above its 20-bar EMA, on AAPL', 'Save the setup', 'The setup’s page shows it'],
     async run(j, tab) {
       const synthetic = OWNER_MACHINE;
+      /* THE DASHBOARD'S EXAMPLE (N5b; the owner's decision D14c). With no
+         file open, /app/scanner shows the fixture setup evaluated on a
+         generated series: labelled so and Illustrative, its three
+         conditions in the engine's own words at bar 66 — the page's
+         scanEvaluate on scanFixture, asked here in the same tab — each Held,
+         series B Not held for RSI on a flat series; and its replay, moved
+         bar by bar from 1 to 66 and by the arrow keys, holds the rule at bar
+         66 and on no bar before it, Not held from bar 15, the first it can
+         be decided on, to 65. Before the synthetic history below: an open
+         history is a file open, and the dashboard is then the reader's. */
+      await step(j, tab, 'The dashboard shows the example on a generated series', BUDGET.load, async () => {
+        await tab.goto('/app/scanner');
+        await tab.expect(`!!document.querySelector('main figure.scan-ex')`, 'the dashboard shows no example (figure.scan-ex)');
+        const got = await tab.eval(`(() => {
+          const f = document.querySelector('main figure.scan-ex');
+          const fx = scanFixture(), s = scanNormaliseSetup(fx.setup), C = scanCache();
+          const bars = (sym) => scanBars(fx.history, sym, { timeframe: '1D', now: fx.now, calendar: scanCalendar(fx.history, [], null) });
+          const rA = scanEvaluate(s.ruleTree, bars('MATCH'), { cache: C }), rB = scanEvaluate(s.ruleTree, bars('FLAT'), { cache: C });
+          const badge = f.querySelector('a.kind-badge.kind-illustrative');
+          return { cap: (f.querySelector('figcaption')?.textContent || '').replace(/\\s+/g, ' ').trim(),
+            badge: badge ? [badge.textContent.trim(), badge.getAttribute('href')] : null,
+            rows: [...f.querySelectorAll('li.scan-ex-c')].map(li => [li.querySelector('.scan-ex-x')?.textContent.trim(), li.querySelector('.scan-ex-s')?.textContent.trim(), li.dataset.state]),
+            want: rA.conditions.map(c => [c.text, { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' }[c.state], c.state]),
+            verdict: f.querySelector('.scan-ex-v')?.textContent.trim(), state: rA.state,
+            b: (f.querySelector('.scan-ex-b')?.textContent || '').replace(/\\s+/g, ' ').trim(), bState: rB.state,
+            note: f.querySelector('.scan-ex-note')?.textContent.trim(), text: f.innerText };
+        })()`);
+        if (!/^Example — generated series, not a market’s prices/.test(got.cap)) throw new StepError(`the example is captioned “${got.cap.slice(0, 80)}”`);
+        if (!got.badge || got.badge[0] !== 'Illustrative' || got.badge[1] !== '/data-sources#kinds') throw new StepError('the example carries no Illustrative badge linking /data-sources#kinds');
+        if (JSON.stringify(got.rows) !== JSON.stringify(got.want) || got.rows.length !== 3) throw new StepError(`the example's conditions read ${JSON.stringify(got.rows)}, where the engine says ${JSON.stringify(got.want)}`);
+        if (got.verdict !== 'Held' || got.state !== 'MET') throw new StepError(`at bar 66 the example says “${got.verdict}”, the engine ${got.state}`);
+        if (!got.b.endsWith('Not held; RSI cannot be computed on a flat series.') || got.bState !== 'NOT_MET') throw new StepError(`series B reads “${got.b}”`);
+        if (got.note !== 'Shows how a rule is evaluated — not whether it works, and nothing about any market.') throw new StepError('the example does not say it shows how a rule is evaluated, not whether it works');
+        if (/\b(approaching|watching|signal|buy|sell)\b|[0-9]{4}-[0-9]{2}-[0-9]{2}|US\$|\bRM\b|\$/i.test(got.text)) throw new StepError('the example shows a date, a currency or a word it may not');
+      });
+      await step(j, tab, 'Its replay holds the rule only at bar 66', BUDGET.action * 3, async () => {
+        const seq = await tab.eval(`(() => {
+          const r = document.querySelector('main figure.scan-ex input[type=range]');
+          if (!r) return null;
+          const out = [];
+          for (let i = Number(r.min); i <= Number(r.max); i++) {
+            r.value = String(i); r.dispatchEvent(new Event('input', { bubbles: true }));
+            out.push(document.querySelector('main figure.scan-ex .scan-ex-v')?.dataset.state || '?');
+          }
+          return { min: r.min, max: r.max, out };
+        })()`);
+        if (!seq) throw new StepError('the example has no bar slider');
+        const s = seq.out;
+        if (seq.min !== '1' || seq.max !== '66' || s.length !== 66) throw new StepError(`the slider replays bars ${seq.min}–${seq.max}, not 1–66`);
+        const held = s.map((x, i) => (x === 'MET' ? i + 1 : null)).filter(Boolean);
+        if (held.join() !== '66') throw new StepError(`the replay holds the rule at bar${held.length === 1 ? '' : 's'} ${held.join(', ') || 'none'}, not at bar 66 alone`);
+        if (!s.slice(14, 65).every(x => x === 'NOT_MET') || !s.slice(0, 14).every(x => x === 'UNAVAILABLE')) throw new StepError(`the replay's verdicts are ${s.map(x => x[0]).join('')}: not Unavailable to bar 14 and Not held from 15 to 65`);
+        /* And by the keyboard, as a reader moves it. */
+        await tab.click(`document.querySelector('main figure.scan-ex input[type=range]')`, 'The bar slider');
+        const at = () => tab.eval(`[document.querySelector('main figure.scan-ex input[type=range]').value, document.querySelector('main figure.scan-ex .scan-ex-v').textContent.trim()].join(' ')`);
+        await tab.eval(`(() => { const r = document.querySelector('main figure.scan-ex input[type=range]'); r.value = '66'; r.dispatchEvent(new Event('input', { bubbles: true })); r.focus(); })()`);
+        await tab.key('ArrowLeft');
+        const left = await at();
+        await tab.key('ArrowRight');
+        const right = await at();
+        if (left !== '65 Not held' || right !== '66 Held') throw new StepError(`by the arrow keys the replay read “${left}” then “${right}”, not “65 Not held” then “66 Held”`);
+      });
       if (synthetic) {
         /* LOCAL ONLY: a price history made in the page, from the engine's own
            fixture (a quiet series, a drift down, then a close through its

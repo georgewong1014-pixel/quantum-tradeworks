@@ -5352,5 +5352,74 @@ try {
   }
 }
 /* ---- end fixwave: scanner ---- */
+
+/* ---- scanner-example ---- */
+/* THE EXAMPLE ON A GENERATED SERIES IS THE ENGINE'S OWN ANSWER (N5b; the
+   owner's decision D14c). The served /app/scanner and /how-it-works —
+   pages/app/scanner.html and pages/how-it-works.html as committed, their
+   figure drawn by prerender from the app — carry, at bar 66 of generated
+   series A, each condition's words, state and two values exactly as
+   scanEvaluate gives them on scanFixture with the fixture's own setup, the
+   verdict it gives, series B's state with RSI unread, and a path whose 66
+   points are series A's 66 closes (each point's height an affine function
+   of its close, x one step a bar). And what the slider replays: on series
+   A the rule holds at bar 66 and on no bar before it; from bar 15, the
+   first it can be decided on (RSI14 needs 15 closes), it is Not held on
+   every bar to 65, and Unavailable before. Fails on 8763a283, whose pages
+   carry no example. */
+{
+  const fx = E.scanFixture(), setup = E.scanNormaliseSetup(fx.setup), C = E.scanCache();
+  const barsOf = (sym) => E.scanBars(fx.history, sym, { timeframe: '1D', now: fx.now, calendar: E.scanCalendar(fx.history, [], null) });
+  const A = barsOf('MATCH'), Bs = barsOf('FLAT');
+  const n = A.closes.length;
+  const seq = Array.from({ length: n }, (_, i) => E.scanEvaluate(setup.ruleTree, A, { at: i, cache: C }).state);
+  const firstDecided = seq.findIndex(s => s !== 'UNAVAILABLE');
+  check(n === 66 && seq[65] === 'MET' && seq.slice(0, 65).every(s => s !== 'MET') && firstDecided === 14
+    && seq.slice(14, 65).every(s => s === 'NOT_MET') && seq.slice(0, 14).every(s => s === 'UNAVAILABLE'),
+    'example: on generated series A the fixture setup holds at bar 66 and on no bar before it — Not held on every bar from 15 (the first RSI14 can be read on) to 65, Unavailable on bars 1–14',
+    { n, firstDecided, seq: seq.map(s => s[0]).join('') });
+  const rA = E.scanEvaluate(setup.ruleTree, A, { cache: C }), rB = E.scanEvaluate(setup.ruleTree, Bs, { cache: C });
+  const WORD = { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' };
+  const dec = (s) => String(s).replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const strip = (s) => dec(String(s).replace(/<[^>]*>/g, '')).replace(/\s+/g, ' ').trim();
+  const sameV = (a, b) => (Array.isArray(b) ? Array.isArray(a) && a.length === b.length && a.every((x, i) => Math.abs(x - b[i]) < 1e-9) : Number.isFinite(a) && Math.abs(a - b) < 1e-9);
+  for (const file of ['pages/app/scanner.html', 'pages/how-it-works.html']) {
+    const page = existsSync(join(ROOT, file)) ? await readFile(join(ROOT, file), 'utf8') : '';
+    const figs = page.match(/<figure class="scan-ex[ "][\s\S]*?<\/figure>/g) || [];
+    if (figs.length !== 1) { fail(`example: ${file} serves ${figs.length} example figures, not one`); continue; }
+    const f = figs[0];
+    const lis = [...f.matchAll(/<li class="scan-ex-c" data-state="([A-Z_]+)" data-left="([^"]*)" data-right="([^"]*)">([\s\S]*?)<\/li>/g)].map(m => ({
+      state: m[1], left: JSON.parse(dec(m[2]) || 'null'), right: JSON.parse(dec(m[3]) || 'null'),
+      word: strip((m[4].match(/<span class="scan-ex-s">([\s\S]*?)<\/span>/) || [])[1] || ''),
+      text: strip((m[4].match(/<span class="scan-ex-x[^"]*">([\s\S]*?)<\/span>/) || [])[1] || '') }));
+    const bad = rA.conditions.map((c, i) => {
+      const s = lis[i];
+      if (!s) return `condition ${i + 1} is not served`;
+      if (s.text !== c.text) return `condition ${i + 1} reads "${s.text}", the engine "${c.text}"`;
+      if (s.state !== c.state || s.word !== WORD[c.state]) return `condition ${i + 1} is ${s.state} "${s.word}", the engine ${c.state}`;
+      if (!sameV(s.left, c.leftValue) || !sameV(s.right, c.rightValue)) return `condition ${i + 1} serves ${JSON.stringify([s.left, s.right])}, the engine ${JSON.stringify([c.leftValue, c.rightValue])}`;
+      return null;
+    }).filter(Boolean);
+    if (lis.length !== rA.conditions.length) bad.push(`${lis.length} condition lines served, ${rA.conditions.length} in the setup`);
+    const v = f.match(/<strong class="scan-ex-v" data-state="([A-Z_]+)">([^<]*)<\/strong>/);
+    if (!v || v[1] !== rA.state || v[2] !== WORD[rA.state]) bad.push(`the verdict is ${v ? `${v[1]} "${v[2]}"` : 'not served'}, the engine ${rA.state}`);
+    const b = f.match(/<p class="scan-ex-b">([\s\S]*?)<\/p>/);
+    const bState = b && (b[1].match(/data-state="([A-Z_]+)"/) || [])[1];
+    const rsiB = rB.conditions.find(c => /^RSI/.test(c.leftLabel || c.text));
+    if (!b || bState !== rB.state || rB.state !== 'NOT_MET' || rsiB?.state !== 'UNAVAILABLE' || !strip(b[1]).endsWith('Not held; RSI cannot be computed on a flat series.')) bad.push(`series B reads "${b ? strip(b[1]) : ''}" (${bState}), the engine ${rB.state} with RSI ${rsiB?.state}`);
+    const d = (f.match(/<path class="scan-ex-close"[^>]*\sd="([^"]+)"/) || [])[1] || '';
+    const pts = [...d.matchAll(/[ML]\s*(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(m => [Number(m[1]), Number(m[2])]);
+    if (pts.length !== n) bad.push(`the closes' path has ${pts.length} points, not ${n}`);
+    else {
+      const k = (pts[65][1] - pts[0][1]) / (A.closes[65] - A.closes[0]), c0 = pts[0][1] - k * A.closes[0];
+      const off = pts.findIndex(([, y], i) => Math.abs(y - (k * A.closes[i] + c0)) > 0.06);
+      const step = (pts[65][0] - pts[0][0]) / 65;
+      const offX = pts.findIndex(([x], i) => Math.abs(x - (pts[0][0] + i * step)) > 0.06);
+      if (!(k < 0) || off >= 0 || offX >= 0) bad.push(`the path is not series A's closes (point ${Math.max(off, offX) + 1})`);
+    }
+    check(!bad.length, `example: ${file} serves the engine's answer at bar 66 of generated series A — ${rA.conditions.map(c => `"${c.text}" ${WORD[c.state]}`).join('; ')}; the verdict ${WORD[rA.state]}; series B Not held with RSI unread; a path of series A's 66 closes`, bad);
+  }
+}
+/* ---- end scanner-example ---- */
 console.log(failures ? `\n${failures} failed, ${passes} passed` : `\nall ${passes} scanner checks hold`);
 process.exit(failures ? 1 : 0);
