@@ -433,6 +433,171 @@ try {
     else ok('a quoted MRTA premium takes the ledger line, marked as a quote, and leaves the unconfirmed total', r);
   }
 
+  /* 19b — THE FEE RULEBOOK'S KNOWN ANSWERS (the owner's property track,
+           8 Oct 2026). Each verified scale against amounts worked by hand
+           from its cited text, not read back from the code:
+           - Stamp Act 1949, First Schedule, Item 32(a): RM1/2/3/4 for every
+             RM100 "or fractional part" in the bands to RM100k, RM500k, RM1m
+             and above — RM350,050 is charged as RM350,100;
+           - Item 27(a)(iii): RM5 "for each RM1,000 or part thereof" —
+             RM514,800 is 515 thousands, RM2,575;
+           - Sarawak's Advocates' Remuneration Rules (Swk. L.N. (F) 348 of
+             2022), First Schedule: 2.5% to RM10k, 1% the next RM40k, 0.9%
+             the next RM50k, 0.8% the next RM200k, 0.7% the next RM400k,
+             0.6% the next RM500k, minimum RM500; rule 7, one advocate for
+             the chargee and the chargor, 1.25 times the scale on the loan;
+           - service tax at 8% (P.U.(A) 64/2024) on the legal fees;
+           - the Peninsular SRO 2023, held for reference: 1.25% of the first
+             RM500k (minimum RM500), 1% of the next RM7m;
+           - the Board of Valuers' scale, carried as an estimate at its
+             ceiling: 1/4% of the first RM100k, 1/5% to RM2m, 1/6% to RM7m,
+             minimum RM400.
+           Then the rulebook's shape: every line with a provenance, a
+           jurisdiction, an effective date or none, a source and a checked
+           date, and a released version. */
+  {
+    const r = await evaluate(`(() => {
+      const fee = (id, bases, o) => resolveFee(id, bases, o).amount;
+      const scaled = typeof feeScaleAmount === 'function' ? feeScaleAmount : () => null;
+      const sw = (v) => scaled(FEE_TABLE.lines.purchaseLegal.scale, v, { minimumFee: FEE_TABLE.lines.purchaseLegal.minimumFee });
+      const pen = FEE_TABLE.reference && FEE_TABLE.reference.solicitorsPeninsular;
+      const got = {
+        mot: [100000, 500000, 1000000, 1500000, 572000, 350050].map(p => fee('transferStampDuty', { price: p })),
+        loanDuty: [514800, 400000, 400001, 0].map(l => fee('loanStampDuty', { loan: l })),
+        sarawak: [10000, 50000, 100000, 300000, 572000, 700000, 1200000, 15000].map(sw),
+        purchaseLegal: fee('purchaseLegal', { price: 572000 }),
+        loanLegal: [514800, 0].map(l => fee('loanLegal', { loan: l })),
+        sst: fee('professionalServiceTax', { legalFees: 9858.5 }),
+        peninsular: pen ? [572000, 30000, 8000000].map(v => scaled(pen.scale, v, { minimumFee: pen.minimumFee })) : null,
+        valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { price: p }) * 100) / 100),
+      };
+      const lines = Object.entries(FEE_TABLE.lines).map(([id, l]) => ({ id, provenance: l.provenance, jurisdiction: l.jurisdiction,
+        effective: 'effectiveFrom' in l, source: !!(l.source && l.source.title), checked: /^\\d{4}-\\d{2}-\\d{2}$/.test(l.checkedOn || '') }));
+      return { got, lines, version: FEE_TABLE.version, checkedOn: FEE_TABLE.checkedOn, provenances: typeof FEE_PROVENANCE === 'object' ? Object.keys(FEE_PROVENANCE) : null };
+    })()`);
+    const want = {
+      mot: [1000, 9000, 24000, 44000, 11160, 6002],
+      loanDuty: [2575, 2000, 2005, 0],
+      /* RM10,000 is 2.5%, RM250 — under the minimum scale charge, RM500. */
+      sarawak: [500, 650, 1100, 2700, 4604, 5500, 8500, 500],
+      purchaseLegal: 4604,
+      loanLegal: [5254.5, 0],
+      sst: 788.68,
+      peninsular: [6970, 500, 81250],
+      valuation: [1194, 400, 400, 5716.67],
+    };
+    const p = [];
+    for (const k of Object.keys(want)) if (JSON.stringify(r.got[k]) !== JSON.stringify(want[k])) p.push(`${k}: ${JSON.stringify(r.got[k])}, worked by hand ${JSON.stringify(want[k])}`);
+    if (JSON.stringify(r.provenances) !== JSON.stringify(['verified', 'estimated', 'quote', 'unknown'])) p.push(`the provenances are ${JSON.stringify(r.provenances)}`);
+    if (!/^\d+\.\d+\.\d+$/.test(r.version) || r.version === '0.1.0') p.push(`the rulebook's version is ${r.version}`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(r.checkedOn || '')) p.push(`the rulebook's checked date is ${r.checkedOn}`);
+    const J = ['Peninsular Malaysia', 'Sarawak', 'Sabah', 'Federal'];
+    for (const l of r.lines) if (!r.provenances?.includes(l.provenance) || !J.includes(l.jurisdiction) || !l.effective || !l.source || !l.checked) p.push(`line ${l.id}: ${JSON.stringify(l)}`);
+    if (p.length) fail('fee rulebook: the verified scales give the amounts worked by hand from their cited texts, and every line says what it rests on', p);
+    else ok(`fee rulebook ${r.version} (checked ${r.checkedOn}): Item 32(a) ${want.mot.join('/')}, Item 27(a)(iii) ${want.loanDuty.join('/')}, Sarawak's scale ${want.sarawak.join('/')} and 1.25× on the loan (${want.loanLegal[0]}), 8% service tax ${want.sst}, the Peninsular SRO ${want.peninsular.join('/')} held aside, the valuers' ceiling ${want.valuation.join('/')}; ${r.lines.length} lines each with a provenance, jurisdiction, effective date, source and checked date`);
+  }
+
+  /* 19c — THE COST LEDGER RECONCILES, AND SAYS WHAT RESTS ON WHAT. On the
+           sample, a taxed deal, a quoted MRTA premium and a cash purchase:
+           the lines sum to the total initial cash; the unverified or unknown
+           share is exactly the sum of the lines it names; and the lines,
+           sorted by provenance — verified, unverified or unknown, quoted,
+           and the buyer's own money (deposit, renovation, reserve) — sum to
+           the total again. On the sample the uncertain lines are the
+           estimates: disbursements, the valuation fee and its service tax,
+           mortgage protection and the utility deposits. */
+  {
+    const r = await evaluate(`(() => {
+      const deals = { sample: window.__T.base, taxed: window.__T.taxed, quoted: { ...window.__T.base, mrtaPremium: 4200 }, cash: { ...window.__T.base, downPct: 100 } };
+      const out = {};
+      for (const [k, d] of Object.entries(deals)) {
+        const m = dealModel(d);
+        const items = m.costGroups.flatMap(g => g.items);
+        const priced = items.filter(it => isNum(it[1]));
+        const sumAll = priced.reduce((t, it) => t + it[1], 0);
+        const by = { verified: 0, uncertain: 0, quote: 0, own: 0 };
+        for (const it of priced) {
+          const pv = it[2] && it[2].provenance;
+          if (pv === 'verified') by.verified += it[1]; else if (pv === 'quote') by.quote += it[1]; else if (pv) by.uncertain += it[1]; else by.own += it[1];
+        }
+        out[k] = { sumAll, total: m.totalInitialCash, unconfirmed: m.unconfirmedCost, named: (m.unconfirmedLines || []).reduce((t, x) => t + x.amount, 0),
+          parts: by, uncertainIds: (m.unconfirmedLines || []).map(x => x.id).sort(), missing: (m.missingCostLines || []).length,
+          loanLegal: (items.find(it => it[2] && it[2].id === 'loanLegal') || [])[1] };
+      }
+      return out;
+    })()`);
+    const p = [];
+    const near = (a, b) => isFinite(a) && isFinite(b) && Math.abs(a - b) < 1e-6;
+    for (const [k, x] of Object.entries(r)) {
+      if (x.missing) { p.push(`${k}: ${x.missing} lines unpriced`); continue; }
+      if (!near(x.sumAll, x.total)) p.push(`${k}: the lines sum to ${x.sumAll}, the total initial cash is ${x.total}`);
+      if (!near(x.unconfirmed, x.named)) p.push(`${k}: the uncertain share is ${x.unconfirmed}, the lines it names sum to ${x.named}`);
+      if (!near(x.parts.uncertain, x.unconfirmed)) p.push(`${k}: the lines marked unverified or unknown sum to ${x.parts.uncertain}, the share stated is ${x.unconfirmed}`);
+      if (!near(x.parts.verified + x.parts.uncertain + x.parts.quote + x.parts.own, x.total)) p.push(`${k}: verified + uncertain + quoted + own money is not the total`);
+    }
+    const sampleIds = ['disbursements', 'mortgageProtection', 'utilityDeposits', 'valuationFee', 'valuationServiceTax'];
+    if (JSON.stringify(r.sample.uncertainIds) !== JSON.stringify(sampleIds)) p.push(`on the sample the uncertain lines are ${r.sample.uncertainIds.join(', ')}, not the five estimates`);
+    if (!(r.quoted.parts.quote === 4200 && r.quoted.unconfirmed < r.sample.unconfirmed)) p.push(`a quoted premium: ${JSON.stringify(r.quoted.parts)}`);
+    if (r.cash.loanLegal !== 0) p.push(`a cash purchase is charged loan legal fees of ${r.cash.loanLegal}`);
+    if (p.length) fail('fee rulebook: the cost ledger reconciles — the lines sum to the total, and the unverified or unknown share is the lines it names', p);
+    else ok(`fee rulebook: on ${Object.keys(r).length} deals the ledger's lines sum to the total initial cash, and verified + unverified or unknown + quoted + the buyer's own money sum to it again; on the sample RM${Math.round(r.sample.unconfirmed).toLocaleString('en')} of RM${Math.round(r.sample.total).toLocaleString('en')} rests on the five estimates; no loan, no loan legal fee`);
+  }
+
+  /* 19d — EVERY FEE LINE SHOWS ITS PROVENANCE, AND THE HEADLINE ITS
+           UNCERTAINTY. The calculator's ledger marks each fee line with its
+           D6 kind badge — Placeholder for an estimate, Derived for a verified
+           scale computed, Yours for a quote — and its provenance and
+           jurisdiction under the name; its "Safe cash required" card says
+           how much rests on unverified or unknown lines while any does; and
+           /data-sources publishes the rulebook's version, its checked date
+           and every line. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+      const kept = State.deal;
+      const out = {};
+      try {
+        State.deal = { ...window.__T.base, mrtaPremium: 4200 };
+        navigate('/property/calculator'); render(); await w(450);
+        const m = dealModel(State.deal);
+        const fees = m.costGroups.flatMap(g => g.items).filter(it => it[2] && it[2].provenance && isNum(it[1]));
+        const rows = [...document.querySelectorAll('#views .pc-cost-table tr')];
+        out.lines = fees.map(it => {
+          const row = rows.find(tr => tr.querySelector('td') && tr.querySelector('td').firstChild && tr.querySelector('td').firstChild.textContent === it[0]);
+          const badge = row && row.querySelector('[data-kind-badge]');
+          const prov = row && row.querySelector('.pc-fee-prov');
+          return { label: it[0], provenance: it[2].provenance, want: KIND_OF_FEE[it[2].provenance], badge: badge ? badge.dataset.kindBadge : null, prov: txt(prov) };
+        });
+        out.safe = txt(document.querySelector('#views [data-answer="safe"]'));
+        out.want = fmtAmount(m.unconfirmedCost, 'MYR');
+        out.note = [...document.querySelectorAll('#views .pc-fee-uncertain')].map(txt)[0] || '';
+        navigate('/data-sources'); render(); await w(450);
+        const book = document.getElementById('fee-rulebook');
+        out.book = book ? { head: txt(book.querySelector('.card-hd')), lines: [...book.querySelectorAll('[data-fee-line]')].map(n => n.dataset.feeLine + ':' + n.dataset.feeProvenance) } : null;
+        out.ids = Object.keys(FEE_TABLE.lines).map(id => id + ':' + FEE_TABLE.lines[id].provenance);
+        out.version = FEE_TABLE.version; out.checked = typeof feeDay === 'function' ? feeDay(FEE_TABLE.checkedOn) : null;
+      } finally { State.deal = kept; saveDeal(); navigate('/property/calculator'); render(); }
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    for (const l of r.lines) {
+      if (!l.badge || l.badge !== l.want) p.push(`"${l.label}" (${l.provenance}) wears ${l.badge || 'no badge'}, not ${l.want}`);
+      const word = { verified: 'Verified', estimated: 'Estimated', quote: 'User quote', unknown: 'Unknown' }[l.provenance];
+      if (!l.prov.startsWith(word)) p.push(`"${l.label}" says "${l.prov}" under its name, not its provenance "${word}"`);
+    }
+    if (!r.lines.some(l => l.provenance === 'quote')) p.push('no quoted line was drawn');
+    if (!r.safe.includes(`${r.want} of this rests on unverified or unknown lines`)) p.push(`"Safe cash required" reads "${r.safe}", without "${r.want} of this rests on unverified or unknown lines"`);
+    if (!r.note.startsWith(`${r.want} of this`)) p.push(`the ledger's note reads "${r.note.slice(0, 120)}"`);
+    if (!r.book) p.push('/data-sources has no #fee-rulebook');
+    else {
+      if (!r.book.head.includes(`Version ${r.version}, checked ${r.checked}`)) p.push(`the rulebook card's head reads "${r.book.head.slice(0, 120)}"`);
+      if (JSON.stringify(r.book.lines) !== JSON.stringify(r.ids)) p.push(`the card lists ${r.book.lines.join(', ')}, the rulebook ${r.ids.join(', ')}`);
+    }
+    if (p.length) fail('fee rulebook: every fee line shows its provenance badge, the headline its unverified or unknown share, and /data-sources the rulebook', p);
+    else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Safe cash required" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
+  }
+
   /* 20 — every class the land-risk consequences and blockers name exists in
          the attribute registry that records it. 'refused' did not. */
   {
@@ -1960,15 +2125,15 @@ try {
         return { pk, pv, still: fmtAmount(m.cashStillRequiredToComplete, 'MYR'), whole: fmtAmount(m.transactionCash, 'MYR'),
           safe: fmtAmount(m.safeCashRequired, 'MYR'), missing: (m.missingCostLines || []).map(x => x.groupId) };
       };
-      const line = FEE_TABLE.lines.disbursements, was = line.status;
+      const line = FEE_TABLE.lines.disbursements, was = line.unset;
       let paid, unpriced, whole, noFee;
       try {
         paid = await card({ ...window.__T.base, bookingDepositPaid: 5000 });
         unpriced = await card({ ...window.__T.base, bookingDepositPaid: 5000, tenureYears: 0 });
         whole = await card({ ...window.__T.base, tenureYears: 30 });
-        line.status = 'unset';
+        line.unset = true;
         noFee = await card({ ...window.__T.base, tenureYears: 30 });
-      } finally { line.status = was; State.deal = kept; saveDeal(); render(); }
+      } finally { line.unset = was; State.deal = kept; saveDeal(); render(); }
       return JSON.stringify({ paid, unpriced, whole, noFee });
     })()`));
     const p = [];
@@ -2268,17 +2433,17 @@ try {
   {
     await fwKeep(FW_KEYS);
     const r = await evaluate(`(async () => {
-      const line = FEE_TABLE.lines.disbursements, was = line.status;
+      const line = FEE_TABLE.lines.disbursements, was = line.unset;
       const keptB = JSON.parse(JSON.stringify(State.borrower));
       try {
-        line.status = 'unset';
+        line.unset = true;
         Object.assign(State.borrower, { assessed: true, verifiedNetMonthlyIncome: 15000, creditReview: 'none_reported', incomeStabilityMonths: 36, liquidCashAvailable: 200000 });
         navigate('/property/calculator'); await new Promise(res => setTimeout(res, 450));
         const lr = loanReadiness(State.borrower, dealModel(State.deal));
         const note = [...document.querySelectorAll('main p')].map(p => p.textContent).find(t => t.startsWith('Not assessed:')) || '';
         return { score: lr.score, unknowns: lr.unknowns, note };
       } finally {
-        line.status = was;
+        line.unset = was;
         Object.keys(State.borrower).forEach(k => delete State.borrower[k]); Object.assign(State.borrower, keptB);
       }
     })()`);
@@ -3407,7 +3572,7 @@ try {
         const hsT = tables.find(t => t.textContent.includes('Rental cash to date'));
         const hsLast = hsT ? [...hsT.querySelectorAll('tbody tr')].pop() : null;
         calc.holdLast = hsLast ? [...hsLast.children].map(txt) : null;
-        calc.unconfirmed = ([...document.querySelectorAll('#views td, #views p, #views .metaline')].map(txt).filter(x => x.length < 600).find(x => /of this — [\\d.]+% — comes from fee lines/.test(x)) || '').match(/of this — ([\\d.]+%) —/)?.[1] || null;
+        calc.unconfirmed = ([...document.querySelectorAll('#views td, #views p, #views .metaline')].map(txt).filter(x => x.length < 600).find(x => /of this — [\\d.]+% — rests on unverified or unknown lines/.test(x)) || '').match(/of this — ([\\d.]+%) —/)?.[1] || null;
         /* The loan at the entered margin, in the table of margins — the loan
            card's list is drawn only once a valuation is entered. */
         const mofT = tables.find(t => t.textContent.includes('Cash equity needed'));
@@ -3444,7 +3609,7 @@ try {
           cashAlreadyPaid: m.cashAlreadyPaid, psf: m.psf, cumTax: m.cumTax, cumCash: m.cumCash, equityOut: m.equityOut,
           exitValue: m.exitValue, outstanding: m.outstanding, agentFee: m.agentFee, exitLegal: m.exitLegal, carryWhileSelling: m.carryWhileSelling,
           rpgt: m.rpgt, netExitProceeds: m.netExitProceeds, totalProfit: m.totalProfit, irrPct: m.irrPct,
-          lines: m.costGroups.flatMap(g => g.items.map(it => ({ label: it[0], group: g.id, amount: it[1], status: it[2]?.status || null }))),
+          lines: m.costGroups.flatMap(g => g.items.map(it => ({ label: it[0], group: g.id, amount: it[1], status: it[2]?.status || null, provenance: it[2]?.provenance || null }))),
           groups: m.costGroups.map(g => ({ id: g.id, label: g.label, n: g.items.length, sub: g.items.reduce((t, it) => t + (isNum(it[1]) ? it[1] : 0), 0) })) });
         const models = { base: pick(dealModel(base)) };
         scs.forEach(sc => { models[sc.id] = pick(dealModel(pmMerge(base, sc.overrides))); });
@@ -3521,7 +3686,7 @@ try {
           say('opex', base.kv['Operating costs'], '"Operating costs"');
           say('annualDebtService', base.kv['Annual debt service'], '"Annual debt service"');
           say('totalInitialCash', c.ledger['Total initial cash'] ?? c.ledger['Total initial cash so far'], 'the ledger\'s total');
-          if (r.models.base.unconfirmedCost > 0) say('unconfirmedShare', c.unconfirmed, 'the ledger\'s "… of this — N% — comes from fee lines"');
+          if (r.models.base.unconfirmedCost > 0) say('unconfirmedShare', c.unconfirmed, 'the ledger\'s "… of this — N% — rests on unverified or unknown lines"');
           const hold = r.inputs.holdYears;
           if (hold === 5 || hold === 10) {
             const e = c.exit[hold];
@@ -3627,21 +3792,22 @@ try {
 
         /* PP3 — the fee lines' own marks. */
         const p3 = [];
-        const WORD = { placeholder: 'placeholder', unverified: 'unverified', quote: 'quoted' };
+        /* By the fee rulebook's provenance (8 Oct 2026). */
+        const WORD = { estimated: 'estimated', unknown: 'unknown rule', verified: 'verified scale', quote: 'quoted' };
         let marked = 0, linesN = 0;
         for (const r of shapes) for (const l of r.models.base.lines) {
           linesN++;
           const row = r.prop.lines.find(x => x.line === l.label);
           if (!row) { p3.push(`[${r.name}] "${l.label}" is not in the proposal's ledger`); continue; }
-          const want = WORD[l.status] || null;
+          const want = WORD[l.provenance] || null;
           if (want) marked++;
-          if (want && !row.marks.includes(want)) p3.push(`[${r.name}] "${l.label}" is ${l.status} in the model and carries ${JSON.stringify(row.marks)}`);
+          if (want && !row.marks.includes(want)) p3.push(`[${r.name}] "${l.label}" is ${l.provenance} in the model and carries ${JSON.stringify(row.marks)}`);
           if (!want && row.marks.length) p3.push(`[${r.name}] "${l.label}" has no mark in the model and carries ${JSON.stringify(row.marks)}`);
         }
         if (marked < 3) p3.push(`only ${marked} lines are marked in the model — the check needs the registry's placeholders`);
         if (!shapes.some(r => r.models.base.lines.some(l => l.status === 'quote'))) p3.push('no property carries a quoted line');
-        if (p3.length) fail('property-proposal PP3: a fee line the model marks placeholder, unverified or quoted stays marked on the proposal', p3);
-        else ok(`property-proposal PP3: the ${linesN} ledger lines of ${shapes.length} properties carry the model's own marks — ${marked} placeholder, unverified or quoted, the rest none`);
+        if (p3.length) fail('property-proposal PP3: a fee line stays marked on the proposal by its provenance in the fee rulebook — estimated, unknown rule, verified scale or quoted', p3);
+        else ok(`property-proposal PP3: the ${linesN} ledger lines of ${shapes.length} properties carry the model's own provenance marks — ${marked} estimated, unknown rule, verified scale or quoted, the rest none`);
       });
 
       await ppStep('PP4–PP5', async () => {
@@ -4859,6 +5025,56 @@ try {
         else ok(`scenario-lab-verify V4: a copy of A moved to RM600,000, its rent moved to 2,100, keeps price ${r.c1.price}, rent ${r.c1.rent} and every figure through "Save this property first"`);
       });
 
+      /* THE GUIDED SAVE (the owner's property track, 8 Oct 2026). On an
+         unsaved deal, Save asked for "Save this property first" and saved
+         only the property, so B's what-ifs were one more errand away. The
+         phone bar's "Save this" — as the identity line's Save — now asks for
+         both names at once, and one Save keeps the property and B as its
+         scenario, B's unsaved moves in it and in its column. Unticked, the
+         same form saves the property alone and B keeps its moves as moves. */
+      await vStep('G1', async () => {
+        const run = (withSc) => evaluate(`(async () => { ${VH}
+          await pick('B'); await typeBox('rent', 2300); await typeBox('ratePct', 4.8);
+          const b0 = L().cols.find(c => c.key === 'B');
+          const before = { rent: b0.work.rent, ratePct: b0.work.ratePct, moves: Object.keys(b0.moves).sort() };
+          const bar = document.getElementById('ls-act-save');
+          const aria = bar ? bar.getAttribute('aria-label') : null;
+          if (bar) bar.click(); await frame();
+          const ids = [...document.querySelectorAll('#lab-root .lab-name-form input')].map(n => n.id);
+          const f = document.getElementById('lab-property-name');
+          if (f) { f.value = 'G1 guided'; f.dispatchEvent(new Event('input', { bubbles: true })); }
+          const tick = document.getElementById('lab-name-with-sc');
+          if (tick && !${withSc}) { tick.checked = false; tick.dispatchEvent(new Event('change', { bubbles: true })); }
+          const save = document.getElementById('lab-name-save'); if (save) save.click();
+          await w(250); await frame();
+          const rec = L() && L().model ? pmFind(L().model) : null;
+          const sc = rec && rec.scenarios ? rec.scenarios[0] : null, ins = sc ? pmSavedInputs(rec, sc) : null;
+          const col = L() ? L().cols.find(c => c.key === 'B') : null;
+          const out = { aria, ids, before, name: rec ? rec.name : null, scenarios: rec ? (rec.scenarios || []).length : 0,
+            saved: ins ? { rent: ins.rent, ratePct: ins.ratePct } : null,
+            col: col ? { source: col.source, rent: col.work.rent, ratePct: col.work.ratePct, moves: Object.keys(col.moves).sort() } : null,
+            toast: txt(document.getElementById('toast')) };
+          if (rec) deletePropertyModel(rec.id);
+          return out;
+        })()`);
+        const p = [];
+        await vDeal({}, '/property');
+        const r = await run(true);
+        if (r.aria !== 'Save this property and B as a scenario') p.push(`the phone bar's Save this reads "${r.aria}"`);
+        if (!r.ids.includes('lab-property-name') || !r.ids.includes('lab-scenario-name')) p.push(`one Save asked for ${r.ids.join(', ') || 'nothing'}, not the property's name and B's`);
+        if (r.name !== 'G1 guided' || r.scenarios !== 1) p.push(`one Save kept ${r.name ? `"${r.name}"` : 'no property'} with ${r.scenarios} scenarios`);
+        if (r.before.moves.join() !== 'ratePct,rent') p.push(`B's moves before the save were ${r.before.moves.join(', ')}`);
+        if (!r.saved || r.saved.rent !== r.before.rent || r.saved.ratePct !== r.before.ratePct) p.push(`B moved to rent ${r.before.rent}, rate ${r.before.ratePct}; its scenario holds ${JSON.stringify(r.saved)}`);
+        if (!r.col || !String(r.col.source).startsWith('sc:') || r.col.rent !== r.before.rent || r.col.ratePct !== r.before.ratePct) p.push(`B after the save: ${JSON.stringify(r.col)}`);
+        if (!/^Saved “G1 guided” and B as its scenario “/.test(r.toast)) p.push(`the toast: "${r.toast}"`);
+        await vDeal({}, '/property');
+        const o = await run(false);
+        if (o.name !== 'G1 guided' || o.scenarios !== 0) p.push(`unticked: kept ${o.name ? `"${o.name}"` : 'no property'} with ${o.scenarios} scenarios`);
+        if (!o.col || o.col.source !== 'variant' || o.col.rent !== o.before.rent || o.col.moves.join() !== 'ratePct,rent') p.push(`unticked, B after the save: ${JSON.stringify(o.col)}`);
+        if (p.length) fail('guided save G1: the phone bar\'s "Save this" on an unsaved deal saves the property and B as its scenario in one step, B\'s moves kept', p);
+        else ok(`guided save G1: "Save this" on the unsaved sample asks for the property's name and B's; one Save keeps "${r.name}" and B (rent ${r.saved.rent}, rate ${r.saved.ratePct}) as its scenario — "${r.toast.slice(0, 70)}…"; unticked, the property alone, B's two moves kept as moves`);
+      });
+
       await vStep('V5', async () => {
         await vDeal({});
         const id = await evaluate(`(() => { newPropertyDeal({ show: false }); return saveActiveProperty({ name: 'V5 copy' }).id; })()`);
@@ -5170,7 +5386,7 @@ try {
          - Cash required, Monthly position and Net yield are dealModel's
            safeCashRequired, cashflowMonthly and netYield of the deal on the
            calculator, in the chain's formats; Cash required says what of it
-           rests on unverified fees (m.unconfirmedCost) and Net yield its
+           rests on unverified or unknown fee lines (m.unconfirmedCost) and Net yield its
            gross (m.grossYield) — and moving a slider, a what-if on column
            B, moves none of them;
          - each wears "Illustrative default" while a figure it is worked from
@@ -5225,7 +5441,7 @@ try {
       })()`));
       const p = [], s = r.sample, W = r.want;
       if (r.view !== 'propertyLab') p.push(`/property opened ${r.view}`);
-      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified fees`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified fees`);
+      if (s.safeCashRequired?.value !== W.cash || !s.safeCashRequired?.sub.includes(`${W.fees} on unverified or unknown lines`)) p.push(`Cash required: ${JSON.stringify(s.safeCashRequired)}, the model's ${W.cash} with ${W.fees} on unverified or unknown lines`);
       if (s.cashflowMonthly?.value !== W.monthly) p.push(`Monthly position: ${s.cashflowMonthly?.value}, the model's ${W.monthly}`);
       if (s.netYield?.value !== W.yield || s.netYield?.sub !== `gross ${W.gross}`) p.push(`Net yield: ${JSON.stringify(s.netYield)}, the model's ${W.yield}, gross ${W.gross}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield', 'next'].some(k => s[k]?.kind !== 'illustrative_default')) p.push(`on the sample every tile is "Illustrative default": ${JSON.stringify(Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.kind])))}`);
@@ -5233,11 +5449,13 @@ try {
       if (r.why !== W.gates) p.push(`the grade's "Why" lists ${r.why} gates, the grade has ${W.gates}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield'].some(k => r.moved[k]?.value !== s[k]?.value)) p.push(`a what-if on B moved a tile: ${JSON.stringify(r.moved)}`);
       if (['safeCashRequired', 'cashflowMonthly', 'netYield'].some(k => r.touched[k]?.kind === 'illustrative_default')) p.push(`with every figure the reader's a tile still says illustrative: ${JSON.stringify(r.touched)}`);
-      if (r.touched.next?.go?.text !== 'Save this property' || r.save !== 'Save this property') p.push(`with nothing left to replace, the next step is ${JSON.stringify(r.touched.next)} and the identity line's Save "${r.save}"`);
+      /* B still holds the rent moved above, so the identity line's one Save
+         is the guided save of the property and B (8 Oct 2026). */
+      if (r.touched.next?.go?.text !== 'Save this property' || r.save !== 'Save this property and B as a scenario') p.push(`with nothing left to replace, the next step is ${JSON.stringify(r.touched.next)} and the identity line's Save "${r.save}"`);
       if (r.saved.next?.go?.text !== 'Compare scenarios' || !/^“N3 tiles” · saved /.test(r.savedName)) p.push(`once saved: the next step ${JSON.stringify(r.saved.next)}, the identity "${r.savedName}"`);
       if (r.go.view !== 'property' || r.go.path !== '/property/calculator' || r.go.focus !== 'd-price') p.push(`the next step's link: ${JSON.stringify(r.go)}`);
       if (p.length) fail('n3 T1: /property\'s tiles are the model\'s figures of the deal on the calculator, and the next step leads on', p);
-      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified fees), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; Next step "Replace the price" opens the calculator with the keyboard in #d-price, then Save, then Compare; "Why" holds all ${W.gates} gates`);
+      else ok(`n3 T1: /property opens the Scenario Lab with the model's own figures of the sample — cash required ${W.cash} (${W.fees} on unverified or unknown lines), ${W.monthly} a month, net yield ${W.yield} (gross ${W.gross}) — each "Illustrative default" until its figures are the reader's, unmoved by a what-if on B; Next step "Replace the price" opens the calculator with the keyboard in #d-price, then Save, then Compare; "Why" holds all ${W.gates} gates`);
     } catch (e) {
       fail('n3 T1: /property\'s tiles could not be read', e.message);
     }

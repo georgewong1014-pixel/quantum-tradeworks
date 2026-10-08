@@ -3070,6 +3070,22 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 .kinds-list dt { margin: 0; }
 .kinds-list dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); max-width: 70ch; }
 @media (max-width: 479.98px) { .kinds-list { grid-template-columns: minmax(0, 1fr); gap: 4px; } .kinds-list dd { margin-bottom: 8px; } }
+/* The property fee rulebook on /data-sources (feeRulebookCard,
+   70-property.js): a card a line, its facts as a two-column list. */
+.fee-book-dl.fee-book-key { margin: var(--sm) 0 var(--md); }
+.fee-book-key dt { font-weight: 600; color: var(--ink); }
+.fee-book-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sm); }
+.fee-book-line { padding: var(--sm) var(--md); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.fee-book-name { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--ls-body); }
+.fee-book-cat { margin-left: auto; font-size: var(--ls-meta); color: var(--ink-2); }
+.fee-book-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px var(--sm); margin: var(--xs) 0 0; font-size: var(--ls-support); line-height: 1.5; }
+.fee-book-dl dt { margin: 0; color: var(--ink-2); }
+.fee-book-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; max-width: var(--ls-measure); }
+.fee-book-line .metaline { max-width: var(--ls-measure); margin: var(--xs) 0 0; line-height: 1.5; }
+.fee-book-h3 { margin: var(--md) 0 var(--xs); font-size: var(--ls-support); font-weight: 600; }
+.fee-book-notes { margin: 0; padding-left: 1.2em; max-width: var(--ls-measure); font-size: var(--ls-support); line-height: 1.5; }
+.fee-book-notes li + li { margin-top: var(--xs); }
+@media (max-width: 479.98px) { .fee-book-dl { grid-template-columns: minmax(0, 1fr); gap: 0; } .fee-book-dl dd { margin-bottom: 6px; } .fee-book-cat { margin-left: 0; flex: 1 0 100%; } }
 
 /* The status badge's qualifier, wherever Property's badge is (D17): the
    few words after the badge, a step quieter, on the badge's own line
@@ -5070,6 +5086,15 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-name-label { flex: 1 0 100%; font-size: var(--ls-support); font-weight: 600; color: var(--ink); }
 .lab-name-form .input { flex: 1 1 16rem; min-width: 0; }
 .lab-name-acts { display: flex; gap: 6px; }
+/* A cost line's provenance in the fee rulebook, under its name (the
+   calculator's ledger, 75-property-grade.js). */
+.pc-fee-prov { display: block; margin-top: 2px; font-size: var(--ls-meta); font-weight: 400; line-height: 1.4; color: var(--ink-2); white-space: normal; }
+/* The guided save's second name (82-property-lab.js, labNameForm): the
+   column as the property's scenario, on its own row under the first. */
+.lab-name-sc { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.lab-name-sc .lab-name-check { flex: 1 0 100%; }
+.lab-name-sc .lab-name-check span { color: var(--ink); }
+.lab-name-sc .input:disabled { opacity: .55; }
 
 @container lab (min-width: 600px) {
   /* Out of sight and out of reach (visibility), not display:none, so the

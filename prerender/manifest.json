@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c2fcb72ceb036545",
-      "changed": "2026-10-07"
+      "digest": "5441dd1b7063c27a",
+      "changed": "2026-10-08"
     },
     "pages/about.html": {
       "path": "/about",
@@ -644,8 +644,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "25b57761ef684a80",
-      "changed": "2026-10-07"
+      "digest": "09a9f66e23f0a502",
+      "changed": "2026-10-08"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -673,8 +673,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "20daef4457b1413d",
-      "changed": "2026-10-06"
+      "digest": "2b16492714b6530f",
+      "changed": "2026-10-08"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -818,8 +818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "54b3e0639942b369",
-      "changed": "2026-10-07"
+      "digest": "619dba0f11bf7f89",
+      "changed": "2026-10-08"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -1079,8 +1079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "78a79c1223a2ddb7",
-      "changed": "2026-10-07"
+      "digest": "56dbe112e48c8b9b",
+      "changed": "2026-10-08"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -1137,8 +1137,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "3ba9ced2c75139c4",
-      "changed": "2026-10-07"
+      "digest": "82cbd7112aebb4b5",
+      "changed": "2026-10-08"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -1195,8 +1195,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2e835b1c50a43252",
-      "changed": "2026-10-07"
+      "digest": "eb3bc0f3a80c4528",
+      "changed": "2026-10-08"
     },
     "pages/property/models.html": {
       "path": "/property/models",

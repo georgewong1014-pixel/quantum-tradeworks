@@ -16186,7 +16186,12 @@ const kindFirst = (kinds) => KIND_ORDER.find(k => kinds.includes(k)) || null;
    PROVENANCE kind, every EVIDENCE id and every fee status to one). */
 const KIND_OF_PROVENANCE = { reported: 'filed', calculated: 'derived', modelled: 'modelled', market: 'yours', illustrative: 'illustrative', unavailable: 'unavailable' };
 const KIND_OF_EVIDENCE = { verified: 'yours', public: 'yours', user: 'yours', developer: 'quoted', estimated: 'derived', assumed: 'illustrative', illustrative_default: 'illustrative' };
-const KIND_OF_FEE = { verified: 'derived', unverified: 'placeholder', placeholder: 'placeholder', unknown: 'unavailable' };
+/* A fee line by its provenance in the fee rulebook (70-property.js): a
+   verified scale computed is Derived; an estimate, or an amount resting on
+   a rule unknown for its jurisdiction, is a Placeholder; the reader's own
+   quotation is Yours; a line with no amount at all ('unset') is
+   Unavailable. */
+const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'placeholder', quote: 'yours', unset: 'unavailable' };
 /* The badge. `fine`: the figure's own label, in the title before the
    word's meaning. `link`: false where the badge stands inside a link of
    its own, or on /data-sources itself. */
@@ -30062,6 +30067,10 @@ function learnData() {
   kinds.append(el('p', { class: 'metaline' }, 'The kinds in the table above read as badges this way: reported as Filed, calculated as Derived, market as Yours.'));
   wrap.append(kinds);
 
+  /* THE PROPERTY FEE RULEBOOK (the owner's property track, 8 Oct 2026):
+     its version, the day it was checked, and every line's source. */
+  wrap.append(feeRulebookCard());
+
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
      does; what does not yet exist is the right to republish it. Those are
@@ -32050,15 +32059,15 @@ const SARAWAK_CHECKS = [
     why:'Secondary markets outside the main centres are commonly reported as slower to transact. Whatever that period turns out to be, its carrying cost falls on you — the exit assumption below sets it explicitly.' },
 ];
 
-/* Malaysian acquisition costs. Rates are editable elsewhere in a real build;
-   here they are the published scales, labelled illustrative. */
 /* ==========================================================================
-   FEE AND DUTY REGISTRY
+   THE FEE RULEBOOK — Malaysian acquisition costs, as a versioned rule set
 
    Section 46 of the migration specification: every rate, threshold and fee
    carries an effective date and a review owner. Section 29.4: fee tables are
    versioned by effective date and transaction type, and one legal-fee number
    cannot serve developer/HDA, secondary-market, auction and commercial cases.
+   The owner's property track (8 Oct 2026): a verified, versioned rulebook —
+   every line says what it rests on, and where it comes from.
 
    THE RULE THAT MAKES THIS SAFE
 
@@ -32069,204 +32078,457 @@ const SARAWAK_CHECKS = [
    Every consumer of this registry must handle null by showing the line as unset
    rather than by adding nothing to a total.
 
-   THREE STATUSES, AND THEY MEAN DIFFERENT THINGS
+   FOUR PROVENANCES, AND THEY MEAN DIFFERENT THINGS (FEE_PROVENANCE)
 
-     verified     someone checked this against the cited source on a date, and
-                  their name is against it
-     unverified   a working figure inherited from the prototype. It computes,
-                  and nobody has checked it against the source.
-     placeholder  a commonly-quoted approximation, entered so the calculator
-                  runs end to end. It computes and it is NOT evidence.
-     unset        no value. Returns null and reports itself as missing.
+     verified   the rule was read in an official text — a statute, a gazetted
+                order or rules, the authority's own published copy — on the
+                checked date, and the amount is that rule computed. Any
+                assumption the computation needs (which of the rule's cases
+                applies) is stated on the line (`assumes`), at every appearance.
+     estimated  an approximation the tool carries so the sum runs: no official
+                scale fixes it, or the one found could not be confirmed. It
+                computes and it is NOT evidence.
+     quote      the reader's own quotation, entered (the MRTA premium today).
+     unknown    no rule could be verified for the line's jurisdiction. Such a
+                line carries no amount of another jurisdiction's rule silently.
 
-   ON PLACEHOLDERS, WHICH ARE THE DANGEROUS ONES
+   A line charged on other lines (service tax on fees) is no better than its
+   base: resolveFee takes the weakest of its own provenance and theirs.
 
-   An unset line is safe because it is visibly absent. A placeholder is the
+   ON ESTIMATES, WHICH ARE THE DANGEROUS ONES
+
+   An unset line is safe because it is visibly absent. An estimate is the
    opposite: it is plausible, it produces a total that looks finished, and a
    reader has no way to tell it from a checked figure unless the product keeps
-   telling them. So every placeholder is marked at every appearance, the total
-   states what share of it rests on placeholders, and no placeholder can ever be
-   reported as verified. They exist to make the workflow testable, not to make
-   the number usable.
+   telling them. So every estimate is marked at every appearance (the D6
+   Placeholder badge), the total states how much of it rests on unverified or
+   unknown lines, and no estimate can ever be reported as verified.
 
-   The values below are approximations in general circulation. They are not
-   quotations, not read off the current schedules, and several — mortgage
-   protection above all — vary so widely per case that the placeholder should be
-   understood as a shape rather than an amount.
+   JURISDICTION. The property data is Sarawak's. Duties and service tax are
+   federal; solicitors' fees are not — Peninsular Malaysia's Solicitors'
+   Remuneration Order does not govern a Sarawak advocate, whose scale is the
+   Advocates' Remuneration Rules made under the Advocates Ordinance (Cap.
+   110). Each line names its jurisdiction, and the Peninsular scale is held
+   only as a reference (FEE_TABLE.reference), applied to nothing here.
 
-   Nothing here is marked verified. Verification is a person reading the
-   Solicitors' Remuneration Order 2023, the current rate orders and a lender's
-   actual quote, and recording that they did.
+   Research, not advice: the rulebook says what the cited texts said on the
+   checked date. Budgets amend them; re-check after each one (nextReviewDue).
+   The sources, and what could not be verified, are written out for the owner
+   in the handoff's results/fee-rulebook-sources.md as well as below.
    ========================================================================== */
+const FEE_PROVENANCE = {
+  verified: { word: 'Verified', note: 'Computed from the rule in an official text, read on the checked date; any case the rule leaves open is stated on the line.' },
+  estimated: { word: 'Estimated', note: 'An approximation carried so the total runs — no official scale fixes it, or the one found could not be confirmed. Not a quotation.' },
+  quote: { word: 'User quote', note: 'A figure you entered from a quotation you were given.' },
+  unknown: { word: 'Unknown', note: 'No rule could be verified from an official source for this jurisdiction.' },
+};
 const FEE_TABLE = {
   id: 'my-property-fees',
-  version: '0.1.0-unverified',
-  jurisdiction: 'MY',
-  /* Fill these two first. Without an owner, nothing below gets re-checked when
-     a schedule changes, and a stale fee table is worse than an empty one
-     because it looks maintained. */
+  /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
+     seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
+  version: '1.0.0',
+  checkedOn: '2026-10-08',
+  /* The property data's state. Each line names its own jurisdiction. */
+  jurisdiction: 'Sarawak',
+  /* Fill the owner first. Without one, nothing below gets re-checked when a
+     schedule changes, and a stale rulebook is worse than an empty one
+     because it looks maintained. Due again after Budget 2027 is tabled. */
   reviewOwner: null,
-  nextReviewDue: null,
+  nextReviewDue: '2026-10-31',
+  categories: {
+    statutory: 'Statutory charge',
+    professional: 'Professional fee',
+    disbursement: 'Disbursements',
+    insurance: 'Optional insurance',
+    deposit: 'Deposits',
+  },
 
   lines: {
     transferStampDuty: {
       label: 'Transfer stamp duty (MOT)',
+      category: 'statutory',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'unverified',
-      /* Inherited from the prototype: 1% first 100k, 2% next 400k, 3% next
-         500k, 4% above 1m. Widely quoted and not verified here against the
-         current Stamp Act schedule or any exemption order in force. */
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      /* "For every RM100 or fractional part of RM100" of the consideration or
+         the market value, whichever is the greater. */
+      unit: 100,
       scale: [[100000, 0.01], [400000, 0.02], [500000, 0.03], [Infinity, 0.04]],
-      source: 'Stamp Act 1949, First Schedule',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Check whether any first-home or threshold exemption applies to the buyer and the price before relying on this.',
+      effectiveFrom: '2019-01-01',
+      effectiveNote: 'The 4% band above RM1,000,000 was added by the Finance Act 2018 (Act 812) from 1 January 2019, and a remission order kept 3% on the RM1m–2.5m slice for instruments stamped to 30 June 2019 — both dates from secondary sources; the bands themselves are read in the official text.',
+      source: { title: 'Stamp Act 1949 (Act 378), First Schedule, Item 32(a) — LHDN’s updated text as at 1 January 2024',
+                url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf',
+                citation: 'Act 378, First Schedule, Item 32(a)(i)–(iv)' },
+      checkedOn: '2026-10-08',
+      assumes: 'a buyer who is a citizen or permanent resident, on the price',
+      note: 'RM1 per RM100 on the first RM100,000, RM2 to RM500,000, RM3 to RM1,000,000 and RM4 above, on the price or the market value, whichever is greater — this tool charges it on the price. A buyer who is not a citizen or permanent resident, or a foreign company, is charged otherwise (Items 32(aa) and 32(ab), held below and not applied). The Act applies throughout Malaysia, in Sarawak since 1 October 1989.',
     },
     purchaseLegal: {
       label: 'Purchase legal fees (SPA and transfer)',
+      category: 'professional',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'placeholder',
-      /* The prototype used max(500, price x 1.1%) as a single flat rate. A flat
-         percentage cannot reproduce a banded order at any price, so this is a
-         band structure rather than a rate — and the BOUNDARIES need checking as
-         much as the rates. If the real bands differ, filling correct rates into
-         wrong boundaries produces a confidently wrong fee. */
-      scale: [[500000, 0.0125], [500000, 0.01], [2000000, 0.007], [2000000, 0.006], [Infinity, 0.005]],
+      provenance: 'verified',
+      jurisdiction: 'Sarawak',
+      scale: [[10000, 0.025], [40000, 0.01], [50000, 0.009], [200000, 0.008], [400000, 0.007],
+              [500000, 0.006], [1000000, 0.0055], [3000000, 0.005], [5000000, 0.0045], [Infinity, 0.0045]],
       minimumFee: 500,
-      permittedDiscountPct: null,
-      source: "Solicitors' Remuneration Order 2023, First Schedule",
-      sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Scales and any permitted discount differ by transaction type. Record HDA/developer, secondary market, auction and commercial separately rather than reusing one set.',
+      effectiveFrom: '2023-01-01',
+      source: { title: 'Advocates’ Remuneration Rules, 1988 (Swk. L.N. (F) 72/88), First Schedule, as substituted by the Advocates’ Remuneration (Amendment) Rules, 2022 (Swk. L.N. (F) 348)',
+                url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_Issue%20No.%2083_L.N.%20348%20Advocates%20Rules.pdf',
+                citation: 'Advocates Ordinance (Cap. 110), s. 17(c); Swk. L.N. (F) 348 of 2022, First Schedule and its rule 1' },
+      checkedOn: '2026-10-08',
+      assumes: 'an SPA and the memorandum of transfer: the purchaser’s advocate charges the full scale (rule 1)',
+      note: 'Sarawak’s own scale, not Peninsular Malaysia’s Solicitors’ Remuneration Order. Rule 14: no discount on any fee in the Rules. Where the transaction is only an SPA, only a memorandum of transfer, a deed of assignment before title issues, or a subsale under rule 4, the purchaser’s advocate charges three-quarters of the scale (rules 2–4). Above RM10,000,000 the fee is negotiable up to 0.45% of the excess (the 2022 text says RM10,000,000 where its bands add to RM10,200,000). Scales for developer (HDA) and auction purchases are not modelled yet.',
     },
     loanLegal: {
       label: 'Loan legal fees',
+      category: 'professional',
       basis: 'scale',
       appliesTo: 'loan',
-      status: 'placeholder',
-      scale: [[500000, 0.0125], [500000, 0.01], [2000000, 0.007], [2000000, 0.006], [Infinity, 0.005]],
+      provenance: 'verified',
+      jurisdiction: 'Sarawak',
+      scale: [[10000, 0.025], [40000, 0.01], [50000, 0.009], [200000, 0.008], [400000, 0.007],
+              [500000, 0.006], [1000000, 0.0055], [3000000, 0.005], [5000000, 0.0045], [Infinity, 0.0045]],
       minimumFee: 500,
-      source: "Solicitors' Remuneration Order 2023",
-      sourceUrl: 'https://www.malaysianbar.org.my/article/members/laws-bc-rulings-and-practice-directions/other-laws/solicitors-remuneration-order-2023/sro-2023',
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Charged on the loan amount, not the purchase price. Absent entirely from the prototype, which understated completion cash on every financed purchase.',
+      /* Rule 7: one advocate for the chargee and the chargor — the full
+         scale as the chargee's advocate, one-quarter as the chargor's. */
+      multiplier: 1.25,
+      /* No loan, nothing to document: no fee, not the minimum. */
+      needsBase: true,
+      effectiveFrom: '2023-01-01',
+      source: { title: 'Advocates’ Remuneration Rules, 1988 (Swk. L.N. (F) 72/88), First Schedule, as substituted by the Advocates’ Remuneration (Amendment) Rules, 2022 (Swk. L.N. (F) 348)',
+                url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_Issue%20No.%2083_L.N.%20348%20Advocates%20Rules.pdf',
+                citation: 'Swk. L.N. (F) 348 of 2022, First Schedule, rules 6–8' },
+      checkedOn: '2026-10-08',
+      assumes: 'one advocate acts for you and the bank: the full scale plus one-quarter on the loan (rule 7)',
+      note: 'Charged on the amount of the charge — the loan — not the price. With separate advocates the bank’s charges the full scale and yours one-half (rules 6–8): one and a half times the scale where you bear both, as a letter of offer commonly requires. Rule 14: no discount.',
     },
     loanStampDuty: {
       label: 'Loan agreement stamp duty',
-      basis: 'percent',
+      category: 'statutory',
+      basis: 'scale',
       appliesTo: 'loan',
-      status: 'unverified',
-      percent: 0.5,
-      source: 'Stamp Act 1949',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Inherited from the prototype as a flat 0.5% of the loan.',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      /* "For each RM1,000 or part thereof RM5.00". */
+      unit: 1000,
+      scale: [[Infinity, 0.005]],
+      effectiveFrom: '2024-01-01',
+      effectiveAsAt: true,
+      source: { title: 'Stamp Act 1949 (Act 378), First Schedule, Item 27(a)(iii) — LHDN’s updated text as at 1 January 2024',
+                url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf',
+                citation: 'Act 378, First Schedule, Item 27(a)(iii) and 27(b)' },
+      checkedOn: '2026-10-08',
+      assumes: 'the loan agreement is the principal security, stamped on the loan',
+      note: 'RM5 for each RM1,000 of the loan or part of it. The charge, as collateral security, is then stamped at one-fifth of that duty capped at RM10 (Item 27(b)) — within the disbursements line. Since 1 January 2026 a loan agreement is stamped by self-assessment (STSDS, below): the procedure changed, not the rate.',
     },
     valuationFee: {
       label: 'Valuation fee',
+      category: 'professional',
       basis: 'scale',
       appliesTo: 'price',
-      status: 'placeholder',
-      scale: [[100000, 0.0025], [2000000, 0.002], [Infinity, 0.00167]],
-      minimumFee: 300,
-      source: 'Valuers, Appraisers, Estate Agents and Property Managers Rules',
-      sourceUrl: 'https://lppeh.gov.my/',
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Usually required by the lender and paid by the buyer. Confirm whether the selected lender absorbs it.',
+      provenance: 'estimated',
+      jurisdiction: 'Federal',
+      scale: [[100000, 0.0025], [1900000, 0.002], [5000000, 1 / 600], [8000000, 0.00125], [35000000, 0.001],
+              [150000000, 1 / 1500], [300000000, 0.0005], [Infinity, 0.0004]],
+      minimumFee: 400,
+      effectiveFrom: null,
+      source: { title: 'Valuers, Appraisers and Estate Agents Rules 1986 (P.U.(A) 64/1986), rule 48 and the Seventh Schedule — the scale as the Board of Valuers publishes it',
+                url: 'https://lpeph.gov.my/fees',
+                citation: 'Act 242; P.U.(A) 64/1986, r. 48(1), Seventh Schedule item 3' },
+      checkedOn: '2026-10-08',
+      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, and the page carries injected third-party text. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it.',
     },
     disbursements: {
       label: 'Registration, searches and disbursements',
+      category: 'disbursement',
       basis: 'fixed',
       appliesTo: null,
-      status: 'placeholder',
+      provenance: 'estimated',
+      jurisdiction: 'Sarawak',
       fixed: 1200,
-      source: 'Land and Survey Department Sarawak, and the acting firm',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Title search, registration, land-office and firm disbursements. Ask the acting firm for a written quotation rather than estimating.',
+      effectiveFrom: null,
+      source: { title: 'An approximation — no single official schedule covers it. Registration of an instrument on one title is RM10 under the Land (Registration of Title) Rules (Land and Survey Department, Sarawak)',
+                url: 'https://landsurvey.sarawak.gov.my/web/subpage/webpage_view/1647' },
+      checkedOn: '2026-10-08',
+      note: 'Title searches, registration, land-office and the firm’s disbursements, and the charge’s RM10 stamp. Ask the acting firm for a written quotation rather than estimating.',
     },
     professionalServiceTax: {
-      label: 'Service tax on professional fees',
+      label: 'Service tax on legal fees',
+      category: 'statutory',
       basis: 'percentOfFees',
       appliesTo: 'legalFees',
-      status: 'placeholder',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
       percent: 8,
-      source: 'Service Tax Act 2018 and current rate orders',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Applies to the professional fee, not to the purchase price. Confirm the current rate and which of the fees above it attaches to.',
+      effectiveFrom: '2024-03-01',
+      source: { title: 'Service Tax (Rate of Tax) (Amendment) Order 2024 (P.U.(A) 64/2024); legal services taxable under the Service Tax Regulations 2018 (Customs’ Guide on Professional Services)',
+                url: 'https://pub-359af8e1f79c472292a7e44ec60f3027.r2.dev/Industry%20Guides/EN/Guide%20on%20Professional%20Services%2020210921.pdf',
+                citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
+      checkedOn: '2026-10-08',
+      assumes: 'it is charged on the purchase and loan legal fees, not on disbursements',
+      note: '8% on the advocate’s fees for the purchase and the loan. Service tax applies in Sarawak; only Labuan, Langkawi, Tioman, Pangkor and Pulau 1 and certain special zones are outside it. The 2026 orders seen (P.U.(A) 125/2026, 337/2026) do not touch legal services.',
+    },
+    valuationServiceTax: {
+      label: 'Service tax on the valuation fee',
+      category: 'statutory',
+      basis: 'percentOfFees',
+      appliesTo: 'valuationFee',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      percent: 8,
+      effectiveFrom: '2024-03-01',
+      source: { title: 'Service Tax (Rate of Tax) (Amendment) Order 2024 (P.U.(A) 64/2024); valuation of property a taxable professional service (Customs’ Guide on Professional Services)',
+                url: 'https://pub-359af8e1f79c472292a7e44ec60f3027.r2.dev/Industry%20Guides/EN/Guide%20on%20Professional%20Services%2020210921.pdf',
+                citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
+      checkedOn: '2026-10-08',
+      note: 'The rate is verified; the fee it is charged on is an estimate, so the amount is too.',
     },
     mortgageProtection: {
       label: 'Mortgage protection (MRTA/MLTA)',
+      category: 'insurance',
       basis: 'quote',
       appliesTo: null,
-      status: 'placeholder',
+      provenance: 'estimated',
+      jurisdiction: 'Federal',
       fixed: 8000,
       financedByDefault: false,
-      source: 'Insurer quotation',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
-      note: 'Depends on age, sum assured, tenure and product. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash.',
+      effectiveFrom: null,
+      source: { title: 'An insurer’s quotation — no rule sets it' },
+      checkedOn: '2026-10-08',
+      note: 'Optional cover, though a lender may ask for it. Depends on age, sum assured, tenure and product. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash. Your own quote, entered on the financing panel, replaces this.',
     },
     utilityDeposits: {
       label: 'Utility and management deposits',
+      category: 'deposit',
       basis: 'fixed',
       appliesTo: null,
-      status: 'placeholder',
+      provenance: 'estimated',
+      jurisdiction: 'Sarawak',
       fixed: 1500,
-      source: 'Utility providers and the management body',
-      sourceUrl: null,
-      effectiveFrom: null, verifiedAt: null, verifiedBy: null,
+      effectiveFrom: null,
+      source: { title: 'Set by the utility providers and the management body — no rule sets it' },
+      checkedOn: '2026-10-08',
       note: 'Refundable, and still cash the buyer must have on completion day.',
     },
   },
+
+  /* Verified rules held for reference and applied to nothing here: the
+     property data is Sarawak's. */
+  reference: {
+    solicitorsPeninsular: {
+      label: 'Solicitors’ fees, Peninsular Malaysia',
+      short: 'the Peninsular Malaysia scale (SRO 2023)',
+      title: 'Solicitors’ Remuneration Order 2023 (P.U.(A) 207/2023), First Schedule Table A and Third Schedule Table A',
+      provenance: 'verified',
+      jurisdiction: 'Peninsular Malaysia',
+      scale: [[500000, 0.0125], [7000000, 0.01], [Infinity, 0.01]],
+      minimumFee: 500,
+      effectiveFrom: '2023-07-15',
+      source: { title: 'Solicitors’ Remuneration Order 2023 (P.U.(A) 207/2023) — the gazetted text, Malaysian Bar',
+                url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Solicitors%20Remuneration%20Order%202023.pdf',
+                citation: 'P.U.(A) 207/2023, in operation 15 July 2023; paragraph 6' },
+      checkedOn: '2026-10-08',
+      note: '1.25% of the first RM500,000 (minimum RM500), 1% of the next RM7,000,000, and above RM7,500,000 negotiable up to 1%. A solicitor may discount Table A fees by up to 25%. Made under the Legal Profession Act 1976, which reaches Sabah and Sarawak only as modified by order — none was found, and both states have their own scales — so it is not applied to a Sarawak property.',
+    },
+  },
+
+  /* Held, and not applied by default: whether they apply turns on facts about
+     the buyer this tool does not ask for. */
+  notApplied: [
+    { title: 'First-home stamp duty exemption', applied: false,
+      what: '100% of the duty on the transfer (P.U.(A) 53/2021, amended by P.U.(A) 448/2025) and on the loan agreement (P.U.(A) 54/2021, amended by P.U.(A) 449/2025), for one residential unit with a market value of RM500,000 or less, bought by a Malaysian citizen who has never owned a residential property, under an SPA executed from 1 January 2021 to 31 December 2027; the loan from a listed lender. LHDN’s declaration excludes SOHO, SOFO, SOVO and serviced apartments, which the Malaysian Bar disputes. Expired: the 75% remission for RM500,001–1,000,000 (SPAs of 1 June 2022 to 31 December 2023).',
+      source: { title: 'Malaysian Bar Circular No 128/2026 (16 April 2026)', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Circular%20No%20128-2026.pdf' } },
+    { title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
+      what: 'A flat RM8 per RM100 on residential property from 1 January 2026 (Item 32(ab), Finance Act 2025, Act 874), and RM4 per RM100 on other property from 1 January 2024 (Item 32(aa)). This tool charges Item 32(a), the scale for a citizen or permanent resident.',
+      source: { title: 'Stamp Act 1949, First Schedule, Items 32(aa)–(ab); Finance Act 2025 (Act 874)', url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf' } },
+    { title: 'Stamp duty self-assessment (STSDS)', applied: false,
+      what: 'A change of procedure, not of rate. LHDN phases it in: from 1 January 2026 leases and tenancies, securities (loan agreements and charges) and general stamping; from 1 January 2027 transfers of real property not needing a JPPH valuation; from 1 January 2028 every other instrument. The duty payable is unchanged; who assesses it, and when, changes.',
+      source: { title: 'LHDN — Sistem Taksir Sendiri Duti Setem (STSDS)', url: 'https://www.hasil.gov.my/en/stamp-duty/sistem-taksir-sendiri-duti-setem-stsds/' } },
+  ],
+
+  /* What could not be verified, and why — said, not discovered. */
+  unverified: [
+    { what: 'Valuation fee', why: 'the Board of Valuers’ published scale could not be checked against a gazetted copy: the date its current bands took effect was not found, and the page carries injected third-party text. Carried at that scale’s ceiling as an estimate.' },
+    { what: 'Registration, searches and disbursements', why: 'no single official schedule covers the bundle; only the RM10 registration fee per instrument is published (Land and Survey Department, Sarawak). Ask the acting firm for a quotation.' },
+    { what: 'Mortgage protection and utility deposits', why: 'set by an insurer, the utility providers and the management body for each case; no rule fixes them.' },
+    { what: 'When the 4% transfer band took effect in practice', why: 'the remission order that kept 3% on the RM1m–2.5m slice to 30 June 2019 was found only in secondary sources, and its P.U.(A) number not confirmed. The bands in force are read in the official text.' },
+    { what: 'The loan agreement duty’s start date', why: 'the rate is read in LHDN’s updated text as at 1 January 2024; when it was set was not established, so the rulebook dates it as at that text.' },
+    { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
+    { what: 'That the Solicitors’ Remuneration Order 2023 reaches only Peninsular Malaysia', why: 'inferred from the Legal Profession Act 1976, s. 2 and from Sarawak and Sabah having their own scales; no extending order was found, and its absence cannot be proven.' },
+    { what: 'Sabah’s advocates’ scale', why: 'a separate Advocates’ Remuneration Rules 1988 (G.N.S. 17 of 1988) exists; its bands were not checked, and no property here is in Sabah.' },
+    { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
+  ],
 };
 
+/* A banded scale applied to a base: each band's slice at its rate. `unit`
+   rounds the base UP to the scale's own unit first — the Stamp Act's "for
+   every RM100 or fractional part", "RM5 for every RM1,000 or fractional
+   part" — which, every band boundary being a multiple of the unit, is the
+   same as rounding the last band's slice. */
+function feeScaleAmount(scale, base, { unit = null, minimumFee = null } = {}) {
+  let left = isNum(unit) && unit > 0 ? Math.ceil(base / unit - 1e-9) * unit : base, total = 0;
+  for (const [size, rate] of scale) {
+    const slice = Math.min(left, size);
+    total += slice * rate; left -= slice;
+    if (left <= 0) break;
+  }
+  /* Whole sen: a band's rate times a whole-ringgit slice is exact in sen,
+     and floating point is not. */
+  total = Math.round(total * 100) / 100;
+  return isNum(minimumFee) ? Math.max(total, minimumFee) : total;
+}
+/* The weaker of two provenances, for a line charged on other lines: a tax
+   at a verified rate on an unknown fee is an unknown amount. */
+const FEE_PROVENANCE_ORDER = ['unknown', 'estimated', 'quote', 'verified'];
+const feeWeaker = (a, b) => (FEE_PROVENANCE_ORDER.indexOf(a) <= FEE_PROVENANCE_ORDER.indexOf(b) ? a : b);
+
 /* Resolves one line to an amount, or to an explicit reason it has none.
-   Returns { amount, status, label, why } — the amount is null unless the line
-   can actually be computed, and callers must not coerce that null to zero. */
-function resolveFee(lineId, bases = {}) {
+   Returns { id, amount, provenance, status, label, line, why } — the amount
+   is null unless the line can actually be computed, and callers must not
+   coerce that null to zero. `provenance` is the line's own, or the weakest
+   of it and the lines it is charged on (`basedOn`); `status` is what the
+   ledger's older readers ask: 'verified', 'placeholder' (an estimate, or
+   an amount resting on one), 'quote', or 'unset' (no amount). */
+function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   const line = FEE_TABLE.lines[lineId];
-  if (!line) return { amount: null, status: 'unknown', label: lineId, why: 'No such fee line.' };
-  const out = { amount: null, status: line.status, label: line.label, line,
-                why: line.status === 'unset' ? 'No value has been entered for this line.' : null };
-  if (line.status === 'unset') return out;
+  if (!line) return { id: lineId, amount: null, provenance: 'unknown', status: 'unset', label: lineId, why: 'No such fee line.' };
+  let provenance = line.provenance;
+  for (const p of [].concat(basedOn || [])) if (p) provenance = feeWeaker(provenance, p);
+  const out = { id: lineId, amount: null, provenance, status: 'unset', label: line.label, line,
+                why: line.unset ? 'No value has been entered for this line.' : null };
+  if (line.unset) return out;
 
   const base = line.appliesTo ? bases[line.appliesTo] : null;
+  /* A line that documents its base (the loan's legal fees) has nothing to
+     charge without one: no loan is no fee, not the scale's minimum. */
+  if (line.needsBase && isNum(base) && !(base > 0)) { out.amount = 0; out.status = provenance === 'verified' ? 'verified' : 'placeholder'; out.why = 'Nothing to charge it on.'; return out; }
   if (line.basis === 'percent') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or base is missing.'; return out; }
     out.amount = base * line.percent / 100;
   } else if (line.basis === 'percentOfFees') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or fee base is missing.'; return out; }
-    out.amount = base * line.percent / 100;
+    out.amount = Math.round(base * line.percent) / 100;
   } else if (line.basis === 'fixed' || line.basis === 'quote') {
     if (!isNum(line.fixed)) { out.why = 'No amount has been entered.'; return out; }
     out.amount = line.fixed;
   } else if (line.basis === 'scale') {
     if (!Array.isArray(line.scale) || !isNum(base)) { out.why = 'The scale has not been filled in.'; return out; }
-    let left = base, total = 0;
-    for (const [size, rate] of line.scale) {
-      const slice = Math.min(left, size);
-      total += slice * rate; left -= slice;
-      if (left <= 0) break;
-    }
-    if (isNum(line.minimumFee)) total = Math.max(total, line.minimumFee);
-    out.amount = total;
+    out.amount = feeScaleAmount(line.scale, base, { unit: line.unit, minimumFee: line.minimumFee });
+    /* The share of the scale the rule charges in the case the line assumes
+       (Sarawak's rule 7: the full scale plus one-quarter). */
+    if (isNum(line.multiplier)) out.amount = Math.round(out.amount * line.multiplier * 100) / 100;
   }
+  if (isNum(out.amount)) out.status = provenance === 'verified' ? 'verified' : provenance === 'quote' ? 'quote' : 'placeholder';
   return out;
 }
 
-/* What the registry still needs, so it can be reported rather than discovered. */
-const feeLinesWith = (...statuses) => Object.entries(FEE_TABLE.lines)
-  .filter(([, l]) => statuses.includes(l.status)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
-const unsetFeeLines = () => feeLinesWith('unset');
-const unverifiedFeeLines = () => feeLinesWith('unverified');
-const placeholderFeeLines = () => feeLinesWith('placeholder');
-/* Anything that is not a checked figure. The distinction the reader needs is
-   not which of the three unchecked statuses applies — it is checked or not. */
-const unconfirmedFeeLines = () => feeLinesWith('unverified', 'placeholder', 'unset');
+/* What the rulebook still needs, so it can be reported rather than discovered. */
+const feeLinesWith = (...provenances) => Object.entries(FEE_TABLE.lines)
+  .filter(([, l]) => provenances.includes(l.provenance)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
+/* Anything that is not a checked figure. The distinction the reader needs
+   first is checked or not; the line says which of the two it is. */
+const unconfirmedFeeLines = () => feeLinesWith('estimated', 'unknown');
+
+/* ---- how a fee line says what it is, wherever it is shown ---- */
+const feeDay = (iso) => {
+  const t = new Date(`${iso}T12:00:00Z`);
+  return Number.isFinite(t.getTime()) ? t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : String(iso || '');
+};
+/* The D6 badge of a resolved line: by its provenance (KIND_OF_FEE), and
+   Unavailable where it has no amount. */
+function feeBadge(r, amount = r?.amount) {
+  const kind = KIND_OF_FEE[isNum(amount) ? r.provenance : 'unset'] || 'unavailable';
+  const line = r.line || {};
+  const fine = `${FEE_PROVENANCE[r.provenance]?.word || r.provenance} — ${line.jurisdiction || 'no jurisdiction'}${line.source?.title ? `; ${line.source.title}` : ''}`;
+  return kindBadge(kind, { fine });
+}
+/* "Verified · Sarawak — assumes one advocate acts for you and the bank…",
+   "Estimated · Federal — a verified rate on an estimated fee". A quote is
+   the reader's own, whatever line it stands in. */
+function feeProvenanceLine(r) {
+  const line = r.line || {};
+  const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
+  if (r.provenance === 'quote') return `${word} — yours, not the rulebook’s`;
+  const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');
+  const via = r.provenance !== line.provenance && FEE_PROVENANCE[line.provenance]
+    ? ` — a ${FEE_PROVENANCE[line.provenance].word.toLowerCase()} rate on an ${FEE_PROVENANCE[r.provenance]?.word.toLowerCase()} fee` : '';
+  const assumes = line.assumes && r.provenance === 'verified' ? ` — assumes ${line.assumes}` : '';
+  return `${parts}${via}${assumes}`;
+}
+/* The uncertain lines, named with their amounts: "valuation fee RM1,194
+   (estimated), …". `money`: the format of the place it is said. */
+function feeUncertainWords(m, money = (v) => fmtAmount(v, 'MYR')) {
+  return (m.unconfirmedLines || []).map(x => `${x.label.charAt(0).toLowerCase()}${x.label.slice(1)} ${money(x.amount)} (${FEE_PROVENANCE[x.provenance]?.word.toLowerCase() || x.provenance})`).join(', ');
+}
+const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on unverified or unknown lines`;
+
+/* A rule's jurisdiction, dates and source, as list entries. */
+const feeBookFacts = (x) => {
+  const src = x.source || {};
+  return [
+    el('dt', {}, 'Jurisdiction'), el('dd', {}, x.jurisdiction),
+    el('dt', {}, x.effectiveAsAt ? 'In force as at' : 'Effective from'),
+    el('dd', {}, x.effectiveFrom ? `${feeDay(x.effectiveFrom)}${x.effectiveAsAt ? ' — the date of the text read; the rate is older' : ''}` : 'No date: no rule fixes it'),
+    el('dt', {}, 'Source'), el('dd', {}, [src.url ? el('a', { href: src.url, target: '_blank', rel: 'noopener noreferrer' }, src.title) : src.title,
+      src.citation ? el('span', { class: 'fee-book-cite' }, ` (${src.citation})`) : null]),
+    el('dt', {}, 'Checked'), el('dd', {}, feeDay(x.checkedOn)),
+  ];
+};
+/* THE RULEBOOK, PUBLISHED (/data-sources#fee-rulebook): its version and
+   the day it was checked, then each line — its provenance badge and word,
+   jurisdiction, effective date and source — the rules held for reference,
+   what is held but not applied, and what could not be verified and why.
+   One entry a line rather than a wide table: a phone reads it as cards
+   without a sideways scroll. */
+function feeRulebookCard() {
+  const card = el('section', { class: 'card fee-book', id: 'fee-rulebook', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'fee-rulebook-h' });
+  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'fee-rulebook-h' }, 'Property fee rulebook'),
+    el('p', { class: 'caption', style: 'margin-top:2px' },
+      `Version ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. The duties and fees the property calculator charges on a purchase, each with the rule it comes from. Research, not advice: confirm every line with the lender, the solicitor and the authority before relying on it.`),
+  ])));
+  card.append(el('dl', { class: 'fee-book-dl fee-book-key', 'aria-label': 'What each provenance means' },
+    Object.values(FEE_PROVENANCE).flatMap(v => [el('dt', {}, v.word), el('dd', {}, v.note)])));
+  const list = el('ul', { class: 'fee-book-list' });
+  for (const [id, line] of Object.entries(FEE_TABLE.lines)) {
+    const kind = KIND_OF_FEE[line.provenance] || 'unavailable';
+    list.append(el('li', { class: 'fee-book-line', 'data-fee-line': id, 'data-fee-provenance': line.provenance }, [
+      el('p', { class: 'fee-book-name' }, [el('strong', {}, line.label), ' ', kindBadge(kind, { fine: FEE_PROVENANCE[line.provenance]?.word }),
+        el('span', { class: 'fee-book-cat' }, FEE_TABLE.categories[line.category] || line.category)]),
+      el('dl', { class: 'fee-book-dl' }, [
+        el('dt', {}, 'Provenance'), el('dd', {}, FEE_PROVENANCE[line.provenance]?.word || line.provenance),
+        ...feeBookFacts(line),
+        ...(line.assumes ? [el('dt', {}, 'Assumes'), el('dd', {}, line.assumes)] : []),
+      ]),
+      line.effectiveNote ? el('p', { class: 'metaline' }, line.effectiveNote) : null,
+      line.note ? el('p', { class: 'metaline' }, line.note) : null,
+    ]));
+  }
+  card.append(list);
+  /* Verified, and applied to nothing here: another jurisdiction's rule. */
+  const refs = Object.entries(FEE_TABLE.reference || {});
+  if (refs.length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'Held for reference: another jurisdiction’s rule'));
+    card.append(el('ul', { class: 'fee-book-list' }, refs.map(([id, ref]) => el('li', { class: 'fee-book-line', 'data-fee-ref': id }, [
+      el('p', { class: 'fee-book-name' }, [el('strong', {}, ref.label), el('span', { class: 'fee-book-cat' }, 'Not applied')]),
+      el('dl', { class: 'fee-book-dl' }, [el('dt', {}, 'Provenance'), el('dd', {}, FEE_PROVENANCE[ref.provenance]?.word || ref.provenance), ...feeBookFacts(ref)]),
+      ref.note ? el('p', { class: 'metaline' }, ref.note) : null,
+    ]))));
+  }
+  if ((FEE_TABLE.notApplied || []).length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'Held, and not applied by default'));
+    card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.notApplied.map(x => el('li', {}, [el('strong', {}, x.title), ` — ${x.what} Source: `,
+      x.source?.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.source.title) : (x.source?.title || 'none'), '.']))));
+  }
+  if ((FEE_TABLE.unverified || []).length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'What could not be verified, and why'));
+    card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.unverified.map(x => el('li', {}, [el('strong', {}, x.what), ` — ${x.why}`]))));
+  }
+  return card;
+}
 
 /* Kept as thin wrappers so existing callers keep working while the registry
    becomes the single source of the numbers. */
@@ -32278,11 +32540,10 @@ const loanStampDuty = (loan) => {
   const r = resolveFee('loanStampDuty', { loan });
   return isNum(r.amount) ? r.amount : 0;
 };
-/* Deliberately NOT restored to a working percentage. The prototype's flat 1.1%
-   could not reproduce any banded remuneration order, and leaving it in place
-   would keep a number on screen that nobody can check against the cited
-   source — which is the defect, not the size of the number. It returns null
-   until the scale is filled, and the ledger shows the line as unset. */
+/* Deliberately NOT a working percentage. The prototype's flat 1.1% could not
+   reproduce any banded remuneration rules, and a number nobody can check
+   against the cited source is the defect, not the size of the number. It is
+   the Sarawak scale now (the rulebook), and null where it cannot be priced. */
 const legalFeesBuy = (price) => {
   const r = resolveFee('purchaseLegal', { price });
   return isNum(r.amount) ? r.amount : null;
@@ -35625,15 +35886,20 @@ function cpAcquisitionSection(d, m, cash) {
       m.valuationGapCash > 0 ? ', the deposit and the valuation-gap cash below.' : ' and the deposit below.',
       ' The other lines are the cost of buying on top of the price, and what is set aside.']));
   const rows = [];
-  const mark = (st) => st === 'placeholder' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder')
-    : st === 'unverified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A working figure nobody has checked against its cited source.' }, 'unverified')
-    : st === 'quote' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A figure from a quotation the preparer was given.' }, 'quoted')
-    : null;
+  /* Each fee line by its provenance in the fee rulebook (70-property.js). */
+  const mark = (r) => {
+    const pv = r?.provenance;
+    return pv === 'estimated' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off an official scale.' }, 'estimated')
+      : pv === 'unknown' ? el('span', { class: 'cp-mark', title: 'The rule for this jurisdiction could not be verified from an official source; the amount rests on it — see the fee rulebook.' }, 'unknown rule')
+      : pv === 'verified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: `Computed from the official scale the fee rulebook ${FEE_TABLE.version} cites, checked ${feeDay(FEE_TABLE.checkedOn)}.` }, 'verified scale')
+      : pv === 'quote' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A figure from a quotation the preparer was given.' }, 'quoted')
+      : null;
+  };
   cash.groups.forEach(g => {
     rows.push(el('tr', { class: 'cp-grp' }, el('th', { scope: 'rowgroup', colspan: 2 }, g.label)));
     g.items.forEach((it, j) => {
       rows.push(el('tr', {}, [
-        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2]?.status)]),
+        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2])]),
         el('td', { class: 'num' }, isNum(g.lines[j]) ? cpFig('line', cpMoney(g.lines[j]), { 'data-cp-line': it[0], 'data-cp-group': g.id })
           : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, 'not priced')),
       ]));
@@ -35650,7 +35916,7 @@ function cpAcquisitionSection(d, m, cash) {
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && m.totalInitialCash > 0)
     s.append(el('p', { class: 'cp-note cp-warn' }, [cpFig('unconfirmedCost', cpMoney(m.unconfirmedCost)),
       ' of the total — ', cpFig('unconfirmedShare', fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)),
-      ' — comes from fee lines marked placeholder or unverified: working figures nobody has checked against their source. Confirm each with the lender, the solicitor and the local authority before relying on it.']));
+      ' — rests on unverified or unknown fee lines: estimates, or amounts resting on a rule that could not be verified for this jurisdiction — none checked against an official source. Confirm each with the lender, the solicitor and the local authority before relying on it.']));
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
@@ -35842,8 +36108,10 @@ function cpExitSection(d, m, paid = false) {
 
 function cpDisclosures(rec, d, m) {
   const s = cpSection('disclosures', 'What this proposal is, and is not');
-  const placeholders = (m.placeholderCostLines || []).length;
-  const unverified = m.costGroups.flatMap(g => g.items).filter(it => it[2]?.status === 'unverified' && isNum(it[1])).length;
+  /* By the fee rulebook's provenance (70-property.js): estimates, and
+     amounts resting on a rule unknown for the jurisdiction. */
+  const placeholders = (m.unconfirmedLines || []).filter(x => x.provenance === 'estimated').length;
+  const unverified = (m.unconfirmedLines || []).filter(x => x.provenance === 'unknown').length;
   const samples = cpSampleKeys(d, m).length;
   const ul = el('ul', { class: 'cp-points' });
   [
@@ -35854,7 +36122,7 @@ function cpDisclosures(rec, d, m) {
     'Every figure is computed by the model the Quantum Tradeworks property calculator runs: from the inputs listed under “The property and what it assumes”, and — for the duties and fees — from the amounts and scales of the fee registry this build carries, each fee line marked as it stands. None is a forecast, a quotation or an offer.',
     'Not a valuation. In Malaysia an official valuation must be carried out by a registered valuer, and nothing here is a price opinion.',
     placeholders || unverified
-      ? `Fee lines are marked as they stand: ${placeholders ? `${placeholders} ${placeholders === 1 ? 'is a placeholder' : 'are placeholders'} — a commonly quoted approximation` : ''}${placeholders && unverified ? ', and ' : ''}${unverified ? `${unverified} ${unverified === 1 ? 'is' : 'are'} unverified against ${unverified === 1 ? 'its' : 'their'} source` : ''}. Duties and fees change without notice; confirm every one with the lender, the solicitor and the local authority.`
+      ? `Fee lines are marked as they stand, by the fee rulebook ${FEE_TABLE.version} (checked ${feeDay(FEE_TABLE.checkedOn)}): ${placeholders ? `${placeholders} ${placeholders === 1 ? 'is an estimate' : 'are estimates'} — a commonly quoted approximation, not a quotation` : ''}${placeholders && unverified ? ', and ' : ''}${unverified ? `${unverified} ${unverified === 1 ? 'rests' : 'rest'} on a rule that could not be verified for this jurisdiction from an official source` : ''}. Duties and fees change without notice; confirm every one with the lender, the solicitor and the local authority.`
       : 'Duties and fees follow the fee registry this build carries, which changes without notice; confirm every one with the lender, the solicitor and the local authority.',
     samples
       ? `Sample marks ${samples === 1 ? 'an input' : `${samples} inputs`} still at the calculator’s illustrative starting value, chosen for no property and taken from no market.`
@@ -37298,12 +37566,19 @@ function dealModel(d) {
      and whether it is unset. A line the registry cannot price is listed with a
      null amount rather than omitted — an absent row reads as a cost that does
      not exist, and these all exist. */
-  const feeLine = (id, bases) => { const r = resolveFee(id, bases); return [r.label, r.amount, r]; };
-  /* Null, not zero. Coercing an unpriced legal fee to 0 made the tax on it
-     resolve to a priced RM0 line — a real-looking row for a cost that exists
-     and has not been calculated, absent from the missing-lines list because it
-     had a number. A tax on an unknown fee is unknown. */
-  const legalBase = isNum(legal) ? legal : null;
+  const feeLine = (id, bases, opts) => { const r = resolveFee(id, bases, opts); return [r.label, r.amount, r]; };
+  /* The fees service tax is charged on (the rulebook: the purchase and loan
+     legal fees; the valuation fee, on its own line), resolved once so the
+     tax and the fee cannot disagree. Null, not zero: coercing an unpriced
+     legal fee to 0 made the tax on it resolve to a priced RM0 line — a
+     real-looking row for a cost that exists and has not been calculated,
+     absent from the missing-lines list because it had a number. A tax on
+     an unknown fee is unknown, and no better than the fee it is on. */
+  const purchaseLegalR = resolveFee('purchaseLegal', { price: d.price });
+  const loanLegalR = resolveFee('loanLegal', { loan });
+  const valuationR = resolveFee('valuationFee', { price: d.price });
+  const legalBase = isNum(purchaseLegalR.amount) && isNum(loanLegalR.amount) ? purchaseLegalR.amount + loanLegalR.amount : null;
+  const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
         ['Deposit', deposit],
@@ -37311,14 +37586,15 @@ function dealModel(d) {
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
         feeLine('transferStampDuty', { price: d.price }),
-        feeLine('purchaseLegal', { price: d.price }),
+        asLine(purchaseLegalR),
         feeLine('disbursements', {}),
-        feeLine('professionalServiceTax', { legalFees: legalBase }),
+        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
-        feeLine('loanLegal', { loan }),
-        feeLine('valuationFee', { price: d.price }),
+        asLine(loanLegalR),
+        asLine(valuationR),
+        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -37327,7 +37603,7 @@ function dealModel(d) {
            it is not a placeholder either, and it is marked as what it is. */
         isNum(d.mrtaPremium) && d.mrtaPremium > 0
           ? ['Mortgage protection — your quote', d.mrtaPremium,
-             { status:'quote', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
+             { status:'quote', provenance:'quote', id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
                why:null, note:'The one-off premium you entered on the financing panel. A quote from an insurer, not a figure from the fee registry.' }]
           : feeLine('mortgageProtection', {}),
       ] },
@@ -37351,12 +37627,16 @@ function dealModel(d) {
      a scatter of markers. */
   /* A figure the reader took from their own quotation is theirs to stand
      behind; it is not one "nobody has checked". */
-  const unconfirmedCost = costGroups.flatMap(g => g.items)
-    .filter(it => it[2] && it[2].status !== 'verified' && it[2].status !== 'quote' && isNum(it[1]))
-    .reduce((t, it) => t + it[1], 0);
-  const placeholderCostLines = costGroups.flatMap(g => g.items)
-    .filter(it => it[2]?.status === 'placeholder' && isNum(it[1]))
-    .map(it => ({ label: it[0], amount: it[1] }));
+  /* By the fee rulebook's provenance (70-property.js): a line is checked
+     when it is Verified — its rule, and every fee it is charged on — or the
+     reader's own quotation. An Estimated line, and one resting on a rule
+     Unknown for its jurisdiction, are not; each is listed, so the
+     total can say which lines and how much (unconfirmedLines). */
+  const unconfirmedLines = costGroups.flatMap(g => g.items)
+    .filter(it => it[2]?.provenance && it[2].provenance !== 'verified' && it[2].provenance !== 'quote' && isNum(it[1]))
+    .map(it => ({ id: it[2].id || null, label: it[0], amount: it[1], provenance: it[2].provenance, jurisdiction: it[2].line?.jurisdiction || null }));
+  const unconfirmedCost = unconfirmedLines.reduce((t, x) => t + x.amount, 0);
+  const placeholderCostLines = unconfirmedLines.map(x => ({ label: x.label, amount: x.amount, provenance: x.provenance }));
 
   /* Three months of instalment and running cost, held back rather than spent.
      Not part of the purchase, but part of what the purchase requires.
@@ -37942,7 +38222,7 @@ function dealModel(d) {
   const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows) : null;
 
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
-           costGroups, missingCostLines, unconfirmedCost, placeholderCostLines,
+           costGroups, missingCostLines, unconfirmedCost, unconfirmedLines, placeholderCostLines,
            transactionCash, improvementCash, reserveCash, safeCashRequired,
            cashAlreadyPaid, cashStillRequiredToComplete,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
@@ -38572,10 +38852,14 @@ VIEWS.property = () => {
      its data badge — what its figures rest on, in the Lab's tiles' words
      (labTileKind), the lowest-ranked input it is worked from. */
   const answerFigs = {
+    /* While any fee line is not Verified, the headline says how much of
+       it rests on those lines (the fee rulebook, 70-property.js); the
+       ledger below names them. */
     safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-      unpricedLines.length
+      (unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-        : 'Including rent-ready and the reserve'],
+        : 'Including rent-ready and the reserve')
+      + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
     monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
       m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
       isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
@@ -39740,18 +40024,16 @@ VIEWS.property = () => {
     /* An unpriced line is shown as unpriced. Omitting it would read as a cost
        that does not exist, and every one of these exists. */
     g.items.forEach(it => {
-      const st = it[2]?.status;
       cashB.append(el('tr', {}, [
         el('td', { style: 'padding-left:var(--md)' }, [
           it[0],
-          /* Marked at every appearance. A placeholder is plausible, which is
-             precisely why it cannot be left to look like a checked figure. */
-          st === 'placeholder' ? el('span', { class: 'chip chip-bronze', style: 'margin-left:6px;font-size:var(--ls-meta)',
-            title: it[2]?.line?.note || 'A commonly-quoted approximation, not a quotation and not read off the current schedule.' }, 'placeholder') : null,
-          st === 'unverified' ? el('span', { class: 'chip', style: 'margin-left:6px;font-size:var(--ls-meta)',
-            title: 'A working figure nobody has checked against the cited source.' }, 'unverified') : null,
-          st === 'quote' ? el('span', { class: 'chip chip-brand', style: 'margin-left:6px;font-size:var(--ls-meta)',
-            title: it[2]?.note || 'A figure you entered from a quotation.' }, 'your quote') : null,
+          /* Marked at every appearance, by the fee rulebook (70-property.js):
+             the D6 kind badge — Placeholder for an estimate,
+             Derived for a verified scale computed, Yours for the reader's
+             quote — and, under the name, the line's provenance and
+             jurisdiction. A placeholder is plausible, which is precisely why
+             it cannot be left to look like a checked figure. */
+          ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2]))] : []),
         ]),
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
@@ -39782,11 +40064,14 @@ VIEWS.property = () => {
      them how much of the answer is affected. */
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && isNum(m.totalInitialCash) && m.totalInitialCash > 0)
     cashB.append(el('tr', {}, [
-      el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
-        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — comes from fee lines nobody has checked against their source. `
-        + (m.placeholderCostLines.length
-            ? `${m.placeholderCostLines.length} ${m.placeholderCostLines.length === 1 ? 'is a placeholder' : 'are placeholders'}: approximations entered so the workflow runs, not quotations. Replace them with real quotes before this figure means anything.`
-            : 'They compute, and they are not evidence.'))]));
+      el('td', { colspan: 2, class: 'metaline pc-fee-uncertain', style: 'color:var(--bronze);white-space:normal' },
+        `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — rests on unverified or unknown lines: ${feeUncertainWords(m)}. `
+        + 'They compute so the total runs; they are not quotations and not checked against an official source. Replace them with real quotes before this figure means anything.')]));
+  /* The rulebook this ledger was charged by, and where its sources are. */
+  cashB.append(el('tr', {}, [
+    el('td', { colspan: 2, class: 'metaline', style: 'white-space:normal' }, [
+      `Fees and duties from the fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. Research, not advice: confirm each with the lender, the solicitor and the authority. `,
+      el('a', { href: href('/data-sources#fee-rulebook') }, 'Every line’s source →')])]));
   lsTableCards(cashT, { id: 'pc-cost-table' });
   cash.append(el('div', { class: 'tablewrap' }, cashT));
 
@@ -43538,12 +43823,20 @@ const LAB_FIGURES = [
     } },
   { key: 'safeCashRequired', label: () => 'Cash required', fmt: 'money0', help: 'propSafeCash',
     read: (m) => m.safeCashRequired,
+    /* While any fee line is not Verified, the headline says how much of it
+       rests on those lines; the row's calculation names each one (the fee
+       rulebook, 70-property.js). Two lines at most on a phone's half-width
+       tile, in Verdana too: longer, it pushed the first slider under the
+       action bar (mobile.mjs, n3-first-view). */
     note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
-      `${labMoney(m.unconfirmedCost)} on unverified fees`].filter(Boolean).join(' · '),
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified or unknown lines` : null].filter(Boolean).join(' · '),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
       + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
-      + `${labMoney(m.unconfirmedCost)} of it rests on fee lines not yet verified against their schedules, ${(m.placeholderCostLines || []).length} of them placeholders (fee table ${FEE_TABLE.version}).` },
+      + (m.unconfirmedCost > 0
+        ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
+        : 'Every fee line in it is verified against its official source or is your own quote')
+      + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
     read: (m) => m.cashflowMonthly,
     note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan has no schedule'
@@ -44081,6 +44374,32 @@ const labScenarioNaming = (lab, col, at = null) => {
   const rec = pmFind(lab.model);
   return { kind: 'scenario', at, value: cpScenarioName(pmDiff(labNext(col), pmInputsOf(rec)), pmInputsOf(rec)) || `Scenario ${(rec.scenarios || []).length + 1}` };
 };
+/* THE GUIDED SAVE (the owner's property track, 8 Oct 2026). A scenario
+   belongs to a saved property, and an unsaved deal has none: "Save this
+   property first" made that the reader's errand — save, then find the
+   column's Save again. One action now asks for both names, the property's
+   and, where the column the sliders move holds figures a scenario would
+   keep, that column's as its scenario; and one Save saves the property,
+   then the scenario, the column's moves carried across (labSaveProperty).
+   The identity line, the commit card, the next step and the phone's bar
+   all start it. Where the column holds nothing a scenario would keep, it
+   is the property's save alone, as before. */
+/* The column holds what-ifs of the reader's — its moves, or those it was
+   copied with — that differ from the deal. Compared figure by figure, not
+   as whole deals: it is asked as the column's moves change, beside a drag
+   (scenario-lab-verify V6). */
+function labScenarioAfterProperty(lab, col) {
+  if (lab.model || !col || !(labMoveCount(col) > 0 || labSourceKind(col) === 'variant')) return false;
+  const deal = State.deal || {};
+  return labMarked(col).some(k => pmCanon(col.work[k]) !== pmCanon(deal[k]));
+}
+const labGuidedWords = (lab, col) => (labScenarioAfterProperty(lab, col) ? `Save this property and ${col.key} as a scenario` : 'Save this property');
+function labGuidedScenario(lab, col) {
+  if (!labScenarioAfterProperty(lab, col)) return null;
+  const base = pmBare(State.deal);
+  return { key: col.key, on: true, value: cpScenarioName(pmDiff(labNext(col), base), base) || 'Scenario 1' };
+}
+const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNameOf(State.deal), scenario: labGuidedScenario(lab, labActive(lab)) });
 /* THE IDENTITY LINE. The name — "Sample deal — not a real listing", or the
    property's — with its place, type and size; Save as the page's one
    primary button; and the regulated claim and the lab's own, whole at
@@ -44108,7 +44427,7 @@ function labIdentityAct(P, lab) {
      one to press: one primary, not two. */
   if (lab.naming?.at === 'identity') return box;
   if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
-    onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property'));
+    onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, labGuidedWords(lab, col)));
   else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
@@ -44178,7 +44497,7 @@ function labNextTile(P, lab, d) {
     sub = `The sample’s: ${isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'}`;
   } else if (!lab.model) {
     kind = { kind: 'unsaved', words: 'Not saved' };
-    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) }, 'Save this property');
+    act = el('button', { type: 'button', class: 'lab-next-go', id, onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, 'Save this property');
     sub = 'Then compare its scenarios';
   } else {
     kind = { kind: 'saved', words: 'Saved' };
@@ -44211,7 +44530,9 @@ function labBarSave() {
   if (!lab) return { aria: 'Nothing to save', disabled: true };
   const col = labActive(lab);
   if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
-  if (!lab.model) return { aria: 'Save this property', run: () => labNaming(P, lab, { kind: 'property', at: 'identity', value: pmNameOf(State.deal) }) };
+  /* The same guided save as the identity line's: the property's name and,
+     where the column holds figures a scenario would keep, its own. */
+  if (!lab.model) return { aria: labGuidedWords(lab, col), run: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) };
   if (labCanSave(lab, col)) return { aria: `Save ${col.key} as a scenario`, run: () => labNaming(P, lab, labScenarioNaming(lab, col, 'identity')) };
   return { aria: 'Saved in this browser', disabled: true, said: `Saved in this browser — move a figure to save ${col.key} as a scenario.` };
 }
@@ -44727,10 +45048,10 @@ function labMetricView(metric, lab) {
         { part: 'improvementCash', value: r.m.improvementCash, label: 'renovation and set-up' },
         ...(isNum(r.m.reserveCash) ? [{ part: 'reserveCash', value: r.m.reserveCash, label: 'reserve' }] : [])],
       note: r => [(r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
-        `${labMoney(r.m.unconfirmedCost)} on unverified fee lines`].filter(Boolean).join(' · '),
+        `${labMoney(r.m.unconfirmedCost)} on unverified or unknown fee lines`].filter(Boolean).join(' · '),
       table: { form: 'stacked', title: 'Cash required: to complete, renovation and set-up, and the reserve' } }));
     vm.words.push('Each bar, from nought: what completion takes, then renovation and set-up (the stronger shade), then the reserve (outlined).');
-    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified fee lines'],
+    vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified or unknown fee lines'],
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(r.m.transactionCash), labMoney(r.m.improvementCash), isNum(r.m.reserveCash) ? labMoney(r.m.reserveCash) : 'cannot be priced',
         `${labMoney(r.m.safeCashRequired)}${(r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
   } else if (metric === 'appreciation') {
@@ -45011,8 +45332,9 @@ function labCommits(P, lab, col) {
     if (kind === 'sc' && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
       `Update scenario “${col.name}”${yours}`));
   } else {
+    /* The guided save: one action, both names (labGuidedNaming). */
     acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
-      onclick: () => labNaming(P, lab, { kind: 'property', value: pmNameOf(State.deal) }) }, 'Save this property first'));
+      onclick: () => labNaming(P, lab, labGuidedNaming(lab)) }, labGuidedWords(lab, col)));
   }
   acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
     `Open ${col.key} in the calculator${yours}`));
@@ -45023,7 +45345,9 @@ function labCommits(P, lab, col) {
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
   const why = [];
-  if (!rec) why.push(`A scenario belongs to a saved property. “Save this property first” saves the deal on the calculator as a property — then ${col.key} can be saved as its scenario.`);
+  if (!rec) why.push(labScenarioAfterProperty(lab, col)
+    ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
+    : `A scenario belongs to a saved property. Save keeps the deal on the calculator as a property; move a figure of ${col.key} and the same Save keeps ${col.key} as its scenario too.`);
   else if (!canSave) why.push(differs ? `${col.key} is saved already, as “${col.name}” — move a figure to save a new scenario, or to update this one.`
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
@@ -45070,10 +45394,36 @@ function labNaming(P, lab, naming) {
 function labNameForm(P, lab, col) {
   const isProp = lab.naming.kind === 'property';
   const fid = labId(P, isProp ? 'property-name' : 'scenario-name');
-  const form = el('form', { class: 'lab-name-form', onsubmit: (e) => { e.preventDefault(); isProp ? labSaveProperty(P, lab, input.value) : labCommitScenario(P, lab, input.value); } });
+  /* The guided save's second name: the column the sliders move now, as its
+     scenario — asked for again if another column was picked meanwhile, and
+     not at all where that column holds nothing a scenario would keep. */
+  let sc = null;
+  if (isProp) {
+    if (!labScenarioAfterProperty(lab, col)) lab.naming.scenario = null;
+    else if (!lab.naming.scenario || lab.naming.scenario.key !== col.key) lab.naming.scenario = labGuidedScenario(lab, col);
+    sc = lab.naming.scenario;
+  }
+  const form = el('form', { class: 'lab-name-form', onsubmit: (e) => {
+    e.preventDefault();
+    if (!isProp) { labCommitScenario(P, lab, input.value); return; }
+    labSaveProperty(P, lab, input.value, sc && sc.on ? { name: scInput.value } : null);
+  } });
   const input = el('input', { type: 'text', class: 'input', id: fid, maxlength: '80', value: lab.naming.value || '', autocomplete: 'off',
     oninput: (e) => { lab.naming.value = e.target.value; } });
-  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${pmFind(lab.model)?.name || ''}”`), input,
+  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${pmFind(lab.model)?.name || ''}”`), input);
+  let scInput = null;
+  if (sc) {
+    const sid = labId(P, 'scenario-name'), cid = labId(P, 'name-with-sc');
+    scInput = el('input', { type: 'text', class: 'input', id: sid, maxlength: '80', value: sc.value || '', autocomplete: 'off', disabled: sc.on ? null : '',
+      oninput: (e) => { sc.value = e.target.value; } });
+    const check = el('input', { type: 'checkbox', id: cid, checked: sc.on ? '' : null, onchange: (e) => {
+      sc.on = e.target.checked; scInput.disabled = !sc.on;
+    } });
+    form.append(el('div', { class: 'lab-name-sc' }, [
+      el('label', { for: cid, class: 'checkline lab-name-check' }, [check, el('span', {}, `Also save ${col.key} as its scenario — ${col.key}’s moves become yours`)]),
+      el('label', { for: sid, class: 'lab-name-label' }, `Name ${col.key} as a scenario of this property`), scInput]));
+  }
+  form.append(
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
@@ -45090,7 +45440,10 @@ function labNameForm(P, lab, col) {
    with as well as its own moves. Rebuilt on the property's figures, a
    copy of a moved column lost what it had copied and went on calling
    itself "Copy of A" (the verification of 4 Oct 2026, F4). */
-function labSaveProperty(P, lab, name) {
+/* `scenario`: the guided save's second half ({ name }) — the active
+   column, once on the property, saved as its scenario (labCommitScenario),
+   in the same action. */
+function labSaveProperty(P, lab, name, scenario = null) {
   const fromId = lab.naming?.at === 'identity';
   const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
   if (!rec) return;
@@ -45106,13 +45459,22 @@ function labSaveProperty(P, lab, name) {
   next.active = lab.active;
   if (P.key === lab.key) P.key = next.key;
   if (labSubject === lab.key) labSubject = next.key;
+  /* The second half of the guided save: the column the sliders move, its
+     moves now moves on the property, kept as a scenario of it. Its own
+     drawing, address and toast follow (labCommitScenario); the property is
+     saved whatever becomes of it, and a refusal is said. */
+  if (scenario) {
+    next.naming = { kind: 'scenario', at: fromId ? 'identity' : null };
+    if (labCommitScenario(P, next, scenario.name, { withProperty: rec })) return;
+    next.naming = null;
+  }
   /* The keyboard on the next thing to do with the column, which the
      property's save leaves enabled — beside the identity line where the
      save was asked for there. */
   labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'save'), labId(P, 'open')]);
   labAfterStructure(P, next, { address: true });
 }
-function labCommitScenario(P, lab, name) {
+function labCommitScenario(P, lab, name, { withProperty = null } = {}) {
   const rec = pmFind(lab.model);
   const col = labActive(lab);
   if (!rec) { toast('That property is no longer saved in this browser'); return null; }
@@ -45134,7 +45496,9 @@ function labCommitScenario(P, lab, name) {
      next thing to do with the column, not to <body>. */
   labDraw(P, [...(fromId ? [labId(P, 'id-save'), labId(P, 'next-go')] : []), labId(P, 'open'), labId(P, `col-${col.key}`)]);
   labAfterStructure(P, lab, { address: true });
-  toast(`Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
+  toast(withProperty
+    ? `Saved “${rec.name}” and ${col.key} as its scenario “${sc.name}” — both are listed in My properties${yours}.${labGateWords(next)}`
+    : `Saved ${col.key} as the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
   return sc;
 }
 function labUpdateScenario(P, lab) {
