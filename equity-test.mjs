@@ -8439,7 +8439,9 @@ try {
       await sleep(400);
       const onSlider = await at();
       (onSlider.at === 'covRange' ? kept : lost).os.push(`the completeness slider → ${onSlider.at}`);
-      const adv = await evaluate(`(() => { const d = [...document.querySelectorAll('main details')].find(x => /Advanced filters/.test(x.querySelector('summary')?.textContent || ''));
+      /* The advanced filters are a section after the results since the
+         second track (8 Oct 2026), each family a disclosure of its own. */
+      const adv = await evaluate(`(() => { const d = document.getElementById('scr-advanced') || [...document.querySelectorAll('main details')].find(x => /Advanced filters/.test(x.querySelector('summary')?.textContent || ''));
         const f = d.querySelector('input'); for (let x = f.closest('details'); x; x = x.parentElement.closest('details')) x.open = true;
         f.scrollIntoView({ block: 'center' }); f.focus(); return document.activeElement === f ? f.id : null; })()`);
       await typeIn('7');

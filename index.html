@@ -23664,6 +23664,11 @@ function renderScreener() {
   /* A template whose criteria have since been changed is no longer applied —
      its pressed state and its banner go with it. */
   if (State.appliedTemplate && !templateStillApplies(sc)) State.appliedTemplate = null;
+  /* With no filed company held — the filed statements did not load, and the
+     page paints the illustrative sample, labelled — the SEC-filed class
+     would cover nothing: the screen covers the illustrative set, and the
+     selector says so. */
+  if (screenClassOf(sc) === 'filed' && !U.some(r => r.c.real)) sc.evidence = 'illustrative';
   const wrap = el('div', { class: 'screener-layout' });
   /* The evidence class the screen covers, and the companies in it: every
      count, exclusion and median below is of these. */
