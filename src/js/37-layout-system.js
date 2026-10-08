@@ -41,10 +41,13 @@
    call to action.
 
    Pages on the system (LS_VIEWS): /property (and /property/lab, the same
-   view) and /property/calculator. The rest come later, one at a time.
+   view), /property/calculator and the Scanner's dashboard, /app/scanner
+   (N5: in its first view the example on a generated series beside the
+   state, and how to run the worker an L3 <details>). The rest come later,
+   one at a time.
    ========================================================================== */
 
-const LS_VIEWS = ['propertyLab', 'property'];
+const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard'];
 const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
 const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
 const lsOn = (view = State.view) => LS_VIEWS.includes(view);

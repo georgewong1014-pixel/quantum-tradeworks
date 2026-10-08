@@ -594,12 +594,16 @@ const HIW_EXAMPLES = {
       'Part of Equities Research: a cash-secured put and covered call cycle, modelled from a contract you enter. No option-chain data is connected.',
       pubLink('/us-options/wheel', { class: 'pub-textlink' }, 'Open the Cash Wheel', pubArrow())),
   ],
+  /* The example on a generated series (N5b; the owner's decision D14c,
+     87-scanner-ops.js) — how a rule is evaluated, and nothing about a
+     market: no market's prices ship with this site. */
   scanner: () => [
+    el('div', { class: 'hiw-scan-ex' }, scanExampleFigure({ id: 'hiw-scan-ex' })),
     hiwFigure(hiwTradingCard(), 'The QT Trading Index',
       'Part of Quantum Scanner: a multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record.',
       pubLink('/research/trading-index', { class: 'pub-textlink' }, 'Open the Trading Index', pubArrow())),
     el('div', { class: 'hiw-aside' }, [pubGlyph('info'), el('p', {},
-      'No example match is shown here. A match is recorded from price history you supply, and none ships with this site — so until yours is there, the scanner’s pages say what they would show.')]),
+      'The example above is drawn on a generated series. A match on your own instruments is recorded from price history you supply, and none ships with this site — so until yours is there, the scanner’s pages say what they would show.')]),
   ],
   property: () => [
     hiwDealCheck(),
@@ -629,11 +633,13 @@ function hiwProduct(p) {
      them is a tap away and the steps and the journey come first; above 760px
      they are open, as the page was drawn. */
   const ex = p.path && HIW_EXAMPLES[p.id] ? HIW_EXAMPLES[p.id]() : null;
+  /* An aside is a note about the examples, not one of them. */
+  const exN = ex ? ex.filter(n => !n.classList?.contains('hiw-aside')).length : 0;
   if (ex && ex.length) {
     const folded = typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
     s.append(el('details', { class: 'hiw-examples', open: folded ? null : '' }, [
       el('summary', { class: 'hiw-examples-sum' }, [el('h3', { class: 'hiw-examples-h' }, 'Worked examples'),
-        el('span', { class: 'hiw-examples-n caption' }, `${ex.length === 1 ? 'One example' : `${ex.length} examples`}, computed by the product’s own model`)]),
+        el('span', { class: 'hiw-examples-n caption' }, `${exN === 1 ? 'One example' : `${exN} examples`}, computed by the product’s own model`)]),
       el('div', { class: 'hiw-examples-body' }, ex),
     ]));
   }

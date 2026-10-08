@@ -1509,8 +1509,8 @@ const HOME_PAGE = read(HOME);
 /* ---- end n3-property-landing ---- */
 /* ---- layout-system ---- */
 /* THE PAGES ON THE LAYOUT SYSTEM, AS SERVED (the owner's decision, 7 Oct
-   2026; 37-layout-system.js). /property and /property/calculator, read as a
-   fetch reads them:
+   2026; 37-layout-system.js). /property, /property/calculator and, since
+   its first view (N5), /app/scanner, read as a fetch reads them:
    - the page is on the system: its view is .ls-view, its root .ls-page;
    - every card is one of the four types, and holds what its type holds —
      a metric its label, its value and its data badge; an action its title,
@@ -1560,7 +1560,9 @@ const HOME_PAGE = read(HOME);
   const CARDISH = ['card', 'panel', 'ls-card', 'lab-tile', 'tile'];
   const FIELD = (x) => ['input', 'select', 'textarea'].includes(x.tag) || ['field', 'range', 'choice'].includes(attrOf(x.raw, 'data-inert'));
   const CONTROL = (x) => x.tag === 'button' || x.tag === 'a' || attrOf(x.raw, 'data-inert') !== null || FIELD(x);
-  const got = await getAll(['/property', '/property/calculator']);
+  /* /app/scanner joined with its first view (N5, 8 Oct 2026). */
+  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner'];
+  const got = await getAll(LS_PAGES);
   /* The stylesheet the pages load. */
   const cssHref = ((got.get('/property')?.body || '').match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];
   const css = cssHref ? (await get(cssHref)).body : '';
@@ -1624,7 +1626,7 @@ const HOME_PAGE = read(HOME);
     }
   }
   const tally = (o) => Object.entries(o).map(([k, v]) => `${v} ${k}`).join(', ');
-  judge(p, `the pages on the layout system (/property, /property/calculator): every card one of the four types with what its type holds (${tally(said.cards)}), every other card-drawn surface a named one (${tally(said.surfaces)}); the seven type tokens defined and all ${said.sizes} sizes written on the pages tokens; the measure --ls-measure ${measure}ch, held on every paragraph, item and definition, and no width written past 70ch`,
+  judge(p, `the pages on the layout system (${LS_PAGES.join(", ")}): every card one of the four types with what its type holds (${tally(said.cards)}), every other card-drawn surface a named one (${tally(said.surfaces)}); the seven type tokens defined and all ${said.sizes} sizes written on the pages tokens; the measure --ls-measure ${measure}ch, held on every paragraph, item and definition, and no width written past 70ch`,
     'a page on the layout system serves a card that is none of the four types, a size off the scale, or a text block let wider than 70ch');
 }
 /* ---- end layout-system ---- */
@@ -1893,6 +1895,158 @@ const HOME_PAGE = read(HOME);
     'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
 }
 /* ---- end home-3a ---- */
+
+/* ---- scanner-first-view ---- */
+/* THE SCANNER'S FIRST VIEW AND ITS EXAMPLE, AS SERVED (the 5 Oct audit's
+   N5a and N5b; the owner's decision D14c, constrained). /app/scanner with
+   no files open, read as a fetch reads it (in sight: not .sr-only, not
+   [hidden], not inside a closed <details> but its summary — build.mjs's
+   sightText, the measure homeBudgets uses; a word is wordsIn's):
+   N5a  "node scanner/scan.mjs" and every data/*.json name are served only
+        inside the closed <details> "Run the worker on your own computer",
+        which also holds the three commands and the eight file names — but
+        for an Unavailable badge's own note (.tool-off: its title and its
+        screen-reader words name the file it lacks, and the badge stays as
+        it is); "No scan has been recorded on this machine" and "by design,
+        not by fault" are in sight, and so are the four Unavailable badges;
+   N5b  on /app/scanner and on /how-it-works#hiw-scanner, one <figure>:
+        its caption "Example — generated series, not a market’s prices",
+        the Illustrative badge linking /data-sources#kinds, an <svg> path of
+        66 points (series A's closes, bars 1–66), the setup's three
+        conditions in the engine's own words at bar 66 — scanEvaluate on
+        scanFixture, from the engine in index.html — each Held or Not held,
+        series B "Not held; RSI cannot be computed on a flat series.", and
+        "Shows how a rule is evaluated — not whether it works, and nothing
+        about any market."; inside it no date (YYYY-MM-DD), no "RM", "US$"
+        or "$", no symbol of the instruments registry or of a filed company,
+        none of "approaching", "watching", "signal", "buy" or "sell", and no
+        state but Held, Not held and Unavailable — in its words and in its
+        attributes;
+        no "N match", "N matches" or "N matched" anywhere on either page;
+        /app/scanner's <main> 300 words or fewer in sight (499 on 8763a283);
+        /how-it-works no longer says "No example match is shown here".
+   Each fails on 8763a283, which served no example and the commands, the
+   file names and the run log's path in sight. */
+{
+  const B = await import('./build.mjs');
+  const { loadEngine } = await import('./scanner/scan.mjs');
+  const E = await loadEngine(join(ROOT, 'index.html'));
+  const p = [], said = {};
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf, sight = B.sightText;
+  const rawText = (n) => { let o = ''; const w = (x) => { for (const k of x.kids || []) { if (k.tag === '#text') o += k.text; else { o += ' '; w(k); } } }; w(n); return decode(o).replace(/\s+/g, ' ').trim(); };
+  const attrsText = (n) => [n, ...all(n)].map(x => [...String(x.raw || '').matchAll(/\s[\w:-]+="([^"]*)"/g)].map(m => decode(m[1])).join(' ')).join(' ');
+  const apos = (s) => String(s).replace(/[’‘]/g, "'");
+  /* What the engine says at bar 66 of series A and of series B. */
+  const fx = E.scanFixture(), setup = E.scanNormaliseSetup(fx.setup), C = E.scanCache();
+  const barsOf = (sym) => E.scanBars(fx.history, sym, { timeframe: '1D', now: fx.now, calendar: E.scanCalendar(fx.history, [], null) });
+  const A = barsOf('MATCH'), Bb = barsOf('FLAT');
+  const rA = E.scanEvaluate(setup.ruleTree, A, { cache: C }), rB = E.scanEvaluate(setup.ruleTree, Bb, { cache: C });
+  const WORD = { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' };
+  /* The registry's symbols and aliases, and every filed company's. */
+  const reg = JSON.parse(read('data/instruments.json')).instruments || [];
+  const us = JSON.parse(read('data/us.json')).results || [];
+  const SYMBOLS = [...new Set([...reg.flatMap(e => [e.symbol, ...(e.aliases || [])]), ...us.map(c => c.id)].filter(Boolean).map(String))];
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const symbolIn = (t) => SYMBOLS.find(s => new RegExp(`(?<![\\w!:/=])${reEsc(s)}(?![\\w!])`).test(t)) || null;
+  const got = await getAll(['/app/scanner', '/how-it-works']);
+  const figureProblems = (path, root) => {
+    const figs = all(root).filter(n => n.tag === 'figure' && has(n, 'scan-ex'));
+    if (figs.length !== 1) { p.push(`${path}: ${figs.length} example figures (figure.scan-ex), not one`); return; }
+    const f = figs[0];
+    if (!B.inSight(f)) p.push(`${path}: the example figure is not in sight`);
+    const cap = all(f).find(n => n.tag === 'figcaption');
+    const capT = cap ? apos(rawText(cap)) : '';
+    if (!capT.includes("Example — generated series, not a market's prices")) p.push(`${path}: the figure's caption is "${capT.slice(0, 90)}", not "Example — generated series, not a market’s prices"`);
+    const badge = all(f).find(n => n.tag === 'a' && has(n, 'kind-badge') && has(n, 'kind-illustrative'));
+    if (!badge || attr(badge, 'href') !== '/data-sources#kinds' || rawText(badge) !== 'Illustrative') p.push(`${path}: the figure carries no Illustrative badge linking /data-sources#kinds`);
+    const svg = all(f).find(n => n.tag === 'svg');
+    const close = svg && all(svg).find(n => n.tag === 'path' && has(n, 'scan-ex-close'));
+    const pts = close ? (attr(close, 'd') || '').match(/[ML]\s*-?[\d.]+[ ,]-?[\d.]+/g)?.length || 0 : 0;
+    said[`${path} points`] = pts;
+    if (pts !== 66) p.push(`${path}: the figure's svg path of series A's closes has ${pts} points, not 66`);
+    const lis = all(f).filter(n => n.tag === 'li' && has(n, 'scan-ex-c'));
+    if (lis.length !== rA.conditions.length) p.push(`${path}: ${lis.length} condition lines, not the setup's ${rA.conditions.length}`);
+    lis.forEach((li, i) => {
+      const c = rA.conditions[i];
+      const text = rawText(all(li).find(n => has(n, 'scan-ex-x')) || { kids: [] });
+      const state = rawText(all(li).find(n => has(n, 'scan-ex-s')) || { kids: [] });
+      if (!c || text !== c.text) p.push(`${path}: condition ${i + 1} reads "${text}", where the engine says "${c?.text}"`);
+      if (!c || state !== WORD[c.state] || attr(li, 'data-state') !== c.state) p.push(`${path}: condition ${i + 1} is marked "${state}" (${attr(li, 'data-state')}), where the engine says ${c?.state}`);
+      if (!['Held', 'Not held'].includes(state)) p.push(`${path}: condition ${i + 1} at bar 66 is "${state}", not Held or Not held`);
+    });
+    const verdict = all(f).find(n => has(n, 'scan-ex-v'));
+    if (!verdict || rawText(verdict) !== WORD[rA.state] || attr(verdict, 'data-state') !== rA.state) p.push(`${path}: the verdict at bar 66 reads "${verdict ? rawText(verdict) : ''}", where the engine says ${rA.state}`);
+    const bLine = all(f).find(n => has(n, 'scan-ex-b'));
+    const bT = bLine ? rawText(bLine) : '';
+    const rsiB = rB.conditions.find(c => c.leftLabel === 'RSI14' || /^RSI/.test(c.text));
+    if (!bT.includes('Not held; RSI cannot be computed on a flat series.') || rB.state !== 'NOT_MET' || rsiB?.state !== 'UNAVAILABLE') p.push(`${path}: series B reads "${bT}" (the engine: ${rB.state}, RSI ${rsiB?.state})`);
+    const note = all(f).find(n => has(n, 'scan-ex-note'));
+    if (!note || rawText(note) !== 'Shows how a rule is evaluated — not whether it works, and nothing about any market.') p.push(`${path}: the figure does not say "Shows how a rule is evaluated — not whether it works, and nothing about any market."`);
+    /* Nothing inside it that a market's page would carry. */
+    const inside = `${rawText(f)} ${attrsText(f)}`;
+    const date = inside.match(/[0-9]{4}-[0-9]{2}-[0-9]{2}/);
+    if (date) p.push(`${path}: a date inside the figure (${date[0]})`);
+    const money = inside.match(/\bRM\b|US\$|\$/);
+    if (money) p.push(`${path}: "${money[0]}" inside the figure`);
+    const sym = symbolIn(inside);
+    if (sym) p.push(`${path}: the symbol ${sym} inside the figure`);
+    const banned = inside.match(/\b(approaching|watching|signal|buy|sell)\b/i);
+    if (banned) p.push(`${path}: "${banned[0]}" inside the figure`);
+    const states = all(f).filter(n => attr(n, 'data-state') !== null);
+    for (const s of states) {
+      if (!['MET', 'NOT_MET', 'UNAVAILABLE'].includes(attr(s, 'data-state'))) p.push(`${path}: a state "${attr(s, 'data-state')}" inside the figure`);
+      const w = rawText(s.tag === 'li' ? (all(s).find(n => has(n, 'scan-ex-s')) || s) : s);
+      if (!['Held', 'Not held', 'Unavailable'].includes(w)) p.push(`${path}: a state reads "${w}" inside the figure`);
+    }
+    said[`${path} states`] = states.length;
+  };
+  for (const [path, r] of got) {
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    const counts = r.body.match(/[0-9]+ (match|matches|matched)\b/gi);
+    if (counts) p.push(`${path}: "${counts[0]}" on the page`);
+  }
+  /* /app/scanner. */
+  const sc = got.get('/app/scanner');
+  if (sc?.status === 200) {
+    const main = all(B.htmlTree(sc.body)).find(n => n.tag === 'main');
+    if (!main) p.push('/app/scanner: no <main>');
+    else {
+      figureProblems('/app/scanner', main);
+      const run = all(main).filter(n => n.tag === 'details' && attr(n, 'open') === null && sight(n.kids.find(k => k.tag === 'summary') || { kids: [] }) === 'Run the worker on your own computer');
+      if (run.length !== 1) p.push(`/app/scanner: ${run.length} closed <details> "Run the worker on your own computer", not one`);
+      const fold = run[0] ? rawText(run[0]) : '';
+      for (const want of ['How the scan runs', 'node scanner/scan.mjs', 'node ingest/daily.mjs', 'node scanner/scan.mjs --status',
+        'scan-runs, scan-alerts, scan-setups, price-history, price-adjustments, scan-control, scan-deliveries, ingest-runs'])
+        if (!fold.includes(want)) p.push(`/app/scanner: the closed <details> does not hold "${want}"`);
+      /* Every run of words that names a command or a data file: inside the
+         <details>, or an Unavailable badge's own note. */
+      const texts = [];
+      const walk = (n, inRun, inBadge) => { for (const k of n.kids || []) { if (k.tag === '#text') texts.push({ t: decode(k.text), inRun, inBadge }); else walk(k, inRun || run.includes(k), inBadge || has(k, 'tool-off')); } };
+      walk(main, false, false);
+      const loose = texts.filter(x => !x.inRun && !x.inBadge && /node scanner\/scan\.mjs|data\/[\w.-]+\.json/.test(x.t));
+      said.loose = loose.length;
+      loose.slice(0, 4).forEach(x => p.push(`/app/scanner: outside the closed <details>: "${x.t.trim().slice(0, 100)}"`));
+      const seen = sight(main);
+      for (const want of ['No scan has been recorded on this machine', 'by design, not by fault']) if (!seen.includes(want)) p.push(`/app/scanner: "${want}" is not in sight`);
+      const unav = all(main).filter(n => has(n, 'status-badge') && has(n, 'status-unavailable') && B.inSight(n) && rawText(n) === 'Unavailable');
+      said.unavailable = unav.length;
+      if (unav.length < 4) p.push(`/app/scanner: ${unav.length} Unavailable badges in sight, not the four`);
+      said.words = B.wordsIn(seen).length;
+      if (said.words > 300) p.push(`/app/scanner: ${said.words} words in sight in <main>, more than 300`);
+    }
+  }
+  /* /how-it-works#hiw-scanner. */
+  const hw = got.get('/how-it-works');
+  if (hw?.status === 200) {
+    const sec = all(B.htmlTree(hw.body)).find(n => attr(n, 'id') === 'hiw-scanner');
+    if (!sec) p.push('/how-it-works: no #hiw-scanner');
+    else figureProblems('/how-it-works#hiw-scanner', sec);
+    if (/No example match is shown here/.test(hw.body)) p.push('/how-it-works: still says "No example match is shown here"');
+  }
+  judge(p, `the Scanner's first view (N5a, N5b, D14c): /app/scanner ${said.words} words in sight (≤300), the commands and the data files only in the closed "Run the worker on your own computer" or an Unavailable badge's note, "No scan has been recorded" and "by design, not by fault" in sight with ${said.unavailable} Unavailable badges; one example figure there and on /how-it-works#hiw-scanner — "Example — generated series, not a market’s prices", Illustrative to /data-sources#kinds, ${said['/app/scanner points']} points, the engine's three conditions at bar 66 word for word, series B Not held for RSI on a flat series, the caption — with no date, currency, registry symbol, banned word or other state in it; no "N match" on either page`,
+    'the Scanner\'s first view and its example (N5a, N5b) are not served as accepted');
+}
+/* ---- end scanner-first-view ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);
