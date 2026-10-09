@@ -5991,10 +5991,54 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .pe-try { margin: var(--ls-related) 0 0; }
 .pc-sub-ev { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; flex-basis: 100%; margin-top: 4px; }
 .pc-sub-comps { border: 0; margin: 0; padding: 0; min-width: 0; }
+/* The comparables pick (83-property-decision.js, comparablesPick): each of
+   the reader's records a row — its words, the Yours badge, its source and
+   standing on a line of their own — a 44px target on a phone. */
+.comp-pick { border: 0; margin: var(--ls-group) 0 0; padding: 0; min-width: 0; }
+.comp-pick-legend { margin: 0 0 6px; padding: 0; }
+.comp-pick-row { display: flex; align-items: flex-start; gap: 8px; margin-top: 4px; min-width: 0; cursor: pointer; }
+.comp-pick-row input { margin-top: 3px; flex: none; }
+.comp-pick-words { min-width: 0; font-size: var(--ls-support); line-height: 1.45; overflow-wrap: anywhere; }
+.comp-pick-src { display: block; font-size: var(--ls-meta); color: var(--ink-2); overflow-wrap: anywhere; }
+.comp-pick-apart { margin: var(--ls-related) 0 0; }
+/* THE GUIDED EVIDENCE FLOW (90-area-screen.js, evidenceFlowCard): five
+   numbered steps, each a fieldset; the choices a row of chips that scrolls
+   sideways on a phone (ls-chips), every control a 44px target there. */
+.ef-lede { max-width: 70ch; margin: 4px 0 var(--ls-group); }
+.ef-step { border: 0; border-top: 1px solid var(--line); margin: 0; padding: var(--ls-group) 0 0; min-width: 0; }
+.ef-step + .ef-step { margin-top: var(--ls-group); }
+.ef-legend { display: flex; align-items: center; gap: 8px; padding: 0; font-size: var(--ls-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.ef-n { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--ink-2); font-size: var(--ls-meta); font-weight: 600; flex: none; }
+.ef-row { display: flex; flex-wrap: wrap; gap: var(--ls-related) var(--ls-group); margin-top: var(--ls-related); min-width: 0; }
+.ef-field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 14rem; min-width: 0; max-width: 30rem; }
+.ef-field label { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.ef-field .input, .ef-field .select { width: 100%; min-height: 40px; box-sizing: border-box; }
+.ef-hint { margin: 2px 0 0; max-width: 70ch; }
+.ef-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--ls-related); }
+.ef-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: var(--ls-support); background: var(--surface); }
+.ef-chip input { margin: 0; }
+.ef-chip.is-on { border-color: var(--ink); font-weight: 600; }
+.ef-chip:focus-within { outline: 2px solid var(--focus, var(--ink)); outline-offset: 2px; }
+.ef-act { margin: var(--ls-related) 0 0; }
+.ef-done { margin-top: var(--ls-group); padding: var(--md); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2, var(--surface)); }
+.ef-done-what { margin: 0; font-size: var(--ls-support); overflow-wrap: anywhere; }
+.ef-done .metaline { overflow-wrap: anywhere; max-width: 70ch; }
+.ef-empty .ef-start { margin-top: 6px; }
+@media (max-width: 639.98px) {
+  .ef-chip, .ef-field .input, .ef-field .select, .ef .btn, .ef-start { min-height: 44px; }
+  .ef-chips { flex-wrap: nowrap; overflow-x: auto; }
+  .ef-chip { flex: none; }
+}
+.pe-ask { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ls-related); margin-top: var(--ls-group); min-width: 0; }
+.pe-ask-label { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.pe-ask-input { width: 9rem; min-height: 40px; text-align: right; }
 @media (max-width: 639.98px) {
   .pe-target { flex-direction: column; align-items: stretch; }
   .pe-target-input { min-height: 44px; }
   .pe-try .btn { min-height: 44px; }
+  .comp-pick-row { min-height: 44px; align-items: center; }
+  .pe-ask { flex-direction: column; align-items: stretch; }
+  .pe-ask-input { min-height: 44px; width: 100%; }
 }
 
 /* THE AUCTION RISK MODE (the property decision layer, P3;
@@ -41078,6 +41122,21 @@ function observationStanding(o) {
   if (o.sample)
     return { id:'sample', label:'Worked example', tone:'chip chip-bronze',
              why:'Part of the worked example. This figure was invented to demonstrate the tool — there is no property, no document and no transaction behind it. Remove the worked example from the comparables register when you no longer need it.' };
+  /* A LOCALITY-LEVEL RECORD (the guided evidence flow, the owner's decision
+     of 9 Oct 2026, audit item #6): a figure the reader recorded against a
+     locality, with its source and date, and no building. Whatever its
+     source, it is never a verified building transaction: checked by the
+     reader against its source, or not — said so — and it clears no gate. */
+  if (o.scope === 'area') {
+    const src = !o.sourceRef || !String(o.sourceRef).trim();
+    if (src) return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
+      why:'Nothing says where this figure came from, so it cannot be checked by anyone else. It is a note, not evidence.' };
+    return o.reviewedBy && String(o.reviewedBy).trim()
+      ? { id:'area_checked', label:'Checked by you — locality level', tone:'chip',
+          why:`You recorded this against ${o.area || 'a locality'} and checked it against its source${o.reviewedAt ? ` on ${o.reviewedAt}` : ''}. Your record: not a verified transaction of any building, and it lifts no grade.` }
+      : { id:'area_unchecked', label:'Not checked — locality level', tone:'chip chip-bronze',
+          why:`You recorded this against ${o.area || 'a locality'} with its source, and have not checked it against that source yet. Your record: not a verified transaction of any building, and it lifts no grade.` };
+  }
   const ev = evidenceOf(o.evidence);
   if (!o.sourceRef || !String(o.sourceRef).trim())
     return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
@@ -41174,9 +41233,27 @@ function dealComparableChoices(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
   return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
 }
-const comparableName = (o) => [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', ');
+const comparableName = (o) => (o.scope === 'area'
+  /* A locality-level record names no building: its kind and its place. */
+  ? `${OBS_BY_ID[o.kind]?.label || 'A record'} recorded in ${o.area || townName(o.city)}`
+  : [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', '));
+/* Where a record came from, as it is said beside it wherever it is used:
+   its source (the address of a web page, or the document) — "no source
+   recorded" where there is none. */
+const comparableSource = (o) => (String(o?.sourceRef || '').trim() || 'no source recorded');
+/* THE ASKING PRICES THAT CAN BE NAMED, APART (the owner's decision of 9 Oct
+   2026: asking and achieved prices are never mixed in one median). An
+   asking price of the deal's kind in its town, the reader's own: shown
+   beside the comparable value as its own median, never in it. */
+const PRICE_ASK_KINDS = { residential: 'ask-price', commercial: 'ask-price', land: 'land-ask' };
+function dealAskingChoices(d) {
+  const kind = PRICE_ASK_KINDS[propertyClassOf(d)];
+  return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
+const medianOf = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
 function priceGap(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  const askKind = PRICE_ASK_KINDS[propertyClassOf(d)];
   const areaKey = kind === 'land-sold' ? 'landSqft' : 'sqft';
   const ids = Array.isArray(d?.comparableIds) ? d.comparableIds : [];
   const all = State.observations || [];
@@ -41184,24 +41261,29 @@ function priceGap(d) {
   /* A record named before the class changed, or since removed, is said, not
      used: a land sale does not value a condominium. */
   const used = named.filter(o => o.kind === kind && !o.sample && isNum(o.value) && o.value > 0);
-  const notUsed = ids.length - used.length;
+  /* Asking prices named: set apart, with their own median — never in the
+     comparable value, which is achieved prices only. */
+  const asked = named.filter(o => o.kind === askKind && !o.sample && isNum(o.value) && o.value > 0);
+  const notUsed = ids.length - used.length - asked.length;
   const subjectArea = num0(d?.[areaKey]);
-  const comps = used.map(o => {
+  const each = (o) => {
     const area = num0(o[areaKey]);
     const byRate = area > 0 && subjectArea > 0;
     return { id: o.id, name: comparableName(o), price: o.value, date: o.date || null, evidence: o.evidence || null,
-      standing: observationStanding(o), area: area || null,
+      standing: observationStanding(o), area: area || null, source: comparableSource(o), scope: o.scope || null,
       implied: byRate ? o.value / area * subjectArea : o.value, basis: byRate ? 'rate' : 'price',
       rate: area > 0 ? o.value / area : null };
-  });
-  const vals = comps.map(c => c.implied).sort((a, b) => a - b);
-  const value = vals.length ? (vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2) : null;
+  };
+  const comps = used.map(each);
+  const askingComps = asked.map(each);
+  const value = medianOf(comps.map(c => c.implied));
+  const askingValue = medianOf(askingComps.map(c => c.implied));
   const asking = isNum(d?.askingPrice) && d.askingPrice > 0 ? d.askingPrice : null;
   const price = num0(d?.price) > 0 ? num0(d.price) : null;
   const gapOf = (p) => (isNum(p) && isNum(value) && value > 0 ? { amount: p - value, pct: (p - value) / value * 100 } : null);
   return {
     status: !comps.length ? 'no-comparables' : !asking ? 'no-asking' : 'ok',
-    kind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed,
+    kind, askKind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed, askingComps, askingValue,
     asking, askingGap: gapOf(asking), price, priceGap: gapOf(price),
     /* Asking less negotiated: what the negotiation took off, or added. */
     negotiated: isNum(asking) && isNum(price) ? asking - price : null,
@@ -47546,7 +47628,7 @@ VIEWS.property = () => {
       cashB.append(el('tr', { class: 'pc-opt-row', 'data-optional': x.id }, [
         el('td', { style: 'padding-left:var(--md)' }, [
           x.label, ' ', kindBadge('unavailable', { fine: 'not included' }),
-          el('span', { class: 'pc-fee-prov', 'data-fee-provenance': 'optional' }, `Not included — ${x.why}`),
+          el('span', { class: 'pc-fee-prov', 'data-fee-provenance': 'optional' }, `Not included — ${x.why.charAt(0).toLowerCase()}${x.why.slice(1)}`),
           el('span', { class: 'pc-fee-kind', 'data-fee-kind': 'optional' }, FEE_TABLE.categories.optional),
           el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
             onclick: () => { if (setDealAnswer(d, 'mortgageProtection', 'included')) { saveDeal(); renderKeepFocus(); toast(`Mortgage protection included at the rulebook’s ${fmtAmount(x.estimate, 'MYR')} estimate — enter your quote on the financing panel to replace it.`); } } },
@@ -52165,7 +52247,18 @@ function labPriceSection(P, lab) {
   const d = labAnswerInputs(lab);
   const target = d ? priceTargetControls({ d, prefix: P.idPrefix, answer: (k, v) => labAnswer(P, lab, k, v) }) : null;
   const tryBox = el('div', { class: 'pe-try', id: labId(P, 'pe-try') });
-  card.append(route, cards, target, tryBox);
+  /* THE EVIDENCE, HERE (the guided evidence flow, 9 Oct 2026): the asking
+     price and the comparables from the reader's register, named in the Lab
+     as answers of the property — every column, a what-if until Save. */
+  const askId = labId(P, 'pe-asking');
+  const ask = d ? el('div', { class: 'pe-ask' }, [
+    el('label', { for: askId, class: 'pe-ask-label' }, 'Asking price (RM)'),
+    el('input', { class: 'input input-inline pe-ask-input', id: askId, type: 'number', inputmode: 'decimal', min: '0', step: '1000',
+      value: isNum(d.askingPrice) ? String(d.askingPrice) : '', placeholder: 'not entered',
+      onchange: (e) => { const raw = String(e.target.value).trim(); labAnswer(P, lab, 'askingPrice', raw === '' ? null : raw); } }),
+  ]) : null;
+  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables this price is set against — from your register', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
+  card.append(route, cards, target, tryBox, ask, pick);
   P.els.pe = { card, route, cards, tryBox, sig: null };
   return card;
 }
@@ -52238,7 +52331,9 @@ function labAuctionSection(P, lab) {
     const answer = (k, v) => labAnswer(P, lab, k, v);
     const named = priceGap(d).comps.length;
     card.append(auctionInputs({ d, prefix: P.idPrefix, answer,
-      extra: { market: el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register in the calculator count as well.` : 'Comparables from your register are named in the calculator.') } }));
+      extra: { market: el('div', {}, [
+        el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register count${named === 1 ? 's' : ''} as well, with ${named === 1 ? 'its' : 'their'} source and date.` : 'Transacted prices from your register, named below, count as well.'),
+        comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables from your register', toggle: (ids) => answer('comparableIds', ids) })]) } }));
     card.append(auctionChecklist({ d, prefix: P.idPrefix, answer }));
   }
   P.els.au = { card, figs, sig: null };
@@ -53638,8 +53733,37 @@ VIEWS.propertyLab = () => {
     lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
+  /* A record the reader asked to use from the comparables register (the
+     guided evidence flow): named once the page is up, as an answer. */
+  const pend = State.labUseComparable;
+  if (pend) { State.labUseComparable = null; setTimeout(() => labUseComparable(pend), 0); }
   return wrap;
 };
+/* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of
+   9 Oct 2026): a record of the reader's register named in the Lab's
+   comparables, as an answer of the property — every column, a what-if
+   until Save, as anything answered here. A record of another town, or of
+   a kind this property's price is not set against, is said, not used. */
+function labUseComparable(id) {
+  const P = [...LAB_PANELS].find(p => p.address && p.node.isConnected);
+  const lab = P && LAB[P.key];
+  const d = lab && labAnswerInputs(lab);
+  const o = (State.observations || []).find(x => x && x.id === id);
+  if (!d || !o) return false;
+  const usable = [...dealComparableChoices(d), ...dealAskingChoices(d)].some(x => x.id === id);
+  if (!usable) {
+    toast(o.city !== d.city
+      ? `That record is in ${townName(o.city)}; the property in the Lab is in ${townName(d.city)} — it is set against records of its own town.`
+      : `That record is ${(OBS_BY_ID[o.kind]?.label || 'a record').toLowerCase()}: this property’s price is set against prices of its own kind.`);
+    return false;
+  }
+  const ids = [...new Set([...(Array.isArray(d.comparableIds) ? d.comparableIds : []), id])];
+  labAnswer(P, lab, 'comparableIds', ids);
+  const row = document.querySelector(`[data-comp="${CSS.escape(id)}"]`);
+  if (row) { row.scrollIntoView({ block: 'center' }); row.querySelector('input')?.focus({ preventScroll: true }); }
+  toast(`${comparableName(o)} named in the Lab’s comparables — a what-if of every column until you save.`);
+  return true;
+}
 /* ==========================================================================
    THE PROPERTY DECISION LAYER — P1 AND P2 (the owner's brief, 7 Oct 2026:
    briefs/README-property-decision-layer.md; the owner's answers: the lens
@@ -53815,15 +53939,21 @@ const pqMoney = (v) => fmtMoney(v, 'MYR', 0);
 const pqSigned = (v) => `${v < 0 ? '−' : '+'}${pqMoney(Math.abs(v))}`;
 const pqPctAbs = (v) => `${fmtNum(Math.abs(v), 1)}%`;
 const pqWhen = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'undated'; };
-const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, ${c.standing.label.toLowerCase()}`;
+/* A comparable as it is named wherever it is used: what and where, its
+   amount, its date and its source, and its standing — the source and the
+   date travel with it (the owner's decision of 9 Oct 2026). */
+const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, source: ${c.source || 'no source recorded'}, ${c.standing.label.toLowerCase()}`;
+const pqAskingWords = (g) => (g.askingComps?.length
+  ? `Asking prices you named, set apart and never in that value: ${g.askingComps.length === 1 ? pqMoney(g.askingValue) : `a median of ${pqMoney(g.askingValue)} over ${g.askingComps.length}`} — ${g.askingComps.map(pqCompWords).join('; ')}.`
+  : '');
 
 /* The gap, in words: the asking price against the comparable value. */
 function priceGapWords(g) {
   const n = g.comps.length, named = `the ${n === 1 ? 'comparable' : `${n} comparables`} you named`;
   const ag = g.askingGap;
   const finding = !ag ? null : Math.abs(ag.amount) < 0.5
-    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} imply.`
-    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} imply.`;
+    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} ${n === 1 ? 'implies' : 'imply'}.`
+    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} ${n === 1 ? 'implies' : 'imply'}.`;
   const pg = g.priceGap;
   const price = !pg ? null : Math.abs(pg.amount) < 0.5 ? `The price modelled, ${pqMoney(g.price)}, is that value.`
     : `The price modelled, ${pqMoney(g.price)}, is ${pqMoney(Math.abs(pg.amount))} (${pqPctAbs(pg.pct)}) ${pg.amount > 0 ? 'above' : 'below'} it.`;
@@ -53832,14 +53962,17 @@ function priceGapWords(g) {
 /* How the gap is worked out (L3): each named comparable, what it implies
    and why, and the median. */
 function priceGapFormula(g) {
-  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.';
+  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.'
+    + (g.askingComps?.length ? ` ${pqAskingWords(g)}` : '');
   const area = g.areaKey === 'landSqft' ? 'land area' : 'built-up area';
-  const each = g.comps.map(c => c.basis === 'rate'
+  const each = g.comps.map(c => (c.basis === 'rate'
     ? `${c.name}: ${pqMoney(c.price)} ÷ ${fmtNum(c.area, 0)} sq ft = ${pqMoney(c.rate)} a sq ft × this property’s ${fmtNum(g.subjectArea, 0)} sq ft = ${pqMoney(c.implied)}`
-    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`);
+    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`)
+    + ` — ${pqWhen(c.date)}, source: ${c.source}`);
   return `${each.join('; ')}. The comparable value is the median of ${g.comps.length === 1 ? 'that one figure' : `these ${g.comps.length}`}: ${pqMoney(g.value)}.`
     + (g.asking ? ` Asking ${pqMoney(g.asking)} − ${pqMoney(g.value)} = ${pqSigned(g.askingGap.amount)}.` : ' No asking price is entered.')
-    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a transacted price of this kind of property.` : '')
+    + (g.askingComps?.length ? ` ${pqAskingWords(g)}` : '')
+    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a price of this kind of property.` : '')
     + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
 }
 /* The solve, in words. */
@@ -53881,7 +54014,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
     cards.append(lsInsightCard({ label: 'Price gap', cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': String(g.askingGap.amount) },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
-      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`]),
+      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`, g.askingComps?.length ? ` ${pqAskingWords(g)}` : '']),
       cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
   } else {
     const missing = g.status === 'no-comparables'
@@ -53985,28 +54118,48 @@ function pcSubsaleInputs(d) {
 /* The comparables, from the reader's register, named one by one — for the
    subsale's price gap and the auction's market value alike. */
 function pcComparablesFieldset(d, legend) {
-  const choices = dealComparableChoices(d);
+  return comparablesPick({ d, prefix: 'pc', legend, cls: 'pc-sub-comps',
+    toggle: (ids) => { if (setDealAnswer(d, 'comparableIds', ids)) { saveDeal(); renderKeepFocus(); } } });
+}
+/* THE COMPARABLES PICK — the calculator's and the Lab's (the guided evidence
+   flow, the owner's decision of 9 Oct 2026). The reader's own records of
+   this town, each named with its amount, its date, its source and its
+   standing, and the Yours badge: the transacted prices, which make the
+   comparable value, and apart from them the asking prices, which never
+   enter it. `toggle(ids)` writes the list named — on the calculator to the
+   deal, on the Lab as an answer of every column (a what-if until Save). */
+function comparablesPick({ d, prefix, legend, toggle, cls = '' }) {
+  const choices = dealComparableChoices(d), asks = dealAskingChoices(d);
   const ids = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
   const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city;
-  const fs = el('fieldset', { class: 'pc-sub-comps', id: 'pc-sub-comps' });
-  fs.append(el('legend', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, legend));
-  if (!choices.length) fs.append(el('p', { class: 'metaline' },
-    `No ${PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold' ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one under “What you have recorded”, above, or in the comparables register.`));
-  choices.forEach(o => {
-    const id = `pc-comp-${slugParam(o.id)}`;
+  const land = PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold';
+  const fs = el('fieldset', { class: `comp-pick ${cls}`.trim(), id: `${prefix}-sub-comps` });
+  fs.append(el('legend', { class: 'eyebrow comp-pick-legend' }, legend));
+  const row = (o) => {
+    const id = `${prefix}-comp-${slugParam(o.id)}`;
     const st = observationStanding(o);
-    fs.append(el('label', { class: 'pc-sub-comp', style: 'gap:8px;display:flex;align-items:flex-start;margin-top:4px' }, [
+    return el('label', { class: 'comp-pick-row', for: id, 'data-comp': o.id }, [
       el('input', { type: 'checkbox', id, checked: ids.has(o.id) ? '' : null, onchange: (e) => {
         const next = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
         if (e.target.checked) next.add(o.id); else next.delete(o.id);
-        if (setDealAnswer(d, 'comparableIds', [...next])) { saveDeal(); renderKeepFocus(); }
+        toggle([...next]);
       } }),
-      el('span', {}, `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)} · ${st.label}`),
-    ]));
-  });
+      el('span', { class: 'comp-pick-words' }, [
+        `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)}`,
+        ' ', kindBadge('yours', { fine: 'your own record', link: false }),
+        el('span', { class: 'comp-pick-src' }, `Source: ${comparableSource(o)} · ${st.label}`)]),
+    ]);
+  };
+  if (!choices.length) fs.append(el('p', { class: 'metaline' },
+    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one in the comparables register, step by step: its locality, its source and date, and what it is.`));
+  choices.forEach(o => fs.append(row(o)));
+  if (asks.length) {
+    fs.append(el('p', { class: 'metaline comp-pick-apart' }, `Asking prices — shown apart, with their own median: an asking price is somebody’s hope, and is never in the value the transacted prices imply.`));
+    asks.forEach(o => fs.append(row(o)));
+  }
   fs.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
-    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
-      'Open the comparables register')]));
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), id: `${prefix}-comp-register`, onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+      choices.length || asks.length ? 'Open the comparables register' : 'Record one in the comparables register')]));
   return fs;
 }
 /* The two figures, on the calculator: the cards, the target, what the
@@ -54212,7 +54365,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
     attrs: { 'data-au-fig': 'discount', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': td ? String(td.pct) : '' },
     sub: td ? `${td.amount >= 0
         ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under the ${auMoney(a.market)} market value your comparables imply`
-        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${auNotFinal(a)}`
+        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
       : 'Enter comparable prices, or name comparables from your register: the market value is theirs, never a market figure.' }));
   const f = a.forfeiture;
   cards.append(lsMetricCard({ label: 'Forfeiture exposure', badge: auBadge(f.status === 'ok' ? 'yours' : 'unavailable', f.status === 'ok' ? 'the Proclamation’s terms you entered' : 'terms not entered'), level: 2, cls: 'au-card au-forfeit',
@@ -54231,7 +54384,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 
 /* L3: the working, in words. */
 function auctionWaterfallFormula(a) {
-  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''}`);
+  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
   const typed = a.marketFrom.typed.map((c, i) => `your comparable price ${i + 1}, ${auMoney(c.price)}`);
   const mv = isNum(a.market) ? `Market value: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Market value: none — no comparable is entered or named, so the true discount is Unavailable.';
   const t = a.adds.find(x => x.id === 'transaction');
@@ -61210,6 +61363,11 @@ VIEWS.areas = () => {
     shown.length === names.length
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
       : 'Filtered. The map shades the same set.'));
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said where its absence is seen (the daily audit's item #6). */
+  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -61270,6 +61428,9 @@ function areaRecorder(city, area) {
   const box = el('div', { class: 'sunk',
     style: 'margin:var(--sm);width:calc(100cqw - 2 * var(--sm));box-sizing:border-box;position:sticky;left:var(--sm);white-space:normal' });
   box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, `Record for ${area}`));
+  /* A price or a rent goes through the guided flow on the register, with
+     this locality already chosen (the owner's decision of 9 Oct 2026). */
+  box.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:var(--md)' }, efStartLink(city, area, `Record a price or a rent for ${area}, step by step`, `area-ef-${String(area).replace(/[^A-Za-z0-9]+/g, '-')}`)));
   box.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     'Each fact is saved on its own, with its own source and date — a title class established from the title '
     + 'document and a flood account from a neighbour are not the same evidence and are never dated together.'));
@@ -61365,11 +61526,166 @@ function areaRecorder(city, area) {
   return box;
 }
 
+/* ==========================================================================
+   THE GUIDED EVIDENCE FLOW (the owner's decision of 9 Oct 2026, the daily
+   audit's item #6: the area screen showed Kuching's localities with nothing
+   recorded, and the register was empty, with no way in but a form on the
+   calculator). Five steps, one card, on the register:
+     1 the locality — the town and one of its localities;
+     2 the source — a web page's address or a document — and its date;
+     3 what it is — a transaction price, an asking price, an achieved rent
+       or an asking rent — and the amount;
+     4 whether you checked it against the source yourself;
+     5 record it, and use it: a price is named in the Scenario Lab's
+       comparables (a what-if until saved), where the price gap and the
+       auction's market value take it with its source and date.
+   WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
+   Locality-level: it names no building, and whatever its source it is never
+   a verified building transaction (observationStanding: scope 'area') — it
+   clears no grade gate. Asking and achieved are never mixed in one median.
+   Nothing is filled in for the reader: every field starts empty but the
+   town and locality, which start at the deal's.
+   ========================================================================== */
+const EF_KINDS = [['sold-price', 'Transaction price', 'RM'], ['ask-price', 'Asking price', 'RM'], ['let-rent', 'Achieved rent', 'RM a month'], ['ask-rent', 'Asking rent', 'RM a month']];
+const EF_PRICE = new Set(['sold-price', 'ask-price']);
+function efState() {
+  const S = (State.evidenceFlow ||= {});
+  if (!S.draft) {
+    const city = S.city || State.deal?.city || 'kuching';
+    S.draft = { city, area: S.area || (city === State.deal?.city ? State.deal?.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
+      srcKind: '', src: '', date: '', kind: '', value: '', sqft: '', checked: '' };
+  }
+  return S;
+}
+const efLocalities = (city) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  const mapped = Object.keys(sarawakGeo?.cities?.[city]?.areas || {});
+  const recorded = (State.observations || []).filter(o => o.city === city && o.area).map(o => o.area);
+  return [...new Set([...(def?.districts || []), ...mapped, ...recorded])];
+};
+/* What is missing before Record can save, in the order asked. */
+function efMissing(dr) {
+  const out = [];
+  if (!dr.city || !dr.area) out.push('the locality');
+  if (!dr.srcKind) out.push('whether the source is a web page or a document');
+  if (!String(dr.src).trim()) out.push(dr.srcKind === 'url' ? 'the web page’s address' : 'the document');
+  else if (dr.srcKind === 'url' && !/^https?:\/\/\S+\.\S+/i.test(String(dr.src).trim())) out.push('a web address starting http:// or https://');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dr.date || '')) out.push('the date');
+  if (!dr.kind) out.push('what it is');
+  if (!(Number(dr.value) > 0)) out.push('the amount');
+  if (!dr.checked) out.push('whether you checked it against the source');
+  return out;
+}
+/* The way into the flow from elsewhere: the town and, where known, the
+   locality chosen — a link, so it reads and works as one with no script. */
+function efStartLink(city, area, words, id) {
+  return el('a', { class: 'btn btn-ghost btn-sm ef-start', id, href: href('/property/comparables#evidence-flow'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault();
+      State.evidenceFlow = { city, area: area || null, draft: null }; navigate('/property/comparables');
+      setTimeout(() => document.getElementById('evidence-flow')?.scrollIntoView({ block: 'start' }), 0); } }, `${words} →`);
+}
+function evidenceFlowCard() {
+  const S = efState(), dr = S.draft;
+  const card = el('section', { class: 'card ef', id: 'evidence-flow', 'aria-labelledby': 'ef-h' });
+  card.append(el('h2', { class: 'h-card', id: 'ef-h' }, 'Record a price or a rent, step by step'));
+  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record, kept in this browser: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
+  const put = (k, v, redraw = false) => { dr[k] = v; if (redraw) renderKeepFocus(); };
+  const step = (n, title, body) => el('fieldset', { class: 'ef-step', 'data-ef-step': String(n) }, [
+    el('legend', { class: 'ef-legend' }, [el('span', { class: 'ef-n', 'aria-hidden': 'true' }, String(n)), title]), ...body]);
+  const field = (id, label, control, hint = null) => el('div', { class: 'ef-field' }, [el('label', { for: id }, label), control, hint ? el('p', { class: 'metaline ef-hint' }, hint) : null]);
+  const radios = (name, opts, cur, onPick) => el('div', { class: 'ef-chips ls-chips', role: 'presentation' }, opts.map(([v, label]) => {
+    const id = `${name}-${v}`;
+    return el('label', { class: `ef-chip${cur === v ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', name, id, value: v, checked: cur === v ? '' : null, onchange: () => onPick(v) }), el('span', {}, label)]);
+  }));
+
+  /* 1 — where */
+  const town = el('select', { class: 'select', id: 'ef-town', onchange: (e) => { dr.city = e.target.value; dr.area = efLocalities(dr.city)[0] || ''; renderKeepFocus(); } },
+    SARAWAK_CITIES.map(c => el('option', { value: c.id, selected: c.id === dr.city ? '' : null }, c.name)));
+  const locs = efLocalities(dr.city);
+  if (dr.area && !locs.includes(dr.area)) locs.unshift(dr.area);
+  const area = el('select', { class: 'select', id: 'ef-area', onchange: (e) => put('area', e.target.value) },
+    locs.map(n => el('option', { value: n, selected: n === dr.area ? '' : null }, n)));
+  card.append(step(1, 'Where', [el('div', { class: 'ef-row' }, [field('ef-town', 'Town', town), field('ef-area', 'Locality', area)])]));
+
+  /* 2 — the source, and its date */
+  const src = el('input', { class: 'input', id: 'ef-src', type: dr.srcKind === 'url' ? 'url' : 'text', value: dr.src, autocomplete: 'off',
+    placeholder: dr.srcKind === 'url' ? 'https://…' : dr.srcKind === 'doc' ? 'e.g. SPA of 3 March 2026, valuation report, tenancy agreement' : 'Choose a web page or a document first',
+    oninput: (e) => put('src', e.target.value) });
+  const date = el('input', { class: 'input', id: 'ef-date', type: 'date', value: dr.date, onchange: (e) => put('date', e.target.value) });
+  card.append(step(2, 'Where it came from, and when', [
+    radios('ef-srckind', [['url', 'A web page'], ['doc', 'A document']], dr.srcKind, (v) => put('srcKind', v, true)),
+    el('div', { class: 'ef-row' }, [field('ef-src', dr.srcKind === 'url' ? 'The page’s address' : dr.srcKind === 'doc' ? 'The document' : 'The page’s address or the document', src),
+      field('ef-date', 'Dated', date, 'The date the price or rent applies — the sale, the listing, the tenancy.')]),
+  ]));
+
+  /* 3 — what it is, and the amount */
+  const kindDef = EF_KINDS.find(k => k[0] === dr.kind);
+  const value = el('input', { class: 'input', id: 'ef-value', type: 'number', inputmode: 'decimal', min: '0', step: '1', value: dr.value,
+    placeholder: kindDef ? kindDef[2] : 'RM', oninput: (e) => put('value', e.target.value) });
+  const body3 = [radios('ef-kind', EF_KINDS.map(k => [k[0], k[1]]), dr.kind, (v) => put('kind', v, true)),
+    el('div', { class: 'ef-row' }, [field('ef-value', `Amount (${kindDef ? kindDef[2] : 'RM'})`, value),
+      EF_PRICE.has(dr.kind) ? field('ef-sqft', 'Floor area (sq ft), if the source gives it', el('input', { class: 'input', id: 'ef-sqft', type: 'number', inputmode: 'decimal', min: '0', step: '1',
+        value: dr.sqft, placeholder: 'optional', oninput: (e) => put('sqft', e.target.value) }), 'With it, the price gap compares by the rate a square foot.') : null])];
+  if (dr.kind) body3.push(el('p', { class: 'metaline ef-hint' }, OBS_BY_ID[dr.kind]?.asking
+    ? 'An asking figure is somebody’s hope: it is kept apart, with its own median, and never mixed with achieved figures.'
+    : 'An achieved figure: what was actually paid. It is never mixed with asking figures.'));
+  card.append(step(3, 'What it is', body3));
+
+  /* 4 — checked? */
+  card.append(step(4, 'Did you check it against the source?', [
+    radios('ef-checked', [['yes', 'Yes, I checked it myself'], ['no', 'Not yet']], dr.checked, (v) => put('checked', v, true)),
+    el('p', { class: 'metaline ef-hint' }, 'Checked or not, it stays your own record at the locality’s level — it is not a verified building transaction and lifts no grade.')]));
+
+  /* 5 — record, then use */
+  const go = el('button', { type: 'button', class: 'btn btn-primary', id: 'ef-record', onclick: () => {
+    const missing = efMissing(dr);
+    if (missing.length) { toast(`Still needed: ${missing.join(', ')}.`); return; }
+    const sq = Number(dr.sqft);
+    const rec = addObservation({ city: dr.city, area: dr.area, kind: dr.kind, value: Number(dr.value), date: dr.date,
+      evidence: 'user', sourceRef: String(dr.src).trim(), sourceKind: dr.srcKind, scope: 'area', guided: true,
+      ...(dr.checked === 'yes' ? { reviewedBy: registerActor() || 'you', reviewedAt: caseRaisedAt(new Date()).slice(0, 10) } : {}),
+      ...(EF_PRICE.has(dr.kind) && sq > 0 ? { sqft: sq, areaUnit: 'sqft' } : {}) });
+    S.last = rec.id; S.city = dr.city; S.area = dr.area; S.draft = null;
+    renderKeepFocus();
+    document.getElementById('ef-use')?.focus();
+    toast(`Recorded in ${dr.area}, ${townName(dr.city)} — your own record, with its source and date.`);
+  } }, 'Record it');
+  card.append(step(5, 'Record it, then use it', [el('p', { class: 'ef-act' }, [go]),
+    el('p', { class: 'metaline' }, 'Kept in this browser only: never sent anywhere, not published with the site.')]));
+
+  const last = S.last && (State.observations || []).find(o => o.id === S.last);
+  if (last) card.append(evidenceFlowDone(last));
+  return card;
+}
+/* The record just made, as it will be used: its words, its badge, its
+   source and date — and where it goes. */
+function evidenceFlowDone(o) {
+  const st = observationStanding(o), k = OBS_BY_ID[o.kind] || {};
+  const box = el('div', { class: 'ef-done', id: 'ef-done', 'data-obs': o.id });
+  box.append(el('p', { class: 'ef-done-what' }, [el('strong', {}, `${k.label || o.kind}: ${fmtMoney(o.value, 'MYR', 0)}${k.unit === 'RM/month' ? ' a month' : ''}`), ' ',
+    kindBadge('yours', { fine: 'your own record' }), ` — ${o.area}, ${townName(o.city)}, dated ${o.date}.`]));
+  box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
+  if (EF_PRICE.has(o.kind)) {
+    box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
+    box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
+      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+  } else {
+    box.append(el('p', { class: 'metaline' }, 'A rent is summarised by locality on the area screen, achieved and asking apart, each with its count.'));
+    box.append(el('p', { class: 'ef-act' }, el('a', { class: 'btn btn-ghost', id: 'ef-use', href: href('/property/areas'),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')));
+  }
+  return box;
+}
+
 VIEWS.comparables = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
   wrap.append(pageHead({ title: 'Sarawak comparables register', lede: 'Transacted prices and achieved rents you have recorded, each with its source.',
     note: 'With what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.' }));
+  wrap.append(evidenceFlowCard());
 
   /* WHO IS RECORDING, AND UNDO.
      Both belong here rather than in a settings page: this is the screen someone
@@ -61433,6 +61749,9 @@ VIEWS.comparables = () => {
        example loaded the card read "17 records" over tiles totalling 1. */
     const tiles = [['Verified', counts.verified || 0], ['Awaiting review', counts.awaiting_review || 0],
        ['Sourced', counts.sourced || 0], ['No source', counts.unsourced || 0],
+       /* Locality-level records (the guided flow): never Verified. */
+       ...(counts.area_checked ? [['Checked by you, locality', counts.area_checked]] : []),
+       ...(counts.area_unchecked ? [['Not checked, locality', counts.area_unchecked]] : []),
        ...(counts.sample ? [['Worked example', counts.sample]] : [])];
     head.append(el('div', { class: tiles.length > 4 ? 'grid grid-5' : 'grid g-4', style: 'margin-top:var(--md)' },
       tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
@@ -62432,7 +62751,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';

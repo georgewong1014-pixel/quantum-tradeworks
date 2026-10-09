@@ -3268,6 +3268,21 @@ function observationStanding(o) {
   if (o.sample)
     return { id:'sample', label:'Worked example', tone:'chip chip-bronze',
              why:'Part of the worked example. This figure was invented to demonstrate the tool — there is no property, no document and no transaction behind it. Remove the worked example from the comparables register when you no longer need it.' };
+  /* A LOCALITY-LEVEL RECORD (the guided evidence flow, the owner's decision
+     of 9 Oct 2026, audit item #6): a figure the reader recorded against a
+     locality, with its source and date, and no building. Whatever its
+     source, it is never a verified building transaction: checked by the
+     reader against its source, or not — said so — and it clears no gate. */
+  if (o.scope === 'area') {
+    const src = !o.sourceRef || !String(o.sourceRef).trim();
+    if (src) return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
+      why:'Nothing says where this figure came from, so it cannot be checked by anyone else. It is a note, not evidence.' };
+    return o.reviewedBy && String(o.reviewedBy).trim()
+      ? { id:'area_checked', label:'Checked by you — locality level', tone:'chip',
+          why:`You recorded this against ${o.area || 'a locality'} and checked it against its source${o.reviewedAt ? ` on ${o.reviewedAt}` : ''}. Your record: not a verified transaction of any building, and it lifts no grade.` }
+      : { id:'area_unchecked', label:'Not checked — locality level', tone:'chip chip-bronze',
+          why:`You recorded this against ${o.area || 'a locality'} with its source, and have not checked it against that source yet. Your record: not a verified transaction of any building, and it lifts no grade.` };
+  }
   const ev = evidenceOf(o.evidence);
   if (!o.sourceRef || !String(o.sourceRef).trim())
     return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
@@ -3364,9 +3379,27 @@ function dealComparableChoices(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
   return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
 }
-const comparableName = (o) => [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', ');
+const comparableName = (o) => (o.scope === 'area'
+  /* A locality-level record names no building: its kind and its place. */
+  ? `${OBS_BY_ID[o.kind]?.label || 'A record'} recorded in ${o.area || townName(o.city)}`
+  : [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', '));
+/* Where a record came from, as it is said beside it wherever it is used:
+   its source (the address of a web page, or the document) — "no source
+   recorded" where there is none. */
+const comparableSource = (o) => (String(o?.sourceRef || '').trim() || 'no source recorded');
+/* THE ASKING PRICES THAT CAN BE NAMED, APART (the owner's decision of 9 Oct
+   2026: asking and achieved prices are never mixed in one median). An
+   asking price of the deal's kind in its town, the reader's own: shown
+   beside the comparable value as its own median, never in it. */
+const PRICE_ASK_KINDS = { residential: 'ask-price', commercial: 'ask-price', land: 'land-ask' };
+function dealAskingChoices(d) {
+  const kind = PRICE_ASK_KINDS[propertyClassOf(d)];
+  return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
+const medianOf = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
 function priceGap(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  const askKind = PRICE_ASK_KINDS[propertyClassOf(d)];
   const areaKey = kind === 'land-sold' ? 'landSqft' : 'sqft';
   const ids = Array.isArray(d?.comparableIds) ? d.comparableIds : [];
   const all = State.observations || [];
@@ -3374,24 +3407,29 @@ function priceGap(d) {
   /* A record named before the class changed, or since removed, is said, not
      used: a land sale does not value a condominium. */
   const used = named.filter(o => o.kind === kind && !o.sample && isNum(o.value) && o.value > 0);
-  const notUsed = ids.length - used.length;
+  /* Asking prices named: set apart, with their own median — never in the
+     comparable value, which is achieved prices only. */
+  const asked = named.filter(o => o.kind === askKind && !o.sample && isNum(o.value) && o.value > 0);
+  const notUsed = ids.length - used.length - asked.length;
   const subjectArea = num0(d?.[areaKey]);
-  const comps = used.map(o => {
+  const each = (o) => {
     const area = num0(o[areaKey]);
     const byRate = area > 0 && subjectArea > 0;
     return { id: o.id, name: comparableName(o), price: o.value, date: o.date || null, evidence: o.evidence || null,
-      standing: observationStanding(o), area: area || null,
+      standing: observationStanding(o), area: area || null, source: comparableSource(o), scope: o.scope || null,
       implied: byRate ? o.value / area * subjectArea : o.value, basis: byRate ? 'rate' : 'price',
       rate: area > 0 ? o.value / area : null };
-  });
-  const vals = comps.map(c => c.implied).sort((a, b) => a - b);
-  const value = vals.length ? (vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2) : null;
+  };
+  const comps = used.map(each);
+  const askingComps = asked.map(each);
+  const value = medianOf(comps.map(c => c.implied));
+  const askingValue = medianOf(askingComps.map(c => c.implied));
   const asking = isNum(d?.askingPrice) && d.askingPrice > 0 ? d.askingPrice : null;
   const price = num0(d?.price) > 0 ? num0(d.price) : null;
   const gapOf = (p) => (isNum(p) && isNum(value) && value > 0 ? { amount: p - value, pct: (p - value) / value * 100 } : null);
   return {
     status: !comps.length ? 'no-comparables' : !asking ? 'no-asking' : 'ok',
-    kind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed,
+    kind, askKind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed, askingComps, askingValue,
     asking, askingGap: gapOf(asking), price, priceGap: gapOf(price),
     /* Asking less negotiated: what the negotiation took off, or added. */
     negotiated: isNum(asking) && isNum(price) ? asking - price : null,

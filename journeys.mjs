@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, scanner, return, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, scanner, return, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1440,6 +1440,80 @@ const JOURNEYS = [
         if (r.market !== 620000 || r.discount === '') throw new StepError(`the market value is ${r.market}, not the median of RM600,000 and RM640,000, and the true discount reads “${r.discount}”`);
         if (!r.unwritten) throw new StepError('the auction was written to the saved property before Save');
         if (!/^Save what and how you are buying to/.test(r.save)) throw new StepError(`with the auction not saved, Save says “${r.save}”`);
+      });
+    },
+  },
+  {
+    /* THE GUIDED EVIDENCE FLOW (the owner's decision of 9 Oct 2026, the
+       daily audit's item #6). A fresh browser, an empty register: the
+       comparables register's guided flow records one transaction price —
+       Tabuan, Kuching; a web page as its source, dated; checked by the
+       reader — and lists it as theirs (Yours), at the locality's level,
+       never Verified. "Use it in the Scenario Lab" names it in the Lab's
+       comparables, a what-if until Save; with an asking price entered the
+       price gap names it with its source and its date; and answered
+       Auction, the market value is the value it implies, named with its
+       source and date. Nothing is written to the calculator's deal. */
+    id: 'evidence', name: 'Property evidence: record a comparable, use it in a scenario',
+    outcomes: ['Record a transaction price, step by step: its locality, source and date', 'Use it in the Scenario Lab: it is named in the comparables',
+      'Enter an asking price: the price gap names it with its source and date', 'Choose Auction: the market value is the value it implies'],
+    async run(j, tab) {
+      const SRC = 'https://example.com/journey-listing';
+      const work = `labActive(LAB[labSubject]).work`;
+      let recId = null;
+      await step(j, tab, 'Open the comparables register: the guided flow, an empty register', BUDGET.load, async () => {
+        await tab.goto('/property/comparables');
+        await tab.expect(`State.view === 'comparables' && !!document.getElementById('evidence-flow')`, 'the comparables register has no guided flow');
+        const n = await tab.eval(`(State.observations || []).length`);
+        if (n !== 0) throw new StepError(`a fresh browser's register holds ${n} records, not none`);
+      });
+      await step(j, tab, 'Record a transaction price, step by step: its locality, source and date', BUDGET.action * 4, async () => {
+        await tab.eval(`(() => { const t = document.getElementById('ef-town'); t.value = 'kuching'; t.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+        await tab.expect(`!!document.getElementById('ef-area')`, 'the locality is not asked');
+        await tab.eval(`(() => { const a = document.getElementById('ef-area'); a.value = 'Tabuan'; a.dispatchEvent(new Event('change', { bubbles: true })); return a.value; })()`);
+        await tab.click(`document.querySelector('label[for="ef-srckind-url"]')`, 'Where it came from — A web page');
+        await tab.fill(`document.getElementById('ef-src')`, SRC, 'The page’s address');
+        await tab.eval(`(() => { const d = document.getElementById('ef-date'); d.value = '2026-09-15'; d.dispatchEvent(new Event('change', { bubbles: true })); return d.value; })()`);
+        await tab.click(`document.querySelector('label[for="ef-kind-sold-price"]')`, 'What it is — Transaction price');
+        await tab.fill(`document.getElementById('ef-value')`, '540000', 'The amount');
+        await tab.click(`document.querySelector('label[for="ef-checked-yes"]')`, 'Checked against the source — yes');
+        await tab.click(`document.getElementById('ef-record')`, 'Record it');
+        await tab.expect(`!!document.getElementById('ef-done')`, async () => `Record it saved nothing: “${await tab.eval(`document.getElementById('toast')?.textContent || ''`)}”`, 4000);
+        const r = JSON.parse(await tab.eval(`(() => { const o = (State.observations || [])[0]; const done = document.getElementById('ef-done');
+          return JSON.stringify({ o: o && { id: o.id, city: o.city, area: o.area, kind: o.kind, value: o.value, date: o.date, sourceRef: o.sourceRef, scope: o.scope, address: o.address },
+            standing: o ? observationStanding(o).id : null, badge: done?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null, text: (done?.textContent || '').replace(/\\s+/g, ' ') }); })()`));
+        const o = r.o;
+        if (!o || o.city !== 'kuching' || o.area !== 'Tabuan' || o.kind !== 'sold-price' || o.value !== 540000 || o.date !== '2026-09-15' || o.sourceRef !== SRC || o.scope !== 'area')
+          throw new StepError(`the record is ${JSON.stringify(o)}`);
+        if (o.address) throw new StepError(`a locality-level record names a building: “${o.address}”`);
+        if (r.standing === 'verified' || r.standing !== 'area_checked') throw new StepError(`its standing is ${r.standing}, not “checked by you — locality level”`);
+        if (r.badge !== 'yours' || !r.text.includes(SRC) || !r.text.includes('2026-09-15')) throw new StepError(`the record shown reads “${r.text.slice(0, 160)}” with the ${r.badge} badge`);
+        recId = o.id;
+      });
+      await step(j, tab, 'Use it in the Scenario Lab: it is named in the comparables', BUDGET.load, async () => {
+        const deal0 = await tab.eval(`JSON.stringify(store.read('deal', null))`);
+        await tab.click(`document.getElementById('ef-use')`, 'Use it in the Scenario Lab');
+        await tab.expect(`State.view === 'propertyLab' && (${work}).comparableIds?.includes(${JSON.stringify(recId)})`, async () => `the Lab opened with ${await tab.eval(`JSON.stringify((${work})?.comparableIds || null)`)} named`, 6000);
+        const box = await tab.eval(`(() => { const n = document.querySelector('[data-comp=${JSON.stringify(JSON.stringify(recId)).slice(1, -1)}] input'); return n ? n.checked : null; })()`);
+        if (box !== true) throw new StepError(`the record's box in the Lab's comparables is ${box === null ? 'not drawn' : 'not ticked'}`);
+        if (await tab.eval(`JSON.stringify(store.read('deal', null))`) !== deal0) throw new StepError('using it wrote the calculator’s deal — it is a what-if until saved');
+      });
+      await step(j, tab, 'Enter an asking price: the price gap names it with its source and date', BUDGET.action * 2, async () => {
+        await tab.fill(`document.getElementById('lab-pe-asking')`, '600000', 'The asking price', { commit: true });
+        await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="gap"]')?.dataset.value === '60000'`,
+          async () => `with RM600,000 asked against RM540,000 the gap card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="gap"]')?.textContent || 'nothing').slice(0, 160)`)}”`, 4000);
+        const t = await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="gap"]')?.textContent || '').replace(/\\s+/g, ' ')`);
+        if (!t.includes(SRC) || !/Sept? 2026/.test(t)) throw new StepError(`the price gap does not name the record with its source and date: “${t.slice(0, 220)}”`);
+      });
+      await step(j, tab, 'Choose Auction: the market value is the value it implies', BUDGET.action * 2, async () => {
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
+        await tab.expect(`!!document.getElementById('lab-au')`, 'Auction chosen, the auction risk mode is not drawn');
+        const r = JSON.parse(await tab.eval(`(() => { const a = auctionModel(${work}); const card = document.querySelector('#lab-au [data-au-fig="discount"]');
+          return JSON.stringify({ market: a.market, named: a.marketFrom.named.map(c => c.id), text: (card?.textContent || '').replace(/\\s+/g, ' ') }); })()`));
+        if (r.market !== 540000 || JSON.stringify(r.named) !== JSON.stringify([recId])) throw new StepError(`the market value is ${r.market} from ${JSON.stringify(r.named)}, not the RM540,000 the record implies`);
+        if (!r.text.includes(SRC) || !/Sept? 2026/.test(r.text)) throw new StepError(`the true discount does not name the record with its source and date: “${r.text.slice(0, 220)}”`);
       });
     },
   },

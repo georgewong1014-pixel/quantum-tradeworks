@@ -3376,7 +3376,7 @@ VIEWS.property = () => {
       cashB.append(el('tr', { class: 'pc-opt-row', 'data-optional': x.id }, [
         el('td', { style: 'padding-left:var(--md)' }, [
           x.label, ' ', kindBadge('unavailable', { fine: 'not included' }),
-          el('span', { class: 'pc-fee-prov', 'data-fee-provenance': 'optional' }, `Not included — ${x.why}`),
+          el('span', { class: 'pc-fee-prov', 'data-fee-provenance': 'optional' }, `Not included — ${x.why.charAt(0).toLowerCase()}${x.why.slice(1)}`),
           el('span', { class: 'pc-fee-kind', 'data-fee-kind': 'optional' }, FEE_TABLE.categories.optional),
           el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
             onclick: () => { if (setDealAnswer(d, 'mortgageProtection', 'included')) { saveDeal(); renderKeepFocus(); toast(`Mortgage protection included at the rulebook’s ${fmtAmount(x.estimate, 'MYR')} estimate — enter your quote on the financing panel to replace it.`); } } },

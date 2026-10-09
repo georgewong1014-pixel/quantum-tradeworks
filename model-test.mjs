@@ -5804,6 +5804,7 @@ try {
       State.observations = keep; saveObservations();
       return { value: g.value, named: g.comps.map(x => [x.id === a.id ? 'a' : x.id === b.id ? 'b' : x.id === c.id ? 'c' : x.id, Math.round(x.implied), x.basis]),
         notUsed: g.notUsed, gap: g.askingGap, status: g.status, value2: g2.value, none: { status: none.status, value: none.value },
+        apart: { ids: (g.askingComps || []).map(x => x.id === asking.id ? 'asking' : x.id), value: g.askingValue },
         choices: { unnamed: choices.includes(unnamed.id), asking: choices.includes(asking.id), sample: choices.includes(sample.id), elsewhere: choices.includes(elsewhere.id) },
         words: priceGapWords(g).finding };
     })()`);
@@ -5812,14 +5813,19 @@ try {
     const p = [];
     if (r.status !== 'ok' || r.value !== 525000) p.push(`the comparable value is ${r.value} (${r.status}), not the median of the three named, 525,000`);
     if (JSON.stringify([...r.named].sort()) !== JSON.stringify(want)) p.push(`worked from ${JSON.stringify(r.named)}, not only the three named transacted prices`);
-    if (r.notUsed !== 3) p.push(`${r.notUsed} named records said unused, not 3 (the asking price, the worked example, the one gone)`);
+    /* Since the guided evidence flow (9 Oct 2026) an asking price named is
+       shown apart, with its own median (700 a sq ft × 1,050 = 735,000),
+       never in the comparable value: the worked example and the record
+       gone are the two not used. */
+    if (r.notUsed !== 2) p.push(`${r.notUsed} named records said unused, not 2 (the worked example, the one gone)`);
+    if (JSON.stringify(r.apart.ids) !== '["asking"]' || r.apart.value !== 735000) p.push(`the asking price named is set apart as ${JSON.stringify(r.apart)}, not alone at RM735,000`);
     if (!r.gap || r.gap.amount !== 85000) p.push(`the gap is ${JSON.stringify(r.gap)}, not RM85,000`);
     if (r.value2 !== r.value) p.push('changing a record not named moved the gap');
     if (r.none.status !== 'no-comparables' || r.none.value !== null) p.push(`with none named the register still gave a value: ${JSON.stringify(r.none)}`);
     if (!r.choices.unnamed || r.choices.asking || r.choices.sample || r.choices.elsewhere) p.push(`offered for naming: ${JSON.stringify(r.choices)}`);
     if (!/the 3 comparables you named imply/.test(r.words || '')) p.push(`said: "${r.words}"`);
     if (p.length) fail('p2 R4: the price gap is worked out only from the comparables named', p);
-    else ok(`p2 R4: the price gap is worked out from the three comparables named and nothing else — ${r.named.map(x => `${x[0]} ${x[1]} by ${x[2]}`).join(', ')}, median RM${r.value} — "${r.words}"; an asking price, the worked example and a record gone are named and not used, a record not named moves nothing, and none named gives no value`);
+    else ok(`p2 R4: the price gap is worked out from the three comparables named and nothing else — ${r.named.map(x => `${x[0]} ${x[1]} by ${x[2]}`).join(', ')}, median RM${r.value} — "${r.words}"; an asking price named is set apart with its own median (RM${r.apart.value}), the worked example and a record gone are named and not used, a record not named moves nothing, and none named gives no value`);
   });
   /* R5 — SAVING IS THE ONLY WRITE (the owner's decision, 9 Oct 2026). On a
      saved property open in the Lab, Auction and then Land answered: every
@@ -6088,6 +6094,151 @@ try {
     else ok(`p3 A5: on a saved property in the Lab, Auction draws the auction section with the exposure Unavailable; the reserve and the Proclamation's terms entered there are moves of every column (${one.cols.map(c => c[0]).join(', ')}) — the exposure RM42,000 — with the record, the calculator's deal and the address unwritten and Save offered; Save writes them to the property`);
   });
   /* ---- end p3-auction ---- */
+
+  /* ---- evidence-flow ---- */
+  /* THE GUIDED EVIDENCE FLOW (the owner's decision of 9 Oct 2026, the daily
+     audit's item #6; 90-area-screen.js evidenceFlowCard, 83-property-
+     decision.js comparablesPick, 82-property-lab.js labUseComparable).
+     E1 — a locality-level record is never a verified building transaction:
+          whatever its evidence and whoever checked it, its standing is
+          "checked by you" or "not checked", at the locality's level, and it
+          clears no grade gate (comparableSupport counts it as no verified
+          price); it names no building.
+     E2 — asking and achieved prices are never in one median: named
+          together, the transacted ones make the comparable value and the
+          asking ones a median of their own; every comparable carries its
+          source and date to the price gap's words, the gap's working and
+          the auction's market value.
+     E3 — the flow records, and the record is used: typed through the
+          register's five steps, Record keeps it (Yours, its source and
+          date, locality level); "Use it in the Scenario Lab" names it in
+          the Lab's comparables as a what-if of every column — the price
+          gap and, answered Auction, the market value take it with its
+          source and date — and the calculator's deal is not written. */
+  const eftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+  await eftry('evidence E1: a locality-level record is never a verified building transaction', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const keep = State.observations;
+      State.observations = [];
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const base = { city: 'kuching', area: d.district, kind: 'sold-price', value: 560000, date: new Date().toISOString().slice(0, 10), sourceRef: 'https://example.com/a', scope: 'area', propertyType: d.propertyType };
+      const checked = addObservation({ ...base, evidence: 'verified', reviewedBy: 'you', reviewedAt: '2026-10-09' });
+      const unchecked = addObservation({ ...base, evidence: 'public', value: 580000 });
+      const out = { checked: observationStanding(checked).id, unchecked: observationStanding(unchecked).id, words: [observationStanding(checked).label, observationStanding(unchecked).label],
+        support: comparableSupport(d).price, name: comparableName(checked) };
+      State.observations = keep; saveObservations();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (r.checked !== 'area_checked' || r.unchecked !== 'area_unchecked') p.push(`standings ${r.checked} and ${r.unchecked}, not checked/not checked at the locality's level`);
+    if (r.words.some(w => /^Verified/.test(w))) p.push(`a locality-level record is called ${JSON.stringify(r.words)}`);
+    if (r.support.verified !== 0 || r.support.median !== null) p.push(`the grade's comparable support counts them as verified: ${JSON.stringify(r.support)}`);
+    if (!/^Transacted price recorded in /.test(r.name)) p.push(`it is named “${r.name}”`);
+    if (p.length) fail('evidence E1: a locality-level record is never a verified building transaction', p);
+    else ok(`evidence E1: a locality-level record — even one with the evidence "verified transaction", checked by the reader — stands as “${r.words[0]}” or “${r.words[1]}”, is named “${r.name}”, and clears no grade gate (0 verified prices)`);
+  });
+  await eftry('evidence E2: asking and achieved prices are never in one median; source and date travel', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const keep = State.observations;
+      State.observations = [];
+      const d0 = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const add = (o) => addObservation({ city: 'kuching', area: 'Tabuan', evidence: 'user', scope: 'area', ...o });
+      const s1 = add({ kind: 'sold-price', value: 520000, date: '2026-08-01', sourceRef: 'https://example.com/s1' });
+      const s2 = add({ kind: 'sold-price', value: 560000, date: '2026-07-01', sourceRef: 'SPA of 1 July 2026' });
+      const a1 = add({ kind: 'ask-price', value: 900000, date: '2026-09-01', sourceRef: 'https://example.com/a1' });
+      const a2 = add({ kind: 'ask-price', value: 700000, date: '2026-09-02', sourceRef: 'https://example.com/a2' });
+      const d = { ...d0, askingPrice: 600000, comparableIds: [s1.id, s2.id, a1.id, a2.id] };
+      const g = priceGap(d);
+      const a = auctionModel({ ...d, route: 'auction' });
+      const out = { value: g.value, asking: g.askingValue, comps: g.comps.map(c => c.price), apart: g.askingComps.map(c => c.price), notUsed: g.notUsed,
+        sub: g.comps.map(pqCompWords).join(' | '), formula: priceGapFormula(g), market: a.market, wf: auctionWaterfallFormula(a),
+        choices: dealComparableChoices(d).length, asks: dealAskingChoices(d).length };
+      State.observations = keep; saveObservations();
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (r.value !== 540000 || JSON.stringify([...r.comps].sort()) !== '[520000,560000]') p.push(`the comparable value is ${r.value} from ${JSON.stringify(r.comps)}, not the median of the two transacted prices, 540,000`);
+    if (r.asking !== 800000 || JSON.stringify([...r.apart].sort()) !== '[700000,900000]') p.push(`the asking prices apart: ${r.asking} from ${JSON.stringify(r.apart)}, not 800,000 from the two asked`);
+    if (r.notUsed !== 0) p.push(`${r.notUsed} named records said unused`);
+    if (r.market !== 540000) p.push(`the auction's market value is ${r.market}, not the transacted median 540,000 — asking prices are not in it`);
+    for (const [w, t] of [['the gap card', r.sub], ['the gap’s working', r.formula], ['the auction’s working', r.wf]])
+      for (const want of ['https://example.com/s1', 'SPA of 1 July 2026', 'Aug 2026', 'Jul 2026']) if (!t.includes(want)) p.push(`${w} does not carry “${want}”: “${t.slice(0, 160)}”`);
+    if (!/set apart and never in that value/.test(r.formula)) p.push('the working does not say the asking prices are set apart');
+    if (r.choices !== 2 || r.asks !== 2) p.push(`offered: ${r.choices} transacted, ${r.asks} asking`);
+    if (p.length) fail('evidence E2: asking and achieved prices are never in one median; source and date travel', p);
+    else ok(`evidence E2: named together, two transacted prices make the comparable value (RM${r.value}) and two asking prices a median of their own set apart (RM${r.asking}); the auction's market value is the transacted median; the gap card, its working and the auction's working carry each comparable's source and date`);
+  });
+  await eftry('evidence E3: the flow records one and the Lab uses it, with its source and date', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keepObs = State.observations, keepState = State.deal;
+      const out = {};
+      try {
+        /* The sample deal, as a first visit holds it (a page reloaded since
+           the run began has no window.__T). */
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} }; saveDeal();
+        if (LAB[labDealSubject()]) delete LAB[labDealSubject()];
+        var keepDeal = JSON.stringify(store.read('deal', null));
+        State.observations = []; saveObservations();
+        State.evidenceFlow = null;
+        navigate('/property/comparables', { replace: true }); render(); await w(300);
+        const set = (id, v, ev = 'change') => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event(ev, { bubbles: true })); };
+        const pick = (id) => { const n = document.getElementById(id); n.checked = true; n.dispatchEvent(new Event('change', { bubbles: true })); };
+        out.flow = !!document.getElementById('evidence-flow');
+        set('ef-town', 'kuching'); await w(100);
+        set('ef-area', 'Tabuan');
+        document.getElementById('ef-record').click(); await w(150);
+        out.refused = (State.observations || []).length;
+        out.refusedSaid = document.getElementById('toast')?.textContent || '';
+        pick('ef-srckind-url'); await w(100);
+        set('ef-src', 'https://example.com/e3', 'input');
+        set('ef-date', '2026-09-15');
+        pick('ef-kind-sold-price'); await w(100);
+        set('ef-value', '540000', 'input');
+        pick('ef-checked-no'); await w(100);
+        document.getElementById('ef-record').click(); await w(300);
+        const o = (State.observations || [])[0];
+        out.rec = o ? { kind: o.kind, value: o.value, date: o.date, src: o.sourceRef, scope: o.scope, area: o.area, city: o.city, address: o.address || '', standing: observationStanding(o).id } : null;
+        const done = document.getElementById('ef-done');
+        out.done = done ? { badge: done.querySelector('[data-kind-badge]')?.dataset.kindBadge, text: done.textContent.replace(/\\s+/g, ' ') } : null;
+        out.listed = [...document.querySelectorAll('.register-dt tbody tr')].map(tr => tr.textContent.replace(/\\s+/g, ' ')).filter(t => t.includes('https://example.com/e3')).length;
+        document.getElementById('ef-use').click();
+        await w(900);
+        const lab = LAB[labSubject], col = labActive(lab);
+        out.view = State.view;
+        out.named = (col.work.comparableIds || []).includes(o.id);
+        out.cols = lab.cols.map(c => (c.work.comparableIds || []).includes(o.id));
+        out.box = document.querySelector('[data-comp="' + o.id + '"] input')?.checked ?? null;
+        const ask = document.getElementById('lab-pe-asking');
+        ask.value = '600000'; ask.dispatchEvent(new Event('change', { bubbles: true })); await w(600);
+        const gap = document.querySelector('#lab-pe-cards [data-pe="gap"]');
+        out.gap = gap ? { value: gap.dataset.value, text: gap.textContent.replace(/\\s+/g, ' ') } : null;
+        out.dealWritten = JSON.stringify(store.read('deal', null)) !== keepDeal;
+        const a = auctionModel({ ...labActive(LAB[labSubject]).work, route: 'auction' });
+        out.market = a.market;
+      } finally {
+        State.observations = keepObs; saveObservations(); State.evidenceFlow = null;
+        if (LAB[labSubject]) delete LAB[labSubject];
+        State.deal = keepState; saveDeal(); navigate('/property/calculator', { replace: true }); render();
+      }
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    if (!r.flow) p.push('the comparables register has no guided flow');
+    if (r.refused !== 0 || !/^Still needed: /.test(r.refusedSaid)) p.push(`with only the locality chosen, Record kept ${r.refused} record(s) and said “${r.refusedSaid}”`);
+    const o = r.rec;
+    if (!o || o.kind !== 'sold-price' || o.value !== 540000 || o.date !== '2026-09-15' || o.src !== 'https://example.com/e3' || o.scope !== 'area' || o.area !== 'Tabuan' || o.city !== 'kuching' || o.address) p.push(`the record kept: ${JSON.stringify(o)}`);
+    if (o && o.standing !== 'area_unchecked') p.push(`its standing is ${o.standing}`);
+    if (!r.done || r.done.badge !== 'yours' || !r.done.text.includes('https://example.com/e3') || !r.done.text.includes('2026-09-15')) p.push(`the record shown: ${JSON.stringify(r.done)}`);
+    if (r.listed !== 1) p.push(`the register lists it ${r.listed} times`);
+    if (r.view !== 'propertyLab' || !r.named || r.cols.some(x => !x) || r.box !== true) p.push(`Use it: the Lab ${r.view}, named ${r.named} (columns ${JSON.stringify(r.cols)}), its box ${r.box}`);
+    if (!r.gap || r.gap.value !== '60000' || !r.gap.text.includes('https://example.com/e3') || !/Sept? 2026/.test(r.gap.text)) p.push(`the price gap: ${JSON.stringify(r.gap)?.slice(0, 260)}`);
+    if (r.market !== 540000) p.push(`answered Auction, the market value is ${r.market}, not the RM540,000 recorded`);
+    if (r.dealWritten) p.push('using it wrote the calculator’s deal');
+    if (p.length) fail('evidence E3: the flow records one and the Lab uses it, with its source and date', p);
+    else ok('evidence E3: the register’s five steps refuse a record with only its locality (“Still needed: …”), then keep a transaction price — Tabuan, Kuching, a web page dated 15 Sep 2026, not checked — as the reader’s (Yours), at the locality’s level, listed once; “Use it in the Scenario Lab” names it in every column’s comparables (its box ticked), the price gap reads RM60,000 against an RM600,000 asking price and names it with its source and date, the auction’s market value is RM540,000, and the calculator’s deal is unwritten');
+  });
+  /* ---- end evidence-flow ---- */
 
 } catch (e) {
   fail('harness error', e.message);

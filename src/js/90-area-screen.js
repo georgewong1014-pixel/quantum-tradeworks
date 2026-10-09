@@ -371,6 +371,11 @@ VIEWS.areas = () => {
     shown.length === names.length
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
       : 'Filtered. The map shades the same set.'));
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said where its absence is seen (the daily audit's item #6). */
+  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -431,6 +436,9 @@ function areaRecorder(city, area) {
   const box = el('div', { class: 'sunk',
     style: 'margin:var(--sm);width:calc(100cqw - 2 * var(--sm));box-sizing:border-box;position:sticky;left:var(--sm);white-space:normal' });
   box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, `Record for ${area}`));
+  /* A price or a rent goes through the guided flow on the register, with
+     this locality already chosen (the owner's decision of 9 Oct 2026). */
+  box.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:var(--md)' }, efStartLink(city, area, `Record a price or a rent for ${area}, step by step`, `area-ef-${String(area).replace(/[^A-Za-z0-9]+/g, '-')}`)));
   box.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     'Each fact is saved on its own, with its own source and date — a title class established from the title '
     + 'document and a flood account from a neighbour are not the same evidence and are never dated together.'));
@@ -526,11 +534,166 @@ function areaRecorder(city, area) {
   return box;
 }
 
+/* ==========================================================================
+   THE GUIDED EVIDENCE FLOW (the owner's decision of 9 Oct 2026, the daily
+   audit's item #6: the area screen showed Kuching's localities with nothing
+   recorded, and the register was empty, with no way in but a form on the
+   calculator). Five steps, one card, on the register:
+     1 the locality — the town and one of its localities;
+     2 the source — a web page's address or a document — and its date;
+     3 what it is — a transaction price, an asking price, an achieved rent
+       or an asking rent — and the amount;
+     4 whether you checked it against the source yourself;
+     5 record it, and use it: a price is named in the Scenario Lab's
+       comparables (a what-if until saved), where the price gap and the
+       auction's market value take it with its source and date.
+   WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
+   Locality-level: it names no building, and whatever its source it is never
+   a verified building transaction (observationStanding: scope 'area') — it
+   clears no grade gate. Asking and achieved are never mixed in one median.
+   Nothing is filled in for the reader: every field starts empty but the
+   town and locality, which start at the deal's.
+   ========================================================================== */
+const EF_KINDS = [['sold-price', 'Transaction price', 'RM'], ['ask-price', 'Asking price', 'RM'], ['let-rent', 'Achieved rent', 'RM a month'], ['ask-rent', 'Asking rent', 'RM a month']];
+const EF_PRICE = new Set(['sold-price', 'ask-price']);
+function efState() {
+  const S = (State.evidenceFlow ||= {});
+  if (!S.draft) {
+    const city = S.city || State.deal?.city || 'kuching';
+    S.draft = { city, area: S.area || (city === State.deal?.city ? State.deal?.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
+      srcKind: '', src: '', date: '', kind: '', value: '', sqft: '', checked: '' };
+  }
+  return S;
+}
+const efLocalities = (city) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  const mapped = Object.keys(sarawakGeo?.cities?.[city]?.areas || {});
+  const recorded = (State.observations || []).filter(o => o.city === city && o.area).map(o => o.area);
+  return [...new Set([...(def?.districts || []), ...mapped, ...recorded])];
+};
+/* What is missing before Record can save, in the order asked. */
+function efMissing(dr) {
+  const out = [];
+  if (!dr.city || !dr.area) out.push('the locality');
+  if (!dr.srcKind) out.push('whether the source is a web page or a document');
+  if (!String(dr.src).trim()) out.push(dr.srcKind === 'url' ? 'the web page’s address' : 'the document');
+  else if (dr.srcKind === 'url' && !/^https?:\/\/\S+\.\S+/i.test(String(dr.src).trim())) out.push('a web address starting http:// or https://');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dr.date || '')) out.push('the date');
+  if (!dr.kind) out.push('what it is');
+  if (!(Number(dr.value) > 0)) out.push('the amount');
+  if (!dr.checked) out.push('whether you checked it against the source');
+  return out;
+}
+/* The way into the flow from elsewhere: the town and, where known, the
+   locality chosen — a link, so it reads and works as one with no script. */
+function efStartLink(city, area, words, id) {
+  return el('a', { class: 'btn btn-ghost btn-sm ef-start', id, href: href('/property/comparables#evidence-flow'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault();
+      State.evidenceFlow = { city, area: area || null, draft: null }; navigate('/property/comparables');
+      setTimeout(() => document.getElementById('evidence-flow')?.scrollIntoView({ block: 'start' }), 0); } }, `${words} →`);
+}
+function evidenceFlowCard() {
+  const S = efState(), dr = S.draft;
+  const card = el('section', { class: 'card ef', id: 'evidence-flow', 'aria-labelledby': 'ef-h' });
+  card.append(el('h2', { class: 'h-card', id: 'ef-h' }, 'Record a price or a rent, step by step'));
+  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record, kept in this browser: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
+  const put = (k, v, redraw = false) => { dr[k] = v; if (redraw) renderKeepFocus(); };
+  const step = (n, title, body) => el('fieldset', { class: 'ef-step', 'data-ef-step': String(n) }, [
+    el('legend', { class: 'ef-legend' }, [el('span', { class: 'ef-n', 'aria-hidden': 'true' }, String(n)), title]), ...body]);
+  const field = (id, label, control, hint = null) => el('div', { class: 'ef-field' }, [el('label', { for: id }, label), control, hint ? el('p', { class: 'metaline ef-hint' }, hint) : null]);
+  const radios = (name, opts, cur, onPick) => el('div', { class: 'ef-chips ls-chips', role: 'presentation' }, opts.map(([v, label]) => {
+    const id = `${name}-${v}`;
+    return el('label', { class: `ef-chip${cur === v ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', name, id, value: v, checked: cur === v ? '' : null, onchange: () => onPick(v) }), el('span', {}, label)]);
+  }));
+
+  /* 1 — where */
+  const town = el('select', { class: 'select', id: 'ef-town', onchange: (e) => { dr.city = e.target.value; dr.area = efLocalities(dr.city)[0] || ''; renderKeepFocus(); } },
+    SARAWAK_CITIES.map(c => el('option', { value: c.id, selected: c.id === dr.city ? '' : null }, c.name)));
+  const locs = efLocalities(dr.city);
+  if (dr.area && !locs.includes(dr.area)) locs.unshift(dr.area);
+  const area = el('select', { class: 'select', id: 'ef-area', onchange: (e) => put('area', e.target.value) },
+    locs.map(n => el('option', { value: n, selected: n === dr.area ? '' : null }, n)));
+  card.append(step(1, 'Where', [el('div', { class: 'ef-row' }, [field('ef-town', 'Town', town), field('ef-area', 'Locality', area)])]));
+
+  /* 2 — the source, and its date */
+  const src = el('input', { class: 'input', id: 'ef-src', type: dr.srcKind === 'url' ? 'url' : 'text', value: dr.src, autocomplete: 'off',
+    placeholder: dr.srcKind === 'url' ? 'https://…' : dr.srcKind === 'doc' ? 'e.g. SPA of 3 March 2026, valuation report, tenancy agreement' : 'Choose a web page or a document first',
+    oninput: (e) => put('src', e.target.value) });
+  const date = el('input', { class: 'input', id: 'ef-date', type: 'date', value: dr.date, onchange: (e) => put('date', e.target.value) });
+  card.append(step(2, 'Where it came from, and when', [
+    radios('ef-srckind', [['url', 'A web page'], ['doc', 'A document']], dr.srcKind, (v) => put('srcKind', v, true)),
+    el('div', { class: 'ef-row' }, [field('ef-src', dr.srcKind === 'url' ? 'The page’s address' : dr.srcKind === 'doc' ? 'The document' : 'The page’s address or the document', src),
+      field('ef-date', 'Dated', date, 'The date the price or rent applies — the sale, the listing, the tenancy.')]),
+  ]));
+
+  /* 3 — what it is, and the amount */
+  const kindDef = EF_KINDS.find(k => k[0] === dr.kind);
+  const value = el('input', { class: 'input', id: 'ef-value', type: 'number', inputmode: 'decimal', min: '0', step: '1', value: dr.value,
+    placeholder: kindDef ? kindDef[2] : 'RM', oninput: (e) => put('value', e.target.value) });
+  const body3 = [radios('ef-kind', EF_KINDS.map(k => [k[0], k[1]]), dr.kind, (v) => put('kind', v, true)),
+    el('div', { class: 'ef-row' }, [field('ef-value', `Amount (${kindDef ? kindDef[2] : 'RM'})`, value),
+      EF_PRICE.has(dr.kind) ? field('ef-sqft', 'Floor area (sq ft), if the source gives it', el('input', { class: 'input', id: 'ef-sqft', type: 'number', inputmode: 'decimal', min: '0', step: '1',
+        value: dr.sqft, placeholder: 'optional', oninput: (e) => put('sqft', e.target.value) }), 'With it, the price gap compares by the rate a square foot.') : null])];
+  if (dr.kind) body3.push(el('p', { class: 'metaline ef-hint' }, OBS_BY_ID[dr.kind]?.asking
+    ? 'An asking figure is somebody’s hope: it is kept apart, with its own median, and never mixed with achieved figures.'
+    : 'An achieved figure: what was actually paid. It is never mixed with asking figures.'));
+  card.append(step(3, 'What it is', body3));
+
+  /* 4 — checked? */
+  card.append(step(4, 'Did you check it against the source?', [
+    radios('ef-checked', [['yes', 'Yes, I checked it myself'], ['no', 'Not yet']], dr.checked, (v) => put('checked', v, true)),
+    el('p', { class: 'metaline ef-hint' }, 'Checked or not, it stays your own record at the locality’s level — it is not a verified building transaction and lifts no grade.')]));
+
+  /* 5 — record, then use */
+  const go = el('button', { type: 'button', class: 'btn btn-primary', id: 'ef-record', onclick: () => {
+    const missing = efMissing(dr);
+    if (missing.length) { toast(`Still needed: ${missing.join(', ')}.`); return; }
+    const sq = Number(dr.sqft);
+    const rec = addObservation({ city: dr.city, area: dr.area, kind: dr.kind, value: Number(dr.value), date: dr.date,
+      evidence: 'user', sourceRef: String(dr.src).trim(), sourceKind: dr.srcKind, scope: 'area', guided: true,
+      ...(dr.checked === 'yes' ? { reviewedBy: registerActor() || 'you', reviewedAt: caseRaisedAt(new Date()).slice(0, 10) } : {}),
+      ...(EF_PRICE.has(dr.kind) && sq > 0 ? { sqft: sq, areaUnit: 'sqft' } : {}) });
+    S.last = rec.id; S.city = dr.city; S.area = dr.area; S.draft = null;
+    renderKeepFocus();
+    document.getElementById('ef-use')?.focus();
+    toast(`Recorded in ${dr.area}, ${townName(dr.city)} — your own record, with its source and date.`);
+  } }, 'Record it');
+  card.append(step(5, 'Record it, then use it', [el('p', { class: 'ef-act' }, [go]),
+    el('p', { class: 'metaline' }, 'Kept in this browser only: never sent anywhere, not published with the site.')]));
+
+  const last = S.last && (State.observations || []).find(o => o.id === S.last);
+  if (last) card.append(evidenceFlowDone(last));
+  return card;
+}
+/* The record just made, as it will be used: its words, its badge, its
+   source and date — and where it goes. */
+function evidenceFlowDone(o) {
+  const st = observationStanding(o), k = OBS_BY_ID[o.kind] || {};
+  const box = el('div', { class: 'ef-done', id: 'ef-done', 'data-obs': o.id });
+  box.append(el('p', { class: 'ef-done-what' }, [el('strong', {}, `${k.label || o.kind}: ${fmtMoney(o.value, 'MYR', 0)}${k.unit === 'RM/month' ? ' a month' : ''}`), ' ',
+    kindBadge('yours', { fine: 'your own record' }), ` — ${o.area}, ${townName(o.city)}, dated ${o.date}.`]));
+  box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
+  if (EF_PRICE.has(o.kind)) {
+    box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
+    box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
+      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+  } else {
+    box.append(el('p', { class: 'metaline' }, 'A rent is summarised by locality on the area screen, achieved and asking apart, each with its count.'));
+    box.append(el('p', { class: 'ef-act' }, el('a', { class: 'btn btn-ghost', id: 'ef-use', href: href('/property/areas'),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')));
+  }
+  return box;
+}
+
 VIEWS.comparables = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
   wrap.append(pageHead({ title: 'Sarawak comparables register', lede: 'Transacted prices and achieved rents you have recorded, each with its source.',
     note: 'With what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.' }));
+  wrap.append(evidenceFlowCard());
 
   /* WHO IS RECORDING, AND UNDO.
      Both belong here rather than in a settings page: this is the screen someone
@@ -594,6 +757,9 @@ VIEWS.comparables = () => {
        example loaded the card read "17 records" over tiles totalling 1. */
     const tiles = [['Verified', counts.verified || 0], ['Awaiting review', counts.awaiting_review || 0],
        ['Sourced', counts.sourced || 0], ['No source', counts.unsourced || 0],
+       /* Locality-level records (the guided flow): never Verified. */
+       ...(counts.area_checked ? [['Checked by you, locality', counts.area_checked]] : []),
+       ...(counts.area_unchecked ? [['Not checked, locality', counts.area_unchecked]] : []),
        ...(counts.sample ? [['Worked example', counts.sample]] : [])];
     head.append(el('div', { class: tiles.length > 4 ? 'grid grid-5' : 'grid g-4', style: 'margin-top:var(--md)' },
       tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
