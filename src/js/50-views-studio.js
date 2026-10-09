@@ -2628,15 +2628,18 @@ VIEWS.portfolio = () => {
   /* Today on the reader's calendar: the UTC date defaulted a payment
      recorded on a Kuala Lumpur morning, or a Los Angeles evening, to the
      wrong day. Today is the tab's, now (data-now): the served page
-     (/my/portfolio, pre-rendered since the 9 Oct 2026 audit) says no day. */
+     (/my/portfolio, pre-rendered since the 9 Oct 2026 audit) says no day.
+     Its width, and the amount's, are set: served, each is a run of words
+     (the day not said, the amount empty), and the fields after them stood
+     76px and 156px left of where the drawn row puts them. */
   const dDate = el('input', { class: 'input input-inline', type: 'date', id: 'divDate',
-    value: localDay(), 'aria-label': 'Payment date', 'data-now': '' });
+    value: localDay(), 'aria-label': 'Payment date', 'data-now': '', style: 'width:9.5rem' });
   /* The amount is stored in the holding's own currency, so the field says
      which one. Labelled only "Amount" on a page in the reader's base currency,
      ringgit typed for a US holding were counted as dollars — 4.4 times over. */
   const ccyOf = (id) => pos.find(p2 => p2.h.id === id)?.r.c.ccy || State.baseCcy;
   const dAmt = el('input', { class: 'input input-inline', type: 'number', step: '0.01', min: '0',
-    placeholder: 'amount', id: 'divAmt', 'aria-label': `Amount received, in ${ccyOf(selH.value)}` });
+    placeholder: 'amount', id: 'divAmt', style: 'width:8.5rem', 'aria-label': `Amount received, in ${ccyOf(selH.value)}` });
   const amtLabel = el('label', { for: 'divAmt' }, `Amount (${ccyOf(selH.value)})`);
   selH.addEventListener('change', () => {
     amtLabel.textContent = `Amount (${ccyOf(selH.value)})`;

@@ -1521,6 +1521,116 @@ try {
       else console.log(`ok   ${what}`);
     }
     /* ---- end layout-system ---- */
+    /* ---- deep-links ---- */
+    /* MY WORKSPACE'S PAGES, SERVED (the 9 Oct 2026 audit, item #7: deep
+       links). Each /my/ page is served as a fresh visitor's (prerender.mjs),
+       and is covered above as every rendered page is: the same text and h1
+       at another clock, nothing moved, no skeleton, standing for the
+       filings where its draw reads what the render's read. Held here from
+       both sides, with the app's script held so that the first frames are
+       seen as a stale cache or a slow line shows them:
+       1. A RETURNING READER WITH THEIR OWN never sees the fresh page: a list,
+          a portfolio, a case, a price alert, a company opened, a series
+          pasted, a setup, a contract and a hidden Start here panel of their
+          own, made by the app's own hand and left so that the app keeps its
+          digests (and again with none kept, as a browser from before pages
+          were served holds them): on every /my/ page no frame shows the
+          served page before the script, nothing in it takes focus, and the
+          page drawn is not the render.
+       2. A RETURNING READER WITH ONLY THE SAMPLES a first visit gives (after
+          /about) is shown each /my/ page as served before the script, and
+          the page drawn is its render. */
+    {
+      const said = [];
+      const mine = pages.filter(s => s.path.startsWith('/my/'));
+      /* Every page of My Workspace's own address carries its render. */
+      const { routePages } = await import('./build.mjs');
+      const unrendered = routePages(plan).filter(g => g.routes.some(x => x.path.startsWith('/my/')) && !pages.some(s => s.file === g.file)).flatMap(g => g.routes.map(x => x.path));
+      if (unrendered.length) said.push(`no render is served at ${unrendered.join(', ')}`);
+      const DUMP = `Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith('vl.')).sort().map(k => [k.slice(3), localStorage.getItem(k)]))`;
+      const SETTLED = `typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view && !document.getElementById('views').hasAttribute('data-served')`;
+      const openFree = async (path) => { await releaseAll(); await send('Page.navigate', { url: live + path }, sid); await quiet(SETTLED); };
+      const FRAMES = `(() => { const f = window.__dl = []; let last = '';
+        const tick = () => { const v = document.getElementById('views'), d = document.documentElement;
+          if (v && document.body) { const first = v.firstElementChild;
+            const k = [v.hasAttribute('data-served') ? 'served' : 'drawn', d.hasAttribute('data-served-hidden') ? 'hidden' : '',
+              v.hasAttribute('data-served') && first && getComputedStyle(first).display !== 'none' && getComputedStyle(first).visibility !== 'hidden' && !d.hasAttribute('data-served-hidden') ? 'shown' : ''].join('|');
+            if (k !== last) { f.push(k); last = k; } }
+          requestAnimationFrame(tick); };
+        requestAnimationFrame(tick); })();`;
+      const framesId = (await send('Page.addScriptToEvaluateOnNewDocument', { source: FRAMES }, sid)).result?.identifier;
+      const STOPS = `[...document.querySelectorAll('#views a[href], #views [tabindex], #views summary')].filter(n => n.getClientRects().length && getComputedStyle(n).visibility === 'visible').length`;
+      const visit = async (s, raw) => {
+        await firstVisit({ raw, script: true });
+        await send('Page.navigate', { url: live + s.path }, sid);
+        if (!await until(SERVED_PAINTED)) return { painted: false };
+        await painted();
+        const before = await value(`({ hidden: document.documentElement.hasAttribute('data-served-hidden'), stops: ${STOPS} })`);
+        await releaseScript();
+        await until(`typeof State !== 'undefined' && !!State.view`);
+        holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = [];
+        await quiet(SETTLED);
+        const after = await value(`({ frames: window.__dl || [], text: (${textOf})(document.getElementById('views')), h1: (document.querySelector('#views h1')?.textContent || '').replace(/\\s+/g, ' ').trim() })`);
+        return { painted: true, before, after, want: await value(`(${P.textOfMarkup})(${P.servedText}, ${JSON.stringify(read(s.render).replace(/\n$/, ''))})`) };
+      };
+      const shownServed = (r) => r.after.frames.some(k => /^served\|\|shown$/.test(k));
+      let own = 0, samples = 0;
+      try {
+        /* 1. The reader's own, by the app's own hand. */
+        await firstVisit();
+        await openFree('/my/watchlists');
+        const madeOk = await value(`(() => {
+          const r = wlCreate('Deep-link own list'); if (r.ok) wlAdd(r.watchlist.id, 'MAYBANK');
+          State.priceAlerts = [...State.priceAlerts, { id: 'pa-dl-1', ticker: 'MSFT-SEC', op: '>', price: 500, note: 'Mine', updatedAt: new Date().toISOString() }]; store.write('priceAlerts', State.priceAlerts);
+          State.portfolios = [...State.portfolios, { id: 'pf-dl-1', name: 'Deep-link income', cash: 500, cashCcy: 'MYR', holdings: [{ id: 'MAYBANK', qty: 1000, cost: 9.5, fx0: 1, fee: 10, rebate: 0 }] }]; savePortfolios();
+          State.theses = [...State.theses, { id: 't-dl-1', ticker: 'MSFT-SEC', oneLine: 'Deep-link own case.', quality: '', valCase: '', catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2026-12-01', conf: 'Medium', questions: [], created: '2026-09-20' }]; saveTheses();
+          State.recentCompanies = ['MSFT-SEC']; store.write('recentCompanies', State.recentCompanies);
+          commitUserData(() => { userData.series.USDMYR = { '2026-09-01': 4.21, '2026-09-02': 4.23 }; });
+          const d = SCAN_EXAMPLES.setups.find(x => x.ruleTree) || SCAN_EXAMPLES.setups[0]; scanSaveSetup({ ...JSON.parse(JSON.stringify(d)), id: 'dl-own-setup', name: 'Deep-link setup', enabled: true });
+          store.write('wheelPlan', { ...State.wheel, symbol: 'KO', putStrike: 55, putCredit: 1.2, isWorkedExample: false });
+          store.write('startHere', { equities: '2026-09-20T01:00:00.000Z', scanner: '2026-09-20T01:00:00.000Z' });
+          return true; })()`).catch(e => `threw: ${e.message}`);
+        if (madeOk !== true) said.push(`the returning reader's own could not be made: ${madeOk}`);
+        await openFree('/about');
+        await send('Page.navigate', { url: `${live}/robots.txt` }, sid); await sleep(400);
+        const kept = await value(DUMP) || {};
+        const old = Object.fromEntries(Object.entries(kept).filter(([k]) => k !== 'servedReads'));
+        for (const [label, raw] of [['since this release', kept], ['before it (no digest kept)', old]]) {
+          for (const s of mine) {
+            const r = await visit(s, raw);
+            const at = `${s.path}, a returning reader with their own (${label})`;
+            if (!r.painted) { said.push(`${at}: the served page was not painted before the script`); continue; }
+            const ok = r.before.hidden && r.before.stops === 0 && !shownServed(r) && r.after.text !== r.want;
+            if (!r.before.hidden || r.before.stops) said.push(`${at}: the fresh visitor's page was not kept out of sight before the script (${JSON.stringify(r.before)})`);
+            if (shownServed(r)) said.push(`${at}: a frame showed the served page (${r.after.frames.join(' → ')})`);
+            if (r.after.text === r.want) said.push(`${at}: the page drawn is the fresh visitor's render`);
+            if (ok) own++;
+          }
+        }
+        /* 2. Only the samples a first visit gives. */
+        await firstVisit();
+        await openFree('/about');
+        await send('Page.navigate', { url: `${live}/robots.txt` }, sid); await sleep(400);
+        const firstOnly = await value(DUMP) || {};
+        for (const s of mine) {
+          const r = await visit(s, firstOnly);
+          const at = `${s.path}, a reader holding only a first visit's samples`;
+          if (!r.painted) { said.push(`${at}: the served page was not painted before the script`); continue; }
+          if (r.before.hidden) said.push(`${at}: kept out of sight before the script`);
+          if (r.after.text !== r.want) { let i = 0; while (i < r.want.length && r.want[i] === r.after.text[i]) i++; said.push(`${at}: the page drawn is not its render, from character ${i}: served …${r.want.slice(Math.max(0, i - 30), i + 60)}… drawn …${r.after.text.slice(Math.max(0, i - 30), i + 60)}…`); }
+          else if (!r.before.hidden) samples++;
+        }
+      } catch (e) {
+        said.push(`the checks could not run: ${e.message}`);
+      } finally {
+        await releaseAll();
+        if (framesId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: framesId }, sid);
+      }
+      const what = `My Workspace's ${mine.length} pages served (deep links, audit #7): ${own} of ${mine.length * 2} visits by a returning reader with their own (digests kept, and none) kept the fresh page out of sight before the script, no frame showing it and nothing in it focusable, and drew the reader's; ${samples} of ${mine.length} visits holding only a first visit's samples were shown the page as served, and drew it as its render`;
+      if (said.length) { bad.push('my-workspace'); console.log(`FAIL ${what}`); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
+      else console.log(`ok   ${what}`);
+    }
+    /* ---- end deep-links ---- */
     } finally {
       await releaseAll();
       await send('Target.closeTarget', { targetId: tid });
