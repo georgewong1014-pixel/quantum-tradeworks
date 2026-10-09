@@ -1046,6 +1046,61 @@ const HOME_PAGE = read(HOME);
     'the served screener mixes the evidence classes, or serves no Coverage selector');
 }
 /* ---- end second-track ---- */
+/* ---- screener-coverage ---- */
+/* 12d. NO SERVED TEMPLATE PROMISES A PRICE ON THE FILED COMPANIES (9 Oct
+        audit #8). Each template is classed from the source — its
+        thresholds (SCREEN_TEMPLATES, src/js/40-views-discover.js) against
+        the registry's inputs (METRICS, src/js/13-metrics.js): a threshold on
+        a measure whose inputs include the price or price history needs a
+        price. Served, /discover/screener covers the SEC-filed class, and
+        there: every template is served with its id; none served on filters
+        a price-dependent measure; every one that does is served off, with
+        "Needs a price; filed companies carry none — available on the
+        illustrative set" and the way to run it on the illustrative set; and
+        the results' header serves no column that needs a price. */
+{
+  const p = [];
+  const vm = await import('node:vm');
+  const cut = (text, name, file) => { const i = text.indexOf(`const ${name} = [`); const e = text.indexOf('\n];', i); if (i < 0 || e < 0) throw new Error(`const ${name} = [ … ]; not found in ${file}`); return text.slice(i, e + 3); };
+  const { METRICS, SCREEN_TEMPLATES } = vm.runInContext([
+    cut(read('src/js/13-metrics.js'), 'METRICS', 'src/js/13-metrics.js'),
+    'const METRIC_BY_K = Object.fromEntries(METRICS.map(x => [x.k, x]));',
+    'const ICOV_UNTESTABLE = () => ({});',
+    cut(read('src/js/40-views-discover.js'), 'SCREEN_TEMPLATES', 'src/js/40-views-discover.js'),
+    '({ METRICS, SCREEN_TEMPLATES })'].join('\n'), vm.createContext({}));
+  const dep = (k) => (METRICS.find(x => x.k === k)?.inputs || []).some(x => x === 'price' || x === 'history');
+  const priced = (t) => { const s = { universe: 'all', sectors: [], types: [], local: {}, crit: {}, cols: [] }; t.apply(s);
+    return Object.entries(s.crit).filter(([k, c]) => c && (c.min != null || c.max != null) && dep(k)).map(([k]) => k); };
+  const REASON = 'Needs a price; filed companies carry none — available on the illustrative set';
+  const r = await get('/discover/screener');
+  const v = /<div id="views"[^>]*>([\s\S]*?)<\/div>\n {2}<p class="sr-only" id="liveStatus"/.exec(r.body)?.[1] || '';
+  const text = (h) => decode(h.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+  /* Each served template: the opening tag that carries its id, to the next
+     template's (or the end of the list). */
+  const marks = [...v.matchAll(/<(\w+)\b[^>]*\bdata-template="([^"]+)"[^>]*>/g)];
+  const served = marks.map((m, i) => {
+    const body = v.slice(m.index, marks[i + 1] ? marks[i + 1].index : v.indexOf('</details>', m.index));
+    return { id: m[2], off: /\bdata-off\b/.test(m[0]), why: text(/<p class="scr-tpl-why"[^>]*>([\s\S]*?)<\/p>/.exec(body)?.[1] || ''), run: /Run on the illustrative set/.test(text(body)) };
+  });
+  const on = [], off = [];
+  for (const t of SCREEN_TEMPLATES) {
+    const s = served.find(x => x.id === t.id), pr = priced(t);
+    if (!s) { p.push(`${t.id}: not served with its id (data-template)`); continue; }
+    (s.off ? off : on).push(t.id);
+    if (pr.length && !s.off) p.push(`${t.id}: served on for the filed companies, and it filters ${pr.join(', ')}, which need a price`);
+    if (pr.length && s.why !== REASON) p.push(`${t.id}: served off with ${JSON.stringify(s.why)}, not "${REASON}"`);
+    if (s.off && (!s.why || !s.run)) p.push(`${t.id}: served off without its reason or the way to run it on the illustrative set`);
+  }
+  const thead = /<thead>([\s\S]*?)<\/thead>/.exec(v)?.[1] || '';
+  const heads = [...thead.matchAll(/<th\b[^>]*>([\s\S]*?)<\/th>/g)].map(m => text(m[1]).replace(/[▲▼↕]/g, '').trim());
+  const LABELS = [...METRICS.filter(x => x.screener !== false && dep(x.k)).map(x => x.label), 'Value', 'vs base-case model estimate'];
+  const bad = heads.filter(h => LABELS.some(l => h === l || h.startsWith(`${l} (`)));
+  if (!heads.length) p.push('/discover/screener: no results header is served');
+  if (bad.length) p.push(`/discover/screener: the filed results serve ${bad.join(', ')}, which need a price`);
+  judge(p, `/discover/screener serves its ${served.length} templates classed from the source: on for the filed companies ${on.join(', ')}; off, each with its reason and "Run on the illustrative set", ${off.join(', ')}; the results' header (${heads.join(' · ')}) serves no column that needs a price`,
+    'a served template promises a price-based result to the filed companies, or a served off one gives no reason');
+}
+/* ---- end screener-coverage ---- */
 /* ---- integration-final ---- */
 /* 13. BEFORE THE FIRST PAINT (2026-10-04, the integration's final
        verification). A served page is a fresh visitor's, drawn in Kuala

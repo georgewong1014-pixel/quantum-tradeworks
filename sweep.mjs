@@ -2771,11 +2771,12 @@ for (const route of ROUTES) {
      in absolute and in peer-percentile mode;
    - no threshold passes it — not a minimum far below zero, not a maximum
      of 0, not "between 0 and 0", not the 0th percentile — and the reason
-     given is that the figure is not available (evaluateScreen);
+     given is that the figure is not held (evaluateScreen);
    - a sort on the measure puts every such company after every priced one,
      either way round (sortScreenRows), and a median over them is none;
    and, drawn, on the default screen with those measures as its columns:
-   no such company's cell, and no phone card's yield, reads as a zero, and
+   no such company's cell reads as a zero, every phone card's price measure
+   reads Unavailable, and
    the exported CSV leaves its cell empty. */
 {
   const p = [];
@@ -2802,7 +2803,7 @@ for (const route of ROUTES) {
           if (v !== null && v !== undefined) out.zero.push(r.c.tk + ' ' + k + ' ' + mode + ' reads ' + v);
           const e = evaluateScreen(r, s);
           if (e.pass) out.passed.push(r.c.tk + ' ' + k + ' ' + mode + ' ' + JSON.stringify(range));
-          else if (!e.fails.some(x => / is not available/.test(x))) out.reason.push(r.c.tk + ' ' + k + ': ' + e.fails.join('; ').slice(0, 120));
+          else if (!e.fails.some(x => / is not held/.test(x))) out.reason.push(r.c.tk + ' ' + k + ': ' + e.fails.join('; ').slice(0, 120));
         }
       }
     }
@@ -2833,12 +2834,17 @@ for (const route of ROUTES) {
         if (k && !isNum(row.m[k]) && ZERO.test(td.textContent.trim())) out.cells.push(tk + ' ' + heads[i] + ' reads ' + td.textContent.trim());
       });
     }
+    /* A phone card carries the measures its chips chose (by default the
+       first of these columns, 9 Oct audit #8); each one a company lacks
+       reads "Unavailable", never a zero or a bare dash. */
+    const priceOf = (label) => PRICE.find(k2 => label === FIELD_BY_K[k2].label || (label || '').startsWith(FIELD_BY_K[k2].label + ' ('));
     for (const card of document.querySelectorAll('.screener-card')) {
       const tk = card.querySelector('span')?.textContent.trim(); const row = U.find(x => x.c.tk === tk);
-      if (!row || isNum(row.m.dy)) continue;
+      if (!row) continue;
       const cells = [...card.querySelectorAll('.screener-card-metrics > div')].map(d => [d.children[0]?.textContent.trim(), d.children[1]?.textContent.trim()]);
-      const y = cells.find(c => c[0] === 'Yield');
-      if (!y || ZERO.test(y[1]) || y[1] === '—') out.cards.push(tk + ' yield reads ' + JSON.stringify(y && y[1]));
+      const priced = cells.filter(c => priceOf(c[0]));
+      if (!priced.length) out.cards.push(tk + ' carries none of the price measures on screen: ' + JSON.stringify(cells.map(c => c[0])));
+      for (const c of priced) if (!isNum(row.m[priceOf(c[0])]) && (ZERO.test(c[1]) || c[1] !== 'Unavailable')) out.cards.push(tk + ' ' + c[0] + ' reads ' + JSON.stringify(c[1]));
     }
     /* The export, read where the page hands it to the browser. */
     State.plan = 'pro';
@@ -2864,11 +2870,11 @@ for (const route of ROUTES) {
   else {
     if (!r.unpriced || r.fields.length < 5) p.push(`nothing to test: ${r.unpriced} companies without a price, ${r.fields.length} price-based measures`);
     for (const [what, list] of [['tested as a figure, not null', r.zero], ['passed a threshold', r.passed], ['failed for another reason than "not available"', r.reason],
-      ['sorted among the priced', r.sort], ['gave a median', r.median], ['drawn as a zero', r.cells], ['a phone card\'s yield reads as a zero or a bare dash', r.cards], ['exported as 0', r.csv]])
+      ['sorted among the priced', r.sort], ['gave a median', r.median], ['drawn as a zero', r.cells], ['a phone card\'s price measure reads other than Unavailable', r.cards], ['exported as 0', r.csv]])
       if (list.length) p.push(`${list.length} ${what}: ${list.slice(0, 4).join(' · ')}`);
   }
   if (p.length) { bad++; console.log(`FAIL second-track: an unavailable price in a price filter (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
-  else console.log(`ok   second-track: no unavailable price enters a price filter as zero — ${r.tests} tests of ${r.fields.length} price-based measures (${r.fields.join(', ')}) on the ${r.unpriced} companies without a price (${r.filedUnpriced} filed), in absolute and percentile mode and in both classes: the value tested is null, no threshold passes it and the reason is "not available"; sorted after every priced company both ways; no median; drawn on ${r.drawnRows} rows and their phone cards, no cell reads as a zero; the CSV leaves the cells empty`);
+  else console.log(`ok   second-track: no unavailable price enters a price filter as zero — ${r.tests} tests of ${r.fields.length} price-based measures (${r.fields.join(', ')}) on the ${r.unpriced} companies without a price (${r.filedUnpriced} filed), in absolute and percentile mode and in both classes: the value tested is null, no threshold passes it and the reason is "not held"; sorted after every priced company both ways; no median; drawn on ${r.drawnRows} rows and their phone cards, no cell reads as a zero and every phone card's price measure reads Unavailable; the CSV leaves the cells empty`);
 }
 /* ---- end second-track ---- */
 /* ---- deep-links ---- */

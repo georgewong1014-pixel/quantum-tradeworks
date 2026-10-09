@@ -2667,11 +2667,15 @@ try {
         const scale = { T: 1000, B: 1, M: 0.001 }[m[4]] ?? 1;
         return { v: parseFloat(m[1] + (m[2] || '')) * scale, tol: 0.5 * Math.pow(10, -(m[3] || '').length) * scale + 1e-6 };
       };
-      /* Table column → CSV column. The table leads with the company, the two
-         scores and the model difference, then the chosen metrics, then risk
-         and coverage; the CSV leads with identity and price. */
-      const pairs = [[1, 'quality_score'], [2, 'value_score'], [3, 'mos_vs_base_pct'],
-        ...sc.cols.map((k, i) => [4 + i, head[9 + i]]), [4 + sc.cols.length + 1, 'coverage_pct']];
+      /* Table column → CSV column, found by the table's own headers. The
+         table leads with the company, the scores (the two that need a price
+         set aside where no company in the screen holds one — 9 Oct audit #8),
+         then the chosen metrics, then risk and coverage; the CSV leads with
+         identity and price and keeps every column. */
+      const ths = [...table.querySelectorAll('thead th')].map(th => th.textContent.replace(/[▲▼↕]/g, '').trim());
+      const at = (l) => ths.findIndex(t => t === l || t.startsWith(l + ' ('));
+      const pairs = [[at('Quality'), 'quality_score'], [at('Value'), 'value_score'], [at('vs base-case model estimate'), 'mos_vs_base_pct'],
+        ...sc.cols.map((k, i) => [at(FIELD_BY_K[k].label), head[9 + i]]), [at('Coverage'), 'coverage_pct']].filter(([ti]) => ti > 0);
       const bad = [];
       if (rows.length !== trs.length) bad.push('CSV ' + rows.length + ' rows, table ' + trs.length);
       let cells = 0;
@@ -9838,7 +9842,10 @@ try {
        it. EQ-10 — "Clear all" clears every filter shown. EQ-11 — the
        business-model chips carry aria-pressed. */
     {
-      await evaluate(`(async () => { State.screen = blankScreen(); navigate('/discover/screener'); await new Promise(r => setTimeout(r, 400)); return true; })()`);
+      /* On the illustrative class, whose sample prices give the Value
+         column a figure: on the SEC-filed one it is set aside (9 Oct audit
+         #8). */
+      await evaluate(`(async () => { State.screen = blankScreen(); State.screen.evidence = 'illustrative'; navigate('/discover/screener'); await new Promise(r => setTimeout(r, 400)); return true; })()`);
       const got = [];
       const th = await evaluate(`(() => { const th = [...document.querySelectorAll('#views th.sortable')].find(x => /^Value/.test(x.textContent)); if (!th) return null; th.focus(); return { sort: JSON.stringify(State.screen.sort), focused: document.activeElement === th }; })()`);
       got.push(th);
@@ -11319,6 +11326,170 @@ try {
     }
   }
   /* ---- end integration-final ---- */
+  /* ---- screener-coverage ---- */
+  /* THE SCREENER'S TEMPLATES KNOW WHAT EACH CLASS CAN ANSWER (9 Oct audit
+     #8). The SEC-filed companies carry no licensed price, so every measure
+     whose inputs include the price or the reader's price history is
+     unavailable on them. Each template is classed here from what it sets,
+     read independently of the page: a threshold on such a measure needs a
+     price; a Bursa market holds no filed company.
+       SC1 drawn on the SEC-filed class, every template that needs a price is
+           off — marked data-off, its reason "Needs a price; filed companies
+           carry none — available on the illustrative set", a "Run on the
+           illustrative set" action — and no template drawn on filters a
+           price-dependent measure; each one drawn on tests only measures
+           some filed company holds and matches at least one filed company,
+           and at least four are on. On the illustrative class every
+           template is on.
+       SC2 "Run on the illustrative set" on Dividend cash coverage applies it
+           on the illustrative class, with matches; choosing SEC-filed again
+           clears it (no template, no price threshold); a price template
+           applied while filed — as the Research lens does — or opened by
+           its address (?template=div-cover) covers the illustrative set;
+           the Research front page badges a template's lens Illustrative
+           exactly where the template is off on the filed class.
+       SC3 the default SEC-filed screen shows no column that needs a price —
+           not among its columns, not the fixed Value and model-difference
+           scores — and its main filters hold none; the illustrative default
+           keeps P/E, dividend yield and free cash flow yield.
+       SC4 a missing value is never a zero: a company whose figure is absent
+           (null, undefined, NaN) is excluded as "not held" by every
+           threshold — a minimum far below zero, a maximum of 0, a maximum
+           far above, between 0 and 0, absolute and percentile — while a held
+           0 passes a maximum of 0; a sort puts every absent figure after
+           every held one in both directions, held zeros among the numbers,
+           and absent ones keep their order. */
+  {
+    try {
+      const r = await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const out = { p1: [], p2: [], p3: [], p4: [] };
+        const REASON = 'Needs a price; filed companies carry none — available on the illustrative set';
+        const dep = (k) => (METRIC_BY_K[k]?.inputs || []).some(x => x === 'price' || x === 'history');
+        const own = (t) => { const s = { universe: 'all', sectors: [], types: [], local: {}, crit: {}, cols: [] }; t.apply(s);
+          const keys = Object.entries(s.crit).filter(([, c]) => c && (c.min != null || c.max != null)).map(([k]) => k);
+          return { keys, priced: keys.filter(dep), bursa: s.universe === 'MY' }; };
+        const cls = Object.fromEntries(SCREEN_TEMPLATES.map(t => [t.id, own(t)]));
+        const offOnFiled = (id) => cls[id].priced.length > 0 || cls[id].bursa;
+        const filed = U.filter(x => x.c.real);
+        const keep = { screen: State.screen, tpl: State.appliedTemplate, tab: State.discoverTab, cards: State.scrCardCols };
+        const draw = async (s) => { State.screen = s; State.appliedTemplate = null; State.discoverTab = 'screener'; navigate('/discover/screener'); await w(200); };
+        const drawn = () => [...document.querySelectorAll('main [data-template]')].map(n => ({ id: n.getAttribute('data-template'), off: n.hasAttribute('data-off'),
+          pressable: n.tagName === 'BUTTON', why: n.querySelector('.scr-tpl-why')?.textContent.trim() || null, run: !!n.querySelector('.scr-tpl-run') }));
+        try {
+          /* SC1 */
+          await draw(blankScreen());
+          const f = drawn();
+          out.filedOn = f.filter(x => !x.off).map(x => x.id); out.filedOff = f.filter(x => x.off).map(x => x.id);
+          if (f.length !== SCREEN_TEMPLATES.length) out.p1.push(f.length + ' of ' + SCREEN_TEMPLATES.length + ' templates are drawn with their id on the SEC-filed class');
+          for (const t of SCREEN_TEMPLATES) {
+            const d = f.find(x => x.id === t.id), c = cls[t.id];
+            if (!d) continue;
+            if (c.priced.length && !d.off) out.p1.push(t.id + ' filters ' + c.priced.join(', ') + ', which need a price, and is drawn on for the filed companies');
+            if (c.priced.length && d.why !== REASON) out.p1.push(t.id + ' is off without the reason: ' + JSON.stringify(d.why));
+            if (d.off && !d.run) out.p1.push(t.id + ' is off with no way to run it on the illustrative set');
+            if (d.off && d.pressable) out.p1.push(t.id + ' is off but drawn as a pressable template');
+            if (!d.off && !offOnFiled(t.id)) {
+              const unheld = c.keys.filter(k => !filed.some(x => isNum(x.m[k])));
+              if (unheld.length) out.p1.push(t.id + ' tests ' + unheld.join(', ') + ', which no filed company holds');
+              const s = blankScreen(); t.apply(s); s.evidence = 'filed';
+              const n = filed.filter(x => evaluateScreen(x, s).pass).length;
+              if (!n) out.p1.push(t.id + ' matches no filed company');
+            }
+          }
+          if (out.filedOn.length < 4) out.p1.push('only ' + out.filedOn.length + ' templates are on for the filed companies');
+          const s2 = blankScreen(); s2.evidence = 'illustrative';
+          await draw(s2);
+          const ill = drawn();
+          if (ill.some(x => x.off)) out.p1.push('on the illustrative class ' + ill.filter(x => x.off).map(x => x.id).join(', ') + ' are drawn off');
+          /* SC2 */
+          await draw(blankScreen());
+          const run = document.getElementById('scr-tpl-run-div-cover');
+          if (!run) out.p2.push('no "Run on the illustrative set" for Dividend cash coverage on the filed class');
+          else {
+            run.click(); await w(200);
+            const head = [...document.querySelectorAll('main h3')].map(h => h.textContent).find(t => t.includes('companies match')) || '';
+            out.ran = { cls: screenClassOf(State.screen), tpl: State.appliedTemplate, head };
+            if (out.ran.cls !== 'illustrative' || out.ran.tpl !== 'div-cover') out.p2.push('Run on the illustrative set left ' + JSON.stringify(out.ran));
+            if (!/^[1-9]/.test(head)) out.p2.push('Dividend cash coverage on the illustrative set reads ' + JSON.stringify(head));
+            document.getElementById('scr-class-filed')?.click(); await w(200);
+            const priced = Object.entries(State.screen.crit || {}).filter(([k, c]) => c && (c.min != null || c.max != null) && dep(k)).map(([k]) => k);
+            out.back = { cls: screenClassOf(State.screen), tpl: State.appliedTemplate, priced };
+            if (out.back.cls !== 'filed' || out.back.tpl || priced.length) out.p2.push('choosing SEC-filed after it left ' + JSON.stringify(out.back));
+          }
+          State.screen = blankScreen(); State.appliedTemplate = null;
+          applyTemplate(SCREEN_TEMPLATES.find(t => t.id === 'div-cover')); await w(150);
+          if (screenClassOf(State.screen) !== 'illustrative') out.p2.push('Dividend cash coverage applied while filed runs on ' + screenClassOf(State.screen));
+          State.screen = blankScreen(); State.appliedTemplate = null;
+          navigate('/discover/screener?template=div-cover'); await w(200);
+          if (screenClassOf(State.screen) !== 'illustrative' || State.appliedTemplate !== 'div-cover') out.p2.push('/discover/screener?template=div-cover opens ' + JSON.stringify({ cls: screenClassOf(State.screen), tpl: State.appliedTemplate }));
+          navigate('/research'); await w(250);
+          const lenses = [...document.querySelectorAll('main a.rf-way')].map(a => ({ id: (/[?]template=([\\w-]+)/.exec(a.getAttribute('href') || '') || [])[1], ill: !!a.querySelector('[data-kind-badge="illustrative"]') })).filter(x => x.id);
+          if (!lenses.length) out.p2.push('the Research front page links no template');
+          for (const l of lenses) if (cls[l.id] && l.ill !== offOnFiled(l.id)) out.p2.push('the ' + l.id + ' lens is ' + (l.ill ? '' : 'not ') + 'badged Illustrative, and the template is ' + (offOnFiled(l.id) ? 'off' : 'on') + ' on the filed class');
+          out.lenses = lenses.map(l => l.id + (l.ill ? ':ill' : ''));
+          /* SC3 */
+          const heads = () => [...document.querySelectorAll('main table.dt thead th')].map(th => th.textContent.replace(/[▲▼↕]/g, '').trim());
+          const PRICED_LABELS = [...FIELDS.filter(x => dep(x.k)).map(x => x.label), 'Value', 'vs base-case model estimate'];
+          await draw(blankScreen());
+          const fh = heads();
+          out.filedHeads = fh;
+          const bad = fh.filter(h => PRICED_LABELS.some(l => h === l || h.startsWith(l + ' (')));
+          if (!fh.length) out.p3.push('the filed default draws no table');
+          if (bad.length) out.p3.push('the filed default shows ' + bad.join(', ') + ', which need a price');
+          const mainKeys = [...document.querySelectorAll('main input[id^="crit-"][id$="-min"]')].filter(n => !n.closest('#scr-advanced')).map(n => n.id.slice(5, -4));
+          out.mainFilters = mainKeys;
+          if (mainKeys.some(dep)) out.p3.push('the filed main filters hold ' + mainKeys.filter(dep).join(', '));
+          const s3 = blankScreen(); s3.evidence = 'illustrative'; s3.cols = [...COL_PRESETS[0].cols];
+          await draw(s3);
+          const ih = heads();
+          for (const l of ['Price / earnings', 'Dividend yield', 'Free cash flow yield']) if (!ih.includes(l)) out.p3.push('the illustrative default has no ' + l + ' column');
+          /* SC4 */
+          const base = filed.find(x => isNum(x.m.roe) && x.c.mkt === 'US');
+          const mk = (i, v) => ({ ...base, c: { ...base.c, id: 'SC4-' + i, tk: 'SC4' + i }, m: { ...base.m, roe: v } });
+          const vals = [3, null, 1, undefined, NaN, 0, -2, null];
+          const rows = vals.map((v, i) => mk(i, v));
+          const screen = (range, mode) => { const s = blankScreen('mixed'); s.minCoverage = 0; s.local.excludePn17 = false; s.mode = mode; s.crit = { roe: range }; s.cols = ['roe']; return s; };
+          let tests = 0;
+          for (const [mode, range] of [['abs', { min: -1e12 }], ['abs', { max: 0 }], ['abs', { max: 1e12 }], ['abs', { min: 0, max: 0 }], ['pct', { min: 0 }], ['pct', { max: 100 }]]) {
+            const s = screen(range, mode);
+            rows.forEach((row, i) => {
+              if (isNum(vals[i])) return;
+              tests++;
+              const e = evaluateScreen(row, s);
+              if (e.pass) out.p4.push('roe ' + String(vals[i]) + ' passes ' + mode + ' ' + JSON.stringify(range));
+              else if (!e.fails.some(x => x.includes('is not held'))) out.p4.push('roe ' + String(vals[i]) + ' under ' + mode + ' ' + JSON.stringify(range) + ' is excluded as: ' + e.fails.join('; ').slice(0, 140));
+            });
+          }
+          if (!evaluateScreen(rows[5], screen({ max: 0 }, 'abs')).pass) out.p4.push('a held 0 does not pass a maximum of 0');
+          for (const dir of [1, -1]) {
+            const s = screen({}, 'abs'); s.sort = { k: 'roe', dir };
+            const got = sortScreenRows(rows, s).map(x => x.c.id);
+            const held = vals.map((v, i) => [v, 'SC4-' + i]).filter(([v]) => isNum(v)).sort((a, b) => (a[0] - b[0]) * dir).map(x => x[1]);
+            const gone = vals.map((v, i) => [v, 'SC4-' + i]).filter(([v]) => !isNum(v)).map(x => x[1]);
+            const want = [...held, ...gone];
+            if (got.join() !== want.join()) out.p4.push((dir === 1 ? 'ascending' : 'descending') + ' sorts ' + got.join(' ') + ', not ' + want.join(' '));
+          }
+          out.tests = tests;
+        } finally {
+          State.screen = keep.screen; State.appliedTemplate = keep.tpl; State.discoverTab = keep.tab; State.scrCardCols = keep.cards;
+        }
+        return out;
+      })()`);
+      const say = (id, list, okText) => { if (list.length) fail(`screener-coverage ${id}`, list.slice(0, 12)); else ok(`screener-coverage ${id}: ${okText}`); };
+      say('SC1: price-dependent templates are off on the SEC-filed class, with their reason', r.p1,
+        `on for the filed companies: ${r.filedOn.join(', ')}; off, each with "Needs a price…" or the Bursa reason and a way to run it on the illustrative set: ${r.filedOff.join(', ')}; every template on for the illustrative set`);
+      say('SC2: a price template runs on the illustrative set, never on the filed one', r.p2,
+        `Run on the illustrative set → ${r.ran?.head}; SEC-filed again clears it; applied while filed and by ?template=div-cover it covers the illustrative set; lenses ${r.lenses?.join(', ')} badged as the templates are classed`);
+      say('SC3: the default SEC-filed screen leads with what the statements hold', r.p3,
+        `columns ${r.filedHeads?.join(' · ')}; main filters ${r.mainFilters?.join(', ')}; the illustrative default keeps P/E, dividend yield and FCF yield`);
+      say('SC4: a missing value is never a zero, in a filter or a sort', r.p4,
+        `${r.tests} threshold tests on absent figures (null, undefined, NaN) each excluded as "not held"; a held 0 passes a maximum of 0; absent figures sort last both ways, in their order`);
+    } catch (e) {
+      fail('screener-coverage: the check could not run', e.message);
+    }
+  }
+  /* ---- end screener-coverage ---- */
 
 } catch (e) {
   fail('harness error', e.message);

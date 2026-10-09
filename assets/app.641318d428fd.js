@@ -13807,7 +13807,7 @@ function applyRoute() {
   }
   if (route.view === 'discover' && qs.get('template')) {
     const t = SCREEN_TEMPLATES.find(x => x.id === qs.get('template'));
-    if (t) { const s = blankScreen(); t.apply(s); State.screen = screenFitClass(s); State.appliedTemplate = t.id; }
+    if (t) { State.screen = templateScreen(t); State.appliedTemplate = t.id; }
     qs.delete('template');
     const rest = qs.toString();
     history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));
@@ -17427,6 +17427,17 @@ const FIELD_GROUPS = [...new Set(FIELDS.map(f => f.g))];
    pill renderers. This maps them to the fields behind them, so an absent score
    says why and a present one opens its drawer like any other cell. */
 const SCORE_COL_FIELD = { quality: 'qscore', value: 'vscore', mos: 'mosBase' };
+/* WHICH MEASURES NEED A PRICE (9 Oct audit #8). Read from the registry, not
+   listed by hand: a measure whose inputs include the quoted price or the
+   reader's own price history. The SEC-filed companies carry no licensed
+   price, so on them every such measure is unavailable — and a template,
+   a default column or a main filter built on one promised a result that
+   universe cannot give. A fixed score column is read through the field
+   behind it. */
+const PRICE_INPUTS = ['price', 'history'];
+/* How many measures a phone's result card carries, chosen by the reader. */
+const CARD_MAX = 4;
+const needsPrice = (k) => (METRIC_BY_K[SCORE_COL_FIELD[k] || k]?.inputs || []).some(l => PRICE_INPUTS.includes(l));
 
 /* COLUMN PRESETS.
    ---------------------------------------------------------------------------
@@ -17441,9 +17452,13 @@ const SCORE_COL_FIELD = { quality: 'qscore', value: 'vscore', mos: 'mosBase' };
    screen and nothing else. "Essentials" is the default set the screener opens
    with, so it is also the way back. */
 const COL_PRESETS = [
+  /* On the SEC-filed companies, which carry no price, Essentials leads with
+     what their statements hold — margins, returns, growth, leverage and cash
+     flow — rather than three columns that read "no price" on every row. */
   { id:'essentials', label:'Essentials',
     cols:['roic', 'om', 'pe', 'dy', 'fcfy', 'ndEbit'],
-    why:'The set the screener opens with — one measure from each group.' },
+    filed:['roic', 'om', 'fcfm', 'rev5', 'ndEbit', 'cashconv'],
+    why:'The set the screener opens with — one measure from each group. On the SEC-filed companies, which carry no price, cash flow and growth stand in for the price measures.' },
   { id:'quality', label:'Business quality',
     cols:['roic', 'om', 'fcfm', 'roe', 'cashconv'],
     why:'How much the business earns on what it employs, and whether earnings arrive as cash.' },
@@ -17457,8 +17472,12 @@ const COL_PRESETS = [
     cols:['rev5', 'eps5', 'fcf5', 'dps5'],
     why:'Four-year compound growth of the four lines that carry it.' },
 ];
-const samePreset = (cols, p) =>
-  cols.length === p.cols.length && p.cols.every(k => cols.includes(k));
+/* A preset's columns on one evidence class: its filed set where it has one. */
+const presetCols = (p, cls) => (cls === 'filed' && p.filed ? p.filed : p.cols);
+const samePreset = (cols, p, cls = screenClassOf(State.screen)) => {
+  const want = presetCols(p, cls);
+  return cols.length === want.length && want.every(k => cols.includes(k));
+};
 
 /* Sector-specific measures are not general screener fields, but thesis
    conditions and alerts still need to render them with their units. */
@@ -17469,10 +17488,19 @@ const SECTOR_FMT = {
 };
 const fmtFor = (k) => FIELD_BY_K[k]?.fmt || SECTOR_FMT[k] || ((v) => fmtNum(v, 2));
 
-function blankScreen() {
-  return { evidence:'filed', universe:'all', sectors:[], types:[], mode:'abs', minCoverage:60,
+function blankScreen(cls = 'filed') {
+  return { evidence:cls, universe:'all', sectors:[], types:[], mode:'abs', minCoverage:60,
            crit:{}, local:{ shariahOnly:false, excludePn17:true, klciOnly:false },
-           cols:['roic','om','pe','dy','fcfy','ndEbit'], sort:{ k:'quality', dir:-1 } };
+           cols:[...presetCols(COL_PRESETS[0], cls)], sort:{ k:'quality', dir:-1 } };
+}
+/* A screen moved to another evidence class takes that class's Essentials
+   if it was showing the other's; columns the reader chose stay. */
+function setScreenClass(s, k) {
+  const was = screenClassOf(s);
+  if (was === k) return s;
+  if (Array.isArray(s.cols) && samePreset(s.cols, COL_PRESETS[0], was)) s.cols = [...presetCols(COL_PRESETS[0], k)];
+  s.evidence = k;
+  return s;
 }
 
 /* THE TWO EVIDENCE CLASSES ARE NEVER MIXED BY DEFAULT (the owner's second
@@ -17486,7 +17514,7 @@ function blankScreen() {
    explicit choice that says in one line what mixing means. A screen saved
    before this carries no class and is read as both together, as it ran. */
 const SCREEN_CLASSES = {
-  filed:        { label: 'SEC-filed',    note: 'Audited annual statements filed with the US SEC. No licensed prices, so every price-based measure is unavailable for these companies.' },
+  filed:        { label: 'SEC-filed',    note: 'Audited annual statements filed with the US SEC. No licensed prices, so every price-based measure is unavailable for these companies — the screen leads with revenue, margins, returns, leverage and cash flow.' },
   illustrative: { label: 'Illustrative', note: 'Synthetic figures that describe no real company, with sample prices. For trying the screener, not for research.' },
 };
 const SCREEN_MIX_WARNING = 'Both classes together: illustrative figures are synthetic, and the SEC-filed companies have no licensed prices — the two are not comparable.';
@@ -17501,7 +17529,7 @@ const rowKind = (c) => (c.real ? (c.personal ? 'yours' : 'filed') : 'illustrativ
    onboarding — covers the illustrative set instead, rather than coming up
    empty. */
 function screenFitClass(s) {
-  if (s && s.universe === 'MY' && screenClassOf(s) === 'filed') s.evidence = 'illustrative';
+  if (s && s.universe === 'MY' && screenClassOf(s) === 'filed') setScreenClass(s, 'illustrative');
   return s;
 }
 /* The market chosen at onboarding, or in the launcher's "Screen a market",
@@ -17539,6 +17567,31 @@ State.requiredDiscount = store.read('requiredDiscount', null);
 const ICOV_UNTESTABLE = (min) => ({ rule: `interest cover ≥ ${min}×`,
   because: `${METRIC_BY_K.icov.blocked} As a threshold it would exclude every company, so it is stated here and not applied — check interest cover in the filings before treating a match as complete.` });
 const SCREEN_TEMPLATES = [
+  /* THE FILED-FRIENDLY TEMPLATES FIRST (9 Oct audit #8). Each tests only
+     measures the SEC-filed statements carry — revenue, margins, returns,
+     leverage and cash flow — so it runs on the filed companies as it does on
+     the illustrative set. A threshold is the rule the name states, not a
+     judgement that clearing it is good. */
+  { id:'returns-capital', name:'High returns on capital',
+    why:'A return on invested capital and a return on equity both of 15% or more in the latest year — both, so a return on equity raised by borrowing alone does not clear it.',
+    apply: (s) => { s.crit = { roic:{min:15}, roe:{min:15} }; s.cols = ['roic','roe','om','fcfm','ndEbit','rev5']; } },
+  { id:'cash-backed', name:'Profit that arrives as cash',
+    why:'Operating cash flow of at least 90% of net income, a free cash flow margin of 5% or more, and operating cash flow above zero in at least four of the last five years.',
+    apply: (s) => { s.crit = { cashconv:{min:90}, fcfm:{min:5}, ocfPosYears:{min:4} }; s.cols = ['cashconv','fcfm','ocfm','ocfPosYears','reinv','roic']; } },
+  { id:'growth-margins', name:'Growth with margins intact',
+    why:'Revenue compounding at 5% a year or more over four years, with an operating margin of at least 10% and a free cash flow margin of zero or more in the latest year — growth that is not bought at a loss.',
+    apply: (s) => { s.crit = { rev5:{min:5}, om:{min:10}, fcfm:{min:0} }; s.cols = ['rev5','revYoY','om','fcfm','eps5','revDD']; } },
+  { id:'consistent', name:'Consistent profitability',
+    why:'A steady operating record rather than one good year — low earnings variability and no deep revenue drawdown.',
+    apply: (s) => { s.crit = { om:{min:8}, epsVol:{max:25}, revDD:{max:20} }; s.cols = ['om','epsVol','revDD','roic','rev5','fcfm']; } },
+  { id:'conservative', name:'Conservative balance sheet',
+    why:'Low borrowings against operating profit, with interest comfortably covered.',
+    untestable:[ICOV_UNTESTABLE(6)],
+    apply: (s) => { s.crit = { ndEbit:{max:1.5}, de:{max:0.6} }; s.cols = ['ndEbit','de','icov','roic','om','fcfm']; } },
+  { id:'net-cash', name:'Net cash balance sheet',
+    why:'Cash and equivalents at or above total debt at the latest year-end. It says what the balance sheet holds, not whether the cash is needed in the business.',
+    apply: (s) => { s.crit = { netGearing:{max:0} }; s.cols = ['netGearing','de','ndEbit','fcfm','cashconv','roe']; } },
+
   /* Section 18.1 of the migration specification, published under its own
      identifier and version so a saved screen can be traced back to the rule set
      it came from.
@@ -17562,13 +17615,6 @@ const SCREEN_TEMPLATES = [
   { id:'div-cover', name:'Dividend cash coverage',
     why:'Companies paying a dividend that free cash flow actually covers, rather than one funded from the balance sheet.',
     apply: (s) => { s.crit = { dy:{min:3}, cashPayout:{max:80}, fcfy:{min:0} }; s.cols = ['dy','cashPayout','fcfy','payout','ndEbit','roe']; } },
-  { id:'consistent', name:'Consistent profitability',
-    why:'A steady operating record rather than one good year — low earnings variability and no deep revenue drawdown.',
-    apply: (s) => { s.crit = { om:{min:8}, epsVol:{max:25}, revDD:{max:20} }; s.cols = ['om','epsVol','revDD','roic','rev5','fcfm']; } },
-  { id:'conservative', name:'Conservative balance sheet',
-    why:'Low borrowings against operating profit, with interest comfortably covered.',
-    untestable:[ICOV_UNTESTABLE(6)],
-    apply: (s) => { s.crit = { ndEbit:{max:1.5}, de:{max:0.6} }; s.cols = ['ndEbit','de','icov','roic','om','fcfy']; } },
   { id:'my-banks', name:'Malaysian banks',
     why:'Bursa-listed deposit takers, shown on the measures that fit a bank balance sheet rather than on free cash flow.',
     apply: (s) => { s.universe='MY'; s.types=['bank']; s.crit = { roe:{min:8} }; s.cols = ['roe','pb','dy','payout','eps5','pe']; } },
@@ -17590,13 +17636,44 @@ const SCREEN_TEMPLATES = [
     apply: (s) => { s.universe='MY'; s.local = { ...s.local, excludePn17:true }; s.cols = ['roic','ndEbit','icov','om','dy','pe']; } },
 ];
 
-function applyTemplate(t) {
+/* WHERE A TEMPLATE CAN RUN (9 Oct audit #8). Read from what the template
+   sets, not from a list kept beside it: a threshold on a measure that needs
+   a price (needsPrice, from the registry) can only be met where prices are
+   held — the illustrative set — and a Bursa market holds no SEC-filed
+   company. On a class that cannot answer it the template is shown off, with
+   its reason and the way to run it on the illustrative set; it never runs
+   silently over companies whose figure is unavailable. Both classes
+   together counts as covering the filed companies: half the screen would
+   be excluded for a price it cannot hold. */
+const TEMPLATE_OFF = {
+  price: 'Needs a price; filed companies carry none — available on the illustrative set',
+  bursa: 'Covers Bursa Malaysia, where no company is SEC-filed — available on the illustrative set',
+};
+function templateNeeds(t) {
   const s = blankScreen();
   t.apply(s);
-  /* A template sets thresholds, not the evidence class: the class the
-     reader chose stays, unless the template's market holds only the other. */
-  if (State.screen) s.evidence = screenClassOf(State.screen);
-  State.screen = screenFitClass(s);
+  const priced = Object.entries(s.crit || {})
+    .filter(([k, c]) => c && (c.min != null || c.max != null) && needsPrice(k)).map(([k]) => k);
+  return { priced, bursa: s.universe === 'MY' };
+}
+function templateOff(t, cls) {
+  if (cls === 'illustrative') return null;
+  const n = templateNeeds(t);
+  if (n.priced.length) return TEMPLATE_OFF.price;
+  if (n.bursa && cls === 'filed') return TEMPLATE_OFF.bursa;
+  return null;
+}
+/* The screen a template produces on a class: on the class asked for where
+   it can run there, on the illustrative set where it cannot. A template
+   sets thresholds, not the evidence class, so otherwise the class stays. */
+function templateScreen(t, cls = 'filed') {
+  const s = blankScreen(cls);
+  t.apply(s);
+  if (templateOff(t, cls)) setScreenClass(s, 'illustrative');
+  return screenFitClass(s);
+}
+function applyTemplate(t, onClass = null) {
+  State.screen = templateScreen(t, onClass || (State.screen ? screenClassOf(State.screen) : 'filed'));
   State.appliedTemplate = t.id;
   render();
 }
@@ -17648,8 +17725,13 @@ function evaluateScreen(row, sc) {
     const f = FIELD_BY_K[k];
     const raw = critValue(row, k, sc);
     if (!isNum(raw)) {
-      /* Missing data never passes a threshold silently. */
-      fails.push(`${f.label} is not available${f.miss ? ' — ' + f.miss.replace(/\.$/, '') : ''}`);
+      /* Missing data never passes a threshold silently, and is never read
+         as a zero — which would pass a maximum and fail a minimum for a
+         figure nobody holds. The company is excluded as not held, with the
+         reason its figure is absent (metricStatus: no price, n/a, not
+         reported, withheld, n/m). */
+      const st = metricStatus(row, k);
+      fails.push(`${f.label} is not held${st.reason ? ` (${st.reason})` : ''} — excluded, never counted as zero${f.miss ? '. ' + f.miss.replace(/\.$/, '') : ''}`);
       continue;
     }
     const shown = critFmt(f, raw, sc, row);
@@ -17734,9 +17816,13 @@ function screenSortGet(k, sc) {
 function sortScreenRows(rows, sc) {
   const get = screenSortGet(sc.sort.k, sc);
   if (!get) return [...rows];
+  /* A company without the figure sorts after every company with one, in
+     either direction, and never as a zero. Two without it keep their order:
+     "both missing" answered 1, which is no ordering at all, so where they
+     landed depended on the engine's sort. */
   return [...rows].sort((a, b) => {
-    const av = get(a), bv = get(b);
-    if (!isNum(av)) return 1; if (!isNum(bv)) return -1;
+    const av = get(a), bv = get(b), ah = isNum(av), bh = isNum(bv);
+    if (!ah || !bh) return ah === bh ? 0 : (ah ? -1 : 1);
     return (av - bv) * sc.sort.dir;
   });
 }
@@ -17775,7 +17861,7 @@ function renderScreener() {
      page paints the illustrative sample, labelled — the SEC-filed class
      would cover nothing: the screen covers the illustrative set, and the
      selector says so. */
-  if (screenClassOf(sc) === 'filed' && !U.some(r => r.c.real)) sc.evidence = 'illustrative';
+  if (screenClassOf(sc) === 'filed' && !U.some(r => r.c.real)) setScreenClass(sc, 'illustrative');
   const wrap = el('div', { class: 'screener-layout' });
   /* The evidence class the screen covers, and the companies in it: every
      count, exclusion and median below is of these. */
@@ -17840,15 +17926,34 @@ function renderScreener() {
   const tpl = el('details', { style: 'margin-bottom:var(--md)' });
   tpl.append(el('summary', { style: 'cursor:pointer;font-size:13px;font-weight:600;color:var(--ink-2);padding:4px 0' },
     'Start from a template'));
-  const tplList = el('div', { style: 'display:grid;gap:6px;margin-top:8px' });
-  SCREEN_TEMPLATES.forEach(t => {
-    const b = el('button', { class: 'ob-option', style: 'padding:9px 11px',
+  const tplList = el('div', { class: 'scr-tpl-list' });
+  /* The templates this class can answer, as before; then, apart, the ones it
+     cannot — off, each with its reason and the way to run it where it can
+     run (templateOff). */
+  const tplOff = SCREEN_TEMPLATES.map(t => [t, templateOff(t, cls)]);
+  tplOff.filter(([, off]) => !off).forEach(([t]) => {
+    const b = el('button', { class: 'ob-option', style: 'padding:9px 11px', 'data-template': t.id,
       'aria-pressed': State.appliedTemplate === t.id ? 'true' : 'false',
       onclick: () => applyTemplate(t) });
     b.append(el('div', { class: 'ob-option-t', style: 'font-size:13px' }, t.name));
     b.append(el('div', { class: 'ob-option-n' }, t.why));
     tplList.append(b);
   });
+  const offList = tplOff.filter(([, off]) => off);
+  if (offList.length) {
+    tplList.append(el('p', { class: 'scr-tpl-off-hd', id: 'scr-tpl-off-hd' }, `Illustrative set only · ${offList.length}`));
+    offList.forEach(([t, off]) => {
+      const nameId = `scr-tpl-${t.id}`;
+      tplList.append(el('div', { class: 'scr-tpl-off', role: 'group', 'aria-labelledby': nameId, 'data-template': t.id, 'data-off': '' }, [
+        el('div', { class: 'ob-option-t', id: nameId }, t.name),
+        el('div', { class: 'ob-option-n' }, t.why),
+        el('p', { class: 'scr-tpl-why' }, off),
+        el('button', { type: 'button', class: 'btn btn-quiet btn-sm scr-tpl-run', id: `scr-tpl-run-${t.id}`,
+          'aria-label': `Run ${t.name} on the illustrative set`,
+          onclick: () => applyTemplate(t, 'illustrative') }, ['Run on the illustrative set', el('span', { 'aria-hidden': 'true' }, ' →')]),
+      ]));
+    });
+  }
   tpl.append(tplList);
   tpl.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'A template only sets thresholds. Every one is visible above and yours to change.'));
@@ -17913,7 +18018,12 @@ function renderScreener() {
      thresholds presented at once is a wall, and the six below are the ones that
      answer "is this worth opening" — how well it earns, how much it owes, what
      it costs and what it pays. */
-  const PRIMARY = ['roic', 'roe', 'ndEbit', 'pe', 'dy'];
+  /* On the SEC-filed companies, which carry no price, a P/E or yield
+     threshold can exclude every one of them and pass none: the main filters
+     there are what their statements hold — margin and cash flow in the
+     place of the two price measures (9 Oct audit #8). The price measures
+     stay among the advanced filters, for a price the reader enters. */
+  const PRIMARY = cls === 'filed' ? ['roic', 'roe', 'om', 'ndEbit', 'fcfm'] : ['roic', 'roe', 'ndEbit', 'pe', 'dy'];
   const primaryFields = FIELDS.filter(f => PRIMARY.includes(f.k));
 
   const critRow = (f) => {
@@ -18158,6 +18268,16 @@ function renderScreener() {
     ];
     cols[1].mfmt = v => String(Math.round(v));   /* quality */
     cols[2].mfmt = v => String(Math.round(v));   /* value */
+    /* The two fixed score columns that need a price — the valuation score
+       and the difference to the model estimate — are set aside where no
+       company in the screen holds one (the SEC-filed class): a column that
+       reads "no price" on every row answers nothing. A column the reader
+       chose stays, and says why each cell is empty. */
+    const scopePriced = scope.some(r => isNum(r.c.px?.p));
+    if (!scopePriced) {
+      for (let i = cols.length - 1; i >= 0; i--) if (SCORE_COL_FIELD[cols[i].k] && needsPrice(cols[i].k)) cols.splice(i, 1);
+      if (SCORE_COL_FIELD[sc.sort.k] && !cols.some(c2 => c2.k === sc.sort.k)) sc.sort = { k: 'quality', dir: -1 };
+    }
     const sorted = sortScreenRows(passed, sc);
 
     /* ONE VERTICAL SCROLL PER PAGE.
@@ -18303,6 +18423,59 @@ function renderScreener() {
        rendered as cards, showing the four measures that decide whether a
        company is worth opening. Both are in the DOM and CSS chooses; the card
        list is not a reduced dataset, only a reduced set of columns. */
+    /* THE MEASURES ON EACH CARD ARE THE READER'S (9 Oct audit #8; the
+       layout system: tabs become one-line chips). Four fixed measures —
+       Quality, Value, Yield, Completeness — read "no price" twice on every
+       filed card, and a reader who wanted to compare margins had to turn
+       the phone for a table it does not show. The chips are the table's own
+       columns, on one line that scrolls sideways; up to CARD_MAX are on
+       every card, in the table's order. The choice is the page's for this
+       visit, like the table's sort, and changes nothing that is screened. */
+    const pickable = cols.filter(c2 => c2.k !== 'ident');
+    const pickKeys = pickable.map(c2 => c2.k);
+    let picked = (State.scrCardCols || []).filter(k => pickKeys.includes(k));
+    if (!picked.length) picked = ['quality', ...sc.cols].filter(k => pickKeys.includes(k));
+    picked = pickKeys.filter(k => picked.includes(k)).slice(0, CARD_MAX);
+    const pickRow = el('div', { class: 'scr-pick-row', role: 'group', 'aria-labelledby': 'scr-pick-hd' });
+    pickable.forEach(c2 => {
+      const on = picked.includes(c2.k);
+      pickRow.append(el('button', { type: 'button', class: 'chip scr-pick-chip', id: `scr-pick-${c2.k}`, 'aria-pressed': on ? 'true' : 'false',
+        onclick: () => {
+          if (on && picked.length === 1) { toast('One measure at least — choose another before removing this one'); return; }
+          if (!on && picked.length >= CARD_MAX) { toast(`${CARD_MAX} measures at most — press a chosen one to remove it`); return; }
+          State.scrCardCols = on ? picked.filter(k => k !== c2.k) : [...picked, c2.k];
+          /* The row keeps where it was scrolled: the redraw draws it anew. */
+          const x = pickRow.scrollLeft;
+          renderKeepFocus();
+          const again = document.querySelector('#views .scr-pick-row');
+          if (again) again.scrollLeft = x;
+        } }, c2.label));
+    });
+    tw.append(el('div', { class: 'scr-pick' }, [
+      el('p', { class: 'scr-pick-hd', id: 'scr-pick-hd' }, `Measures on each card · up to ${CARD_MAX}`),
+      pickRow,
+    ]));
+    const pickedCols = pickable.filter(c2 => picked.includes(c2.k));
+    /* A measure on a card reads as the table's cell does — its figure, or
+       "Unavailable" with the reason (no price, n/a, not reported…), never a
+       dash a reader could take for a zero. */
+    const cardCell = (c2, r) => {
+      const v = c2.get(r);
+      const fld = FIELD_BY_K[c2.k] || FIELD_BY_K[SCORE_COL_FIELD[c2.k]];
+      if (!isNum(v) && fld) {
+        const st = metricStatus(r, fld.k);
+        return el('div', { class: 'scr-card-m' }, [
+          el('div', { class: 'scr-card-l' }, c2.label),
+          el('div', { class: 'num scr-card-v scr-card-na', title: st.text }, 'Unavailable'),
+          el('div', { class: 'scr-card-why' }, st.label),
+        ]);
+      }
+      const shown = el('span', { html: c2.fmt(v, r) }).textContent.replace(/\s+/g, ' ').trim();
+      return el('div', { class: 'scr-card-m' }, [
+        el('div', { class: 'scr-card-l' }, c2.label),
+        el('div', { class: 'num scr-card-v' }, shown),
+      ]);
+    };
     const cards = el('div', { class: 'screener-cards' });
     sorted.forEach(r => {
       const card = el('a', { class: 'card screener-card', href: href(companyPath(r.c)),
@@ -18316,25 +18489,13 @@ function renderScreener() {
         el('span', { class: 'metaline', style: 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, r.c.name),
         el('span', { class: r.c.mkt === 'US' ? 'chip chip-us' : 'chip chip-my' }, r.c.mkt),
       ]));
-      const mini = el('div', { class: 'screener-card-metrics' });
-      /* An absent score prints its reason, as the table cell does. String()
-         on it printed the word "null" on 55 of 77 phone cards. A yield with
-         no price says so too: it is unavailable, never a dash read as zero. */
-      const score = (v, k) => isNum(v) ? String(v) : metricStatus(r, k).label;
-      [['Quality', score(r.scores.quality.score, 'qscore')],
-       ['Value', score(r.scores.value.score, 'vscore')],
-       ['Yield', isNum(r.m.dy) ? fmtPct(r.m.dy, 2) : metricStatus(r, 'dy').label],
-       ['Completeness', `${r.m.coverage}%`]].forEach(([k, v]) => {
-        /* Not `metaline`. On desktop these four are table column headings; in
-           the phone card they are the label half of a labelled value the
-           reader acts on, so they take the 14/20 decision floor rather than
-           the 12/16 metadata one. The value beside them was already 14. */
-        mini.append(el('div', {}, [
-          el('div', { style: 'font-size:14px;line-height:20px;color:var(--ink-3)' }, k),
-          el('div', { class: 'num', style: 'font-weight:600;font-size:14px' }, v),
-        ]));
-      });
-      card.append(mini);
+      /* The measures the chips above chose. An absent one prints
+         "Unavailable" and its reason, as the table cell does — String() on
+         an absent score once printed the word "null" on 55 of 77 phone
+         cards. Labels take the 14/20 decision floor, not the 12/16
+         metadata one: on the card they are half of a value the reader acts
+         on. */
+      card.append(el('div', { class: 'screener-card-metrics' }, pickedCols.map(c2 => cardCell(c2, r))));
       cards.append(card);
     });
     tw.append(cards);
@@ -18415,7 +18576,19 @@ function screenClassBar(sc, cls) {
   const n = (k) => U.filter(r => inScreenClass(r, k)).length;
   const set = (k) => {
     if (screenClassOf(sc) === k) return;
-    sc.evidence = k;
+    /* A template that cannot run on the class chosen (a price threshold,
+       a Bursa market) is not carried over to run there: its thresholds are
+       cleared and the reader told, rather than every company excluded for
+       a figure it cannot hold. */
+    const t = State.appliedTemplate && SCREEN_TEMPLATES.find(x => x.id === State.appliedTemplate);
+    if (t && templateOff(t, k)) {
+      State.screen = blankScreen(k);
+      State.appliedTemplate = null;
+      toast(`${t.name} runs on the illustrative set only, so its thresholds were cleared`);
+      renderKeepFocus();
+      return;
+    }
+    setScreenClass(sc, k);
     /* A Bursa screen has no filed company to cover. */
     if (k === 'filed' && sc.universe === 'MY') sc.universe = 'all';
     renderKeepFocus();
@@ -27484,7 +27657,7 @@ VIEWS.launcher = () => {
     const preset = seg('preset', COL_PRESETS.map(p => [p.id, p.label]), 'essentials');
     open = () => {
       const p = COL_PRESETS.find(x => x.id === preset) || COL_PRESETS[0];
-      State.screen = { ...blankScreen(), universe, cols: [...p.cols] };
+      State.screen = screenFitClass({ ...blankScreen(), universe, cols: [...presetCols(p, universe === 'MY' ? 'illustrative' : 'filed')] });
       store.write('screen', State.screen);
       State.appliedTemplate = null;
       navigate('/discover/screener');

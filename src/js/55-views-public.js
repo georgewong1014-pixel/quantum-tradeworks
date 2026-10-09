@@ -954,7 +954,7 @@ VIEWS.launcher = () => {
     const preset = seg('preset', COL_PRESETS.map(p => [p.id, p.label]), 'essentials');
     open = () => {
       const p = COL_PRESETS.find(x => x.id === preset) || COL_PRESETS[0];
-      State.screen = { ...blankScreen(), universe, cols: [...p.cols] };
+      State.screen = screenFitClass({ ...blankScreen(), universe, cols: [...presetCols(p, universe === 'MY' ? 'illustrative' : 'filed')] });
       store.write('screen', State.screen);
       State.appliedTemplate = null;
       navigate('/discover/screener');

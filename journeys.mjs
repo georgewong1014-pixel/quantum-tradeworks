@@ -1157,6 +1157,24 @@ const JOURNEYS = [
         await tab.expect(`${count} !== null`, 'the screener states no result count');
         before = await tab.eval(count);
       });
+      /* 9 Oct audit #8: a template that needs a price is off for the
+         SEC-filed companies, which carry none, and says so where it
+         stands — with the way to run it on the illustrative set. */
+      await step(j, tab, 'Templates: a price-based one says why it is off for filed companies', BUDGET.action, async () => {
+        const det = `[...document.querySelectorAll('main details')].find(d => d.querySelector('.scr-tpl-list'))`;
+        if (!(await tab.eval(`!!(${det})`))) throw new StepError('the screener offers no templates (no list to start from)');
+        await tab.click(`(${det}).querySelector('summary')`, 'Start from a template');
+        await tab.expect(`(${det}).open`, 'pressing "Start from a template" did not open the templates');
+        const off = `document.querySelector('main [data-template="div-cover"][data-off]')`;
+        await tab.expect(`!!(${off}) && (${off}).getClientRects().length > 0`,
+          async () => `Dividend cash coverage, which filters the dividend yield, is not shown off for the filed companies (${await tab.eval(`document.querySelector('main [data-template="div-cover"]')?.outerHTML.slice(0, 120) || 'not drawn'`)})`);
+        const why = await tab.eval(`(${off}).querySelector('.scr-tpl-why')?.textContent.trim() || null`);
+        if (why !== 'Needs a price; filed companies carry none — available on the illustrative set') throw new StepError(`Dividend cash coverage is off with ${JSON.stringify(why)} as its reason`);
+        if (!(await tab.eval(`!!(${off}).querySelector('.scr-tpl-run')`))) throw new StepError('Dividend cash coverage, off, offers no way to run it on the illustrative set');
+        const still = await tab.eval(count);
+        if (still !== before) throw new StepError(`opening the templates changed the result count from ${before} to ${still}`);
+        await tab.click(`(${det}).querySelector('summary')`, 'Start from a template (close)');
+      });
       await step(j, tab, 'Filter: return on equity of at least 20', BUDGET.action, async () => {
         await tab.fill(`document.getElementById('crit-roe-min')`, '20', 'The return-on-equity minimum', { commit: true });
         await tab.expect(`(${count}) !== null && (${count}) !== ${before}`, async () => `the result count stayed at ${before} after the filter was set`);
