@@ -13359,15 +13359,19 @@ function matchRoute(pathname) {
    listing code its address leads with), where it is listed and where its
    figures come from, then the page's own line — the sentence its served page
    carries (build.mjs holds the build's companyDescription to this). Once the
-   script ran, the page wrote the generic research line over it. */
+   script ran, the page wrote the generic research line over it. A filer's
+   names the fiscal years its statements span (the 9 Oct 2026 audit, item
+   #7): a link preview said "filed with the SEC" and not which years. */
 const COMPANY_LISTED = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' };
 function companyMetaDescription(c, pageLine) {
   const where = COMPANY_LISTED[c.mkt];
   if (!where) return pageLine;
   const tickers = c.mkt === 'MY' && c.code && c.code !== c.tk ? `${c.tk}, ${c.code}` : c.tk;
+  const ys = (Array.isArray(c.years) ? c.years : []).filter(Number.isInteger);
+  const span = !ys.length ? '' : Math.min(...ys) === Math.max(...ys) ? `, FY${ys[0]}` : `, FY${Math.min(...ys)}–FY${Math.max(...ys)}`;
   const source = !c.real ? ILLUS_TITLE
     : c.personal ? 'Figures from your own personal-research statements — not licensed, not for redistribution.'
-    : c.cik ? `Figures from its audited annual statements filed with the SEC (CIK ${Number(c.cik)}).` : null;
+    : c.cik ? `Figures from its audited annual statements filed with the SEC${span} (CIK ${Number(c.cik)}).` : null;
   return `${c.name} (${tickers}), ${where}. ${source ? `${source} ` : ''}${pageLine}`;
 }
 function setDocumentMeta(route) {
@@ -14825,6 +14829,19 @@ const SERVED_READ = {
   launcherAnswers: () => State.launcher?.a ?? null,
   rateUnitBuilt: () => State.rateUnits?.built ?? null,
   rateUnitLand: () => State.rateUnits?.land ?? null,
+  /* What My Workspace's pages read besides (the 9 Oct 2026 audit, item #7:
+     each is served pre-rendered, SERVED_READS below): the alert types the
+     research feed shows, the dividends recorded, the price series pasted
+     (merged into the tracked instruments' history), the details a client
+     proposal is prepared with, and which Start here panels are hidden — the
+     whole record, as /my/data lists it, where startHere is the one panel a
+     page shows. Not a key this browser keeps under that name: the head's
+     script reads it from startHere itself (build.mjs, FIRST_SCRIPT). */
+  alertKinds: () => State.alertKinds,
+  dividendsReceived: () => State.dividendsReceived,
+  userData: () => userData,
+  proposalDetails: () => store.read('proposalDetails', null),
+  startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
 };
 /* A parameter of the address, as a page reads it ('?saved'). */
 const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1)) : SERVED_READ[name]());
@@ -14940,6 +14957,50 @@ const SERVED_READS = {
   launcher: ['launcherAnswers', 'observations'],
   howItWorks: ['deal'],
   status: [],
+  /* MY WORKSPACE'S PAGES (the 9 Oct 2026 audit, item #7: deep links). A
+     fetch of /my/alerts or /my/reports read the shell and nothing of the
+     page: no heading, no line saying what it holds. Each /my/ page is served
+     as a fresh visitor's (prerender.mjs) — the samples a first visit is
+     given, each called a sample, and "None yet" where nothing is the
+     reader's — and stands, or is shown before the script, only while what
+     its draw reads of what this browser keeps is a fresh visitor's. What
+     each reads, found by drawing each page with each key a returning reader
+     keeps, one at a time, against a fresh visitor's draw (the keys that
+     changed a page), and by reading each view (what no such drawing could
+     show: a run saved, a review written, a series pasted, an address's
+     ?kind=). The scanner's and the wheel's /my/ addresses are their pages'
+     own (scannerDashboard, wheel, above).
+     /my/portfolio: the holdings, the cases covering them, the dividends
+     recorded, the withholding rates, a price typed in, the plan (the
+     cross-asset card) and the deal it would add, the base currency. */
+  portfolio: ['portfolios', 'theses', 'dividendsReceived', 'wht', 'manualPrices', 'plan', 'deal', 'baseCcy'],
+  /* /my/watchlists: the lists, the active one, the plan's limits. */
+  watchlists: ['watchlists', 'wlActive', 'plan'],
+  /* /my/theses: the cases, the active list they cover, what their
+     conditions are evaluated on (a price typed in, the valuation edits),
+     the runs they link and the reviews written. */
+  thesis: ['theses', 'watchlists', 'wlActive', 'manualPrices', 'valuation', 'runs', 'reviews', 'plan'],
+  /* /my/alerts: the research feed's sources — cases, saved screens, the
+     active list, price alerts and what they are tested on — the types it
+     shows, the plan's cap, the scanner's setups, preferences and read
+     states, and the kind the address names. */
+  alerts: ['theses', 'savedScreens', 'watchlists', 'wlActive', 'priceAlerts', 'alertKinds', 'manualPrices', 'valuation', 'plan',
+    'scanSetups', 'scanPrefs', 'scanAlertState', '?kind'],
+  /* /my/reports: the companies the reader opened, read this month, ran a
+     valuation of or listed; the saved properties; the wheel's contract and
+     the Trading Index's evidence; the plan's monthly allowance. */
+  reports: ['recentCompanies', 'reportLog', 'runs', 'watchlists', 'savedWork', 'wheelPlan', 'qttiPlan', 'plan'],
+  /* /my/tracked: the price series pasted, merged into the tracked history. */
+  tracked: ['userData'],
+  /* /my/workspace: every kind of saved thing it lists. */
+  workspace: ['runs', 'comparisons', 'savedScreens', 'theses', 'reviews', 'savedWork', 'plan'],
+  /* /my/data: everything "Everything you have made" lists (PORTABLE_KEYS,
+     00-core.js), the saved work, the price series pasted and the Start here
+     panels hidden. */
+  userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
+    'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
+    'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
+    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll'],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
@@ -14957,12 +15018,14 @@ const SERVED_HELD = {
   propertyReportsBought: () => State.propertyReportsBought, opportunities: () => State.opportunities, qttiPlan: () => State.qtti,
   wheelPlan: () => State.wheel, wheelLegs: () => State.wheelLegs, corrections: () => State.corrections,
   launcherAnswers: () => State.launcher?.a, rateUnitBuilt: () => State.rateUnits?.built, rateUnitLand: () => State.rateUnits?.land,
+  alertKinds: () => State.alertKinds, dividendsReceived: () => State.dividendsReceived, userData: () => userData,
 };
 /* Read by the head's script itself, not from a digest: whether this is the
    owner's machine, the base currency (its default is the reader's time zone
-   and language), which Start here panels are hidden; and what the address
-   says, which is not kept at all. */
-const SERVED_NOT_KEPT = new Set(['ownerMachine', 'baseCcy', 'startHere', 'discoverTab']);
+   and language), which Start here panels are hidden (the one a page shows,
+   and all of them for /my/data); and what the address says, which is not
+   kept at all. */
+const SERVED_NOT_KEPT = new Set(['ownerMachine', 'baseCcy', 'startHere', 'startHereAll', 'discoverTab']);
 /* FNV-1a, 32 bits: a digest that names a value, not a secret. */
 const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 /* What a draw of this view reads now, as "name:digest …"; null for a view
@@ -24899,10 +24962,12 @@ VIEWS.thesis = () => {
   /* Due within thirty days of today, overdue included. The window was a
      fixed '2026-09-30' under a fixed "30 Sep" label — from October on the
      tile counted only reviews already missed and still called them due, the
-     same fault a fixed review date had in addToThesis. */
+     same fault a fixed review date had in addToThesis. The label says the
+     window, not its last day (the 9 Oct 2026 audit, item #7): the page is
+     served pre-rendered, and a day in its label was the render's, not the
+     reader's. */
   const dueByMs = Date.now() + 30 * 86400000;
   const dueBy = new Date(dueByMs).toISOString().slice(0, 10);
-  const dueByLabel = new Date(dueByMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const dueSoon = State.theses.filter(t => t.review && t.review <= dueBy).length;
   /* Coverage is the watchlist entries that have a thesis, not the count of
      theses: a thesis on a company not on the watchlist raised it, and it
@@ -24912,7 +24977,7 @@ VIEWS.thesis = () => {
   const linked = State.theses.filter(t => t.runRef).length;
   [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
-   [`Reviews due by ${dueByLabel}`, String(dueSoon), 'Within 30 days, overdue included. Review discipline is scored, not returns'],
+   ['Reviews due within 30 days', String(dueSoon), 'Overdue included. Review discipline is scored, not returns'],
    ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
@@ -25852,9 +25917,10 @@ VIEWS.portfolio = () => {
   pos.forEach(p2 => selH.append(el('option', { value: p2.h.id }, p2.r.c.tk + ' — ' + p2.r.c.name)));
   /* Today on the reader's calendar: the UTC date defaulted a payment
      recorded on a Kuala Lumpur morning, or a Los Angeles evening, to the
-     wrong day. */
+     wrong day. Today is the tab's, now (data-now): the served page
+     (/my/portfolio, pre-rendered since the 9 Oct 2026 audit) says no day. */
   const dDate = el('input', { class: 'input input-inline', type: 'date', id: 'divDate',
-    value: localDay(), 'aria-label': 'Payment date' });
+    value: localDay(), 'aria-label': 'Payment date', 'data-now': '' });
   /* The amount is stored in the holding's own currency, so the field says
      which one. Labelled only "Amount" on a page in the reader's base currency,
      ringgit typed for a US holding were counted as dollars — 4.4 times over. */
@@ -27498,7 +27564,9 @@ VIEWS.userdata = () => {
   /* Saved records, listed once in a place that is about storage. */
   const recs = loadWork();
   const sw = el('div', { class: 'card' });
-  sw.append(cardHead(`Saved work — ${recs.length}`,
+  /* None is said as none, not as a nought (D12's rule, on My Workspace's
+     pages since they are served pre-rendered: the 9 Oct 2026 audit, #7). */
+  sw.append(cardHead(recs.length ? `Saved work — ${recs.length}` : 'Saved work — none yet',
     recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
                 : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.',
     /* The tools' snapshots are one kind of saved thing among five; the
@@ -27768,7 +27836,10 @@ VIEWS.watchlists = () => {
      (06-watchlists.js). */
   const own = ownWatchlistCount(), samples = lists.length - own;
   const over = own > LIMITS.watchlists;
-  ctl.append(cardHead('New watchlist', `${over ? `${own} lists of your own — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : `${own} of ${LIMITS.watchlists} on this plan`}${samples ? ` (the ${samples === 1 ? 'sample list does' : `${samples} sample lists do`} not count)` : ''}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
+  /* None of the reader's own is said as none, not "0 of 1" (D12's rule, on
+     My Workspace's pages since they are served pre-rendered: the 9 Oct 2026
+     audit, #7). */
+  ctl.append(cardHead('New watchlist', `${over ? `${own} lists of your own — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : own ? `${own} of ${LIMITS.watchlists} on this plan` : `None of your own yet — ${LIMITS.watchlists} on this plan`}${samples ? ` (the ${samples === 1 ? 'sample list does' : `${samples} sample lists do`} not count)` : ''}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
   const nameInp = el('input', { class: 'input', placeholder: 'Name', 'aria-label': 'New watchlist name', style: 'flex:1;min-width:160px' });
   const createBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
     const r = wlCreate(nameInp.value); toast(r.ok ? `Created “${r.watchlist.name}”` : r.why); if (r.ok) render(); } }, 'Create');
@@ -30094,7 +30165,10 @@ VIEWS.alerts = () => {
     /* The count the plan's cap applies to is the reader's own (ownAlertCount);
        the samples are named beside it rather than filling two of three slots. */
     const samplePA = State.priceAlerts.length - ownAlertCount();
-    pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
+    /* None of the reader's own is said as none, not "0/3" (D12's rule, on
+       My Workspace's pages since they are served pre-rendered: the 9 Oct
+       2026 audit, #7). */
+    pac.append(cardHead(`Price alerts — ${ownAlertCount() ? `${ownAlertCount()}/${LIMITS.priceAlerts}` : `none of your own yet, ${LIMITS.priceAlerts} on this plan`}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
       'Research alerts you set yourself: thresholds that fire on price alone, which is why they are the one alert type off by default in the list below.',
       el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
     if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
@@ -43300,7 +43374,7 @@ const CAPABILITY_REGISTER = [
     checks:[{ file:'equity-test.mjs', name:'one identity per listed thing' },
             { file:'equity-test.mjs', name:'/app/equities and /app/watchlists paths open the existing pages' },
             { file:'equity-test.mjs', name:'the keyboard reaches the search' }] },
-  { name:'Company research', status:'maintenance', path:'/company/AAPL-SEC',
+  { name:'Company research', status:'maintenance', path:'/company/aapl-apple-inc',
     brief:['EQ-205', 'EQ-206', 'EQ-207', 'EQ-209'], priority:'P0',
     now:'Statements, scorecards, valuation router and risk flags. Every figure opens the drawer that names its source, period and kind; every absence names its reason.',
     gate:'Annual figures only — no quarterly line is held for any filer. Gross margin, return on assets, current and quick ratios, interest cover and EV/EBITDA need statement lines the shipped file does not carry.',
@@ -43309,7 +43383,7 @@ const CAPABILITY_REGISTER = [
             { file:'equity-test.mjs', name:'ratios match figures recomputed by hand from the filings' }] },
   /* The statements explorer and per-figure lineage. Active, with the parts
      the shipped data cannot fill stated as the gate rather than hidden. */
-  { name:'Statements and figure lineage', status:'active-core', path:'/company/MSFT-SEC?tab=financials',
+  { name:'Statements and figure lineage', status:'active-core', path:'/company/msft-microsoft-corp?tab=financials',
     brief:['EQ-206', 'EQ-209'], priority:'P0',
     checks:[{ file:'equity-test.mjs', name:'the statements table is three statements whose every cell opens its source' },
             { file:'equity-test.mjs', name:'the statements CSV round-trips the table' },
@@ -43388,7 +43462,7 @@ const CAPABILITY_REGISTER = [
     flag:'Period-end months cannot be aligned until the SEC dataset is regenerated with period ends, and no line-level accounting reconciliation (leases, minorities, associates) is possible from the statements held.',
     checks:[{ file:'equity-test.mjs', name:'the comparison states each column' },
             { file:'equity-test.mjs', name:'compare and onboarding do what their labels say' }] },
-  { name:'Valuation models', status:'flagged', path:'/company/AAPL-SEC?tab=valuation',
+  { name:'Valuation models', status:'flagged', path:'/company/aapl-apple-inc?tab=valuation',
     brief:['EQ-211'], priority:'P1',
     now:'In the Valuation Studio: net debt, the share count and a signed adjustment are inputs, labelled as yours once changed; edits are kept per company across reloads; the sensitivity grid takes any two inputs and steps; the calculation and the confidence score are explained with your figures.',
     flag:'Editing sits behind the local plan switch in this prototype — no payment exists. Lease, minority and associate adjustments are not pre-filled from any filing; the adjustment is your figure.',
@@ -43402,7 +43476,7 @@ const CAPABILITY_REGISTER = [
     flag:'This browser only. There are no accounts, so nothing follows you to another device, nothing can be shared, and a cleared browser loses it all unless it was exported.',
     checks:[{ file:'equity-test.mjs', name:'one stamp on every saved item' },
             { file:'equity-test.mjs', name:'the workspace lists every saved kind with its stamp' }] },
-  { name:'Research report (print or save as PDF)', status:'flagged', path:'/company/MSFT-SEC/report',
+  { name:'Research report (print or save as PDF)', status:'flagged', path:'/company/msft-microsoft-corp/report',
     brief:['EQ-213'], priority:'P1',
     now:'From the Report button on any company page: identification, data status with version stamps, statements, selected metrics with their status, your valuation assumptions marked edited or default, and the figure-kind legend — printable, or rendered from a saved run so it reproduces after the data moves.',
     flag:'PDF is your browser’s own print-to-PDF, not a server export: one company per report, no stored copy, no archive and no share link. Bursa companies print illustrative figures, and no filed company carries a licensed price.',

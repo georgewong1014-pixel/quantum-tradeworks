@@ -24,7 +24,8 @@
  *   1. a row in an operational state (active-core, maintenance, beta) has a
  *      path, and every path resolves through the app's own route table to a
  *      view that exists — and, where it names a company or a tab, to a
- *      company in the data and a tab the view has;
+ *      company in the data — a filer by its own address, never its id, which
+ *      the server redirects — and a tab the view has;
  *   2. a row answering a brief item carries that item's priority from
  *      docs/phase2-plan.md §1, and every item there is answered by some row,
  *      so no item of the brief can drop off the page unremarked;
@@ -123,6 +124,15 @@ const COMPANY_IDS = new Set([
   ...us.results.map(r => `${r.id}-SEC`),
   ...[...read('src/js/10-dataset.js').matchAll(/\{\s*id:'([^']+)'/g)].map(m => m[1]),
 ]);
+/* A filer is named by its own address (the 9 Oct 2026 audit, item #7: deep
+   links). Its id, /company/AAPL-SEC, is a 308 to /company/aapl-apple-inc
+   (build.mjs, companyIdRedirects): a row naming the id sent the status
+   page's reader through a redirect to the page the row means. The filers'
+   own addresses, as the build writes their pages (companyPlan). */
+const { companyPlan, siteOrigin } = await import('./build.mjs');
+const FILED_OWN = new Map(companyPlan(siteOrigin(read('src/index.template.html'))).companies
+  .filter(co => co.company.real).map(co => [co.path.split('/').pop(), co]));
+const FILED_IDS = new Map([...FILED_OWN.values()].map(co => [co.id.toUpperCase(), co]));
 
 /* The briefs' items and their priorities, from each plan's status table.
    Phase 3's NAV row is keyed SC-NAV. P2 exists only in Phase 3. */
@@ -172,7 +182,11 @@ console.log(`register  ${CAPABILITY_REGISTER.length} rows, ${FEATURE_STATUS.leng
     /* Only a company page's :id names a company — the router's own list;
        a scanner setup or an alert is :setup or :alert, and is not looked up
        here. */
-    if (COMPANY_ROUTE_VIEWS.has(rt.view) && rt.params?.id && !COMPANY_IDS.has(rt.params.id)) bad.push(`${c.name}: ${c.path} names ${rt.params.id}, which is neither a filer in data/us.json nor an illustrative company`);
+    if (COMPANY_ROUTE_VIEWS.has(rt.view) && rt.params?.id) {
+      const id = String(rt.params.id), filer = FILED_IDS.get(id.toUpperCase());
+      if (filer) bad.push(`${c.name}: ${c.path} names the filer ${filer.id} by its id, which is a 308 to its own address ${filer.path} — name it by that address`);
+      else if (!COMPANY_IDS.has(id) && !FILED_OWN.has(id)) bad.push(`${c.name}: ${c.path} names ${id}, which is neither a filer in data/us.json (by its own address) nor an illustrative company`);
+    }
     const tab = new URLSearchParams(q || '').get('tab');
     if (tab && rt.view === 'research' && !RESEARCH_TABS.some(t => t.id === tab)) bad.push(`${c.name}: ${c.path} names tab "${tab}", which the company page does not have`);
     resolved++;

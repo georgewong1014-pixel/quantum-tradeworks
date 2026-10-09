@@ -4823,8 +4823,12 @@ try {
         await wait();
         const main = document.querySelector('main');
         const due = [...main.querySelectorAll('.grid.g-4 .card')].map(c => c.innerText).find(t => /Reviews due/.test(t)) || '';
-        const want = new Date(Date.now() + 30 * 86400000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-        out.thesis = { threw, view: State.view, gone: /GONE-SEC — not in the companies loaded now/.test(main.innerText), due: due.split('\\n')[0], want };
+        /* The window is today's thirty days (the label says the window, not
+           its last day, since /my/theses is served pre-rendered: the 9 Oct
+           2026 audit, item #7), and the count is of the reviews in it. */
+        const by = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+        const want = String(State.theses.filter(t => t.review && t.review <= by).length);
+        out.thesis = { threw, view: State.view, gone: /GONE-SEC — not in the companies loaded now/.test(main.innerText), due: due.split('\\n')[0], n: (due.split('\\n')[1] || '').trim(), want };
       } finally {
         State.theses = JSON.parse(keep.theses); State.portfolios = JSON.parse(keep.pf); State.deal = JSON.parse(keep.deal); State.plan = keep.plan; State.pfIdx = keep.pfIdx;
         saveTheses(); savePortfolios(); saveDeal();
@@ -4837,7 +4841,7 @@ try {
     })()`);
     const p = [];
     if (r.thesis.threw || r.thesis.view !== 'thesis' || !r.thesis.gone) p.push(`/my/theses with a case on an unloaded company: ${JSON.stringify(r.thesis)}`);
-    if (r.thesis.due !== 'Reviews due by ' + r.thesis.want) p.push(`the review tile reads "${r.thesis.due}", not a window from today ("Reviews due by ${r.thesis.want}")`);
+    if (r.thesis.due !== 'Reviews due within 30 days' || r.thesis.n !== r.thesis.want) p.push(`the review tile reads "${r.thesis.due}" ${r.thesis.n}, not the reviews due within 30 days of today (${r.thesis.want})`);
     if (r.editorUnnamed || r.reviewUnnamed || r.managerUnnamed) p.push(`unnamed drawer controls — thesis editor ${r.editorUnnamed}, decision review ${r.reviewUnnamed}, portfolio manager ${r.managerUnnamed}`);
     if (r.legacyCcy.shown !== r.legacyCcy.base) p.push(`a portfolio with no stored cash currency shows ${r.legacyCcy.shown} in the manager while the page values it in ${r.legacyCcy.base}`);
     if (!(r.precondition.loan > 0) || r.precondition.cf !== null) p.push(`precondition: a loan with no tenure should leave the monthly position absent — ${JSON.stringify(r.precondition)}`);

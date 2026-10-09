@@ -882,7 +882,10 @@ VIEWS.alerts = () => {
     /* The count the plan's cap applies to is the reader's own (ownAlertCount);
        the samples are named beside it rather than filling two of three slots. */
     const samplePA = State.priceAlerts.length - ownAlertCount();
-    pac.append(cardHead(`Price alerts — ${ownAlertCount()}/${LIMITS.priceAlerts}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
+    /* None of the reader's own is said as none, not "0/3" (D12's rule, on
+       My Workspace's pages since they are served pre-rendered: the 9 Oct
+       2026 audit, #7). */
+    pac.append(cardHead(`Price alerts — ${ownAlertCount() ? `${ownAlertCount()}/${LIMITS.priceAlerts}` : `none of your own yet, ${LIMITS.priceAlerts} on this plan`}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
       'Research alerts you set yourself: thresholds that fire on price alone, which is why they are the one alert type off by default in the list below.',
       el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
     if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));

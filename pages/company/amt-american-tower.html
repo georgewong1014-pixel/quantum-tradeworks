@@ -28,6 +28,7 @@ for (var i = 0; i < list.length; i++) {
     }
     mine = c === was;
   } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
+  else if (name === 'startHereAll') { var a = val('startHere'), any = false; if (a && typeof a === 'object' && !Array.isArray(a)) for (var k in a) if (a[k]) any = true; mine = !any; }
   else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
   if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
 }
@@ -42,7 +43,7 @@ addEventListener('error', function (e) {
 setTimeout(function () { if (d.hasAttribute('data-served') && served()) show(); }, 8000);
 })();</script>
 <title>AMT — AMERICAN TOWER CORP /MA/ · Quantum Tradeworks</title>
-<meta name="description" content="AMERICAN TOWER CORP /MA/ (AMT), listed in the US. Figures from its audited annual statements filed with the SEC (CIK 1053507). A company report where every number shows its formula, its period and its source.">
+<meta name="description" content="AMERICAN TOWER CORP /MA/ (AMT), listed in the US. Figures from its audited annual statements filed with the SEC, FY2016–FY2025 (CIK 1053507). A company report where every number shows its formula, its period and its source.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#2764E7">
 <link rel="canonical" href="https://quantum-tradeworks.vercel.app/company/amt-american-tower">
@@ -51,7 +52,7 @@ setTimeout(function () { if (d.hasAttribute('data-served') && served()) show(); 
 <meta property="og:site_name" content="Quantum Tradeworks">
 <meta property="og:url" content="https://quantum-tradeworks.vercel.app/company/amt-american-tower">
 <meta property="og:title" content="AMT — AMERICAN TOWER CORP /MA/ · Quantum Tradeworks">
-<meta property="og:description" content="AMERICAN TOWER CORP /MA/ (AMT), listed in the US. Figures from its audited annual statements filed with the SEC (CIK 1053507). A company report where every number shows its formula, its period and its source.">
+<meta property="og:description" content="AMERICAN TOWER CORP /MA/ (AMT), listed in the US. Figures from its audited annual statements filed with the SEC, FY2016–FY2025 (CIK 1053507). A company report where every number shows its formula, its period and its source.">
 <meta property="og:image" content="https://quantum-tradeworks.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -59,13 +60,13 @@ setTimeout(function () { if (d.hasAttribute('data-served') && served()) show(); 
 <meta property="og:locale" content="en_MY">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="AMT — AMERICAN TOWER CORP /MA/ · Quantum Tradeworks">
-<meta name="twitter:description" content="AMERICAN TOWER CORP /MA/ (AMT), listed in the US. Figures from its audited annual statements filed with the SEC (CIK 1053507). A company report where every number shows its formula, its period and its source.">
+<meta name="twitter:description" content="AMERICAN TOWER CORP /MA/ (AMT), listed in the US. Figures from its audited annual statements filed with the SEC, FY2016–FY2025 (CIK 1053507). A company report where every number shows its formula, its period and its source.">
 <meta name="twitter:image" content="https://quantum-tradeworks.vercel.app/og.png">
 
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon.svg">
 <link rel="stylesheet" href="/assets/app.0e61d42763d5.css">
-<script src="/assets/app.5213ae22dd6a.js" defer></script>
+<script src="/assets/app.62b784a997ad.js" defer></script>
 </head>
 <body>
 
