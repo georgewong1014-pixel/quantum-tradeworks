@@ -1106,10 +1106,14 @@ for (const route of ROUTES) {
       if ((await ev(`realStatus && realStatus.ok`)) !== false) { p.push(`us.json held back: the filings loaded on ${path} — the check is not testing the case`); continue; }
       if (before) { await ev(before); await sleep(300); }
       if (path === '/research') {
-        const r = await ev(`({ off: [...document.querySelectorAll('#views .task-card.tool-off')].map(n => [n.querySelector('h3')?.textContent, !!n.querySelector('.status-unavailable'), n.getAttribute('role'), n.tabIndex]),
-          swk: !!document.querySelector('#views .task-card[role=button][data-tool-path="/discover/sarawak"]') })`);
-        if (r.off.length !== 5 || r.off.some(([, badge, role, tab]) => !badge || role || tab >= 0)) p.push(`us.json held back: the research home's screener cards are ${JSON.stringify(r.off)}, not five texts wearing Unavailable`);
-        if (!r.swk) p.push('us.json held back: the research home\'s Sarawak card is no longer a button — its tool does not read the filings');
+        /* N7: the six lenses are links (a.rf-way). The five that open the
+           screener are text wearing Unavailable; Sarawak's is still a link,
+           and no filed example links a company the filings did not load. */
+        const r = await ev(`({ off: [...document.querySelectorAll('#views .rf-way.tool-off')].map(n => [n.querySelector('.rf-way-name')?.textContent, !!n.querySelector('.status-unavailable'), n.tagName, n.getAttribute('href')]),
+          swk: !!document.querySelector('#views a.rf-way[href="/discover/sarawak"]'), ex: document.querySelectorAll('#views a.rf-ex').length })`);
+        if (r.off.length !== 5 || r.off.some(([, badge, tag, at]) => !badge || tag === 'A' || at)) p.push(`us.json held back: the research home's screener lenses are ${JSON.stringify(r.off)}, not five texts wearing Unavailable`);
+        if (!r.swk) p.push('us.json held back: the research home\'s Sarawak lens is no longer a link — its tool does not read the filings');
+        if (r.ex) p.push(`us.json held back: ${r.ex} filed example(s) still link a company page the filings did not load`);
       }
       (await ev(PRESS(OFF_VIEWS))).forEach(x => p.push(`us.json held back: ${x}`));
       pressed++;
@@ -1509,7 +1513,7 @@ for (const route of ROUTES) {
       hide: hide ? { tag: hide.tagName, name: hide.getAttribute('aria-label') || hide.textContent.trim() } : null,
       primaries: n.querySelectorAll('.btn-primary').length };
   })()`;
-  const FIRST = [['equities', '/research', /Apple/, /filed|SEC/i], ['scanner', '/app/scanner', /Trend breakout/, /example/i], ['property', '/property/models', /sample/i, /sample|illustrative/i]];
+  const FIRST = [['equities', '/discover/screener', /Apple/, /filed|SEC/i], ['scanner', '/app/scanner', /Trend breakout/, /example/i], ['property', '/property/models', /sample/i, /sample|illustrative/i]];
   for (const [pid, path, exWords, exLabel] of FIRST) {
     await load(BASE + path);
     const r = await ev(`({ panel: ${PANEL}, want: { name: productById(${JSON.stringify(pid)}).name, action: productById(${JSON.stringify(pid)}).action, at: href(productById(${JSON.stringify(pid)}).actionPath) } })`);
@@ -1525,8 +1529,9 @@ for (const route of ROUTES) {
     if (!x.hide || !/Start here/i.test(x.hide.name) || x.hide.tag !== 'BUTTON') p.push(`${path}: the control that hides it is ${JSON.stringify(x.hide)}`);
     if (x.text.length > 700) p.push(`${path}: the panel runs to ${x.text.length} characters — compact is a few lines`);
   }
-  /* Each example opens what it names. */
-  await load(BASE + '/research');
+  /* Each example opens what it names. Equities' from the screener: /research
+     draws no panel since N7 (its filed examples are what it offered). */
+  await load(BASE + '/discover/screener');
   if (await ev(`!!document.querySelector('#views .start-here .start-here-ex')`)) {
     await ev(`document.querySelector('#views .start-here .start-here-ex').click(); true`); await sleep(900);
     const ex1 = await ev(`({ view: State.view, name: BY_ID.get(State.ticker)?.c.name || '', real: !!BY_ID.get(State.ticker)?.c.real })`);
@@ -1548,7 +1553,7 @@ for (const route of ROUTES) {
   }
   /* Hidden on Equities: gone from its pages, kept by the others, remembered. */
   await ev(clean);
-  await load(BASE + '/research');
+  await load(BASE + '/discover/screener');
   const hid = await ev(`(async () => {
     const b = document.querySelector('#views .start-here .start-here-hide');
     if (!b) return null;
@@ -1557,10 +1562,10 @@ for (const route of ROUTES) {
     return { gone: !document.querySelector('#views .start-here'), focus: at && at !== document.body ? (at.id || at.tagName) : 'body',
       kept: JSON.parse(localStorage.getItem('vl.startHere') || 'null') };
   })()`);
-  if (!hid) p.push('/research: nothing hides the panel');
+  if (!hid) p.push('/discover/screener: nothing hides the panel');
   else {
-    if (!hid.gone) p.push('/research: hidden, the panel is still there');
-    if (hid.focus === 'body') p.push('/research: hiding the panel drops focus on <body>');
+    if (!hid.gone) p.push('/discover/screener: hidden, the panel is still there');
+    if (hid.focus === 'body') p.push('/discover/screener: hiding the panel drops focus on <body>');
     if (!hid.kept || !hid.kept.equities) p.push(`hiding Equities' panel is not remembered: vl.startHere ${JSON.stringify(hid.kept)}`);
   }
   const seen = {};
@@ -1588,8 +1593,11 @@ for (const route of ROUTES) {
   else {
     if (!/Equities Research/.test(reset.said)) p.push(`/my/data does not say which panel is hidden: "${reset.said.slice(0, 160)}"`);
     if (reset.kept && Object.keys(reset.kept).length) p.push(`after "${reset.button}", vl.startHere still holds ${JSON.stringify(reset.kept)}`);
+    await load(BASE + '/discover/screener');
+    if (await ev(`document.querySelector('#views .start-here')?.dataset.product || null`) !== 'equities') p.push('after the reset, /discover/screener has no Start here panel');
+    /* And /research draws none, hidden or not (N7). */
     await load(BASE + '/research');
-    if (await ev(`document.querySelector('#views .start-here')?.dataset.product || null`) !== 'equities') p.push('after the reset, /research has no Start here panel');
+    if (await ev(`!!document.querySelector('#views .start-here')`)) p.push('/research draws a Start here panel above its search (N7)');
   }
 
   /* Every workspace page, emptied: what to do next, and one action. On the
@@ -2319,8 +2327,9 @@ for (const route of ROUTES) {
     }
 
     /* The month's reports used on the Free plan: Start here names Apple's
-       report without linking it to a page that refuses it. */
-    await load(BASE + '/research');
+       report without linking it to a page that refuses it (from the
+       screener: /research draws no panel since N7). */
+    await load(BASE + '/discover/screener');
     const d9 = await ev(`(async () => {
       State.plan = 'free'; store.write('plan', 'free');
       State.reportLog = { month: meterMonth(), ids: U.map(r => r.c.id).filter(id => id !== 'AAPL-SEC').slice(0, 5) }; store.write('reportLog', State.reportLog);

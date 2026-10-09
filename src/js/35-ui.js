@@ -1796,6 +1796,18 @@ function applyRoute() {
      "Check whether a dividend is sustainable" opened the default columns. It
      is applied once and the parameter dropped from the address, so a later
      tab change inside Discover does not reload it over the reader's edits. */
+  /* A market named in the address (?market=MY, ?market=US) opens the
+     screener on that market's listings, as Research's market lenses do when
+     pressed (N7): their links say it, so one opened in a new tab, or by a
+     reader with no script who then gets it, opens the same screen. Applied
+     once and dropped, as the template is. */
+  if (route.view === 'discover' && /^(MY|US)$/.test(qs.get('market') || '')) {
+    const s = blankScreen(); s.universe = qs.get('market');
+    State.screen = s.universe === 'MY' ? screenFitClass(s) : s; State.appliedTemplate = null;
+    qs.delete('market');
+    const rest = qs.toString();
+    history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));
+  }
   if (route.view === 'discover' && qs.get('template')) {
     const t = SCREEN_TEMPLATES.find(x => x.id === qs.get('template'));
     if (t) { const s = blankScreen(); t.apply(s); State.screen = screenFitClass(s); State.appliedTemplate = t.id; }
@@ -2872,8 +2884,12 @@ const SERVED_READS = {
      screen (?tab=, ?template=, the market kept), saved screens, the table's
      density, the currencies, a price typed in. */
   discover: ['discoverTab', 'screen', 'savedScreens', 'density', 'baseCcy', 'screenCcy', 'plan', 'manualPrices', 'startHere', 'reportLog'],
-  /* /research, /app/equities, /app/equities/explore. */
-  researchHome: ['plan', 'theses', 'recentCompanies', 'startHere', 'reportLog'],
+  /* /research, /app/equities, /app/equities/explore: the reader's own
+     cases and the companies they opened, and the report meter the filed
+     examples are drawn by (a month's reports used draws them unlinked).
+     Not the Start here panel, which the page no longer draws (N7), and not
+     the base currency: the examples are in US$, their filing currency. */
+  researchHome: ['plan', 'theses', 'recentCompanies', 'reportLog'],
   /* A filed company's own page (/company/<ticker>-<name>; the owner's second
      track, 8 Oct 2026: build.mjs, companyScope): the report meter (a month's
      reports used refuses the page) and the plan's limits, the list the

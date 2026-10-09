@@ -45,10 +45,12 @@
    (N5: in its first view the example on a generated series beside the
    state, and how to run the worker an L3 <details>), and My Dashboard,
    /app (D12: five metric cards of the reader's own work, each section a
-   named one). The rest come later, one at a time.
+   named one), and Research's front page, /research (N7: the search first,
+   three filed examples, the reader's own, more ways in). The rest come
+   later, one at a time.
    ========================================================================== */
 
-const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home'];
+const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home', 'researchHome'];
 const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
 const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
 const lsOn = (view = State.view) => LS_VIEWS.includes(view);

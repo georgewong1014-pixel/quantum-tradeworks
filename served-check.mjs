@@ -1745,7 +1745,8 @@ const HOME_PAGE = read(HOME);
   const CONTROL = (x) => x.tag === 'button' || x.tag === 'a' || attrOf(x.raw, 'data-inert') !== null || FIELD(x);
   /* /app/scanner joined with its first view (N5, 8 Oct 2026); /app, My
      Dashboard, as a workspace (D12, 8 Oct 2026). */
-  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner', '/app'];
+  /* /research, Research's front page (N7, 9 Oct 2026). */
+  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner', '/app', '/research'];
   const got = await getAll(LS_PAGES);
   /* The stylesheet the pages load. */
   const cssHref = ((got.get('/property')?.body || '').match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];
@@ -2291,6 +2292,52 @@ const HOME_PAGE = read(HOME);
     '/app is not served as D12\'s first visit');
 }
 /* ---- end d12-workspace ---- */
+
+/* ---- n7-research-front ---- */
+/* RESEARCH'S FRONT PAGE, AS SERVED (the 5 Oct addendum's N7; the owner's
+   D20). /research read as a fetch reads it, by build.mjs's researchFront —
+   the measure build --check holds the committed render to — with the
+   served data/us.json and the company pages' addresses:
+   - the search is the first form control in <main>, with 40 words or fewer
+     in sight before it (144 on a4a8d0b4, a Start here panel's "Hide" the
+     first control);
+   - the Apple, JPMorgan Chase and Realty Income examples are links to
+     their filed company pages, each an <svg> of 10 data marks or more, each
+     mark that year's revenue or net income in the served data/us.json (a
+     year it does not hold drawn as a gap), and "Filed · SEC 10-K · US$" in
+     sight; no example links an illustrative company;
+   - under "More ways in", the six lenses, the Trading Index ("Scanner
+     tool") and the Cash Wheel are <a href>s, Banks and REITs badged
+     Illustrative — and every one of those addresses is served 200;
+   - data-served-reads names no baseCcy; the coverage line once; the page in
+     N7's order; Recently viewed and saved cases each one line of nothing
+     yet, no sample shown as the reader's.
+   Each fails on a4a8d0b4 but the base currency, which /research never
+   read. */
+{
+  const B = await import('./build.mjs');
+  const p = [];
+  const r = await get('/research');
+  let said = {};
+  if (r.status !== 200) p.push(`/research: ${described(r)}`);
+  else {
+    let usFile = null;
+    try { usFile = JSON.parse((await get('/data/us.json')).body); } catch { usFile = null; }
+    if (!usFile) p.push('/data/us.json: not served as JSON, so the examples cannot be held to it');
+    const { companies } = companyPlan(ORIGIN, router);
+    const res = B.researchFront(r.body, { usFile, companies });
+    said = res.said;
+    res.problems.forEach(x => p.push(`/research: ${x}`));
+    const main = B.allOf(B.htmlTree(r.body)).find(n => n.tag === 'main');
+    const hrefs = main ? [...new Set(B.allOf(main).filter(n => n.tag === 'a' && (B.hasClass(n, 'rf-ex') || B.hasClass(n, 'rf-way'))).map(n => B.attrOf(n, 'href')))] : [];
+    const st = await getAll(hrefs);
+    for (const h of hrefs) if (st.get(h)?.status !== 200) p.push(`/research links ${h}, served ${described(st.get(h))}`);
+    said.links = hrefs.length;
+  }
+  judge(p, `/research served as N7 orders it: the search its first form control after ${said.wordsBeforeSearch} words (40 or fewer); the three filed examples, each a link to its filer's page with columns of its filed revenue and net income as data/us.json holds them (${(said.marks || []).join(', ')} marks) and "Filed · SEC 10-K · US$"; More ways in ${said.ways} links, the six lenses, the Trading Index and the Cash Wheel among them, Banks and REITs Illustrative; ${said.links} addresses served 200; no baseCcy among its reads (${said.reads}); the coverage line ${said.coverage} time; ${said.empty} one-line empty states`,
+    '/research is not served as N7 accepts it');
+}
+/* ---- end n7-research-front ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);
