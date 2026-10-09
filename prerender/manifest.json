@@ -238,7 +238,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "317999caf91bd19a",
+      "digest": "d3e17ca832ca0b43",
       "changed": "2026-10-09"
     },
     "pages/app/equities/compare.html": {
@@ -296,7 +296,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "317999caf91bd19a",
+      "digest": "d3e17ca832ca0b43",
       "changed": "2026-10-09"
     },
     "pages/app/scanner.html": {
@@ -4793,7 +4793,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "285b507d9009fb4e",
+      "digest": "7341c0a07cbf50e1",
       "changed": "2026-10-09"
     },
     "pages/research/queue.html": {
