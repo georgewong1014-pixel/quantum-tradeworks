@@ -11375,7 +11375,7 @@ try {
         const keep = { screen: State.screen, tpl: State.appliedTemplate, tab: State.discoverTab, cards: State.scrCardCols };
         const draw = async (s) => { State.screen = s; State.appliedTemplate = null; State.discoverTab = 'screener'; navigate('/discover/screener'); await w(200); };
         const drawn = () => [...document.querySelectorAll('main [data-template]')].map(n => ({ id: n.getAttribute('data-template'), off: n.hasAttribute('data-off'),
-          pressable: n.tagName === 'BUTTON', why: n.querySelector('.scr-tpl-why')?.textContent.trim() || null, run: !!n.querySelector('.scr-tpl-run') }));
+          pressable: !!n.closest('button'), why: n.querySelector('.scr-tpl-why')?.textContent.trim() || null, run: !!n.querySelector('.scr-tpl-run') }));
         try {
           /* SC1 */
           await draw(blankScreen());

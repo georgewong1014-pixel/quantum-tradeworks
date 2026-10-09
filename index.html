@@ -24622,10 +24622,13 @@ function renderScreener() {
      run (templateOff). */
   const tplOff = SCREEN_TEMPLATES.map(t => [t, templateOff(t, cls)]);
   tplOff.filter(([, off]) => !off).forEach(([t]) => {
-    const b = el('button', { class: 'ob-option', style: 'padding:9px 11px', 'data-template': t.id,
+    /* The id rides on the name, not the button: a pre-rendered button is
+       served as inert text with its attributes left behind (prerender.mjs),
+       and served-check reads which template is which from the served page. */
+    const b = el('button', { class: 'ob-option', style: 'padding:9px 11px',
       'aria-pressed': State.appliedTemplate === t.id ? 'true' : 'false',
       onclick: () => applyTemplate(t) });
-    b.append(el('div', { class: 'ob-option-t', style: 'font-size:13px' }, t.name));
+    b.append(el('div', { class: 'ob-option-t', style: 'font-size:13px', 'data-template': t.id }, t.name));
     b.append(el('div', { class: 'ob-option-n' }, t.why));
     tplList.append(b);
   });

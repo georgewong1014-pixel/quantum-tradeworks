@@ -1502,7 +1502,7 @@
       ]
     },
     {
-      "source": "/assets/app.641318d428fd.js",
+      "source": "/assets/app.3046020f228a.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1536,7 +1536,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.641318d428fd\\.js$|assets/app\\.ffa00c7bf30e\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.3046020f228a\\.js$|assets/app\\.ffa00c7bf30e\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1544,7 +1544,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-ZBMY1Cj9ltaVCq9zQtRoe3ekBiTaswM2bliXGOwoGsA=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-MEYCDyKKeAY40oTfsA2HTWFt7Ftj7WqH+yyHad1/2mM=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
