@@ -32259,6 +32259,10 @@ const DEAL_ANSWER_FIELDS = {
   auctionDepositPct: ansPct, auctionDepositOf: ansEnum(Object.keys(AUCTION_DEPOSIT_OF)), auctionBalanceDays: ansDays,
   auctionBuffer: ansSum, auctionHoldMonths: ansSum,
   auctionChecks: ansChecks,
+  /* Mortgage protection, optional and off by default (the fee rulebook
+     1.1.0): 'included' carries it in the cash required at the rulebook's
+     estimate until a quote replaces it. Absent is out. */
+  mortgageProtection: ansEnum(['included']),
 };
 const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
 /* The one way an answer is written to a deal: the default is the key's
@@ -32761,8 +32765,8 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.0.0',
-  checkedOn: '2026-10-08',
+  version: '1.1.0',
+  checkedOn: '2026-10-09',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
@@ -32770,13 +32774,33 @@ const FEE_TABLE = {
      because it looks maintained. Due again after Budget 2027 is tabled. */
   reviewOwner: null,
   nextReviewDue: '2026-10-31',
+  /* THE LEDGER'S FIVE KINDS (the owner's decision of 9 Oct 2026, audit
+     item #2): what a line IS, said beside it wherever it is shown — the
+     calculator's ledger, the Lab's evidence, the rulebook page — in this
+     order. A line's kind is its category; a quotation the reader enters
+     is of the 'quotation' kind whatever line it stands in (feeKindOf). */
   categories: {
-    statutory: 'Statutory charge',
-    professional: 'Professional fee',
-    disbursement: 'Disbursements',
-    insurance: 'Optional insurance',
-    deposit: 'Deposits',
+    statutory: 'Statutory charges',
+    professional: 'Professional fees on a published scale',
+    quotation: 'Lender and other quotations',
+    optional: 'Optional products',
+    estimate: 'Estimates',
   },
+  categoryNotes: {
+    statutory: 'Set by statute or by a gazetted rule: stamp duty on the transfer, the loan and the charge, registration, and service tax.',
+    professional: 'A professional’s fee on the scale the rules publish: the advocate’s fees, and the valuer’s.',
+    quotation: 'A figure from a quotation you entered — a lender’s, an insurer’s or a lawyer’s. Yours to stand behind; no rule checks it.',
+    optional: 'A product you may buy, and need not. Left out of the cash required until you include it or enter a quote, and listed so its absence is seen.',
+    estimate: 'An approximation the rulebook carries so the total runs, where no rule fixes the amount. Replace it with a quotation.',
+  },
+  /* What changed, version by version: a reader of /data-sources who sees
+     the figures move is owed the reason. Newest first. */
+  changelog: [
+    { version: '1.1.0', date: '2026-10-09',
+      what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
+    { version: '1.0.0', date: '2026-10-08',
+      what: 'Replaced 0.1.0-unverified: the transfer and loan agreement stamp duty, Sarawak’s advocates’ scale for the purchase and loan legal fees, and service tax verified from official texts; the valuation fee carried at the Board of Valuers’ ceiling as an estimate.' },
+  ],
 
   lines: {
     transferStampDuty: {
@@ -32873,22 +32897,66 @@ const FEE_TABLE = {
       source: { title: 'Valuers, Appraisers and Estate Agents Rules 1986 (P.U.(A) 64/1986), rule 48 and the Seventh Schedule — the scale as the Board of Valuers publishes it',
                 url: 'https://lpeph.gov.my/fees',
                 citation: 'Act 242; P.U.(A) 64/1986, r. 48(1), Seventh Schedule item 3' },
-      checkedOn: '2026-10-08',
-      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, and the page carries injected third-party text. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it.',
+      checkedOn: '2026-10-09',
+      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, the page still carries injected third-party text (re-read 9 October 2026), and the only full text of the Rules found was a third party’s copy of the 1986 original. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it.',
+    },
+    chargeStampDuty: {
+      label: 'Stamp duty on the charge',
+      category: 'statutory',
+      basis: 'fractionOfFee',
+      appliesTo: 'loanDuty',
+      provenance: 'verified',
+      jurisdiction: 'Federal',
+      /* "One-fifth of the duty on the principal or security but so as not to
+         exceed RM10.00" — the charge being the collateral security where the
+         loan agreement is the principal one, duly stamped. */
+      fraction: 0.2,
+      maximum: 10,
+      needsBase: true,
+      effectiveFrom: '2024-01-01',
+      effectiveAsAt: true,
+      source: { title: 'Stamp Act 1949 (Act 378), First Schedule, Item 27(b) — LHDN’s updated text as at 1 January 2024',
+                url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf',
+                citation: 'Act 378, First Schedule, Item 27(b)' },
+      checkedOn: '2026-10-09',
+      assumes: 'the loan agreement is the principal security and the charge the collateral one',
+      note: 'One-fifth of the loan agreement’s duty, at most RM10: RM10 on any loan above RM10,000. No loan, no charge, and nothing to stamp. Until 1.1.0 it sat inside the disbursements estimate.',
+    },
+    registration: {
+      label: 'Registration of the transfer and the charge',
+      category: 'statutory',
+      basis: 'perInstrument',
+      appliesTo: 'instruments',
+      provenance: 'verified',
+      jurisdiction: 'Sarawak',
+      /* "RM 10 for each instrument when the land in only one document of
+         title is dealt with" — a transfer, a charge (item 3). */
+      perInstrument: 10,
+      effectiveFrom: '2026-10-09',
+      effectiveAsAt: true,
+      effectiveNote: 'Item 3 as amended by Swk. L.N. 103/93; the date that amendment came into force was not found, so the rulebook dates the fee as at the Department’s published schedule, read on 9 October 2026.',
+      source: { title: 'Land (Registration of Title) Rules — Fees (Registration of Title and Instruments), Land and Survey Department, Sarawak',
+                url: 'https://landsurvey.sarawak.gov.my/web/subpage/webpage_view/1647',
+                citation: 'Land (Registration of Title) Rules, fees item 3 (Am. Swk. L.N. 103/93)' },
+      checkedOn: '2026-10-09',
+      assumes: 'one document of title: the transfer, and the charge where there is a loan, each RM10',
+      note: 'RM10 for each instrument dealing with land in one document of title; RM5 more for each further title an instrument deals with. Searches (RM5 a document of title) and the firm’s other disbursements are in the estimate below.',
     },
     disbursements: {
-      label: 'Registration, searches and disbursements',
-      category: 'disbursement',
+      label: 'Searches and the firm’s disbursements',
+      category: 'estimate',
       basis: 'fixed',
       appliesTo: null,
       provenance: 'estimated',
       jurisdiction: 'Sarawak',
-      fixed: 1200,
+      /* RM1,200 in 1.0.0 with registration and the charge's stamp inside it:
+         those RM30, now verified lines of their own, are taken out of it. */
+      fixed: 1170,
       effectiveFrom: null,
-      source: { title: 'An approximation — no single official schedule covers it. Registration of an instrument on one title is RM10 under the Land (Registration of Title) Rules (Land and Survey Department, Sarawak)',
+      source: { title: 'An approximation — no single official schedule covers it. A land search is RM5 a document of title under the Land (Registration of Title) Rules (Land and Survey Department, Sarawak)',
                 url: 'https://landsurvey.sarawak.gov.my/web/subpage/webpage_view/1647' },
-      checkedOn: '2026-10-08',
-      note: 'Title searches, registration, land-office and the firm’s disbursements, and the charge’s RM10 stamp. Ask the acting firm for a written quotation rather than estimating.',
+      checkedOn: '2026-10-09',
+      note: 'Title and other searches, land-office attendance, copies and the firm’s own disbursements. Registration and the charge’s stamp are their own lines now. Ask the acting firm for a written quotation rather than estimating.',
     },
     professionalServiceTax: {
       label: 'Service tax on legal fees',
@@ -32923,21 +32991,30 @@ const FEE_TABLE = {
     },
     mortgageProtection: {
       label: 'Mortgage protection (MRTA/MLTA)',
-      category: 'insurance',
+      category: 'optional',
       basis: 'quote',
       appliesTo: null,
       provenance: 'estimated',
       jurisdiction: 'Federal',
       fixed: 8000,
       financedByDefault: false,
+      /* OPTIONAL, AND OFF UNTIL THE READER SAYS OTHERWISE (the owner's
+         decision of 9 Oct 2026): out of the cash required unless included
+         (the deal's mortgageProtection: 'included') or quoted (mrtaPremium);
+         listed as "Optional: mortgage protection" while out, so its absence
+         is seen. A quote entered is a lender's or insurer's quotation, the
+         D6 Quoted badge. */
+      optional: true,
+      optionalLabel: 'Optional: mortgage protection',
+      quoteKind: 'quoted',
       effectiveFrom: null,
-      source: { title: 'An insurer’s quotation — no rule sets it' },
-      checkedOn: '2026-10-08',
-      note: 'Optional cover, though a lender may ask for it. Depends on age, sum assured, tenure and product. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash. Your own quote, entered on the financing panel, replaces this.',
+      source: { title: 'An insurer’s quotation, usually arranged through the lender — no rule sets it' },
+      checkedOn: '2026-10-09',
+      note: 'Optional cover, though a lender may ask for it. Depends on age, sum assured, tenure and product. Left out of the cash required until you include it (carried then at an RM8,000 estimate) or enter the premium you were quoted, on the financing panel. Record whether the premium is paid in cash or financed into the loan — the two produce very different completion cash.',
     },
     utilityDeposits: {
       label: 'Utility and management deposits',
-      category: 'deposit',
+      category: 'estimate',
       basis: 'fixed',
       appliesTo: null,
       provenance: 'estimated',
@@ -32987,8 +33064,8 @@ const FEE_TABLE = {
   /* What could not be verified, and why — said, not discovered. */
   unverified: [
     { what: 'Valuation fee', why: 'the Board of Valuers’ published scale could not be checked against a gazetted copy: the date its current bands took effect was not found, and the page carries injected third-party text. Carried at that scale’s ceiling as an estimate.' },
-    { what: 'Registration, searches and disbursements', why: 'no single official schedule covers the bundle; only the RM10 registration fee per instrument is published (Land and Survey Department, Sarawak). Ask the acting firm for a quotation.' },
-    { what: 'Mortgage protection and utility deposits', why: 'set by an insurer, the utility providers and the management body for each case; no rule fixes them.' },
+    { what: 'Searches and the firm’s disbursements', why: 'no single official schedule covers the bundle: the land search (RM5 a title) is published, the firm’s own disbursements and how many searches it makes are not. Registration and the charge’s stamp, which are published, are their own verified lines since 1.1.0. Ask the acting firm for a quotation.' },
+    { what: 'Mortgage protection and utility deposits', why: 'set by an insurer, the utility providers and the management body for each case; no rule fixes them. Mortgage protection is optional and left out of the cash required until you include it or enter a quote.' },
     { what: 'When the 4% transfer band took effect in practice', why: 'the remission order that kept 3% on the RM1m–2.5m slice to 30 June 2019 was found only in secondary sources, and its P.U.(A) number not confirmed. The bands in force are read in the official text.' },
     { what: 'The loan agreement duty’s start date', why: 'the rate is read in LHDN’s updated text as at 1 January 2024; when it was set was not established, so the rulebook dates it as at that text.' },
     { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
@@ -33046,6 +33123,16 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   } else if (line.basis === 'percentOfFees') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or fee base is missing.'; return out; }
     out.amount = Math.round(base * line.percent) / 100;
+  } else if (line.basis === 'fractionOfFee') {
+    /* A share of another line's amount, capped: the charge's stamp, one-fifth
+       of the loan agreement's duty and at most RM10 (Item 27(b)). */
+    if (!isNum(base) || !isNum(line.fraction)) { out.why = 'The fee it is a share of is missing.'; return out; }
+    out.amount = Math.round(Math.min(base * line.fraction, isNum(line.maximum) ? line.maximum : Infinity) * 100) / 100;
+  } else if (line.basis === 'perInstrument') {
+    /* So much an instrument registered: the transfer, and the charge where
+       there is a loan. */
+    if (!isNum(base) || !isNum(line.perInstrument)) { out.why = 'The instruments to register are not known.'; return out; }
+    out.amount = base * line.perInstrument;
   } else if (line.basis === 'fixed' || line.basis === 'quote') {
     if (!isNum(line.fixed)) { out.why = 'No amount has been entered.'; return out; }
     out.amount = line.fixed;
@@ -33074,8 +33161,18 @@ const feeDay = (iso) => {
 };
 /* The D6 badge of a resolved line: by its provenance (KIND_OF_FEE), and
    Unavailable where it has no amount. */
+/* The D6 kind of a resolved line: a quote on a line that names its own
+   (mortgage protection: a lender's or insurer's quotation, Quoted) wears
+   that; any other by its provenance (KIND_OF_FEE). */
+const feeKindBadge = (r, amount = r?.amount) => (!isNum(amount) ? 'unavailable'
+  : r?.provenance === 'quote' && r.line?.quoteKind ? r.line.quoteKind : KIND_OF_FEE[r?.provenance] || 'unavailable');
+/* Which of the ledger's five kinds a resolved line is (FEE_TABLE.categories):
+   a quotation entered is a quotation, whatever line it stands in
+   (quotedLine: the reader's figure itself — not a tax charged on it, which
+   stays the statutory charge it is). */
+const feeKindOf = (r) => (r?.quotedLine ? 'quotation' : r?.line?.category || null);
 function feeBadge(r, amount = r?.amount) {
-  const kind = KIND_OF_FEE[isNum(amount) ? r.provenance : 'unset'] || 'unavailable';
+  const kind = feeKindBadge(r, amount);
   const line = r.line || {};
   const fine = `${FEE_PROVENANCE[r.provenance]?.word || r.provenance} — ${line.jurisdiction || 'no jurisdiction'}${line.source?.title ? `; ${line.source.title}` : ''}`;
   return kindBadge(kind, { fine });
@@ -33086,7 +33183,7 @@ function feeBadge(r, amount = r?.amount) {
 function feeProvenanceLine(r) {
   const line = r.line || {};
   const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
-  if (r.provenance === 'quote') return `${word} — yours, not the rulebook’s`;
+  if (r.provenance === 'quote') return line.quoteKind === 'quoted' ? `${word} — the lender’s or insurer’s quotation you entered, not the rulebook’s` : `${word} — yours, not the rulebook’s`;
   const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');
   const via = r.provenance !== line.provenance && FEE_PROVENANCE[line.provenance]
     ? ` — a ${FEE_PROVENANCE[line.provenance].word.toLowerCase()} rate on an ${FEE_PROVENANCE[r.provenance]?.word.toLowerCase()} fee` : '';
@@ -33097,6 +33194,17 @@ function feeProvenanceLine(r) {
    (estimated), …". `money`: the format of the place it is said. */
 function feeUncertainWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   return (m.unconfirmedLines || []).map(x => `${x.label.charAt(0).toLowerCase()}${x.label.slice(1)} ${money(x.amount)} (${FEE_PROVENANCE[x.provenance]?.word.toLowerCase() || x.provenance})`).join(', ');
+}
+/* The cash required by the ledger's kinds (dealModel's ledgerSplit), in the
+   rulebook's order, then the buyer's own money and figures, then the
+   optional lines left out: "By kind: statutory charges RM14,383.68; …". */
+function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
+  const s = m?.ledgerSplit;
+  if (!s) return '';
+  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) : 'none'}`);
+  parts.push(`your own money and figures (the deposit, the renovation, the reserve and what you entered) ${money(s.kinds.own.total)}`);
+  const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
+  return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;
 }
 const feeUncertainHeadline = (m) => `${fmtAmount(m.unconfirmedCost, 'MYR')} of this rests on unverified or unknown lines`;
 
@@ -33127,22 +33235,34 @@ function feeRulebookCard() {
   ])));
   card.append(el('dl', { class: 'fee-book-dl fee-book-key', 'aria-label': 'What each provenance means' },
     Object.values(FEE_PROVENANCE).flatMap(v => [el('dt', {}, v.word), el('dd', {}, v.note)])));
-  const list = el('ul', { class: 'fee-book-list' });
-  for (const [id, line] of Object.entries(FEE_TABLE.lines)) {
-    const kind = KIND_OF_FEE[line.provenance] || 'unavailable';
-    list.append(el('li', { class: 'fee-book-line', 'data-fee-line': id, 'data-fee-provenance': line.provenance }, [
-      el('p', { class: 'fee-book-name' }, [el('strong', {}, line.label), ' ', kindBadge(kind, { fine: FEE_PROVENANCE[line.provenance]?.word }),
-        el('span', { class: 'fee-book-cat' }, FEE_TABLE.categories[line.category] || line.category)]),
-      el('dl', { class: 'fee-book-dl' }, [
-        el('dt', {}, 'Provenance'), el('dd', {}, FEE_PROVENANCE[line.provenance]?.word || line.provenance),
-        ...feeBookFacts(line),
-        ...(line.assumes ? [el('dt', {}, 'Assumes'), el('dd', {}, line.assumes)] : []),
-      ]),
-      line.effectiveNote ? el('p', { class: 'metaline' }, line.effectiveNote) : null,
-      line.note ? el('p', { class: 'metaline' }, line.note) : null,
-    ]));
+  /* By the ledger's five kinds, in their order, each with what it means —
+     the split the calculator's ledger and the Lab's evidence show. A kind
+     no line of the rulebook has (quotations are the reader's own) is said,
+     not dropped. */
+  for (const [cat, catLabel] of Object.entries(FEE_TABLE.categories)) {
+    const lines = Object.entries(FEE_TABLE.lines).filter(([, l]) => l.category === cat);
+    card.append(el('h3', { class: 'fee-book-h3', 'data-fee-kind': cat }, catLabel));
+    card.append(el('p', { class: 'metaline' }, FEE_TABLE.categoryNotes?.[cat] || ''));
+    if (!lines.length) continue;
+    const list = el('ul', { class: 'fee-book-list' });
+    for (const [id, line] of lines) {
+      const kind = KIND_OF_FEE[line.provenance] || 'unavailable';
+      list.append(el('li', { class: 'fee-book-line', 'data-fee-line': id, 'data-fee-provenance': line.provenance, 'data-fee-kind': cat }, [
+        el('p', { class: 'fee-book-name' }, [el('strong', {}, line.optional ? line.optionalLabel || line.label : line.label), ' ', kindBadge(kind, { fine: FEE_PROVENANCE[line.provenance]?.word }),
+          el('span', { class: 'fee-book-cat' }, line.optional ? 'Off by default' : catLabel)]),
+        el('dl', { class: 'fee-book-dl' }, [
+          el('dt', {}, 'Provenance'), el('dd', {}, FEE_PROVENANCE[line.provenance]?.word || line.provenance),
+          ...feeBookFacts(line),
+          ...(line.assumes ? [el('dt', {}, 'Assumes'), el('dd', {}, line.assumes)] : []),
+        ]),
+        line.effectiveNote ? el('p', { class: 'metaline' }, line.effectiveNote) : null,
+        line.note ? el('p', { class: 'metaline' }, line.note) : null,
+      ]));
+    }
+    card.append(list);
   }
-  card.append(list);
+  card.append(el('p', { class: 'metaline fee-book-total-rule' },
+    'No total is called verified while any line in it is not: wherever the cash required is shown, the amount resting on estimated or unknown lines is stated beside it.'));
   /* Verified, and applied to nothing here: another jurisdiction's rule. */
   const refs = Object.entries(FEE_TABLE.reference || {});
   if (refs.length) {
@@ -33161,6 +33281,10 @@ function feeRulebookCard() {
   if ((FEE_TABLE.unverified || []).length) {
     card.append(el('h3', { class: 'fee-book-h3' }, 'What could not be verified, and why'));
     card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.unverified.map(x => el('li', {}, [el('strong', {}, x.what), ` — ${x.why}`]))));
+  }
+  if ((FEE_TABLE.changelog || []).length) {
+    card.append(el('h3', { class: 'fee-book-h3' }, 'What changed'));
+    card.append(el('ul', { class: 'fee-book-notes fee-book-changes' }, FEE_TABLE.changelog.map(x => el('li', { 'data-fee-version': x.version }, [el('strong', {}, `${x.version}, ${feeDay(x.date)}`), ` — ${x.what}`]))));
   }
   return card;
 }
@@ -34579,6 +34703,21 @@ function observationStanding(o) {
   if (o.sample)
     return { id:'sample', label:'Worked example', tone:'chip chip-bronze',
              why:'Part of the worked example. This figure was invented to demonstrate the tool — there is no property, no document and no transaction behind it. Remove the worked example from the comparables register when you no longer need it.' };
+  /* A LOCALITY-LEVEL RECORD (the guided evidence flow, the owner's decision
+     of 9 Oct 2026, audit item #6): a figure the reader recorded against a
+     locality, with its source and date, and no building. Whatever its
+     source, it is never a verified building transaction: checked by the
+     reader against its source, or not — said so — and it clears no gate. */
+  if (o.scope === 'area') {
+    const src = !o.sourceRef || !String(o.sourceRef).trim();
+    if (src) return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
+      why:'Nothing says where this figure came from, so it cannot be checked by anyone else. It is a note, not evidence.' };
+    return o.reviewedBy && String(o.reviewedBy).trim()
+      ? { id:'area_checked', label:'Checked by you — locality level', tone:'chip',
+          why:`You recorded this against ${o.area || 'a locality'} and checked it against its source${o.reviewedAt ? ` on ${o.reviewedAt}` : ''}. Your record: not a verified transaction of any building, and it lifts no grade.` }
+      : { id:'area_unchecked', label:'Not checked — locality level', tone:'chip chip-bronze',
+          why:`You recorded this against ${o.area || 'a locality'} with its source, and have not checked it against that source yet. Your record: not a verified transaction of any building, and it lifts no grade.` };
+  }
   const ev = evidenceOf(o.evidence);
   if (!o.sourceRef || !String(o.sourceRef).trim())
     return { id:'unsourced', label:'No source recorded', tone:'chip chip-bronze',
@@ -34675,9 +34814,27 @@ function dealComparableChoices(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
   return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
 }
-const comparableName = (o) => [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', ');
+const comparableName = (o) => (o.scope === 'area'
+  /* A locality-level record names no building: its kind and its place. */
+  ? `${OBS_BY_ID[o.kind]?.label || 'A record'} recorded in ${o.area || townName(o.city)}`
+  : [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', '));
+/* Where a record came from, as it is said beside it wherever it is used:
+   its source (the address of a web page, or the document) — "no source
+   recorded" where there is none. */
+const comparableSource = (o) => (String(o?.sourceRef || '').trim() || 'no source recorded');
+/* THE ASKING PRICES THAT CAN BE NAMED, APART (the owner's decision of 9 Oct
+   2026: asking and achieved prices are never mixed in one median). An
+   asking price of the deal's kind in its town, the reader's own: shown
+   beside the comparable value as its own median, never in it. */
+const PRICE_ASK_KINDS = { residential: 'ask-price', commercial: 'ask-price', land: 'land-ask' };
+function dealAskingChoices(d) {
+  const kind = PRICE_ASK_KINDS[propertyClassOf(d)];
+  return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
+const medianOf = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
 function priceGap(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  const askKind = PRICE_ASK_KINDS[propertyClassOf(d)];
   const areaKey = kind === 'land-sold' ? 'landSqft' : 'sqft';
   const ids = Array.isArray(d?.comparableIds) ? d.comparableIds : [];
   const all = State.observations || [];
@@ -34685,24 +34842,29 @@ function priceGap(d) {
   /* A record named before the class changed, or since removed, is said, not
      used: a land sale does not value a condominium. */
   const used = named.filter(o => o.kind === kind && !o.sample && isNum(o.value) && o.value > 0);
-  const notUsed = ids.length - used.length;
+  /* Asking prices named: set apart, with their own median — never in the
+     comparable value, which is achieved prices only. */
+  const asked = named.filter(o => o.kind === askKind && !o.sample && isNum(o.value) && o.value > 0);
+  const notUsed = ids.length - used.length - asked.length;
   const subjectArea = num0(d?.[areaKey]);
-  const comps = used.map(o => {
+  const each = (o) => {
     const area = num0(o[areaKey]);
     const byRate = area > 0 && subjectArea > 0;
     return { id: o.id, name: comparableName(o), price: o.value, date: o.date || null, evidence: o.evidence || null,
-      standing: observationStanding(o), area: area || null,
+      standing: observationStanding(o), area: area || null, source: comparableSource(o), scope: o.scope || null,
       implied: byRate ? o.value / area * subjectArea : o.value, basis: byRate ? 'rate' : 'price',
       rate: area > 0 ? o.value / area : null };
-  });
-  const vals = comps.map(c => c.implied).sort((a, b) => a - b);
-  const value = vals.length ? (vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2) : null;
+  };
+  const comps = used.map(each);
+  const askingComps = asked.map(each);
+  const value = medianOf(comps.map(c => c.implied));
+  const askingValue = medianOf(askingComps.map(c => c.implied));
   const asking = isNum(d?.askingPrice) && d.askingPrice > 0 ? d.askingPrice : null;
   const price = num0(d?.price) > 0 ? num0(d.price) : null;
   const gapOf = (p) => (isNum(p) && isNum(value) && value > 0 ? { amount: p - value, pct: (p - value) / value * 100 } : null);
   return {
     status: !comps.length ? 'no-comparables' : !asking ? 'no-asking' : 'ok',
-    kind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed,
+    kind, askKind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed, askingComps, askingValue,
     asking, askingGap: gapOf(asking), price, priceGap: gapOf(price),
     /* Asking less negotiated: what the negotiation took off, or added. */
     negotiated: isNum(asking) && isNum(price) ? asking - price : null,
@@ -36639,6 +36801,9 @@ function cpAcquisitionSection(d, m, cash) {
     s.append(el('p', { class: 'cp-note cp-warn' }, [cpFig('unconfirmedCost', cpMoney(m.unconfirmedCost)),
       ' of the total — ', cpFig('unconfirmedShare', fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)),
       ' — rests on unverified or unknown fee lines: estimates, or amounts resting on a rule that could not be verified for this jurisdiction — none checked against an official source. Confirm each with the lender, the solicitor and the local authority before relying on it.']));
+  /* The optional lines left out of the total, named so the absence is seen
+     (the fee rulebook 1.1.0). */
+  (m.optionalCostLines || []).forEach(x => s.append(cpNote(`${x.label} — not included in the total. Optional cover a lender may ask for; with no quote entered it is left out, and would add the premium quoted (the fee rulebook’s estimate is ${cpMoneyIn(x.estimate)}).`)));
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
@@ -38303,7 +38468,7 @@ function dealModel(d) {
   const auctionRoute = dealRoute(d) === 'auction';
   const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
   const purchaseLegalR = legalQuote != null
-    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
     : resolveFee('purchaseLegal', { price: d.price });
   const loanLegalR = resolveFee('loanLegal', { loan });
@@ -38317,6 +38482,14 @@ function dealModel(d) {
     ...(num0(d.possessionCost) > 0 ? [['Possession cost', num0(d.possessionCost)]] : []),
   ];
   const valuationR = resolveFee('valuationFee', { price: d.price });
+  const loanDutyR = resolveFee('loanStampDuty', { loan });
+  /* Mortgage protection: quoted, included at the estimate, or out. */
+  const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
+  const mrtaIncluded = !mrtaQuoted && d.mortgageProtection === 'included';
+  const optionalCostLines = mrtaQuoted || mrtaIncluded ? [] : [{ id: 'mortgageProtection', group: 'financing',
+    label: FEE_TABLE.lines.mortgageProtection.optionalLabel, line: FEE_TABLE.lines.mortgageProtection,
+    estimate: FEE_TABLE.lines.mortgageProtection.fixed, included: false,
+    why: 'Optional, and left out of the cash required: include it, or enter the premium you were quoted on the financing panel.' }];
   const legalBase = isNum(purchaseLegalR.amount) && isNum(loanLegalR.amount) ? purchaseLegalR.amount + loanLegalR.amount : null;
   const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
@@ -38335,11 +38508,17 @@ function dealModel(d) {
         ...auctionLines,
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
+        /* The transfer, and the charge where there is a loan (fee rulebook
+           1.1.0: verified, out of the disbursements estimate). */
+        feeLine('registration', { instruments: loan > 0 ? 2 : 1 }),
         feeLine('disbursements', {}),
         feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
+        /* The charge, the collateral security: one-fifth of the loan
+           agreement's duty, at most RM10 (Item 27(b)). */
+        feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
         feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
@@ -38348,12 +38527,17 @@ function dealModel(d) {
            beside it went on charging the RM8,000 placeholder, so a reader who
            had typed RM4,200 from a real quote saw RM8,000 in their cash to
            complete. A quoted figure is not verified against any schedule, but
-           it is not a placeholder either, and it is marked as what it is. */
-        isNum(d.mrtaPremium) && d.mrtaPremium > 0
-          ? ['Mortgage protection — your quote', d.mrtaPremium,
-             { status:'quote', provenance:'quote', id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
-               why:null, note:'The one-off premium you entered on the financing panel. A quote from an insurer, not a figure from the fee registry.' }]
-          : feeLine('mortgageProtection', {}),
+           it is not a placeholder either, and it is marked as what it is: a
+           lender's or insurer's quotation (Quoted).
+           OPTIONAL SINCE THE RULEBOOK'S 1.1.0 (the owner's decision of 9 Oct
+           2026): with no quote it is in the cash required only when the
+           reader includes it, at the rulebook's estimate; otherwise it is out,
+           and listed as out (optionalCostLines) so its absence is seen. */
+        ...(mrtaQuoted
+          ? [['Mortgage protection — your quote', d.mrtaPremium,
+             { status:'quote', provenance:'quote', quotedLine:true, id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
+               why:null, note:'The one-off premium you entered on the financing panel. A lender’s or insurer’s quotation, not a figure from the fee rulebook.' }]]
+          : mrtaIncluded ? [feeLine('mortgageProtection', {})] : []),
       ] },
     { id:'improvement', label:'Initial improvement costs', items:[
         ['Renovation and furnishing', renovation],
@@ -38969,8 +39153,30 @@ function dealModel(d) {
   const hurdlePct = num0(d.equityReturnPct);
   const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows) : null;
 
+  /* THE LEDGER BY KIND (the fee rulebook 1.1.0; the owner's decision of 9
+     Oct 2026): every priced line of the cash required in one of the five
+     kinds (FEE_TABLE.categories) — or, for a line the rulebook does not
+     price (the deposit, the renovation, the reserve, what the reader
+     entered from a Proclamation or an SPA), the buyer's own money and
+     figures. The kinds and 'own' sum to the cash required, line for line
+     (model-test holds them to it); the optional lines left out are listed
+     with no amount. */
+  const ledgerSplit = (() => {
+    const kinds = Object.keys(FEE_TABLE.categories);
+    const by = Object.fromEntries([...kinds, 'own'].map(k => [k, { total: 0, lines: [] }]));
+    for (const g of costGroups) for (const it of g.items) {
+      if (!isNum(it[1])) continue;
+      const k = it[2]?.provenance ? feeKindOf(it[2]) || 'own' : 'own';
+      const slot = by[k] || by.own;
+      slot.total += it[1];
+      slot.lines.push({ label: it[0], amount: it[1], provenance: it[2]?.provenance || null, id: it[2]?.id || null, group: g.id });
+    }
+    return { kinds: by, optionalOut: optionalCostLines.map(x => ({ id: x.id, label: x.label, estimate: x.estimate })) };
+  })();
+
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
            costGroups, missingCostLines, unconfirmedCost, unconfirmedLines, placeholderCostLines,
+           optionalCostLines, ledgerSplit, mrtaIncluded, mrtaQuoted,
            transactionCash, improvementCash, reserveCash, safeCashRequired,
            cashAlreadyPaid, cashStillRequiredToComplete,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
@@ -39149,7 +39355,11 @@ function solveDealPrice(d, target = dealTarget(d)) {
    NOT FINAL until every check of the checklist (AUCTION_CHECKS, from the
    Malaysian Bar's guidance) is ticked: `final` is false and `checksOpen`
    names the ones open. */
-const AUCTION_FEE_CATEGORIES = ['statutory', 'professional', 'disbursement'];
+/* By the rulebook's kinds (1.1.0): the statutory charges and the scale
+   fees, and of the estimates the searches and disbursements — not the
+   utility deposits, and no optional product. */
+const AUCTION_FEE_CATEGORIES = ['statutory', 'professional'];
+const AUCTION_FEE_ESTIMATES = ['disbursements'];
 function auctionModel(d, m = dealModel(d)) {
   const has = (k) => isNum(d?.[k]);
   const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
@@ -39166,11 +39376,12 @@ function auctionModel(d, m = dealModel(d)) {
   const arrearsParts = AUCTION_ARREARS.map(([k, label]) => ({ key: k, label, amount: has(k) ? d[k] : null, kind: has(k) ? kindOf(k) : 'unavailable' }));
   const arrearsIn = arrearsParts.filter(p => p.amount != null);
   const fees = (m.costGroups || []).filter(gr => gr.id === 'acquisition' || gr.id === 'financing').flatMap(gr => gr.items)
-    .filter(it => it[2]?.line && (it[2].provenance === 'quote' && it[2].id === 'auctionLegal' || AUCTION_FEE_CATEGORIES.includes(it[2].line.category)));
+    .filter(it => it[2]?.line && (it[2].quotedLine ? it[2].id === 'auctionLegal'
+      : AUCTION_FEE_CATEGORIES.includes(it[2].line.category) || AUCTION_FEE_ESTIMATES.includes(it[2].id)));
   const feesPriced = fees.filter(it => isNum(it[1]));
   /* The badge of the lines priced; a line the rulebook cannot price is
      named as unpriced beside the sum, not counted in it. */
-  const feeKinds = feesPriced.map(it => KIND_OF_FEE[it[2].provenance] || 'placeholder');
+  const feeKinds = feesPriced.map(it => feeKindBadge(it[2], it[1]) || 'placeholder');
   const holdMonths = has('auctionHoldMonths') ? d.auctionHoldMonths : null;
   const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
   const step = (id, label, amount, kind, extra = {}) => ({ id, label, amount, kind: amount == null ? 'unavailable' : kind, ...extra });
@@ -40978,12 +41189,32 @@ VIEWS.property = () => {
              quote — and, under the name, the line's provenance and
              jurisdiction. A placeholder is plausible, which is precisely why
              it cannot be left to look like a checked figure. */
-          ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2]))] : []),
+          ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2])),
+            /* Which of the ledger's five kinds it is (the rulebook 1.1.0). */
+            el('span', { class: 'pc-fee-kind', 'data-fee-kind': feeKindOf(it[2]) || '' }, FEE_TABLE.categories[feeKindOf(it[2])] || '')] : []),
+          /* Included at the estimate, it can be left out again here. */
+          ...(it[2]?.id === 'mortgageProtection' && it[2].provenance !== 'quote' ? [el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
+            onclick: () => { if (setDealAnswer(d, 'mortgageProtection', null)) { saveDeal(); renderKeepFocus(); toast('Mortgage protection left out of the cash required.'); } } }, 'Leave it out')] : []),
         ]),
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
           : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
               title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+      ]));
+    });
+    /* THE OPTIONAL LINES LEFT OUT (the rulebook 1.1.0): listed, with no
+       amount and not in any total, so the absence is seen — and the
+       control that puts one in. */
+    (m.optionalCostLines || []).filter(x => x.group === g.id).forEach(x => {
+      cashB.append(el('tr', { class: 'pc-opt-row', 'data-optional': x.id }, [
+        el('td', { style: 'padding-left:var(--md)' }, [
+          x.label, ' ', kindBadge('unavailable', { fine: 'not included' }),
+          el('span', { class: 'pc-fee-prov', 'data-fee-provenance': 'optional' }, `Not included — ${x.why.charAt(0).toLowerCase()}${x.why.slice(1)}`),
+          el('span', { class: 'pc-fee-kind', 'data-fee-kind': 'optional' }, FEE_TABLE.categories.optional),
+          el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
+            onclick: () => { if (setDealAnswer(d, 'mortgageProtection', 'included')) { saveDeal(); renderKeepFocus(); toast(`Mortgage protection included at the rulebook’s ${fmtAmount(x.estimate, 'MYR')} estimate — enter your quote on the financing panel to replace it.`); } } },
+            `Include it — ${fmtAmount(x.estimate, 'MYR')} estimate`)]),
+        el('td', { class: 'num' }, el('span', { class: 'caption' }, 'not included')),
       ]));
     });
     if (g.items.length > 1) cashB.append(el('tr', {}, [
@@ -41012,6 +41243,11 @@ VIEWS.property = () => {
       el('td', { colspan: 2, class: 'metaline pc-fee-uncertain', style: 'color:var(--bronze);white-space:normal' },
         `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — rests on unverified or unknown lines: ${feeUncertainWords(m)}. `
         + 'They compute so the total runs; they are not quotations and not checked against an official source. Replace them with real quotes before this figure means anything.')]));
+  /* The same total by kind (the rulebook 1.1.0), so a reader sees how much
+     is statute, how much a published scale, a quotation, an optional
+     product, an estimate — and how much their own money and figures. */
+  if (m.ledgerSplit) cashB.append(el('tr', {}, [
+    el('td', { colspan: 2, class: 'metaline pc-fee-split', style: 'white-space:normal' }, ledgerSplitWords(m))]));
   /* The rulebook this ledger was charged by, and where its sources are. */
   cashB.append(el('tr', {}, [
     el('td', { colspan: 2, class: 'metaline', style: 'white-space:normal' }, [
@@ -41996,6 +42232,13 @@ function financingChoicesPanel(d, m) {
   fw.append(numField('mrtaPremium', 'One-off premium quoted for the reducing cover (RM)', d.mrtaPremium, 'from your quote'));
   fw.append(numField('mltaPremiumAnnual', 'Yearly premium quoted for the level cover (RM)', d.mltaPremiumAnnual, 'from your quote'));
   card.append(fw);
+  /* Optional (the fee rulebook 1.1.0): what the cash required does with it. */
+  card.append(el('p', { class: 'metaline pc-mrta-state', style: 'margin-top:6px' },
+    isNum(d.mrtaPremium) && d.mrtaPremium > 0
+      ? `The cash required carries the ${fmtMoney(d.mrtaPremium, 'MYR', 0)} premium you were quoted, marked Quoted: a lender’s or insurer’s quotation.`
+      : d.mortgageProtection === 'included'
+        ? `Mortgage protection is optional. You included it, so the cash required carries the fee rulebook’s ${fmtMoney(FEE_TABLE.lines.mortgageProtection.fixed, 'MYR', 0)} estimate until you enter the premium you were quoted.`
+        : 'Mortgage protection is optional, and left out of the cash required: enter the premium you were quoted above, or include it at the fee rulebook’s estimate in the cost ledger.'));
 
   if (isNum(d.mrtaPremium) && d.mrtaPremium > 0) {
     const fin = premiumIfFinanced(d.mrtaPremium, num0(d.ratePct), mortgageYrs);
@@ -44783,7 +45026,7 @@ const LAB_FIGURES = [
       + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
-        : 'Every fee line in it is verified against its official source or is your own quote')
+        : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
       + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
     read: (m) => m.cashflowMonthly,
@@ -45585,7 +45828,18 @@ function labPriceSection(P, lab) {
   const d = labAnswerInputs(lab);
   const target = d ? priceTargetControls({ d, prefix: P.idPrefix, answer: (k, v) => labAnswer(P, lab, k, v) }) : null;
   const tryBox = el('div', { class: 'pe-try', id: labId(P, 'pe-try') });
-  card.append(route, cards, target, tryBox);
+  /* THE EVIDENCE, HERE (the guided evidence flow, 9 Oct 2026): the asking
+     price and the comparables from the reader's register, named in the Lab
+     as answers of the property — every column, a what-if until Save. */
+  const askId = labId(P, 'pe-asking');
+  const ask = d ? el('div', { class: 'pe-ask' }, [
+    el('label', { for: askId, class: 'pe-ask-label' }, 'Asking price (RM)'),
+    el('input', { class: 'input input-inline pe-ask-input', id: askId, type: 'number', inputmode: 'decimal', min: '0', step: '1000',
+      value: isNum(d.askingPrice) ? String(d.askingPrice) : '', placeholder: 'not entered',
+      onchange: (e) => { const raw = String(e.target.value).trim(); labAnswer(P, lab, 'askingPrice', raw === '' ? null : raw); } }),
+  ]) : null;
+  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables this price is set against — from your register', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
+  card.append(route, cards, target, tryBox, ask, pick);
   P.els.pe = { card, route, cards, tryBox, sig: null };
   return card;
 }
@@ -45658,7 +45912,9 @@ function labAuctionSection(P, lab) {
     const answer = (k, v) => labAnswer(P, lab, k, v);
     const named = priceGap(d).comps.length;
     card.append(auctionInputs({ d, prefix: P.idPrefix, answer,
-      extra: { market: el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register in the calculator count as well.` : 'Comparables from your register are named in the calculator.') } }));
+      extra: { market: el('div', {}, [
+        el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register count${named === 1 ? 's' : ''} as well, with ${named === 1 ? 'its' : 'their'} source and date.` : 'Transacted prices from your register, named below, count as well.'),
+        comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables from your register', toggle: (ids) => answer('comparableIds', ids) })]) } }));
     card.append(auctionChecklist({ d, prefix: P.idPrefix, answer }));
   }
   P.els.au = { card, figs, sig: null };
@@ -46102,6 +46358,26 @@ function labEvidence(P, lab) {
   P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
   P.els.how = { node: how, head: fhead, formula };
+  /* THE CASH REQUIRED BY KIND (the fee rulebook 1.1.0; the owner's decision
+     of 9 Oct 2026): statutory charges, scale fees, quotations, optional
+     products, estimates and the buyer's own money, with what rests on
+     estimates — and mortgage protection, optional and out until included,
+     included here as an answer of the property (a move of every column,
+     written only by Save), as the questions are. */
+  const ad = labAnswerInputs(lab);
+  const feeText = el('p', { class: 'lab-formula lab-fee-split', id: labId(P, 'ev-fees-text') }, '');
+  const quoted = ad && isNum(ad.mrtaPremium) && ad.mrtaPremium > 0;
+  const included = !!ad && !quoted && ad.mortgageProtection === 'included';
+  const mrtaBtn = ad && !quoted ? el('button', { type: 'button', class: 'btn btn-ghost btn-sm lab-mrta-btn', id: labId(P, 'mrta'), 'aria-pressed': included ? 'true' : 'false',
+    onclick: () => labAnswer(P, lab, 'mortgageProtection', included ? null : 'included') },
+    included ? 'Leave mortgage protection out' : `Include mortgage protection — ${labMoney(FEE_TABLE.lines.mortgageProtection.fixed)} estimate`) : null;
+  const mrtaSay = el('p', { class: 'metaline lab-mrta-say' }, quoted
+    ? `Mortgage protection: the ${labMoney(ad.mrtaPremium)} premium you were quoted is in the cash required, marked Quoted.`
+    : included ? `Mortgage protection is optional; included, it is carried at the rulebook’s ${labMoney(FEE_TABLE.lines.mortgageProtection.fixed)} estimate until you enter a quote in the calculator — a what-if until you save.`
+      : 'Optional: mortgage protection — not included in the cash required. Include it here, or enter the premium you were quoted in the calculator.');
+  const fees = lsEvidenceSection({ id: labId(P, 'ev-fees'), summary: 'What the cash required is made of', body: [feeText, mrtaSay, mrtaBtn].filter(Boolean) });
+  fees.addEventListener('toggle', () => { if (fees.open) labPaintPanel(P); });
+  P.els.fees = { node: fees, text: feeText };
   /* How the price gap and the solved price are worked out (P2) — above
      "How a figure is worked out", which a row pressed from 1440px writes
      into and so grows: below it, these moved with every row pressed
@@ -46126,7 +46402,7 @@ function labEvidence(P, lab) {
     P.els.au.wfText = wfText; P.els.au.fxText = fxText;
     pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
   }
-  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
 /* From 1440px a row of the chain shows its formula in the drawer. */
 function labShowFormula(P, key) {
@@ -46915,6 +47191,12 @@ function labPaintPanel(P, { initial = false } = {}) {
     const q = propertyReviewQueue(d);
     labText(P.els.rests, q.length ? `These figures rest on ${q.length} of the tool’s starting figures: ${q.map(x => x.label.toLowerCase()).join(', ')}.` : 'None of these figures rests on a starting figure of the tool’s.');
   }
+  /* The cash required by kind, written while open (and served whole). */
+  if (P.els.fees && (initial || P.els.fees.node.open)) {
+    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
+      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
+      + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
+  }
   /* ALWAYS SAID, so nothing moves under the thumb. The line appeared at the
      first tick of a drag, above the sliders: where the browser does not
      anchor the scroll (Safari), the slider and all seven results dropped
@@ -47032,8 +47314,37 @@ VIEWS.propertyLab = () => {
     lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
+  /* A record the reader asked to use from the comparables register (the
+     guided evidence flow): named once the page is up, as an answer. */
+  const pend = State.labUseComparable;
+  if (pend) { State.labUseComparable = null; setTimeout(() => labUseComparable(pend), 0); }
   return wrap;
 };
+/* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of
+   9 Oct 2026): a record of the reader's register named in the Lab's
+   comparables, as an answer of the property — every column, a what-if
+   until Save, as anything answered here. A record of another town, or of
+   a kind this property's price is not set against, is said, not used. */
+function labUseComparable(id) {
+  const P = [...LAB_PANELS].find(p => p.address && p.node.isConnected);
+  const lab = P && LAB[P.key];
+  const d = lab && labAnswerInputs(lab);
+  const o = (State.observations || []).find(x => x && x.id === id);
+  if (!d || !o) return false;
+  const usable = [...dealComparableChoices(d), ...dealAskingChoices(d)].some(x => x.id === id);
+  if (!usable) {
+    toast(o.city !== d.city
+      ? `That record is in ${townName(o.city)}; the property in the Lab is in ${townName(d.city)} — it is set against records of its own town.`
+      : `That record is ${(OBS_BY_ID[o.kind]?.label || 'a record').toLowerCase()}: this property’s price is set against prices of its own kind.`);
+    return false;
+  }
+  const ids = [...new Set([...(Array.isArray(d.comparableIds) ? d.comparableIds : []), id])];
+  labAnswer(P, lab, 'comparableIds', ids);
+  const row = document.querySelector(`[data-comp="${CSS.escape(id)}"]`);
+  if (row) { row.scrollIntoView({ block: 'center' }); row.querySelector('input')?.focus({ preventScroll: true }); }
+  toast(`${comparableName(o)} named in the Lab’s comparables — a what-if of every column until you save.`);
+  return true;
+}
 /* ==========================================================================
    THE PROPERTY DECISION LAYER — P1 AND P2 (the owner's brief, 7 Oct 2026:
    briefs/README-property-decision-layer.md; the owner's answers: the lens
@@ -47209,15 +47520,21 @@ const pqMoney = (v) => fmtMoney(v, 'MYR', 0);
 const pqSigned = (v) => `${v < 0 ? '−' : '+'}${pqMoney(Math.abs(v))}`;
 const pqPctAbs = (v) => `${fmtNum(Math.abs(v), 1)}%`;
 const pqWhen = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'undated'; };
-const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, ${c.standing.label.toLowerCase()}`;
+/* A comparable as it is named wherever it is used: what and where, its
+   amount, its date and its source, and its standing — the source and the
+   date travel with it (the owner's decision of 9 Oct 2026). */
+const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, source: ${c.source || 'no source recorded'}, ${c.standing.label.toLowerCase()}`;
+const pqAskingWords = (g) => (g.askingComps?.length
+  ? `Asking prices you named, set apart and never in that value: ${g.askingComps.length === 1 ? pqMoney(g.askingValue) : `a median of ${pqMoney(g.askingValue)} over ${g.askingComps.length}`} — ${g.askingComps.map(pqCompWords).join('; ')}.`
+  : '');
 
 /* The gap, in words: the asking price against the comparable value. */
 function priceGapWords(g) {
   const n = g.comps.length, named = `the ${n === 1 ? 'comparable' : `${n} comparables`} you named`;
   const ag = g.askingGap;
   const finding = !ag ? null : Math.abs(ag.amount) < 0.5
-    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} imply.`
-    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} imply.`;
+    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} ${n === 1 ? 'implies' : 'imply'}.`
+    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} ${n === 1 ? 'implies' : 'imply'}.`;
   const pg = g.priceGap;
   const price = !pg ? null : Math.abs(pg.amount) < 0.5 ? `The price modelled, ${pqMoney(g.price)}, is that value.`
     : `The price modelled, ${pqMoney(g.price)}, is ${pqMoney(Math.abs(pg.amount))} (${pqPctAbs(pg.pct)}) ${pg.amount > 0 ? 'above' : 'below'} it.`;
@@ -47226,14 +47543,17 @@ function priceGapWords(g) {
 /* How the gap is worked out (L3): each named comparable, what it implies
    and why, and the median. */
 function priceGapFormula(g) {
-  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.';
+  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.'
+    + (g.askingComps?.length ? ` ${pqAskingWords(g)}` : '');
   const area = g.areaKey === 'landSqft' ? 'land area' : 'built-up area';
-  const each = g.comps.map(c => c.basis === 'rate'
+  const each = g.comps.map(c => (c.basis === 'rate'
     ? `${c.name}: ${pqMoney(c.price)} ÷ ${fmtNum(c.area, 0)} sq ft = ${pqMoney(c.rate)} a sq ft × this property’s ${fmtNum(g.subjectArea, 0)} sq ft = ${pqMoney(c.implied)}`
-    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`);
+    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`)
+    + ` — ${pqWhen(c.date)}, source: ${c.source}`);
   return `${each.join('; ')}. The comparable value is the median of ${g.comps.length === 1 ? 'that one figure' : `these ${g.comps.length}`}: ${pqMoney(g.value)}.`
     + (g.asking ? ` Asking ${pqMoney(g.asking)} − ${pqMoney(g.value)} = ${pqSigned(g.askingGap.amount)}.` : ' No asking price is entered.')
-    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a transacted price of this kind of property.` : '')
+    + (g.askingComps?.length ? ` ${pqAskingWords(g)}` : '')
+    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a price of this kind of property.` : '')
     + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
 }
 /* The solve, in words. */
@@ -47275,7 +47595,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
     cards.append(lsInsightCard({ label: 'Price gap', cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': String(g.askingGap.amount) },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
-      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`]),
+      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`, g.askingComps?.length ? ` ${pqAskingWords(g)}` : '']),
       cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
   } else {
     const missing = g.status === 'no-comparables'
@@ -47379,28 +47699,48 @@ function pcSubsaleInputs(d) {
 /* The comparables, from the reader's register, named one by one — for the
    subsale's price gap and the auction's market value alike. */
 function pcComparablesFieldset(d, legend) {
-  const choices = dealComparableChoices(d);
+  return comparablesPick({ d, prefix: 'pc', legend, cls: 'pc-sub-comps',
+    toggle: (ids) => { if (setDealAnswer(d, 'comparableIds', ids)) { saveDeal(); renderKeepFocus(); } } });
+}
+/* THE COMPARABLES PICK — the calculator's and the Lab's (the guided evidence
+   flow, the owner's decision of 9 Oct 2026). The reader's own records of
+   this town, each named with its amount, its date, its source and its
+   standing, and the Yours badge: the transacted prices, which make the
+   comparable value, and apart from them the asking prices, which never
+   enter it. `toggle(ids)` writes the list named — on the calculator to the
+   deal, on the Lab as an answer of every column (a what-if until Save). */
+function comparablesPick({ d, prefix, legend, toggle, cls = '' }) {
+  const choices = dealComparableChoices(d), asks = dealAskingChoices(d);
   const ids = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
   const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city;
-  const fs = el('fieldset', { class: 'pc-sub-comps', id: 'pc-sub-comps' });
-  fs.append(el('legend', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, legend));
-  if (!choices.length) fs.append(el('p', { class: 'metaline' },
-    `No ${PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold' ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one under “What you have recorded”, above, or in the comparables register.`));
-  choices.forEach(o => {
-    const id = `pc-comp-${slugParam(o.id)}`;
+  const land = PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold';
+  const fs = el('fieldset', { class: `comp-pick ${cls}`.trim(), id: `${prefix}-sub-comps` });
+  fs.append(el('legend', { class: 'eyebrow comp-pick-legend' }, legend));
+  const row = (o) => {
+    const id = `${prefix}-comp-${slugParam(o.id)}`;
     const st = observationStanding(o);
-    fs.append(el('label', { class: 'pc-sub-comp', style: 'gap:8px;display:flex;align-items:flex-start;margin-top:4px' }, [
+    return el('label', { class: 'comp-pick-row', for: id, 'data-comp': o.id }, [
       el('input', { type: 'checkbox', id, checked: ids.has(o.id) ? '' : null, onchange: (e) => {
         const next = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
         if (e.target.checked) next.add(o.id); else next.delete(o.id);
-        if (setDealAnswer(d, 'comparableIds', [...next])) { saveDeal(); renderKeepFocus(); }
+        toggle([...next]);
       } }),
-      el('span', {}, `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)} · ${st.label}`),
-    ]));
-  });
+      el('span', { class: 'comp-pick-words' }, [
+        `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)}`,
+        ' ', kindBadge('yours', { fine: 'your own record', link: false }),
+        el('span', { class: 'comp-pick-src' }, `Source: ${comparableSource(o)} · ${st.label}`)]),
+    ]);
+  };
+  if (!choices.length) fs.append(el('p', { class: 'metaline' },
+    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one in the comparables register, step by step: its locality, its source and date, and what it is.`));
+  choices.forEach(o => fs.append(row(o)));
+  if (asks.length) {
+    fs.append(el('p', { class: 'metaline comp-pick-apart' }, `Asking prices — shown apart, with their own median: an asking price is somebody’s hope, and is never in the value the transacted prices imply.`));
+    asks.forEach(o => fs.append(row(o)));
+  }
   fs.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
-    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
-      'Open the comparables register')]));
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), id: `${prefix}-comp-register`, onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+      choices.length || asks.length ? 'Open the comparables register' : 'Record one in the comparables register')]));
   return fs;
 }
 /* The two figures, on the calculator: the cards, the target, what the
@@ -47606,7 +47946,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
     attrs: { 'data-au-fig': 'discount', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': td ? String(td.pct) : '' },
     sub: td ? `${td.amount >= 0
         ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under the ${auMoney(a.market)} market value your comparables imply`
-        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${auNotFinal(a)}`
+        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
       : 'Enter comparable prices, or name comparables from your register: the market value is theirs, never a market figure.' }));
   const f = a.forfeiture;
   cards.append(lsMetricCard({ label: 'Forfeiture exposure', badge: auBadge(f.status === 'ok' ? 'yours' : 'unavailable', f.status === 'ok' ? 'the Proclamation’s terms you entered' : 'terms not entered'), level: 2, cls: 'au-card au-forfeit',
@@ -47625,7 +47965,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 
 /* L3: the working, in words. */
 function auctionWaterfallFormula(a) {
-  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''}`);
+  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
   const typed = a.marketFrom.typed.map((c, i) => `your comparable price ${i + 1}, ${auMoney(c.price)}`);
   const mv = isNum(a.market) ? `Market value: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Market value: none — no comparable is entered or named, so the true discount is Unavailable.';
   const t = a.adds.find(x => x.id === 'transaction');
@@ -54604,6 +54944,11 @@ VIEWS.areas = () => {
     shown.length === names.length
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
       : 'Filtered. The map shades the same set.'));
+  /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
+     said where its absence is seen (the daily audit's item #6). */
+  if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
+    `Nothing is recorded in ${city.name} yet — no price, no rent. Every figure here is one you record from a source you can point at. `,
+    efStartLink(S.city, null, 'Record a price or a rent, step by step', 'area-ef-start')]));
   gridKeyboard(t, 'Localities by recorded attribute and rate. Arrow keys move between cells.');
   /* A size container, so the recorder in its row can be as wide as what shows
      of the table rather than the table itself — see areaRecorder. */
@@ -54664,6 +55009,9 @@ function areaRecorder(city, area) {
   const box = el('div', { class: 'sunk',
     style: 'margin:var(--sm);width:calc(100cqw - 2 * var(--sm));box-sizing:border-box;position:sticky;left:var(--sm);white-space:normal' });
   box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:8px' }, `Record for ${area}`));
+  /* A price or a rent goes through the guided flow on the register, with
+     this locality already chosen (the owner's decision of 9 Oct 2026). */
+  box.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-bottom:var(--md)' }, efStartLink(city, area, `Record a price or a rent for ${area}, step by step`, `area-ef-${String(area).replace(/[^A-Za-z0-9]+/g, '-')}`)));
   box.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--md)' },
     'Each fact is saved on its own, with its own source and date — a title class established from the title '
     + 'document and a flood account from a neighbour are not the same evidence and are never dated together.'));
@@ -54759,11 +55107,166 @@ function areaRecorder(city, area) {
   return box;
 }
 
+/* ==========================================================================
+   THE GUIDED EVIDENCE FLOW (the owner's decision of 9 Oct 2026, the daily
+   audit's item #6: the area screen showed Kuching's localities with nothing
+   recorded, and the register was empty, with no way in but a form on the
+   calculator). Five steps, one card, on the register:
+     1 the locality — the town and one of its localities;
+     2 the source — a web page's address or a document — and its date;
+     3 what it is — a transaction price, an asking price, an achieved rent
+       or an asking rent — and the amount;
+     4 whether you checked it against the source yourself;
+     5 record it, and use it: a price is named in the Scenario Lab's
+       comparables (a what-if until saved), where the price gap and the
+       auction's market value take it with its source and date.
+   WHAT IT IS AND IS NOT. The reader's own record, in this browser (Yours).
+   Locality-level: it names no building, and whatever its source it is never
+   a verified building transaction (observationStanding: scope 'area') — it
+   clears no grade gate. Asking and achieved are never mixed in one median.
+   Nothing is filled in for the reader: every field starts empty but the
+   town and locality, which start at the deal's.
+   ========================================================================== */
+const EF_KINDS = [['sold-price', 'Transaction price', 'RM'], ['ask-price', 'Asking price', 'RM'], ['let-rent', 'Achieved rent', 'RM a month'], ['ask-rent', 'Asking rent', 'RM a month']];
+const EF_PRICE = new Set(['sold-price', 'ask-price']);
+function efState() {
+  const S = (State.evidenceFlow ||= {});
+  if (!S.draft) {
+    const city = S.city || State.deal?.city || 'kuching';
+    S.draft = { city, area: S.area || (city === State.deal?.city ? State.deal?.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
+      srcKind: '', src: '', date: '', kind: '', value: '', sqft: '', checked: '' };
+  }
+  return S;
+}
+const efLocalities = (city) => {
+  const def = SARAWAK_CITIES.find(c => c.id === city);
+  const mapped = Object.keys(sarawakGeo?.cities?.[city]?.areas || {});
+  const recorded = (State.observations || []).filter(o => o.city === city && o.area).map(o => o.area);
+  return [...new Set([...(def?.districts || []), ...mapped, ...recorded])];
+};
+/* What is missing before Record can save, in the order asked. */
+function efMissing(dr) {
+  const out = [];
+  if (!dr.city || !dr.area) out.push('the locality');
+  if (!dr.srcKind) out.push('whether the source is a web page or a document');
+  if (!String(dr.src).trim()) out.push(dr.srcKind === 'url' ? 'the web page’s address' : 'the document');
+  else if (dr.srcKind === 'url' && !/^https?:\/\/\S+\.\S+/i.test(String(dr.src).trim())) out.push('a web address starting http:// or https://');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dr.date || '')) out.push('the date');
+  if (!dr.kind) out.push('what it is');
+  if (!(Number(dr.value) > 0)) out.push('the amount');
+  if (!dr.checked) out.push('whether you checked it against the source');
+  return out;
+}
+/* The way into the flow from elsewhere: the town and, where known, the
+   locality chosen — a link, so it reads and works as one with no script. */
+function efStartLink(city, area, words, id) {
+  return el('a', { class: 'btn btn-ghost btn-sm ef-start', id, href: href('/property/comparables#evidence-flow'),
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault();
+      State.evidenceFlow = { city, area: area || null, draft: null }; navigate('/property/comparables');
+      setTimeout(() => document.getElementById('evidence-flow')?.scrollIntoView({ block: 'start' }), 0); } }, `${words} →`);
+}
+function evidenceFlowCard() {
+  const S = efState(), dr = S.draft;
+  const card = el('section', { class: 'card ef', id: 'evidence-flow', 'aria-labelledby': 'ef-h' });
+  card.append(el('h2', { class: 'h-card', id: 'ef-h' }, 'Record a price or a rent, step by step'));
+  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record, kept in this browser: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
+  const put = (k, v, redraw = false) => { dr[k] = v; if (redraw) renderKeepFocus(); };
+  const step = (n, title, body) => el('fieldset', { class: 'ef-step', 'data-ef-step': String(n) }, [
+    el('legend', { class: 'ef-legend' }, [el('span', { class: 'ef-n', 'aria-hidden': 'true' }, String(n)), title]), ...body]);
+  const field = (id, label, control, hint = null) => el('div', { class: 'ef-field' }, [el('label', { for: id }, label), control, hint ? el('p', { class: 'metaline ef-hint' }, hint) : null]);
+  const radios = (name, opts, cur, onPick) => el('div', { class: 'ef-chips ls-chips', role: 'presentation' }, opts.map(([v, label]) => {
+    const id = `${name}-${v}`;
+    return el('label', { class: `ef-chip${cur === v ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', class: 'lab-radio', name, id, value: v, checked: cur === v ? '' : null, onchange: () => onPick(v) }), el('span', {}, label)]);
+  }));
+
+  /* 1 — where */
+  const town = el('select', { class: 'select', id: 'ef-town', onchange: (e) => { dr.city = e.target.value; dr.area = efLocalities(dr.city)[0] || ''; renderKeepFocus(); } },
+    SARAWAK_CITIES.map(c => el('option', { value: c.id, selected: c.id === dr.city ? '' : null }, c.name)));
+  const locs = efLocalities(dr.city);
+  if (dr.area && !locs.includes(dr.area)) locs.unshift(dr.area);
+  const area = el('select', { class: 'select', id: 'ef-area', onchange: (e) => put('area', e.target.value) },
+    locs.map(n => el('option', { value: n, selected: n === dr.area ? '' : null }, n)));
+  card.append(step(1, 'Where', [el('div', { class: 'ef-row' }, [field('ef-town', 'Town', town), field('ef-area', 'Locality', area)])]));
+
+  /* 2 — the source, and its date */
+  const src = el('input', { class: 'input', id: 'ef-src', type: dr.srcKind === 'url' ? 'url' : 'text', value: dr.src, autocomplete: 'off',
+    placeholder: dr.srcKind === 'url' ? 'https://…' : dr.srcKind === 'doc' ? 'e.g. SPA of 3 March 2026, valuation report, tenancy agreement' : 'Choose a web page or a document first',
+    oninput: (e) => put('src', e.target.value) });
+  const date = el('input', { class: 'input', id: 'ef-date', type: 'date', value: dr.date, onchange: (e) => put('date', e.target.value) });
+  card.append(step(2, 'Where it came from, and when', [
+    radios('ef-srckind', [['url', 'A web page'], ['doc', 'A document']], dr.srcKind, (v) => put('srcKind', v, true)),
+    el('div', { class: 'ef-row' }, [field('ef-src', dr.srcKind === 'url' ? 'The page’s address' : dr.srcKind === 'doc' ? 'The document' : 'The page’s address or the document', src),
+      field('ef-date', 'Dated', date, 'The date the price or rent applies — the sale, the listing, the tenancy.')]),
+  ]));
+
+  /* 3 — what it is, and the amount */
+  const kindDef = EF_KINDS.find(k => k[0] === dr.kind);
+  const value = el('input', { class: 'input', id: 'ef-value', type: 'number', inputmode: 'decimal', min: '0', step: '1', value: dr.value,
+    placeholder: kindDef ? kindDef[2] : 'RM', oninput: (e) => put('value', e.target.value) });
+  const body3 = [radios('ef-kind', EF_KINDS.map(k => [k[0], k[1]]), dr.kind, (v) => put('kind', v, true)),
+    el('div', { class: 'ef-row' }, [field('ef-value', `Amount (${kindDef ? kindDef[2] : 'RM'})`, value),
+      EF_PRICE.has(dr.kind) ? field('ef-sqft', 'Floor area (sq ft), if the source gives it', el('input', { class: 'input', id: 'ef-sqft', type: 'number', inputmode: 'decimal', min: '0', step: '1',
+        value: dr.sqft, placeholder: 'optional', oninput: (e) => put('sqft', e.target.value) }), 'With it, the price gap compares by the rate a square foot.') : null])];
+  if (dr.kind) body3.push(el('p', { class: 'metaline ef-hint' }, OBS_BY_ID[dr.kind]?.asking
+    ? 'An asking figure is somebody’s hope: it is kept apart, with its own median, and never mixed with achieved figures.'
+    : 'An achieved figure: what was actually paid. It is never mixed with asking figures.'));
+  card.append(step(3, 'What it is', body3));
+
+  /* 4 — checked? */
+  card.append(step(4, 'Did you check it against the source?', [
+    radios('ef-checked', [['yes', 'Yes, I checked it myself'], ['no', 'Not yet']], dr.checked, (v) => put('checked', v, true)),
+    el('p', { class: 'metaline ef-hint' }, 'Checked or not, it stays your own record at the locality’s level — it is not a verified building transaction and lifts no grade.')]));
+
+  /* 5 — record, then use */
+  const go = el('button', { type: 'button', class: 'btn btn-primary', id: 'ef-record', onclick: () => {
+    const missing = efMissing(dr);
+    if (missing.length) { toast(`Still needed: ${missing.join(', ')}.`); return; }
+    const sq = Number(dr.sqft);
+    const rec = addObservation({ city: dr.city, area: dr.area, kind: dr.kind, value: Number(dr.value), date: dr.date,
+      evidence: 'user', sourceRef: String(dr.src).trim(), sourceKind: dr.srcKind, scope: 'area', guided: true,
+      ...(dr.checked === 'yes' ? { reviewedBy: registerActor() || 'you', reviewedAt: caseRaisedAt(new Date()).slice(0, 10) } : {}),
+      ...(EF_PRICE.has(dr.kind) && sq > 0 ? { sqft: sq, areaUnit: 'sqft' } : {}) });
+    S.last = rec.id; S.city = dr.city; S.area = dr.area; S.draft = null;
+    renderKeepFocus();
+    document.getElementById('ef-use')?.focus();
+    toast(`Recorded in ${dr.area}, ${townName(dr.city)} — your own record, with its source and date.`);
+  } }, 'Record it');
+  card.append(step(5, 'Record it, then use it', [el('p', { class: 'ef-act' }, [go]),
+    el('p', { class: 'metaline' }, 'Kept in this browser only: never sent anywhere, not published with the site.')]));
+
+  const last = S.last && (State.observations || []).find(o => o.id === S.last);
+  if (last) card.append(evidenceFlowDone(last));
+  return card;
+}
+/* The record just made, as it will be used: its words, its badge, its
+   source and date — and where it goes. */
+function evidenceFlowDone(o) {
+  const st = observationStanding(o), k = OBS_BY_ID[o.kind] || {};
+  const box = el('div', { class: 'ef-done', id: 'ef-done', 'data-obs': o.id });
+  box.append(el('p', { class: 'ef-done-what' }, [el('strong', {}, `${k.label || o.kind}: ${fmtMoney(o.value, 'MYR', 0)}${k.unit === 'RM/month' ? ' a month' : ''}`), ' ',
+    kindBadge('yours', { fine: 'your own record' }), ` — ${o.area}, ${townName(o.city)}, dated ${o.date}.`]));
+  box.append(el('p', { class: 'metaline' }, [`Source: ${o.sourceRef}. `, el('span', { class: st.tone, title: st.why }, st.label)]));
+  if (EF_PRICE.has(o.kind)) {
+    box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
+      ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
+      : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
+    box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
+      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+  } else {
+    box.append(el('p', { class: 'metaline' }, 'A rent is summarised by locality on the area screen, achieved and asking apart, each with its count.'));
+    box.append(el('p', { class: 'ef-act' }, el('a', { class: 'btn btn-ghost', id: 'ef-use', href: href('/property/areas'),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')));
+  }
+  return box;
+}
+
 VIEWS.comparables = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
   wrap.append(pageHead({ title: 'Sarawak comparables register', lede: 'Transacted prices and achieved rents you have recorded, each with its source.',
     note: 'With what each one rests on. Asking and achieved are never combined, and a figure with no source is marked as a note rather than evidence.' }));
+  wrap.append(evidenceFlowCard());
 
   /* WHO IS RECORDING, AND UNDO.
      Both belong here rather than in a settings page: this is the screen someone
@@ -54827,14 +55330,17 @@ VIEWS.comparables = () => {
        example loaded the card read "17 records" over tiles totalling 1. */
     const tiles = [['Verified', counts.verified || 0], ['Awaiting review', counts.awaiting_review || 0],
        ['Sourced', counts.sourced || 0], ['No source', counts.unsourced || 0],
+       /* Locality-level records (the guided flow): never Verified. */
+       ...(counts.area_checked ? [['Checked by you, locality', counts.area_checked]] : []),
+       ...(counts.area_unchecked ? [['Not checked, locality', counts.area_unchecked]] : []),
        ...(counts.sample ? [['Worked example', counts.sample]] : [])];
     head.append(el('div', { class: tiles.length > 4 ? 'grid grid-5' : 'grid g-4', style: 'margin-top:var(--md)' },
       tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
   } else {
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it from the district panel on the calculator, where the city and district are already set.'));
+      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.'));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
-    head.append(workedExampleControls());
+    head.append(workedExampleControls({ primary: false }));
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
@@ -55826,7 +56332,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
@@ -56594,7 +57100,7 @@ function clearWorkedExample() {
    Focus fell to <body> after both; it now goes to the counterpart, marked
    data-worked-example, or to <main> where there is none (focusAfterRedraw,
    05-plans.js). */
-function workedExampleControls({ compact = false } = {}) {
+function workedExampleControls({ compact = false, primary = true } = {}) {
   const row = el('div', { class: 'row row-wrap', style: `gap:8px;${compact ? '' : 'margin-top:var(--md)'}` });
   if (hasWorkedExample()) {
     row.append(el('button', { class: 'btn btn-ghost btn-sm', data: { workedExample: 'remove' }, onclick: () => {
@@ -56603,7 +57109,7 @@ function workedExampleControls({ compact = false } = {}) {
       toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
     } }, 'Remove the worked example'));
   } else {
-    row.append(el('button', { class: 'btn btn-primary btn-sm', data: { workedExample: 'load' }, onclick: () => {
+    row.append(el('button', { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm`, data: { workedExample: 'load' }, onclick: () => {
       const r = seedWorkedExample();
       render(); focusAfterRedraw('#views [data-worked-example]');
       toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);

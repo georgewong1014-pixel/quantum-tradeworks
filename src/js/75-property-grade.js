@@ -635,7 +635,7 @@ function dealModel(d) {
   const auctionRoute = dealRoute(d) === 'auction';
   const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
   const purchaseLegalR = legalQuote != null
-    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
     : resolveFee('purchaseLegal', { price: d.price });
   const loanLegalR = resolveFee('loanLegal', { loan });
@@ -649,6 +649,14 @@ function dealModel(d) {
     ...(num0(d.possessionCost) > 0 ? [['Possession cost', num0(d.possessionCost)]] : []),
   ];
   const valuationR = resolveFee('valuationFee', { price: d.price });
+  const loanDutyR = resolveFee('loanStampDuty', { loan });
+  /* Mortgage protection: quoted, included at the estimate, or out. */
+  const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
+  const mrtaIncluded = !mrtaQuoted && d.mortgageProtection === 'included';
+  const optionalCostLines = mrtaQuoted || mrtaIncluded ? [] : [{ id: 'mortgageProtection', group: 'financing',
+    label: FEE_TABLE.lines.mortgageProtection.optionalLabel, line: FEE_TABLE.lines.mortgageProtection,
+    estimate: FEE_TABLE.lines.mortgageProtection.fixed, included: false,
+    why: 'Optional, and left out of the cash required: include it, or enter the premium you were quoted on the financing panel.' }];
   const legalBase = isNum(purchaseLegalR.amount) && isNum(loanLegalR.amount) ? purchaseLegalR.amount + loanLegalR.amount : null;
   const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
@@ -667,11 +675,17 @@ function dealModel(d) {
         ...auctionLines,
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
+        /* The transfer, and the charge where there is a loan (fee rulebook
+           1.1.0: verified, out of the disbursements estimate). */
+        feeLine('registration', { instruments: loan > 0 ? 2 : 1 }),
         feeLine('disbursements', {}),
         feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
+        /* The charge, the collateral security: one-fifth of the loan
+           agreement's duty, at most RM10 (Item 27(b)). */
+        feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
         feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
@@ -680,12 +694,17 @@ function dealModel(d) {
            beside it went on charging the RM8,000 placeholder, so a reader who
            had typed RM4,200 from a real quote saw RM8,000 in their cash to
            complete. A quoted figure is not verified against any schedule, but
-           it is not a placeholder either, and it is marked as what it is. */
-        isNum(d.mrtaPremium) && d.mrtaPremium > 0
-          ? ['Mortgage protection — your quote', d.mrtaPremium,
-             { status:'quote', provenance:'quote', id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
-               why:null, note:'The one-off premium you entered on the financing panel. A quote from an insurer, not a figure from the fee registry.' }]
-          : feeLine('mortgageProtection', {}),
+           it is not a placeholder either, and it is marked as what it is: a
+           lender's or insurer's quotation (Quoted).
+           OPTIONAL SINCE THE RULEBOOK'S 1.1.0 (the owner's decision of 9 Oct
+           2026): with no quote it is in the cash required only when the
+           reader includes it, at the rulebook's estimate; otherwise it is out,
+           and listed as out (optionalCostLines) so its absence is seen. */
+        ...(mrtaQuoted
+          ? [['Mortgage protection — your quote', d.mrtaPremium,
+             { status:'quote', provenance:'quote', quotedLine:true, id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
+               why:null, note:'The one-off premium you entered on the financing panel. A lender’s or insurer’s quotation, not a figure from the fee rulebook.' }]]
+          : mrtaIncluded ? [feeLine('mortgageProtection', {})] : []),
       ] },
     { id:'improvement', label:'Initial improvement costs', items:[
         ['Renovation and furnishing', renovation],
@@ -1301,8 +1320,30 @@ function dealModel(d) {
   const hurdlePct = num0(d.equityReturnPct);
   const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows) : null;
 
+  /* THE LEDGER BY KIND (the fee rulebook 1.1.0; the owner's decision of 9
+     Oct 2026): every priced line of the cash required in one of the five
+     kinds (FEE_TABLE.categories) — or, for a line the rulebook does not
+     price (the deposit, the renovation, the reserve, what the reader
+     entered from a Proclamation or an SPA), the buyer's own money and
+     figures. The kinds and 'own' sum to the cash required, line for line
+     (model-test holds them to it); the optional lines left out are listed
+     with no amount. */
+  const ledgerSplit = (() => {
+    const kinds = Object.keys(FEE_TABLE.categories);
+    const by = Object.fromEntries([...kinds, 'own'].map(k => [k, { total: 0, lines: [] }]));
+    for (const g of costGroups) for (const it of g.items) {
+      if (!isNum(it[1])) continue;
+      const k = it[2]?.provenance ? feeKindOf(it[2]) || 'own' : 'own';
+      const slot = by[k] || by.own;
+      slot.total += it[1];
+      slot.lines.push({ label: it[0], amount: it[1], provenance: it[2]?.provenance || null, id: it[2]?.id || null, group: g.id });
+    }
+    return { kinds: by, optionalOut: optionalCostLines.map(x => ({ id: x.id, label: x.label, estimate: x.estimate })) };
+  })();
+
   return { proj, loan, deposit, duty, legal, loanDuty, renovation, acquisitionCost,
            costGroups, missingCostLines, unconfirmedCost, unconfirmedLines, placeholderCostLines,
+           optionalCostLines, ledgerSplit, mrtaIncluded, mrtaQuoted,
            transactionCash, improvementCash, reserveCash, safeCashRequired,
            cashAlreadyPaid, cashStillRequiredToComplete,
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
@@ -1481,7 +1522,11 @@ function solveDealPrice(d, target = dealTarget(d)) {
    NOT FINAL until every check of the checklist (AUCTION_CHECKS, from the
    Malaysian Bar's guidance) is ticked: `final` is false and `checksOpen`
    names the ones open. */
-const AUCTION_FEE_CATEGORIES = ['statutory', 'professional', 'disbursement'];
+/* By the rulebook's kinds (1.1.0): the statutory charges and the scale
+   fees, and of the estimates the searches and disbursements — not the
+   utility deposits, and no optional product. */
+const AUCTION_FEE_CATEGORIES = ['statutory', 'professional'];
+const AUCTION_FEE_ESTIMATES = ['disbursements'];
 function auctionModel(d, m = dealModel(d)) {
   const has = (k) => isNum(d?.[k]);
   const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
@@ -1498,11 +1543,12 @@ function auctionModel(d, m = dealModel(d)) {
   const arrearsParts = AUCTION_ARREARS.map(([k, label]) => ({ key: k, label, amount: has(k) ? d[k] : null, kind: has(k) ? kindOf(k) : 'unavailable' }));
   const arrearsIn = arrearsParts.filter(p => p.amount != null);
   const fees = (m.costGroups || []).filter(gr => gr.id === 'acquisition' || gr.id === 'financing').flatMap(gr => gr.items)
-    .filter(it => it[2]?.line && (it[2].provenance === 'quote' && it[2].id === 'auctionLegal' || AUCTION_FEE_CATEGORIES.includes(it[2].line.category)));
+    .filter(it => it[2]?.line && (it[2].quotedLine ? it[2].id === 'auctionLegal'
+      : AUCTION_FEE_CATEGORIES.includes(it[2].line.category) || AUCTION_FEE_ESTIMATES.includes(it[2].id)));
   const feesPriced = fees.filter(it => isNum(it[1]));
   /* The badge of the lines priced; a line the rulebook cannot price is
      named as unpriced beside the sum, not counted in it. */
-  const feeKinds = feesPriced.map(it => KIND_OF_FEE[it[2].provenance] || 'placeholder');
+  const feeKinds = feesPriced.map(it => feeKindBadge(it[2], it[1]) || 'placeholder');
   const holdMonths = has('auctionHoldMonths') ? d.auctionHoldMonths : null;
   const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
   const step = (id, label, amount, kind, extra = {}) => ({ id, label, amount, kind: amount == null ? 'unavailable' : kind, ...extra });
@@ -3310,12 +3356,32 @@ VIEWS.property = () => {
              quote — and, under the name, the line's provenance and
              jurisdiction. A placeholder is plausible, which is precisely why
              it cannot be left to look like a checked figure. */
-          ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2]))] : []),
+          ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2])),
+            /* Which of the ledger's five kinds it is (the rulebook 1.1.0). */
+            el('span', { class: 'pc-fee-kind', 'data-fee-kind': feeKindOf(it[2]) || '' }, FEE_TABLE.categories[feeKindOf(it[2])] || '')] : []),
+          /* Included at the estimate, it can be left out again here. */
+          ...(it[2]?.id === 'mortgageProtection' && it[2].provenance !== 'quote' ? [el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
+            onclick: () => { if (setDealAnswer(d, 'mortgageProtection', null)) { saveDeal(); renderKeepFocus(); toast('Mortgage protection left out of the cash required.'); } } }, 'Leave it out')] : []),
         ]),
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
           : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
               title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+      ]));
+    });
+    /* THE OPTIONAL LINES LEFT OUT (the rulebook 1.1.0): listed, with no
+       amount and not in any total, so the absence is seen — and the
+       control that puts one in. */
+    (m.optionalCostLines || []).filter(x => x.group === g.id).forEach(x => {
+      cashB.append(el('tr', { class: 'pc-opt-row', 'data-optional': x.id }, [
+        el('td', { style: 'padding-left:var(--md)' }, [
+          x.label, ' ', kindBadge('unavailable', { fine: 'not included' }),
+          el('span', { class: 'pc-fee-prov', 'data-fee-provenance': 'optional' }, `Not included — ${x.why.charAt(0).toLowerCase()}${x.why.slice(1)}`),
+          el('span', { class: 'pc-fee-kind', 'data-fee-kind': 'optional' }, FEE_TABLE.categories.optional),
+          el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
+            onclick: () => { if (setDealAnswer(d, 'mortgageProtection', 'included')) { saveDeal(); renderKeepFocus(); toast(`Mortgage protection included at the rulebook’s ${fmtAmount(x.estimate, 'MYR')} estimate — enter your quote on the financing panel to replace it.`); } } },
+            `Include it — ${fmtAmount(x.estimate, 'MYR')} estimate`)]),
+        el('td', { class: 'num' }, el('span', { class: 'caption' }, 'not included')),
       ]));
     });
     if (g.items.length > 1) cashB.append(el('tr', {}, [
@@ -3344,6 +3410,11 @@ VIEWS.property = () => {
       el('td', { colspan: 2, class: 'metaline pc-fee-uncertain', style: 'color:var(--bronze);white-space:normal' },
         `${fmtAmount(m.unconfirmedCost, 'MYR')} of this — ${fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)} — rests on unverified or unknown lines: ${feeUncertainWords(m)}. `
         + 'They compute so the total runs; they are not quotations and not checked against an official source. Replace them with real quotes before this figure means anything.')]));
+  /* The same total by kind (the rulebook 1.1.0), so a reader sees how much
+     is statute, how much a published scale, a quotation, an optional
+     product, an estimate — and how much their own money and figures. */
+  if (m.ledgerSplit) cashB.append(el('tr', {}, [
+    el('td', { colspan: 2, class: 'metaline pc-fee-split', style: 'white-space:normal' }, ledgerSplitWords(m))]));
   /* The rulebook this ledger was charged by, and where its sources are. */
   cashB.append(el('tr', {}, [
     el('td', { colspan: 2, class: 'metaline', style: 'white-space:normal' }, [

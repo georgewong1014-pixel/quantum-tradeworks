@@ -182,7 +182,7 @@ function clearWorkedExample() {
    Focus fell to <body> after both; it now goes to the counterpart, marked
    data-worked-example, or to <main> where there is none (focusAfterRedraw,
    05-plans.js). */
-function workedExampleControls({ compact = false } = {}) {
+function workedExampleControls({ compact = false, primary = true } = {}) {
   const row = el('div', { class: 'row row-wrap', style: `gap:8px;${compact ? '' : 'margin-top:var(--md)'}` });
   if (hasWorkedExample()) {
     row.append(el('button', { class: 'btn btn-ghost btn-sm', data: { workedExample: 'remove' }, onclick: () => {
@@ -191,7 +191,7 @@ function workedExampleControls({ compact = false } = {}) {
       toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
     } }, 'Remove the worked example'));
   } else {
-    row.append(el('button', { class: 'btn btn-primary btn-sm', data: { workedExample: 'load' }, onclick: () => {
+    row.append(el('button', { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm`, data: { workedExample: 'load' }, onclick: () => {
       const r = seedWorkedExample();
       render(); focusAfterRedraw('#views [data-worked-example]');
       toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);

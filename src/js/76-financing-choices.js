@@ -279,6 +279,13 @@ function financingChoicesPanel(d, m) {
   fw.append(numField('mrtaPremium', 'One-off premium quoted for the reducing cover (RM)', d.mrtaPremium, 'from your quote'));
   fw.append(numField('mltaPremiumAnnual', 'Yearly premium quoted for the level cover (RM)', d.mltaPremiumAnnual, 'from your quote'));
   card.append(fw);
+  /* Optional (the fee rulebook 1.1.0): what the cash required does with it. */
+  card.append(el('p', { class: 'metaline pc-mrta-state', style: 'margin-top:6px' },
+    isNum(d.mrtaPremium) && d.mrtaPremium > 0
+      ? `The cash required carries the ${fmtMoney(d.mrtaPremium, 'MYR', 0)} premium you were quoted, marked Quoted: a lender’s or insurer’s quotation.`
+      : d.mortgageProtection === 'included'
+        ? `Mortgage protection is optional. You included it, so the cash required carries the fee rulebook’s ${fmtMoney(FEE_TABLE.lines.mortgageProtection.fixed, 'MYR', 0)} estimate until you enter the premium you were quoted.`
+        : 'Mortgage protection is optional, and left out of the cash required: enter the premium you were quoted above, or include it at the fee rulebook’s estimate in the cost ledger.'));
 
   if (isNum(d.mrtaPremium) && d.mrtaPremium > 0) {
     const fin = premiumIfFinanced(d.mrtaPremium, num0(d.ratePct), mortgageYrs);

@@ -173,15 +173,21 @@ const pqMoney = (v) => fmtMoney(v, 'MYR', 0);
 const pqSigned = (v) => `${v < 0 ? '−' : '+'}${pqMoney(Math.abs(v))}`;
 const pqPctAbs = (v) => `${fmtNum(Math.abs(v), 1)}%`;
 const pqWhen = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'undated'; };
-const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, ${c.standing.label.toLowerCase()}`;
+/* A comparable as it is named wherever it is used: what and where, its
+   amount, its date and its source, and its standing — the source and the
+   date travel with it (the owner's decision of 9 Oct 2026). */
+const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, source: ${c.source || 'no source recorded'}, ${c.standing.label.toLowerCase()}`;
+const pqAskingWords = (g) => (g.askingComps?.length
+  ? `Asking prices you named, set apart and never in that value: ${g.askingComps.length === 1 ? pqMoney(g.askingValue) : `a median of ${pqMoney(g.askingValue)} over ${g.askingComps.length}`} — ${g.askingComps.map(pqCompWords).join('; ')}.`
+  : '');
 
 /* The gap, in words: the asking price against the comparable value. */
 function priceGapWords(g) {
   const n = g.comps.length, named = `the ${n === 1 ? 'comparable' : `${n} comparables`} you named`;
   const ag = g.askingGap;
   const finding = !ag ? null : Math.abs(ag.amount) < 0.5
-    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} imply.`
-    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} imply.`;
+    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} ${n === 1 ? 'implies' : 'imply'}.`
+    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} ${n === 1 ? 'implies' : 'imply'}.`;
   const pg = g.priceGap;
   const price = !pg ? null : Math.abs(pg.amount) < 0.5 ? `The price modelled, ${pqMoney(g.price)}, is that value.`
     : `The price modelled, ${pqMoney(g.price)}, is ${pqMoney(Math.abs(pg.amount))} (${pqPctAbs(pg.pct)}) ${pg.amount > 0 ? 'above' : 'below'} it.`;
@@ -190,14 +196,17 @@ function priceGapWords(g) {
 /* How the gap is worked out (L3): each named comparable, what it implies
    and why, and the median. */
 function priceGapFormula(g) {
-  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.';
+  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.'
+    + (g.askingComps?.length ? ` ${pqAskingWords(g)}` : '');
   const area = g.areaKey === 'landSqft' ? 'land area' : 'built-up area';
-  const each = g.comps.map(c => c.basis === 'rate'
+  const each = g.comps.map(c => (c.basis === 'rate'
     ? `${c.name}: ${pqMoney(c.price)} ÷ ${fmtNum(c.area, 0)} sq ft = ${pqMoney(c.rate)} a sq ft × this property’s ${fmtNum(g.subjectArea, 0)} sq ft = ${pqMoney(c.implied)}`
-    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`);
+    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`)
+    + ` — ${pqWhen(c.date)}, source: ${c.source}`);
   return `${each.join('; ')}. The comparable value is the median of ${g.comps.length === 1 ? 'that one figure' : `these ${g.comps.length}`}: ${pqMoney(g.value)}.`
     + (g.asking ? ` Asking ${pqMoney(g.asking)} − ${pqMoney(g.value)} = ${pqSigned(g.askingGap.amount)}.` : ' No asking price is entered.')
-    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a transacted price of this kind of property.` : '')
+    + (g.askingComps?.length ? ` ${pqAskingWords(g)}` : '')
+    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a price of this kind of property.` : '')
     + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
 }
 /* The solve, in words. */
@@ -239,7 +248,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
     cards.append(lsInsightCard({ label: 'Price gap', cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': String(g.askingGap.amount) },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
-      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`]),
+      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`, g.askingComps?.length ? ` ${pqAskingWords(g)}` : '']),
       cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
   } else {
     const missing = g.status === 'no-comparables'
@@ -343,28 +352,48 @@ function pcSubsaleInputs(d) {
 /* The comparables, from the reader's register, named one by one — for the
    subsale's price gap and the auction's market value alike. */
 function pcComparablesFieldset(d, legend) {
-  const choices = dealComparableChoices(d);
+  return comparablesPick({ d, prefix: 'pc', legend, cls: 'pc-sub-comps',
+    toggle: (ids) => { if (setDealAnswer(d, 'comparableIds', ids)) { saveDeal(); renderKeepFocus(); } } });
+}
+/* THE COMPARABLES PICK — the calculator's and the Lab's (the guided evidence
+   flow, the owner's decision of 9 Oct 2026). The reader's own records of
+   this town, each named with its amount, its date, its source and its
+   standing, and the Yours badge: the transacted prices, which make the
+   comparable value, and apart from them the asking prices, which never
+   enter it. `toggle(ids)` writes the list named — on the calculator to the
+   deal, on the Lab as an answer of every column (a what-if until Save). */
+function comparablesPick({ d, prefix, legend, toggle, cls = '' }) {
+  const choices = dealComparableChoices(d), asks = dealAskingChoices(d);
   const ids = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
   const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city;
-  const fs = el('fieldset', { class: 'pc-sub-comps', id: 'pc-sub-comps' });
-  fs.append(el('legend', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, legend));
-  if (!choices.length) fs.append(el('p', { class: 'metaline' },
-    `No ${PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold' ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one under “What you have recorded”, above, or in the comparables register.`));
-  choices.forEach(o => {
-    const id = `pc-comp-${slugParam(o.id)}`;
+  const land = PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold';
+  const fs = el('fieldset', { class: `comp-pick ${cls}`.trim(), id: `${prefix}-sub-comps` });
+  fs.append(el('legend', { class: 'eyebrow comp-pick-legend' }, legend));
+  const row = (o) => {
+    const id = `${prefix}-comp-${slugParam(o.id)}`;
     const st = observationStanding(o);
-    fs.append(el('label', { class: 'pc-sub-comp', style: 'gap:8px;display:flex;align-items:flex-start;margin-top:4px' }, [
+    return el('label', { class: 'comp-pick-row', for: id, 'data-comp': o.id }, [
       el('input', { type: 'checkbox', id, checked: ids.has(o.id) ? '' : null, onchange: (e) => {
         const next = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
         if (e.target.checked) next.add(o.id); else next.delete(o.id);
-        if (setDealAnswer(d, 'comparableIds', [...next])) { saveDeal(); renderKeepFocus(); }
+        toggle([...next]);
       } }),
-      el('span', {}, `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)} · ${st.label}`),
-    ]));
-  });
+      el('span', { class: 'comp-pick-words' }, [
+        `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)}`,
+        ' ', kindBadge('yours', { fine: 'your own record', link: false }),
+        el('span', { class: 'comp-pick-src' }, `Source: ${comparableSource(o)} · ${st.label}`)]),
+    ]);
+  };
+  if (!choices.length) fs.append(el('p', { class: 'metaline' },
+    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one in the comparables register, step by step: its locality, its source and date, and what it is.`));
+  choices.forEach(o => fs.append(row(o)));
+  if (asks.length) {
+    fs.append(el('p', { class: 'metaline comp-pick-apart' }, `Asking prices — shown apart, with their own median: an asking price is somebody’s hope, and is never in the value the transacted prices imply.`));
+    asks.forEach(o => fs.append(row(o)));
+  }
   fs.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
-    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
-      'Open the comparables register')]));
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), id: `${prefix}-comp-register`, onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+      choices.length || asks.length ? 'Open the comparables register' : 'Record one in the comparables register')]));
   return fs;
 }
 /* The two figures, on the calculator: the cards, the target, what the
@@ -570,7 +599,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
     attrs: { 'data-au-fig': 'discount', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': td ? String(td.pct) : '' },
     sub: td ? `${td.amount >= 0
         ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under the ${auMoney(a.market)} market value your comparables imply`
-        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${auNotFinal(a)}`
+        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${a.marketFrom.named.length ? ` Named from your register: ${a.marketFrom.named.map(pqCompWords).join('; ')}.` : ''}${auNotFinal(a)}`
       : 'Enter comparable prices, or name comparables from your register: the market value is theirs, never a market figure.' }));
   const f = a.forfeiture;
   cards.append(lsMetricCard({ label: 'Forfeiture exposure', badge: auBadge(f.status === 'ok' ? 'yours' : 'unavailable', f.status === 'ok' ? 'the Proclamation’s terms you entered' : 'terms not entered'), level: 2, cls: 'au-card au-forfeit',
@@ -589,7 +618,7 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 
 /* L3: the working, in words. */
 function auctionWaterfallFormula(a) {
-  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''}`);
+  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
   const typed = a.marketFrom.typed.map((c, i) => `your comparable price ${i + 1}, ${auMoney(c.price)}`);
   const mv = isNum(a.market) ? `Market value: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Market value: none — no comparable is entered or named, so the true discount is Unavailable.';
   const t = a.adds.find(x => x.id === 'transaction');

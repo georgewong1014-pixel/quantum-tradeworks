@@ -154,6 +154,37 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end p1-route ---- */
 
+/* ---- fee-integrity ---- */
+/* NO TOTAL IS CALLED VERIFIED (the owner's decision of 9 Oct 2026, audit
+   item #2). The fee rulebook verifies lines, not totals: while any line in
+   the cash required is an estimate the total is not verified, and the
+   amount resting on such lines is said beside it. A claim that a total, or
+   every line, is verified would be true of no deal this product can price
+   — the valuation fee and the deposits are estimates on every one — so in
+   the text of the property and fee modules (comments left out) such a
+   phrase is used only in a sentence that denies it. model-test 19f reads
+   the rendered pages the same way. */
+{
+  const VERIFIED_TOTAL = /\b(fully verified|verified total|total is verified|all (?:the )?(?:fee )?lines (?:are )?verified|every (?:fee )?line (?:in it )?is verified)\b/gi;
+  const files = readdirSync(join(ROOT, 'src', 'js')).filter(f => /^(70-property|72-property-proposal|75-property-grade|76-financing-choices|82-property-lab|83-property-decision|97-decision-record)\.js$/.test(f));
+  let vBad = 0, vSeen = 0;
+  for (const f of files) {
+    const code = uncommented(readFileSync(join(ROOT, 'src', 'js', f), 'utf8'));
+    for (const m of code.matchAll(VERIFIED_TOTAL)) {
+      vSeen++;
+      const s = sentenceAt(code, m.index, m[0].length);
+      if (new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|\\bwhile\\b`, 'i').test(s)) continue;
+      vBad++;
+      console.error(`FAIL  "${m[0]}" claimed in ${f}`);
+      console.error(`      “${s.slice(0, 220)}”`);
+    }
+  }
+  bad += vBad;
+  if (files.length !== 7) { bad++; console.error(`FAIL  the verified-total check read ${files.length} of its 7 modules`); }
+  else if (!vBad) console.log(`ok    no total and no "every line" is called verified in the text of the ${files.length} property and fee modules — ${vSeen} use${vSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
+}
+/* ---- end fee-integrity ---- */
+
 /* ---- bugfix3: property ---- */
 /* A WORKED FIGURE IN THE LAND-UNITS HEADER IS THE ARITHMETIC OF ITS OWN
    CONSTANTS. It said the listings' rounded 40.47 m² a point moves a 60-point

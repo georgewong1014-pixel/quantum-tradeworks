@@ -979,8 +979,13 @@ try {
             const k = seen.get(t) || 0; seen.set(t, k + 1); const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect();
             if (b.height && b.top >= 100 && b.top < innerHeight - 60 && (!best || b.top < best.y)) best = { t, k, y: b.top }; }
           return best; })()`;
+        /* Counted as ANCHOR counts: a chart's own words (svg, drawn by the
+           script after the served page) and a [data-now] are not counted, or
+           the k-th "RM119.0k" of the drawn page was the waterfall chart's
+           total, above the ledger's the reader had scrolled to — reported as
+           the words moving 872px (the fee rulebook 1.1.0, 9 Oct 2026). */
         const FIND = (a) => `(() => { const w = document.createTreeWalker(document.getElementById('views'), NodeFilter.SHOW_TEXT); let k = 0;
-          for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.data.replace(/\\s+/g, ' ').trim() !== ${JSON.stringify(a.t)} || k++ !== ${a.k}) continue;
+          for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.data.replace(/\\s+/g, ' ').trim() !== ${JSON.stringify(a.t)} || n.parentElement.closest('svg, [data-now]') || k++ !== ${a.k}) continue;
             const r = document.createRange(); r.selectNodeContents(n); return r.getBoundingClientRect().top; } return null; })()`;
         /* IN ANOTHER MACHINE'S FONT TOO (6 Oct 2026). /status at 390 passed
            here in Segoe UI and failed on CI's runner, in DejaVu Sans: a

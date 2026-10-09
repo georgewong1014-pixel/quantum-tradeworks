@@ -143,7 +143,7 @@ const LAB_FIGURES = [
       + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
-        : 'Every fee line in it is verified against its official source or is your own quote')
+        : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
       + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
     read: (m) => m.cashflowMonthly,
@@ -945,7 +945,18 @@ function labPriceSection(P, lab) {
   const d = labAnswerInputs(lab);
   const target = d ? priceTargetControls({ d, prefix: P.idPrefix, answer: (k, v) => labAnswer(P, lab, k, v) }) : null;
   const tryBox = el('div', { class: 'pe-try', id: labId(P, 'pe-try') });
-  card.append(route, cards, target, tryBox);
+  /* THE EVIDENCE, HERE (the guided evidence flow, 9 Oct 2026): the asking
+     price and the comparables from the reader's register, named in the Lab
+     as answers of the property — every column, a what-if until Save. */
+  const askId = labId(P, 'pe-asking');
+  const ask = d ? el('div', { class: 'pe-ask' }, [
+    el('label', { for: askId, class: 'pe-ask-label' }, 'Asking price (RM)'),
+    el('input', { class: 'input input-inline pe-ask-input', id: askId, type: 'number', inputmode: 'decimal', min: '0', step: '1000',
+      value: isNum(d.askingPrice) ? String(d.askingPrice) : '', placeholder: 'not entered',
+      onchange: (e) => { const raw = String(e.target.value).trim(); labAnswer(P, lab, 'askingPrice', raw === '' ? null : raw); } }),
+  ]) : null;
+  const pick = d ? comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables this price is set against — from your register', toggle: (ids) => labAnswer(P, lab, 'comparableIds', ids) }) : null;
+  card.append(route, cards, target, tryBox, ask, pick);
   P.els.pe = { card, route, cards, tryBox, sig: null };
   return card;
 }
@@ -1018,7 +1029,9 @@ function labAuctionSection(P, lab) {
     const answer = (k, v) => labAnswer(P, lab, k, v);
     const named = priceGap(d).comps.length;
     card.append(auctionInputs({ d, prefix: P.idPrefix, answer,
-      extra: { market: el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register in the calculator count as well.` : 'Comparables from your register are named in the calculator.') } }));
+      extra: { market: el('div', {}, [
+        el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register count${named === 1 ? 's' : ''} as well, with ${named === 1 ? 'its' : 'their'} source and date.` : 'Transacted prices from your register, named below, count as well.'),
+        comparablesPick({ d, prefix: P.idPrefix, legend: 'Comparables from your register', toggle: (ids) => answer('comparableIds', ids) })]) } }));
     card.append(auctionChecklist({ d, prefix: P.idPrefix, answer }));
   }
   P.els.au = { card, figs, sig: null };
@@ -1462,6 +1475,26 @@ function labEvidence(P, lab) {
   P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
   P.els.how = { node: how, head: fhead, formula };
+  /* THE CASH REQUIRED BY KIND (the fee rulebook 1.1.0; the owner's decision
+     of 9 Oct 2026): statutory charges, scale fees, quotations, optional
+     products, estimates and the buyer's own money, with what rests on
+     estimates — and mortgage protection, optional and out until included,
+     included here as an answer of the property (a move of every column,
+     written only by Save), as the questions are. */
+  const ad = labAnswerInputs(lab);
+  const feeText = el('p', { class: 'lab-formula lab-fee-split', id: labId(P, 'ev-fees-text') }, '');
+  const quoted = ad && isNum(ad.mrtaPremium) && ad.mrtaPremium > 0;
+  const included = !!ad && !quoted && ad.mortgageProtection === 'included';
+  const mrtaBtn = ad && !quoted ? el('button', { type: 'button', class: 'btn btn-ghost btn-sm lab-mrta-btn', id: labId(P, 'mrta'), 'aria-pressed': included ? 'true' : 'false',
+    onclick: () => labAnswer(P, lab, 'mortgageProtection', included ? null : 'included') },
+    included ? 'Leave mortgage protection out' : `Include mortgage protection — ${labMoney(FEE_TABLE.lines.mortgageProtection.fixed)} estimate`) : null;
+  const mrtaSay = el('p', { class: 'metaline lab-mrta-say' }, quoted
+    ? `Mortgage protection: the ${labMoney(ad.mrtaPremium)} premium you were quoted is in the cash required, marked Quoted.`
+    : included ? `Mortgage protection is optional; included, it is carried at the rulebook’s ${labMoney(FEE_TABLE.lines.mortgageProtection.fixed)} estimate until you enter a quote in the calculator — a what-if until you save.`
+      : 'Optional: mortgage protection — not included in the cash required. Include it here, or enter the premium you were quoted in the calculator.');
+  const fees = lsEvidenceSection({ id: labId(P, 'ev-fees'), summary: 'What the cash required is made of', body: [feeText, mrtaSay, mrtaBtn].filter(Boolean) });
+  fees.addEventListener('toggle', () => { if (fees.open) labPaintPanel(P); });
+  P.els.fees = { node: fees, text: feeText };
   /* How the price gap and the solved price are worked out (P2) — above
      "How a figure is worked out", which a row pressed from 1440px writes
      into and so grows: below it, these moved with every row pressed
@@ -1486,7 +1519,7 @@ function labEvidence(P, lab) {
     P.els.au.wfText = wfText; P.els.au.fxText = fxText;
     pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
   }
-  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
 /* From 1440px a row of the chain shows its formula in the drawer. */
 function labShowFormula(P, key) {
@@ -2275,6 +2308,12 @@ function labPaintPanel(P, { initial = false } = {}) {
     const q = propertyReviewQueue(d);
     labText(P.els.rests, q.length ? `These figures rest on ${q.length} of the tool’s starting figures: ${q.map(x => x.label.toLowerCase()).join(', ')}.` : 'None of these figures rests on a starting figure of the tool’s.');
   }
+  /* The cash required by kind, written while open (and served whole). */
+  if (P.els.fees && (initial || P.els.fees.node.open)) {
+    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
+      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
+      + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
+  }
   /* ALWAYS SAID, so nothing moves under the thumb. The line appeared at the
      first tick of a drag, above the sliders: where the browser does not
      anchor the scroll (Safari), the slider and all seven results dropped
@@ -2392,5 +2431,34 @@ VIEWS.propertyLab = () => {
     lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
+  /* A record the reader asked to use from the comparables register (the
+     guided evidence flow): named once the page is up, as an answer. */
+  const pend = State.labUseComparable;
+  if (pend) { State.labUseComparable = null; setTimeout(() => labUseComparable(pend), 0); }
   return wrap;
 };
+/* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of
+   9 Oct 2026): a record of the reader's register named in the Lab's
+   comparables, as an answer of the property — every column, a what-if
+   until Save, as anything answered here. A record of another town, or of
+   a kind this property's price is not set against, is said, not used. */
+function labUseComparable(id) {
+  const P = [...LAB_PANELS].find(p => p.address && p.node.isConnected);
+  const lab = P && LAB[P.key];
+  const d = lab && labAnswerInputs(lab);
+  const o = (State.observations || []).find(x => x && x.id === id);
+  if (!d || !o) return false;
+  const usable = [...dealComparableChoices(d), ...dealAskingChoices(d)].some(x => x.id === id);
+  if (!usable) {
+    toast(o.city !== d.city
+      ? `That record is in ${townName(o.city)}; the property in the Lab is in ${townName(d.city)} — it is set against records of its own town.`
+      : `That record is ${(OBS_BY_ID[o.kind]?.label || 'a record').toLowerCase()}: this property’s price is set against prices of its own kind.`);
+    return false;
+  }
+  const ids = [...new Set([...(Array.isArray(d.comparableIds) ? d.comparableIds : []), id])];
+  labAnswer(P, lab, 'comparableIds', ids);
+  const row = document.querySelector(`[data-comp="${CSS.escape(id)}"]`);
+  if (row) { row.scrollIntoView({ block: 'center' }); row.querySelector('input')?.focus({ preventScroll: true }); }
+  toast(`${comparableName(o)} named in the Lab’s comparables — a what-if of every column until you save.`);
+  return true;
+}
