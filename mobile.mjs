@@ -3768,11 +3768,68 @@ for (const w of [360, 390]) {
         if (r.over > 1) fails.push(`${at}: the page scrolls sideways by ${r.over}px`);
         if (r.cardOver) fails.push(`${at}: ${r.cardOver} cards overflow`);
         seen.push(`${at} ${r.cards}`);
+        /* ---- screener-coverage ---- */
+        /* THE READER CHOOSES THE MEASURES ON EACH CARD (9 Oct audit #8):
+           one line of chips, the table's columns, that scrolls sideways and
+           never wraps, each a 44px target; every card carries exactly the
+           chosen measures, in the chips' order, at most four; pressing a
+           chip changes every card; a price measure a filed company cannot
+           hold reads "Unavailable", never a zero or a dash; a template that
+           is off on the filed companies offers "Run on the illustrative set"
+           as a 44px target; nothing scrolls sideways after any of it. */
+        const k = await ev(`(async () => {
+          const w = (ms) => new Promise(res => setTimeout(res, ms));
+          const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+          const row = () => document.querySelector('#views .scr-pick-row');
+          if (!shown(row())) return { none: true };
+          const chips = () => [...row().querySelectorAll('button')].map(b => { const q = b.getBoundingClientRect(); return { id: b.id, t: b.textContent.trim(), on: b.getAttribute('aria-pressed') === 'true', top: Math.round(q.top), h: Math.round(q.height), w: Math.round(q.width) }; });
+          const cards = () => [...document.querySelectorAll('#views .screener-card')].filter(shown).map(c => [...c.querySelectorAll('.screener-card-metrics > div')].map(d => [d.children[0]?.textContent.trim(), d.children[1]?.textContent.trim()]));
+          const agree = () => { const want = chips().filter(c => c.on).map(c => c.t).join('|'); return cards().every(c => c.map(x => x[0]).join('|') === want); };
+          const out = { chips: chips(), agree0: agree(), cards0: cards()[0] || [], scroll: row().scrollWidth > row().clientWidth };
+          /* Press one not chosen (removing the last chosen first, if four are). */
+          let c0 = chips();
+          if (c0.filter(c => c.on).length >= 4) { document.getElementById(c0.filter(c => c.on).pop().id).click(); await w(150); c0 = chips(); }
+          const add = c0.find(c => !c.on);
+          if (add) { document.getElementById(add.id).click(); await w(150); }
+          out.added = add ? add.t : null;
+          out.agree1 = agree(); out.hasAdded = !!add && cards().every(c => c.some(x => x[0] === add.t));
+          out.max = Math.max(0, ...cards().map(c => c.length));
+          /* A price measure on filed companies. */
+          const s = State.screen, keepCols = s.cols, keepPick = State.scrCardCols;
+          s.cols = ['pe', 'roic', 'om']; State.scrCardCols = ['pe', 'roic']; render(); await w(200);
+          const pe = cards().map(c => (c.find(x => x[0] === 'Price / earnings') || [null, null])[1]);
+          out.pe = [...new Set(pe)];
+          out.over = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+          s.cols = keepCols; State.scrCardCols = keepPick; render(); await w(150);
+          /* A template off on the filed companies, and its way to run. */
+          const det = [...document.querySelectorAll('#views details')].find(d => d.querySelector('.scr-tpl-list'));
+          if (det) { det.open = true; await w(100); }
+          const run = document.querySelector('#views .scr-tpl-run');
+          out.run = run ? { h: Math.round(run.getBoundingClientRect().height), w: Math.round(run.getBoundingClientRect().width) } : null;
+          out.over2 = document.documentElement.scrollWidth - document.documentElement.clientWidth;
+          if (det) det.open = false;
+          return out;
+        })()`);
+        if (!k || k.error) fails.push(`${at}: the card measures could not be read: ${k?.error || 'no answer'}`);
+        else if (k.none) fails.push(`${at}: no chips to choose the measures on each card`);
+        else {
+          const tops = [...new Set(k.chips.map(c => c.top))];
+          if (tops.length !== 1) fails.push(`${at}: the measure chips wrap onto ${tops.length} lines`);
+          const tiny = k.chips.filter(c => c.h < 44 || c.w < 44);
+          if (tiny.length) fails.push(`${at}: measure chips under 44px: ${tiny.slice(0, 4).map(c => `${c.t} ${c.w}×${c.h}`).join(', ')}`);
+          if (!k.agree0 || !k.agree1) fails.push(`${at}: the cards do not carry exactly the chosen measures (first card: ${JSON.stringify(k.cards0.map(x => x[0]))})`);
+          if (!k.hasAdded) fails.push(`${at}: pressing ${JSON.stringify(k.added)} did not put it on every card`);
+          if (k.max > 4) fails.push(`${at}: a card carries ${k.max} measures, more than four`);
+          if (k.pe.length !== 1 || k.pe[0] !== 'Unavailable') fails.push(`${at}: a filed company's P/E on its card reads ${JSON.stringify(k.pe)}, not "Unavailable"`);
+          if (!k.run || k.run.h < 44 || k.run.w < 44) fails.push(`${at}: "Run on the illustrative set" is ${k.run ? `${k.run.w}×${k.run.h}` : 'not drawn'}, not a 44px target`);
+          if (k.over > 1 || k.over2 > 1) fails.push(`${at}: the page scrolls sideways by ${Math.max(k.over, k.over2)}px with the card measures chosen or the templates open`);
+        }
+        /* ---- end screener-coverage ---- */
       }
     }
   } catch (e) { fails.push(`harness: ${e.message}`); }
   if (fails.length) { bad++; console.log(`FAIL second-track: the screener on a phone (${fails.length} problems)`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   second-track: the screener at 360, 390, 430 and 600, in the page's font and in Verdana — the Coverage selector in sight with SEC-filed chosen and each choice a 44px target; the results are cards (${seen.join(', ')}), one per match, each badged Filed; no table; the results before the advanced metric directory; nothing scrolls sideways`);
+  else console.log(`ok   second-track: the screener at 360, 390, 430 and 600, in the page's font and in Verdana — the Coverage selector in sight with SEC-filed chosen and each choice a 44px target; the results are cards (${seen.join(', ')}), one per match, each badged Filed; no table; the results before the advanced metric directory; nothing scrolls sideways; the measures on each card chosen by one line of 44px chips, every card carrying exactly those, a filed P/E "Unavailable", and "Run on the illustrative set" a 44px target`);
 }
 /* ---- end second-track ---- */
 /* ---- d12-workspace ---- */

@@ -4202,19 +4202,19 @@
         ]
       },
       "inert": {
-        "buttons": 120,
+        "buttons": 124,
         "fields": 82,
         "choices": 3,
-        "roles": 342,
+        "roles": 266,
         "forms": 0,
         "removed": 0,
-        "notShown": 1,
+        "notShown": 2,
         "now": 0,
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "0862261bb358e563",
-      "changed": "2026-10-08"
+      "digest": "12d0267f6140f684",
+      "changed": "2026-10-09"
     },
     "pages/discover/sarawak.html": {
       "path": "/discover/sarawak",
@@ -4260,19 +4260,19 @@
         ]
       },
       "inert": {
-        "buttons": 120,
+        "buttons": 124,
         "fields": 82,
         "choices": 3,
-        "roles": 342,
+        "roles": 266,
         "forms": 0,
         "removed": 0,
-        "notShown": 1,
+        "notShown": 2,
         "now": 0,
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "0862261bb358e563",
-      "changed": "2026-10-08"
+      "digest": "12d0267f6140f684",
+      "changed": "2026-10-09"
     },
     "pages/discover/value-map.html": {
       "path": "/discover/value-map",
@@ -4300,8 +4300,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4037c57c1e531d48",
-      "changed": "2026-10-08"
+      "digest": "deccc0a1c08cdeec",
+      "changed": "2026-10-09"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",

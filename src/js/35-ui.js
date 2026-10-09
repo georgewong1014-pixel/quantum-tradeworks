@@ -1827,7 +1827,7 @@ function applyRoute() {
   }
   if (route.view === 'discover' && qs.get('template')) {
     const t = SCREEN_TEMPLATES.find(x => x.id === qs.get('template'));
-    if (t) { const s = blankScreen(); t.apply(s); State.screen = screenFitClass(s); State.appliedTemplate = t.id; }
+    if (t) { State.screen = templateScreen(t); State.appliedTemplate = t.id; }
     qs.delete('template');
     const rest = qs.toString();
     history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));

@@ -630,15 +630,42 @@ table.dt thead th.chg { color: var(--ink-3); }
 .screener-card + .screener-card { margin-top: 8px; }
 .screener-card:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .screener-card-metrics {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px var(--md); margin-top: 10px;
 }
+/* A measure on a phone's result card: its label on the 14/20 decision
+   floor, the figure, and, where there is none, "Unavailable" with the
+   reason under it (9 Oct audit #8). */
+.scr-card-m { min-width: 0; }
+.scr-card-l { font-size: 14px; line-height: 20px; color: var(--ink-3); overflow-wrap: anywhere; }
+.scr-card-v { font-weight: 600; font-size: 14px; color: var(--ink); }
+.scr-card-na { color: var(--ink-2); font-weight: 500; }
+.scr-card-why { font-size: 12px; line-height: 16px; color: var(--ink-3); }
+/* The measures on each card: one line of chips that scrolls sideways, each
+   a 44px target, the chosen ones in the brand's wash. Shown where the
+   cards are. */
+.scr-pick { display: none; }
+.scr-pick-hd { margin: 0 0 2px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.scr-pick-row { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none; scroll-snap-type: x proximity; min-width: 0; }
+.scr-pick-row::-webkit-scrollbar { display: none; }
+.scr-pick-chip { position: relative; isolation: isolate; flex: none; scroll-snap-align: start; cursor: pointer;
+  height: 44px; padding: 0 14px; font-size: 13px; background: none; border: 0; color: var(--ink-2);
+  transition: color 160ms ease; }
+.scr-pick-chip::before { content: ""; position: absolute; inset: 6px 0; z-index: -1; border-radius: 999px;
+  background: var(--surface-sunk); border: 1px solid var(--line); transition: background-color 160ms ease, border-color 160ms ease; }
+.scr-pick-chip:hover::before { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+.scr-pick-chip[aria-pressed="true"] { color: var(--brand); }
+.scr-pick-chip[aria-pressed="true"]::before { background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 42%, transparent); }
+.scr-pick-chip:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; border-radius: 999px; }
 @media (max-width: 768px) {
+  .scr-pick { display: block; padding: 10px 10px 0; min-width: 0; }
   .screener-cards { display: block; padding: 10px; }
   .screener-cards + table, table.dt.screener-table { display: none; }
   .tablewrap:has(.screener-cards) > table { display: none; }
   /* 16px is the minimum body size on a phone, and 44px the minimum tap target. */
   .screener-card { min-height: 44px; }
   .screener-card .num { font-size: 16px; }
+  .screener-card .scr-card-na { font-size: 14px; }
 }
 
 .stack    { display: flex; flex-direction: column; gap: var(--lg); }
@@ -6216,7 +6243,17 @@ input.au-in { text-align: right; }
    and beside the ticker in a phone's card. */
 .screener-table th.ident > .kind-badge { margin-top: 4px; }
 .screener-card-hd { flex-wrap: wrap; row-gap: 4px; }
+/* The templates (9 Oct audit #8): those the class can answer, then, apart,
+   those it cannot — off, in a dashed outline, each with its reason and the
+   way to run it on the illustrative set. */
+.scr-tpl-list { display: grid; gap: 6px; margin-top: 8px; }
+.scr-tpl-off-hd { margin: 8px 0 0; font-size: var(--ls-meta); font-weight: var(--weight-semibold); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.scr-tpl-off { padding: 9px 11px; border: 1px dashed var(--line); border-radius: var(--r-md); background: var(--surface-sunk); }
+.scr-tpl-off > .ob-option-t { font-size: 13px; color: var(--ink-2); }
+.scr-tpl-why { margin: 6px 0 0; font-size: 12px; line-height: 16px; color: var(--ink-2); }
+.scr-tpl-run { margin-top: 4px; padding-left: 0; color: var(--brand); }
 @media (max-width: 639.98px) {
+  .scr-tpl-run { min-height: 44px; }
   .scr-class-row { gap: 8px; }
   .scr-class-seg { flex: 1 1 100%; }
   .scr-class-seg > button, .scr-class-seg > [data-inert] { flex: 1 1 0; justify-content: center; min-height: 44px; }

@@ -441,6 +441,42 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
   } else console.log(`ok    the positioning copy is typed once, in POSITIONING (${values.length} strings): no module or the template types one of them, or "decision workspace", "market setups" or "Research · Monitor", anywhere else`);
 }
 /* ---- end positioning ---- */
+/* ---- screener-coverage ---- */
+/* NO TEMPLATE OFFERED TO THE FILED COMPANIES PROMISES A PRICE (9 Oct audit
+   #8). The SEC-filed companies carry no price. A template the screener
+   offers them — one with no threshold on a measure that needs a price
+   (METRICS' inputs: the price or price history) and no Bursa market — must
+   not describe a price-based result in its name or its why: no price, yield,
+   valuation, multiple, discount or model estimate. Classed from the source,
+   as served-check and equity-test class it. */
+{
+  const vm = await import('node:vm');
+  const read = (f) => readFileSync(join(ROOT, f), 'utf8');
+  const cut = (text, name) => { const i = text.indexOf(`const ${name} = [`); const e = text.indexOf('\n];', i); return i < 0 || e < 0 ? null : text.slice(i, e + 3); };
+  const M = cut(read('src/js/13-metrics.js'), 'METRICS'), T = cut(read('src/js/40-views-discover.js'), 'SCREEN_TEMPLATES');
+  const p = [];
+  if (!M || !T) p.push('METRICS (13-metrics.js) or SCREEN_TEMPLATES (40-views-discover.js) not found');
+  else {
+    const { METRICS, SCREEN_TEMPLATES } = vm.runInContext([M, 'const METRIC_BY_K = Object.fromEntries(METRICS.map(x => [x.k, x]));',
+      'const ICOV_UNTESTABLE = () => ({});', T, '({ METRICS, SCREEN_TEMPLATES })'].join('\n'), vm.createContext({}));
+    const dep = (k) => (METRICS.find(x => x.k === k)?.inputs || []).some(x => x === 'price' || x === 'history');
+    const PROMISE = /\bpric(e|ed|es|ing)\b|\byields?\b|valuation|\bmultiples?\b|discount|model estimate|\bcheap|\bP\/E\b/i;
+    let offered = 0;
+    for (const t of SCREEN_TEMPLATES) {
+      const s = { universe: 'all', sectors: [], types: [], local: {}, crit: {}, cols: [] };
+      t.apply(s);
+      const priced = Object.entries(s.crit).some(([k, c]) => c && (c.min != null || c.max != null) && dep(k));
+      if (priced || s.universe === 'MY') continue;
+      offered++;
+      const hit = PROMISE.exec(`${t.name} — ${t.why}`);
+      if (hit) p.push(`${t.id}: offered to the filed companies, and its words say "${hit[0]}": ${t.why.slice(0, 120)}`);
+    }
+    if (!offered) p.push('no template is offered to the filed companies');
+    if (!p.length) console.log(`ok    none of the ${offered} templates offered to the SEC-filed companies (no price threshold, no Bursa market) describes a price, yield, valuation, multiple, discount or model estimate`);
+  }
+  if (p.length) { bad += p.length; console.error(`FAIL  ${p.length} template(s) offered to the filed companies promise a price-based result:`); p.forEach(x => console.error(`      ${x}`)); }
+}
+/* ---- end screener-coverage ---- */
 
 console.log(bad
   ? `\n${bad} banned phrase(s) used as a claim. None is supported by the data this product holds.`
