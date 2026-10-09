@@ -2492,6 +2492,50 @@ const JOURNEYS = [
         await press('/', `[...document.querySelectorAll(${JSON.stringify(CARDS)})].filter(n => n.getClientRects().length)[${i}]`, cards[i], `Homepage card “${cards[i]}”`);
       }
 
+      /* THE HOMEPAGE'S WORKED RESULTS (the 9 Oct audit's #9): each outcome
+         card, one press, lands on its tool with the result in sight —
+         Apple's Financials with its filed revenue chart, the Scanner's
+         example replayed to bar 66 where the rule holds, /property's Cash
+         required tile with the figure the card showed and its badge, and
+         "not a real listing" with it. In sight: inside the window, below
+         whatever is stuck to its top. A card that is missing, or a press
+         that lands short of its result, is a failed call to action. */
+      const OUTS = [
+        { id: 'company', label: 'Research a company', result: `(() => { const t = document.getElementById('fin-chart'), s = t?.querySelector('svg.chart[aria-label="Reported financials"]');
+            return State.view === 'research' && !!BY_ID.get(State.ticker)?.c.real && /^Financials$/.test(document.querySelector('main [role=tab][aria-selected="true"]')?.textContent.trim() || '')
+              && !!s && s.querySelectorAll('path').length >= 10 && [...t.querySelectorAll('.legend .legend-item')].some(n => n.textContent.trim() === 'Revenue') && window.__inSight(s); })()`,
+          what: 'Apple’s Financials with its filed revenue chart in sight' },
+        { id: 'setup', label: 'Test a setup', result: `(() => { const f = document.querySelector('main figure.scan-ex#scan-ex'), v = f?.querySelector('.scan-ex-v');
+            return !!f && f.querySelector('input[type=range]')?.value === '66' && f.querySelector('.scan-ex-verdict .num')?.textContent.trim() === '66'
+              && v?.dataset.state === 'MET' && v.textContent.trim() === 'Held' && window.__inSight(v) && window.__inSight(f.querySelector('svg')); })()`,
+          what: 'the Scanner’s example at bar 66, Held, in sight' },
+        { id: 'cash', label: 'Check a property’s cash required', result: `(() => { const t = document.querySelector('main [data-tile="safeCashRequired"]'), v = t?.querySelector('.lab-tile-val');
+            const id = [...document.querySelectorAll('main *')].find(n => [...n.childNodes].some(c => c.nodeType === 3 && /not a real listing/.test(c.data)));
+            return State.view === 'propertyLab' && !!v && v.textContent.trim() === window.__outWas && t.querySelector('.lab-tag')?.textContent.trim() === 'Illustrative default'
+              && window.__inSight(v) && !!id && window.__inSight(id); })()`,
+          what: 'the Cash required tile with the card’s figure, its Illustrative default badge and “not a real listing” in sight' },
+      ];
+      const IN_SIGHT = `window.__inSight = (n) => { if (!n || !n.getClientRects().length) return false; const r = n.getBoundingClientRect();
+        const top = Math.max(0, ...['#pubbar', '#appbar', '.ticker-sticky.is-stuck'].map(s => document.querySelector(s)).filter(Boolean).map(x => x.getBoundingClientRect()).filter(b => b.height && b.top <= 1).map(b => b.bottom));
+        return r.top >= top - 1 && r.top < innerHeight - 16 && r.left >= -1 && r.right <= innerWidth + 1; };`;
+      for (const o of OUTS) {
+        await load('/').catch(() => {});
+        const card = `document.querySelector('#outcomes article.pub-out[data-outcome="${o.id}"] a.pub-out-link[href]')`;
+        const title = await tab.eval(`(${card})?.textContent.trim() || null`).catch(() => null);
+        if (title !== o.label) { failures.push({ step: `Homepage worked result “${o.label}”`, route: '/', why: title ? `the card reads “${title}”` : 'the homepage has no such card' }); continue; }
+        /* What the Property card showed, for the tile to equal. */
+        await tab.eval(`window.__outWas = document.querySelector('#outcomes [data-figure="safeCashRequired"]')?.textContent.trim() || null`).catch(() => {});
+        const was = await tab.eval('window.__outWas').catch(() => null);
+        await press('/', card, o.label, `Homepage worked result “${o.label}”`);
+        const name = `Homepage worked result “${o.label}”: ${o.what}`;
+        const r = await timed(j, tab, name, BUDGET.action, async () => {
+          await tab.eval(`${IN_SIGHT} window.__outWas = ${JSON.stringify(was)}; true`);
+          await tab.expect(o.result, async () => `one press on “${o.label}” left ${await tab.where()} without ${o.what}`, 8000);
+        });
+        if (r.ok) checked++;
+        else failures.push({ step: name, route: r.route, why: r.why });
+      }
+
       /* THE HOMEPAGE'S PROPERTY CARD (plan item 3.8): the compact Scenario
          Lab on the sample deal. Its price, moved to the far end of its
          span, moves all three of its figures — Monthly repayment, Cash

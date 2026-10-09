@@ -1834,10 +1834,11 @@ const HOME_PAGE = read(HOME);
         card links /property/lab; the Scanner's ⓘ says "this site ships no
         prices"; the badges on /, /how-it-works and the footer read Beta,
         Beta, Live and Coming soon; Business is text;
-   3.4, N9  the example path: an "Example" label, 50 words or fewer, two
-        <ol>s of 5 and 4 links each served 200, no digit, ticker or company
-        name; "Saved in this browser" once, one link to /my/data;
-        /how-it-works#hiw-journey still holds its five steps;
+   3.4, N9  (since the 9 Oct audit's #9 the example path's step diagrams
+        are three worked results, held in home-outcomes) the connected
+        workspace said once: a line of 20 words or fewer under the results,
+        "Saved in this browser" once, one link to /my/data and one to
+        /how-it-works#hiw-journey, which still holds its five steps;
    3.5  <div id="views"> within the first 16kB of every served page; no
         "My Dashboard" or "Saved Models" before /'s h1, no "My workspace" on
         /about; each positioning string one variant across the served pages;
@@ -1937,25 +1938,18 @@ const HOME_PAGE = read(HOME);
   const foot = all(T(home)).find(n => attr(n, 'id') === 'footProducts');
   const footBadges = foot ? foot.kids.filter(k => k.tag === 'li').map(li => badgeIn(li)) : [];
   if (JSON.stringify(footBadges) !== JSON.stringify(Object.values(WANT))) p.push(`/: the footer's badges read ${JSON.stringify(footBadges)}, not ${JSON.stringify(Object.values(WANT))}`);
-  /* 3.4 and N9 */
-  const path = hm && all(hm).find(n => has(n, 'pub-path'));
-  if (!path) p.push('/: no example path (.pub-path)');
+  /* 3.4 and N9, as the 9 Oct audit's #9 left them: the example path's two
+     step diagrams gave way to three worked results (home-outcomes, below);
+     the connected workspace is said once, under them — saved in this
+     browser, and one link to how it connects. */
+  const ft = hm && all(hm).find(n => has(n, 'pub-path-ft'));
+  if (!ft) p.push('/: no line saying where saved work lives (.pub-path-ft)');
   else {
-    const text = sight(path);
+    const text = sight(ft);
     said.path = wordsIn(text).length;
-    if (said.path > 50) p.push(`/: the example path is ${said.path} words, more than 50`);
-    if (!/\bExample\b/.test(text)) p.push('/: the example path carries no "Example" label');
-    const ols = all(path).filter(n => n.tag === 'ol');
-    const counts = ols.map(o => all(o).filter(n => n.tag === 'a').length);
-    if (JSON.stringify(counts) !== '[5,4]') p.push(`/: the example path's lists hold ${JSON.stringify(counts)} links, not two of 5 and 4`);
-    const hrefs = [...new Set(ols.flatMap(o => all(o).filter(n => n.tag === 'a').map(n => attr(n, 'href'))))];
-    const st = await getAll(hrefs);
-    for (const h of hrefs) if (st.get(h)?.status !== 200) p.push(`/: the example path links ${h}, served ${described(st.get(h))}`);
-    if (/\d/.test(text)) p.push(`/: the example path carries a digit: "${text.match(/.{0,20}\d.{0,20}/)[0]}"`);
-    const tickers = new Set(companies.map(co => co.company.tk).filter(t => t && t.length > 1));
-    const names = new Set(companies.map(co => co.company.name.split(/\s+/)[0]).filter(x => x.length > 3));
-    const hit = text.split(/[\s,.]+/).find(t => tickers.has(t) || names.has(t));
-    if (hit) p.push(`/: the example path names "${hit}", a ticker or a company`);
+    if (said.path > 20) p.push(`/: the connected-workspace line is ${said.path} words, more than 20`);
+    const more = all(hm).filter(n => n.tag === 'a' && attr(n, 'href') === '/how-it-works#hiw-journey');
+    if (more.length !== 1 || !all(ft).includes(more[0])) p.push(`/: ${more.length} links to /how-it-works#hiw-journey in main, not one under the worked results`);
   }
   const homeText = pageText(home);
   const savedN = homeText.split('Saved in this browser').length - 1;
@@ -2075,7 +2069,7 @@ const HOME_PAGE = read(HOME);
     if (!badges.length) p.push(`${path}: serves no Property Live badge in sight`);
     if (beside.length !== badges.length || quals.length !== badges.length) p.push(`${path}: ${badges.length} Property Live badges, ${beside.length} with "Your figures, sample to start" in sight beside them, ${quals.length} qualifiers`);
   }
-  judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the example path ${said.path} words, 5 and 4 links served 200, no digit or name; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
+  judge(p, `the homepage cleanup as served: the strip a <details> on ${said.strips} pages, the warning and "No licensed prices" in its summary, Research mode and the links in its Details; the hero ${said.hero} words with one action; three cards, each 12 words or fewer, described by qualifier and note, the Property card to /property/lab, badges Beta · Beta · Live · Coming soon on /, /how-it-works and the footer; the connected workspace said once in ${said.path} words, one link to how it connects; #views within 16kB on ${said.views} pages; one variant of each positioning string; budgets ${JSON.stringify(said.budget)}; ${said.visuals} visuals, Apple's ${said.years} columns as filed; /pricing ${said.pricing} words outside "Compare details", three cards, no button outside it; Property's qualifier beside every Live badge (${said.qual.join(', ')})`,
     'the homepage cleanup (plan 3.1–3.6, 3.8, N8, N9, D17) is not served as accepted');
 }
 /* ---- end home-3a ---- */
@@ -2456,6 +2450,133 @@ const HOME_PAGE = read(HOME);
     'a deep link is not served its page');
 }
 /* ---- end deep-links ---- */
+
+/* ---- home-outcomes ---- */
+/* THREE WORKED RESULTS ON THE HOMEPAGE, AS SERVED (the 9 Oct audit's #9;
+   the owner's decision of 9 Oct 2026, to a preview first). /, read as a
+   fetch reads it (in sight as build.mjs's sightText has it):
+   - the middle section, after the products and before the footer, is three
+     outcome cards in the products' order — "Research a company", "Test a
+     setup", "Check a property’s cash required" — each an <article> drawn as
+     the layout system's action card (a title, one line, one call to
+     action), each one <a href> and no other control: to Apple's Financials
+     (/company/aapl-apple-inc?tab=financials), to /app/scanner and to
+     /property, each served 200, its line naming what it opens;
+   - each has its visual, a <figure> with an <svg>, and its kind badge in
+     sight: Apple's filed revenue columns, equal to the served
+     data/us.json, with Filed and "SEC 10-K · US$"; the Scanner example's
+     series to bar 66 and the engine's verdict there (scanEvaluate on
+     scanFixture), with Illustrative and "Example on a generated series —
+     not market prices", and no date, currency, symbol or word that leans
+     to a trade; the sample deal's Cash required, the figure /property's
+     tile serves, with "Illustrative default" and "Sample deal — not a real
+     listing";
+   - the repeated connected-workspace explanation is gone: no step lists
+     (<ol>), no "Your research, connected.", and one link to how it
+     connects;
+   - nothing counts the press: no script but the app's own, no ping, no
+     tracking parameter on a card's link;
+   - / stays under its 204,800 bytes with its h1 unchanged in the first
+     64kB (home-served holds both; the bytes are reported here).
+   Each fails on fbcc164b, whose middle section was the example path. */
+{
+  const B = await import('./build.mjs');
+  const { loadEngine } = await import('./scanner/scan.mjs');
+  const E = await loadEngine(join(ROOT, 'index.html'));
+  const p = [], said = {};
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf, sight = B.sightText;
+  const got = await getAll(['/', '/property', '/data/us.json']);
+  const home = got.get('/')?.body || '';
+  said.bytes = Buffer.byteLength(home, 'utf8');
+  const root = B.htmlTree(home);
+  const main = all(root).find(n => n.tag === 'main');
+  const view = main && all(main).find(n => has(n, 'pub-home'));
+  const kids = view ? view.kids.filter(k => k.tag !== '#text') : [];
+  const prodAt = kids.findIndex(k => attr(k, 'id') === 'products');
+  const sec = kids.find(k => has(k, 'pub-outs'));
+  if (!sec) p.push('/: no section of worked results (.pub-outs) in the homepage');
+  else if (kids.indexOf(sec) !== prodAt + 1) p.push(`/: the worked results are not the section after the products (at ${kids.indexOf(sec)}, the products at ${prodAt})`);
+  const WANT = [
+    { id: 'company', title: 'Research a company', path: '/company/aapl-apple-inc', query: '?tab=financials', line: /^Opens Apple’s Financials$/, badge: ['filed', 'Filed'] },
+    { id: 'setup', title: 'Test a setup', path: '/app/scanner', query: '', line: /^Opens the Scanner’s replay at bar 66$/, badge: ['illustrative', 'Illustrative'] },
+    { id: 'cash', title: 'Check a property’s cash required', path: '/property', query: '', line: /^Opens the Scenario Lab’s Cash required$/, badge: ['illustrative_default', 'Illustrative default'] },
+  ];
+  const cards = sec ? all(sec).filter(n => n.tag === 'article' && has(n, 'pub-out')) : [];
+  said.cards = cards.length;
+  if (cards.length !== 3) p.push(`/: ${cards.length} outcome cards, not three`);
+  const hrefs = [];
+  WANT.forEach((w, i) => {
+    const c = cards[i];
+    if (!c) return;
+    const at = `/: outcome card ${i + 1} (${attr(c, 'data-outcome')})`;
+    if (attr(c, 'data-outcome') !== w.id) p.push(`${at} is not "${w.id}"`);
+    if (attr(c, 'data-card') !== 'action' || !has(c, 'ls-card')) p.push(`${at} is not the layout system's action card`);
+    const links = all(c).filter(n => n.tag === 'a');
+    const ctrls = all(c).filter(n => ['button', 'input', 'select', 'textarea', 'details', 'summary'].includes(n.tag) || attr(n, 'data-inert') !== null);
+    if (links.length !== 1 || ctrls.length) p.push(`${at}: ${links.length} links and ${ctrls.length} other controls, not one link`);
+    const a = links[0];
+    if (!a) return;
+    const title = all(c).find(n => has(n, 'ls-card-title'));
+    if (!title || sight(title) !== w.title || !all(title).includes(a)) p.push(`${at}: its title link reads "${title ? sight(title) : ''}", not "${w.title}"`);
+    if (!has(a, 'ls-card-cta')) p.push(`${at}: its link is not the card's call to action`);
+    const h = attr(a, 'href') || '';
+    const u = new URL(h, 'https://x.invalid');
+    hrefs.push(u.pathname);
+    if (u.pathname !== w.path || u.search !== w.query) p.push(`${at} links ${h}, not ${w.path}${w.query}`);
+    if (/utm_|[?&](ref|src|source|campaign)=/i.test(u.search) || attr(a, 'ping') !== null) p.push(`${at}: its link carries a tracking parameter or a ping (${h})`);
+    const line = all(c).find(n => has(n, 'ls-card-sub'));
+    if (!line || !w.line.test(sight(line))) p.push(`${at}: its line reads "${line ? sight(line) : ''}"`);
+    const fig = all(c).find(n => n.tag === 'figure');
+    if (!fig || !B.inSight(fig) || !all(fig).some(n => n.tag === 'svg')) { p.push(`${at}: no visual (a <figure> with an <svg>) in sight`); return; }
+    const badge = all(fig).find(n => attr(n, 'data-kind-badge') === w.badge[0] || (has(n, 'lab-tag') && attr(n, 'data-kind') === w.badge[0]));
+    if (!badge || sight(badge) !== w.badge[1] || !B.inSight(badge)) p.push(`${at}: its kind badge "${w.badge[1]}" is not in sight in its figure`);
+    const ft = sight(fig);
+    if (w.id === 'company') {
+      let us = null; try { us = JSON.parse(got.get('/data/us.json')?.body || 'null'); } catch { us = null; }
+      const ser = us && B.filedSeries(us);
+      const marks = all(fig).filter(n => attr(n, 'data-line') === 'rev');
+      if (!ser) p.push('/data/us.json: no Apple to hold the columns to');
+      else {
+        const bad = ser.years.map((fy, k) => { const m = marks.find(n => attr(n, 'data-fy') === String(fy)); return !m || Number(attr(m, 'data-v')) !== ser.rev[k] ? `FY${fy} ${m ? attr(m, 'data-v') : 'missing'} (filed ${ser.rev[k]})` : null; }).filter(Boolean);
+        if (bad.length || marks.length !== ser.years.length) p.push(`${at}: its columns are not Apple's filed revenue: ${bad.slice(0, 3).join('; ') || `${marks.length} columns`}`);
+        said.years = `FY${ser.years[0]}–FY${ser.years[ser.years.length - 1]}`;
+      }
+      if (!/Apple · SEC 10-K · US\$/.test(ft)) p.push(`${at}: its figure does not say "Apple · SEC 10-K · US$"`);
+    }
+    if (w.id === 'setup') {
+      const fx = E.scanFixture(), setup = E.scanNormaliseSetup(fx.setup);
+      const A = E.scanBars(fx.history, 'MATCH', { timeframe: '1D', now: fx.now, calendar: E.scanCalendar(fx.history, [], null) });
+      const r = E.scanEvaluate(setup.ruleTree, A, { cache: E.scanCache() });
+      const WORD = { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' };
+      const state = all(fig).find(n => has(n, 'pub-out-state'));
+      const pts = all(fig).find(n => has(n, 'scan-ex-close'));
+      if (!state || attr(state, 'data-state') !== r.state || sight(state) !== WORD[r.state]) p.push(`${at}: its verdict reads "${state ? sight(state) : ''}", where the engine's at bar ${A.closes.length} is "${WORD[r.state]}"`);
+      if (!pts || attr(pts, 'data-points') !== String(A.closes.length) || A.closes.length !== 66) p.push(`${at}: its series is drawn to ${pts ? attr(pts, 'data-points') : 'no'} bars, not to bar 66`);
+      if (!ft.includes('Example on a generated series — not market prices')) p.push(`${at}: its figure does not say "Example on a generated series — not market prices"`);
+      if (/\d{4}-\d{2}-\d{2}|\bRM\b|US\$|\$|\b(signal|buy|sell|approaching|watching|matched)\b/i.test(ft)) p.push(`${at}: a date, a currency or a word that leans to a trade in its figure: "${ft}"`);
+      said.verdict = sight(state || { kids: [] });
+    }
+    if (w.id === 'cash') {
+      const v = all(fig).find(n => attr(n, 'data-figure') === 'safeCashRequired');
+      const prop = B.htmlTree(got.get('/property')?.body || '');
+      const tile = all(prop).find(n => attr(n, 'data-tile') === 'safeCashRequired');
+      const tv = tile && all(tile).find(n => has(n, 'lab-tile-val'));
+      if (!v || !tv || sight(v) !== sight(tv)) p.push(`${at}: its cash required reads "${v ? sight(v) : ''}", where /property's tile serves "${tv ? sight(tv) : ''}"`);
+      if (!ft.includes('Sample deal — not a real listing')) p.push(`${at}: its figure does not say "Sample deal — not a real listing"`);
+      said.cash = v ? sight(v) : null;
+    }
+  });
+  const ok200 = await getAll([...new Set(hrefs)]);
+  for (const h of new Set(hrefs)) if (ok200.get(h)?.status !== 200) p.push(`/: an outcome card links ${h}, served ${described(ok200.get(h))}`);
+  if (main && all(main).some(n => n.tag === 'ol' && !all(n).some(k => has(k, 'pub-out')))) p.push('/: a step list (<ol>) is still in main');
+  if (main && /Your research, connected\./.test(sight(main))) p.push('/: "Your research, connected." is still on the page');
+  const scripts = all(root).filter(n => n.tag === 'script' && attr(n, 'src') !== null).map(n => attr(n, 'src'));
+  if (scripts.some(s => !/^\/assets\/app\.[0-9a-f]+\.js$/.test(s))) p.push(`/: loads a script that is not the app's own: ${scripts.join(', ')}`);
+  if (/sendBeacon|_vercel\/insights|googletagmanager|gtag\(|plausible|data-track/i.test(home)) p.push('/: the page carries a tracking or analytics mark');
+  judge(p, `the homepage's middle section is ${said.cards} worked results, each one link — Apple's Financials (its filed revenue ${said.years}), the Scanner's replay at bar 66 ("${said.verdict}", the engine's) and /property's cash required (${said.cash}, the tile's) — each with its visual and its kind badge in sight and every qualifier ("Example on a generated series — not market prices", "Sample deal — not a real listing"); no step list and no second explanation of the connected workspace; nothing counts a press; / is ${said.bytes.toLocaleString('en')} bytes`,
+    'the homepage does not serve its three worked results as decided (9 Oct audit #9)');
+}
+/* ---- end home-outcomes ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

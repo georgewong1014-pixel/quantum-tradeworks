@@ -2280,7 +2280,9 @@ function tabFinancials(r) {
   const yrs = yearsOf(c);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  const chartCard = el('div', { class: 'card' });
+  /* fin-chart: where the homepage's "Research a company" lands (pubLandAt,
+     55-views-public.js). */
+  const chartCard = el('div', { class: 'card', id: 'fin-chart' });
   /* "FY2026" means the year Microsoft calls fiscal 2026, which ended in June.
      Where the ingest recorded the date, the caption says so, because a reader
      who assumes December is a full half-year wrong about when these figures

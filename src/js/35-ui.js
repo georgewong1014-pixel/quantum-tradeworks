@@ -3632,6 +3632,10 @@ function drawPage(samePage) {
      chart in focus is there to be given focus back, and nothing below a
      chart jumps. */
   drawChartsInPlace();
+  /* A press that is to land on a result further down the page it opened
+     (the homepage's worked results, 55-views-public.js): brought into sight
+     once the page and the moves that follow its drawing are done. */
+  if (typeof pubLandSoon === 'function') pubLandSoon();
   /* Read once the view is drawn: a view can move to another address as it
      draws (/my/scanner?symbol= opens the setup builder). */
   renderedPage = pageOnScreen();

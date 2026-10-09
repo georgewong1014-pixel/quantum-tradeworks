@@ -3646,7 +3646,7 @@ for (const w of [360, 390]) {
       const stops = [];
       for (let i = 0; i < 40; i++) {
         await key('Tab', 'Tab', 9);
-        const s = await ev(`(() => { const a = document.activeElement; const c = a?.closest('article.pub-card'); return c ? \`\${c.dataset.product}:\${a.classList.contains('pub-card-link') ? 'link' : a.tagName === 'SUMMARY' ? 'info' : a.className || a.tagName}\` : a?.closest('.pub-path') ? 'path' : null; })()`);
+        const s = await ev(`(() => { const a = document.activeElement; const c = a?.closest('article.pub-card'); return c ? \`\${c.dataset.product}:\${a.classList.contains('pub-card-link') ? 'link' : a.tagName === 'SUMMARY' ? 'info' : a.className || a.tagName}\` : a?.closest('.pub-outs') ? 'path' : null; })()`);
         if (s === 'path') break;
         if (s) stops.push(s);
       }
@@ -3708,6 +3708,65 @@ for (const w of [360, 390]) {
   else console.log(`ok   home-3a: the strip's warning and "No licensed prices" in sight with no action on /, /property and /pricing at 360–1440, script on and off, in the page's font and Verdana (${said.widths} views); 40px or less from 1100, 76 or less at 360; Tab and Enter on Details open the breakdown, Research mode and /data-sources; "Illustrative data only" with the filings blocked; the hero one action with script off; one disclosure line above the footer; Tab stops once on each card link and each ⓘ (${said.tabs} stops); the Scanner's ⓘ opens with no script; / → /app draws the whole sidebar; the Property price moves its three figures; a reader in New York has the h1 and Apple's source label at DOMContentLoaded`);
 }
 /* ---- end home-3a ---- */
+/* ---- home-outcomes ---- */
+/* THE HOMEPAGE'S THREE WORKED RESULTS ON A PHONE (the 9 Oct audit's #9):
+   at 360, 390 and 430, in the page's font and in Verdana, the three outcome
+   cards stand one under another inside the window — nothing in a card runs
+   past its edge, and the page does not run sideways; each card's one link
+   is a target 44px tall or more (the whole card is its area); its visual
+   and its kind badge are drawn, and "not a real listing" and "Example on a
+   generated series" are in sight on theirs. Fails on fbcc164b, which drew
+   no outcome cards. */
+{
+  const fails = [], said = { views: 0 };
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const MEASURE = `(() => {
+    const cards = [...document.querySelectorAll('#outcomes article.pub-out')];
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, w: innerWidth, cards: cards.map(c => {
+      const r = c.getBoundingClientRect(), a = c.querySelector('a.pub-out-link'), ar = a?.getBoundingClientRect();
+      const out = [...c.querySelectorAll('*')].filter(n => n.getClientRects().length).map(n => [n, n.getBoundingClientRect()])
+        .filter(([, b]) => b.width && (b.left < r.left - 0.5 || b.right > r.right + 0.5)).map(([n, b]) => \`\${n.tagName.toLowerCase()}.\${String(n.className.baseVal ?? n.className).split(' ')[0]} \${Math.round(b.left)}–\${Math.round(b.right)}\`);
+      const badge = c.querySelector('figure [data-kind-badge], figure .lab-tag[data-kind]'), bb = badge?.getBoundingClientRect();
+      const svg = c.querySelector('figure svg'), sb = svg?.getBoundingClientRect();
+      return { id: c.dataset.outcome, left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height), links: c.querySelectorAll('a').length,
+        link: ar ? [Math.round(ar.width), Math.round(ar.height)] : null, out: out.slice(0, 3),
+        badge: !!bb && bb.width > 0 && bb.left >= r.left && bb.right <= r.right + 0.5, svg: !!sb && sb.width > 40 && sb.height > 8,
+        text: c.querySelector('figure')?.innerText.replace(/\\s+/g, ' ') || '' };
+    }) };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const font of [null, 'Verdana, sans-serif']) for (const w of [360, 390, 430]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await send('Page.navigate', { url: BASE + '/' }, sessionId);
+      for (let i = 0; i < 60; i++) { await sleep(200); try { if (await ev(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending`)) break; } catch { /* booting */ } }
+      await sleep(300);
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`);
+      const at = `/ ${w}px${font ? ', Verdana' : ''}`;
+      const m = await ev(MEASURE);
+      said.views++;
+      if (m.over > 1) fails.push(`${at}: the page runs ${m.over}px sideways`);
+      if (m.cards.map(c => c.id).join(',') !== 'company,setup,cash') fails.push(`${at}: the outcome cards are ${JSON.stringify(m.cards.map(c => c.id))}, not company, setup and cash`);
+      for (const c of m.cards) {
+        if (c.left < 0 || c.right > m.w) fails.push(`${at}: the ${c.id} card stands at ${c.left}–${c.right}, past the window`);
+        if (c.out.length) fails.push(`${at}: in the ${c.id} card, ${c.out.join('; ')} runs past its edge (${c.left}–${c.right})`);
+        if (c.links !== 1 || !c.link || c.link[1] < 44 || c.link[0] < 44 || c.h < 44) fails.push(`${at}: the ${c.id} card's link is ${JSON.stringify(c.link)} (${c.links} links), not one target of 44px`);
+        if (!c.badge || !c.svg) fails.push(`${at}: the ${c.id} card's ${c.svg ? 'kind badge' : 'visual'} is not drawn inside it`);
+        if (c.id === 'setup' && !/Example on a generated series — not market prices/.test(c.text)) fails.push(`${at}: the setup card does not show "Example on a generated series — not market prices"`);
+        if (c.id === 'cash' && !/Sample deal — not a real listing/.test(c.text)) fails.push(`${at}: the cash card does not show "Sample deal — not a real listing"`);
+      }
+    }
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL home-outcomes — the homepage's worked results on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   home-outcomes: the three worked results at 360, 390 and 430 in the page's font and Verdana (${said.views} views): inside the window, nothing past a card's edge, no sideways run, one link of 44px or more a card, each visual and kind badge drawn, "Example on a generated series" and "not a real listing" in sight`);
+}
+/* ---- end home-outcomes ---- */
 /* ---- second-track ---- */
 /* THE SCREENER ON A PHONE (the owner's second track, 8 Oct 2026; the layout
    system: under 640px a table is a card a row). At 360, 390, 430 and 600,

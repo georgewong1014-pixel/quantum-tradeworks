@@ -15612,6 +15612,10 @@ function drawPage(samePage) {
      chart in focus is there to be given focus back, and nothing below a
      chart jumps. */
   drawChartsInPlace();
+  /* A press that is to land on a result further down the page it opened
+     (the homepage's worked results, 55-views-public.js): brought into sight
+     once the page and the moves that follow its drawing are done. */
+  if (typeof pubLandSoon === 'function') pubLandSoon();
   /* Read once the view is drawn: a view can move to another address as it
      draws (/my/scanner?symbol= opens the setup builder). */
   renderedPage = pageOnScreen();
@@ -22367,7 +22371,9 @@ function tabFinancials(r) {
   const yrs = yearsOf(c);
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
 
-  const chartCard = el('div', { class: 'card' });
+  /* fin-chart: where the homepage's "Research a company" lands (pubLandAt,
+     55-views-public.js). */
+  const chartCard = el('div', { class: 'card', id: 'fin-chart' });
   /* "FY2026" means the year Microsoft calls fiscal 2026, which ended in June.
      Where the ingest recorded the date, the caption says so, because a reader
      who assumes December is a full half-year wrong about when these figures
@@ -26606,8 +26612,9 @@ const pubGlyph = (name) => el('span', { class: 'pub-glyph', 'aria-hidden': 'true
    said what the data is. Now: the held headline, a lede of eight words and
    one action; three products, each a task, a qualifier with its ⓘ, and a
    visual of what the product does, drawn from its own engine; Business as
-   one line of text; and an example path through the work, drawn, with no
-   figure, name or count in it. The strip above every page carries the one
+   one line of text; and three worked results, each one press to its tool
+   (the 9 Oct audit's #9, where the example path explained the connected
+   workspace a second time). The strip above every page carries the one
    disclosure line; every sentence that left is one action away — in an ⓘ,
    the strip's Details, /how-it-works or /my/data.
    THE BUDGETS (plan 3.6; build --check holds the served page to them):
@@ -26788,6 +26795,138 @@ function pubProductCard(p) {
   return card;
 }
 
+/* ==========================================================================
+   THREE WORKED RESULTS (the 9 Oct audit's #9; the owner's decision, 9 Oct
+   2026, to a preview first). Each an action card (37-layout-system.js): its
+   outcome the title and the one link, stretched over the card; one line
+   naming what the press opens; and, as its figure, the result it lands on,
+   drawn from what already ships — Apple's filed revenue, the Scanner
+   replay's bar 66 on its generated series, the sample deal's cash
+   required — each with its kind badge and every word that qualifies it.
+   One press lands on the tool with that result in sight: the page drawn,
+   then scrolled to it (pubLandAt) where it is not at the top. Nothing is
+   counted or sent: the page reads nothing the reader keeps.
+   ========================================================================== */
+/* APPLE'S FILED REVENUE, a column a fiscal year, the latest named: the
+   columns the Financials tab opens on, in the filing's US$. */
+function pubOutRevenueSvg(F) {
+  const W = 300, H = 100, top = 16, base = 92, n = F.years.length, slot = W / n, bw = slot * 0.64;
+  const max = Math.max(...F.rev.filter(isNum)) || 1;
+  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
+  const last = n - 1;
+  const cols = F.years.map((fy, i) => (isNum(F.rev[i])
+    ? `<rect class="pub-col pub-col-rev" x="${(i * slot + (slot - bw) / 2).toFixed(2)}" y="${y(F.rev[i]).toFixed(2)}" width="${bw.toFixed(2)}" height="${(base - y(F.rev[i])).toFixed(2)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '')).join('');
+  return `<svg class="pub-out-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars, ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}.`)}">`
+    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${cols}`
+    + (isNum(F.rev[last]) ? `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(2)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>` : '') + '</svg>';
+}
+function pubOutCompany() {
+  const F = HOME_FILED;
+  const fig = el('figure', { class: 'pub-out-vis' });
+  if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-src' }, [kindBadge('unavailable', { link: false }), el('span', {}, 'Filed example not loaded')])); return fig; }
+  fig.append(el('span', { class: 'pub-out-plot', html: pubOutRevenueSvg(F) }),
+    el('figcaption', { class: 'pub-out-cap' }, [
+      el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('span', { class: 'pub-out-key' }, [el('i', { class: 'pub-sw pub-sw-rev' }), 'Revenue']), el('span', { class: 'pub-out-span' }, `FY${F.years[0]}–FY${F.years[F.years.length - 1]}`)]),
+      el('p', { class: 'pub-vis-src' }, [kindBadge('filed', { link: false, fine: `${F.name}, SEC 10-K` }), el('span', {}, `${F.name.replace(/ Inc\.?$/, '')} · SEC 10-K · US$`)]),
+    ]));
+  return fig;
+}
+/* THE SCANNER'S EXAMPLE AT BAR 66 (scanExample, 87-scanner-ops.js): series
+   A's closes and their EMA to the one bar the rule holds on, and the
+   engine's verdict there — no symbol, currency or date, and no count. */
+function pubOutSetup() {
+  const fig = el('figure', { class: 'pub-out-vis' });
+  const ex = typeof scanExample === 'function' ? scanExample() : null;
+  if (!ex) { fig.append(el('figcaption', { class: 'pub-vis-src' }, [kindBadge('unavailable', { link: false }), el('span', {}, 'Example not loaded')])); return fig; }
+  const r = ex.at(ex.n - 1);
+  fig.append(el('span', { class: 'pub-out-plot pub-out-scan', html: scanExSvg(ex, ex.n - 1) }),
+    el('figcaption', { class: 'pub-out-cap' }, [
+      el('p', { class: 'pub-out-verdict' }, [el('span', {}, ['The rule at bar ', el('span', { class: 'num' }, String(ex.n))]), ' ',
+        el('strong', { class: 'pub-out-state', 'data-state': r.state }, SCAN_EX_WORD[r.state])]),
+      el('p', { class: 'pub-vis-src' }, [kindBadge('illustrative', { link: false, fine: 'A generated series' }), el('span', {}, 'Example on a generated series — not market prices')]),
+    ]));
+  return fig;
+}
+/* THE SAMPLE DEAL'S CASH REQUIRED, as /property's tile reads it (the Lab's
+   figure, its note and its badge, LAB_FIGURES and labTileKind), and what it
+   is made of: what completion takes, renovation and set-up, the reserve. */
+function pubOutCash() {
+  const fig = el('figure', { class: 'pub-out-vis' });
+  const d = pmCopy(PROPERTY_DEFAULT_DEAL);
+  const m = dealModel(d);
+  const f = LAB_FIGURES.find(x => x.key === 'safeCashRequired');
+  const v = f.read(m, d);
+  const parts = [['transactionCash', 'pub-bar-done', 'To complete'], ['improvementCash', 'pub-bar-reno', 'Renovation'], ['reserveCash', 'pub-bar-res', 'Reserve']]
+    .map(([k, cls, label]) => ({ k, cls, label, v: isNum(m[k]) ? Math.max(0, m[k]) : null })).filter(p => isNum(p.v));
+  const sum = parts.reduce((a, p) => a + p.v, 0) || 1;
+  let x = 0;
+  const bars = parts.map(p => { const w = p.v / sum * 100; const s = `<rect class="pub-bar ${p.cls}" x="${x.toFixed(2)}" y="0" width="${Math.max(0, w - 0.6).toFixed(2)}" height="10" rx="1" data-part="${p.k}" data-v="${Math.round(p.v)}"/>`; x += w; return s; }).join('');
+  const note = isNum(v) ? (f.note(m, d) || '') : '';
+  fig.append(
+    el('div', { class: 'pub-out-fig' }, [
+      el('p', { class: 'pub-out-k' }, [el('span', {}, f.label()), ' ', labTag(labTileKind(d, LAB_TILE_RESTS.safeCashRequired))]),
+      el('p', { class: 'pub-out-v num', 'data-figure': 'safeCashRequired', 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v)),
+      note ? el('p', { class: 'pub-out-note' }, note) : null,
+    ]),
+    el('span', { class: 'pub-out-plot pub-out-bars', html: `<svg class="pub-out-barsvg" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="${esc(`Cash required ${labMoney(v)}: ${parts.map(p => `${p.label.toLowerCase()} ${labMoney(p.v)}`).join(', ')}.`)}">${bars}</svg>` }),
+    el('figcaption', { class: 'pub-out-cap' }, [
+      el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, parts.map(p => el('span', { class: 'pub-out-key' }, [el('i', { class: `pub-sw ${p.cls.replace('pub-bar', 'pub-sw')}` }), p.label]))),
+      el('p', { class: 'pub-vis-src' }, el('span', {}, 'Sample deal — not a real listing')),
+    ]));
+  return fig;
+}
+/* The three, in the products' order. `land` is the id the press scrolls to
+   once the page is drawn; /property opens with its tiles at the top. */
+const PUB_OUTCOMES = [
+  { id: 'company', title: 'Research a company', vis: pubOutCompany, land: 'fin-chart',
+    path: () => (HOME_FILED?.path ? `${HOME_FILED.path}?tab=financials` : '/research'),
+    line: () => (HOME_FILED?.name ? `Opens ${HOME_FILED.name.replace(/ Inc\.?$/, '')}’s Financials` : 'Opens Research') },
+  { id: 'setup', title: 'Test a setup', vis: pubOutSetup, land: 'scan-ex', path: () => '/app/scanner',
+    line: () => `Opens the Scanner’s replay at bar ${typeof scanExample === 'function' ? scanExample().n : ''}`.trim() },
+  { id: 'cash', title: 'Check a property’s cash required', vis: pubOutCash, land: null, path: () => '/property',
+    line: () => 'Opens the Scenario Lab’s Cash required' },
+];
+/* WHERE A PRESS IS TO LAND: the address, and the id on it to bring into
+   sight once its page is drawn — at once, or when the filings land on a
+   page that waits for them. Kept in this tab's memory only, and for a few
+   seconds: a reader who moves on is not scrolled later. An address opened
+   with the id as its hash (a new tab, a reload) lands the same. */
+let pubLandAt = null;
+const pubLandSet = (path, id) => { pubLandAt = id ? { at: href(path.split(/[?#]/)[0]), id, until: Date.now() + 20000 } : null; };
+function pubLandNow() {
+  const L = pubLandAt;
+  if (!L) return;
+  if (location.pathname !== L.at || Date.now() > L.until) { pubLandAt = null; return; }
+  const t = document.getElementById(L.id);
+  if (!t || !viewRoot?.contains(t)) return;
+  pubLandAt = null;
+  t.scrollIntoView({ block: 'start', behavior: 'instant' });
+  /* The keyboard continues from there: the next Tab is the result's own. */
+  t.setAttribute('tabindex', '-1');
+  t.setAttribute('data-landed', '');
+  t.focus({ preventScroll: true });
+}
+/* After the page is drawn and every scroll the move to it makes (afterRoute
+   puts a new page at its top; render puts a reader's place back). */
+function pubLandSoon() { if (pubLandAt) requestAnimationFrame(() => pubLandNow()); }
+if (typeof location !== 'undefined') {
+  const h = location.hash.replace(/^#/, '');
+  const o = h && PUB_OUTCOMES.find(x => x.land === h && location.pathname === href(x.path().split('?')[0]));
+  if (o) pubLandSet(o.path(), o.land);
+}
+function pubOutcomeCard(o) {
+  const id = `pub-out-${o.id}`;
+  const path = o.path();
+  const card = el('article', { class: `pub-out ls-card pub-out-${o.id}`, 'data-card': 'action', 'data-outcome': o.id, 'aria-labelledby': `${id}-t` });
+  card.append(el('h3', { class: 'pub-out-title ls-card-title', id: `${id}-t` },
+    el('a', { class: 'pub-out-link ls-card-cta', href: href(path) + (o.land ? `#${o.land}` : ''), 'aria-describedby': `${id}-line`,
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); pubLandSet(path, o.land); navigate(path); } },
+    o.title, pubArrow())));
+  card.append(o.vis());
+  card.append(el('p', { class: 'pub-out-line ls-card-sub', id: `${id}-line` }, o.line()));
+  return card;
+}
+
 VIEWS.marketing = () => {
   const wrap = el('div', { class: 'pub pub-home' });
 
@@ -26811,26 +26950,17 @@ VIEWS.marketing = () => {
   }
   wrap.append(products);
 
-  /* -- 3. an example path through the work (plan 3.4, D22) ------------------
-     Two step diagrams — research and property — each step a link to where
-     it happens. Labelled an example; no figure, name or count. Saved work
-     lives in this browser, said once, with where to read more. */
-  const path = el('section', { class: 'pub-section pub-path', 'aria-labelledby': 'pub-path-h' });
-  path.append(el('div', { class: 'pub-path-hd' }, [
-    el('p', { class: 'pub-tag' }, 'Example path'),
-    el('h2', { class: 'pub-h2', id: 'pub-path-h' }, 'Your research, connected.'),
+  /* -- 3. three worked results, one press each (9 Oct audit #9) -------------
+     Where the example path explained the connected workspace a second time,
+     three outcomes, each an action card that is one link to its tool on a
+     worked result. The connected workspace is said once, under them: saved
+     in this browser, and how it connects on /how-it-works. */
+  const path = el('section', { class: 'pub-section pub-outs', id: 'outcomes', 'aria-labelledby': 'pub-outs-h' });
+  path.append(el('div', { class: 'pub-outs-hd' }, [
+    el('p', { class: 'pub-tag' }, 'Example'),
+    el('h2', { class: 'pub-h2', id: 'pub-outs-h' }, 'Start from a worked result.'),
   ]));
-  const steps = (label, rows) => el('div', { class: 'pub-route' }, [
-    el('h3', { class: 'pub-route-t', id: `pub-route-${label.toLowerCase()}` }, label),
-    el('ol', { class: 'pub-steps', 'aria-labelledby': `pub-route-${label.toLowerCase()}` }, rows.map(([t, to, glyph]) => el('li', { class: 'pub-step' },
-      pubLink(to, { class: 'pub-step-a' }, [el('span', { class: 'pub-step-node', 'aria-hidden': 'true', html: pubSvg(glyph, 16) }), el('span', { class: 'pub-step-t' }, t)])))),
-  ]);
-  path.append(el('div', { class: 'pub-routes' }, [
-    steps('Research', [['A company', '/research', PRODUCT_ICON.equities], ['A watchlist', '/my/watchlists', 'list'], ['Your setup', '/app/scanner/setups/new', PRODUCT_ICON.scanner],
-      ['A match, if you run the worker', '/app/scanner', 'bell'], ['Back to the company', '/research', 'loop']]),
-    steps('Property', [['A property', '/property/calculator', PRODUCT_ICON.property], ['Its scenarios', '/property/lab', 'layout'],
-      ['A, B and C compared', '/property/lab', 'scale'], ['Saved', '/property/models', 'bookmark']]),
-  ]));
+  path.append(el('div', { class: 'pub-outs-row' }, PUB_OUTCOMES.map(pubOutcomeCard)));
   path.append(el('div', { class: 'pub-path-ft' }, [
     el('p', { class: 'pub-saved' }, 'Saved in this browser — no account.'),
     el('details', { class: 'pub-info' }, [
