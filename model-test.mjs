@@ -5536,7 +5536,7 @@ try {
       return JSON.stringify({ p, n: Object.keys(deals).length, saved });
     })()`));
     if (r.p.length) fail('p1 R1: the questions change no figure of a deal that exists', r.p);
-    else ok(`p1 R1: ${r.n} deals as a browser holds them print the base's figures byte for byte (3d75b6a8's fingerprints), each a subsale of its own class; New development and Auction give the same figures until their models arrive, and Subsale after either is the deal it was; a property saved without the questions opens unchanged`);
+    else ok(`p1 R1: ${r.n} deals as a browser holds them print the base's figures byte for byte (3d75b6a8's fingerprints), each a subsale of its own class; New development (until its model arrives) and Auction with nothing of its own entered give the same figures, and Subsale after either is the deal it was; a property saved without the questions opens unchanged`);
   });
   await p1try("p1 R2: the answers travel in the address in their own words", async () => {
     const r = await evaluate(`(() => {
@@ -5707,6 +5707,206 @@ try {
     else ok(`p1 R5: on a saved property Auction and Land become moves of every column (${one.cols.map(c => c[0]).join(', ')}), the yield withheld at once and Save offered ("${one.save.slice(0, 50)}…"); the saved record, the calculator's deal and the address unwritten, and after a reload without saving the record is unchanged and the Lab holds no move; Save writes Auction to the record`);
   });
   /* ---- end p1-route ---- */
+
+  /* ---- p3-auction ---- */
+  /* THE AUCTION RISK MODE (the property decision layer, P3; auctionModel,
+     75-property-grade.js; 83-property-decision.js). Each fails on a4a8d0b4,
+     where Auction is modelled as a subsale and none of this exists.
+     A1 — the waterfall's arithmetic, against figures worked out here from
+          the ledger itself: the market value the median of the comparables
+          typed; the transaction costs what the ledger's acquisition and
+          financing groups hold less the deposit, the auction's own lines and
+          the insurance; the reader's legal quote in place of the purchase
+          legal fees; the holding cost the months times the instalment and
+          the running costs with no rent; the effective cost and the true
+          discount from them; a cost not entered named, not counted.
+     A2 — the forfeiture exposure: the deposit at its share of the reserve
+          or of the bid, the balance and the cash beyond the loan.
+     A3 — the Proclamation's terms are never assumed: without the deposit,
+          what it is a share of, or the days (or the reserve it is a share
+          of), the deposit, the balance and the exposure are Unavailable —
+          on the calculator's card too — and the address carries the terms in
+          their own words only.
+     A4 — no figure is called final until every check is ticked: the model
+          says which are open, and the calculator's alert card reads "Not
+          final: N checks open", every card saying "Not final." until the
+          sixth is ticked.
+     A5 — on the Lab, Auction and its terms are a what-if of every column:
+          the saved property, the calculator's deal and the address
+          unwritten until Save, which writes them. */
+  const p3try = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+  const P3_DEAL = `({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 500000, route: 'auction',
+    reservePrice: 420000, auctionComp1: 600000, auctionComp2: 640000, auctionComp3: 560000, auctionRepairs: 15000,
+    arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 400, arrearsUtilities: 600, possessionCost: 6000, possessionMonths: 2,
+    auctionLegal: 7000, auctionHoldMonths: 3 })`;
+  await p3try('p3 A1: the auction waterfall adds up', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = ${P3_DEAL};
+      const m = dealModel(d), a = auctionModel(d, m);
+      const items = m.costGroups.filter(g => g.id === 'acquisition' || g.id === 'financing').flatMap(g => g.items);
+      const amt = (label) => items.filter(it => it[0] === label).reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
+      const all = items.reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
+      const transaction = all - amt('Deposit') - amt('Valuation-gap cash') - amt('Arrears the Proclamation passes to you') - amt('Repairs') - amt('Possession cost')
+        - items.filter(it => it[2]?.id === 'mortgageProtection').reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
+      const burn = m.instalment + (m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12;
+      const holding = 3 * burn;
+      const effective = 500000 + 15000 + 4200 + 6000 + transaction + holding;
+      const step = (id) => a.steps.find(s => s.id === id)?.amount ?? null;
+      const partial = auctionModel({ ...d, auctionRepairs: undefined, arrearsUtilities: undefined, auctionHoldMonths: undefined });
+      return JSON.stringify({
+        market: a.market, reserve: step('reserve'), bid: step('bid'), repairs: step('repairs'), arrears: step('arrears'), possession: step('possession'),
+        transaction: step('transaction'), wantTransaction: transaction, holding: step('holding'), wantHolding: holding, burnModel: m.burnWithoutRent, burn,
+        effective: a.effective, wantEffective: effective, td: a.trueDiscount, wantTd: (600000 - effective) / 600000 * 100,
+        order: a.steps.map(s => s.id).join('>'),
+        legalQuote: items.filter(it => it[2]?.id === 'auctionLegal').map(it => it[1]), scaleLegal: items.filter(it => it[2]?.id === 'purchaseLegal').length,
+        lines: [amt('Arrears the Proclamation passes to you'), amt('Repairs'), amt('Possession cost')],
+        partial: { effective: partial.effective, notEntered: partial.notEntered, arrears: partial.steps.find(s => s.id === 'arrears').amount, missing: partial.steps.find(s => s.id === 'arrears').partsMissing },
+        partialWant: 500000 + 3600 + 6000 + partial.steps.find(s => s.id === 'transaction').amount,
+        noComps: auctionModel({ ...d, auctionComp1: undefined, auctionComp2: undefined, auctionComp3: undefined }).trueDiscount,
+        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|your quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
+    })()`));
+    const near = (x, y) => Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) < 1e-6;
+    const p = [];
+    if (r.market !== 600000) p.push(`market value ${r.market}, not the median of 600,000, 640,000 and 560,000 (600,000)`);
+    if (r.reserve !== 420000 || r.bid !== 500000) p.push(`reserve ${r.reserve} and bid ${r.bid}`);
+    if (r.repairs !== 15000 || r.arrears !== 4200 || r.possession !== 6000) p.push(`repairs ${r.repairs}, arrears ${r.arrears} (want 4,200), possession ${r.possession}`);
+    if (!near(r.transaction, r.wantTransaction) || !(r.transaction > 7000)) p.push(`transaction costs ${r.transaction}, the ledger's fee lines come to ${r.wantTransaction}`);
+    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 × ${r.burn} = ${r.wantHolding} (the model's burn ${r.burnModel})`);
+    if (!near(r.effective, r.wantEffective)) p.push(`effective acquisition cost ${r.effective}, worked out here as ${r.wantEffective}`);
+    if (!r.td || !near(r.td.pct, r.wantTd) || !near(r.td.amount, 600000 - r.wantEffective)) p.push(`true discount ${JSON.stringify(r.td)}, want ${r.wantTd}%`);
+    if (r.order !== 'market>reserve>bid>repairs>arrears>possession>transaction>holding>effective') p.push(`the steps run ${r.order}`);
+    if (JSON.stringify(r.legalQuote) !== '[7000]' || r.scaleLegal !== 0) p.push(`the legal quote in the ledger: ${JSON.stringify(r.legalQuote)}, the scale's purchase legal line ${r.scaleLegal} time(s)`);
+    if (JSON.stringify(r.lines) !== '[4200,15000,6000]') p.push(`the ledger's auction lines ${JSON.stringify(r.lines)}`);
+    if (!near(r.partial.effective, r.partialWant) || JSON.stringify(r.partial.notEntered) !== '["Repairs","Holding"]' || r.partial.arrears !== 3600 || JSON.stringify(r.partial.missing) !== '["Utilities"]')
+      p.push(`with repairs, utilities and the holding period not entered: ${JSON.stringify(r.partial)} (want ${r.partialWant}, repairs and holding named)`);
+    if (r.noComps !== null) p.push(`with no comparable the true discount is ${JSON.stringify(r.noComps)}, not Unavailable`);
+    if (r.subsale !== 0) p.push(`the same deal as a subsale still carries ${r.subsale} auction line(s)`);
+    if (p.length) fail('p3 A1: the auction waterfall adds up', p);
+    else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × ${Math.round(r.burn)}) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
+  });
+  await p3try('p3 A2: the forfeiture exposure is the deposit at the terms entered', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = { ...${P3_DEAL}, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90 };
+      const f = auctionModel(d).forfeiture, loan = dealModel(d).loan;
+      const g = auctionModel({ ...d, auctionDepositPct: 5, auctionDepositOf: 'bid', auctionBalanceDays: 120, auctionBuffer: 3000 }).forfeiture;
+      const h = auctionModel({ ...d, auctionDepositPct: 7.5 }).forfeiture;
+      return JSON.stringify({ f, loan, g, h });
+    })()`));
+    const p = [];
+    if (r.f.status !== 'ok' || r.f.atRisk !== 42000 || r.f.deposit !== 42000 || r.f.balance !== 458000 || r.f.days !== 90) p.push(`10% of the RM420,000 reserve, 90 days: ${JSON.stringify(r.f)}`);
+    if (r.f.cashForBalance !== Math.max(0, 458000 - r.loan)) p.push(`cash beyond the loan ${r.f.cashForBalance}, want ${458000 - r.loan}`);
+    if (r.g.atRisk !== 25000 || r.g.balance !== 475000 || r.g.days !== 120 || r.g.bufferShort !== Math.max(0, 475000 - r.loan - 3000)) p.push(`5% of the RM500,000 bid, 120 days, a RM3,000 buffer: ${JSON.stringify(r.g)}`);
+    if (r.h.atRisk !== 31500) p.push(`7.5% of the reserve: ${r.h.atRisk}, not 31,500`);
+    if (p.length) fail('p3 A2: the forfeiture exposure is the deposit at the terms entered', p);
+    else ok(`p3 A2: the forfeiture exposure is the deposit — 10% of the RM420,000 reserve RM42,000 within 90 days (balance RM458,000, RM${r.f.cashForBalance} of it beyond the loan), 5% of the RM500,000 bid RM25,000 within 120 days, 7.5% RM31,500`);
+  });
+  await p3try('p3 A3: the Proclamation\'s terms are never assumed', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const full = { ...${P3_DEAL}, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90 };
+      const without = (k) => { const d = { ...full }; delete d[k]; return auctionModel(d).forfeiture; };
+      const cases = { pct: without('auctionDepositPct'), of: without('auctionDepositOf'), days: without('auctionBalanceDays'), reserve: without('reservePrice'),
+        none: auctionModel(${P3_DEAL}).forfeiture };
+      const s = dealToParam(full);
+      const back = { ...PROPERTY_DEFAULT_DEAL, evidence: {}, checks: {}, touched: {} }; applyDealParam(back, s);
+      const junk = { ...PROPERTY_DEFAULT_DEAL, evidence: {}, checks: {}, touched: {} };
+      applyDealParam(junk, 'auctionDepositPct:150~auctionDepositOf:deposit~auctionBalanceDays:9.5~auctionChecks:occupancy,guess~reservePrice:-1');
+      /* On the calculator, as a reader sees it. */
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      State.deal = { ...${P3_DEAL} }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const card = () => { const n = document.querySelector('#pc-au [data-au-fig="forfeiture"]'); return n ? { status: n.dataset.status, value: n.querySelector('.ls-card-value')?.textContent.trim(), badge: n.querySelector('[data-kind-badge]')?.dataset.kindBadge, sub: n.querySelector('.ls-card-sub')?.textContent.trim() } : null; };
+      const shown = card();
+      Object.assign(State.deal, { auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90 }); saveDeal(); render(); await w(400);
+      const entered = card();
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ cases, s, back: { pct: back.auctionDepositPct, of: back.auctionDepositOf, days: back.auctionBalanceDays, reserve: back.reservePrice },
+        junk: ['auctionDepositPct', 'auctionDepositOf', 'auctionBalanceDays', 'auctionChecks', 'reservePrice'].filter(k => k in junk), shown, entered });
+    })()`));
+    const p = [];
+    for (const [k, f] of Object.entries(r.cases)) if (f.status !== 'unavailable' || f.atRisk !== null || !f.missing.length) p.push(`without ${k}: ${JSON.stringify(f)}`);
+    if (r.cases.pct.deposit !== null || r.cases.of.deposit !== null || r.cases.reserve.deposit !== null || r.cases.none.deposit !== null) p.push('a deposit was worked out without its terms');
+    if (!/the days to pay the balance/.test(r.cases.days.missing.join()) || !/the deposit \(%\)/.test(r.cases.pct.missing.join()) || !/share of/.test(r.cases.of.missing.join()) || !/the reserve price/.test(r.cases.reserve.missing.join())) p.push(`what is missing is not named: ${JSON.stringify(r.cases)}`);
+    if (r.back.pct !== 10 || r.back.of !== 'reserve' || r.back.days !== 90 || r.back.reserve !== 420000) p.push(`the address carries ${JSON.stringify(r.back)} from "${r.s.slice(0, 120)}"`);
+    if (r.junk.length) p.push(`the address took ${r.junk.join(', ')} not in their own words`);
+    if (!r.shown || r.shown.status !== 'unavailable' || r.shown.value !== 'Unavailable' || r.shown.badge !== 'unavailable' || !/never assumed/.test(r.shown.sub || '')) p.push(`the calculator's card without the terms: ${JSON.stringify(r.shown)}`);
+    if (!r.entered || r.entered.status !== 'ok' || r.entered.value !== 'RM42,000') p.push(`the calculator's card with the terms: ${JSON.stringify(r.entered)}`);
+    if (p.length) fail('p3 A3: the Proclamation\'s terms are never assumed', p);
+    else ok(`p3 A3: without the deposit, what it is a share of, the days or the reserve it is a share of, the deposit, the balance and the exposure are Unavailable and the missing term is named — never a default; the calculator's card reads "Unavailable" (${r.shown.sub.slice(0, 60)}…), then RM42,000 once entered; the address carries the terms and refuses 150%, "deposit", 9.5 days, an unknown check and a negative reserve`);
+  });
+  await p3try('p3 A4: no auction figure is final until every check is ticked', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const d = { ...${P3_DEAL}, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90 };
+      const five = AUCTION_CHECK_IDS.slice(0, 5);
+      const model = { none: auctionModel(d), five: auctionModel({ ...d, auctionChecks: five }), all: auctionModel({ ...d, auctionChecks: [...AUCTION_CHECK_IDS] }) };
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      const view = () => ({ alert: (document.querySelector('#pc-au-alert .ls-card-title')?.textContent || '').trim(),
+        cards: [...document.querySelectorAll('#pc-au [data-au-fig]')].map(n => [n.dataset.auFig, /Not final\\./.test(n.textContent)]),
+        finals: [...document.querySelectorAll('#pc-au [data-au-fig="effective"], #pc-au [data-au-fig="discount"]')].map(n => n.dataset.final) });
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const open6 = view();
+      for (const id of AUCTION_CHECK_IDS.slice(0, 5)) { document.getElementById('pc-au-ck-' + id).click(); await w(250); }
+      const open1 = view();
+      document.getElementById('pc-au-ck-' + AUCTION_CHECK_IDS[5]).click(); await w(300);
+      const done = view(), stored = store.read('deal', null)?.auctionChecks || null;
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ model: Object.fromEntries(Object.entries(model).map(([k, a]) => [k, { final: a.final, open: a.checksOpen }])), open6, open1, done, stored, sources: Object.values(AUCTION_GUIDANCE).map(s => s.url),
+        checks: AUCTION_CHECK_IDS });
+    })()`));
+    const p = [];
+    if (r.model.none.final !== false || r.model.none.open.length !== 6) p.push(`none ticked: ${JSON.stringify(r.model.none)}`);
+    if (r.model.five.final !== false || JSON.stringify(r.model.five.open) !== JSON.stringify([r.checks[5]])) p.push(`five ticked: ${JSON.stringify(r.model.five)}`);
+    if (r.model.all.final !== true || r.model.all.open.length) p.push(`all ticked: ${JSON.stringify(r.model.all)}`);
+    if (JSON.stringify(r.checks) !== '["occupancy","title","charges","developer","condition","proclamation"]') p.push(`the checklist is ${r.checks.join(', ')}`);
+    if (!r.sources.length || r.sources.some(u => !/^https:\/\/www\.malaysianbar\.org\.my\//.test(u))) p.push(`the checklist's sources: ${r.sources.join(', ')}`);
+    if (!/^!?Not final: 6 checks open/.test(r.open6.alert.replace(/^!/, '')) || r.open6.cards.some(c => !c[1]) || r.open6.finals.some(f => f !== 'false')) p.push(`six open, the calculator: ${JSON.stringify(r.open6)}`);
+    if (!/Not final: 1 check open/.test(r.open1.alert) || r.open1.cards.some(c => !c[1])) p.push(`one open, the calculator: ${JSON.stringify(r.open1)}`);
+    if (r.done.alert || r.done.cards.some(c => c[1]) || r.done.finals.some(f => f !== 'true')) p.push(`all ticked, the calculator: ${JSON.stringify(r.done)}`);
+    if (JSON.stringify(r.stored) !== JSON.stringify(r.checks)) p.push(`the checks ticked are stored as ${JSON.stringify(r.stored)}`);
+    if (p.length) fail('p3 A4: no auction figure is final until every check is ticked', p);
+    else ok(`p3 A4: with checks open the model is not final and names them; the calculator's alert reads "${r.open6.alert.replace(/^!/, '').slice(0, 26)}…", then "Not final: 1 check open", every auction card saying "Not final." — and only with the sixth ticked is there no alert and no card says it; the six checks cite the Malaysian Bar's published guidance (${r.sources.length} articles)`);
+  });
+  await p3try('p3 A5: on the Lab, Auction and its terms are written only on Save', async () => {
+    const one = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+      State.deal = base(); saveDeal();
+      const rec = saveActiveProperty({ name: 'p3 A5 saved property' });
+      if (!rec) return JSON.stringify({ err: 'not saved' });
+      navigate('/property'); await w(500);
+      const record = JSON.stringify(pmFind(rec.id)), deal = JSON.stringify(store.read('deal', null));
+      document.querySelector('label[for="lab-q-how-auction"]').click(); await w(300);
+      const drawn = !!document.getElementById('lab-au'), unavailable = document.querySelector('#lab-au [data-au-fig="forfeiture"]')?.dataset.status;
+      const fill = async (k, v) => { const n = document.getElementById('lab-au-' + k); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250); };
+      await fill('reservePrice', '420000'); await fill('auctionDepositPct', '10'); await fill('auctionBalanceDays', '90');
+      document.querySelector('label[for="lab-q-au-depositOf-reserve"]').click(); await w(300);
+      const L = LAB[labSubject];
+      const out = { id: rec.id, keep, drawn, unavailable,
+        forfeiture: document.querySelector('#lab-au [data-au-fig="forfeiture"] [data-value]')?.dataset.value,
+        cols: L.cols.map(c => [c.key, c.work.route ?? null, c.work.auctionDepositPct ?? null]),
+        save: (document.getElementById('lab-id-save')?.textContent || '').trim(),
+        recordSame: JSON.stringify(pmFind(rec.id)) === record, dealSame: JSON.stringify(store.read('deal', null)) === deal, address: location.search };
+      const saved = labSaveAnswers(labPagePanel(), L);
+      const after = pmInputsOf(pmFind(rec.id));
+      out.saved = { ok: saved, route: after.route ?? null, pct: after.auctionDepositPct ?? null, of: after.auctionDepositOf ?? null, days: after.auctionBalanceDays ?? null, reserve: after.reservePrice ?? null };
+      deletePropertyModel(rec.id);
+      const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+      navigate('/property/calculator'); await w(300);
+      return JSON.stringify(out);
+    })()`));
+    if (one.err) throw new Error(one.err);
+    const p = [];
+    if (!one.drawn || one.unavailable !== 'unavailable') p.push(`Auction chosen, the auction section is ${one.drawn ? 'drawn' : 'not drawn'} and the exposure ${one.unavailable}`);
+    if (one.forfeiture !== '42000') p.push(`the terms entered, the exposure reads ${one.forfeiture}, not 42,000`);
+    if (one.cols.some(c => c[1] !== 'auction' || c[2] !== 10)) p.push(`the terms are not a move of every column: ${JSON.stringify(one.cols)}`);
+    if (!/^Save what and how you are buying to/.test(one.save)) p.push(`Save says "${one.save}"`);
+    if (!one.recordSame || !one.dealSame || /auction|reservePrice|Deposit/i.test(one.address)) p.push(`written before Save: record ${one.recordSame ? 'unchanged' : 'written'}, deal ${one.dealSame ? 'unchanged' : 'written'}, address "${one.address}"`);
+    if (!one.saved.ok || one.saved.route !== 'auction' || one.saved.pct !== 10 || one.saved.of !== 'reserve' || one.saved.days !== 90 || one.saved.reserve !== 420000) p.push(`Save: ${JSON.stringify(one.saved)}`);
+    if (p.length) fail('p3 A5: on the Lab, Auction and its terms are written only on Save', p);
+    else ok(`p3 A5: on a saved property in the Lab, Auction draws the auction section with the exposure Unavailable; the reserve and the Proclamation's terms entered there are moves of every column (${one.cols.map(c => c[0]).join(', ')}) — the exposure RM42,000 — with the record, the calculator's deal and the address unwritten and Save offered; Save writes them to the property`);
+  });
+  /* ---- end p3-auction ---- */
 
 } catch (e) {
   fail('harness error', e.message);

@@ -1265,7 +1265,8 @@ const JOURNEYS = [
     id: 'lab', name: 'Property landing: the Scenario Lab moves, compares and saves',
     outcomes: ['Move the rent: the monthly position and the net yield follow, the repayment does not', 'Move the rate: the repayment follows, the net yield does not',
       'Compare by cash flow: A, then B', 'Save the property, then B as a scenario', 'It is listed with the saved properties',
-      'Choose Commercial and Subsale, set a target: the price that makes it work is solved'],
+      'Choose Commercial and Subsale, set a target: the price that makes it work is solved',
+      'Choose Auction, enter the Proclamation’s terms: the effective cost is read'],
     async run(j, tab) {
       /* The chain's figures as the page holds them, by row. */
       const chain = `Object.fromEntries([...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].map(n => [n.dataset.lab, n.dataset.value]))`;
@@ -1357,8 +1358,8 @@ const JOURNEYS = [
       /* THE PROPERTY DECISION LAYER, P1 AND P2 (the owner's brief of 7 Oct
          2026, and the decision of 9 Oct: saving is the only write). Back on
          /property, the property just saved answers the two questions —
-         Commercial; Auction, which says its model is coming and the figures
-         are a subsale's, then Subsale — and a target (a monthly position of
+         Commercial; Auction, which draws the auction risk mode in the price
+         section's place (P3), then Subsale — and a target (a monthly position of
          at least RM0) gives the price that makes this work, which the
          calculator's own model meets at that price and not one ringgit
          above it. Nothing of it is written until Save: the saved property
@@ -1376,9 +1377,11 @@ const JOURNEYS = [
         await tab.click(`document.querySelector('label[for="lab-q-what-commercial"]')`, 'What are you buying? — Commercial');
         await tab.expect(`propertyClassOf(${work}) === 'commercial' && !!document.getElementById('lab-q-sub')`, async () => `Commercial chosen, the columns hold ${await tab.eval(`propertyClassOf(${work})`)} and ${await tab.eval(`document.getElementById('lab-q-sub') ? 'its kinds are asked' : 'its kinds are not asked'`)}`);
         await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
-        await tab.expect(`/The auction model is coming; these figures treat it as a subsale/.test(document.getElementById('lab-q')?.textContent || '') && (${work}).route === 'auction'`, 'Auction chosen, the page does not say its model is coming and the figures are a subsale’s');
+        /* Auction (P3) draws the auction risk mode in the price section's
+           place; Subsale puts the price section back. */
+        await tab.expect(`(${work}).route === 'auction' && !!document.getElementById('lab-au') && !document.getElementById('lab-pe')`, 'Auction chosen, the columns are not an auction or the auction risk mode is not drawn');
         await tab.click(`document.querySelector('label[for="lab-q-how-subsale"]')`, 'How are you buying? — Subsale');
-        await tab.expect(`!(${work}).route && document.getElementById('lab-q-how-subsale')?.checked === true && !/model is coming/.test(document.getElementById('lab-q')?.textContent || '')`, 'Subsale chosen, the columns do not read as a subsale');
+        await tab.expect(`!(${work}).route && document.getElementById('lab-q-how-subsale')?.checked === true && !document.getElementById('lab-au') && !!document.getElementById('lab-pe')`, 'Subsale chosen, the columns do not read as a subsale');
         await tab.click(`document.querySelector('label[for="lab-q-target-monthly"]')`, 'Target — Monthly position at least');
         await tab.fill(`document.getElementById('lab-pe-target-value')`, '0', 'The target figure', { commit: true });
         await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="solve"]')?.dataset.status === 'solved'`, async () => `with a target of RM0 a month the card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="solve"]')?.textContent || 'nothing').slice(0, 120)`)}”`, 4000);
@@ -1398,6 +1401,45 @@ const JOURNEYS = [
         else await tab.click(`document.getElementById('ls-act-save')`, 'Save this — in the action bar');
         await tab.expect(`propertyClassOf(${saved}) === 'commercial' && !(${saved}).route && (${saved}).targetKind === 'monthly' && (${saved}).targetValue === 0`,
           async () => `after Save the property holds ${await tab.eval(`JSON.stringify({ cls: propertyClassOf(${saved}), route: (${saved}).route ?? null, target: [(${saved}).targetKind, (${saved}).targetValue] })`)}`, 4000);
+      });
+      /* THE AUCTION RISK MODE (the decision layer, P3). The saved property
+         answered Auction: the auction risk mode is drawn, "Not final: 6
+         checks open", the forfeiture exposure Unavailable — the deposit and
+         the days to pay the balance are never assumed. The Proclamation's
+         terms entered — a reserve of RM420,000, a 10% deposit of the reserve,
+         90 days — and two comparable prices: the exposure reads the deposit,
+         RM42,000, and the effective acquisition cost is read, the model's
+         own at the bid the column holds; still not final, and nothing written
+         to the property until Save. */
+      await step(j, tab, 'Choose Auction, enter the Proclamation’s terms: the effective cost is read', BUDGET.action * 4, async () => {
+        const saved = `pmInputsOf(pmFind(State.deal.modelId)) || {}`;
+        const work = `labActive(LAB[labSubject]).work`;
+        const was = await tab.eval(`JSON.stringify(${saved})`);
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
+        await tab.expect(`!!document.getElementById('lab-au') && document.querySelector('#lab-au [data-au-fig="forfeiture"]')?.dataset.status === 'unavailable' && /Not final: 6 checks open/.test(document.getElementById('lab-au-alert')?.textContent || '')`,
+          async () => `Auction chosen, the page shows ${await tab.eval(`document.getElementById('lab-au') ? 'the auction, its exposure ' + document.querySelector('#lab-au [data-au-fig="forfeiture"]')?.dataset.status + ', its alert “' + (document.getElementById('lab-au-alert')?.textContent || 'none').slice(0, 40) + '”' : 'no auction risk mode'`)}`);
+        await tab.fill(`document.getElementById('lab-au-reservePrice')`, '420000', 'The reserve price', { commit: true });
+        await tab.fill(`document.getElementById('lab-au-auctionDepositPct')`, '10', 'The deposit (%)', { commit: true });
+        await tab.fill(`document.getElementById('lab-au-auctionBalanceDays')`, '90', 'The days to pay the balance', { commit: true });
+        await tab.expect(`document.querySelector('#lab-au [data-au-fig="forfeiture"]')?.dataset.status === 'unavailable'`, 'with what the deposit is a share of not entered, the exposure is not Unavailable — a share was assumed');
+        await tab.click(`document.querySelector('label[for="lab-q-au-depositOf-reserve"]')`, 'The deposit is a share of — the reserve price');
+        await tab.fill(`document.getElementById('lab-au-auctionComp1')`, '600000', 'A comparable price', { commit: true });
+        await tab.fill(`document.getElementById('lab-au-auctionComp2')`, '640000', 'A second comparable price', { commit: true });
+        await tab.expect(`document.querySelector('#lab-au [data-au-fig="forfeiture"] [data-value]')?.dataset.value === '42000'`,
+          async () => `the terms entered, the exposure reads “${await tab.eval(`(document.querySelector('#lab-au [data-au-fig="forfeiture"]')?.textContent || 'nothing').slice(0, 80)`)}”, not RM42,000`, 4000);
+        const r = JSON.parse(await tab.eval(`(() => {
+          const card = document.querySelector('#lab-au [data-au-fig="effective"]'), a = auctionModel(${work});
+          return JSON.stringify({ shown: Number(card?.querySelector('[data-value]')?.dataset.value), model: a.effective, bid: a.bid, final: card?.dataset.final, text: (card?.textContent || '').replace(/\\s+/g, ' '),
+            discount: document.querySelector('#lab-au [data-au-fig="discount"] [data-value]')?.dataset.value || '', market: a.market,
+            unwritten: JSON.stringify(${saved}) === ${JSON.stringify(was)}, save: (document.getElementById('lab-id-save')?.textContent || labBarSave().aria || '').trim() });
+        })()`));
+        if (!(r.shown > r.bid) || r.shown !== r.model) throw new StepError(`the effective acquisition cost reads ${r.shown}; the model gives ${r.model} on a bid of ${r.bid}`);
+        if (r.final !== 'false' || !/Not final\./.test(r.text)) throw new StepError(`with every check open the effective cost does not say it is not final: “${r.text.slice(0, 120)}”`);
+        if (r.market !== 620000 || r.discount === '') throw new StepError(`the market value is ${r.market}, not the median of RM600,000 and RM640,000, and the true discount reads “${r.discount}”`);
+        if (!r.unwritten) throw new StepError('the auction was written to the saved property before Save');
+        if (!/^Save what and how you are buying to/.test(r.save)) throw new StepError(`with the auction not saved, Save says “${r.save}”`);
       });
     },
   },

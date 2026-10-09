@@ -31635,26 +31635,37 @@ const PROPERTY_TYPE_CLASS = {
    "changed since saved" because a question was added, and its figures are
    byte for byte what they were (model-test, p1-route).
 
-   THE ROUTES NOT MODELLED YET SAY SO. New development (P4) and auction (P3)
-   are selectable, and until their models arrive they are modelled as a
-   subsale, said in one line where the answer is given. The fee rulebook's
-   lines are the ones written for an SPA and the transfer (FEE_TABLE,
-   purchaseLegal's rule 1): no developer (HDA) or auction term — a deposit
-   and balance from a Proclamation of Sale, arrears passed by it — is
-   applied to either, because none is modelled, and none is invented.
+   THE ROUTE NOT MODELLED YET SAYS SO. New development (P4) is selectable,
+   and until its model arrives it is modelled as a subsale, said in one
+   line where the answer is given; no developer (HDA) term is applied,
+   because none is modelled, and none is invented.
+
+   AUCTION IS MODELLED (P3, the auction risk mode: auctionModel,
+   75-property-grade.js). Its terms — the deposit, what it is a share of,
+   the days to pay the balance, the arrears the Proclamation of Sale passes
+   to the buyer — are the reader's, entered from the Proclamation and its
+   Conditions of Sale, and NEVER assumed: until they are entered, every
+   figure resting on them is Unavailable. Nothing of the auction changes a
+   deal that has not entered it (dealModel adds its lines only once
+   entered), so a deal answered Auction with nothing entered prints the
+   subsale's figures, line for line.
    ========================================================================== */
 const PROPERTY_ROUTES = {
   newdev:  { id:'newdev',  label:'New development', modelled:false, phase:'P4',
     coming:'The new-development model is coming; these figures treat it as a subsale.' },
   subsale: { id:'subsale', label:'Subsale', modelled:true },
-  auction: { id:'auction', label:'Auction', modelled:false, phase:'P3',
-    coming:'The auction model is coming; these figures treat it as a subsale.' },
+  auction: { id:'auction', label:'Auction', modelled:true, phase:'P3' },
 };
 const PROPERTY_ROUTE_IDS = ['newdev', 'subsale', 'auction'];
 const DEFAULT_PROPERTY_ROUTE = 'subsale';
 const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route : DEFAULT_PROPERTY_ROUTE);
 /* What the fee rulebook does for a route it does not model: nothing of its
    own — the subsale's lines, said. */
+/* On the auction route the rulebook's lines stand as for a transfer on the
+   winning bid, with one exception the reader makes: their lawyer's quote
+   for the legal and search costs, once entered, takes the place of the
+   purchase legal fees (an auction has no SPA). */
+const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price; your lawyer’s quote for the legal and search costs, once entered, takes the place of its purchase legal fees — an auction has no SPA. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
   : null);
@@ -32069,9 +32080,63 @@ const SUBSALE_CONDITION = {
   uninspected: { id:'uninspected', label:'Not inspected' },
 };
 const PRICE_TARGET_KINDS = ['monthly', 'yield'];
+
+/* THE AUCTION RISK MODE'S ANSWERS (P3). What the deposit is a share of is
+   the Proclamation's to say — some state the reserve price, the Malaysian
+   Bar's guidance speaks of the purchase price — so it is asked, never
+   assumed. */
+const AUCTION_DEPOSIT_OF = {
+  reserve: { id:'reserve', label:'Of the reserve price' },
+  bid:     { id:'bid',     label:'Of the winning bid' },
+};
+/* THE CHECKLIST, before any auction figure is called final. Drawn from the
+   guidance the Malaysian Bar publishes on buying at an auction — cited as
+   guidance, never as a rule of this tool's: each item says what to find
+   out, in the guidance's words where it has them, and where it is said. */
+const AUCTION_GUIDANCE = {
+  bar2019: { title: 'Buying property at an auction — Zemilah Mohd Noor, The Star, 4 March 2019, published by the Malaysian Bar',
+    url: 'https://www.malaysianbar.org.my/conveyancing_practice/buying_property_at_an_auction.html' },
+  bar2006: { title: 'LAW & REALTY: Making a bid at a public auction — Andrew Wong, the Bar Council’s Conveyancing Practice Committee, The Sun, 30 June 2006, published by the Malaysian Bar',
+    url: 'https://www.malaysianbar.org.my/conveyancing_practice/law_realty_making_a_bid_at_a_public_auction.html' },
+  bar2008: { title: 'Auction caution — Bhag Singh, The Star, 11 March 2008, published by the Malaysian Bar',
+    url: 'https://www.malaysianbar.org.my/news_features/law_article_auction_caution.html' },
+};
+const AUCTION_CHECKS = {
+  occupancy: { id:'occupancy', label:'Occupancy', sources:['bar2019', 'bar2006', 'bar2008'],
+    what:'Whether the property is occupied or vacant, and whether the occupant is a tenant or the owner. The guidance says the bank has no obligation to give vacant possession: the buyer takes possession at their own cost.' },
+  title: { id:'title', label:'Title and encumbrances', sources:['bar2019', 'bar2008'],
+    what:'Whether the title has been issued, any encumbrance — a private caveat among them — affecting it, and whether the state authority’s consent is needed for the transfer. A land search; the guidance notes a property is commonly sold subject to the charges and caveats on it.' },
+  charges: { id:'charges', label:'Outstanding charges', sources:['bar2019', 'bar2006'],
+    what:'Outstanding maintenance fees, quit rent, assessment and charges for electricity, water, waste or sewerage — and whether the Proclamation passes them to you or pays them out of the purchase money.' },
+  developer: { id:'developer', label:'Developer status', sources:['bar2019', 'bar2006'],
+    what:'Where no title has been issued, whether the developer is still around or has been wound up, and its consent to the transfer, which the guidance says is the purchaser’s to obtain.' },
+  condition: { id:'condition', label:'Repair condition', sources:['bar2019', 'bar2008'],
+    what:'The condition of the property and what repair and renovation will cost. The guidance warns that photographs may not show its real state; inspect it if you can.' },
+  proclamation: { id:'proclamation', label:'The Proclamation’s terms', sources:['bar2019', 'bar2006'],
+    what:'The Proclamation of Sale and its Conditions: the deposit, the days to pay the balance — the guidance says usually 90 or 120 — and whether an extension may be granted, and at what interest.' },
+};
+const AUCTION_CHECK_IDS = Object.keys(AUCTION_CHECKS);
+/* The arrears a Proclamation may pass to the buyer, each entered on its own
+   (the brief's four: maintenance, quit rent, assessment and utilities). */
+const AUCTION_ARREARS = [
+  ['arrearsMaintenance', 'Maintenance and sinking fund'],
+  ['arrearsQuitRent', 'Quit rent'],
+  ['arrearsAssessment', 'Assessment'],
+  ['arrearsUtilities', 'Utilities'],
+];
+/* The reader's own comparable prices, typed — beside any named from the
+   register (priceGap) — up to three. */
+const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
 const ansEnum = (ids) => (raw) => (ids.includes(raw) ? raw : undefined);
 const ansSum = (raw) => (/^\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
 const ansSigned = (raw) => (/^-?\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
+const ansPct = (raw) => { const v = ansSum(raw); return v !== undefined && v <= 100 ? v : undefined; };
+const ansDays = (raw) => (/^\d{1,4}$/.test(String(raw)) ? Number(raw) : undefined);
+/* The checks ticked, in the checklist's own order and words. */
+const ansChecks = (raw) => {
+  const ids = String(raw).split(',').filter(Boolean);
+  return ids.length && ids.every(id => AUCTION_CHECK_IDS.includes(id)) ? AUCTION_CHECK_IDS.filter(id => ids.includes(id)) : undefined;
+};
 const DEAL_ANSWER_FIELDS = {
   /* Subsale is the absence of the key, so the address never carries it. */
   route: ansEnum(PROPERTY_ROUTE_IDS.filter(r => r !== DEFAULT_PROPERTY_ROUTE)),
@@ -32085,6 +32150,15 @@ const DEAL_ANSWER_FIELDS = {
   chargesToBuyer: ansSum,
   targetKind: ansEnum(PRICE_TARGET_KINDS),
   targetValue: ansSigned,
+  /* The auction risk mode (P3): the Proclamation's terms, the reader's
+     comparables and estimates, and the checks ticked. */
+  reservePrice: ansSum,
+  auctionComp1: ansSum, auctionComp2: ansSum, auctionComp3: ansSum,
+  arrearsMaintenance: ansSum, arrearsQuitRent: ansSum, arrearsAssessment: ansSum, arrearsUtilities: ansSum,
+  auctionRepairs: ansSum, possessionCost: ansSum, possessionMonths: ansSum, auctionLegal: ansSum,
+  auctionDepositPct: ansPct, auctionDepositOf: ansEnum(Object.keys(AUCTION_DEPOSIT_OF)), auctionBalanceDays: ansDays,
+  auctionBuffer: ansSum, auctionHoldMonths: ansSum,
+  auctionChecks: ansChecks,
 };
 const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
 /* The one way an answer is written to a deal: the default is the key's
@@ -35417,6 +35491,12 @@ const PM_FIELD_WORDS = {
   comparableIds: 'Comparables named', tenancy: 'Existing tenancy', tenancyRent: 'Rent under the existing tenancy (RM a month)',
   condition: 'Condition', buildingAge: 'Age of the building (years)', chargesToBuyer: 'Outstanding charges passed to you (RM)',
   targetKind: 'Target', targetValue: 'Target figure',
+  /* The auction risk mode's answers (P3). */
+  reservePrice: 'Reserve price (RM)', auctionComp1: 'Comparable price 1 (RM)', auctionComp2: 'Comparable price 2 (RM)', auctionComp3: 'Comparable price 3 (RM)',
+  arrearsMaintenance: 'Arrears: maintenance (RM)', arrearsQuitRent: 'Arrears: quit rent (RM)', arrearsAssessment: 'Arrears: assessment (RM)', arrearsUtilities: 'Arrears: utilities (RM)',
+  auctionRepairs: 'Repairs (RM)', possessionCost: 'Possession cost (RM)', possessionMonths: 'Possession time (months)', auctionLegal: 'Legal and search costs (RM)',
+  auctionDepositPct: 'Deposit (%)', auctionDepositOf: 'Deposit of', auctionBalanceDays: 'Days to pay the balance', auctionBuffer: 'Financing buffer (RM)',
+  auctionHoldMonths: 'Holding period (months)', auctionChecks: 'Auction checks ticked',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure
@@ -36184,6 +36264,9 @@ const CP_IN = {
   condition: (v) => SUBSALE_CONDITION[v]?.label || 'Not recorded', buildingAge: (v) => (v == null ? 'Not entered' : cpPlural(v, 'year')),
   chargesToBuyer: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
   targetKind: (v) => PRICE_TARGETS[v]?.label || 'Not set', targetValue: (v) => (v == null ? 'Not set' : cpN(v)),
+  /* The auction risk mode's answers (P3): a term not entered says so. */
+  auctionDepositOf: (v) => AUCTION_DEPOSIT_OF[v]?.label || 'Not entered',
+  auctionChecks: (v) => (Array.isArray(v) && v.length ? `${v.length} of ${AUCTION_CHECK_IDS.length} ticked` : 'None ticked'),
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
@@ -38113,8 +38196,26 @@ function dealModel(d) {
      real-looking row for a cost that exists and has not been calculated,
      absent from the missing-lines list because it had a number. A tax on
      an unknown fee is unknown, and no better than the fee it is on. */
-  const purchaseLegalR = resolveFee('purchaseLegal', { price: d.price });
+  /* THE AUCTION ROUTE (the decision layer, P3): the reader's lawyer's quote
+     for the legal and search costs, once entered, takes the place of the
+     rulebook's purchase legal fees — an auction has no SPA — and is marked
+     as theirs, as an MRTA quote is. Not entered, the rulebook's line stands. */
+  const auctionRoute = dealRoute(d) === 'auction';
+  const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
+  const purchaseLegalR = legalQuote != null
+    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+        note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
+    : resolveFee('purchaseLegal', { price: d.price });
   const loanLegalR = resolveFee('loanLegal', { loan });
+  /* What the auction passes to the buyer, as the reader entered it: each a
+     line only once entered, so a deal answered Auction with nothing entered
+     is the deal it was. */
+  const auctionArrears = auctionRoute ? AUCTION_ARREARS.map(([k]) => d[k]).filter(isNum) : [];
+  const auctionLines = !auctionRoute ? [] : [
+    ...(auctionArrears.length && auctionArrears.some(v => v > 0) ? [['Arrears the Proclamation passes to you', auctionArrears.reduce((t, v) => t + v, 0)]] : []),
+    ...(num0(d.auctionRepairs) > 0 ? [['Repairs', num0(d.auctionRepairs)]] : []),
+    ...(num0(d.possessionCost) > 0 ? [['Possession cost', num0(d.possessionCost)]] : []),
+  ];
   const valuationR = resolveFee('valuationFee', { price: d.price });
   const legalBase = isNum(purchaseLegalR.amount) && isNum(loanLegalR.amount) ? purchaseLegalR.amount + loanLegalR.amount : null;
   const asLine = (r) => [r.label, r.amount, r];
@@ -38128,7 +38229,10 @@ function dealModel(d) {
            management's statement says (the subsale evidence model, P2): their
            own figure, and only when entered — a deal without it is the deal it
            was, line for line. */
-        ...(num0(d.chargesToBuyer) > 0 ? [['Outstanding charges passed to you', num0(d.chargesToBuyer)]] : []),
+        ...(!auctionRoute && num0(d.chargesToBuyer) > 0 ? [['Outstanding charges passed to you', num0(d.chargesToBuyer)]] : []),
+        /* On the auction route, the arrears its Proclamation passes to the
+           buyer take that line's place (P3). */
+        ...auctionLines,
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
         feeLine('disbursements', {}),
@@ -38910,6 +39014,117 @@ function solveDealPrice(d, target = dealTarget(d)) {
   return { status: 'solved', target: t, value: target.value, price: lo, achieved: reads(m), above: reads(over), aboveMeets: meets(over),
     vsPrice: num0(d.price) > 0 ? lo - num0(d.price) : null,
     vsAsking: isNum(d.askingPrice) && d.askingPrice > 0 ? lo - d.askingPrice : null, runs };
+}
+
+/* THE AUCTION RISK MODE (the property decision layer, P3).
+   ---------------------------------------------------------------------------
+   From the market value the reader's comparables imply, down to the reserve
+   price and the winning bid they expect, then up again by what an auction
+   adds — repairs, the arrears the Proclamation passes to the buyer,
+   possession, the transaction costs and the months of holding — to the
+   EFFECTIVE ACQUISITION COST; the TRUE DISCOUNT is the market value less
+   that, against the market value. And the FORFEITURE EXPOSURE: the deposit
+   at risk if the balance is not paid within the days the Proclamation
+   gives.
+
+   NOTHING ASSUMED. Every figure is the reader's: the winning bid is the
+   purchase price the model runs on (every figure of dealModel is worked
+   from it); the market value is the median of the comparables they named
+   from their register (priceGap) and the comparable prices they typed;
+   the costs are what they entered. A cost not entered is not counted and
+   is named as not entered — the effective cost says so, never "nought".
+   The deposit, what it is a share of and the days to pay the balance are
+   entered from the Proclamation and Conditions of Sale; until all three
+   are, the deposit, the balance and the forfeiture exposure are
+   Unavailable — no default figure, ever.
+
+   THE TRANSACTION COSTS are the ledger's own fee lines (dealModel's
+   costGroups): the statutory, professional and disbursement lines of the
+   acquisition and the financing — the reader's legal quote in place of the
+   purchase legal fees where entered — and not the deposit, the insurance or
+   the utility deposits. THE HOLDING COST is the months of holding entered
+   times what the property costs its owner a month with no rent coming in
+   (burnWithoutRent: the instalment and the running costs).
+
+   NOT FINAL until every check of the checklist (AUCTION_CHECKS, from the
+   Malaysian Bar's guidance) is ticked: `final` is false and `checksOpen`
+   names the ones open. */
+const AUCTION_FEE_CATEGORIES = ['statutory', 'professional', 'disbursement'];
+function auctionModel(d, m = dealModel(d)) {
+  const has = (k) => isNum(d?.[k]);
+  const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
+  /* The market value, from comparables only. */
+  const g = priceGap(d);
+  const typed = AUCTION_COMP_KEYS.filter(k => has(k) && d[k] > 0).map(k => ({ key: k, price: d[k], kind: kindOf(k) }));
+  const values = [...g.comps.map(c => c.implied), ...typed.map(c => c.price)];
+  const market = values.length ? median(values) : null;
+  const marketKind = values.length ? kindFirst([...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours'), ...typed.map(c => c.kind)]) || 'yours' : 'unavailable';
+  const reserve = has('reservePrice') && d.reservePrice > 0 ? d.reservePrice : null;
+  const bid = num0(d?.price) > 0 ? num0(d.price) : null;
+  const bidKind = inputIsSeeded(d, 'price') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'price')] || 'yours';
+  /* What an auction adds. */
+  const arrearsParts = AUCTION_ARREARS.map(([k, label]) => ({ key: k, label, amount: has(k) ? d[k] : null, kind: has(k) ? kindOf(k) : 'unavailable' }));
+  const arrearsIn = arrearsParts.filter(p => p.amount != null);
+  const fees = (m.costGroups || []).filter(gr => gr.id === 'acquisition' || gr.id === 'financing').flatMap(gr => gr.items)
+    .filter(it => it[2]?.line && (it[2].provenance === 'quote' && it[2].id === 'auctionLegal' || AUCTION_FEE_CATEGORIES.includes(it[2].line.category)));
+  const feesPriced = fees.filter(it => isNum(it[1]));
+  /* The badge of the lines priced; a line the rulebook cannot price is
+     named as unpriced beside the sum, not counted in it. */
+  const feeKinds = feesPriced.map(it => KIND_OF_FEE[it[2].provenance] || 'placeholder');
+  const holdMonths = has('auctionHoldMonths') ? d.auctionHoldMonths : null;
+  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  const step = (id, label, amount, kind, extra = {}) => ({ id, label, amount, kind: amount == null ? 'unavailable' : kind, ...extra });
+  const adds = [
+    step('repairs', 'Repairs', has('auctionRepairs') ? d.auctionRepairs : null, kindOf('auctionRepairs'), { key: 'auctionRepairs' }),
+    step('arrears', 'Arrears passed to you', arrearsIn.length ? arrearsIn.reduce((t, p) => t + p.amount, 0) : null,
+      kindFirst(arrearsIn.map(p => p.kind)) || 'yours', { parts: arrearsParts, partsMissing: arrearsParts.filter(p => p.amount == null).map(p => p.label) }),
+    step('possession', 'Possession', has('possessionCost') ? d.possessionCost : null, kindOf('possessionCost'), { key: 'possessionCost', months: has('possessionMonths') ? d.possessionMonths : null }),
+    step('transaction', 'Transaction costs', feesPriced.length ? feesPriced.reduce((t, it) => t + it[1], 0) : null, kindFirst(feeKinds) || 'derived',
+      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance })), unpriced: fees.length - feesPriced.length }),
+    step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
+  ];
+  const counted = adds.filter(a => a.amount != null);
+  const effective = bid != null ? bid + counted.reduce((t, a) => t + a.amount, 0) : null;
+  const effectiveKind = effective == null ? 'unavailable' : kindFirst([bidKind, ...counted.map(a => a.kind)]) || 'derived';
+  const vs = (x) => (isNum(x) && isNum(market) && market > 0 ? { amount: market - x, pct: (market - x) / market * 100 } : null);
+  /* The terms of the sale: never assumed. */
+  const depositPct = has('auctionDepositPct') ? d.auctionDepositPct : null;
+  const depositOf = Object.hasOwn(AUCTION_DEPOSIT_OF, d?.auctionDepositOf) ? d.auctionDepositOf : null;
+  const days = has('auctionBalanceDays') ? d.auctionBalanceDays : null;
+  const depositBase = depositOf === 'reserve' ? reserve : depositOf === 'bid' ? bid : null;
+  const deposit = depositPct != null && depositBase != null ? Math.round(depositBase * depositPct) / 100 : null;
+  const termsMissing = [
+    depositPct == null ? 'the deposit (%)' : null,
+    depositOf == null ? 'what the deposit is a share of' : null,
+    depositOf === 'reserve' && reserve == null ? 'the reserve price' : null,
+    days == null ? 'the days to pay the balance' : null,
+  ].filter(Boolean);
+  const balance = deposit != null && bid != null ? bid - deposit : null;
+  const loan = isNum(m.loan) ? m.loan : null;
+  /* Of the balance, what the loan does not cover: cash, by the day the
+     balance is due. And the buffer the reader holds against it. */
+  const cashForBalance = balance != null && loan != null ? Math.max(0, balance - loan) : null;
+  const buffer = has('auctionBuffer') ? d.auctionBuffer : null;
+  const forfeiture = termsMissing.length
+    ? { status: 'unavailable', missing: termsMissing, atRisk: null, days, depositPct, depositOf, deposit, balance }
+    : { status: 'ok', missing: [], atRisk: deposit, days, depositPct, depositOf, deposit, balance, cashForBalance, loan, buffer,
+        bufferShort: buffer != null && cashForBalance != null ? Math.max(0, cashForBalance - buffer) : null };
+  const ticked = Array.isArray(d?.auctionChecks) ? d.auctionChecks.filter(id => AUCTION_CHECK_IDS.includes(id)) : [];
+  const checksOpen = AUCTION_CHECK_IDS.filter(id => !ticked.includes(id));
+  return {
+    market, marketKind, marketFrom: { named: g.comps, typed, notUsed: g.notUsed }, reserve, bid, bidKind,
+    steps: [
+      step('market', 'Market value', market, marketKind, { total: true }),
+      step('reserve', 'Reserve price', reserve, kindOf('reservePrice'), { total: true, key: 'reservePrice' }),
+      step('bid', 'Winning bid', bid, bidKind, { total: true }),
+      ...adds,
+      step('effective', 'Effective acquisition cost', effective, effectiveKind, { total: true }),
+    ],
+    adds, notEntered: adds.filter(a => a.amount == null).map(a => a.label),
+    effective, effectiveKind,
+    trueDiscount: vs(effective), bidDiscount: vs(bid), reserveDiscount: vs(reserve),
+    forfeiture, checksTicked: ticked, checksOpen, final: checksOpen.length === 0,
+  };
 }
 
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
@@ -40387,7 +40602,7 @@ VIEWS.property = () => {
      what is known of the unit — its tenancy, condition, age and what the
      sale passes to the buyer — each with where it came from; and the
      comparables from the register this price is set against. */
-  acq.inputs.append(pcSubsaleInputs(d));
+  acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : pcSubsaleInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -41391,7 +41606,7 @@ VIEWS.property = () => {
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
-  acq.outputs.append(buyCard, pcPriceEvidence(d));
+  acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
@@ -44904,7 +45119,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -44924,8 +45139,9 @@ function labDraw(P, focusId = null) {
      C side by side and keeping one. */
   const chain = labChain(P, lab, col);
   const alert = P.compact ? null : labAlert(P, lab);
-  /* The price against the reader's evidence (the decision layer, P2). */
-  const price = P.compact ? null : labPriceSection(P, lab);
+  /* The price against the reader's evidence (the decision layer, P2) —
+     or, answered Auction, the auction risk mode in its place (P3). */
+  const price = P.compact ? null : dealRoute(labAnswerInputs(lab)) === 'auction' ? labAuctionSection(P, lab) : labPriceSection(P, lab);
   const evidence = labEvidence(P, lab);
   outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
@@ -45321,6 +45537,45 @@ function labPricePaint(P, lab, { initial = false } = {}) {
     } }, `Try ${labMoney(s.price)} in ${col.key}`)] : []));
   if (pe.gapText) labText(pe.gapText, priceGapFormula(g));
   if (pe.solveText) labText(pe.solveText, priceSolveFormula(s, d));
+}
+
+/* THE AUCTION RISK MODE (the decision layer, P3; 83-property-decision.js),
+   in the price section's place once Auction is answered. A what-if until
+   Save, as every answer here is: what is entered — the Proclamation's
+   terms, the comparables, the estimates, the checks ticked — is a move of
+   every column (labAnswer), A, B and C staying one property, and is
+   written only by Save. The winning bid is the Price slider: the column it
+   moves is the one worked through. The inputs and the checklist are drawn
+   with the page; the figures follow each paint (labAuctionPaint). */
+function labAuctionSection(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-au au', id: labId(P, 'au'), 'aria-labelledby': labId(P, 'au-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'au-h') }, 'The auction, worked through'));
+  card.append(el('p', { class: 'metaline au-route' }, `${AUCTION_LEAD} A what-if of every column until you save it.`));
+  const figs = el('div', { class: 'au-figs', id: labId(P, 'au-figs') });
+  card.append(figs);
+  if (d) {
+    const answer = (k, v) => labAnswer(P, lab, k, v);
+    const named = priceGap(d).comps.length;
+    card.append(auctionInputs({ d, prefix: P.idPrefix, answer,
+      extra: { market: el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register in the calculator count as well.` : 'Comparables from your register are named in the calculator.') } }));
+    card.append(auctionChecklist({ d, prefix: P.idPrefix, answer }));
+  }
+  P.els.au = { card, figs, sig: null };
+  return card;
+}
+function labAuctionPaint(P, lab) {
+  const au = P.els?.au;
+  if (!au) return;
+  const col = labActive(lab), d = col.work;
+  const a = auctionModel(d, col.cur?.m || dealModel(d));
+  const sig = JSON.stringify([col.key, a.steps.map(s => [s.id, s.amount, s.kind]), a.forfeiture, a.checksOpen, a.trueDiscount]);
+  if (au.sig === sig) return;
+  au.sig = sig;
+  au.figs.replaceChildren(auctionResults({ a, prefix: P.idPrefix, why: { wf: () => lsOpenEvidence(au.wfEv), fx: () => lsOpenEvidence(au.fxEv) },
+    toChecklist: () => lsGoTo(document.getElementById(labId(P, 'au-checks')), document.querySelector(`#${labId(P, 'au-checks')} input:not(:checked)`)) }));
+  if (au.wfText) labText(au.wfText, auctionWaterfallFormula(a));
+  if (au.fxText) labText(au.fxText, auctionForfeitureFormula(a));
 }
 
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
@@ -45759,6 +46014,17 @@ function labEvidence(P, lab) {
     P.els.pe.solveEv = lsEvidenceSection({ id: labId(P, 'ev-solve'), summary: 'How the price is solved', body: [solveText] });
     P.els.pe.gapText = gapText; P.els.pe.solveText = solveText;
     pe.push(P.els.pe.gapEv, P.els.pe.solveEv);
+  }
+  /* The auction's working and the checklist's source (P3), in the same
+     place, for the same reason. */
+  if (P.els.au) {
+    const wfText = el('p', { class: 'lab-formula', id: labId(P, 'ev-au-wf-text') }, '');
+    const fxText = el('p', { class: 'lab-formula', id: labId(P, 'ev-au-fx-text') }, '');
+    P.els.au.wfEv = lsEvidenceSection({ id: labId(P, 'ev-au-wf'), summary: 'How the waterfall is worked out', body: [wfText] });
+    P.els.au.fxEv = lsEvidenceSection({ id: labId(P, 'ev-au-fx'), summary: 'How the forfeiture exposure is worked out', body: [fxText] });
+    P.els.au.srcEv = lsEvidenceSection({ id: labId(P, 'ev-au-src'), summary: 'Where the checklist comes from', body: [auctionGuidanceList()] });
+    P.els.au.wfText = wfText; P.els.au.fxText = fxText;
+    pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
 }
@@ -46580,8 +46846,9 @@ function labPaintPanel(P, { initial = false } = {}) {
     if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
-  /* The price against the evidence (P2). */
+  /* The price against the evidence (P2), or the auction (P3). */
   labPricePaint(P, lab, { initial });
+  labAuctionPaint(P, lab);
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);
@@ -46818,6 +47085,9 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
      and duties are not the residential defaults' to assume. */
   const notes = [];
   if (PROPERTY_ROUTES[route].coming) notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' }, PROPERTY_ROUTES[route].coming));
+  /* The auction risk mode (P3): where its terms go, and the gate. */
+  if (route === 'auction') notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' },
+    'Auction: the purchase price is the winning bid you expect. Enter the Proclamation’s terms below — nothing of them is assumed — and no auction figure is final until its checklist is ticked.'));
   const book = propertyClassRulebook(cls);
   if (book) notes.push(el('p', { class: 'pq-note', 'data-note': 'class' }, book.line));
   /* The rules that differ by class, each with its standing and source: in
@@ -47003,12 +47273,17 @@ function pcSubsaleInputs(d) {
   const ttl = TITLE_TYPES.find(t => t.id === d.titleType);
   box.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `Already in the model: the market rent is the expected rent you enter in Rental & expenses (${fmtMoney(num0(d.rent), 'MYR', 0)} a month, ${evidenceOf(shownEvidence(d, 'rent')).label.toLowerCase()}); maintenance ${fmtMoney(num0(d.maintenance), 'MYR', 0)} and sinking fund ${fmtMoney(num0(d.sinkingFund), 'MYR', 0)} a month are there too; the title is ${ttl ? ttl.label : 'not recorded'}${d.titleType !== 'strata' ? `, ${num0(d.remainingLease) > 0 ? `${fmtNum(num0(d.remainingLease), 0)} years remaining` : 'freehold or not entered'}` : ''} (under Where, above), and the renovation is under Purchase.`));
-  /* The comparables, from the reader's register, named one by one. */
+  box.append(pcComparablesFieldset(d, 'Comparables this price is set against'));
+  return box;
+}
+/* The comparables, from the reader's register, named one by one — for the
+   subsale's price gap and the auction's market value alike. */
+function pcComparablesFieldset(d, legend) {
   const choices = dealComparableChoices(d);
   const ids = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
   const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city;
   const fs = el('fieldset', { class: 'pc-sub-comps', id: 'pc-sub-comps' });
-  fs.append(el('legend', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Comparables this price is set against'));
+  fs.append(el('legend', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, legend));
   if (!choices.length) fs.append(el('p', { class: 'metaline' },
     `No ${PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold' ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one under “What you have recorded”, above, or in the comparables register.`));
   choices.forEach(o => {
@@ -47026,8 +47301,7 @@ function pcSubsaleInputs(d) {
   fs.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
       'Open the comparables register')]));
-  box.append(fs);
-  return box;
+  return fs;
 }
 /* The two figures, on the calculator: the cards, the target, what the
    existing tenancy's rent would make of the month, and the working (L3). */
@@ -47053,6 +47327,256 @@ function pcPriceEvidence(d) {
       `With the existing tenancy’s ${pqMoney(num0(d.tenancyRent))} a month in place of the expected rent, the figures you entered give a monthly position of ${pqMoney(t.cashflowMonthly)}${isNum(now.cashflowMonthly) ? ` (at the expected rent: ${pqMoney(now.cashflowMonthly)})` : ''}.`));
   }
   sec.append(gapDet, solveDet);
+  return sec;
+}
+
+/* ==========================================================================
+   P3, THE AUCTION RISK MODE (the brief's "Auction: the auction risk mode";
+   the model is auctionModel, 75-property-grade.js)
+   --------------------------------------------------------------------------
+   Inputs, each with where it came from and its kind badge (D6): the
+   Proclamation's terms — the reserve price, the deposit and what it is a
+   share of, the days to pay the balance, the arrears it passes to the
+   buyer; the market value's comparables; and the reader's estimates —
+   repairs, possession, the legal and search costs, a financing buffer and
+   the holding period. The winning bid is the purchase price the model runs
+   on (on the Lab, the Price slider).
+   Outputs on the layout system: L1 the effective acquisition cost and the
+   true discount (metric cards), L2 the waterfall and the forfeiture
+   exposure, L3 how each is worked out and where the checklist comes from.
+   THE GATE: until every check is ticked an alert card says "Not final: N
+   checks open", and every auction figure says it is not final.
+   Wording is the figures': "the figures you entered imply…", never a
+   verdict on the deal or the route; nothing is ranked.
+   ========================================================================== */
+const auMoney = (v) => (isNum(v) ? fmtMoney(v, 'MYR', 0) : 'Unavailable');
+const auPct = (v) => `${fmtNum(Math.abs(v), 1)}%`;
+const auR4 = (v) => Math.round(v * 1e4) / 1e4;
+const auList = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const auKindOfInput = (d, k) => (d?.[k] == null ? 'unavailable' : KIND_OF_EVIDENCE[d.evidence?.[k] || 'user'] || 'yours');
+const auBadge = (kind, fine = null) => kindBadge(kind, { fine: fine || (kind === 'unavailable' ? 'not entered' : null) });
+const AUCTION_LEAD = 'Nothing of the sale is assumed: its terms are the ones you enter from the Proclamation of Sale. Not a valuation.';
+const auLower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+const auNotFinal = (a) => (a.final ? '' : ' Not final.');
+
+/* THE INPUTS, in three groups. `answer(k, v)` writes one (the page's own
+   writer); `evidence(k, label)` draws where a figure came from, where the
+   page asks it (the calculator). */
+const AU_GROUPS = () => [
+  { id: 'terms', legend: 'From the Proclamation of Sale and its Conditions',
+    note: 'Entered from the Proclamation and the Conditions of Sale — nothing here is assumed. Until the deposit, what it is a share of and the days are entered, the deposit, the balance and the forfeiture exposure read Unavailable.',
+    fields: [['reservePrice', 'Reserve price (RM)', 1000], ['auctionDepositPct', 'Deposit (%)', 0.5], ['auctionDepositOf', 'The deposit is a share of', null],
+      ['auctionBalanceDays', 'Days to pay the balance', 1],
+      ['arrearsMaintenance', 'Arrears passed to you: maintenance and sinking fund (RM)', 100], ['arrearsQuitRent', 'Arrears passed to you: quit rent (RM)', 10],
+      ['arrearsAssessment', 'Arrears passed to you: assessment (RM)', 10], ['arrearsUtilities', 'Arrears passed to you: utilities (RM)', 10]],
+    after: 'Arrears: only what the Proclamation passes to you — 0 where it pays them out of the purchase money.' },
+  { id: 'market', legend: 'The market value, from comparables',
+    note: 'The median of the comparable prices you enter here and the comparables you name from your register — your own records, never a market figure. Not a valuation.',
+    fields: [['auctionComp1', 'Comparable price 1 (RM)', 1000], ['auctionComp2', 'Comparable price 2 (RM)', 1000], ['auctionComp3', 'Comparable price 3 (RM)', 1000]] },
+  { id: 'costs', legend: 'Your estimates',
+    note: null,
+    fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
+      ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
+];
+function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
+  const box = el('div', { class: 'au-inputs', id: `${prefix}-au-inputs` });
+  const m = dealModel(d);
+  for (const g of AU_GROUPS()) {
+    const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
+    fs.append(el('legend', { class: 'au-legend' }, g.legend));
+    const note = g.id === 'costs'
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
+      : g.note;
+    if (note) fs.append(el('p', { class: 'au-note' }, note));
+    const grid = el('div', { class: 'au-grid' });
+    for (const [k, label, step] of g.fields) {
+      const id = `${prefix}-au-${k}`;
+      const kind = auKindOfInput(d, k);
+      /* What the deposit is a share of: two chips, as the questions are —
+         neither chosen until the reader chooses (pqGroup's ids:
+         `${prefix}-q-au-depositOf-reserve`). */
+      const control = step == null
+        ? pqGroup(prefix, 'au-depositOf', label, Object.values(AUCTION_DEPOSIT_OF).map(o => [o.id, o.label]), d[k] ?? null, (v) => answer(k, v))
+        : el('input', { class: 'input au-in num', id, type: 'number', min: '0', step: String(step), inputmode: 'decimal',
+            value: d[k] ?? '', placeholder: 'Not entered',
+            onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); } });
+      if (step == null) control.classList.add('au-pick');
+      const f = el('div', { class: 'au-field', 'data-au': k, 'data-kind': kind }, [
+        step == null ? null : el('label', { for: id, class: 'au-label' }, label),
+        control,
+        el('p', { class: 'au-kind' }, [auBadge(kind), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null]),
+      ]);
+      grid.append(f);
+    }
+    fs.append(grid);
+    if (g.after) fs.append(el('p', { class: 'au-note' }, g.after));
+    if (extra[g.id]) fs.append(extra[g.id]);
+    box.append(fs);
+  }
+  return box;
+}
+
+/* THE CHECKLIST: six checks from the Malaysian Bar's guidance, each ticked
+   by the reader once found out. Written as an answer (auctionChecks). */
+function auctionChecklist({ d, prefix, answer }) {
+  const ticked = new Set(Array.isArray(d.auctionChecks) ? d.auctionChecks : []);
+  const fs = el('fieldset', { class: 'au-checks', id: `${prefix}-au-checks`, tabindex: '-1' });
+  fs.append(el('legend', { class: 'au-legend' }, `Before any auction figure is final — ${AUCTION_CHECK_IDS.length - AUCTION_CHECK_IDS.filter(id => ticked.has(id)).length} of ${AUCTION_CHECK_IDS.length} open`));
+  fs.append(el('p', { class: 'au-note' }, 'Drawn from the guidance the Malaysian Bar publishes on buying at an auction — guidance, not this tool’s rules, and not legal advice. Tick each once you have found it out; where the guidance comes from is under the evidence.'));
+  const list = el('ul', { class: 'au-check-list' });
+  for (const id of AUCTION_CHECK_IDS) {
+    const c = AUCTION_CHECKS[id], cid = `${prefix}-au-ck-${id}`;
+    list.append(el('li', { class: 'au-check', 'data-check': id }, el('label', { class: 'au-check-row', for: cid }, [
+      el('input', { type: 'checkbox', id: cid, checked: ticked.has(id) ? '' : null, onchange: (e) => {
+        const next = AUCTION_CHECK_IDS.filter(x => (x === id ? e.target.checked : ticked.has(x)));
+        answer('auctionChecks', next.length ? next : null);
+      } }),
+      el('span', { class: 'au-check-body' }, [el('strong', {}, c.label), el('span', { class: 'au-check-what' }, c.what)]),
+    ])));
+  }
+  fs.append(list);
+  return fs;
+}
+
+/* THE WATERFALL (L2): from the market value down to the reserve and the
+   bid, then up by what the auction adds, to the effective cost. A row a
+   step: its name, its kind, its amount, and a bar on one scale — totals
+   from nought, additions floating from the running total — with the market
+   value marked on every bar, so how far each stands from it is a length.
+   Positions are percentages of the widest figure, rounded to 1/10000 of a
+   per cent so every browser draws them alike (0c4ba54b). Each row's words
+   are its figures, so no value waits behind a pointer. */
+function auctionWaterfall(a, prefix) {
+  const fig = el('figure', { class: 'au-wf', id: `${prefix}-au-wf`, 'aria-labelledby': `${prefix}-au-wf-h` });
+  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-au-wf-h` }, 'From the market value to the effective acquisition cost'));
+  const top = Math.max(...a.steps.map(s => s.amount).filter(isNum), 1);
+  const X = (v) => auR4(Math.max(0, Math.min(100, v / top * 100)));
+  const list = el('ol', { class: 'au-wf-rows' });
+  let run = a.bid;
+  for (const s of a.steps) {
+    const add = !s.total;
+    const has = isNum(s.amount);
+    const from = add ? (isNum(run) ? run : 0) : 0;
+    const to = has ? (add ? from + s.amount : s.amount) : null;
+    if (add && has && isNum(run)) run = to;
+    const word = !has ? 'Not entered' : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
+    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : 'The monthly cost is not computable') : null) : null;
+    const svg = sv('svg', { class: 'au-wf-bar', width: '100%', height: '14', 'aria-hidden': 'true', focusable: 'false' });
+    svg.append(sv('rect', { class: 'au-wf-track', x: '0', y: '2', width: '100%', height: '10', rx: '3' }));
+    if (has && isNum(from)) {
+      const x0 = X(from), x1 = X(to);
+      const r = sv('rect', { class: `au-wf-mark ${add ? 'is-add' : s.id === 'effective' ? 'is-end' : 'is-total'}`, x: `${x0}%`, y: '2', width: `${auR4(Math.max(0.4, x1 - x0))}%`, height: '10', rx: '3' });
+      r.append(sv('title', {}, `${s.label}: ${word}`));
+      svg.append(r);
+    }
+    if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
+    const label = add ? `+ ${s.label}` : s.label;
+    const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
+      : s.id === 'holding' && has ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'} × ${auMoney(s.monthly)}`
+      : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced`
+      : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of 4 not entered`
+      : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
+    list.append(el('li', { class: `au-wf-row${add ? ' is-add' : ' is-total'}${has ? '' : ' is-na'}${s.id === 'effective' ? ' is-end' : ''}`, 'data-step': s.id, 'data-value': has ? String(s.amount) : '' }, [
+      el('p', { class: 'au-wf-hd' }, [el('span', { class: 'au-wf-label' }, label), ' ', auBadge(s.kind), el('span', { class: 'au-wf-amt num' }, word)]),
+      svg,
+      sub ? el('p', { class: 'au-wf-sub' }, sub) : null,
+    ]));
+  }
+  fig.append(list);
+  if (isNum(a.market)) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }), `The upright line on each bar is the market value your comparables imply, ${auMoney(a.market)}.`]));
+  return fig;
+}
+
+/* THE FIGURES: L1, L2 and the gate. `why` holds what "See why →" opens. */
+function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
+  const box = el('div', { class: 'au-results', id: `${prefix}-au-results`, 'data-final': a.final ? 'true' : 'false' });
+  /* The gate first: no auction figure is final while a check is open. */
+  if (!a.final) box.append(lsAlertCard({ text: `Not final: ${a.checksOpen.length} check${a.checksOpen.length === 1 ? '' : 's'} open`,
+    sub: `Open: ${auList(a.checksOpen.map(id => auLower(AUCTION_CHECKS[id].label)))} — from the Malaysian Bar’s guidance on buying at an auction.`,
+    cta: lsCta('Review', { id: `${prefix}-au-review`, onclick: toChecklist, sr: ' the checks still open' }), cls: 'au-alert', attrs: { id: `${prefix}-au-alert` } }));
+  const cards = el('div', { class: 'au-cards' });
+  const notIn = a.notEntered.length ? ` Not entered, so not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}.` : '';
+  cards.append(lsMetricCard({ label: 'Effective acquisition cost', value: auMoney(a.effective), badge: auBadge(a.effectiveKind), level: 1, cls: 'au-card au-effective',
+    attrs: { 'data-au-fig': 'effective', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': isNum(a.effective) ? String(a.effective) : '' },
+    sub: isNum(a.effective) ? `The winning bid of ${auMoney(a.bid)} and ${auMoney(a.effective - a.bid)} the auction adds.${notIn}${auNotFinal(a)}` : 'Needs a purchase price — the winning bid you expect.' }));
+  const td = a.trueDiscount;
+  const tdKind = td ? kindFirst([a.marketKind, a.effectiveKind]) || 'derived' : 'unavailable';
+  cards.append(lsMetricCard({ label: 'True discount', badge: auBadge(tdKind, td ? null : 'no comparable entered'), level: 1, cls: 'au-card au-discount',
+    value: td ? `${td.amount < 0 ? '−' : ''}${auPct(td.pct)}` : 'Unavailable',
+    attrs: { 'data-au-fig': 'discount', 'data-final': a.final ? 'true' : 'false' }, valueAttrs: { 'data-value': td ? String(td.pct) : '' },
+    sub: td ? `${td.amount >= 0
+        ? `The figures you entered imply an effective cost ${auMoney(td.amount)} under the ${auMoney(a.market)} market value your comparables imply`
+        : `The figures you entered imply an effective cost ${auMoney(-td.amount)} over the ${auMoney(a.market)} market value your comparables imply — no discount once the costs are in`}${a.bidDiscount ? `; the bid alone stands ${auPct(a.bidDiscount.pct)} ${a.bidDiscount.amount >= 0 ? 'under' : 'over'} it` : ''}.${auNotFinal(a)}`
+      : 'Enter comparable prices, or name comparables from your register: the market value is theirs, never a market figure.' }));
+  const f = a.forfeiture;
+  cards.append(lsMetricCard({ label: 'Forfeiture exposure', badge: auBadge(f.status === 'ok' ? 'yours' : 'unavailable', f.status === 'ok' ? 'the Proclamation’s terms you entered' : 'terms not entered'), level: 2, cls: 'au-card au-forfeit',
+    value: f.status === 'ok' ? auMoney(f.atRisk) : 'Unavailable',
+    attrs: { 'data-au-fig': 'forfeiture', 'data-status': f.status }, valueAttrs: { 'data-value': f.status === 'ok' ? String(f.atRisk) : '' },
+    sub: f.status === 'ok'
+      ? `The deposit — ${fmtNum(f.depositPct, f.depositPct % 1 ? 2 : 0)}% ${f.depositOf === 'reserve' ? 'of the reserve price' : 'of the winning bid'} — at risk if the balance of ${auMoney(f.balance)} is not paid within ${f.days} day${f.days === 1 ? '' : 's'}${isNum(f.cashForBalance) ? `; ${auMoney(f.cashForBalance)} of it is cash beyond the loan${isNum(f.buffer) ? `, against your buffer of ${auMoney(f.buffer)}` : ''}` : ''}.${auNotFinal(a)}`
+      : `Enter ${auList(f.missing)} from the Proclamation — never assumed.` }));
+  box.append(cards);
+  box.append(auctionWaterfall(a, prefix));
+  const links = [why.wf ? lsCta('How the waterfall is worked out', { id: `${prefix}-au-wf-why`, onclick: why.wf }) : null,
+    why.fx ? lsCta('How the forfeiture exposure is worked out', { id: `${prefix}-au-fx-why`, onclick: why.fx }) : null].filter(Boolean);
+  if (links.length) box.append(el('p', { class: 'au-why' }, links));
+  return box;
+}
+
+/* L3: the working, in words. */
+function auctionWaterfallFormula(a) {
+  const named = a.marketFrom.named.map(c => `${c.name} ${auMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''}`);
+  const typed = a.marketFrom.typed.map((c, i) => `your comparable price ${i + 1}, ${auMoney(c.price)}`);
+  const mv = isNum(a.market) ? `Market value: the median of ${auList([...named, ...typed])} = ${auMoney(a.market)}.` : 'Market value: none — no comparable is entered or named, so the true discount is Unavailable.';
+  const t = a.adds.find(x => x.id === 'transaction');
+  const tl = t.lines.map(l => `${l.label.charAt(0).toLowerCase()}${l.label.slice(1)} ${isNum(l.amount) ? auMoney(l.amount) : 'not priced'}`);
+  const hold = a.adds.find(x => x.id === 'holding');
+  const sum = a.adds.filter(x => isNum(x.amount)).map(x => `${x.label.toLowerCase()} ${auMoney(x.amount)}`);
+  return `${mv} Reserve price: ${isNum(a.reserve) ? auMoney(a.reserve) : 'not entered'}. Winning bid: the purchase price, ${auMoney(a.bid)}. `
+    + `Transaction costs: the ledger’s own fee lines — ${auList(tl)}. `
+    + `Holding: ${hold.months == null ? 'no holding period entered' : `${fmtNum(hold.months, 1)} months × ${auMoney(hold.monthly)} a month with no rent (the instalment and the running costs)`}. `
+    + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
+    + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
+    + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;
+}
+function auctionForfeitureFormula(a) {
+  const f = a.forfeiture;
+  if (f.status !== 'ok') return `Unavailable until you enter ${auList(f.missing)} from the Proclamation of Sale and its Conditions. Nothing is assumed: the Malaysian Bar’s guidance says the balance is usually due within 90 or 120 days, and that some Proclamations allow an extension and some do not — the terms of your sale are the ones that count.`;
+  const base = f.depositOf === 'reserve' ? `the reserve price, ${auMoney(a.reserve)}` : `the winning bid, ${auMoney(a.bid)}`;
+  return `Deposit = ${fmtNum(f.depositPct, 2)}% of ${base} = ${auMoney(f.deposit)}. Balance = the bid ${auMoney(a.bid)} − the deposit = ${auMoney(f.balance)}, due within ${f.days} days. `
+    + `${isNum(f.loan) ? `The loan in this model is ${auMoney(f.loan)}, so ${auMoney(f.cashForBalance)} of the balance is cash${isNum(f.buffer) ? `; your financing buffer of ${auMoney(f.buffer)} ${f.bufferShort > 0 ? `leaves ${auMoney(f.bufferShort)} uncovered` : 'covers it'}` : ''}. ` : ''}`
+    + 'The exposure is the deposit: the Malaysian Bar’s guidance records buyers who bid without arranging their loan first “ended up losing their deposits”. Whether yours is forfeited, and any extension, is for the Conditions of Sale — read them with your lawyer.';
+}
+function auctionGuidanceList() {
+  return el('div', {}, [
+    el('p', { class: 'lab-formula' }, 'The checklist is drawn from the guidance the Malaysian Bar publishes on buying property at an auction, as written in these articles. It is guidance, cited as such: this tool makes no rule of it, and none of it is legal advice.'),
+    el('ul', { class: 'au-src' }, Object.values(AUCTION_GUIDANCE).map(s => el('li', {}, el('a', { href: s.url, target: '_blank', rel: 'noopener' }, s.title)))),
+  ]);
+}
+
+/* --------------------------------------------------- on the calculator */
+function pcAuctionInputs(d) {
+  const box = el('div', { class: 'pc-auction', id: 'auction' });
+  box.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, 'The auction'));
+  box.append(auctionInputs({ d, prefix: 'pc',
+    answer: (k, v) => { if (pcSubAnswer(d, k, v)) renderKeepFocus(); },
+    evidence: (k, label) => pcEvidencePick(d, k, label),
+    extra: { market: pcComparablesFieldset(d, 'Comparables named from your register') } }));
+  return box;
+}
+function pcAuction(d) {
+  const a = auctionModel(d);
+  const sec = el('section', { class: 'card ls-section au', id: 'pc-au', 'aria-labelledby': 'pc-au-h' });
+  sec.append(el('h3', { class: 'h-card', id: 'pc-au-h' }, 'The auction, worked through'));
+  sec.append(el('p', { class: 'metaline au-route' }, AUCTION_LEAD));
+  const det = (id, summary, body) => el('details', { class: 'pc-more ls-l3', id }, [el('summary', { class: 'pc-more-sum' }, summary), typeof body === 'string' ? el('p', { class: 'pc-more-body lab-formula' }, body) : body]);
+  const wfDet = det('pc-au-wf-ev', 'How the waterfall is worked out', auctionWaterfallFormula(a));
+  const fxDet = det('pc-au-fx-ev', 'How the forfeiture exposure is worked out', auctionForfeitureFormula(a));
+  const srcDet = det('pc-au-src-ev', 'Where the checklist comes from', auctionGuidanceList());
+  sec.append(auctionResults({ a, prefix: 'pc', why: { wf: () => lsOpenEvidence(wfDet), fx: () => lsOpenEvidence(fxDet) },
+    toChecklist: () => lsGoTo(document.getElementById('pc-au-checks'), document.querySelector('#pc-au-checks input:not(:checked)')) }));
+  sec.append(auctionChecklist({ d, prefix: 'pc', answer: (k, v) => { if (setDealAnswer(d, k, v)) { saveDeal(); renderKeepFocus(); } } }));
+  sec.append(wfDet, fxDet, srcDet);
   return sec;
 }
 /* ==========================================================================

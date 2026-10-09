@@ -628,8 +628,26 @@ function dealModel(d) {
      real-looking row for a cost that exists and has not been calculated,
      absent from the missing-lines list because it had a number. A tax on
      an unknown fee is unknown, and no better than the fee it is on. */
-  const purchaseLegalR = resolveFee('purchaseLegal', { price: d.price });
+  /* THE AUCTION ROUTE (the decision layer, P3): the reader's lawyer's quote
+     for the legal and search costs, once entered, takes the place of the
+     rulebook's purchase legal fees — an auction has no SPA — and is marked
+     as theirs, as an MRTA quote is. Not entered, the rulebook's line stands. */
+  const auctionRoute = dealRoute(d) === 'auction';
+  const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
+  const purchaseLegalR = legalQuote != null
+    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+        note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
+    : resolveFee('purchaseLegal', { price: d.price });
   const loanLegalR = resolveFee('loanLegal', { loan });
+  /* What the auction passes to the buyer, as the reader entered it: each a
+     line only once entered, so a deal answered Auction with nothing entered
+     is the deal it was. */
+  const auctionArrears = auctionRoute ? AUCTION_ARREARS.map(([k]) => d[k]).filter(isNum) : [];
+  const auctionLines = !auctionRoute ? [] : [
+    ...(auctionArrears.length && auctionArrears.some(v => v > 0) ? [['Arrears the Proclamation passes to you', auctionArrears.reduce((t, v) => t + v, 0)]] : []),
+    ...(num0(d.auctionRepairs) > 0 ? [['Repairs', num0(d.auctionRepairs)]] : []),
+    ...(num0(d.possessionCost) > 0 ? [['Possession cost', num0(d.possessionCost)]] : []),
+  ];
   const valuationR = resolveFee('valuationFee', { price: d.price });
   const legalBase = isNum(purchaseLegalR.amount) && isNum(loanLegalR.amount) ? purchaseLegalR.amount + loanLegalR.amount : null;
   const asLine = (r) => [r.label, r.amount, r];
@@ -643,7 +661,10 @@ function dealModel(d) {
            management's statement says (the subsale evidence model, P2): their
            own figure, and only when entered — a deal without it is the deal it
            was, line for line. */
-        ...(num0(d.chargesToBuyer) > 0 ? [['Outstanding charges passed to you', num0(d.chargesToBuyer)]] : []),
+        ...(!auctionRoute && num0(d.chargesToBuyer) > 0 ? [['Outstanding charges passed to you', num0(d.chargesToBuyer)]] : []),
+        /* On the auction route, the arrears its Proclamation passes to the
+           buyer take that line's place (P3). */
+        ...auctionLines,
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
         feeLine('disbursements', {}),
@@ -1425,6 +1446,117 @@ function solveDealPrice(d, target = dealTarget(d)) {
   return { status: 'solved', target: t, value: target.value, price: lo, achieved: reads(m), above: reads(over), aboveMeets: meets(over),
     vsPrice: num0(d.price) > 0 ? lo - num0(d.price) : null,
     vsAsking: isNum(d.askingPrice) && d.askingPrice > 0 ? lo - d.askingPrice : null, runs };
+}
+
+/* THE AUCTION RISK MODE (the property decision layer, P3).
+   ---------------------------------------------------------------------------
+   From the market value the reader's comparables imply, down to the reserve
+   price and the winning bid they expect, then up again by what an auction
+   adds — repairs, the arrears the Proclamation passes to the buyer,
+   possession, the transaction costs and the months of holding — to the
+   EFFECTIVE ACQUISITION COST; the TRUE DISCOUNT is the market value less
+   that, against the market value. And the FORFEITURE EXPOSURE: the deposit
+   at risk if the balance is not paid within the days the Proclamation
+   gives.
+
+   NOTHING ASSUMED. Every figure is the reader's: the winning bid is the
+   purchase price the model runs on (every figure of dealModel is worked
+   from it); the market value is the median of the comparables they named
+   from their register (priceGap) and the comparable prices they typed;
+   the costs are what they entered. A cost not entered is not counted and
+   is named as not entered — the effective cost says so, never "nought".
+   The deposit, what it is a share of and the days to pay the balance are
+   entered from the Proclamation and Conditions of Sale; until all three
+   are, the deposit, the balance and the forfeiture exposure are
+   Unavailable — no default figure, ever.
+
+   THE TRANSACTION COSTS are the ledger's own fee lines (dealModel's
+   costGroups): the statutory, professional and disbursement lines of the
+   acquisition and the financing — the reader's legal quote in place of the
+   purchase legal fees where entered — and not the deposit, the insurance or
+   the utility deposits. THE HOLDING COST is the months of holding entered
+   times what the property costs its owner a month with no rent coming in
+   (burnWithoutRent: the instalment and the running costs).
+
+   NOT FINAL until every check of the checklist (AUCTION_CHECKS, from the
+   Malaysian Bar's guidance) is ticked: `final` is false and `checksOpen`
+   names the ones open. */
+const AUCTION_FEE_CATEGORIES = ['statutory', 'professional', 'disbursement'];
+function auctionModel(d, m = dealModel(d)) {
+  const has = (k) => isNum(d?.[k]);
+  const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
+  /* The market value, from comparables only. */
+  const g = priceGap(d);
+  const typed = AUCTION_COMP_KEYS.filter(k => has(k) && d[k] > 0).map(k => ({ key: k, price: d[k], kind: kindOf(k) }));
+  const values = [...g.comps.map(c => c.implied), ...typed.map(c => c.price)];
+  const market = values.length ? median(values) : null;
+  const marketKind = values.length ? kindFirst([...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours'), ...typed.map(c => c.kind)]) || 'yours' : 'unavailable';
+  const reserve = has('reservePrice') && d.reservePrice > 0 ? d.reservePrice : null;
+  const bid = num0(d?.price) > 0 ? num0(d.price) : null;
+  const bidKind = inputIsSeeded(d, 'price') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'price')] || 'yours';
+  /* What an auction adds. */
+  const arrearsParts = AUCTION_ARREARS.map(([k, label]) => ({ key: k, label, amount: has(k) ? d[k] : null, kind: has(k) ? kindOf(k) : 'unavailable' }));
+  const arrearsIn = arrearsParts.filter(p => p.amount != null);
+  const fees = (m.costGroups || []).filter(gr => gr.id === 'acquisition' || gr.id === 'financing').flatMap(gr => gr.items)
+    .filter(it => it[2]?.line && (it[2].provenance === 'quote' && it[2].id === 'auctionLegal' || AUCTION_FEE_CATEGORIES.includes(it[2].line.category)));
+  const feesPriced = fees.filter(it => isNum(it[1]));
+  /* The badge of the lines priced; a line the rulebook cannot price is
+     named as unpriced beside the sum, not counted in it. */
+  const feeKinds = feesPriced.map(it => KIND_OF_FEE[it[2].provenance] || 'placeholder');
+  const holdMonths = has('auctionHoldMonths') ? d.auctionHoldMonths : null;
+  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  const step = (id, label, amount, kind, extra = {}) => ({ id, label, amount, kind: amount == null ? 'unavailable' : kind, ...extra });
+  const adds = [
+    step('repairs', 'Repairs', has('auctionRepairs') ? d.auctionRepairs : null, kindOf('auctionRepairs'), { key: 'auctionRepairs' }),
+    step('arrears', 'Arrears passed to you', arrearsIn.length ? arrearsIn.reduce((t, p) => t + p.amount, 0) : null,
+      kindFirst(arrearsIn.map(p => p.kind)) || 'yours', { parts: arrearsParts, partsMissing: arrearsParts.filter(p => p.amount == null).map(p => p.label) }),
+    step('possession', 'Possession', has('possessionCost') ? d.possessionCost : null, kindOf('possessionCost'), { key: 'possessionCost', months: has('possessionMonths') ? d.possessionMonths : null }),
+    step('transaction', 'Transaction costs', feesPriced.length ? feesPriced.reduce((t, it) => t + it[1], 0) : null, kindFirst(feeKinds) || 'derived',
+      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance })), unpriced: fees.length - feesPriced.length }),
+    step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
+  ];
+  const counted = adds.filter(a => a.amount != null);
+  const effective = bid != null ? bid + counted.reduce((t, a) => t + a.amount, 0) : null;
+  const effectiveKind = effective == null ? 'unavailable' : kindFirst([bidKind, ...counted.map(a => a.kind)]) || 'derived';
+  const vs = (x) => (isNum(x) && isNum(market) && market > 0 ? { amount: market - x, pct: (market - x) / market * 100 } : null);
+  /* The terms of the sale: never assumed. */
+  const depositPct = has('auctionDepositPct') ? d.auctionDepositPct : null;
+  const depositOf = Object.hasOwn(AUCTION_DEPOSIT_OF, d?.auctionDepositOf) ? d.auctionDepositOf : null;
+  const days = has('auctionBalanceDays') ? d.auctionBalanceDays : null;
+  const depositBase = depositOf === 'reserve' ? reserve : depositOf === 'bid' ? bid : null;
+  const deposit = depositPct != null && depositBase != null ? Math.round(depositBase * depositPct) / 100 : null;
+  const termsMissing = [
+    depositPct == null ? 'the deposit (%)' : null,
+    depositOf == null ? 'what the deposit is a share of' : null,
+    depositOf === 'reserve' && reserve == null ? 'the reserve price' : null,
+    days == null ? 'the days to pay the balance' : null,
+  ].filter(Boolean);
+  const balance = deposit != null && bid != null ? bid - deposit : null;
+  const loan = isNum(m.loan) ? m.loan : null;
+  /* Of the balance, what the loan does not cover: cash, by the day the
+     balance is due. And the buffer the reader holds against it. */
+  const cashForBalance = balance != null && loan != null ? Math.max(0, balance - loan) : null;
+  const buffer = has('auctionBuffer') ? d.auctionBuffer : null;
+  const forfeiture = termsMissing.length
+    ? { status: 'unavailable', missing: termsMissing, atRisk: null, days, depositPct, depositOf, deposit, balance }
+    : { status: 'ok', missing: [], atRisk: deposit, days, depositPct, depositOf, deposit, balance, cashForBalance, loan, buffer,
+        bufferShort: buffer != null && cashForBalance != null ? Math.max(0, cashForBalance - buffer) : null };
+  const ticked = Array.isArray(d?.auctionChecks) ? d.auctionChecks.filter(id => AUCTION_CHECK_IDS.includes(id)) : [];
+  const checksOpen = AUCTION_CHECK_IDS.filter(id => !ticked.includes(id));
+  return {
+    market, marketKind, marketFrom: { named: g.comps, typed, notUsed: g.notUsed }, reserve, bid, bidKind,
+    steps: [
+      step('market', 'Market value', market, marketKind, { total: true }),
+      step('reserve', 'Reserve price', reserve, kindOf('reservePrice'), { total: true, key: 'reservePrice' }),
+      step('bid', 'Winning bid', bid, bidKind, { total: true }),
+      ...adds,
+      step('effective', 'Effective acquisition cost', effective, effectiveKind, { total: true }),
+    ],
+    adds, notEntered: adds.filter(a => a.amount == null).map(a => a.label),
+    effective, effectiveKind,
+    trueDiscount: vs(effective), bidDiscount: vs(bid), reserveDiscount: vs(reserve),
+    forfeiture, checksTicked: ticked, checksOpen, final: checksOpen.length === 0,
+  };
 }
 
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
@@ -2902,7 +3034,7 @@ VIEWS.property = () => {
      what is known of the unit — its tenancy, condition, age and what the
      sale passes to the buyer — each with where it came from; and the
      comparables from the register this price is set against. */
-  acq.inputs.append(pcSubsaleInputs(d));
+  acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : pcSubsaleInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -3906,7 +4038,7 @@ VIEWS.property = () => {
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
-  acq.outputs.append(buyCard, pcPriceEvidence(d));
+  acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);

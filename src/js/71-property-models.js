@@ -811,6 +811,12 @@ const PM_FIELD_WORDS = {
   comparableIds: 'Comparables named', tenancy: 'Existing tenancy', tenancyRent: 'Rent under the existing tenancy (RM a month)',
   condition: 'Condition', buildingAge: 'Age of the building (years)', chargesToBuyer: 'Outstanding charges passed to you (RM)',
   targetKind: 'Target', targetValue: 'Target figure',
+  /* The auction risk mode's answers (P3). */
+  reservePrice: 'Reserve price (RM)', auctionComp1: 'Comparable price 1 (RM)', auctionComp2: 'Comparable price 2 (RM)', auctionComp3: 'Comparable price 3 (RM)',
+  arrearsMaintenance: 'Arrears: maintenance (RM)', arrearsQuitRent: 'Arrears: quit rent (RM)', arrearsAssessment: 'Arrears: assessment (RM)', arrearsUtilities: 'Arrears: utilities (RM)',
+  auctionRepairs: 'Repairs (RM)', possessionCost: 'Possession cost (RM)', possessionMonths: 'Possession time (months)', auctionLegal: 'Legal and search costs (RM)',
+  auctionDepositPct: 'Deposit (%)', auctionDepositOf: 'Deposit of', auctionBalanceDays: 'Days to pay the balance', auctionBuffer: 'Financing buffer (RM)',
+  auctionHoldMonths: 'Holding period (months)', auctionChecks: 'Auction checks ticked',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure

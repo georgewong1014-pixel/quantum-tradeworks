@@ -579,7 +579,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -599,8 +599,9 @@ function labDraw(P, focusId = null) {
      C side by side and keeping one. */
   const chain = labChain(P, lab, col);
   const alert = P.compact ? null : labAlert(P, lab);
-  /* The price against the reader's evidence (the decision layer, P2). */
-  const price = P.compact ? null : labPriceSection(P, lab);
+  /* The price against the reader's evidence (the decision layer, P2) —
+     or, answered Auction, the auction risk mode in its place (P3). */
+  const price = P.compact ? null : dealRoute(labAnswerInputs(lab)) === 'auction' ? labAuctionSection(P, lab) : labPriceSection(P, lab);
   const evidence = labEvidence(P, lab);
   outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
@@ -996,6 +997,45 @@ function labPricePaint(P, lab, { initial = false } = {}) {
     } }, `Try ${labMoney(s.price)} in ${col.key}`)] : []));
   if (pe.gapText) labText(pe.gapText, priceGapFormula(g));
   if (pe.solveText) labText(pe.solveText, priceSolveFormula(s, d));
+}
+
+/* THE AUCTION RISK MODE (the decision layer, P3; 83-property-decision.js),
+   in the price section's place once Auction is answered. A what-if until
+   Save, as every answer here is: what is entered — the Proclamation's
+   terms, the comparables, the estimates, the checks ticked — is a move of
+   every column (labAnswer), A, B and C staying one property, and is
+   written only by Save. The winning bid is the Price slider: the column it
+   moves is the one worked through. The inputs and the checklist are drawn
+   with the page; the figures follow each paint (labAuctionPaint). */
+function labAuctionSection(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-au au', id: labId(P, 'au'), 'aria-labelledby': labId(P, 'au-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'au-h') }, 'The auction, worked through'));
+  card.append(el('p', { class: 'metaline au-route' }, `${AUCTION_LEAD} A what-if of every column until you save it.`));
+  const figs = el('div', { class: 'au-figs', id: labId(P, 'au-figs') });
+  card.append(figs);
+  if (d) {
+    const answer = (k, v) => labAnswer(P, lab, k, v);
+    const named = priceGap(d).comps.length;
+    card.append(auctionInputs({ d, prefix: P.idPrefix, answer,
+      extra: { market: el('p', { class: 'au-note' }, named ? `${named} comparable${named === 1 ? '' : 's'} named from your register in the calculator count as well.` : 'Comparables from your register are named in the calculator.') } }));
+    card.append(auctionChecklist({ d, prefix: P.idPrefix, answer }));
+  }
+  P.els.au = { card, figs, sig: null };
+  return card;
+}
+function labAuctionPaint(P, lab) {
+  const au = P.els?.au;
+  if (!au) return;
+  const col = labActive(lab), d = col.work;
+  const a = auctionModel(d, col.cur?.m || dealModel(d));
+  const sig = JSON.stringify([col.key, a.steps.map(s => [s.id, s.amount, s.kind]), a.forfeiture, a.checksOpen, a.trueDiscount]);
+  if (au.sig === sig) return;
+  au.sig = sig;
+  au.figs.replaceChildren(auctionResults({ a, prefix: P.idPrefix, why: { wf: () => lsOpenEvidence(au.wfEv), fx: () => lsOpenEvidence(au.fxEv) },
+    toChecklist: () => lsGoTo(document.getElementById(labId(P, 'au-checks')), document.querySelector(`#${labId(P, 'au-checks')} input:not(:checked)`)) }));
+  if (au.wfText) labText(au.wfText, auctionWaterfallFormula(a));
+  if (au.fxText) labText(au.fxText, auctionForfeitureFormula(a));
 }
 
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
@@ -1434,6 +1474,17 @@ function labEvidence(P, lab) {
     P.els.pe.solveEv = lsEvidenceSection({ id: labId(P, 'ev-solve'), summary: 'How the price is solved', body: [solveText] });
     P.els.pe.gapText = gapText; P.els.pe.solveText = solveText;
     pe.push(P.els.pe.gapEv, P.els.pe.solveEv);
+  }
+  /* The auction's working and the checklist's source (P3), in the same
+     place, for the same reason. */
+  if (P.els.au) {
+    const wfText = el('p', { class: 'lab-formula', id: labId(P, 'ev-au-wf-text') }, '');
+    const fxText = el('p', { class: 'lab-formula', id: labId(P, 'ev-au-fx-text') }, '');
+    P.els.au.wfEv = lsEvidenceSection({ id: labId(P, 'ev-au-wf'), summary: 'How the waterfall is worked out', body: [wfText] });
+    P.els.au.fxEv = lsEvidenceSection({ id: labId(P, 'ev-au-fx'), summary: 'How the forfeiture exposure is worked out', body: [fxText] });
+    P.els.au.srcEv = lsEvidenceSection({ id: labId(P, 'ev-au-src'), summary: 'Where the checklist comes from', body: [auctionGuidanceList()] });
+    P.els.au.wfText = wfText; P.els.au.fxText = fxText;
+    pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
 }
@@ -2255,8 +2306,9 @@ function labPaintPanel(P, { initial = false } = {}) {
     if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
-  /* The price against the evidence (P2). */
+  /* The price against the evidence (P2), or the auction (P3). */
   labPricePaint(P, lab, { initial });
+  labAuctionPaint(P, lab);
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);
