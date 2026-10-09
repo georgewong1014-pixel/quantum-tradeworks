@@ -2130,6 +2130,11 @@ const JOURNEYS = [
         if (!said[0].includes('The scanner’s record cannot be seen from here') || !/no record here/.test(said[1])) throw new StepError(`with no scanner record here the page says “${said[0].replace(/\s+/g, ' ').slice(0, 160)}”`);
       }, { gated: 'no scanner record ships' });
       await step(j, tab, 'Add a holding: listed, its price return worked from its cost, its case marked written', BUDGET.load + BUDGET.action * 3, async () => {
+        /* A ringgit portfolio, said rather than assumed: the reporting
+           currency defaults from the browser's time zone (05-plans.js), and
+           the production run's runner is on UTC, where it is the US dollar —
+           a ringgit holding there rightly shows its currency effect. */
+        await tab.eval(`(store.write('baseCcy', 'MYR'), State.baseCcy = 'MYR', true)`);
         await tab.goto('/my/portfolio');
         await tab.expect(`State.view === 'portfolio' && /This portfolio is empty/.test(document.querySelector('main')?.innerText || '')`, 'the reader’s own portfolio does not start empty');
         await tab.click(byText('main button', '/Add holding$/'), 'Add holding');
