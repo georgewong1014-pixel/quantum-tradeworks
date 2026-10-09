@@ -987,8 +987,8 @@ const JOURNEYS = [
           && /^Financials$/.test(document.querySelector('main [role=tab][aria-selected="true"]')?.textContent.trim() || '')`,
           async () => `the Apple example opened ${await tab.eval('location.pathname + location.search')} (${await tab.eval('State.view')}), not Apple’s filed Financials`);
         await tab.expect(`(() => { const s = [...document.querySelectorAll('main svg.chart')].find(x => x.getAttribute('aria-label') === 'Reported financials');
-          const card = s?.closest('.card'); return !!s && s.querySelectorAll('path').length >= 10 && /\\bRevenue\\b/.test(card?.querySelector('.legend')?.textContent || ''); })()`,
-          'Apple’s Financials tab draws no revenue chart', 6000);
+          const card = s?.closest('.card'); return !!s && s.querySelectorAll('path').length >= 10 && [...(card?.querySelectorAll('.legend .legend-item') || [])].some(n => n.textContent.trim() === 'Revenue'); })()`,
+          async () => `Apple’s Financials tab draws no revenue chart (its charts: ${await tab.eval(`JSON.stringify([...document.querySelectorAll('main svg')].filter(s => s.getAttribute('aria-label')).map(s => [s.getAttribute('class'), s.getAttribute('aria-label').slice(0, 40), s.querySelectorAll('path').length]).slice(0, 6))`)})`, 6000);
         await tab.goto('/research');
       });
       await step(j, tab, 'Search for “apple”', BUDGET.action, async () => {
