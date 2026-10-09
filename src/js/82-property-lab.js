@@ -143,7 +143,7 @@ const LAB_FIGURES = [
       + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
-        : 'Every fee line in it is verified against its official source or is your own quote')
+        : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
       + ` (fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}).` },
   { key: 'cashflowMonthly', label: () => 'Monthly position', fmt: 'money0', help: 'propCashflow', neg: true,
     read: (m) => m.cashflowMonthly,
@@ -1462,6 +1462,26 @@ function labEvidence(P, lab) {
   P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
   P.els.how = { node: how, head: fhead, formula };
+  /* THE CASH REQUIRED BY KIND (the fee rulebook 1.1.0; the owner's decision
+     of 9 Oct 2026): statutory charges, scale fees, quotations, optional
+     products, estimates and the buyer's own money, with what rests on
+     estimates — and mortgage protection, optional and out until included,
+     included here as an answer of the property (a move of every column,
+     written only by Save), as the questions are. */
+  const ad = labAnswerInputs(lab);
+  const feeText = el('p', { class: 'lab-formula lab-fee-split', id: labId(P, 'ev-fees-text') }, '');
+  const quoted = ad && isNum(ad.mrtaPremium) && ad.mrtaPremium > 0;
+  const included = !!ad && !quoted && ad.mortgageProtection === 'included';
+  const mrtaBtn = ad && !quoted ? el('button', { type: 'button', class: 'btn btn-ghost btn-sm lab-mrta-btn', id: labId(P, 'mrta'), 'aria-pressed': included ? 'true' : 'false',
+    onclick: () => labAnswer(P, lab, 'mortgageProtection', included ? null : 'included') },
+    included ? 'Leave mortgage protection out' : `Include mortgage protection — ${labMoney(FEE_TABLE.lines.mortgageProtection.fixed)} estimate`) : null;
+  const mrtaSay = el('p', { class: 'metaline lab-mrta-say' }, quoted
+    ? `Mortgage protection: the ${labMoney(ad.mrtaPremium)} premium you were quoted is in the cash required, marked Quoted.`
+    : included ? `Mortgage protection is optional; included, it is carried at the rulebook’s ${labMoney(FEE_TABLE.lines.mortgageProtection.fixed)} estimate until you enter a quote in the calculator — a what-if until you save.`
+      : 'Optional: mortgage protection — not included in the cash required. Include it here, or enter the premium you were quoted in the calculator.');
+  const fees = lsEvidenceSection({ id: labId(P, 'ev-fees'), summary: 'What the cash required is made of', body: [feeText, mrtaSay, mrtaBtn].filter(Boolean) });
+  fees.addEventListener('toggle', () => { if (fees.open) labPaintPanel(P); });
+  P.els.fees = { node: fees, text: feeText };
   /* How the price gap and the solved price are worked out (P2) — above
      "How a figure is worked out", which a row pressed from 1440px writes
      into and so grows: below it, these moved with every row pressed
@@ -1486,7 +1506,7 @@ function labEvidence(P, lab) {
     P.els.au.wfText = wfText; P.els.au.fxText = fxText;
     pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
   }
-  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
 /* From 1440px a row of the chain shows its formula in the drawer. */
 function labShowFormula(P, key) {
@@ -2274,6 +2294,12 @@ function labPaintPanel(P, { initial = false } = {}) {
   if (P.els.rests) {
     const q = propertyReviewQueue(d);
     labText(P.els.rests, q.length ? `These figures rest on ${q.length} of the tool’s starting figures: ${q.map(x => x.label.toLowerCase()).join(', ')}.` : 'None of these figures rests on a starting figure of the tool’s.');
+  }
+  /* The cash required by kind, written while open (and served whole). */
+  if (P.els.fees && (initial || P.els.fees.node.open)) {
+    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
+      + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
+      + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
   }
   /* ALWAYS SAID, so nothing moves under the thumb. The line appeared at the
      first tick of a drag, above the sliders: where the browser does not

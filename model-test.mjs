@@ -117,9 +117,13 @@ try {
   await new Promise(r => ws.addEventListener('open', r, { once: true }));
 
   let id = 0; const pending = new Map();
+  /* The page's own uncaught errors, kept so a check that could not run can
+     say what the page threw on the way. */
+  const pageErrors = [];
   ws.addEventListener('message', (e) => {
     const m = JSON.parse(e.data);
     if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    else if (m.method === 'Runtime.exceptionThrown') pageErrors.push(String(m.params?.exceptionDetails?.exception?.description || m.params?.exceptionDetails?.text || '').split('\n').slice(0, 3).join(' | '));
   });
   const send = (method, params = {}, sid) => new Promise(res => {
     const n = ++id; pending.set(n, res); ws.send(JSON.stringify({ id: n, method, params, sessionId: sid }));
@@ -133,6 +137,9 @@ try {
   const evaluate = async (expr) => {
     const r = await send('Runtime.evaluate',
       { expression: expr, returnByValue: true, awaitPromise: true }, sessionId);
+    /* The protocol's own error (a context destroyed by a navigation, a
+       promise collected) said as itself, not as "reading 'result'". */
+    if (r.error) throw new Error(`the browser answered: ${r.error.message}${r.error.data ? ` (${r.error.data})` : ''}`);
     if (r.result?.exceptionDetails) {
       throw new Error(r.result.exceptionDetails.exception?.description
         || r.result.exceptionDetails.text || 'evaluation threw');
@@ -418,19 +425,40 @@ try {
     }
   }
 
-  /* 19 — a quoted MRTA premium takes the ledger line and is not "unconfirmed". */
+  /* 19 — MORTGAGE PROTECTION IS OPTIONAL (the fee rulebook 1.1.0; the
+         owner's decision of 9 Oct 2026). Off by default: no ledger line,
+         nothing in the cash required, and listed as "Optional: mortgage
+         protection" so its absence is seen. Included (the deal's
+         mortgageProtection: 'included'): the rulebook's estimate, RM8,000,
+         a Placeholder, in the cash required and in what rests on unverified
+         lines. Quoted (mrtaPremium): the quote takes the line, marked a
+         quote and badged Quoted — a lender's or insurer's quotation — in
+         the cash required and not among the unverified lines. */
   {
     const r = await evaluate(`(() => {
-      const a = dealModel(window.__T.base);
-      const b = dealModel({ ...window.__T.base, mrtaPremium: 4200 });
-      const line = (m) => m.costGroups.find(g => g.id === 'financing').items.find(it => /Mortgage/i.test(it[0]));
-      const la = line(a), lb = line(b);
-      return { before: { label: la[0], amount: la[1], status: la[2]?.status, unconfirmed: a.unconfirmedCost },
-               after: { label: lb[0], amount: lb[1], status: lb[2]?.status, unconfirmed: b.unconfirmedCost } };
+      const runs = { off: dealModel(window.__T.base), on: dealModel({ ...window.__T.base, mortgageProtection: 'included' }),
+        quoted: dealModel({ ...window.__T.base, mrtaPremium: 4200 }), quotedAndOn: dealModel({ ...window.__T.base, mrtaPremium: 4200, mortgageProtection: 'included' }) };
+      const out = {};
+      for (const [k, m] of Object.entries(runs)) {
+        const it = m.costGroups.flatMap(g => g.items).find(x => x[2] && x[2].id === 'mortgageProtection');
+        out[k] = { line: it ? { label: it[0], amount: it[1], status: it[2].status, badge: feeKindBadge(it[2], it[1]), kind: feeKindOf(it[2]) } : null,
+          optional: (m.optionalCostLines || []).map(x => x.label), cash: m.safeCashRequired, unconfirmed: m.unconfirmedCost };
+      }
+      return out;
     })()`);
-    if (r.after.amount !== 4200 || r.after.status !== 'quote') fail('the MRTA quote did not take the ledger line', r);
-    else if (!(r.after.unconfirmed < r.before.unconfirmed)) fail('a quoted premium still counts as unconfirmed cost', r);
-    else ok('a quoted MRTA premium takes the ledger line, marked as a quote, and leaves the unconfirmed total', r);
+    const p = [];
+    if (r.off.line) p.push(`by default the ledger carries "${r.off.line.label}" at ${r.off.line.amount}`);
+    if (JSON.stringify(r.off.optional) !== JSON.stringify(['Optional: mortgage protection'])) p.push(`by default the optional lines left out are ${JSON.stringify(r.off.optional)}`);
+    if (!r.on.line || r.on.line.amount !== 8000 || r.on.line.status !== 'placeholder' || r.on.line.badge !== 'placeholder' || r.on.line.kind !== 'optional') p.push(`included: ${JSON.stringify(r.on.line)}`);
+    if (Math.abs(r.on.cash - r.off.cash - 8000) > 1e-6 || Math.abs(r.on.unconfirmed - r.off.unconfirmed - 8000) > 1e-6) p.push(`included, the cash required moved by ${r.on.cash - r.off.cash} and the unverified share by ${r.on.unconfirmed - r.off.unconfirmed}, not 8,000 each`);
+    if (r.on.optional.length) p.push('included, it is still listed as left out');
+    for (const k of ['quoted', 'quotedAndOn']) {
+      const x = r[k];
+      if (!x.line || x.line.amount !== 4200 || x.line.status !== 'quote' || x.line.badge !== 'quoted' || x.line.kind !== 'quotation') p.push(`${k}: ${JSON.stringify(x.line)}`);
+      if (Math.abs(x.cash - r.off.cash - 4200) > 1e-6 || Math.abs(x.unconfirmed - r.off.unconfirmed) > 1e-6) p.push(`${k}: the cash required moved by ${x.cash - r.off.cash} (want 4,200) and the unverified share by ${x.unconfirmed - r.off.unconfirmed} (want 0)`);
+    }
+    if (p.length) fail('mortgage protection is optional: out by default and listed, in at the estimate when included, the quote (Quoted) when one is entered', p);
+    else ok(`mortgage protection is optional: out of the sample's cash required by default (RM${Math.round(r.off.cash).toLocaleString('en')}, listed as "Optional: mortgage protection"), RM8,000 more when included (a Placeholder, among the unverified lines), the RM4,200 quote when entered (Quoted, not unverified)`);
   }
 
   /* 19b — THE FEE RULEBOOK'S KNOWN ANSWERS (the owner's property track,
@@ -470,10 +498,16 @@ try {
         sst: fee('professionalServiceTax', { legalFees: 9858.5 }),
         peninsular: pen ? [572000, 30000, 8000000].map(v => scaled(pen.scale, v, { minimumFee: pen.minimumFee })) : null,
         valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { price: p }) * 100) / 100),
+        /* 1.1.0: Item 27(b), one-fifth of the principal's duty, at most RM10;
+           Sarawak's registration, RM10 an instrument on one title. */
+        chargeDuty: [2575, 40, 50, 0].map(v => fee('chargeStampDuty', { loanDuty: v })),
+        registration: [2, 1].map(n => fee('registration', { instruments: n })),
       };
       const lines = Object.entries(FEE_TABLE.lines).map(([id, l]) => ({ id, provenance: l.provenance, jurisdiction: l.jurisdiction,
         effective: 'effectiveFrom' in l, source: !!(l.source && l.source.title), checked: /^\\d{4}-\\d{2}-\\d{2}$/.test(l.checkedOn || '') }));
-      return { got, lines, version: FEE_TABLE.version, checkedOn: FEE_TABLE.checkedOn, provenances: typeof FEE_PROVENANCE === 'object' ? Object.keys(FEE_PROVENANCE) : null };
+      return { got, lines, version: FEE_TABLE.version, checkedOn: FEE_TABLE.checkedOn, provenances: typeof FEE_PROVENANCE === 'object' ? Object.keys(FEE_PROVENANCE) : null,
+        changelog: (FEE_TABLE.changelog || []).map(x => x.version), kinds: Object.keys(FEE_TABLE.categories || {}),
+        cats: [...new Set(Object.values(FEE_TABLE.lines).map(l => l.category))] };
     })()`);
     const want = {
       mot: [1000, 9000, 24000, 44000, 11160, 6002],
@@ -485,11 +519,18 @@ try {
       sst: 788.68,
       peninsular: [6970, 500, 81250],
       valuation: [1194, 400, 400, 5716.67],
+      /* RM2,575 ÷ 5 is RM515, capped at RM10; RM40 ÷ 5 is RM8; RM50 ÷ 5 is
+         RM10; no loan, no charge. */
+      chargeDuty: [10, 8, 10, 0],
+      registration: [20, 10],
     };
     const p = [];
     for (const k of Object.keys(want)) if (JSON.stringify(r.got[k]) !== JSON.stringify(want[k])) p.push(`${k}: ${JSON.stringify(r.got[k])}, worked by hand ${JSON.stringify(want[k])}`);
     if (JSON.stringify(r.provenances) !== JSON.stringify(['verified', 'estimated', 'quote', 'unknown'])) p.push(`the provenances are ${JSON.stringify(r.provenances)}`);
     if (!/^\d+\.\d+\.\d+$/.test(r.version) || r.version === '0.1.0') p.push(`the rulebook's version is ${r.version}`);
+    if (r.version !== '1.1.0' || r.changelog[0] !== r.version) p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]} — the owner's 9 Oct decisions are 1.1.0, with a changelog line`);
+    if (JSON.stringify(r.kinds) !== JSON.stringify(['statutory', 'professional', 'quotation', 'optional', 'estimate'])) p.push(`the ledger's kinds are ${JSON.stringify(r.kinds)}, not the owner's five in order`);
+    if (r.cats.some(c => !r.kinds.includes(c))) p.push(`a line's category is none of the five: ${JSON.stringify(r.cats)}`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.checkedOn || '')) p.push(`the rulebook's checked date is ${r.checkedOn}`);
     const J = ['Peninsular Malaysia', 'Sarawak', 'Sabah', 'Federal'];
     for (const l of r.lines) if (!r.provenances?.includes(l.provenance) || !J.includes(l.jurisdiction) || !l.effective || !l.source || !l.checked) p.push(`line ${l.id}: ${JSON.stringify(l)}`);
@@ -508,7 +549,8 @@ try {
            mortgage protection and the utility deposits. */
   {
     const r = await evaluate(`(() => {
-      const deals = { sample: window.__T.base, taxed: window.__T.taxed, quoted: { ...window.__T.base, mrtaPremium: 4200 }, cash: { ...window.__T.base, downPct: 100 } };
+      const deals = { sample: window.__T.base, taxed: window.__T.taxed, quoted: { ...window.__T.base, mrtaPremium: 4200 }, cash: { ...window.__T.base, downPct: 100 },
+        included: { ...window.__T.base, mortgageProtection: 'included' } };
       const out = {};
       for (const [k, d] of Object.entries(deals)) {
         const m = dealModel(d);
@@ -520,9 +562,13 @@ try {
           const pv = it[2] && it[2].provenance;
           if (pv === 'verified') by.verified += it[1]; else if (pv === 'quote') by.quote += it[1]; else if (pv) by.uncertain += it[1]; else by.own += it[1];
         }
+        /* The five kinds and the buyer's own money (ledgerSplit). */
+        const split = m.ledgerSplit ? Object.values(m.ledgerSplit.kinds).reduce((t, x) => t + x.total, 0) : null;
+        const splitLines = m.ledgerSplit ? Object.values(m.ledgerSplit.kinds).reduce((t, x) => t + x.lines.length, 0) : null;
         out[k] = { sumAll, total: m.totalInitialCash, unconfirmed: m.unconfirmedCost, named: (m.unconfirmedLines || []).reduce((t, x) => t + x.amount, 0),
           parts: by, uncertainIds: (m.unconfirmedLines || []).map(x => x.id).sort(), missing: (m.missingCostLines || []).length,
-          loanLegal: (items.find(it => it[2] && it[2].id === 'loanLegal') || [])[1] };
+          loanLegal: (items.find(it => it[2] && it[2].id === 'loanLegal') || [])[1], split, splitLines, pricedLines: priced.length,
+          estimateKind: m.ledgerSplit?.kinds.estimate.total, optionalKind: m.ledgerSplit?.kinds.optional.total, quotationKind: m.ledgerSplit?.kinds.quotation.total };
       }
       return out;
     })()`);
@@ -534,13 +580,121 @@ try {
       if (!near(x.unconfirmed, x.named)) p.push(`${k}: the uncertain share is ${x.unconfirmed}, the lines it names sum to ${x.named}`);
       if (!near(x.parts.uncertain, x.unconfirmed)) p.push(`${k}: the lines marked unverified or unknown sum to ${x.parts.uncertain}, the share stated is ${x.unconfirmed}`);
       if (!near(x.parts.verified + x.parts.uncertain + x.parts.quote + x.parts.own, x.total)) p.push(`${k}: verified + uncertain + quoted + own money is not the total`);
+      if (!near(x.split, x.total) || x.splitLines !== x.pricedLines) p.push(`${k}: the five kinds and the buyer's own money sum to ${x.split} over ${x.splitLines} lines; the total is ${x.total} over ${x.pricedLines}`);
     }
-    const sampleIds = ['disbursements', 'mortgageProtection', 'utilityDeposits', 'valuationFee', 'valuationServiceTax'];
-    if (JSON.stringify(r.sample.uncertainIds) !== JSON.stringify(sampleIds)) p.push(`on the sample the uncertain lines are ${r.sample.uncertainIds.join(', ')}, not the five estimates`);
-    if (!(r.quoted.parts.quote === 4200 && r.quoted.unconfirmed < r.sample.unconfirmed)) p.push(`a quoted premium: ${JSON.stringify(r.quoted.parts)}`);
+    const sampleIds = ['disbursements', 'utilityDeposits', 'valuationFee', 'valuationServiceTax'];
+    if (JSON.stringify(r.sample.uncertainIds) !== JSON.stringify(sampleIds)) p.push(`on the sample the uncertain lines are ${r.sample.uncertainIds.join(', ')}, not the four estimates`);
+    if (JSON.stringify(r.included.uncertainIds) !== JSON.stringify([...sampleIds, 'mortgageProtection'].sort())) p.push(`with mortgage protection included the uncertain lines are ${r.included.uncertainIds.join(', ')}`);
+    if (!(r.quoted.parts.quote === 4200 && near(r.quoted.unconfirmed, r.sample.unconfirmed) && r.quoted.quotationKind === 4200)) p.push(`a quoted premium: ${JSON.stringify(r.quoted.parts)}, quotations ${r.quoted.quotationKind}`);
+    if (r.sample.optionalKind !== 0 || r.included.optionalKind !== 8000) p.push(`optional products: ${r.sample.optionalKind} on the sample (want 0), ${r.included.optionalKind} included (want 8,000)`);
+    if (!near(r.sample.estimateKind, 1170 + 1500)) p.push(`the estimates kind is ${r.sample.estimateKind}, not the disbursements and the utility deposits (RM2,670)`);
     if (r.cash.loanLegal !== 0) p.push(`a cash purchase is charged loan legal fees of ${r.cash.loanLegal}`);
-    if (p.length) fail('fee rulebook: the cost ledger reconciles — the lines sum to the total, and the unverified or unknown share is the lines it names', p);
-    else ok(`fee rulebook: on ${Object.keys(r).length} deals the ledger's lines sum to the total initial cash, and verified + unverified or unknown + quoted + the buyer's own money sum to it again; on the sample RM${Math.round(r.sample.unconfirmed).toLocaleString('en')} of RM${Math.round(r.sample.total).toLocaleString('en')} rests on the five estimates; no loan, no loan legal fee`);
+    if (p.length) fail('fee rulebook: the cost ledger reconciles — the lines sum to the total, the unverified or unknown share is the lines it names, and the five kinds sum to it', p);
+    else ok(`fee rulebook: on ${Object.keys(r).length} deals the ledger's lines sum to the total initial cash, verified + unverified or unknown + quoted + the buyer's own money sum to it again, and so do the five kinds and the buyer's own money; on the sample RM${Math.round(r.sample.unconfirmed).toLocaleString('en')} of RM${Math.round(r.sample.total).toLocaleString('en')} rests on the four estimates; no loan, no loan legal fee`);
+  }
+
+  /* 19f — NO "FULLY VERIFIED" WHILE AN UNVERIFIED LINE IS IN THE TOTAL (the
+           owner's decision of 9 Oct 2026). On the sample — four estimates
+           in its cash required — neither the calculator, nor the Lab with
+           its evidence open, nor /data-sources says the total, or every
+           line, is verified; and the Lab's cash-required row says how much
+           rests on unverified lines. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const kept = State.deal, out = {};
+      const CLAIM = /fully verified|verified total|total is verified|all (?:the )?(?:fee )?lines (?:are )?verified|every (?:fee )?line in it is verified/i;
+      try {
+        State.deal = { ...window.__T.base };
+        for (const path of ['/property/calculator', '/property', '/data-sources']) {
+          navigate(path, { replace: true }); render(); await w(500);
+          const opened = [...document.querySelectorAll('#views details:not([open])')]; opened.forEach(d => { d.open = true; });
+          await w(150);
+          const text = (document.getElementById('views')?.textContent || '').replace(/\\s+/g, ' ');
+          const hit = text.match(CLAIM);
+          out[path] = hit ? text.slice(Math.max(0, hit.index - 80), hit.index + 80) : null; opened.forEach(d => { d.open = false; });
+        }
+        const f = LAB_FIGURES.find(x => x.key === 'safeCashRequired');
+        const m = dealModel(State.deal);
+        out.formula = f.formula(State.deal, m); out.note = f.note(m); out.unconfirmed = m.unconfirmedCost;
+      } finally { State.deal = kept; saveDeal(); navigate('/property/calculator', { replace: true }); render(); }
+      return JSON.stringify(out);
+    })()`));
+    const p = [];
+    for (const path of ['/property/calculator', '/property', '/data-sources']) if (r[path]) p.push(`${path} says “…${r[path]}…”`);
+    if (!(r.unconfirmed > 0) || !/rests on unverified or unknown lines/.test(r.formula) || !/on unverified lines/.test(r.note)) p.push(`the Lab's cash required row: note “${r.note}”, formula “${String(r.formula).slice(0, 140)}”`);
+    if (p.length) fail('no total is called verified while an unverified line is in it', p);
+    else ok(`no “fully verified” claim on the calculator, the Lab or /data-sources with RM${Math.round(r.unconfirmed).toLocaleString('en')} on unverified lines in the sample's total; the Lab's row says “${r.note}”`);
+  }
+
+  /* 19e — THE ACQUISITION LEDGER, LINE BY LINE, AGAINST AMOUNTS WORKED BY
+           HAND (the owner's decision of 9 Oct 2026: known-answer tests with
+           mortgage protection off and on). The sample (RM572,000, 10%
+           down, a RM514,800 loan) and a price that is not the sample's
+           (RM850,000, 10% down, a RM765,000 loan), each fee line worked from
+           its cited rule here, not read back from the code:
+             transfer duty (Item 32(a)): 1% of 100k + 2% of 400k + 3% of the rest
+               572k: 1,000 + 8,000 + 2,160 = 11,160
+               850k: 1,000 + 8,000 + 10,500 = 19,500
+             purchase legal (Sarawak): 250 + 400 + 450 + 1,600 (+ 0.7% of the next 400k) …
+               572k: 2,700 + 0.7% × 272k (1,904) = 4,604
+               850k: 2,700 + 2,800 + 0.6% × 150k (900) = 6,400
+             loan legal, 1.25 × the scale on the loan:
+               514.8k: (2,700 + 0.7% × 214.8k = 4,203.60) × 1.25 = 5,254.50
+               765k: (5,500 + 0.6% × 65k = 5,890) × 1.25 = 7,362.50
+             registration: the transfer and the charge, RM10 each = 20
+             searches and the firm's disbursements (estimate) = 1,170
+             service tax, 8% of both legal fees:
+               (4,604 + 5,254.50) × 8% = 788.68; (6,400 + 7,362.50) × 8% = 1,101
+             loan agreement duty, RM5 a RM1,000 or part: 515 × 5 = 2,575; 765 × 5 = 3,825
+             the charge's duty: one-fifth, at most RM10 = 10
+             valuation (estimate, the ceiling): 250 + 0.2% of the rest
+               572k: 250 + 944 = 1,194; 850k: 250 + 1,500 = 1,750
+             its service tax: 95.52; 140
+             utility deposits (estimate) = 1,500
+             mortgage protection: out; included, the RM8,000 estimate.
+           Then each run's fee lines must be exactly these, the unverified
+           share the estimates among them, and the cash required the sum of
+           these and the buyer's own money (deposit, renovation, reserve). */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      const out = {};
+      const runs = { sampleOff: {}, sampleOn: { mortgageProtection: 'included' }, p850Off: { price: 850000 }, p850On: { price: 850000, mortgageProtection: 'included' } };
+      for (const [k, x] of Object.entries(runs)) {
+        const m = dealModel({ ...window.__T.base, ...x });
+        const fees = {}, own = [];
+        for (const g of m.costGroups) for (const it of g.items) { if (it[2] && it[2].id) fees[it[2].id] = it[1]; else own.push([it[0], it[1]]); }
+        out[k] = { fees, own: own.reduce((t, x) => t + (Number.isFinite(x[1]) ? x[1] : 0), 0), ownLabels: own.map(x => x[0]),
+          loan: m.loan, cash: m.safeCashRequired, unconfirmed: m.unconfirmedCost, uncertain: (m.unconfirmedLines || []).map(x => x.id).sort(),
+          optional: (m.optionalCostLines || []).map(x => x.id) };
+      }
+      return JSON.stringify(out);
+    })()`));
+    const common = { registration: 20, disbursements: 1170, chargeStampDuty: 10, utilityDeposits: 1500 };
+    const want = {
+      sampleOff: { ...common, transferStampDuty: 11160, purchaseLegal: 4604, loanLegal: 5254.5, professionalServiceTax: 788.68, loanStampDuty: 2575, valuationFee: 1194, valuationServiceTax: 95.52 },
+      p850Off: { ...common, transferStampDuty: 19500, purchaseLegal: 6400, loanLegal: 7362.5, professionalServiceTax: 1101, loanStampDuty: 3825, valuationFee: 1750, valuationServiceTax: 140 },
+    };
+    want.sampleOn = { ...want.sampleOff, mortgageProtection: 8000 };
+    want.p850On = { ...want.p850Off, mortgageProtection: 8000 };
+    const loans = { sampleOff: 514800, sampleOn: 514800, p850Off: 765000, p850On: 765000 };
+    const p = [];
+    const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1e-6;
+    for (const k of Object.keys(want)) {
+      const got = r[k], w = want[k];
+      if (!near(got.loan, loans[k])) p.push(`${k}: the loan is ${got.loan}, not ${loans[k]}`);
+      const ids = [...new Set([...Object.keys(w), ...Object.keys(got.fees)])].sort();
+      for (const id of ids) if (!near(got.fees[id], w[id])) p.push(`${k}: ${id} is ${got.fees[id]}, worked by hand ${w[id]}`);
+      const feeSum = Object.values(w).reduce((t, v) => t + v, 0);
+      if (!near(got.cash, feeSum + got.own)) p.push(`${k}: the cash required is ${got.cash}; the fee lines worked by hand (${feeSum}) and the buyer's own money (${got.own}: ${got.ownLabels.join(', ')}) sum to ${feeSum + got.own}`);
+      const est = ['disbursements', 'utilityDeposits', 'valuationFee', 'valuationServiceTax', ...(w.mortgageProtection ? ['mortgageProtection'] : [])];
+      const estSum = est.reduce((t, id) => t + w[id], 0);
+      if (!near(got.unconfirmed, estSum) || JSON.stringify(got.uncertain) !== JSON.stringify([...est].sort())) p.push(`${k}: the unverified share is ${got.unconfirmed} on ${got.uncertain.join(', ')}, worked by hand ${estSum} on ${[...est].sort().join(', ')}`);
+      if (JSON.stringify(got.optional) !== JSON.stringify(w.mortgageProtection ? [] : ['mortgageProtection'])) p.push(`${k}: the optional lines left out are ${JSON.stringify(got.optional)}`);
+    }
+    if (!near(r.sampleOn.cash - r.sampleOff.cash, 8000) || !near(r.p850On.cash - r.p850Off.cash, 8000)) p.push(`mortgage protection included moves the cash required by ${r.sampleOn.cash - r.sampleOff.cash} and ${r.p850On.cash - r.p850Off.cash}, not 8,000`);
+    if (p.length) fail('the acquisition ledger reconciles line by line with amounts worked by hand — the sample and RM850,000, mortgage protection off and on', p);
+    else ok(`the acquisition ledger, line by line, as worked by hand: the sample's cash required RM${r.sampleOff.cash.toLocaleString('en')} with mortgage protection out (RM${r.sampleOn.cash.toLocaleString('en')} in), RM${r.sampleOff.unconfirmed.toLocaleString('en')} on unverified lines; at RM850,000 RM${r.p850Off.cash.toLocaleString('en')} (RM${r.p850On.cash.toLocaleString('en')}), RM${r.p850Off.unconfirmed.toLocaleString('en')} unverified`);
   }
 
   /* 19d — EVERY FEE LINE SHOWS ITS PROVENANCE, AND THE HEADLINE ITS
@@ -567,15 +721,26 @@ try {
           const row = rows.find(tr => tr.querySelector('td') && tr.querySelector('td').firstChild && tr.querySelector('td').firstChild.textContent === it[0]);
           const badge = row && row.querySelector('[data-kind-badge]');
           const prov = row && row.querySelector('.pc-fee-prov');
-          return { label: it[0], provenance: it[2].provenance, want: KIND_OF_FEE[it[2].provenance], badge: badge ? badge.dataset.kindBadge : null, prov: txt(prov) };
+          const kindTag = row && row.querySelector('.pc-fee-kind');
+          return { label: it[0], provenance: it[2].provenance, want: feeKindBadge(it[2], it[1]), badge: badge ? badge.dataset.kindBadge : null, prov: txt(prov),
+            kind: kindTag ? kindTag.dataset.feeKind : null, wantKind: feeKindOf(it[2]) };
         });
+        /* Mortgage protection is quoted in this deal; the optional row is
+           drawn on the sample, where it is out. */
+        State.deal = { ...window.__T.base }; render(); await w(350);
+        const opt = document.querySelector('#views .pc-cost-table tr[data-optional="mortgageProtection"]');
+        out.optRow = opt ? txt(opt) : null;
+        out.split = txt(document.querySelector('#views .pc-fee-split'));
         out.safe = txt(document.querySelector('#views [data-answer="safe"]'));
         out.want = fmtAmount(m.unconfirmedCost, 'MYR');
         out.note = [...document.querySelectorAll('#views .pc-fee-uncertain')].map(txt)[0] || '';
         navigate('/data-sources'); render(); await w(450);
         const book = document.getElementById('fee-rulebook');
-        out.book = book ? { head: txt(book.querySelector('.card-hd')), lines: [...book.querySelectorAll('[data-fee-line]')].map(n => n.dataset.feeLine + ':' + n.dataset.feeProvenance) } : null;
-        out.ids = Object.keys(FEE_TABLE.lines).map(id => id + ':' + FEE_TABLE.lines[id].provenance);
+        out.book = book ? { head: txt(book.querySelector('.card-hd')), lines: [...book.querySelectorAll('[data-fee-line]')].map(n => n.dataset.feeLine + ':' + n.dataset.feeProvenance).sort(),
+          kinds: [...book.querySelectorAll('h3[data-fee-kind]')].map(n => n.dataset.feeKind), changes: [...book.querySelectorAll('[data-fee-version]')].map(n => n.dataset.feeVersion),
+          wrongKind: [...book.querySelectorAll('[data-fee-line]')].filter(n => FEE_TABLE.lines[n.dataset.feeLine]?.category !== n.dataset.feeKind).map(n => n.dataset.feeLine) } : null;
+        out.ids = Object.keys(FEE_TABLE.lines).map(id => id + ':' + FEE_TABLE.lines[id].provenance).sort();
+        out.cats = Object.keys(FEE_TABLE.categories);
         out.version = FEE_TABLE.version; out.checked = typeof feeDay === 'function' ? feeDay(FEE_TABLE.checkedOn) : null;
       } finally { State.deal = kept; saveDeal(); navigate('/property/calculator'); render(); }
       return JSON.stringify(out);
@@ -585,14 +750,20 @@ try {
       if (!l.badge || l.badge !== l.want) p.push(`"${l.label}" (${l.provenance}) wears ${l.badge || 'no badge'}, not ${l.want}`);
       const word = { verified: 'Verified', estimated: 'Estimated', quote: 'User quote', unknown: 'Unknown' }[l.provenance];
       if (!l.prov.startsWith(word)) p.push(`"${l.label}" says "${l.prov}" under its name, not its provenance "${word}"`);
+      if (!l.kind || l.kind !== l.wantKind) p.push(`"${l.label}" is shown as kind ${l.kind || 'none'}, not ${l.wantKind}`);
     }
-    if (!r.lines.some(l => l.provenance === 'quote')) p.push('no quoted line was drawn');
+    if (!r.lines.some(l => l.provenance === 'quote' && l.badge === 'quoted')) p.push('no quoted line was drawn with the Quoted badge');
+    if (!r.optRow || !/^Optional: mortgage protection/.test(r.optRow) || !/not included/.test(r.optRow)) p.push(`on the sample the optional row reads "${r.optRow}"`);
+    if (!/^By kind: statutory charges RM/.test(r.split || '') || !/Optional, left out: mortgage protection is not included\./.test(r.split || '')) p.push(`the ledger's split reads "${(r.split || '').slice(0, 160)}"`);
     if (!r.safe.includes(`${r.want} of this rests on unverified or unknown lines`)) p.push(`"Safe cash required" reads "${r.safe}", without "${r.want} of this rests on unverified or unknown lines"`);
     if (!r.note.startsWith(`${r.want} of this`)) p.push(`the ledger's note reads "${r.note.slice(0, 120)}"`);
     if (!r.book) p.push('/data-sources has no #fee-rulebook');
     else {
       if (!r.book.head.includes(`Version ${r.version}, checked ${r.checked}`)) p.push(`the rulebook card's head reads "${r.book.head.slice(0, 120)}"`);
       if (JSON.stringify(r.book.lines) !== JSON.stringify(r.ids)) p.push(`the card lists ${r.book.lines.join(', ')}, the rulebook ${r.ids.join(', ')}`);
+      if (JSON.stringify(r.book.kinds) !== JSON.stringify(r.cats)) p.push(`the card's kinds are ${r.book.kinds.join(', ')}, not ${r.cats.join(', ')}`);
+      if (r.book.wrongKind.length) p.push(`listed under another kind: ${r.book.wrongKind.join(', ')}`);
+      if (r.book.changes[0] !== r.version) p.push(`the card's changelog starts at ${r.book.changes[0]}, not ${r.version}`);
     }
     if (p.length) fail('fee rulebook: every fee line shows its provenance badge, the headline its unverified or unknown share, and /data-sources the rulebook', p);
     else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Safe cash required" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
@@ -2874,7 +3045,8 @@ try {
          missing function would otherwise end the block before the rest
          reported anything. */
       const step = async (name, fn) => {
-        try { await fn(); } catch (e) { fail(`audit1 property-model ${name}: the check could not run`, String(e.message).split('\n')[0]); }
+        const seen = pageErrors.length;
+        try { await fn(); } catch (e) { fail(`audit1 property-model ${name}: the check could not run`, String(e.message).split('\n')[0] + (pageErrors.length > seen ? ` — the page threw: ${pageErrors.slice(seen).slice(-3).join(' ; ')}` : '')); }
       };
       await step('A1', async () => {
         /* A1 — THE MIGRATION, ON EVERY STORED SHAPE. Written as the old build
@@ -5500,9 +5672,18 @@ try {
         noTenure: { ...base(), tenureYears: 0 },
         managed: { ...base(), selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150, renovation: 60000, renoValueRecoveryPct: 40 },
       };
-      /* Recorded on the base (3d75b6a8), before the decision layer. */
-      const BASE = { sample: '64ad018a:26490', land: '5fd071bf:26044', shophouse: 'ec3d5e3d:26325', condoAsCommercial: '199f6813:26491',
-        taxed: '5ed2ee3a:26680', cash: '992946cf:25261', lowValuation: 'cb5c4910:26638', noTenure: '31f73f48:24330', managed: '90a88244:26557' };
+      /* Recorded on the base (3d75b6a8), before the decision layer — and
+         recorded again for the fee rulebook 1.1.0 (the owner's decision of
+         9 Oct 2026), a deliberate change to the model: mortgage protection
+         out of the ledger by default, registration and the charge's stamp
+         as lines of their own, the ledger's kinds (ledgerSplit) and the
+         optional lines left out on the result. Was: sample 64ad018a:26490,
+         land 5fd071bf:26044, shophouse ec3d5e3d:26325, condoAsCommercial
+         199f6813:26491, taxed 5ed2ee3a:26680, cash 992946cf:25261,
+         lowValuation cb5c4910:26638, noTenure 31f73f48:24330, managed
+         90a88244:26557. The questions still change none of them (below). */
+      const BASE = { sample: '758435b8:31047', land: 'c4e8950f:30596', shophouse: 'cc6fe798:30883', condoAsCommercial: 'bd2c91e3:31048',
+        taxed: '09028703:31235', cash: 'c8ab8454:29826', lowValuation: '8d0782ba:31287', noTenure: '07ff01a8:28765', managed: '3e226266:31113' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);

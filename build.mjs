@@ -1877,6 +1877,12 @@ export function feeRulebookProblems({ root = ROOT } = {}) {
   const isDay = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
   if (!/^\d+\.\d+\.\d+$/.test(T.version || '')) out.push(`the fee rulebook's version is "${T.version}", not a released version (major.minor.patch)`);
   if (!isDay(T.checkedOn)) out.push(`the fee rulebook's checkedOn is "${T.checkedOn}", not a date`);
+  /* Every version says what changed (the rulebook 1.1.0): the newest entry
+     of the changelog is the version in force, dated, and said. */
+  const log0 = (T.changelog || [])[0];
+  if (!log0 || log0.version !== T.version || !isDay(log0.date) || !String(log0.what || '').trim()) out.push(`the fee rulebook's changelog does not open with version ${T.version}, dated and said`);
+  /* The ledger's kinds are named, each with what it means. */
+  for (const k of Object.keys(T.categories || {})) if (!String(T.categoryNotes?.[k] || '').trim()) out.push(`the fee rulebook's kind "${k}" does not say what it means (categoryNotes)`);
   for (const [id, l] of Object.entries(T.lines || {})) {
     const at = `fee line ${id}`;
     if (!PROV[l.provenance]) out.push(`${at}: provenance "${l.provenance}" is not one of ${Object.keys(PROV).join(', ')}`);

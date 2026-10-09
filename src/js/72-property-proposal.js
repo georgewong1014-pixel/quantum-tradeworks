@@ -722,6 +722,9 @@ function cpAcquisitionSection(d, m, cash) {
     s.append(el('p', { class: 'cp-note cp-warn' }, [cpFig('unconfirmedCost', cpMoney(m.unconfirmedCost)),
       ' of the total — ', cpFig('unconfirmedShare', fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)),
       ' — rests on unverified or unknown fee lines: estimates, or amounts resting on a rule that could not be verified for this jurisdiction — none checked against an official source. Confirm each with the lender, the solicitor and the local authority before relying on it.']));
+  /* The optional lines left out of the total, named so the absence is seen
+     (the fee rulebook 1.1.0). */
+  (m.optionalCostLines || []).forEach(x => s.append(cpNote(`${x.label} — not included in the total. Optional cover a lender may ask for; with no quote entered it is left out, and would add the premium quoted (the fee rulebook’s estimate is ${cpMoneyIn(x.estimate)}).`)));
   const lets = m.letsToTenant;
   s.append(cpList([
     cash.paid > 0 ? ['Cash already paid', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), 'The booking deposit handed over at offer — part of the deposit, not on top of it.'] : null,
