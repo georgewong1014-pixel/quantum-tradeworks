@@ -76,6 +76,12 @@ const PRIORITY_NOTE_P3 = {
 const registerPhase = (c) => ((c.brief || []).some(b => /^SC-/.test(b)) ? 3 : 2);
 const priorityNoteOf = (c) => (registerPhase(c) === 3 ? PRIORITY_NOTE_P3 : PRIORITY_NOTE)[c.priority] || '';
 
+/* What the two coverage rows say while the audited set loads — also each
+   cell's hold (coverageCell, 15-derivation.js), so the row keeps its height
+   served, waiting and counted. */
+const US_COVERAGE_WAIT = `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`;
+const BURSA_COVERAGE_WAIT = `${COVERAGE_PENDING} — how many companies carry illustrative figures is not known until the audited set has loaded. No investable grade is offered for any of them either way.`;
+
 const CAPABILITY_REGISTER = [
   { name:'Sarawak property underwriting', status:'active-core', path:'/property/calculator',
     now:'Capital ledger, valuation gap, grade, downside and plain-language result.' },
@@ -150,11 +156,13 @@ const CAPABILITY_REGISTER = [
     gate:() => covText(k => `${k.illustrative} companies carry illustrative figures — ${k.my} Bursa`
        + (k.usIllustrative ? ` and ${k.usIllustrativeNames.join(', ')} on the US side` : '')
        + '. No investable grade is offered for any of them.',
-       `${COVERAGE_PENDING} — how many companies carry illustrative figures is not known until the audited set has loaded. No investable grade is offered for any of them either way.`) },
+       BURSA_COVERAGE_WAIT),
+    gateHold: `Gate: ${BURSA_COVERAGE_WAIT}` },
   { name:'US equities', status:'maintenance', path:'/research',
     brief:['EQ-201', 'EQ-202', 'EQ-203'], priority:'P0',
     now:() => covText(k => `${k.usFiled} US companies with audited SEC filings, of ${k.us} US listings held.`,
-      `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`),
+      US_COVERAGE_WAIT),
+    nowHold: US_COVERAGE_WAIT,
     gate:'The shipped statements predate the corrected ingest and cannot be regenerated until the SEC’s required contact address is supplied; figures the old rules assembled wrongly are withheld with the reason until then.',
     checks:[{ file:'equity-test.mjs', name:'filed companies loaded, all' },
             { file:'equity-test.mjs', name:'canonical ids are one per instrument' },

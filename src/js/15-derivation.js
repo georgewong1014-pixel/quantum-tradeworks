@@ -480,13 +480,15 @@ const COVERAGE_SERVED = 'Counted by this page’s script once the audited set ha
    (CI, coverage-frames, once the journeys record made the page long enough
    to put the reader there). A held cell stacks an unseen copy of the longer
    text (an attribute, never the page's words) under its own, so served and
-   drawn take the same lines in any font. */
-function coverageCell(tag, attrs, text, { hold = false } = {}) {
-  const t = String(text);
-  if (!t.includes(COVERAGE_PENDING)) return el(tag, attrs, text);
-  if (!hold) return el(tag, { ...attrs, 'data-now': COVERAGE_SERVED }, text);
-  return el(tag, { ...attrs, class: `${attrs.class || ''} cov-hold`.trim(), 'data-hold': t.length >= COVERAGE_SERVED.length ? t : COVERAGE_SERVED },
-    el('span', { 'data-now': COVERAGE_SERVED }, text));
+   drawn take the same lines in any font. `hold` is the cell's waiting text,
+   given in every state: once the count lands it is shorter, and a cell held
+   only while waiting shrank 17px under the same reader. */
+function coverageCell(tag, attrs, text, { hold = null } = {}) {
+  const t = String(text), pending = t.includes(COVERAGE_PENDING);
+  if (!hold) return el(tag, pending ? { ...attrs, 'data-now': COVERAGE_SERVED } : attrs, text);
+  const longest = [String(hold), t, COVERAGE_SERVED].reduce((a, b) => (b.length > a.length ? b : a));
+  return el(tag, { ...attrs, class: `${attrs.class || ''} cov-hold`.trim(), 'data-hold': longest },
+    el('span', pending ? { 'data-now': COVERAGE_SERVED } : {}, text));
 }
 
 /* The same fact as a sentence, so two surfaces cannot word it differently.

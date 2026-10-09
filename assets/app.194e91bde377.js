@@ -2676,13 +2676,15 @@ const COVERAGE_SERVED = 'Counted by this page’s script once the audited set ha
    (CI, coverage-frames, once the journeys record made the page long enough
    to put the reader there). A held cell stacks an unseen copy of the longer
    text (an attribute, never the page's words) under its own, so served and
-   drawn take the same lines in any font. */
-function coverageCell(tag, attrs, text, { hold = false } = {}) {
-  const t = String(text);
-  if (!t.includes(COVERAGE_PENDING)) return el(tag, attrs, text);
-  if (!hold) return el(tag, { ...attrs, 'data-now': COVERAGE_SERVED }, text);
-  return el(tag, { ...attrs, class: `${attrs.class || ''} cov-hold`.trim(), 'data-hold': t.length >= COVERAGE_SERVED.length ? t : COVERAGE_SERVED },
-    el('span', { 'data-now': COVERAGE_SERVED }, text));
+   drawn take the same lines in any font. `hold` is the cell's waiting text,
+   given in every state: once the count lands it is shorter, and a cell held
+   only while waiting shrank 17px under the same reader. */
+function coverageCell(tag, attrs, text, { hold = null } = {}) {
+  const t = String(text), pending = t.includes(COVERAGE_PENDING);
+  if (!hold) return el(tag, pending ? { ...attrs, 'data-now': COVERAGE_SERVED } : attrs, text);
+  const longest = [String(hold), t, COVERAGE_SERVED].reduce((a, b) => (b.length > a.length ? b : a));
+  return el(tag, { ...attrs, class: `${attrs.class || ''} cov-hold`.trim(), 'data-hold': longest },
+    el('span', pending ? { 'data-now': COVERAGE_SERVED } : {}, text));
 }
 
 /* The same fact as a sentence, so two surfaces cannot word it differently.
@@ -43511,6 +43513,12 @@ const PRIORITY_NOTE_P3 = {
 const registerPhase = (c) => ((c.brief || []).some(b => /^SC-/.test(b)) ? 3 : 2);
 const priorityNoteOf = (c) => (registerPhase(c) === 3 ? PRIORITY_NOTE_P3 : PRIORITY_NOTE)[c.priority] || '';
 
+/* What the two coverage rows say while the audited set loads — also each
+   cell's hold (coverageCell, 15-derivation.js), so the row keeps its height
+   served, waiting and counted. */
+const US_COVERAGE_WAIT = `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`;
+const BURSA_COVERAGE_WAIT = `${COVERAGE_PENDING} — how many companies carry illustrative figures is not known until the audited set has loaded. No investable grade is offered for any of them either way.`;
+
 const CAPABILITY_REGISTER = [
   { name:'Sarawak property underwriting', status:'active-core', path:'/property/calculator',
     now:'Capital ledger, valuation gap, grade, downside and plain-language result.' },
@@ -43585,11 +43593,13 @@ const CAPABILITY_REGISTER = [
     gate:() => covText(k => `${k.illustrative} companies carry illustrative figures — ${k.my} Bursa`
        + (k.usIllustrative ? ` and ${k.usIllustrativeNames.join(', ')} on the US side` : '')
        + '. No investable grade is offered for any of them.',
-       `${COVERAGE_PENDING} — how many companies carry illustrative figures is not known until the audited set has loaded. No investable grade is offered for any of them either way.`) },
+       BURSA_COVERAGE_WAIT),
+    gateHold: `Gate: ${BURSA_COVERAGE_WAIT}` },
   { name:'US equities', status:'maintenance', path:'/research',
     brief:['EQ-201', 'EQ-202', 'EQ-203'], priority:'P0',
     now:() => covText(k => `${k.usFiled} US companies with audited SEC filings, of ${k.us} US listings held.`,
-      `${COVERAGE_PENDING} — the audited US set is still loading. This row states a count only once it can state the right one.`),
+      US_COVERAGE_WAIT),
+    nowHold: US_COVERAGE_WAIT,
     gate:'The shipped statements predate the corrected ingest and cannot be regenerated until the SEC’s required contact address is supplied; figures the old rules assembled wrongly are withheld with the reason until then.',
     checks:[{ file:'equity-test.mjs', name:'filed companies loaded, all' },
             { file:'equity-test.mjs', name:'canonical ids are one per instrument' },
@@ -55820,9 +55830,9 @@ VIEWS.status = () => {
          36-row sample set and froze that. It reported "0 US companies with
          audited SEC filings" on a build holding 119 of them. */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;min-width:15rem' }, [
-        c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now, { hold: true }) : null,
+        c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now, { hold: c.nowHold }) : null,
         c.gate ? coverageCell('div', { style: 'color:var(--bronze);margin-top:4px' },
-          `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`, { hold: true }) : null,
+          `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`, { hold: c.gateHold }) : null,
         c.flag ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Flagged: ${c.flag}`) : null,
         c.checks?.length ? el('div', { style: 'margin-top:4px' },
           `Checked by: ${c.checks.map(x => `${x.file} — ${x.name}`).join('; ')}.`) : null,

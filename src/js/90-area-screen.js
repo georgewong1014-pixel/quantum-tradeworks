@@ -1235,9 +1235,9 @@ VIEWS.status = () => {
          36-row sample set and froze that. It reported "0 US companies with
          audited SEC filings" on a build holding 119 of them. */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;min-width:15rem' }, [
-        c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now, { hold: true }) : null,
+        c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now, { hold: c.nowHold }) : null,
         c.gate ? coverageCell('div', { style: 'color:var(--bronze);margin-top:4px' },
-          `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`, { hold: true }) : null,
+          `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`, { hold: c.gateHold }) : null,
         c.flag ? el('div', { style: 'color:var(--bronze);margin-top:4px' }, `Flagged: ${c.flag}`) : null,
         c.checks?.length ? el('div', { style: 'margin-top:4px' },
           `Checked by: ${c.checks.map(x => `${x.file} — ${x.name}`).join('; ')}.`) : null,
