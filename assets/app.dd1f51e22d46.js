@@ -31317,7 +31317,7 @@ const PROPERTY_CLASSES = {
   residential: { id:'residential', label:'Residential', letsToTenant:true, strataCharges:true,
     note:'A dwelling let to an occupier. Every default in this tool was written for this class.' },
   commercial:  { id:'commercial',  label:'Commercial',  letsToTenant:true, strataCharges:true,
-    note:'A shop, shophouse or commercial lot. Several fee and tax lines genuinely differ for this class and none of them are class-aware yet — the figures shown are the residential ones.' },
+    note:'A shop, office, industrial unit or commercial lot let to a tenant. The fee rulebook prices its purchase as it prices any property — its lines are written for any property — and no rate is made up for the class. What the rulebook does not hold, a lender’s commercial terms or a tax charged on a commercial rent, is not priced here: check it with the lender and a tax adviser.' },
   land:        { id:'land',        label:'Land',        letsToTenant:false, strataCharges:false,
     note:'A bare parcel. It carries cost and it may appreciate, but it has no tenancy — so rent, vacancy, yield, debt-service cover and break-even rent are not quantities this asset has.' },
 };
@@ -31330,6 +31330,103 @@ const PROPERTY_TYPE_CLASS = {
   'Shophouse':'commercial', 'Commercial lot':'commercial',
   'Land':'land',
 };
+
+/* ==========================================================================
+   THE TWO QUESTIONS AND THE OBJECTIVE — THE PROPERTY DECISION LAYER, P1
+   (the owner's brief, 7 Oct 2026: briefs/README-property-decision-layer.md)
+
+   What are you buying? — the class above (PROPERTY_CLASSES), set through the
+   same override the calculator's Asset class select writes, and for a
+   commercial class its subtype. How are you buying? — the purchase route.
+   And, optionally, the objective, which decides which figures lead (L1/L2
+   in the layout system) and nothing else: it never ranks, never reorders a
+   column and never says which option is better (the owner's answers: the
+   lens never reorders columns; no ranked risk ladder).
+
+   ABSENT IS THE DEFAULT, AND THE DEFAULT IS WHAT EVERY DEAL ALREADY WAS.
+   Every deal and every saved property was modelled as a subsale of its
+   current class. So a deal holds no `route` until the reader answers with
+   another route; subsale is the absence of the key (dealRoute), and a
+   deal saved before the question existed and one answered "Subsale" are
+   the same deal to every comparison (pmSame) — no saved property opens
+   "changed since saved" because a question was added, and its figures are
+   byte for byte what they were (model-test, p1-route).
+
+   THE ROUTES NOT MODELLED YET SAY SO. New development (P4) and auction (P3)
+   are selectable, and until their models arrive they are modelled as a
+   subsale, said in one line where the answer is given. The fee rulebook's
+   lines are the ones written for an SPA and the transfer (FEE_TABLE,
+   purchaseLegal's rule 1): no developer (HDA) or auction term — a deposit
+   and balance from a Proclamation of Sale, arrears passed by it — is
+   applied to either, because none is modelled, and none is invented.
+   ========================================================================== */
+const PROPERTY_ROUTES = {
+  newdev:  { id:'newdev',  label:'New development', modelled:false, phase:'P4',
+    coming:'The new-development model is coming; these figures treat it as a subsale.' },
+  subsale: { id:'subsale', label:'Subsale', modelled:true },
+  auction: { id:'auction', label:'Auction', modelled:false, phase:'P3',
+    coming:'The auction model is coming; these figures treat it as a subsale.' },
+};
+const PROPERTY_ROUTE_IDS = ['newdev', 'subsale', 'auction'];
+const DEFAULT_PROPERTY_ROUTE = 'subsale';
+const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route : DEFAULT_PROPERTY_ROUTE);
+/* What the fee rulebook does for a route it does not model: nothing of its
+   own — the subsale's lines, said. */
+const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
+  ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
+  : null);
+
+/* The commercial subtypes the brief names. A subtype is recorded and said;
+   it sets no rate: no fee, duty or tax line in the rulebook differs between
+   them, and none is invented. */
+const COMMERCIAL_SUBTYPES = {
+  'ground-retail': { id:'ground-retail', label:'Ground-floor retail' },
+  'upper-floor':   { id:'upper-floor',   label:'Upper-floor shop/office' },
+  'whole-shoplot': { id:'whole-shoplot', label:'Whole shoplot' },
+  office:          { id:'office',        label:'Office' },
+  industrial:      { id:'industrial',    label:'Industrial' },
+};
+const COMMERCIAL_SUBTYPE_IDS = Object.keys(COMMERCIAL_SUBTYPES);
+const dealCommercialSubtype = (d) => (propertyClassOf(d) === 'commercial' && Object.hasOwn(COMMERCIAL_SUBTYPES, d?.commercialSubtype) ? d.commercialSubtype : null);
+
+/* THE OBJECTIVE: which of the figures lead. `tiles` are the Scenario Lab's
+   three figure tiles in the order they stand, each with its level; the
+   first two lead (L1), the third qualifies them (L2). With none chosen the
+   tiles are the ones /property has always opened on. Wording only says
+   what leads — never which objective, route or property is the better. */
+const PROPERTY_OBJECTIVES = {
+  cashflow: { id:'cashflow', label:'Cash flow',            tiles:['cashflowMonthly', 'netYield', 'safeCashRequired'] },
+  growth:   { id:'growth',   label:'Capital growth',       tiles:['valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly'] },
+  valueadd: { id:'valueadd', label:'Value add',            tiles:['safeCashRequired', 'valueLessLoanAtExit', 'irrPct'] },
+  ownuse:   { id:'ownuse',   label:'Own use + investment', tiles:['cashflowMonthly', 'safeCashRequired', 'netYield'] },
+};
+const PROPERTY_OBJECTIVE_IDS = Object.keys(PROPERTY_OBJECTIVES);
+const PROPERTY_OBJECTIVE_NONE = { id:null, label:'Not chosen', tiles:['safeCashRequired', 'cashflowMonthly', 'netYield'] };
+const dealObjective = (d) => (d && Object.hasOwn(PROPERTY_OBJECTIVES, d.objective) ? PROPERTY_OBJECTIVES[d.objective] : PROPERTY_OBJECTIVE_NONE);
+
+/* What a class's figures rest on in the rulebook, said where the class is
+   chosen. Residential says nothing new: every default was written for it.
+   Commercial: the rulebook's verified lines are written for any property —
+   the transfer duty of Item 32(a), the loan agreement duty, Sarawak's
+   advocates' scale, service tax and the valuation scale — and apply to a
+   shop as they stand; the two rules that do turn on the class (the
+   first-home exemption, residential only; the non-citizen transfer rates,
+   8% residential and 4% other) are held and applied to no class; and what
+   a lender offers on a commercial loan is the lender's, entered by the
+   reader. Nothing in it is a rate this tool made up. */
+function propertyClassRulebook(cls) {
+  if (cls === 'commercial') return {
+    line: `Commercial: the fee rulebook (${FEE_TABLE.version}) prices the purchase with the lines it uses for any property — no rate is made up for the class.`,
+    /* Each rule that does turn on the class, with its standing in the
+       rulebook and its source; then what the rulebook does not hold. */
+    differs: [
+      ...FEE_TABLE.notApplied.filter(x => x.id === 'firstHome' || x.id === 'nonCitizen').map(x => ({ title: x.title, state: 'Held in the rulebook, not applied', what: x.what, source: x.source || null })),
+      { title: 'A lender’s terms for a commercial loan', state: 'Not in the rulebook', what: 'The margin of finance and the tenure are the lender’s policy: enter the ones you are offered.', source: null },
+      { title: 'A tax charged on a commercial rent', state: 'Not in the rulebook', what: 'Not priced here: check it with a tax adviser.', source: null },
+    ] };
+  if (cls === 'land') return { line: PROPERTY_CLASSES.land.note, differs: [] };
+  return null;
+}
 
 /* NAPIC's five categories, mapped INTO the three classes. The header above
    promised this mapping and for one release it did not exist — the promise was
@@ -31667,6 +31764,65 @@ const SHARE_SKIP = new Set(['city', 'district', 'propertyType', 'evidence', 'che
 const SHARE_KEYS = Object.keys(PROPERTY_DEFAULT_DEAL).filter(k => !SHARE_SKIP.has(k));
 const SHARE_STR = /^[\w .,'()\/-]{0,40}$/;
 
+/* THE DECISION LAYER'S ANSWERS (P1, P2) — NOT IN THE DEFAULT DEAL, ON PURPOSE.
+   Each is absent until the reader gives it, so a deal from before these
+   questions existed is the same object it was (see PROPERTY_ROUTES). They
+   travel in the address as the default deal's fields do, each typed by its
+   own parser rather than by a default it does not have: an enumeration
+   only in its own words, a sum only as digits as written. A parser's
+   undefined is "not a value this field takes", and the part is skipped.
+   The comparables a deal names do not travel: they are records in this
+   browser's register, and a recipient has none of them. */
+const SUBSALE_TENANCY = {
+  vacant:   { id:'vacant',   label:'Vacant possession' },
+  tenanted: { id:'tenanted', label:'Sold with a tenant in place' },
+  unknown:  { id:'unknown',  label:'Not known yet' },
+};
+const SUBSALE_CONDITION = {
+  asnew:       { id:'asnew',       label:'As new' },
+  good:        { id:'good',        label:'Good' },
+  fair:        { id:'fair',        label:'Fair — some work' },
+  work:        { id:'work',        label:'Needs work' },
+  uninspected: { id:'uninspected', label:'Not inspected' },
+};
+const PRICE_TARGET_KINDS = ['monthly', 'yield'];
+const ansEnum = (ids) => (raw) => (ids.includes(raw) ? raw : undefined);
+const ansSum = (raw) => (/^\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
+const ansSigned = (raw) => (/^-?\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
+const DEAL_ANSWER_FIELDS = {
+  /* Subsale is the absence of the key, so the address never carries it. */
+  route: ansEnum(PROPERTY_ROUTE_IDS.filter(r => r !== DEFAULT_PROPERTY_ROUTE)),
+  commercialSubtype: ansEnum(COMMERCIAL_SUBTYPE_IDS),
+  objective: ansEnum(PROPERTY_OBJECTIVE_IDS),
+  askingPrice: ansSum,
+  tenancy: ansEnum(Object.keys(SUBSALE_TENANCY)),
+  tenancyRent: ansSum,
+  condition: ansEnum(Object.keys(SUBSALE_CONDITION)),
+  buildingAge: ansSum,
+  chargesToBuyer: ansSum,
+  targetKind: ansEnum(PRICE_TARGET_KINDS),
+  targetValue: ansSigned,
+};
+const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
+/* The one way an answer is written to a deal: the default is the key's
+   absence (subsale, no subtype, no objective, nothing entered), so
+   answering "Subsale" after "Auction" leaves the deal exactly as it was
+   before either. The comparables a deal names are a list of register ids.
+   Returns whether the deal changed. */
+function setDealAnswer(d, k, v) {
+  if (!d) return false;
+  let next;
+  if (k === 'comparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
+  else if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) next = v == null || v === '' ? undefined : DEAL_ANSWER_FIELDS[k](String(v));
+  else return false;
+  const had = d[k];
+  if (next === undefined) { if (!Object.hasOwn(d, k)) return false; delete d[k]; return had !== undefined; }
+  if (pmCanonSafe(had) === pmCanonSafe(next)) return false;
+  d[k] = next;
+  return true;
+}
+const pmCanonSafe = (v) => JSON.stringify(v === undefined ? null : v);
+
 function dealToParam(d) {
   const parts = [];
   for (const k of SHARE_KEYS) {
@@ -31676,6 +31832,13 @@ function dealToParam(d) {
     if (typeof v === 'number' && Number.isFinite(v)) parts.push(`${k}:${v}`);
     else if (typeof v === 'boolean') parts.push(`${k}:${v}`);
     else if (typeof v === 'string' && SHARE_STR.test(v)) parts.push(`${k}:${encodeURIComponent(v)}`);
+  }
+  /* The decision layer's answers, only those given and only in their own
+     words (DEAL_ANSWER_FIELDS). */
+  for (const k of DEAL_ANSWER_KEYS) {
+    const v = d[k];
+    if (v == null || v === '' || DEAL_ANSWER_FIELDS[k](String(v)) === undefined) continue;
+    parts.push(`${k}:${encodeURIComponent(String(v))}`);
   }
   for (const [k, v] of Object.entries(d.evidence || {})) {
     if (v && v !== PROPERTY_DEFAULT_DEAL.evidence[k] && SHARE_STR.test(String(v))) parts.push(`evidence.${k}:${encodeURIComponent(v)}`);
@@ -31713,7 +31876,7 @@ function applyDealParam(d, str) {
     if (k.startsWith('evidence.')) {
       const ek = k.slice(9);
       /* Evidence is graded for the deal's own fields, and only those. */
-      if (!Object.prototype.hasOwnProperty.call(PROPERTY_DEFAULT_DEAL, ek) || !SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
+      if (!(Object.prototype.hasOwnProperty.call(PROPERTY_DEFAULT_DEAL, ek) || DEAL_ANSWER_KEYS.includes(ek)) || !SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
       d.evidence = d.evidence || {};
       if (d.evidence[ek] !== raw) { d.evidence[ek] = raw; changed = true; }
       continue;
@@ -31729,6 +31892,12 @@ function applyDealParam(d, str) {
       const bag = ev ? 'checkEvidence' : 'checks';
       d[bag] = { ...(d[bag] || {}) };
       if (d[bag][id] !== raw) { d[bag][id] = raw; changed = true; }
+      continue;
+    }
+    /* An answer of the decision layer, in its own words or not at all. */
+    if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) {
+      if (DEAL_ANSWER_FIELDS[k](raw) === undefined) continue;
+      if (setDealAnswer(d, k, raw)) changed = true;
       continue;
     }
     if (!SHARE_KEYS.includes(k)) continue;
@@ -32347,10 +32516,10 @@ const FEE_TABLE = {
   /* Held, and not applied by default: whether they apply turns on facts about
      the buyer this tool does not ask for. */
   notApplied: [
-    { title: 'First-home stamp duty exemption', applied: false,
+    { id: 'firstHome', classes: ['residential'], title: 'First-home stamp duty exemption', applied: false,
       what: '100% of the duty on the transfer (P.U.(A) 53/2021, amended by P.U.(A) 448/2025) and on the loan agreement (P.U.(A) 54/2021, amended by P.U.(A) 449/2025), for one residential unit with a market value of RM500,000 or less, bought by a Malaysian citizen who has never owned a residential property, under an SPA executed from 1 January 2021 to 31 December 2027; the loan from a listed lender. LHDN’s declaration excludes SOHO, SOFO, SOVO and serviced apartments, which the Malaysian Bar disputes. Expired: the 75% remission for RM500,001–1,000,000 (SPAs of 1 June 2022 to 31 December 2023).',
       source: { title: 'Malaysian Bar Circular No 128/2026 (16 April 2026)', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Circular%20No%20128-2026.pdf' } },
-    { title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
+    { id: 'nonCitizen', classes: ['residential', 'commercial', 'land'], title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
       what: 'A flat RM8 per RM100 on residential property from 1 January 2026 (Item 32(ab), Finance Act 2025, Act 874), and RM4 per RM100 on other property from 1 January 2024 (Item 32(aa)). This tool charges Item 32(a), the scale for a citizen or permanent resident.',
       source: { title: 'Stamp Act 1949, First Schedule, Items 32(aa)–(ab); Finance Act 2025 (Act 874)', url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf' } },
     { title: 'Stamp duty self-assessment (STSDS)', applied: false,
@@ -33536,6 +33705,14 @@ const PROPERTY_I18N = {
   'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
   'in.parking':   { en:'Allocated parking bays', ms:'Petak letak kereta diperuntukkan', zh:'分配的停车位' },
   'in.price':     { en:'Purchase price (RM)', ms:'Harga belian (RM)', zh:'购买价格 (RM)' },
+  /* The subsale evidence (the property decision layer, P2). */
+  'in.askingPrice':   { en:'Asking price (RM)', ms:'Harga diminta (RM)', zh:'要价 (RM)' },
+  'in.tenancy':       { en:'Existing tenancy', ms:'Penyewaan sedia ada', zh:'现有租约' },
+  'in.tenancyRent':   { en:'Rent under the existing tenancy (RM a month)', ms:'Sewa di bawah penyewaan sedia ada (RM sebulan)', zh:'现有租约的租金 (每月 RM)' },
+  'in.condition':     { en:'Condition', ms:'Keadaan', zh:'状况' },
+  'in.buildingAge':   { en:'Age of the building (years)', ms:'Usia bangunan (tahun)', zh:'建筑楼龄 (年)' },
+  'in.chargesToBuyer':{ en:'Outstanding charges passed to you (RM)', ms:'Caj tertunggak yang dipindahkan kepada anda (RM)', zh:'转由您承担的欠缴费用 (RM)' },
+  'in.evidenceFrom':  { en:'Where this figure came from', ms:'Sumber angka ini', zh:'此数字的来源' },
   'in.bankValuation': { en:'Bank or valuer estimate (RM, 0 if not yet known)', ms:'Nilaian bank atau penilai (RM, 0 jika belum diketahui)', zh:'银行或估价师估值 (RM，未知则填 0)' },
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
@@ -34017,6 +34194,61 @@ function comparableSupport(d) {
       ? (d.price - price.median) / price.median * 100 : null,
     rentVsMedian: isNum(rent.median) && rent.median > 0 && isNum(d.rent)
       ? (d.rent - rent.median) / rent.median * 100 : null,
+  };
+}
+
+/* THE PRICE GAP (the property decision layer, P2: the subsale evidence model).
+   ---------------------------------------------------------------------------
+   The asking price set against the value the reader's OWN comparables imply
+   — the ones they named for this deal (d.comparableIds), from their
+   register — and against the price they negotiated, which is the price the
+   model runs on. Never against a market figure: this product holds none for
+   Sarawak, and the comparables are named every time the gap is shown.
+
+   Which records can be named: a transacted price of the deal's kind — a
+   built property's sale for a building, a land sale for a parcel — in the
+   deal's town, and not the worked example's invented rows. An asking price
+   is somebody's hope and implies no value. Each named record implies a
+   value: its price per square foot of the same kind of area times this
+   property's area where both areas are recorded, else its price as
+   recorded (said so). The comparable value is the median of those — the
+   register's own rule, one unusual record does not move it. */
+const PRICE_GAP_KINDS = { residential: 'sold-price', commercial: 'sold-price', land: 'land-sold' };
+function dealComparableChoices(d) {
+  const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
+const comparableName = (o) => [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', ');
+function priceGap(d) {
+  const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  const areaKey = kind === 'land-sold' ? 'landSqft' : 'sqft';
+  const ids = Array.isArray(d?.comparableIds) ? d.comparableIds : [];
+  const all = State.observations || [];
+  const named = ids.map(id => all.find(o => o && o.id === id)).filter(Boolean);
+  /* A record named before the class changed, or since removed, is said, not
+     used: a land sale does not value a condominium. */
+  const used = named.filter(o => o.kind === kind && !o.sample && isNum(o.value) && o.value > 0);
+  const notUsed = ids.length - used.length;
+  const subjectArea = num0(d?.[areaKey]);
+  const comps = used.map(o => {
+    const area = num0(o[areaKey]);
+    const byRate = area > 0 && subjectArea > 0;
+    return { id: o.id, name: comparableName(o), price: o.value, date: o.date || null, evidence: o.evidence || null,
+      standing: observationStanding(o), area: area || null,
+      implied: byRate ? o.value / area * subjectArea : o.value, basis: byRate ? 'rate' : 'price',
+      rate: area > 0 ? o.value / area : null };
+  });
+  const vals = comps.map(c => c.implied).sort((a, b) => a - b);
+  const value = vals.length ? (vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2) : null;
+  const asking = isNum(d?.askingPrice) && d.askingPrice > 0 ? d.askingPrice : null;
+  const price = num0(d?.price) > 0 ? num0(d.price) : null;
+  const gapOf = (p) => (isNum(p) && isNum(value) && value > 0 ? { amount: p - value, pct: (p - value) / value * 100 } : null);
+  return {
+    status: !comps.length ? 'no-comparables' : !asking ? 'no-asking' : 'ok',
+    kind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed,
+    asking, askingGap: gapOf(asking), price, priceGap: gapOf(price),
+    /* Asking less negotiated: what the negotiation took off, or added. */
+    negotiated: isNum(asking) && isNum(price) ? asking - price : null,
   };
 }
 
@@ -34897,6 +35129,11 @@ const PM_FIELD_WORDS = {
   disposerCategory: 'Who is selling', flatQuotePct: 'Flat-rate quote (%)', flatQuoteAmount: 'Flat-rate amount (RM)',
   flatQuoteYears: 'Flat-rate term (years)', mrtaPremium: 'MRTA premium (RM)', mltaPremiumAnnual: 'MLTA premium a year (RM)',
   propertyClassOverride: 'Asset class', valuationRule: 'What the loan is calculated on', userStarted: 'started by you',
+  /* The property decision layer's answers (P1, P2: 70-property.js). */
+  route: 'How you are buying', commercialSubtype: 'Commercial kind', objective: 'Objective', askingPrice: 'Asking price (RM)',
+  comparableIds: 'Comparables named', tenancy: 'Existing tenancy', tenancyRent: 'Rent under the existing tenancy (RM a month)',
+  condition: 'Condition', buildingAge: 'Age of the building (years)', chargesToBuyer: 'Outstanding charges passed to you (RM)',
+  targetKind: 'Target', targetValue: 'Target figure',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure
@@ -34904,7 +35141,7 @@ function pmOverrideLine(ov, max = 6) {
   const bits = Object.entries(ov || {}).filter(([k]) => k !== 'touched').map(([k, v]) => {
     if (isRecord(v)) return PM_RECORD_WORDS[k] || k;
     const label = PROPERTY_I18N[`in.${k}`]?.en || PM_FIELD_WORDS[k] || k;
-    const shown = typeof v === 'number' ? fmtNum(v, Number.isInteger(v) ? 0 : 2) : v === null ? 'not set' : String(v);
+    const shown = Array.isArray(v) ? `${v.length}` : typeof v === 'number' ? fmtNum(v, Number.isInteger(v) ? 0 : 2) : v === null ? 'not set' : String(v);
     return `${label} ${shown}`;
   });
   return bits.length > max ? `${bits.slice(0, max).join('; ')}; and ${bits.length - max} more` : bits.join('; ');
@@ -35654,6 +35891,16 @@ const CP_IN = {
   propertyClassOverride: (v) => (v && PROPERTY_CLASSES[v] ? PROPERTY_CLASSES[v].label : 'As the property type has it'),
   titleType: (v) => TITLE_TYPES.find(t => t.id === v)?.label || 'Not recorded',
   projectId: (v) => (PROJECTS.find(p => p.id === v) || {}).name || 'None named',
+  /* The property decision layer's answers (P1, P2): each in its own words. */
+  route: (v) => PROPERTY_ROUTES[v || DEFAULT_PROPERTY_ROUTE]?.label || PROPERTY_ROUTES[DEFAULT_PROPERTY_ROUTE].label,
+  commercialSubtype: (v) => COMMERCIAL_SUBTYPES[v]?.label || 'Not chosen',
+  objective: (v) => PROPERTY_OBJECTIVES[v]?.label || 'Not chosen',
+  askingPrice: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'Not entered'),
+  comparableIds: (v) => (Array.isArray(v) && v.length ? `${v.length} named from the register` : 'None named'),
+  tenancy: (v) => SUBSALE_TENANCY[v]?.label || 'Not recorded', tenancyRent: (v) => (num0(v) > 0 ? cpMoneyMonth(v) : 'Not entered'),
+  condition: (v) => SUBSALE_CONDITION[v]?.label || 'Not recorded', buildingAge: (v) => (v == null ? 'Not entered' : cpPlural(v, 'year')),
+  chargesToBuyer: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
+  targetKind: (v) => PRICE_TARGETS[v]?.label || 'Not set', targetValue: (v) => (v == null ? 'Not set' : cpN(v)),
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
@@ -37594,6 +37841,11 @@ function dealModel(d) {
         /* Only when it exists. A zero row for a gap there isn't would train the
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
+        /* Arrears the sale passes to the buyer, as the reader's SPA or the
+           management's statement says (the subsale evidence model, P2): their
+           own figure, and only when entered — a deal without it is the deal it
+           was, line for line. */
+        ...(num0(d.chargesToBuyer) > 0 ? [['Outstanding charges passed to you', num0(d.chargesToBuyer)]] : []),
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
         feeLine('disbursements', {}),
@@ -38316,6 +38568,67 @@ function renovationReturn(d, m) {
   };
 }
 
+/* THE PRICE THAT MAKES THIS WORK (the property decision layer, P2).
+   ---------------------------------------------------------------------------
+   The highest purchase price at which the figures the reader entered meet a
+   target they set — a monthly position of at least X, or a net yield of at
+   least Y — found by running THIS model (dealModel) at trial prices with
+   every other input held. No second model, no shortcut formula: what the
+   page shows at the solved price is what the solve tested.
+
+   WHY BISECTION IS ENOUGH. With every other input held, both measures can
+   only fall as the price rises: the loan is a share of the price (or of the
+   lower of the price and an entered valuation), so the repayment rises and
+   the monthly position falls or stays; the net operating income does not
+   depend on the price, so the net yield is it divided by a larger price.
+   So "meets the target" holds below some price and fails above it.
+
+   TOLERANCE: ONE RINGGIT, ON THE PRICE — NONE ON THE TARGET. The search is
+   over whole ringgit, between RM1,000 and four times the larger of the
+   price and the asking price (and at least RM400,000). The price returned
+   is the highest whole-ringgit price at which the model's figure meets the
+   target exactly (>=, no allowance), and at one ringgit more it does not;
+   both runs are returned, so a test or a reader can see it. Said otherwise:
+   - infeasible — the target is not met even at RM1,000 (the rent, the
+     running costs or the loan terms, not the price, stand in the way);
+   - unbounded — it is met even at the top of the range (a loan held to an
+     entered valuation stops following the price);
+   - not applicable — a net yield for a class with no tenancy;
+   - unknown — the model cannot compute the measure (a loan with no
+     schedule). */
+const PRICE_TARGETS = {
+  monthly: { id: 'monthly', label: 'Monthly position', field: 'cashflowMonthly', words: 'a monthly position', fmt: (v) => fmtMoney(v, 'MYR', 0), unit: 'RM a month' },
+  yield: { id: 'yield', label: 'Net yield', field: 'netYield', words: 'a net yield', fmt: (v) => fmtPct(v, 2), unit: '%' },
+};
+const PRICE_SOLVE_FLOOR = 1000;
+const dealTarget = (d) => (d && PRICE_TARGETS[d.targetKind] && isNum(d.targetValue) ? { kind: d.targetKind, value: d.targetValue } : null);
+function solveDealPrice(d, target = dealTarget(d)) {
+  const t = target && PRICE_TARGETS[target.kind];
+  if (!t || !isNum(target.value)) return { status: 'no-target' };
+  if (t.id === 'yield' && !PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant)
+    return { status: 'not-applicable', target: t, value: target.value, why: 'A class with no tenancy earns no rent, so no price gives it a net yield.' };
+  let runs = 0;
+  const at = (p) => { runs++; return dealModel({ ...d, price: p }); };
+  const reads = (m) => m[t.field];
+  const meets = (m) => isNum(reads(m)) && reads(m) >= target.value;
+  let lo = PRICE_SOLVE_FLOOR;
+  const mLo = at(lo);
+  if (!isNum(reads(mLo))) return { status: 'unknown', target: t, value: target.value, runs,
+    why: 'The model cannot compute this figure for these inputs: the loan has no schedule of repayments (a tenure of 0).' };
+  if (!meets(mLo)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
+  let hi = Math.ceil(Math.max(num0(d.price), num0(d.askingPrice), 100000) * 4);
+  const mHi = at(hi);
+  if (meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (meets(at(mid))) lo = mid; else hi = mid;
+  }
+  const m = at(lo), over = at(lo + 1);
+  return { status: 'solved', target: t, value: target.value, price: lo, achieved: reads(m), above: reads(over), aboveMeets: meets(over),
+    vsPrice: num0(d.price) > 0 ? lo - num0(d.price) : null,
+    vsAsking: isNum(d.askingPrice) && d.askingPrice > 0 ? lo - d.askingPrice : null, runs };
+}
+
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
 function num0(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
@@ -38750,6 +39063,16 @@ const PC_ANSWER_CARDS = [
   { key: 'complete', level: 2, rests: ['price', 'downPct'] },
   { key: 'breakeven', level: 2, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'vacancyPct', 'maintenance'] },
 ];
+/* Each card's figure, by the model's own name, for the objective's lead
+   (PROPERTY_OBJECTIVES, 70-property.js): with an objective chosen a card
+   leads (L1) when its figure is one of the two the objective leads with,
+   and qualifies (L2) otherwise; with none, the levels above. */
+const PC_ANSWER_FIELD = { safe: 'safeCashRequired', monthly: 'cashflowMonthly', complete: 'cashStillRequiredToComplete', breakeven: 'breakEvenRent' };
+function pcAnswerLevel(d, t) {
+  const o = dealObjective(d);
+  if (!o.id) return t.level;
+  return o.tiles.slice(0, 2).includes(PC_ANSWER_FIELD[t.key]) ? 1 : 2;
+}
 /* THE CALCULATOR'S ACTION BAR ON A PHONE (the layout system, under 640px,
    in its dock): Analyse — the one-page answer, the figures and the grade;
    Compare — the Scenarios section; Save this — what the model bar's Save
@@ -38820,6 +39143,11 @@ VIEWS.property = () => {
      before it is replaced. The report paywall's buttons at the page's end
      were once its only filled ones, 15,000px down. */
   wrap.append(propertyModelBar(d));
+  /* THE TWO QUESTIONS AND THE OBJECTIVE (the property decision layer, P1;
+     83-property-decision.js), before every other field: what is bought and
+     how select the model, and the objective which figures lead. Written to
+     the deal as any field here is. */
+  wrap.append(propertyQuestions({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
   /* The five sections below, reached from wherever the page is scrolled to. */
   wrap.append(propertySectionIndex());
 
@@ -38877,7 +39205,10 @@ VIEWS.property = () => {
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
       isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
   };
-  for (const t of PC_ANSWER_CARDS) {
+  /* The objective decides which lead (PC_ANSWER_LEAD): the cards keep
+     their places, and only their weight follows it. */
+  for (const t0 of PC_ANSWER_CARDS) {
+    const t = { ...t0, level: pcAnswerLevel(d, t0) };
     const [l, v, s, tone] = answerFigs[t.key];
     const card = el('div', { class: `panel ls-card ls-l${t.level}`, 'data-card': 'metric', 'data-level': String(t.level), 'data-answer': t.key },
       statTile(l, v, { sub: s, tone }));
@@ -39767,6 +40098,13 @@ VIEWS.property = () => {
       rail.append(f);
     });
   });
+
+  /* THE SUBSALE EVIDENCE (the property decision layer, P2), in the
+     Acquisition section beside the purchase it qualifies: what was asked,
+     what is known of the unit — its tenancy, condition, age and what the
+     sale passes to the buyer — each with where it came from; and the
+     comparables from the register this price is set against. */
+  acq.inputs.append(pcSubsaleInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -40770,7 +41108,7 @@ VIEWS.property = () => {
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
-  acq.outputs.append(buyCard);
+  acq.outputs.append(buyCard, pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
@@ -44283,7 +44621,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -44303,8 +44641,10 @@ function labDraw(P, focusId = null) {
      C side by side and keeping one. */
   const chain = labChain(P, lab, col);
   const alert = P.compact ? null : labAlert(P, lab);
+  /* The price against the reader's evidence (the decision layer, P2). */
+  const price = P.compact ? null : labPriceSection(P, lab);
   const evidence = labEvidence(P, lab);
-  outputs.append(...[chain, alert, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -44350,7 +44690,10 @@ function labHeader(P, lab) {
        property (labArrive). */
     else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
     else status.append(el('strong', {}, 'The deal on the calculator'), ' — not saved as a property');
-    hd.append(labIdentity(P, lab, status), labTiles(P, lab));
+    /* The two questions and the objective (the decision layer, P1:
+       83-property-decision.js) after the line that names the property and
+       its disclosures, and before the figures their answers lead. */
+    hd.append(labIdentity(P, lab, status), labQuestions(P, lab), labTiles(P, lab));
   }
   return hd;
 }
@@ -44421,7 +44764,13 @@ function labIdentity(P, lab, status) {
   const d = labSubjectInputs(lab);
   const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
   P.els.idAct = labIdentityAct(P, lab);
-  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, d ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d)) : null]));
+  /* On a phone the place line carries the two questions' summary and its
+     Change (83-property-decision.js): one 44px line, the questions opening
+     under the identity line — the answers as the column the sliders move
+     holds them, which are the property's own until a move is made. */
+  const meta = !d ? null : P.compact ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d))
+    : el('p', { class: 'lab-id-meta has-sum' }, [el('span', { class: 'lab-id-place' }, labPlaceLine(d)), pqSummaryLine(labAnswerInputs(lab) || d, P.idPrefix), pqChangeButton(P.idPrefix)]);
+  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, meta]));
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
@@ -44438,7 +44787,9 @@ function labIdentityAct(P, lab) {
   /* While its name is asked for, under the line, the form's Save is the
      one to press: one primary, not two. */
   if (lab.naming?.at === 'identity') return box;
-  if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)));
+  else if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, labGuidedWords(lab, col)));
   else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
@@ -44452,11 +44803,22 @@ function labIdentityAct(P, lab) {
    words until the badge set lands (plan 3.7): "Illustrative default" while
    any figure it is worked from is still the tool's seeded one, else the
    weakest evidence among them — and the next step. */
-const LAB_TILES = [
-  { key: 'safeCashRequired', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
-  { key: 'cashflowMonthly', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
-  { key: 'netYield', level: 2, rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
-];
+const LAB_TILE_RESTS = {
+  safeCashRequired: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'],
+  cashflowMonthly: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'],
+  netYield: ['price', 'rent', 'vacancyPct', 'maintenance'],
+  valueLessLoanAtExit: ['price', 'downPct', 'ratePct', 'tenureYears', 'apprecPct', 'holdYears'],
+  irrPct: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance', 'apprecPct', 'holdYears'],
+};
+/* WHICH THREE, AND WHICH LEAD: the objective's (PROPERTY_OBJECTIVES,
+   70-property.js) — the first two the decision (L1), the third its context
+   (L2). With none chosen, the three /property has always opened on. The
+   objective decides what leads and nothing else: the columns below keep
+   their order, and nothing is ranked. */
+const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
+/* A tile's label where the chain's is a sentence long. */
+const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)}` };
+const LAB_TILE_NOTE = { valueLessLoanAtExit: (m) => (isNum(m.valueLessLoanAtExit) ? 'before selling costs' : null) };
 function labTileKind(d, rests) {
   const keys = rests.filter(k => propertyInputApplies(d, k));
   if (keys.some(k => inputIsSeeded(d, k))) return { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
@@ -44469,15 +44831,15 @@ function labTiles(P, lab) {
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
   const rec = lab.model ? pmFind(lab.model) : null;
   const grid = el('div', { class: 'lab-tiles', role: 'list', 'aria-label': rec ? `“${rec.name}” as saved` : 'The deal on the calculator' });
-  for (const t of LAB_TILES) {
+  for (const t of labTileSet(labAnswerInputs(lab) || d)) {
     const f = LAB_FIGURES.find(x => x.key === t.key);
     const v = run ? f.read(run.m, d) : null;
     const kind = d ? labTileKind(d, t.rests) : { kind: 'unavailable', words: 'Unavailable' };
     /* THE SYSTEM'S METRIC CARD (37-layout-system.js): the cash and the
        month are the decision (L1, the card-metric size); the yield
        qualifies them (L2, medium). */
-    const card = lsMetricCard({ label: f.label(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
-      sub: run ? (f.note(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
+    const card = lsMetricCard({ label: (LAB_TILE_LABEL[t.key] || f.label)(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
+      sub: run ? ((LAB_TILE_NOTE[t.key] || f.note)(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
       cls: 'lab-tile', attrs: { role: 'listitem', 'data-tile': t.key }, valueAttrs: { class: 'lab-tile-val', 'data-value': isNum(v) ? String(v) : '' } });
     card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
     card.querySelector('.ls-card-label').classList.add('lab-tile-label');
@@ -44531,6 +44893,153 @@ function labNextTile(P, lab, d) {
   return card;
 }
 
+/* ------------------------------------------- the questions (P1) and the price (P2) */
+/* THE TWO QUESTIONS AND THE OBJECTIVE (83-property-decision.js), as the
+   columns hold them: an answer given here is a move of every column, so
+   they read from the column the sliders move. Its summary is the identity
+   line's on a phone (labIdentity), so the block carries none of its own. */
+const labAnswerInputs = (lab) => labActive(lab)?.work || labSubjectInputs(lab);
+function labQuestions(P, lab) {
+  const d = labAnswerInputs(lab);
+  if (!d) return null;
+  return propertyQuestions({ d, prefix: P.idPrefix, summary: !!P.compact, answer: (k, v) => labAnswer(P, lab, k, v) });
+}
+/* SAVING IS THE ONLY WRITE (the owner's decision, 9 Oct 2026). What is
+   bought, how, the objective and the price's target are answers about the
+   property, so one answer moves every column at once — A, B and C stay one
+   property — and the figures follow at the next paint. Like any move it is
+   kept in this tab's memory and written nowhere: not the calculator's deal,
+   not a saved property, not the address. It is written when the reader
+   saves: the guided Save of an unsaved deal saves the property with its
+   answers (labSaveProperty); a saved property's Save beside its name
+   writes them to it (labSaveAnswers); and a scenario saved, or a column
+   opened in the calculator, carries them as it carries its other moves.
+   lab.answers holds what was answered, for those saves. */
+function labAnswer(P, lab, k, v) {
+  const write = pqWriter(k, v, { touch: false });
+  let changed = false;
+  for (const col of lab.cols) {
+    const next = pmCopy(col.work);
+    if (!write(next)) continue;
+    for (const key of new Set([...Object.keys(next), ...Object.keys(col.work)])) {
+      if (PM_POINTERS.includes(key) || pmCanon(next[key]) === pmCanon(col.work[key])) continue;
+      labWrite(col, key, next[key]);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  lab.answers = { ...(lab.answers || {}), ...(isRecord(k) ? k : { [k]: v }) };
+  const focus = document.activeElement?.id || null;
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, focus);
+  labAfterStructure(P, lab, { address: false });
+}
+/* The answers given here, as a writer of a deal — the class marked as the
+   reader's, as a commit marks a moved figure. */
+const labAnswersWriter = (lab) => pqWriter(lab.answers || {}, null);
+/* Whether the answers would change what is saved: the property as saved,
+   or the deal on the calculator. */
+function labAnswersPending(lab) {
+  if (!lab.answers || !Object.keys(lab.answers).length) return false;
+  const d = labSubjectInputs(lab);
+  if (!d) return false;
+  const copy = pmCopy(d);
+  return labAnswersWriter(lab)(copy) && pmCanon(pmBare(copy)) !== pmCanon(pmBare(d));
+}
+const labSaveAnswersWords = (lab) => `Save what and how you are buying to “${pmFind(lab.model)?.name || 'this property'}”`;
+/* A saved property's answers, written to it on Save — and to the
+   calculator's copy of it where that is the one open there, so it does not
+   read as changed. Its columns read the property again, the answers no
+   longer moves of theirs; a lab variant, which reads nothing, takes them on
+   its base as the property did (labFact). */
+function labSaveAnswers(P, lab) {
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (!rec) return false;
+  const write = labAnswersWriter(lab);
+  if (!pmAnswerRecord(rec.id, write)) return false;
+  if (State.deal?.modelId === rec.id && write(State.deal)) saveDeal();
+  for (const col of lab.cols) if (col.source === 'variant') labFact(col, write);
+  lab.answers = {};
+  if (!labRebase(lab)) return false;
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'next-go')]);
+  labAfterStructure(P, lab, { address: true });
+  toast(`Saved what and how you are buying to “${rec.name}”: ${pqSummaryText(pmInputsOf(pmFind(rec.id)))}.`);
+  return true;
+}
+function labFact(col, write) {
+  const base = pmCopy(col.baseInputs), work = pmCopy(col.work);
+  write(base); write(work);
+  const moves = {};
+  for (const k of Object.keys(col.moves)) if (pmCanon(work[k]) !== pmCanon(base[k])) moves[k] = work[k];
+  Object.assign(col, { baseInputs: base, work, moves, cur: null, ref: labRun(base), ver: (col.ver || 0) + 1 });
+}
+
+/* THE PRICE, AGAINST THE READER'S EVIDENCE (P2): the price gap and the
+   price that makes this work, for the column the sliders move — a what-if
+   moved in B is set against the same comparables and the same target. The
+   inputs it reads are the property's (the asking price, the comparables
+   named, the target), entered in the calculator and, for the target, here. */
+function labPriceSection(P, lab) {
+  const card = el('section', { class: 'card ls-section lab-pe', id: labId(P, 'pe'), 'aria-labelledby': labId(P, 'pe-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'pe-h') }, 'The price, against your evidence'));
+  const route = el('p', { class: 'metaline pe-route', id: labId(P, 'pe-route') });
+  const cards = el('div', { class: 'pe-cards-wrap', id: labId(P, 'pe-cards') });
+  const d = labAnswerInputs(lab);
+  const target = d ? priceTargetControls({ d, prefix: P.idPrefix, answer: (k, v) => labAnswer(P, lab, k, v) }) : null;
+  const tryBox = el('div', { class: 'pe-try', id: labId(P, 'pe-try') });
+  card.append(route, cards, target, tryBox);
+  P.els.pe = { card, route, cards, tryBox, sig: null };
+  return card;
+}
+/* Its figures, at a paint. The gap is arithmetic on a few records, worked
+   out at once; the solve is twenty-odd runs of the model, so a drag waits
+   for the slider to rest (140ms) and the figure shown until then is the
+   last one solved, for the figures it names. The first drawing solves at
+   once, so the served page carries it. */
+const LAB_PE_WAIT = 140;
+function labPricePaint(P, lab, { initial = false } = {}) {
+  const pe = P.els?.pe;
+  if (!pe || !pe.card.isConnected && !initial) return;
+  const col = labActive(lab), d = col.work;
+  const key = pmRunKey(d);
+  if (!P.peSolve || P.peSolve.key !== key) {
+    if (initial || !P.peSolve) P.peSolve = { key, s: solveDealPrice(d) };
+    else {
+      clearTimeout(P.peTimer);
+      P.peTimer = setTimeout(() => {
+        const L = LAB[P.key];
+        if (!L || !P.node.isConnected) return;
+        const c = labActive(L);
+        P.peSolve = { key: pmRunKey(c.work), s: solveDealPrice(c.work) };
+        labPricePaint(P, L);
+      }, LAB_PE_WAIT);
+    }
+  }
+  const s = P.peSolve.s, g = priceGap(d);
+  const routeNote = PROPERTY_ROUTES[dealRoute(d)].coming || '';
+  const sig = JSON.stringify([col.key, g.status, g.value, g.asking, g.price, g.comps.map(c => [c.id, c.implied]), s, num0(d.price), routeNote]);
+  if (pe.sig === sig) return;
+  pe.sig = sig;
+  labText(pe.route, routeNote);
+  pe.route.hidden = !routeNote;
+  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+  pe.cards.replaceChildren(priceEvidenceCards({ d, g, s, prefix: P.idPrefix,
+    gapWhy: () => lsOpenEvidence(pe.gapEv), solveWhy: () => lsOpenEvidence(pe.solveEv),
+    enter: onCalc ? '/property/calculator#d-askingPrice' : '/property/models',
+    setTarget: () => { const r = document.getElementById(`${P.idPrefix}-q-target-monthly`); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
+  /* The solved price, tried in the column the sliders move — as a move,
+     a what-if like any other, kept in this tab until saved. */
+  const solved = s.status === 'solved' && Math.round(num0(d.price)) !== s.price;
+  pe.tryBox.replaceChildren(...(solved ? [el('button', { type: 'button', class: 'btn btn-ghost btn-sm pe-try-btn', id: labId(P, 'pe-try-btn'),
+    onclick: () => {
+      const L = LAB[P.key], c = labActive(L);
+      labWrite(c, 'price', s.price);
+      labSchedule();
+      liveSay(`${c.key}’s price set to ${labMoney(s.price)}, a move kept in this tab until saved.`);
+    } }, `Try ${labMoney(s.price)} in ${col.key}`)] : []));
+  if (pe.gapText) labText(pe.gapText, priceGapFormula(g));
+  if (pe.solveText) labText(pe.solveText, priceSolveFormula(s, d));
+}
+
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
    Analyse — the product's action, the full model in the calculator;
    Compare — A, B and C side by side, below; Save this — the conversion,
@@ -44542,6 +45051,7 @@ function labBarSave() {
   if (!lab) return { aria: 'Nothing to save', disabled: true };
   const col = labActive(lab);
   if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
+  if (lab.model && labAnswersPending(lab)) return { aria: labSaveAnswersWords(lab), run: () => labSaveAnswers(P, lab) };
   /* The same guided save as the identity line's: the property's name and,
      where the column holds figures a scenario would keep, its own. */
   if (!lab.model) return { aria: labGuidedWords(lab, col), run: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) };
@@ -44954,7 +45464,20 @@ function labEvidence(P, lab) {
   P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
   P.els.how = { node: how, head: fhead, formula };
-  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, how] });
+  /* How the price gap and the solved price are worked out (P2) — above
+     "How a figure is worked out", which a row pressed from 1440px writes
+     into and so grows: below it, these moved with every row pressed
+     (coverage-frames). */
+  const pe = [];
+  if (P.els.pe) {
+    const gapText = el('p', { class: 'lab-formula', id: labId(P, 'ev-gap-text') }, '');
+    const solveText = el('p', { class: 'lab-formula', id: labId(P, 'ev-solve-text') }, '');
+    P.els.pe.gapEv = lsEvidenceSection({ id: labId(P, 'ev-gap'), summary: 'How the price gap is worked out', body: [gapText] });
+    P.els.pe.solveEv = lsEvidenceSection({ id: labId(P, 'ev-solve'), summary: 'How the price is solved', body: [solveText] });
+    P.els.pe.gapText = gapText; P.els.pe.solveText = solveText;
+    pe.push(P.els.pe.gapEv, P.els.pe.solveEv);
+  }
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
 }
 /* From 1440px a row of the chain shows its formula in the drawer. */
 function labShowFormula(P, key) {
@@ -45375,7 +45898,7 @@ function labCommits(P, lab, col) {
    tool's illustrative default (the verification of 4 Oct 2026, F5). */
 function labNext(col) {
   const next = pmCopy(col.work);
-  for (const k of labMarked(col)) markTouched(next, k);
+  for (const k of labMarked(col)) if (!DEAL_ANSWER_KEYS.includes(k)) markTouched(next, k);
   return next;
 }
 /* What a commit's toast says of the figures it marked, and of the grade:
@@ -45457,14 +45980,18 @@ function labNameForm(P, lab, col) {
    in the same action. */
 function labSaveProperty(P, lab, name, scenario = null) {
   const fromId = lab.naming?.at === 'identity';
+  /* The answers given here are the property's: saved with it. */
+  const answered = lab.answers && Object.keys(lab.answers).length ? labAnswersWriter(lab) : null;
+  const before = answered ? pmCopy(State.deal) : null;
+  if (answered) answered(State.deal);
   const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
-  if (!rec) return;
+  if (!rec) { if (before) State.deal = before; return; }
   const moved = lab.cols.map(c => ({ key: c.key, moves: { ...c.moves }, name: c.name, source: c.source, of: c.of, baseInputs: c.baseInputs, inherited: c.inherited || {} }));
   delete LAB[lab.key];
   const next = labEnsure({ kind: 'model', id: rec.id, cols: ['base'] });
   next.cols = moved.map(m => {
     const c = m.source === 'deal' ? labCol(m.key, 'base', 'As saved', pmInputsOf(rec))
-      : labCol(m.key, 'variant', m.name, m.baseInputs, { of: m.of, inherited: pmCopy(m.inherited) });
+      : labCol(m.key, 'variant', m.name, answered ? (() => { const b = pmCopy(m.baseInputs); answered(b); return b; })() : m.baseInputs, { of: m.of, inherited: pmCopy(m.inherited) });
     for (const [k, v] of Object.entries(m.moves)) labWrite(c, k, v);
     return c;
   });
@@ -45770,6 +46297,8 @@ function labPaintPanel(P, { initial = false } = {}) {
     if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
+  /* The price against the evidence (P2). */
+  labPricePaint(P, lab, { initial });
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);
@@ -45855,6 +46384,394 @@ VIEWS.propertyLab = () => {
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   return wrap;
 };
+/* ==========================================================================
+   THE PROPERTY DECISION LAYER — P1 AND P2 (the owner's brief, 7 Oct 2026:
+   briefs/README-property-decision-layer.md; the owner's answers: the lens
+   never reorders columns, and no ranked risk ladder)
+   --------------------------------------------------------------------------
+   P1, THE QUESTIONS. At the start of /property (the Scenario Lab) and of
+   the calculator: What are you buying? — Residential · Commercial (and its
+   subtype) · Land; How are you buying? — New development · Subsale ·
+   Auction; and, optional, the objective, which decides which figures lead
+   and nothing else. The registries and the rule that an unanswered deal is
+   a subsale of its current class are in 70-property.js (PROPERTY_ROUTES).
+   On a phone each question is one line of chips that scrolls sideways
+   (ls-chips), its legend beside it.
+
+   WHERE AN ANSWER IS WRITTEN (the owner's decision, 9 Oct 2026: saving is
+   the only write). On the calculator, to the deal there (saveDeal), as any
+   field of it is — a saved property's working copy, saved to it by its
+   Save. On the Lab, nowhere until Save: an answer is a move of every
+   column (a column is a scenario of the same property), the figures follow
+   at once and the property reads as not saved; the guided Save of an
+   unsaved deal saves it with the property, and a saved property's Save
+   beside its name writes it there (82-property-lab.js, labAnswer).
+
+   ON A PHONE the questions fold into one summary line (pqChangeButton).
+
+   P2, THE SUBSALE EVIDENCE MODEL. Two figures, from the reader's own
+   evidence and the calculator's own model:
+   - the price gap: the asking price against the value the comparables the
+     reader named imply (priceGap, 70-property.js) — the comparables named
+     every time, never a market figure;
+   - the price that makes this work: the highest price at which the
+     figures entered meet a target the reader sets (solveDealPrice,
+     75-property-grade.js: a goal-seek on dealModel, to the ringgit).
+   Shown with the layout system's card types (an insight card each, or an
+   action card while something it needs is missing), the working in the
+   evidence (L3). The wording is the figures': "the figures you entered
+   imply…", never a verdict on the deal.
+   ========================================================================== */
+
+/* -------------------------------------------------------------- answers */
+/* The class, through the override the calculator's Asset class select
+   writes: none while it is the class the property type implies. */
+function setDealClass(d, cls, { touch = true } = {}) {
+  if (!d || !PROPERTY_CLASSES[cls]) return false;
+  const inferred = PROPERTY_TYPE_CLASS[d.propertyType] || propertyClassOfCategory(d.category) || 'residential';
+  const next = cls === inferred ? null : cls;
+  if ((d.propertyClassOverride || null) === next) return false;
+  d.propertyClassOverride = next;
+  if (touch) markTouched(d, 'propertyClassOverride');
+  return true;
+}
+/* One answer, as a writer of a deal: the class through setDealClass, the
+   rest through setDealAnswer (70-property.js). */
+/* Several at once as a record — { targetKind, targetValue } — so one edit is one write and one drawing. */
+/* `touch: false` for a what-if (the Lab's moves): which figures are the
+   reader's is marked when a commit makes them so (labNext), not before. */
+const pqWriter = (k, v, opts = {}) => (d) => (isRecord(k)
+  ? Object.entries(k).map(([kk, vv]) => pqWriter(kk, vv, opts)(d)).some(Boolean)
+  : k === 'propertyClass' ? setDealClass(d, v, opts) : setDealAnswer(d, k, v));
+
+/* A saved property's answer, written where it is kept. Stamped as saved
+   now; null, and said, if the browser refused it. */
+function pmAnswerRecord(recId, write) {
+  const list = loadWork();
+  const rec = list.find(r => r.id === recId && pmIsProperty(r));
+  if (!rec) return false;
+  const deal = pmCopy(pmInputsOf(rec));
+  if (!write(deal)) return false;
+  rec.payload = { ...rec.payload, deal };
+  pmStampRecord(rec, new Date().toISOString());
+  const refused = store.failed;
+  if (!persistWork(list) || store.failed !== refused) { toast(STORE_REFUSED); return false; }
+  return true;
+}
+
+/* --------------------------------------------------------- the questions */
+const PQ_WHAT = () => PROPERTY_CLASS_IDS.map(id => [id, PROPERTY_CLASSES[id].label]);
+const PQ_HOW = () => PROPERTY_ROUTE_IDS.map(id => [id, PROPERTY_ROUTES[id].label]);
+const PQ_SUB = () => COMMERCIAL_SUBTYPE_IDS.map(id => [id, COMMERCIAL_SUBTYPES[id].label]);
+const PQ_WHY = () => [[null, PROPERTY_OBJECTIVE_NONE.label], ...PROPERTY_OBJECTIVE_IDS.map(id => [id, PROPERTY_OBJECTIVES[id].label])];
+
+function pqGroup(prefix, group, legend, options, cur, onPick) {
+  const name = `${prefix}-q-${group}`;
+  const fs = el('fieldset', { class: `lab-pick pq-q pq-q-${group}`, id: name, 'data-q': group });
+  fs.append(el('legend', { class: 'lab-legend pq-legend' }, legend));
+  fs.append(el('div', { class: 'lab-seg ls-chips pq-seg', role: 'presentation' }, options.map(([id, label]) => {
+    const rid = `${name}-${id ?? 'none'}`, on = (id ?? null) === (cur ?? null);
+    return el('label', { class: `lab-seg-opt pq-opt${on ? ' is-on' : ''}`, for: rid }, [
+      el('input', { type: 'radio', class: 'lab-radio', name, id: rid, value: id ?? '', checked: on ? '' : null,
+        onchange: () => onPick(id ?? null) }),
+      el('span', {}, label)]);
+  })));
+  return fs;
+}
+
+/* THE BLOCK. `d` is the deal the answers are read from; `answer(k, v)`
+   writes one (the page's own writer). Ids under `prefix`, so the Lab and
+   the calculator each have their own. */
+/* ON A PHONE, ONE LINE (the owner's decision, 9 Oct 2026). Under 640px the
+   questions fold behind a summary — "Residential · Subsale" and Change, a
+   44px target — and open in place, under it: nothing above them moves.
+   Desk and tablet show them whole. Folded by the stylesheet alone, and only
+   where a script runs (scripting: enabled): the page served before the
+   script is laid out as the page it draws, and with no script at all the
+   questions stand open under their summary. Whether they are open is kept
+   for the tab (PQ_OPEN), so a page drawn again after an answer keeps them
+   open. */
+const PQ_OPEN = new Set();
+const pqSummaryText = (d) => {
+  const cls = propertyClassOf(d), sub = dealCommercialSubtype(d), o = dealObjective(d);
+  return [`${PROPERTY_CLASSES[cls].label}${sub ? ` — ${COMMERCIAL_SUBTYPES[sub].label}` : ''}`, PROPERTY_ROUTES[dealRoute(d)].label, o.id ? o.label : null].filter(Boolean).join(' · ');
+};
+/* Whether the questions fold here: their Change is drawn (a phone). From
+   640px it is out of sight, never display:none — so asked of its style. */
+const pqFolds = (prefix) => { const b = document.getElementById(`${prefix}-q-change`); return !!b && getComputedStyle(b).visibility !== 'hidden' && b.getClientRects().length > 0; };
+function pqSetOpen(prefix, open, { focus = false } = {}) {
+  if (open) PQ_OPEN.add(prefix); else PQ_OPEN.delete(prefix);
+  document.getElementById(`${prefix}-q`)?.classList.toggle('is-open', open);
+  const b = document.getElementById(`${prefix}-q-change`);
+  if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (focus && b) b.focus({ preventScroll: true });
+}
+/* The summary's control: "Change", named for the ear by what it opens. Its
+   ::after reaches over the whole summary line, so the line is the target. */
+const pqChangeButton = (prefix) => el('button', { type: 'button', class: 'pq-change', id: `${prefix}-q-change`,
+  'aria-expanded': PQ_OPEN.has(prefix) ? 'true' : 'false', 'aria-controls': `${prefix}-q`,
+  onclick: () => pqSetOpen(prefix, !PQ_OPEN.has(prefix)) },
+  ['Change', el('span', { class: 'sr-only' }, ' what you are buying and how'), el('span', { class: 'pq-change-chev', 'aria-hidden': 'true' }, '›')]);
+const pqSummaryLine = (d, prefix) => el('span', { class: 'pq-sumline', id: `${prefix}-q-sum` }, pqSummaryText(d));
+
+function propertyQuestions({ d, prefix, answer, summary = true }) {
+  const cls = propertyClassOf(d), route = dealRoute(d);
+  const box = el('section', { class: `pq${PQ_OPEN.has(prefix) ? ' is-open' : ''}`, id: `${prefix}-q`, 'data-pq': '', 'aria-label': 'What you are buying, and how',
+    /* Escape folds them again, the keyboard back on Change. */
+    onkeydown: (e) => { if (e.key === 'Escape' && PQ_OPEN.has(prefix) && pqFolds(prefix)) { e.preventDefault(); pqSetOpen(prefix, false, { focus: true }); } } });
+  /* Where the page has no line of its own to carry the summary (the
+     calculator), it heads the questions; the Lab's is its identity line. */
+  if (summary) box.append(el('p', { class: 'pq-sum' }, [pqSummaryLine(d, prefix), pqChangeButton(prefix)]));
+  const body = el('div', { class: 'pq-body' });
+  box.append(body);
+  const row = el('div', { class: 'pq-row' });
+  row.append(pqGroup(prefix, 'what', 'What are you buying?', PQ_WHAT(), cls, (v) => answer('propertyClass', v)));
+  row.append(pqGroup(prefix, 'how', 'How are you buying?', PQ_HOW(), route, (v) => answer('route', v)));
+  if (cls === 'commercial') row.append(pqGroup(prefix, 'sub', 'Which kind?', PQ_SUB(), dealCommercialSubtype(d), (v) => answer('commercialSubtype', v)));
+  row.append(pqGroup(prefix, 'why', 'Objective (optional)', PQ_WHY(), dealObjective(d).id, (v) => answer('objective', v)));
+  body.append(row);
+  /* What the answers mean for the figures, one line each, only where they
+     change something: a route not modelled yet, and a class whose fees
+     and duties are not the residential defaults' to assume. */
+  const notes = [];
+  if (PROPERTY_ROUTES[route].coming) notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' }, PROPERTY_ROUTES[route].coming));
+  const book = propertyClassRulebook(cls);
+  if (book) notes.push(el('p', { class: 'pq-note', 'data-note': 'class' }, book.line));
+  /* The rules that differ by class, each with its standing and source: in
+     reach, not in the way (L3). */
+  if (book?.differs.length) notes.push(el('details', { class: 'pq-more ls-l3', id: `${prefix}-q-differs` }, [
+    el('summary', { class: 'pq-more-sum' }, 'The lines that differ by class'),
+    el('ul', { class: 'pq-more-list' }, book.differs.map(x => el('li', {}, [
+      el('strong', {}, x.title), ` — ${x.state}. ${x.what}`,
+      ...(x.source ? [' Source: ', x.source.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener' }, x.source.title) : x.source.title, '.'] : [])]))),
+  ]));
+  if (dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
+    `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
+  if (notes.length) body.append(el('div', { class: 'pq-notes' }, notes));
+  return box;
+}
+
+/* -------------------------------------------------- the subsale evidence */
+const pqMoney = (v) => fmtMoney(v, 'MYR', 0);
+const pqSigned = (v) => `${v < 0 ? '−' : '+'}${pqMoney(Math.abs(v))}`;
+const pqPctAbs = (v) => `${fmtNum(Math.abs(v), 1)}%`;
+const pqWhen = (iso) => { const t = Date.parse(iso || ''); return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'undated'; };
+const pqCompWords = (c) => `${c.name} — ${pqMoney(c.price)}, ${pqWhen(c.date)}, ${c.standing.label.toLowerCase()}`;
+
+/* The gap, in words: the asking price against the comparable value. */
+function priceGapWords(g) {
+  const n = g.comps.length, named = `the ${n === 1 ? 'comparable' : `${n} comparables`} you named`;
+  const ag = g.askingGap;
+  const finding = !ag ? null : Math.abs(ag.amount) < 0.5
+    ? `The asking price of ${pqMoney(g.asking)} is the ${pqMoney(g.value)} ${named} imply.`
+    : `The asking price of ${pqMoney(g.asking)} is ${pqMoney(Math.abs(ag.amount))} (${pqPctAbs(ag.pct)}) ${ag.amount > 0 ? 'above' : 'below'} the ${pqMoney(g.value)} ${named} imply.`;
+  const pg = g.priceGap;
+  const price = !pg ? null : Math.abs(pg.amount) < 0.5 ? `The price modelled, ${pqMoney(g.price)}, is that value.`
+    : `The price modelled, ${pqMoney(g.price)}, is ${pqMoney(Math.abs(pg.amount))} (${pqPctAbs(pg.pct)}) ${pg.amount > 0 ? 'above' : 'below'} it.`;
+  return { finding, price, figure: ag ? `${pqSigned(ag.amount)} · ${ag.amount < 0 ? '−' : '+'}${pqPctAbs(ag.pct)}` : null };
+}
+/* How the gap is worked out (L3): each named comparable, what it implies
+   and why, and the median. */
+function priceGapFormula(g) {
+  if (!g.comps.length) return 'No comparable is named for this property. Name transacted prices from your register — your own records, never a market figure — and the value they imply is their median.';
+  const area = g.areaKey === 'landSqft' ? 'land area' : 'built-up area';
+  const each = g.comps.map(c => c.basis === 'rate'
+    ? `${c.name}: ${pqMoney(c.price)} ÷ ${fmtNum(c.area, 0)} sq ft = ${pqMoney(c.rate)} a sq ft × this property’s ${fmtNum(g.subjectArea, 0)} sq ft = ${pqMoney(c.implied)}`
+    : `${c.name}: ${pqMoney(c.price)} as recorded (${g.subjectArea ? `no ${area} recorded with it` : `no ${area} entered for this property`})`);
+  return `${each.join('; ')}. The comparable value is the median of ${g.comps.length === 1 ? 'that one figure' : `these ${g.comps.length}`}: ${pqMoney(g.value)}.`
+    + (g.asking ? ` Asking ${pqMoney(g.asking)} − ${pqMoney(g.value)} = ${pqSigned(g.askingGap.amount)}.` : ' No asking price is entered.')
+    + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a transacted price of this kind of property.` : '')
+    + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
+}
+/* The solve, in words. */
+function priceSolveWords(s, d) {
+  const t = s.target;
+  if (s.status === 'solved') {
+    const rel = [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
+      isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+    return { figure: pqMoney(s.price),
+      finding: `At ${pqMoney(s.price)} or less, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}.`,
+      sub: rel.length ? `${rel.join('; ')}.` : 'The price modelled.' };
+  }
+  if (s.status === 'infeasible') return { figure: 'No price',
+    finding: `The figures you entered do not reach ${t.words} of ${t.fmt(s.value)} at any price from ${pqMoney(s.floor)}: at ${pqMoney(s.floor)} it is ${t.fmt(s.atFloor)}.`,
+    sub: t.id === 'monthly' ? 'The rent, the running costs or the loan terms, not the price, stand in the way.' : 'The rent and the running costs, not the price, stand in the way.' };
+  if (s.status === 'unbounded') return { figure: `Above ${pqMoney(s.ceiling)}`,
+    finding: `The figures you entered give ${t.words} of at least ${t.fmt(s.value)} at every price up to ${pqMoney(s.ceiling)}, the top of the range tried.`,
+    sub: 'A loan held to an entered valuation stops following the price.' };
+  return { figure: '—', finding: s.why || 'Not computable for these inputs.', sub: null };
+}
+function priceSolveFormula(s, d) {
+  if (!s || s.status === 'no-target') return 'Set a target — a monthly position or a net yield — and the price that meets it is found by running the calculator’s own model at trial prices, every other input held.';
+  const t = s.target && { ...s.target, fmt: s.target.id === 'monthly' ? (v) => fmtMoney(v, 'MYR', 2) : (v) => fmtPct(v, 4) };
+  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: as the price rises the loan and its repayment rise and the net yield falls, so the target holds below one price and fails above it.`;
+  if (s.status === 'solved') return `${how} Tolerance: one ringgit on the price, none on the target — at ${pqMoney(s.price)} ${t.label.toLowerCase()} is ${t.fmt(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price + 1)} it is ${t.fmt(s.above)}${s.aboveMeets ? '' : ', short of it'}. ${s.runs} runs of the model.`;
+  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)} — so no price in the range meets it. ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
+  if (s.status === 'unbounded') return `${how} At ${pqMoney(s.ceiling)}, the top of the range, ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}. ${s.runs} runs of the model.`;
+  return s.why || '';
+}
+
+/* THE TWO CARDS, from the results. `gapWhy` and `solveWhy` are what "See
+   why →" opens; `enter` is where the missing inputs are entered (a path),
+   or null where this page is that place. */
+function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, setTarget = null }) {
+  const cards = el('div', { class: 'pe-cards' });
+  /* The price gap. */
+  if (g.status === 'ok') {
+    const w = priceGapWords(g);
+    cards.append(lsInsightCard({ label: 'Price gap', cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': String(g.askingGap.amount) },
+      figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
+      finding: el('p', { class: 'ls-card-title' }, w.finding),
+      sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`]),
+      cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
+  } else {
+    const missing = g.status === 'no-comparables'
+      ? (g.asking ? 'Name the comparables from your register that this price is set against.' : 'Enter the asking price and name the comparables from your register it is set against.')
+      : `Enter the asking price to set it against the ${pqMoney(g.value)} your ${g.comps.length === 1 ? 'comparable implies' : `${g.comps.length} comparables imply`}.`;
+    cards.append(lsActionCard({ title: 'Price gap', line: missing, cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': '' },
+      cta: enter ? lsCta('Enter them in the calculator', { path: enter, id: `${prefix}-pe-gap-go` })
+        : lsCta('Enter them', { id: `${prefix}-pe-gap-go`, onclick: () => { const n = document.getElementById('d-askingPrice'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus({ preventScroll: true }); } } }) }));
+  }
+  /* The price that makes this work. */
+  if (s.status === 'no-target') {
+    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'Set a target — a monthly position or a net yield — and the highest price that meets it is solved from these figures.',
+      cls: 'pe-card pe-solve', attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': '' },
+      cta: lsCta('Set a target', { id: `${prefix}-pe-target-go`, onclick: setTarget }) }));
+  } else {
+    const w = priceSolveWords(s, d);
+    cards.append(lsInsightCard({ label: 'The price that makes this work', cls: 'pe-card pe-solve',
+      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' ? String(s.price) : '' },
+      figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
+      finding: el('p', { class: 'ls-card-title' }, w.finding),
+      sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,
+      cta: lsCta('See why', { id: `${prefix}-pe-solve-why`, onclick: solveWhy, sr: ' this price is solved' }) }));
+  }
+  return cards;
+}
+
+/* THE TARGET'S CONTROLS: what it is (chips) and its figure. `answer(k, v)`
+   writes it, as an answer of the property. */
+function priceTargetControls({ d, prefix, answer }) {
+  const t = dealTarget(d);
+  const kind = PRICE_TARGETS[d?.targetKind] ? d.targetKind : null;
+  const box = el('div', { class: 'pe-target', id: `${prefix}-pe-target` });
+  box.append(pqGroup(prefix, 'target', 'Target, at least', PRICE_TARGET_KINDS.map(k => [k, PRICE_TARGETS[k].label]), kind, (v) => answer('targetKind', v)));
+  const id = `${prefix}-pe-target-value`;
+  const unit = kind ? PRICE_TARGETS[kind].unit : 'RM a month or %';
+  box.append(el('div', { class: 'pe-target-val' }, [
+    el('label', { for: id, class: 'pe-target-label' }, `Target figure (${unit})`),
+    el('input', { class: 'input input-inline pe-target-input', id, type: 'number', inputmode: 'decimal', step: kind === 'yield' ? '0.1' : '50',
+      value: t ? String(t.value) : '', placeholder: kind === 'yield' ? 'e.g. 4' : 'e.g. 0',
+      onchange: (e) => {
+        const raw = String(e.target.value).trim();
+        answer(raw && !kind ? { targetKind: 'monthly', targetValue: raw } : { targetValue: raw === '' ? null : raw });
+      } }),
+  ]));
+  return box;
+}
+
+/* --------------------------------------------------- on the calculator */
+/* Where a figure of the subsale evidence came from: the evidence ladder
+   (EVIDENCE), never the tool's own default — nothing here is seeded. */
+const PC_SUB_EVIDENCE = () => EVIDENCE.filter(e => e.rank >= 0);
+function pcEvidencePick(d, k, label) {
+  const id = `ev-${k}`;
+  const cur = d.evidence?.[k] || 'user';
+  return el('div', { class: 'pc-sub-ev' }, [
+    el('label', { for: id, class: 'metaline', title: `Where the ${label} came from` }, ptr('in.evidenceFrom', 'Where this figure came from')),
+    el('select', { class: 'select select-sm', id, onchange: (e) => { d.evidence = { ...(d.evidence || {}), [k]: e.target.value }; saveDeal(); renderKeepFocus(); } },
+      PC_SUB_EVIDENCE().map(ev => el('option', { value: ev.id, selected: ev.id === cur ? '' : null }, ptr(`ev.${ev.id}`, ev.label)))),
+  ]);
+}
+/* An answer typed or chosen on the calculator: written, its evidence "You
+   supplied" until the reader says otherwise, and the page drawn again. */
+function pcSubAnswer(d, k, v) {
+  if (!setDealAnswer(d, k, v)) return false;
+  if (d[k] != null && !d.evidence?.[k]) d.evidence = { ...(d.evidence || {}), [k]: 'user' };
+  saveDeal();
+  return true;
+}
+function pcSubsaleInputs(d) {
+  const box = el('div', { class: 'pc-subsale', id: 'subsale' });
+  box.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, 'Subsale evidence'));
+  box.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
+    'The purchase price above is the price you negotiated: every figure is worked from it. These set it against what was asked and what you have recorded — your own figures, never a market one.'));
+  const field = (k, label, control, evLabel) => {
+    const f = el('div', { class: 'assumption pc-sub-field' }, [el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)), control]);
+    if (d[k] != null) f.append(pcEvidencePick(d, k, evLabel));
+    return f;
+  };
+  const num = (k, label, step, evLabel) => field(k, label, el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', min: '0', step,
+    value: d[k] ?? '', placeholder: '—', style: 'text-align:right',
+    onchange: (e) => { const raw = String(e.target.value).trim(); if (pcSubAnswer(d, k, raw === '' ? null : raw)) renderAfterTyping(); } }), evLabel);
+  const pick = (k, label, reg, evLabel) => field(k, label, el('select', { class: 'select select-sm', id: `d-${k}`,
+    onchange: (e) => { if (pcSubAnswer(d, k, e.target.value || null)) renderKeepFocus(); } },
+    [el('option', { value: '', selected: d[k] == null ? '' : null }, 'Not recorded'),
+     ...Object.values(reg).map(o => el('option', { value: o.id, selected: d[k] === o.id ? '' : null }, o.label))]), evLabel);
+  box.append(num('askingPrice', 'Asking price (RM)', 1000, 'asking price'));
+  box.append(pick('tenancy', 'Existing tenancy', SUBSALE_TENANCY, 'tenancy'));
+  if (d.tenancy === 'tenanted') box.append(num('tenancyRent', 'Rent under the existing tenancy (RM a month)', 50, 'tenancy’s rent'));
+  box.append(pick('condition', 'Condition', SUBSALE_CONDITION, 'condition'));
+  box.append(num('buildingAge', 'Age of the building (years)', 1, 'age'));
+  box.append(num('chargesToBuyer', 'Outstanding charges passed to you (RM)', 100, 'charges'));
+  box.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
+    'Arrears of maintenance, sinking fund, quit rent or assessment: only what your SPA or the management’s statement passes to you. It is added to the cash to complete.'));
+  /* What the model already holds, said where the evidence is gathered. */
+  const ttl = TITLE_TYPES.find(t => t.id === d.titleType);
+  box.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `Already in the model: the market rent is the expected rent you enter in Rental & expenses (${fmtMoney(num0(d.rent), 'MYR', 0)} a month, ${evidenceOf(shownEvidence(d, 'rent')).label.toLowerCase()}); maintenance ${fmtMoney(num0(d.maintenance), 'MYR', 0)} and sinking fund ${fmtMoney(num0(d.sinkingFund), 'MYR', 0)} a month are there too; the title is ${ttl ? ttl.label : 'not recorded'}${d.titleType !== 'strata' ? `, ${num0(d.remainingLease) > 0 ? `${fmtNum(num0(d.remainingLease), 0)} years remaining` : 'freehold or not entered'}` : ''} (under Where, above), and the renovation is under Purchase.`));
+  /* The comparables, from the reader's register, named one by one. */
+  const choices = dealComparableChoices(d);
+  const ids = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
+  const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city;
+  const fs = el('fieldset', { class: 'pc-sub-comps', id: 'pc-sub-comps' });
+  fs.append(el('legend', { class: 'eyebrow', style: 'margin:var(--md) 0 6px' }, 'Comparables this price is set against'));
+  if (!choices.length) fs.append(el('p', { class: 'metaline' },
+    `No ${PRICE_GAP_KINDS[propertyClassOf(d)] === 'land-sold' ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one under “What you have recorded”, above, or in the comparables register.`));
+  choices.forEach(o => {
+    const id = `pc-comp-${slugParam(o.id)}`;
+    const st = observationStanding(o);
+    fs.append(el('label', { class: 'pc-sub-comp', style: 'gap:8px;display:flex;align-items:flex-start;margin-top:4px' }, [
+      el('input', { type: 'checkbox', id, checked: ids.has(o.id) ? '' : null, onchange: (e) => {
+        const next = new Set(Array.isArray(d.comparableIds) ? d.comparableIds : []);
+        if (e.target.checked) next.add(o.id); else next.delete(o.id);
+        if (setDealAnswer(d, 'comparableIds', [...next])) { saveDeal(); renderKeepFocus(); }
+      } }),
+      el('span', {}, `${comparableName(o)} — ${fmtMoney(o.value, 'MYR', 0)}${num0(o.sqft || o.landSqft) > 0 ? `, ${fmtNum(num0(o.sqft || o.landSqft), 0)} sq ft` : ''}, ${pqWhen(o.date)} · ${st.label}`),
+    ]));
+  });
+  fs.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+      'Open the comparables register')]));
+  box.append(fs);
+  return box;
+}
+/* The two figures, on the calculator: the cards, the target, what the
+   existing tenancy's rent would make of the month, and the working (L3). */
+function pcPriceEvidence(d) {
+  const g = priceGap(d), s = solveDealPrice(d);
+  const sec = el('section', { class: 'card ls-section pc-pe', id: 'pc-pe', 'aria-labelledby': 'pc-pe-h' });
+  sec.append(el('h3', { class: 'h-card', id: 'pc-pe-h' }, 'The price, against your evidence'));
+  const coming = PROPERTY_ROUTES[dealRoute(d)].coming;
+  if (coming) sec.append(el('p', { class: 'metaline pe-route' }, `${coming} ${feeRouteNote(dealRoute(d))}`));
+  const det = (id, summary, text) => el('details', { class: 'pc-more ls-l3', id }, [el('summary', { class: 'pc-more-sum' }, summary), el('p', { class: 'pc-more-body lab-formula' }, text)]);
+  const gapDet = det('pc-pe-gap-ev', 'How the price gap is worked out', priceGapFormula(g));
+  const solveDet = det('pc-pe-solve-ev', 'How the price is solved', priceSolveFormula(s, d));
+  sec.append(priceEvidenceCards({ d, g, s, prefix: 'pc', gapWhy: () => lsOpenEvidence(gapDet), solveWhy: () => lsOpenEvidence(solveDet),
+    setTarget: () => { const r = document.getElementById('pc-q-target-monthly'); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
+  sec.append(priceTargetControls({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
+  if (s.status === 'solved' && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
+    onclick: () => { d.price = s.price; markTouched(d, 'price'); saveDeal(); renderKeepFocus(); toast(`The purchase price is now ${pqMoney(s.price)} — every figure follows it.`); } },
+    `Model it at ${pqMoney(s.price)}`)));
+  /* The month with the tenancy that is in place, beside the expected rent's. */
+  if (d.tenancy === 'tenanted' && num0(d.tenancyRent) > 0 && PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) {
+    const now = dealModel(d), t = dealModel({ ...d, rent: num0(d.tenancyRent) });
+    if (isNum(t.cashflowMonthly)) sec.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+      `With the existing tenancy’s ${pqMoney(num0(d.tenancyRent))} a month in place of the expected rent, the figures you entered give a monthly position of ${pqMoney(t.cashflowMonthly)}${isNum(now.cashflowMonthly) ? ` (at the expected rent: ${pqMoney(now.cashflowMonthly)})` : ''}.`));
+  }
+  sec.append(gapDet, solveDet);
+  return sec;
+}
 /* ==========================================================================
    QT TRADING INDEX — specification qt-trading-index-1.0.0, 9 August 2026
 
