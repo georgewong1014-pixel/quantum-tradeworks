@@ -58,11 +58,22 @@
     "pages/home.app.html since plan item 1.2, and index.html is not deployed",
     "(.vercelignore); /index.html is a 308 to /, the query kept. Redirects are",
     "applied before the file system, so this holds even on a host that deployed",
-    "the file."
+    "the file.",
+    "",
+    "A FILED COMPANY BY ITS ID (the 9 Oct 2026 audit, item #7: deep links).",
+    "/company/AAPL-SEC, the address a company's id gives (BY_ID, 25-universe.js),",
+    "was served the generic page: no h1, no summary, the company drawn only once",
+    "the script had loaded the filings. Each SEC filer's id, in any case, is a",
+    "308 to the company's own pre-rendered page (/company/aapl-apple-inc), the",
+    "query (?tab=…) kept. One rule per filer, written by build.mjs in place of",
+    "the marker below from data/us.json (companyIdRedirects): a character class",
+    "per letter, because a source is case-sensitive. An illustrative company's",
+    "address, and an id no company has, are left to the router as before."
   ],
   "redirects": [
     { "source": "/index.html", "destination": "/", "permanent": true },
-    { "source": "/:path+/index.html", "destination": "/:path+", "permanent": true }
+    { "source": "/:path+/index.html", "destination": "/:path+", "permanent": true },
+    "@COMPANY_ID_REDIRECTS"
   ],
   "headers": [
     {

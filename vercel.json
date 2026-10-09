@@ -876,6 +876,601 @@
       "source": "/:path+/index.html",
       "destination": "/:path+",
       "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Aa][Pp][Ll]-[Ss][Ee][Cc])",
+      "destination": "/company/aapl-apple-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Bb][Bb][Vv]-[Ss][Ee][Cc])",
+      "destination": "/company/abbv-abbvie-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Bb][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/abt-abbott-laboratories",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Cc][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/acn-accenture-plc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Dd][Bb][Ee]-[Ss][Ee][Cc])",
+      "destination": "/company/adbe-adobe-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Dd][Ii]-[Ss][Ee][Cc])",
+      "destination": "/company/adi-analog-devices",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Ee][Pp]-[Ss][Ee][Cc])",
+      "destination": "/company/aep-american-electric",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Mm][Aa][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/amat-applied-materials",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Mm][Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/amd-advanced-micro",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Mm][Gg][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/amgn-amgen-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Mm][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/amt-american-tower",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Mm][Zz][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/amzn-amazon-com",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Pp][Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/apd-air-products",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Vv][Gg][Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/avgo-broadcom-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Aa][Xx][Pp]-[Ss][Ee][Cc])",
+      "destination": "/company/axp-american-express",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Bb][Aa]-[Ss][Ee][Cc])",
+      "destination": "/company/ba-boeing-co",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Bb][Aa][Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/bac-bank-of",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Bb][Kk][Nn][Gg]-[Ss][Ee][Cc])",
+      "destination": "/company/bkng-booking-holdings",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Bb][Ll][Kk]-[Ss][Ee][Cc])",
+      "destination": "/company/blk-blackrock-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Bb][Mm][Yy]-[Ss][Ee][Cc])",
+      "destination": "/company/bmy-bristol-myers",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Bb][Rr][Kk]-[Bb]-[Ss][Ee][Cc])",
+      "destination": "/company/brk-b-berkshire-hathaway",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/c-citigroup-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Aa][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/cat-caterpillar-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Dd][Nn][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/cdns-cadence-design",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Ii]-[Ss][Ee][Cc])",
+      "destination": "/company/ci-cigna-group",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Ll]-[Ss][Ee][Cc])",
+      "destination": "/company/cl-colgate-palmolive",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Mm][Cc][Ss][Aa]-[Ss][Ee][Cc])",
+      "destination": "/company/cmcsa-comcast-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Oo][Ff]-[Ss][Ee][Cc])",
+      "destination": "/company/cof-capital-one",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Oo][Pp]-[Ss][Ee][Cc])",
+      "destination": "/company/cop-conocophillips",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Oo][Ss][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/cost-costco-wholesale",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Rr][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/crm-salesforce-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Ss][Cc][Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/csco-cisco-systems",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Vv][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/cvs-cvs-health",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Cc][Vv][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/cvx-chevron-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/d-dominion-energy",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Dd][Ee]-[Ss][Ee][Cc])",
+      "destination": "/company/de-deere-co",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Dd][Hh][Rr]-[Ss][Ee][Cc])",
+      "destination": "/company/dhr-danaher-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Dd][Ii][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/dis-walt-disney",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Dd][Uu][Kk]-[Ss][Ee][Cc])",
+      "destination": "/company/duk-duke-energy",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ee][Mm][Rr]-[Ss][Ee][Cc])",
+      "destination": "/company/emr-emerson-electric",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ee][Oo][Gg]-[Ss][Ee][Cc])",
+      "destination": "/company/eog-eog-resources",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ee][Qq][Ii][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/eqix-equinix-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ee][Tt][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/etn-eaton-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ff]-[Ss][Ee][Cc])",
+      "destination": "/company/f-ford-motor",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ff][Cc][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/fcx-freeport-mcmoran",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ff][Dd][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/fdx-fedex-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Gg][Ee]-[Ss][Ee][Cc])",
+      "destination": "/company/ge-general-electric",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Gg][Ii][Ll][Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/gild-gilead-sciences",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Gg][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/gm-general-motors",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Gg][Oo][Oo][Gg][Ll]-[Ss][Ee][Cc])",
+      "destination": "/company/googl-alphabet-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Gg][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/gs-goldman-sachs",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Hh][Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/hd-home-depot",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Hh][Oo][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/hon-honeywell-international",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ii][Bb][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/ibm-international-business",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ii][Nn][Tt][Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/intc-intel-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ii][Nn][Tt][Uu]-[Ss][Ee][Cc])",
+      "destination": "/company/intu-intuit-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ii][Ss][Rr][Gg]-[Ss][Ee][Cc])",
+      "destination": "/company/isrg-intuitive-surgical",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Jj][Nn][Jj]-[Ss][Ee][Cc])",
+      "destination": "/company/jnj-johnson-johnson",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Jj][Pp][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/jpm-jpmorgan-chase",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Kk][Ll][Aa][Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/klac-kla-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Kk][Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/ko-coca-cola",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ll][Ii][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/lin-linde-plc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ll][Ll][Yy]-[Ss][Ee][Cc])",
+      "destination": "/company/lly-eli-lilly",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ll][Mm][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/lmt-lockheed-martin",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ll][Oo][Ww]-[Ss][Ee][Cc])",
+      "destination": "/company/low-lowes-companies",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ll][Rr][Cc][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/lrcx-lam-research",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Aa]-[Ss][Ee][Cc])",
+      "destination": "/company/ma-mastercard-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Cc][Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/mcd-mcdonalds-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Dd][Ll][Zz]-[Ss][Ee][Cc])",
+      "destination": "/company/mdlz-mondelez-international",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Ee][Tt][Aa]-[Ss][Ee][Cc])",
+      "destination": "/company/meta-meta-platforms",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Mm][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/mmm-3m-co",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/mo-altria-group",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Pp][Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/mpc-marathon-petroleum",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Rr][Kk]-[Ss][Ee][Cc])",
+      "destination": "/company/mrk-merck-co",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/ms-morgan-stanley",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Ss][Ff][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/msft-microsoft-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Mm][Uu]-[Ss][Ee][Cc])",
+      "destination": "/company/mu-micron-technology",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Nn][Ee][Ee]-[Ss][Ee][Cc])",
+      "destination": "/company/nee-nextera-energy",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Nn][Ff][Ll][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/nflx-netflix-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Nn][Kk][Ee]-[Ss][Ee][Cc])",
+      "destination": "/company/nke-nike-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Nn][Oo][Ww]-[Ss][Ee][Cc])",
+      "destination": "/company/now-servicenow-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Nn][Vv][Dd][Aa]-[Ss][Ee][Cc])",
+      "destination": "/company/nvda-nvidia-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/o-realty-income",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Oo][Rr][Cc][Ll]-[Ss][Ee][Cc])",
+      "destination": "/company/orcl-oracle-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Oo][Rr][Ll][Yy]-[Ss][Ee][Cc])",
+      "destination": "/company/orly-o-reilly",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Aa][Nn][Ww]-[Ss][Ee][Cc])",
+      "destination": "/company/panw-palo-alto",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Ee][Pp]-[Ss][Ee][Cc])",
+      "destination": "/company/pep-pepsico-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Ff][Ee]-[Ss][Ee][Cc])",
+      "destination": "/company/pfe-pfizer-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Gg]-[Ss][Ee][Cc])",
+      "destination": "/company/pg-procter-gamble",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Ll][Dd]-[Ss][Ee][Cc])",
+      "destination": "/company/pld-prologis-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/pm-philip-morris",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Nn][Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/pnc-pnc-financial",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Pp][Ss][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/psx-phillips-66",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Qq][Cc][Oo][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/qcom-qualcomm-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Rr][Ii][Vv][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/rivn-rivian-automotive",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Rr][Tt][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/rtx-rtx-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Bb][Uu][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/sbux-starbucks-corp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Cc][Hh][Ww]-[Ss][Ee][Cc])",
+      "destination": "/company/schw-schwab-charles",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Hh][Ww]-[Ss][Ee][Cc])",
+      "destination": "/company/shw-sherwin-williams",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Ll][Bb]-[Ss][Ee][Cc])",
+      "destination": "/company/slb-slb-limited",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Nn][Pp][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/snps-synopsys-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/so-southern-co",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Pp][Gg]-[Ss][Ee][Cc])",
+      "destination": "/company/spg-simon-property",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ss][Pp][Gg][Ii]-[Ss][Ee][Cc])",
+      "destination": "/company/spgi-s-p",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/t-at-t",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Tt][Jj][Xx]-[Ss][Ee][Cc])",
+      "destination": "/company/tjx-tjx-companies",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Tt][Mm][Oo]-[Ss][Ee][Cc])",
+      "destination": "/company/tmo-thermo-fisher",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Tt][Mm][Uu][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/tmus-t-mobile",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Tt][Ss][Ll][Aa]-[Ss][Ee][Cc])",
+      "destination": "/company/tsla-tesla-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Tt][Xx][Nn]-[Ss][Ee][Cc])",
+      "destination": "/company/txn-texas-instruments",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Uu][Nn][Hh]-[Ss][Ee][Cc])",
+      "destination": "/company/unh-unitedhealth-group",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Uu][Nn][Pp]-[Ss][Ee][Cc])",
+      "destination": "/company/unp-union-pacific",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Uu][Pp][Ss]-[Ss][Ee][Cc])",
+      "destination": "/company/ups-united-parcel",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Uu][Ss][Bb]-[Ss][Ee][Cc])",
+      "destination": "/company/usb-us-bancorp",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Vv]-[Ss][Ee][Cc])",
+      "destination": "/company/v-visa-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Vv][Zz]-[Ss][Ee][Cc])",
+      "destination": "/company/vz-verizon-communications",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ww][Ff][Cc]-[Ss][Ee][Cc])",
+      "destination": "/company/wfc-wells-fargo",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Ww][Mm][Tt]-[Ss][Ee][Cc])",
+      "destination": "/company/wmt-walmart-inc",
+      "permanent": true
+    },
+    {
+      "source": "/company/([Xx][Oo][Mm]-[Ss][Ee][Cc])",
+      "destination": "/company/xom-exxon-mobil",
+      "permanent": true
     }
   ],
   "headers": [
@@ -907,7 +1502,7 @@
       ]
     },
     {
-      "source": "/assets/app.aee15fb20cfe.js",
+      "source": "/assets/app.711797df841e.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -924,7 +1519,7 @@
       ]
     },
     {
-      "source": "/assets/app.444d756694d4.css",
+      "source": "/assets/app.d99a52821256.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -941,7 +1536,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.aee15fb20cfe\\.js$|assets/app\\.444d756694d4\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.711797df841e\\.js$|assets/app\\.d99a52821256\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -949,7 +1544,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-ruFfsgz+EocMTRROa4eM2mh4uM2WX7rbXcpM7TmIAF8=' 'sha256-RsAoK35ok1LUsLFhjNhDaHBbwPx39kf7N2s1/Hyevxc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-cReX34QeT8bm023JzSgb0iTab4nzCt5/w8s/Lv0LwhM=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

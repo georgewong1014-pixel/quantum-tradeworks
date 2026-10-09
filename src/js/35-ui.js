@@ -1393,15 +1393,19 @@ function matchRoute(pathname) {
    listing code its address leads with), where it is listed and where its
    figures come from, then the page's own line — the sentence its served page
    carries (build.mjs holds the build's companyDescription to this). Once the
-   script ran, the page wrote the generic research line over it. */
+   script ran, the page wrote the generic research line over it. A filer's
+   names the fiscal years its statements span (the 9 Oct 2026 audit, item
+   #7): a link preview said "filed with the SEC" and not which years. */
 const COMPANY_LISTED = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' };
 function companyMetaDescription(c, pageLine) {
   const where = COMPANY_LISTED[c.mkt];
   if (!where) return pageLine;
   const tickers = c.mkt === 'MY' && c.code && c.code !== c.tk ? `${c.tk}, ${c.code}` : c.tk;
+  const ys = (Array.isArray(c.years) ? c.years : []).filter(Number.isInteger);
+  const span = !ys.length ? '' : Math.min(...ys) === Math.max(...ys) ? `, FY${ys[0]}` : `, FY${Math.min(...ys)}–FY${Math.max(...ys)}`;
   const source = !c.real ? ILLUS_TITLE
     : c.personal ? 'Figures from your own personal-research statements — not licensed, not for redistribution.'
-    : c.cik ? `Figures from its audited annual statements filed with the SEC (CIK ${Number(c.cik)}).` : null;
+    : c.cik ? `Figures from its audited annual statements filed with the SEC${span} (CIK ${Number(c.cik)}).` : null;
   return `${c.name} (${tickers}), ${where}. ${source ? `${source} ` : ''}${pageLine}`;
 }
 function setDocumentMeta(route) {
@@ -2859,9 +2863,30 @@ const SERVED_READ = {
   launcherAnswers: () => State.launcher?.a ?? null,
   rateUnitBuilt: () => State.rateUnits?.built ?? null,
   rateUnitLand: () => State.rateUnits?.land ?? null,
+  /* What My Workspace's pages read besides (the 9 Oct 2026 audit, item #7:
+     each is served pre-rendered, SERVED_READS below): the alert types the
+     research feed shows, the dividends recorded, the price series pasted
+     (merged into the tracked instruments' history), the details a client
+     proposal is prepared with, and which Start here panels are hidden — the
+     whole record, as /my/data lists it, where startHere is the one panel a
+     page shows. Not a key this browser keeps under that name: the head's
+     script reads it from startHere itself (build.mjs, FIRST_SCRIPT). */
+  alertKinds: () => State.alertKinds,
+  dividendsReceived: () => State.dividendsReceived,
+  userData: () => userData,
+  proposalDetails: () => store.read('proposalDetails', null),
+  startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
 };
+/* Whether this browser keeps a key at all ('kept.deal'), where a page lists
+   what is kept rather than drawing from it: /my/data writes a row for each
+   key it finds kept ("Property deal inputs — a sample — not yours"), and a
+   fresh visitor keeps no deal, while a deal kept untouched reads as theirs
+   does (SERVED_READ.deal: not the reader's). The head's script reads it
+   from storage itself (build.mjs, FIRST_SCRIPT). */
+const servedKept = (k) => { try { return localStorage.getItem(STORE_PREFIX + k) !== null; } catch { return false; } };
 /* A parameter of the address, as a page reads it ('?saved'). */
-const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1)) : SERVED_READ[name]());
+const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1))
+  : name.startsWith('kept.') ? servedKept(name.slice(5)) : SERVED_READ[name]());
 /* Read by every page that waits. */
 const SERVED_READS_ALL = ['realData', 'ownerMachine'];
 /* Each waiting view that has a served page, and what its draw reads beyond
@@ -2974,6 +2999,56 @@ const SERVED_READS = {
   launcher: ['launcherAnswers', 'observations'],
   howItWorks: ['deal'],
   status: [],
+  /* MY WORKSPACE'S PAGES (the 9 Oct 2026 audit, item #7: deep links). A
+     fetch of /my/alerts or /my/reports read the shell and nothing of the
+     page: no heading, no line saying what it holds. Each /my/ page is served
+     as a fresh visitor's (prerender.mjs) — the samples a first visit is
+     given, each called a sample, and "None yet" where nothing is the
+     reader's — and stands, or is shown before the script, only while what
+     its draw reads of what this browser keeps is a fresh visitor's. What
+     each reads, found by drawing each page with each key a returning reader
+     keeps, one at a time, against a fresh visitor's draw (the keys that
+     changed a page), and by reading each view (what no such drawing could
+     show: a run saved, a review written, a series pasted, an address's
+     ?kind=). The scanner's and the wheel's /my/ addresses are their pages'
+     own (scannerDashboard, wheel, above). The sample banner (sampleBanner)
+     reads all four seeded kinds and shows while any seed is left; each page
+     that draws it names one of them, whose fresh value holds seeds, so
+     wherever such a page stands its banner is a fresh visitor's too.
+     /my/portfolio: the holdings, the cases covering them, the dividends
+     recorded, the withholding rates, a price typed in, the plan (the
+     cross-asset card) and the deal it would add, the base currency. */
+  portfolio: ['portfolios', 'theses', 'dividendsReceived', 'wht', 'manualPrices', 'plan', 'deal', 'baseCcy'],
+  /* /my/watchlists: the lists, the active one, the plan's limits. */
+  watchlists: ['watchlists', 'wlActive', 'plan'],
+  /* /my/theses: the cases, the active list they cover, what their
+     conditions are evaluated on (a price typed in, the valuation edits),
+     the runs they link and the reviews written. */
+  thesis: ['theses', 'watchlists', 'wlActive', 'manualPrices', 'valuation', 'runs', 'reviews', 'plan'],
+  /* /my/alerts: the research feed's sources — cases, saved screens, the
+     active list, price alerts and what they are tested on — the types it
+     shows, the plan's cap, the scanner's setups, preferences and read
+     states, and the kind the address names. */
+  alerts: ['theses', 'savedScreens', 'watchlists', 'wlActive', 'priceAlerts', 'alertKinds', 'manualPrices', 'valuation', 'plan',
+    'scanSetups', 'scanPrefs', 'scanAlertState', '?kind'],
+  /* /my/reports: the companies the reader opened, read this month, ran a
+     valuation of or listed; the saved properties; the wheel's contract and
+     the Trading Index's evidence; the plan's monthly allowance. */
+  reports: ['recentCompanies', 'reportLog', 'runs', 'watchlists', 'savedWork', 'wheelPlan', 'qttiPlan', 'plan'],
+  /* /my/tracked: the price series pasted, merged into the tracked history. */
+  tracked: ['userData'],
+  /* /my/workspace: every kind of saved thing it lists. */
+  workspace: ['runs', 'comparisons', 'savedScreens', 'theses', 'reviews', 'savedWork', 'plan'],
+  /* /my/data: everything "Everything you have made" lists (PORTABLE_KEYS,
+     00-core.js), the saved work, the price series pasted and the Start here
+     panels hidden — and whether each of those keys is kept at all, since
+     the list has a row for every key kept: a sample deal, the Cash Wheel's
+     worked example or a base currency kept as its default reads as a fresh
+     visitor's value does, and is listed where theirs is not. */
+  userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
+    'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
+    'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
+    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
@@ -2991,12 +3066,14 @@ const SERVED_HELD = {
   propertyReportsBought: () => State.propertyReportsBought, opportunities: () => State.opportunities, qttiPlan: () => State.qtti,
   wheelPlan: () => State.wheel, wheelLegs: () => State.wheelLegs, corrections: () => State.corrections,
   launcherAnswers: () => State.launcher?.a, rateUnitBuilt: () => State.rateUnits?.built, rateUnitLand: () => State.rateUnits?.land,
+  alertKinds: () => State.alertKinds, dividendsReceived: () => State.dividendsReceived, userData: () => userData,
 };
 /* Read by the head's script itself, not from a digest: whether this is the
    owner's machine, the base currency (its default is the reader's time zone
-   and language), which Start here panels are hidden; and what the address
-   says, which is not kept at all. */
-const SERVED_NOT_KEPT = new Set(['ownerMachine', 'baseCcy', 'startHere', 'discoverTab']);
+   and language), which Start here panels are hidden (the one a page shows,
+   and all of them for /my/data); and what the address says, which is not
+   kept at all. */
+const SERVED_NOT_KEPT = new Set(['ownerMachine', 'baseCcy', 'startHere', 'startHereAll', 'discoverTab']);
 /* FNV-1a, 32 bits: a digest that names a value, not a secret. */
 const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
 /* What a draw of this view reads now, as "name:digest …"; null for a view

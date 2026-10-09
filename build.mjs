@@ -498,9 +498,12 @@ export function homeFiled(plan, root = ROOT) {
    gives itself (META.research, as setDocumentMeta writes it there), so the
    served description is the page's own with the company put first. An
    illustrative company says so in the page's own words, ILLUS_TITLE, the
-   hover text of every "illustrative" chip; a filer names the SEC and its
-   CIK, as the page's Source line does. A market, or a source, this cannot
-   name truthfully stops the build rather than being guessed at. */
+   hover text of every "illustrative" chip; a filer names the SEC, the fiscal
+   years its statements span and its CIK, as the page's Source line does
+   (the fiscal years since the 9 Oct 2026 audit, item #7: a link preview
+   said "filed with the SEC" and not which years). A market, a source, or a
+   filer's years this cannot name truthfully stops the build rather than
+   being guessed at. */
 const LISTED = { US: 'listed in the US', MY: 'listed on Bursa Malaysia' };
 export function companyDescription(c, pageLine, ILLUS_TITLE) {
   const where = LISTED[c.mkt];
@@ -508,7 +511,12 @@ export function companyDescription(c, pageLine, ILLUS_TITLE) {
   const tickers = c.mkt === 'MY' && c.code && c.code !== c.tk ? `${c.tk}, ${c.code}` : c.tk;
   let source;
   if (!c.real) source = ILLUS_TITLE;
-  else if (!c.personal && c.cik) source = `Figures from its audited annual statements filed with the SEC (CIK ${Number(c.cik)}).`;
+  else if (!c.personal && c.cik) {
+    const ys = (Array.isArray(c.years) ? c.years : []).filter(Number.isInteger);
+    if (!ys.length) throw new Error(`${c.id}: a filer with no fiscal year in data/us.json — its description cannot say which years were filed`);
+    const span = Math.min(...ys) === Math.max(...ys) ? `FY${ys[0]}` : `FY${Math.min(...ys)}–FY${Math.max(...ys)}`;
+    source = `Figures from its audited annual statements filed with the SEC, ${span} (CIK ${Number(c.cik)}).`;
+  }
   else throw new Error(`${c.id}: real figures that are not an SEC filing, which a deployed page never holds`);
   return `${c.name} (${tickers}), ${where}. ${source} ${pageLine}`;
 }
@@ -923,10 +931,15 @@ export function routePages(plan) {
 /* My Workspace's: an address under /my/, or one whose canonical address is
    (an alias of such a page). */
 export const myWorkspace = (p) => p.path.startsWith('/my/') || new URL(p.head.canonical).pathname.startsWith('/my/');
-/* Which pages carry a render, and where each render is committed: none of
-   My Workspace's, by every address a page answers, not by its file name. */
+/* Which pages carry a render, and where each render is committed: every
+   page a static route is written. My Workspace's carried none until the
+   9 Oct 2026 audit (item #7: deep links) — a fetch of /my/alerts or
+   /my/reports read the shell, with no heading and nothing of the page. Each
+   is now drawn as a fresh visitor's (prerender.mjs), and stands only while
+   what it reads of what a browser keeps is a fresh visitor's (SERVED_READS,
+   35-ui.js); robots.txt keeps them out of crawlers as before. */
 export function prerenderScope(plan) {
-  const routes = routePages(plan).filter(p => !p.file.startsWith(`${PAGES}/my/`) && !p.routes.some(myWorkspace)).map(({ file, named }) => {
+  const routes = routePages(plan).map(({ file, named }) => {
     const stem = file === 'index.html' ? 'index' : file.slice(PAGES.length + 1, -'.html'.length);
     return { file, path: named.path, view: named.view, render: `${PRERENDER}/${stem}.html`, tabs: `${PRERENDER}/${stem}.tabs.html` };
   });
@@ -947,6 +960,41 @@ export function companyScope(plan) {
     file: `${PAGES}${co.path}.html`, path: co.path, view: 'research', company: co.id,
     render: `${PRERENDER}${co.path}.html`, tabs: `${PRERENDER}${co.path}.tabs.html`,
   }));
+}
+/* A FILED COMPANY'S ID IS A 308 TO ITS OWN PAGE (the 9 Oct 2026 audit, item
+   #7: deep links). /company/AAPL-SEC — the address an id gives, which the
+   status page's register and older links carry — was served the generic
+   page: no h1, no summary, nothing before the script had loaded the filings
+   and moved the address to /company/aapl-apple-inc. Each SEC filer's id is
+   now a permanent redirect to that page, which carries its overview
+   (companyScope), in any case: a vercel.json source is case-sensitive, so
+   each letter is a character class ([Aa]). The query rides along (Vercel
+   and serve.mjs keep it), so ?tab=financials opens that tab there. Only the
+   filers: an illustrative company's address, and an id no company has, are
+   still the router's — the app draws the one and its not-found card for the
+   other. A source that would answer another page's address (a route, a
+   company's own) or that does not answer its id in both cases stops the
+   build. */
+export const COMPANY_ID_REDIRECTS_MARKER = '@COMPANY_ID_REDIRECTS';
+export const caselessSegment = (s) => String(s).replace(/[A-Za-z]/g, (ch) => `[${ch.toUpperCase()}${ch.toLowerCase()}]`);
+/* A redirect's source as the host matches it: path-to-regexp's literal text
+   with this site's (group)s, which are regular expressions as they stand. */
+export const redirectSourceRegExp = (source) => new RegExp(`^${source.replace(/\./g, '\\.')}$`);
+export function companyIdRedirects(plan) {
+  const out = [];
+  const pages = new Set([...(plan.pages || []).map(p => p.path), ...(plan.companies || []).map(co => co.path)]);
+  for (const co of plan.companies || []) {
+    if (!co.company.real) continue;
+    if (!/^[A-Z0-9]+(-[A-Z0-9]+)*-SEC$/.test(co.id)) throw new Error(`${co.id}: a filer's id is TICKER-SEC, letters, digits and hyphens — its redirect cannot be written`);
+    const source = `/company/(${caselessSegment(co.id)})`;
+    const re = redirectSourceRegExp(source);
+    for (const form of [co.id, co.id.toLowerCase(), co.id[0].toLowerCase() + co.id.slice(1)])
+      if (!re.test(`/company/${form}`)) throw new Error(`${co.id}: the redirect ${source} does not answer /company/${form}`);
+    for (const p of pages) if (re.test(p)) throw new Error(`${co.id}: the redirect ${source} would answer ${p}, which is a page of its own`);
+    if (co.path.toLowerCase() === `/company/${co.id.toLowerCase()}`) throw new Error(`${co.id}: its own address is its id, so a redirect to it would loop`);
+    out.push({ source, destination: co.path, permanent: true });
+  }
+  return out;
 }
 /* A RENDER IS WRITTEN ONLY BY prerender.mjs (2026-10-04). A render edited by
    hand — a link pointed elsewhere, a heading's level changed, a figure or a
@@ -1091,7 +1139,10 @@ export function withServedRecord(r, served) {
    digest of the reader's (servedReads, keepServedReads); the base currency
    with the render's (defaultCcy, from the manifest's time zone and locale),
    which the script holds to the reader's kept one or their own default; the
-   product whose Start here panel the render shows; and, on a page that waits
+   product whose Start here panel the render shows (on /my/data, which lists
+   them all, whether any is hidden: startHereAll); on /my/data, which lists
+   what this browser keeps, whether each key it lists is kept at all
+   (kept.<key>); and, on a page that waits
    for the filings, the owner's machine. What the address says is left to the
    app. A reader with no script, and a fresh visitor in Malaysia, get the
    whole page as served. */
@@ -1156,6 +1207,8 @@ for (var i = 0; i < list.length; i++) {
     }
     mine = c === was;
   } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
+  else if (name === 'startHereAll') { var a = val('startHere'), any = false; if (a && typeof a === 'object' && !Array.isArray(a)) for (var k in a) if (a[k]) any = true; mine = !any; }
+  else if (name.slice(0, 5) === 'kept.') mine = raw(name.slice(5)) === null;
   else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
   if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
 }
@@ -1202,6 +1255,25 @@ export function servedReadsOf(views, { waits, drawn, render = 'the render' }) {
     if (name === 'startHere') {
       if (digest !== servedHash(JSON.stringify(panel))) throw new Error(`${render}: its Start here panel is ${JSON.stringify(panel)}, where its draw read ${digest}`);
       if (panel) out.push(`startHere:${panel}`);
+      continue;
+    }
+    /* Every panel's state, as /my/data lists it (SERVED_READ.startHereAll,
+       35-ui.js): a render is a fresh visitor's, who has hidden none, and the
+       head's script keeps the page out of sight where any is hidden. */
+    if (name === 'startHereAll') {
+      if (digest !== servedHash(JSON.stringify([]))) throw new Error(`${render}: drawn with a Start here panel hidden, where a render is a fresh visitor's`);
+      out.push('startHereAll:'); continue;
+    }
+    /* Whether a key is kept at all, as /my/data lists what is kept
+       (servedKept, 35-ui.js). A key the render's draw did not find kept is
+       written kept.<key>:, and the head's script keeps the page out of
+       sight where this browser keeps it. A key it found kept is a sample a
+       first visit writes as the app starts — before the script has run, a
+       fresh visitor keeps none of them yet, so it is not written: the key's
+       value, named on its own, says whether it is still the sample. */
+    if (name.startsWith('kept.')) {
+      if (digest === servedHash('false')) out.push(`${name}:`);
+      else if (digest !== servedHash('true')) throw new Error(`${render}: its draw read ${name} as neither kept nor not (${digest})`);
       continue;
     }
     out.push(pair);
@@ -1499,6 +1571,10 @@ export function build({ bare = false } = {}) {
   const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash).replace(CSP_FIRST_MARKER, () => firstHash()));
   if (parsed.rewrites !== REWRITES_MARKER) throw new Error(`vercel template's "rewrites" must be "${REWRITES_MARKER}" — the build writes them from ROUTES`);
   parsed.rewrites = rewrites;
+  /* Each filed company's id, to its own page (companyIdRedirects). */
+  if ((parsed.redirects || []).filter(r => r === COMPANY_ID_REDIRECTS_MARKER).length !== 1)
+    throw new Error(`vercel template's "redirects" must carry "${COMPANY_ID_REDIRECTS_MARKER}" exactly once — the build writes each filed company's id redirect there`);
+  parsed.redirects = parsed.redirects.flatMap(r => (r === COMPANY_ID_REDIRECTS_MARKER ? companyIdRedirects(plan) : [r]));
   /* The app files' header rules name the current files exactly, not a
      pattern: an address the build no longer writes (/assets/app.<old>.js,
      asked for by a page fetched a moment before a deploy) is a 404, and a
@@ -2326,7 +2402,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
     console.log(`pages/company/  ${companiesSaid}, one per company at its own address, the largest ${kb(Math.max(0, ...companySizes))}, ${(companySizes.reduce((a, b) => a + b, 0) / 1048576).toFixed(2)}MB in all`);
     if (stale.length) console.log(`stale        ${stale.join(', ')} — removed`);
     console.log(`${NAPIC_DIR}/  ${napic.size} division files made from ${NAPIC_SOURCE}, the largest ${kb(Math.max(...[...napic.values()].map(b => Buffer.byteLength(b))))}, ${kb([...napic.values()].reduce((n, b) => n + Buffer.byteLength(b), 0))} in all`);
-    console.log(`vercel.json  ${rewrites.length} rewrites (${plan.companies.length} company addresses to their pages, ${plan.params.length} parameter routes to /${GENERIC})  csp ${cspHash.slice(0, 19)}…`);
+    console.log(`vercel.json  ${rewrites.length} rewrites (${plan.companies.length} company addresses to their pages, ${plan.params.length} parameter routes to /${GENERIC}), ${JSON.parse(vercel).redirects.length} redirects (${companyIdRedirects(plan).length} filed companies' ids to their pages)  csp ${cspHash.slice(0, 19)}…`);
     Object.entries(versions).forEach(([f, v]) => console.log(`  data/${f.padEnd(18)} v=${v}`));
     if (problems.length) {
       problems.forEach(p => console.error(`WARNING  ${p}`));

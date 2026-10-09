@@ -4099,6 +4099,13 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
   background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--ink-2);
 }
 .segmented button[aria-pressed="true"] .al-kind-n { background: var(--brand-wash); color: var(--brand); }
+/* Served (My Alerts is pre-rendered since the 9 Oct 2026 audit, item #7),
+   each kind is the words of a button standing in its box (prerender), which
+   is a flex box: the space between the kind and its count went with the
+   flex layout, and each button was 3-4px narrower until the page was drawn,
+   moving the ones after it. Laid out as the button lays out its words. */
+#views[data-served] .al-kind-seg > span[data-inert="button"] { display: inline-block; }
+#views[data-served] .segmented > span[data-inert="button"][data-on] .al-kind-n { background: var(--brand-wash); color: var(--brand); }
 .al-kinds-said { flex: 1 1 300px; margin: 0; max-width: 72ch; }
 .al-main { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
 .al-scan-said { margin: calc(var(--xs) * -1) 0 var(--xs); }

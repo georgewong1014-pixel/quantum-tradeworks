@@ -1672,10 +1672,12 @@ VIEWS.thesis = () => {
   /* Due within thirty days of today, overdue included. The window was a
      fixed '2026-09-30' under a fixed "30 Sep" label — from October on the
      tile counted only reviews already missed and still called them due, the
-     same fault a fixed review date had in addToThesis. */
+     same fault a fixed review date had in addToThesis. The label says the
+     window, not its last day (the 9 Oct 2026 audit, item #7): the page is
+     served pre-rendered, and a day in its label was the render's, not the
+     reader's. */
   const dueByMs = Date.now() + 30 * 86400000;
   const dueBy = new Date(dueByMs).toISOString().slice(0, 10);
-  const dueByLabel = new Date(dueByMs).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   const dueSoon = State.theses.filter(t => t.review && t.review <= dueBy).length;
   /* Coverage is the watchlist entries that have a thesis, not the count of
      theses: a thesis on a company not on the watchlist raised it, and it
@@ -1685,7 +1687,7 @@ VIEWS.thesis = () => {
   const linked = State.theses.filter(t => t.runRef).length;
   [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
-   [`Reviews due by ${dueByLabel}`, String(dueSoon), 'Within 30 days, overdue included. Review discipline is scored, not returns'],
+   ['Reviews due within 30 days', String(dueSoon), 'Overdue included. Review discipline is scored, not returns'],
    ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
    .forEach(([l, v, s]) => stats.append(el('div', { class: 'card' }, statTile(l, v, { sub: s }))));
   wrap.append(stats);
@@ -2572,7 +2574,9 @@ VIEWS.portfolio = () => {
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
-    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${v / totalVal * 100}%;background:var(${SERIES[i % 8]})`, title: k })));
+    /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
+       is pre-rendered, and a served page must match its render on Linux and Windows. */
+    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: k })));
     card.append(bar);
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
@@ -2625,15 +2629,19 @@ VIEWS.portfolio = () => {
   pos.forEach(p2 => selH.append(el('option', { value: p2.h.id }, p2.r.c.tk + ' — ' + p2.r.c.name)));
   /* Today on the reader's calendar: the UTC date defaulted a payment
      recorded on a Kuala Lumpur morning, or a Los Angeles evening, to the
-     wrong day. */
+     wrong day. Today is the tab's, now (data-now): the served page
+     (/my/portfolio, pre-rendered since the 9 Oct 2026 audit) says no day.
+     Its width, and the amount's, are set: served, each is a run of words
+     (the day not said, the amount empty), and the fields after them stood
+     76px and 156px left of where the drawn row puts them. */
   const dDate = el('input', { class: 'input input-inline', type: 'date', id: 'divDate',
-    value: localDay(), 'aria-label': 'Payment date' });
+    value: localDay(), 'aria-label': 'Payment date', 'data-now': '', style: 'width:9.5rem' });
   /* The amount is stored in the holding's own currency, so the field says
      which one. Labelled only "Amount" on a page in the reader's base currency,
      ringgit typed for a US holding were counted as dollars — 4.4 times over. */
   const ccyOf = (id) => pos.find(p2 => p2.h.id === id)?.r.c.ccy || State.baseCcy;
   const dAmt = el('input', { class: 'input input-inline', type: 'number', step: '0.01', min: '0',
-    placeholder: 'amount', id: 'divAmt', 'aria-label': `Amount received, in ${ccyOf(selH.value)}` });
+    placeholder: 'amount', id: 'divAmt', style: 'width:8.5rem', 'aria-label': `Amount received, in ${ccyOf(selH.value)}` });
   const amtLabel = el('label', { for: 'divAmt' }, `Amount (${ccyOf(selH.value)})`);
   selH.addEventListener('change', () => {
     amtLabel.textContent = `Amount (${ccyOf(selH.value)})`;
@@ -2772,7 +2780,7 @@ VIEWS.portfolio = () => {
 
     const bar2 = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     const parts = [['Equities', securities, '--s1'], ['Cash', cashBase, '--s3'], ['Property equity', propEquity, '--s2']];
-    parts.forEach(([, v, cvar]) => bar2.append(el('i', { style: `width:${netWorth ? v / netWorth * 100 : 0}%;background:var(${cvar})` })));
+    parts.forEach(([, v, cvar]) => bar2.append(el('i', { style: `width:${netWorth ? Math.round(v / netWorth * 100 * 1e4) / 1e4 : 0}%;background:var(${cvar})` })));
     xa.append(bar2);
     const pl2 = el('div');
     parts.forEach(([label, v, cvar]) => pl2.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [

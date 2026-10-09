@@ -1067,7 +1067,9 @@ VIEWS.userdata = () => {
   /* Saved records, listed once in a place that is about storage. */
   const recs = loadWork();
   const sw = el('div', { class: 'card' });
-  sw.append(cardHead(`Saved work — ${recs.length}`,
+  /* None is said as none, not as a nought (D12's rule, on My Workspace's
+     pages since they are served pre-rendered: the 9 Oct 2026 audit, #7). */
+  sw.append(cardHead(recs.length ? `Saved work — ${recs.length}` : 'Saved work — none yet',
     recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
                 : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.',
     /* The tools' snapshots are one kind of saved thing among five; the
@@ -1337,7 +1339,10 @@ VIEWS.watchlists = () => {
      (06-watchlists.js). */
   const own = ownWatchlistCount(), samples = lists.length - own;
   const over = own > LIMITS.watchlists;
-  ctl.append(cardHead('New watchlist', `${over ? `${own} lists of your own — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : `${own} of ${LIMITS.watchlists} on this plan`}${samples ? ` (the ${samples === 1 ? 'sample list does' : `${samples} sample lists do`} not count)` : ''}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
+  /* None of the reader's own is said as none, not "0 of 1" (D12's rule, on
+     My Workspace's pages since they are served pre-rendered: the 9 Oct 2026
+     audit, #7). */
+  ctl.append(cardHead('New watchlist', `${over ? `${own} lists of your own — this plan allows ${LIMITS.watchlists}, so the ones you have are kept and no more can be created` : own ? `${own} of ${LIMITS.watchlists} on this plan` : `None of your own yet — ${LIMITS.watchlists} on this plan`}${samples ? ` (the ${samples === 1 ? 'sample list does' : `${samples} sample lists do`} not count)` : ''}, each holding up to ${LIMITS.watchlistStocks} companies. Stored in this browser only — there are no accounts, so nothing here follows you to another device.`));
   const nameInp = el('input', { class: 'input', placeholder: 'Name', 'aria-label': 'New watchlist name', style: 'flex:1;min-width:160px' });
   const createBtn = el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
     const r = wlCreate(nameInp.value); toast(r.ok ? `Created “${r.watchlist.name}”` : r.why); if (r.ok) render(); } }, 'Create');

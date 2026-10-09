@@ -30,7 +30,7 @@ const ROUTES = [
   '/company/ABT-SEC?tab=financials', '/company/F-SEC?tab=financials', '/company/MAYBANK?tab=financials',
   '/start',
   '/compare', '/my/portfolio', '/my/watchlists', '/my/data',
-  '/my/theses', '/my/alerts', '/my/tracked', '/my/scanner',
+  '/my/theses', '/my/alerts', '/my/tracked', '/my/scanner', '/my/reports',
   /* The Phase 2 brief's paths, as aliases: a symbol, an old id form and a
      tab name that is not ours. */
   '/app/equities', '/app/equities/explore', '/app/equities/aapl/financials', '/app/equities/1155/ratios',
@@ -2871,6 +2871,77 @@ for (const route of ROUTES) {
   else console.log(`ok   second-track: no unavailable price enters a price filter as zero — ${r.tests} tests of ${r.fields.length} price-based measures (${r.fields.join(', ')}) on the ${r.unpriced} companies without a price (${r.filedUnpriced} filed), in absolute and percentile mode and in both classes: the value tested is null, no threshold passes it and the reason is "not available"; sorted after every priced company both ways; no median; drawn on ${r.drawnRows} rows and their phone cards, no cell reads as a zero; the CSV leaves the cells empty`);
 }
 /* ---- end second-track ---- */
+/* ---- deep-links ---- */
+/* DEEP LINKS IN A BROWSER (the 9 Oct 2026 audit, item #7). My Workspace's
+   pages are served pre-rendered and a filer's id is a 308 to its own page
+   (build.mjs, companyIdRedirects); here they are used as a reader uses them:
+   - each /my/ page entered directly, then reloaded: its own h1 both times,
+     at its own address, drawn by the app (not left as the served page), no
+     exception or error;
+   - from /my/alerts, the workspace's Reports tab, then Back and Forward:
+     the page each address names, with its h1, every time;
+   - /company/AAPL-SEC?tab=financials entered directly arrives at
+     /company/aapl-apple-inc?tab=financials on its Financials tab, and Back
+     leaves it (the redirect is not a page of its own in the history). */
+{
+  const p = [];
+  const ev = async (expression) => (await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId)).result?.result?.value;
+  const settled = async () => {
+    for (let i = 0; i < 150; i++) {
+      if (await ev(`!window.__dlMark && document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view && typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served')`)) break;
+      await sleep(100);
+    }
+    await sleep(300);
+    return ev(`({ path: location.pathname, search: location.search, view: State.view, tab: State.researchTab,
+      h1: (document.querySelector('#views h1')?.textContent || '').replace(/\\s+/g, ' ').trim() })`);
+  };
+  const mark = () => ev('window.__dlMark = 1');
+  const WANT = { '/my/portfolio': 'Understand your exposures — not a trading screen', '/my/watchlists': 'Watchlists', '/my/theses': 'What you believe, and what would prove you wrong',
+    '/my/alerts': 'My Alerts', '/my/reports': 'Reports', '/my/tracked': 'Tracked', '/my/data': 'Bring your own prices', '/my/workspace': 'Everything you have saved' };
+  bucket = [];
+  for (const [path, h1] of Object.entries(WANT)) {
+    for (const how of ['entered', 'reloaded']) {
+      await mark();
+      if (how === 'entered') await send('Page.navigate', { url: BASE + path }, sessionId);
+      else await send('Page.reload', { ignoreCache: false }, sessionId);
+      const r = await settled();
+      if (!r || r.path !== path || r.h1 !== h1) p.push(`${path} ${how}: ${JSON.stringify(r)}, not its page with the h1 "${h1}"`);
+    }
+  }
+  /* Back and Forward through the workspace's own tab row. */
+  await mark();
+  await send('Page.navigate', { url: BASE + '/my/alerts' }, sessionId);
+  await settled();
+  const clicked = await ev(`(() => { const a = [...document.querySelectorAll('#productTabs a[href="/my/reports"]')][0]; if (!a) return false; a.click(); return true; })()`);
+  if (!clicked) p.push('/my/alerts: no Reports tab in the workspace\'s tab row');
+  const steps = [['the Reports tab', '/my/reports'], ['Back', '/my/alerts'], ['Forward', '/my/reports']];
+  for (const [what, path] of steps) {
+    if (what === 'Back') await ev('history.back(), true');
+    if (what === 'Forward') await ev('history.forward(), true');
+    await sleep(400);
+    const r = await settled();
+    if (!r || r.path !== path || r.h1 !== WANT[path]) p.push(`${what} from the workspace: ${JSON.stringify(r)}, not ${path} with the h1 "${WANT[path]}"`);
+  }
+  /* A filer's id, with its tab. */
+  await mark();
+  await send('Page.navigate', { url: BASE + '/about' }, sessionId);
+  await settled();
+  await mark();
+  await send('Page.navigate', { url: BASE + '/company/AAPL-SEC?tab=financials' }, sessionId);
+  const co = await settled();
+  if (!co || co.path !== '/company/aapl-apple-inc' || co.search !== '?tab=financials' || co.view !== 'research' || co.tab !== 'financials' || co.h1 !== 'Apple Inc.')
+    p.push(`/company/AAPL-SEC?tab=financials entered: ${JSON.stringify(co)}, not /company/aapl-apple-inc?tab=financials on its Financials tab`);
+  await ev('history.back(), true');
+  for (let i = 0; i < 100 && await ev('location.pathname') !== '/about'; i++) await sleep(100);
+  await ev('delete window.__dlMark, true');
+  const back = await settled();
+  if (!back || back.path !== '/about') p.push(`Back from the company page: ${JSON.stringify(back)}, not /about`);
+  const errors = bucket.filter(x => !/^REQFAIL net::ERR_ABORTED/.test(x));
+  if (errors.length) p.push(`${errors.length} error(s) on the way: ${errors.slice(0, 4).join(' | ')}`);
+  if (p.length) { bad++; console.log(`FAIL deep links: a /my/ page or a filer's id did not open as its page (${p.length} problems)`); p.slice(0, 20).forEach(x => console.log('     ' + x)); }
+  else console.log(`ok   deep links: ${Object.keys(WANT).length} /my/ pages entered directly and reloaded, each its own page and h1; the workspace's Reports tab, Back and Forward each the page its address names; /company/AAPL-SEC?tab=financials arrives at /company/aapl-apple-inc?tab=financials on its Financials tab, and Back returns to the page before it; no error`);
+}
+/* ---- end deep-links ---- */
 console.log(`\n${ROUTES.length - bad}/${ROUTES.length} routes clean`);
 
 ws.close(); proc.kill();
