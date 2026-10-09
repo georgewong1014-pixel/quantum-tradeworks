@@ -3337,6 +3337,194 @@ for (const w of [360, 390]) {
   else console.log(`ok   p3-auction: a deal answered Auction, its terms entered, on /property/calculator and /property at 360, 390 and 430, in the page's font and in Verdana — "Not final: 6 checks open", the effective acquisition cost and the true discount as L1 cards, the exposure RM42,000, the waterfall's 9 rows inside the section; every input, chip, check row and call to action a 44px target and every kind badge 44px by its reach; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
 }
 /* ---- end p3-auction ---- */
+/* ---- lab-words ---- */
+/* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
+   "Scenario Lab is useful but too explanation-heavy, especially for
+   mobile"). /property on a first visit, at 1440×900 and 390×844, in the
+   page's font and in Verdana, counting the words a reader can see in
+   <main> — a run of text whose element is rendered (checkVisibility, with
+   opacity and visibility), not inside .sr-only, a clipped 1px box or a
+   closed <details> (its <summary> counts), with a box of its own:
+     - before the first slider: at most 180 at 1440 and 138 at 390;
+       measured 174 and 131 (189 and 145 on 58dbc0b4). The margin, six or
+       seven words, is what the lines that are not the Lab's may vary by —
+       the journey's line above the page (its state, its date, its commit)
+       and a property's name — and no more: one sentence of explanation
+       put back above the slider fails it;
+     - in all of <main>: at most 570 at 1440 and 485 at 390; measured 549
+       and 466 (799 and 608 on 58dbc0b4), the margin the same lines' and
+       a district's name;
+   and the layout system's levels on a phone (390, and 360 and 430):
+     - two figures lead: the first two tiles are the decision's (L1), side
+       by side on the tiles' first line; the context's figure and the next
+       step stand under them as a compact row — each at most 80% of a lead
+       tile's height, the context's figure at most 75% of the lead
+       figures' size (on 58dbc0b4 the four were alike: 94% and 81%) — and
+       every tile keeps its kind badge in sight;
+     - the first slider whole above the action bar at 390×844;
+   and at every size:
+     - Save's wording is one line in sight under the commit buttons (one
+       sentence, at most 14 words), and how saving works — a scenario
+       belongs to a property, what a commit marks as the reader's, why the
+       grade stays U — is a closed <details> (L3), there whole;
+     - the disclosures that stay in sight are in sight without opening
+       anything: the status strip's "Beta preview.", the Beta badge beside
+       the title, "Not a valuation", "Not an official property valuation",
+       "not a real listing", "Illustrative default" on the tiles and the
+       first knob, the cash required's "on unverified lines" and, on a deal
+       answered Auction, "Not final: 6 checks open".
+   Fails on 58dbc0b4: 189 and 145 words before the slider, 799 and 608 in
+   all, the tiles four alike on a phone, the saving prerequisites a
+   paragraph of 76 words in sight, and the auction's notes standing open. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
+  const BOUND = { 1440: { before: 180, all: 570 }, 390: { before: 138, all: 485 } };
+  /* What the eye can see, as a reader who opens nothing does. */
+  const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
+      const p = n.nodeType === 3 ? n.parentElement : n;
+      if (!p || p.closest('.sr-only, script, style, template, svg')) return false;
+      if (!p.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
+      for (let a = p; a && a !== root.parentElement; a = a.parentElement) {
+        const b = a.getBoundingClientRect(), cs = getComputedStyle(a);
+        if ((b.width <= 1 || b.height <= 1) && cs.overflow !== 'visible') return false;
+      }
+      const r = document.createRange(); r.selectNodeContents(n);
+      return [...r.getClientRects()].some(x => x.width > 1 && x.height > 1);
+    };
+    const words = (s) => s.split(/\\s+/).filter(t => /[\\p{L}\\p{N}]/u.test(t));
+    const seenText = (root) => { const out = []; const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); for (let n = tw.nextNode(); n; n = tw.nextNode()) if (seen(n)) out.push(n.data); return out.join(' ').replace(/\\s+/g, ' '); };`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    ${SEEN}
+    const main = document.querySelector('main') || document.body;
+    const slider = [...main.querySelectorAll('input[type=range]')].find(n => n.getClientRects().length && n.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }));
+    let before = 0, all = 0;
+    const tw = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+      if (!seen(n)) continue;
+      const w = words(n.data).length;
+      all += w;
+      if (slider && (slider.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_PRECEDING)) before += w;
+    }
+    const box = (n) => { if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), h: Math.round(b.height) }; };
+    const tiles = [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: (n.querySelector('.lab-tile-label')?.textContent || '').trim(), level: n.dataset.level || (n.dataset.card === 'action' ? 'next' : ''),
+      at: box(n), value: parseFloat(getComputedStyle(n.querySelector('.ls-card-value, .lab-next-what') || n).fontSize),
+      badge: (() => { const b = n.querySelector('[data-kind]:not(.lab-tile)') || n.querySelector('.lab-tile-kind'); return b && seen(b.firstChild || b) ? b.textContent.trim() : null; })() }));
+    const commit = document.getElementById('lab-commit'), line = document.getElementById('lab-commit-line'), more = document.getElementById('lab-commit-more');
+    const commitSeen = commit ? seenText(commit) : '';
+    const bar = document.querySelector('body > .dock');
+    const strip = document.getElementById('disclosureText');
+    const head = document.querySelector('#views .lab-page-hd');
+    return { before, all, sliderOf: slider?.id || null, slider: box(slider), vh: innerHeight, vw: innerWidth,
+      barTop: bar && bar.getClientRects().length && getComputedStyle(bar).position === 'fixed' ? Math.round(bar.getBoundingClientRect().top) : innerHeight,
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth, tiles,
+      line: line && seen(line.firstChild || line) ? line.textContent.trim() : null,
+      more: more ? { tag: more.tagName, open: more.open, sum: (more.querySelector(':scope > summary')?.textContent || '').trim(), words: words(more.textContent).length } : null,
+      commitSeen,
+      strip: strip ? seenText(strip) : '', beta: head ? seenText(head) : '', page: seenText(main),
+      firstKnob: (() => { const k = slider?.closest('.lab-knob'); return k ? seenText(k) : ''; })() };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    const sizes = [[1440, 900], [390, 844], [360, 640], [430, 932]];
+    for (const [w, h] of sizes) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      await load('/privacy');
+      await forget();
+      const view = await load('/property');
+      if (view !== 'propertyLab') { fails.push(`${at}: /property opened ${view}, not the Scenario Lab`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(read);
+      /* The measure: the words in sight before the first slider, and in all. */
+      const bound = BOUND[w];
+      if (!r.sliderOf) fails.push(`${at}: no slider in sight in <main> — the check has nothing to count to`);
+      if (bound) {
+        if (r.before > bound.before) fails.push(`${at}: ${r.before} words in sight in <main> before the first slider, more than ${bound.before}`);
+        if (r.all > bound.all) fails.push(`${at}: ${r.all} words in sight in <main>, more than ${bound.all}`);
+        said.push(`${at}: ${r.before} before the slider, ${r.all} in all`);
+      }
+      /* Two figures lead on a phone. */
+      const t = r.tiles;
+      if (w < 640) {
+        const [a, b, ...rest] = t;
+        if (!a || !b || a.level !== '1' || b.level !== '1') fails.push(`${at}: the first two tiles are ${JSON.stringify(t.slice(0, 2).map(x => `${x.label} (L${x.level})`))}, not the decision's two (L1)`);
+        else {
+          if (Math.abs(a.at.t - b.at.t) > 1) fails.push(`${at}: the two lead tiles are not side by side (${a.at.t}px and ${b.at.t}px)`);
+          for (const x of rest) {
+            if (!x.at || x.at.t < Math.max(a.at.b, b.at.b) - 1) fails.push(`${at}: "${x.label}" does not stand under the two lead figures`);
+            if (x.at && x.at.h > 0.8 * Math.min(a.at.h, b.at.h)) fails.push(`${at}: "${x.label}" is ${x.at.h}px tall, not a compact row under the lead tiles (${Math.min(a.at.h, b.at.h)}px; at most 80% of it)`);
+            if (x.level === '2' && !(x.value <= 0.75 * a.value)) fails.push(`${at}: "${x.label}"'s figure is ${x.value}px, not a step under the lead figures' ${a.value}px (at most 75% of it)`);
+          }
+          if (JSON.stringify([a.label, b.label]) !== JSON.stringify(['Cash required', 'Monthly position'])) fails.push(`${at}: the lead tiles are ${a.label} and ${b.label}, not Cash required and Monthly position`);
+        }
+        if (w === 390 && (!r.slider || r.slider.t < 0 || r.slider.b > r.barTop)) fails.push(`${at}: the first slider ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole above the action bar (from ${r.barTop}px)`);
+      }
+      t.forEach(x => { if (!x.badge) fails.push(`${at}: the "${x.label}" tile shows no kind badge`); });
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      /* Save's wording: one line in sight; the rest one tap away. */
+      if (!r.line) fails.push(`${at}: no one-line wording of Save in sight (#lab-commit-line)`);
+      else {
+        const n = r.line.split(/\s+/).length, sentences = r.line.split(/[.!?](\s|$)/).filter(s => s && s.trim()).length;
+        if (n > 14 || sentences > 1) fails.push(`${at}: Save's wording in sight is ${n} words in ${sentences} sentence(s): "${r.line.slice(0, 90)}"`);
+      }
+      if (!r.more || r.more.tag !== 'DETAILS' || r.more.open || r.more.words < 40) fails.push(`${at}: how saving works is ${!r.more ? 'not drawn' : r.more.tag !== 'DETAILS' ? 'not a <details>' : r.more.open ? 'open on arrival' : `only ${r.more.words} words`}, not the whole of it closed (L3)`);
+      const commitWords = r.commitSeen.split(/\s+/).filter(Boolean).length;
+      if (commitWords > 40) fails.push(`${at}: ${commitWords} words in sight in the commit card ("${r.commitSeen.slice(0, 80)}…"), not its buttons and one line`);
+      /* The disclosures in sight, nothing opened. */
+      const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
+        [r.page, 'Not an official property valuation', 'the regulated claim'], [r.page, 'not a real listing', 'the sample\'s status'],
+        [r.page, 'on unverified lines', 'the cash required\'s unverified lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
+      for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
+      const tileDefaults = t.filter(x => x.badge === 'Illustrative default').length;
+      if (tileDefaults < 3) fails.push(`${at}: ${tileDefaults} tiles show "Illustrative default" on the sample, not every figure's`);
+    }
+    /* A deal answered Auction: "Not final" in sight in the Lab's section. */
+    for (const [w, h] of [[390, 844], [1440, 900]]) {
+      const at = `${w}×${h} auction`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      await load('/privacy'); await forget();
+      await load('/property/calculator?d=' + TERMS);
+      const view = await load('/property');
+      if (view !== 'propertyLab') { fails.push(`${at}: /property opened ${view}`); continue; }
+      const r = await ev(`(async () => { ${SEEN}
+        const s = document.getElementById('lab-au'); if (!s) return null;
+        s.scrollIntoView({ block: 'start', behavior: 'instant' });
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return { text: seenText(s), notes: [...s.querySelectorAll('.au-group details.au-more')].map(d => d.open) };
+      })()`);
+      if (!r) { fails.push(`${at}: no auction section`); continue; }
+      if (!r.text.includes('Not final: 6 checks open')) fails.push(`${at}: "Not final: 6 checks open" is not in sight`);
+      if (!r.text.includes('Nothing of the sale is assumed') || !r.text.includes('Not a valuation')) fails.push(`${at}: the auction's lead — nothing of the sale assumed, not a valuation — is not in sight`);
+      if (!r.notes.length || r.notes.some(Boolean)) fails.push(`${at}: the input groups' notes are ${r.notes.length ? 'open' : 'not'} in closed <details> (L3)`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 180/570 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+}
+/* ---- end lab-words ---- */
 /* ---- home-3a ---- */
 /* THE HOMEPAGE CLEANUP, AS DRAWN (plan Phase 3A and 3B; the owner's
    decisions D5, D17, D21 and D22) — the plan's [browser] lines, in the page's

@@ -45504,7 +45504,11 @@ function labDraw(P, focusId = null) {
 /* The fixed header, at every width, and the status of what is open. The
    claim is the brief's fixed wording (§8), whole at every width. */
 const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
-const LAB_NOT_OFFICIAL = 'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
+/* The page's identity line says the same in one clause (the 9 Oct audit,
+   #5): every denial kept — arithmetic, not advice, not a valuation, not a
+   forecast, nothing ranked — and only the words around them dropped. */
+const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a valuation, not a forecast — nothing here is ranked.';
+const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -45616,7 +45620,7 @@ function labIdentity(P, lab, status) {
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM}`)]));
+    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM_SHORT}`)]));
   return box;
 }
 /* Save, as what it saves: the deal as a property until it is one, then the
@@ -46055,8 +46059,10 @@ function labKnob(P, lab, col, inp) {
      wrapped evidence tag stood between the slider and its results, and the
      last result left a 360×640 screen by up to 60px. Below a 600px panel the
      span and the notes that explain the knob sit in a panel this button
-     opens, straight after the knob's tags, closed at first; from 600px it is
-     not drawn and they stand as before. Nothing is reworded or dropped: the
+     opens, straight after the knob's tags, closed at first — AND AT EVERY
+     WIDTH since the 9 Oct audit (#5): a span's basis and a knob's notes are
+     its method, the evidence of the slider, one tap away on a desk as on a
+     phone. Nothing is reworded or dropped: the
      slider is still described by the span (aria-describedby reads a closed
      panel too), the evidence tag and a 0% rate's warning stay in sight, and
      a reader with no script is shown the panel open (styles.css). */
@@ -46137,7 +46143,8 @@ function labKnob(P, lab, col, inp) {
      in "About", so a deposit taken to 0% showed nothing to say that no
      lender approved it (the brief's gap rule). A fixed tag beside the
      evidence tag says it at every deposit and never comes or goes while the
-     slider moves; from 600px the whole note stands under the tags. */
+     slider moves — at every width now that the whole note is in "About"
+     at every width (the 9 Oct audit, #5). */
   if (k === 'downPct') tags.append(el('span', { class: 'lab-tag lab-tag-gap' }, 'Computed, not approved'));
   ft.append(tags);
   row.append(ft);
@@ -46349,7 +46356,10 @@ function labEvidence(P, lab) {
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
   const movedBy = el('p', { class: 'metaline lab-movedby', id: labId(P, 'movedby') }, '');
-  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [movedBy, ctx, rests] });
+  /* Where every figure comes from — the page's lede said it until the 9 Oct
+     audit (#5) asked the lede to be a label's length. */
+  const model = el('p', { class: 'metaline lab-from-model' }, 'Every figure here is worked out by the calculator’s own model, on each column’s figures.');
+  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [model, movedBy, ctx, rests] });
   const formula = el('p', { class: 'lab-formula', id: labId(P, 'ev-formula-text') }, '');
   const fhead = el('p', { class: 'ls-ev-k', id: labId(P, 'ev-formula-k') }, '');
   const how = lsEvidenceSection({ id: labId(P, 'ev-formula'), cls: 'ls-ev-wide', summary: 'How a figure is worked out', body: [fhead, formula] });
@@ -46423,7 +46433,7 @@ function labAlert(P, lab) {
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
   return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''} — still the tool’s starting figures.`,
+    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
@@ -46612,7 +46622,9 @@ function labDrawCompare(P, lab, vm) {
   const panels = el('div', { class: `lab-cmp-panels${vm.tables.length > 1 ? ' is-multi' : ''}` });
   vm.tables.forEach((t, ti) => {
     const table = el('table', { class: `lab-cmp lab-form-${t.form}`, data: { field: t.field, form: t.form } });
-    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? `${vm.caption} ${t.title}.` : `${t.title}.`));
+    /* What is compared and in which order is said to the ear; the eye has
+       the switch and the rows A, B, C (the 9 Oct audit, #5). */
+    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? [el('span', { class: 'sr-only' }, `${vm.caption} `), `${t.title}.`] : `${t.title}.`));
     const tb = el('tbody');
     const rowEls = [];
     t.rows.forEach(r => {
@@ -46804,6 +46816,15 @@ function labCommits(P, lab, col) {
   /* The name is asked for where its Save was pressed: here, or under the
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
+  /* ONE LINE IN SIGHT, THE REST ONE TAP AWAY (the 9 Oct audit, #5: the Lab
+     "repeatedly explains … saving prerequisites"). What Save does, in a
+     line; why a scenario needs a property, what a commit marks as the
+     reader's and why the grade can stay U, under "How saving works" (L3,
+     closed) — every word of it kept. */
+  const line = !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
+    : canSave ? `Saving makes ${col.key}’s moved figures yours.`
+    : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
+    : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
   if (!rec) why.push(labScenarioAfterProperty(lab, col)
     ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
@@ -46812,7 +46833,13 @@ function labCommits(P, lab, col) {
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
     + 'Until then nothing moved here is saved or marked as yours. The grade stays U while any figure that drives it — the built-up area and the maintenance too — is still the tool’s starting figure.');
-  card.append(el('p', { class: 'metaline lab-commit-why' }, why.join(' ')));
+  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') }, line));
+  /* Open stays open while the card is drawn again under a move. */
+  const more = el('details', { class: 'pc-more ls-l3 lab-commit-more', id: labId(P, 'commit-more'), open: P.saveMoreOpen ? '' : null }, [
+    el('summary', { class: 'pc-more-sum' }, 'How saving works'),
+    el('p', { class: 'pc-more-body lab-commit-why' }, why.join(' '))]);
+  more.addEventListener('toggle', () => { P.saveMoreOpen = more.open; });
+  card.append(more);
   return card;
 }
 /* The column's figures as a commit writes them: the moved ones marked as
@@ -47206,7 +47233,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
     const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
-      : 'Moves you make here are kept until you close or reload this tab.';
+      : 'Unsaved moves are lost on reload or close.';
     labText(P.els.unsavedSay, s);
     P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
@@ -47310,8 +47337,11 @@ VIEWS.propertyLab = () => {
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
+  /* The lede a label's length (the 9 Oct audit, #5: the Lab explained
+     itself before it showed anything): where the figures come from — the
+     calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
+    lede: 'Move a slider and every figure below follows.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
@@ -47498,7 +47528,7 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   if (PROPERTY_ROUTES[route].coming) notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' }, PROPERTY_ROUTES[route].coming));
   /* The auction risk mode (P3): where its terms go, and the gate. */
   if (route === 'auction') notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' },
-    'Auction: the purchase price is the winning bid you expect. Enter the Proclamation’s terms below — nothing of them is assumed — and no auction figure is final until its checklist is ticked.'));
+    'Auction: the price is the winning bid you expect, and no auction figure is final until its checklist is ticked.'));
   const book = propertyClassRulebook(cls);
   if (book) notes.push(el('p', { class: 'pq-note', 'data-note': 'class' }, book.line));
   /* The rules that differ by class, each with its standing and source: in
@@ -47599,7 +47629,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
       cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
   } else {
     const missing = g.status === 'no-comparables'
-      ? (g.asking ? 'Name the comparables from your register that this price is set against.' : 'Enter the asking price and name the comparables from your register it is set against.')
+      ? (g.asking ? 'Needs comparables named from your register.' : 'Needs the asking price and comparables from your register.')
       : `Enter the asking price to set it against the ${pqMoney(g.value)} your ${g.comps.length === 1 ? 'comparable implies' : `${g.comps.length} comparables imply`}.`;
     cards.append(lsActionCard({ title: 'Price gap', line: missing, cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': '' },
       cta: enter ? lsCta('Enter them in the calculator', { path: enter, id: `${prefix}-pe-gap-go` })
@@ -47607,7 +47637,9 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
   }
   /* The price that makes this work. */
   if (s.status === 'no-target') {
-    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'Set a target — a monthly position or a net yield — and the highest price that meets it is solved from these figures.',
+    /* One line (the 9 Oct audit, #5); how it is solved is "How the price is
+       solved", in the evidence. */
+    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'The highest price that meets a target you set.',
       cls: 'pe-card pe-solve', attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': '' },
       cta: lsCta('Set a target', { id: `${prefix}-pe-target-go`, onclick: setTarget }) }));
   } else {
@@ -47732,7 +47764,7 @@ function comparablesPick({ d, prefix, legend, toggle, cls = '' }) {
     ]);
   };
   if (!choices.length) fs.append(el('p', { class: 'metaline' },
-    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one in the comparables register, step by step: its locality, its source and date, and what it is.`));
+    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet.`));
   choices.forEach(o => fs.append(row(o)));
   if (asks.length) {
     fs.append(el('p', { class: 'metaline comp-pick-apart' }, `Asking prices — shown apart, with their own median: an asking price is somebody’s hope, and is never in the value the transacted prices imply.`));
@@ -47818,6 +47850,7 @@ const AU_GROUPS = () => [
     fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
       ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
 ];
+const AU_HOW_OPEN = new Set();
 function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
   const box = el('div', { class: 'au-inputs', id: `${prefix}-au-inputs` });
   const m = dealModel(d);
@@ -47827,7 +47860,6 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const note = g.id === 'costs'
       ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
       : g.note;
-    if (note) fs.append(el('p', { class: 'au-note' }, note));
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step] of g.fields) {
       const id = `${prefix}-au-${k}`;
@@ -47849,7 +47881,20 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
       grid.append(f);
     }
     fs.append(grid);
-    if (g.after) fs.append(el('p', { class: 'au-note' }, g.after));
+    /* WHAT A GROUP'S FIGURES MEAN AND HOW THEY ARE USED, one tap away (L3;
+       the 9 Oct audit, #5: the Lab "repeatedly explains"). In sight stay the
+       section's lead — nothing of the sale assumed, not a valuation — and
+       each figure's badge, which says Unavailable until it is entered. */
+    const how = [note, g.after].filter(Boolean);
+    if (how.length) {
+      /* Kept open for the tab across the drawings an answer makes. */
+      const hid = `${prefix}-au-${g.id}-how`;
+      const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
+        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : 'How these terms are used'),
+        ...how.map(t => el('p', { class: 'pc-more-body au-note' }, t))]);
+      det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
+      fs.append(det);
+    }
     if (extra[g.id]) fs.append(extra[g.id]);
     box.append(fs);
   }
@@ -47862,7 +47907,9 @@ function auctionChecklist({ d, prefix, answer }) {
   const ticked = new Set(Array.isArray(d.auctionChecks) ? d.auctionChecks : []);
   const fs = el('fieldset', { class: 'au-checks', id: `${prefix}-au-checks`, tabindex: '-1' });
   fs.append(el('legend', { class: 'au-legend' }, `Before any auction figure is final — ${AUCTION_CHECK_IDS.length - AUCTION_CHECK_IDS.filter(id => ticked.has(id)).length} of ${AUCTION_CHECK_IDS.length} open`));
-  fs.append(el('p', { class: 'au-note' }, 'Drawn from the guidance the Malaysian Bar publishes on buying at an auction — guidance, not this tool’s rules, and not legal advice. Tick each once you have found it out; where the guidance comes from is under the evidence.'));
+  /* One line: whose guidance, and that it is not legal advice. Where it
+     comes from is under the evidence. */
+  fs.append(el('p', { class: 'au-note' }, 'From the Malaysian Bar’s guidance — not this tool’s rules, and not legal advice. Tick each once found out.'));
   const list = el('ul', { class: 'au-check-list' });
   for (const id of AUCTION_CHECK_IDS) {
     const c = AUCTION_CHECKS[id], cid = `${prefix}-au-ck-${id}`;

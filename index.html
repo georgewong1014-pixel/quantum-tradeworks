@@ -5072,20 +5072,24 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
    above the strip from 600px). */
 .lab-moved-line { margin: 6px 0 0; min-height: 36px; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
 .lab-moved-line.is-unsaved { font-weight: 600; color: var(--bronze); }
-.lab-moved-who { display: none; font-weight: 700; color: var(--ink); }
+/* Out of sight and out of reach from 600px (visibility, not display:none),
+   so the page served at 1280 carries it and a phone's served line is the
+   drawn line, word for word: served without it, the line's shorter words
+   took one line where the drawn took two, and stood 7px lower. */
+.lab-moved-who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; visibility: hidden; font-weight: 700; color: var(--ink); }
 @container lab (max-width: 599px) {
   .lab-pick-cols { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; }
   .lab-pick-cols > .lab-legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .lab-pick-cols > .lab-seg { justify-self: start; }
   .lab-pick-cols > .lab-moved-line { display: flex; align-items: center; margin: 0; min-height: 44px; font-size: var(--ls-meta); line-height: 14.5px; }
-  .lab-moved-who { display: inline; }
+  .lab-moved-who { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; visibility: inherit; display: inline; }
 }
 @media (max-width: 662px) {
   :root[data-served] .lab-pick-cols { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 10px; }
   :root[data-served] .lab-pick-cols > .lab-legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   :root[data-served] .lab-pick-cols > .lab-seg { justify-self: start; }
   :root[data-served] .lab-pick-cols > .lab-moved-line { display: flex; align-items: center; margin: 0; min-height: 44px; font-size: var(--ls-meta); line-height: 14.5px; }
-  :root[data-served] .lab-moved-who { display: inline; }
+  :root[data-served] .lab-moved-who { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; visibility: inherit; display: inline; }
 }
 .lab-note-warn { color: var(--bronze); font-weight: 600; }
 
@@ -5114,7 +5118,7 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-id-form:empty { display: none; }
 .lab-id-form .lab-name-form { margin-top: 0; }
 /* The chip in the sentence's first line, not on a line of its own. */
-.lab-claim.lab-id-claim { display: block; max-width: var(--ls-measure); }
+.lab-claim.lab-id-claim { display: block; max-width: var(--ls-measure); text-wrap: pretty; }
 .lab-id-claim > .chip { margin-right: 4px; vertical-align: 1px; }
 
 /* The four tiles: on the layout system (layout-system, at the end). */
@@ -5171,8 +5175,8 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 /* A knob: its label and box, the slider, what its figure rests on, and
    the span the slider covers, with the span's basis. On a phone the label
    shares a 44px line with "About", whose panel holds the span and the notes
-   (82-property-lab.js, labKnob); from 600px the label's line is its own
-   18px and the panel's words stand under the tags, as they always did. */
+   (82-property-lab.js, labKnob); from 600px the label stands over the
+   slider, and "About" beside it opens the same panel (the 9 Oct audit, #5). */
 .lab-knob { padding: 0 0 2px; border-top: 1px solid var(--line); min-width: 0; }
 .lab-knob:not(.is-on) { display: none; }
 .lab-knob-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; }
@@ -5224,11 +5228,12 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-tag.is-default, .lab-tag-whatif { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
 .lab-tag-whatif { border-style: dashed; }
 /* The deposit's "Computed, not approved", in a second column of the tag
-   cell, on a phone only (labKnob); from a 600px panel, and on a served
-   page from a 663px window, the whole lender-limits note stands instead. */
+   cell, at every width (labKnob): the whole lender-limits note is in
+   "About" at every width. */
 .lab-tags > .lab-tag-gap { grid-area: 1 / 2; margin-left: 6px; white-space: nowrap; background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
-@container lab (min-width: 600px) { .lab-tags > .lab-tag-gap { display: none; } }
-@media (min-width: 663px) { :root[data-served] .lab-tags > .lab-tag-gap { display: none; } }
+/* "About" a step smaller where a mouse is the pointer: a knob's head stays
+   one short line beside its label (a finger keeps the 44px target). */
+@media (pointer: fine) and (min-width: 769px) { .lab-knob-hd { min-height: 0; } .lab-about-btn { min-height: 28px; } }
 .lab-span { margin-top: 2px; line-height: 1.45; }
 .lab-span-why { display: none; }
 .lab-knob-note { margin-top: 4px; line-height: 1.45; }
@@ -5327,7 +5332,10 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-col-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; flex: 0 0 auto; max-width: 100%; margin-left: auto; }
 .lab-commit-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--xs); }
 .lab-commit-acts .btn { white-space: normal; text-align: center; }
-.lab-commit-why { margin-top: var(--sm); line-height: 1.5; max-width: var(--ls-measure); }
+/* What Save does in one line; how saving works in a closed drawer under it
+   (L3, the 9 Oct audit #5). */
+.lab-commit-line { margin-top: var(--sm); line-height: 1.5; max-width: var(--ls-measure); }
+.lab-commit .lab-commit-more { margin-top: var(--ls-within); }
 .lab-name-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: var(--sm); padding: var(--sm);
   border-radius: var(--r-md); background: var(--surface-sunk); }
 .lab-name-label { flex: 1 0 100%; font-size: var(--ls-support); font-weight: 600; color: var(--ink); }
@@ -5364,13 +5372,9 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   /* Names beside the letters need the strip's whole width: the legend
      stands over it. */
   .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
-  /* Every knob in full: no "About", its words under the tags. */
+  /* Every knob stands, its span and notes behind "About" as on a phone (the
+     9 Oct audit, #5: a slider's method is evidence, one tap away). */
   .lab-knob { padding-top: 6px; }
-  .lab-knob-hd { min-height: 0; }
-  .lab-about-btn { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
-  .lab-about, .lab-knob.is-about .lab-about { display: block; margin: 0; padding: 0; border-radius: 0; background: none; box-shadow: none; }
-  .lab-knob.is-about .lab-about > .lab-span:first-child { margin-top: 2px; }
-  .lab-knob.is-about .lab-about .metaline { color: var(--ink-3); }
 }
 @container lab (min-width: 960px) {
   .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
@@ -5396,9 +5400,6 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
   :root[data-served] .lab-span-why { display: inline; }
   :root[data-served] .lab-pick-cols .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 4px; }
   :root[data-served] .lab-knob { padding-top: 6px; }
-  :root[data-served] .lab-knob-hd { min-height: 0; }
-  :root[data-served] .lab-about-btn { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
-  :root[data-served] .lab-about { display: block; }
 }
 @media (min-width: 1303px) {
   :root[data-served] .lab-grid { grid-template-columns: minmax(320px, 360px) minmax(0, 1fr); gap: var(--lg); }
@@ -5873,6 +5874,32 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   :root[data-served] .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
   :root[data-served] .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
+/* ON A PHONE TWO FIGURES LEAD (the 9 Oct audit, #5): the decision's two —
+   Cash required and Monthly position, or the objective's pair — as cards
+   at the metric size; the context's figure and the next step under them as
+   a compact row: on the sunk surface, the figure beside its label at the
+   body size, its kind badge kept, and the next step its call alone (the
+   sample's figure it replaces is the slider's, just below). */
+@container lab (max-width: 599px) {
+  .lab-tile.ls-l2, .lab-tile.lab-tile-next { padding: 4px 10px 5px; background: var(--surface-sunk); box-shadow: none; }
+  .lab-tile.ls-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; align-content: start; }
+  .lab-tile.ls-l2 > .ls-card-hd { display: contents; }
+  .lab-tile.ls-l2 .ls-card-label { grid-column: 1; grid-row: 1; min-width: 0; }
+  .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 18px; }
+  .lab-tile.ls-l2 .ls-badge { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+  .lab-tile.ls-l2 .ls-card-sub { grid-column: 1 / -1; grid-row: 3; }
+  .lab-tile.lab-tile-next .ls-card-sub { display: none; }
+}
+@media (max-width: 662px) {
+  :root[data-served] .lab-tile.ls-l2, :root[data-served] .lab-tile.lab-tile-next { padding: 4px 10px 5px; background: var(--surface-sunk); box-shadow: none; }
+  :root[data-served] .lab-tile.ls-l2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: baseline; align-content: start; }
+  :root[data-served] .lab-tile.ls-l2 > .ls-card-hd { display: contents; }
+  :root[data-served] .lab-tile.ls-l2 .ls-card-label { grid-column: 1; grid-row: 1; min-width: 0; }
+  :root[data-served] .lab-tile.ls-l2 .ls-card-value { grid-column: 2; grid-row: 1; margin: 0; font-size: var(--ls-body); line-height: 18px; }
+  :root[data-served] .lab-tile.ls-l2 .ls-badge { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
+  :root[data-served] .lab-tile.ls-l2 .ls-card-sub { grid-column: 1 / -1; grid-row: 3; }
+  :root[data-served] .lab-tile.lab-tile-next .ls-card-sub { display: none; }
+}
 
 /* /PROPERTY ON THE SYSTEM (82-property-lab.js). */
 /* Under 640px Save is the action bar's (labBarActions), not a second
@@ -5967,7 +5994,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .lab-grade-gates { margin: 0; padding-left: 18px; font-size: var(--ls-support); line-height: 1.5; color: var(--ink-2); }
 .lab-grade-gates > li + li { margin-top: var(--ls-within); }
 .lab-grade-score { margin-top: var(--ls-related); line-height: 1.5; }
-.lab-movedby, .lab-context, .lab-rests { margin: 0; line-height: 1.5; }
+.lab-from-model, .lab-movedby, .lab-context, .lab-rests { margin: 0; line-height: 1.5; }
 /* A row whose formula the drawer shows, from 1440px. */
 .lab-sum.is-shown .lab-row-label { color: var(--brand); }
 .lab-sum.is-shown .lab-row-label::before { transform: rotate(90deg); color: var(--brand); }
@@ -6167,6 +6194,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 /* The inputs. */
 .au-inputs { display: flex; flex-direction: column; gap: var(--ls-group); margin-top: var(--ls-group); min-width: 0; }
 .au-group, .au-checks { border: 0; margin: 0; padding: 0; min-width: 0; }
+/* A group's "how these are used" (L3, closed), under its fields. */
+.au-more { margin: var(--ls-within) 0 0; }
+.au-more > .pc-more-body.au-note { margin: 4px 0 0 16px; }
 .au-legend { padding: 0; margin: 0 0 var(--ls-within); font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
 .au-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: var(--ls-related); min-width: 0; }
 .au-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -52112,7 +52142,11 @@ function labDraw(P, focusId = null) {
 /* The fixed header, at every width, and the status of what is open. The
    claim is the brief's fixed wording (§8), whole at every width. */
 const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
-const LAB_NOT_OFFICIAL = 'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
+/* The page's identity line says the same in one clause (the 9 Oct audit,
+   #5): every denial kept — arithmetic, not advice, not a valuation, not a
+   forecast, nothing ranked — and only the words around them dropped. */
+const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a valuation, not a forecast — nothing here is ranked.';
+const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -52224,7 +52258,7 @@ function labIdentity(P, lab, status) {
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM}`)]));
+    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM_SHORT}`)]));
   return box;
 }
 /* Save, as what it saves: the deal as a property until it is one, then the
@@ -52663,8 +52697,10 @@ function labKnob(P, lab, col, inp) {
      wrapped evidence tag stood between the slider and its results, and the
      last result left a 360×640 screen by up to 60px. Below a 600px panel the
      span and the notes that explain the knob sit in a panel this button
-     opens, straight after the knob's tags, closed at first; from 600px it is
-     not drawn and they stand as before. Nothing is reworded or dropped: the
+     opens, straight after the knob's tags, closed at first — AND AT EVERY
+     WIDTH since the 9 Oct audit (#5): a span's basis and a knob's notes are
+     its method, the evidence of the slider, one tap away on a desk as on a
+     phone. Nothing is reworded or dropped: the
      slider is still described by the span (aria-describedby reads a closed
      panel too), the evidence tag and a 0% rate's warning stay in sight, and
      a reader with no script is shown the panel open (styles.css). */
@@ -52745,7 +52781,8 @@ function labKnob(P, lab, col, inp) {
      in "About", so a deposit taken to 0% showed nothing to say that no
      lender approved it (the brief's gap rule). A fixed tag beside the
      evidence tag says it at every deposit and never comes or goes while the
-     slider moves; from 600px the whole note stands under the tags. */
+     slider moves — at every width now that the whole note is in "About"
+     at every width (the 9 Oct audit, #5). */
   if (k === 'downPct') tags.append(el('span', { class: 'lab-tag lab-tag-gap' }, 'Computed, not approved'));
   ft.append(tags);
   row.append(ft);
@@ -52957,7 +52994,10 @@ function labEvidence(P, lab) {
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
   const movedBy = el('p', { class: 'metaline lab-movedby', id: labId(P, 'movedby') }, '');
-  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [movedBy, ctx, rests] });
+  /* Where every figure comes from — the page's lede said it until the 9 Oct
+     audit (#5) asked the lede to be a label's length. */
+  const model = el('p', { class: 'metaline lab-from-model' }, 'Every figure here is worked out by the calculator’s own model, on each column’s figures.');
+  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [model, movedBy, ctx, rests] });
   const formula = el('p', { class: 'lab-formula', id: labId(P, 'ev-formula-text') }, '');
   const fhead = el('p', { class: 'ls-ev-k', id: labId(P, 'ev-formula-k') }, '');
   const how = lsEvidenceSection({ id: labId(P, 'ev-formula'), cls: 'ls-ev-wide', summary: 'How a figure is worked out', body: [fhead, formula] });
@@ -53031,7 +53071,7 @@ function labAlert(P, lab) {
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
   return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''} — still the tool’s starting figures.`,
+    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
@@ -53220,7 +53260,9 @@ function labDrawCompare(P, lab, vm) {
   const panels = el('div', { class: `lab-cmp-panels${vm.tables.length > 1 ? ' is-multi' : ''}` });
   vm.tables.forEach((t, ti) => {
     const table = el('table', { class: `lab-cmp lab-form-${t.form}`, data: { field: t.field, form: t.form } });
-    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? `${vm.caption} ${t.title}.` : `${t.title}.`));
+    /* What is compared and in which order is said to the ear; the eye has
+       the switch and the rows A, B, C (the 9 Oct audit, #5). */
+    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? [el('span', { class: 'sr-only' }, `${vm.caption} `), `${t.title}.`] : `${t.title}.`));
     const tb = el('tbody');
     const rowEls = [];
     t.rows.forEach(r => {
@@ -53412,6 +53454,15 @@ function labCommits(P, lab, col) {
   /* The name is asked for where its Save was pressed: here, or under the
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
+  /* ONE LINE IN SIGHT, THE REST ONE TAP AWAY (the 9 Oct audit, #5: the Lab
+     "repeatedly explains … saving prerequisites"). What Save does, in a
+     line; why a scenario needs a property, what a commit marks as the
+     reader's and why the grade can stay U, under "How saving works" (L3,
+     closed) — every word of it kept. */
+  const line = !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
+    : canSave ? `Saving makes ${col.key}’s moved figures yours.`
+    : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
+    : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
   if (!rec) why.push(labScenarioAfterProperty(lab, col)
     ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
@@ -53420,7 +53471,13 @@ function labCommits(P, lab, col) {
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
     + 'Until then nothing moved here is saved or marked as yours. The grade stays U while any figure that drives it — the built-up area and the maintenance too — is still the tool’s starting figure.');
-  card.append(el('p', { class: 'metaline lab-commit-why' }, why.join(' ')));
+  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') }, line));
+  /* Open stays open while the card is drawn again under a move. */
+  const more = el('details', { class: 'pc-more ls-l3 lab-commit-more', id: labId(P, 'commit-more'), open: P.saveMoreOpen ? '' : null }, [
+    el('summary', { class: 'pc-more-sum' }, 'How saving works'),
+    el('p', { class: 'pc-more-body lab-commit-why' }, why.join(' '))]);
+  more.addEventListener('toggle', () => { P.saveMoreOpen = more.open; });
+  card.append(more);
   return card;
 }
 /* The column's figures as a commit writes them: the moved ones marked as
@@ -53814,7 +53871,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
     const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
-      : 'Moves you make here are kept until you close or reload this tab.';
+      : 'Unsaved moves are lost on reload or close.';
     labText(P.els.unsavedSay, s);
     P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
@@ -53918,8 +53975,11 @@ VIEWS.propertyLab = () => {
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
+  /* The lede a label's length (the 9 Oct audit, #5: the Lab explained
+     itself before it showed anything): where the figures come from — the
+     calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
+    lede: 'Move a slider and every figure below follows.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
@@ -54106,7 +54166,7 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   if (PROPERTY_ROUTES[route].coming) notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' }, PROPERTY_ROUTES[route].coming));
   /* The auction risk mode (P3): where its terms go, and the gate. */
   if (route === 'auction') notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' },
-    'Auction: the purchase price is the winning bid you expect. Enter the Proclamation’s terms below — nothing of them is assumed — and no auction figure is final until its checklist is ticked.'));
+    'Auction: the price is the winning bid you expect, and no auction figure is final until its checklist is ticked.'));
   const book = propertyClassRulebook(cls);
   if (book) notes.push(el('p', { class: 'pq-note', 'data-note': 'class' }, book.line));
   /* The rules that differ by class, each with its standing and source: in
@@ -54207,7 +54267,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
       cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
   } else {
     const missing = g.status === 'no-comparables'
-      ? (g.asking ? 'Name the comparables from your register that this price is set against.' : 'Enter the asking price and name the comparables from your register it is set against.')
+      ? (g.asking ? 'Needs comparables named from your register.' : 'Needs the asking price and comparables from your register.')
       : `Enter the asking price to set it against the ${pqMoney(g.value)} your ${g.comps.length === 1 ? 'comparable implies' : `${g.comps.length} comparables imply`}.`;
     cards.append(lsActionCard({ title: 'Price gap', line: missing, cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': '' },
       cta: enter ? lsCta('Enter them in the calculator', { path: enter, id: `${prefix}-pe-gap-go` })
@@ -54215,7 +54275,9 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
   }
   /* The price that makes this work. */
   if (s.status === 'no-target') {
-    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'Set a target — a monthly position or a net yield — and the highest price that meets it is solved from these figures.',
+    /* One line (the 9 Oct audit, #5); how it is solved is "How the price is
+       solved", in the evidence. */
+    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'The highest price that meets a target you set.',
       cls: 'pe-card pe-solve', attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': '' },
       cta: lsCta('Set a target', { id: `${prefix}-pe-target-go`, onclick: setTarget }) }));
   } else {
@@ -54340,7 +54402,7 @@ function comparablesPick({ d, prefix, legend, toggle, cls = '' }) {
     ]);
   };
   if (!choices.length) fs.append(el('p', { class: 'metaline' },
-    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one in the comparables register, step by step: its locality, its source and date, and what it is.`));
+    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet.`));
   choices.forEach(o => fs.append(row(o)));
   if (asks.length) {
     fs.append(el('p', { class: 'metaline comp-pick-apart' }, `Asking prices — shown apart, with their own median: an asking price is somebody’s hope, and is never in the value the transacted prices imply.`));
@@ -54426,6 +54488,7 @@ const AU_GROUPS = () => [
     fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
       ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
 ];
+const AU_HOW_OPEN = new Set();
 function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
   const box = el('div', { class: 'au-inputs', id: `${prefix}-au-inputs` });
   const m = dealModel(d);
@@ -54435,7 +54498,6 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const note = g.id === 'costs'
       ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
       : g.note;
-    if (note) fs.append(el('p', { class: 'au-note' }, note));
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step] of g.fields) {
       const id = `${prefix}-au-${k}`;
@@ -54457,7 +54519,20 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
       grid.append(f);
     }
     fs.append(grid);
-    if (g.after) fs.append(el('p', { class: 'au-note' }, g.after));
+    /* WHAT A GROUP'S FIGURES MEAN AND HOW THEY ARE USED, one tap away (L3;
+       the 9 Oct audit, #5: the Lab "repeatedly explains"). In sight stay the
+       section's lead — nothing of the sale assumed, not a valuation — and
+       each figure's badge, which says Unavailable until it is entered. */
+    const how = [note, g.after].filter(Boolean);
+    if (how.length) {
+      /* Kept open for the tab across the drawings an answer makes. */
+      const hid = `${prefix}-au-${g.id}-how`;
+      const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
+        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : 'How these terms are used'),
+        ...how.map(t => el('p', { class: 'pc-more-body au-note' }, t))]);
+      det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
+      fs.append(det);
+    }
     if (extra[g.id]) fs.append(extra[g.id]);
     box.append(fs);
   }
@@ -54470,7 +54545,9 @@ function auctionChecklist({ d, prefix, answer }) {
   const ticked = new Set(Array.isArray(d.auctionChecks) ? d.auctionChecks : []);
   const fs = el('fieldset', { class: 'au-checks', id: `${prefix}-au-checks`, tabindex: '-1' });
   fs.append(el('legend', { class: 'au-legend' }, `Before any auction figure is final — ${AUCTION_CHECK_IDS.length - AUCTION_CHECK_IDS.filter(id => ticked.has(id)).length} of ${AUCTION_CHECK_IDS.length} open`));
-  fs.append(el('p', { class: 'au-note' }, 'Drawn from the guidance the Malaysian Bar publishes on buying at an auction — guidance, not this tool’s rules, and not legal advice. Tick each once you have found it out; where the guidance comes from is under the evidence.'));
+  /* One line: whose guidance, and that it is not legal advice. Where it
+     comes from is under the evidence. */
+  fs.append(el('p', { class: 'au-note' }, 'From the Malaysian Bar’s guidance — not this tool’s rules, and not legal advice. Tick each once found out.'));
   const list = el('ul', { class: 'au-check-list' });
   for (const id of AUCTION_CHECK_IDS) {
     const c = AUCTION_CHECKS[id], cid = `${prefix}-au-ck-${id}`;

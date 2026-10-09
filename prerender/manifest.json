@@ -4585,12 +4585,12 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 10,
+        "notShown": 13,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "beb7d088df237a54",
+      "digest": "6d815d119c6421a3",
       "changed": "2026-10-09"
     },
     "pages/property/areas.html": {
@@ -4648,7 +4648,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "d6b38431b27517e6",
+      "digest": "36f7ef3e862f64a5",
       "changed": "2026-10-09"
     },
     "pages/property/comparables.html": {
@@ -4701,12 +4701,12 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 10,
+        "notShown": 13,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3b8625eb77590033",
+      "digest": "778d70528d01ec41",
       "changed": "2026-10-09"
     },
     "pages/property/models.html": {
