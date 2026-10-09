@@ -1208,7 +1208,7 @@ for (var i = 0; i < list.length; i++) {
     mine = c === was;
   } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
   else if (name === 'startHereAll') { var a = val('startHere'), any = false; if (a && typeof a === 'object' && !Array.isArray(a)) for (var k in a) if (a[k]) any = true; mine = !any; }
-  else if (name.slice(0, 5) === 'kept.') mine = (raw(name.slice(5)) === null ? '0' : '1') === was;
+  else if (name.slice(0, 5) === 'kept.') mine = raw(name.slice(5)) === null;
   else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
   if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
 }
@@ -1265,12 +1265,16 @@ export function servedReadsOf(views, { waits, drawn, render = 'the render' }) {
       out.push('startHereAll:'); continue;
     }
     /* Whether a key is kept at all, as /my/data lists what is kept
-       (servedKept, 35-ui.js): 1 or 0 as the render found it, which the
-       head's script holds to whether this browser keeps the key. */
+       (servedKept, 35-ui.js). A key the render's draw did not find kept is
+       written kept.<key>:, and the head's script keeps the page out of
+       sight where this browser keeps it. A key it found kept is a sample a
+       first visit writes as the app starts — before the script has run, a
+       fresh visitor keeps none of them yet, so it is not written: the key's
+       value, named on its own, says whether it is still the sample. */
     if (name.startsWith('kept.')) {
-      const kept = digest === servedHash('true') ? '1' : digest === servedHash('false') ? '0' : null;
-      if (!kept) throw new Error(`${render}: its draw read ${name} as neither kept nor not (${digest})`);
-      out.push(`${name}:${kept}`); continue;
+      if (digest === servedHash('false')) out.push(`${name}:`);
+      else if (digest !== servedHash('true')) throw new Error(`${render}: its draw read ${name} as neither kept nor not (${digest})`);
+      continue;
     }
     out.push(pair);
   }

@@ -29,7 +29,7 @@ for (var i = 0; i < list.length; i++) {
     mine = c === was;
   } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
   else if (name === 'startHereAll') { var a = val('startHere'), any = false; if (a && typeof a === 'object' && !Array.isArray(a)) for (var k in a) if (a[k]) any = true; mine = !any; }
-  else if (name.slice(0, 5) === 'kept.') mine = (raw(name.slice(5)) === null ? '0' : '1') === was;
+  else if (name.slice(0, 5) === 'kept.') mine = raw(name.slice(5)) === null;
   else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
   if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
 }
