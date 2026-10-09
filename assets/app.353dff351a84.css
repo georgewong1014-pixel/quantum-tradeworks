@@ -5924,6 +5924,75 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .pe-try .btn { min-height: 44px; }
 }
 
+/* THE AUCTION RISK MODE (the property decision layer, P3;
+   83-property-decision.js). The gate (an alert card) first, then L1 —
+   the effective acquisition cost and the true discount — and the
+   forfeiture exposure (L2) as metric cards; the waterfall (L2) as one row a
+   step, its bar an SVG of percentages; the inputs in three groups; the
+   checklist, a 44px row a check. Under 640px every grid is one column. */
+.au-results { display: flex; flex-direction: column; gap: var(--ls-related); margin-top: var(--ls-related); min-width: 0; }
+.au-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--ls-related); min-width: 0; }
+.au-card .ls-card-sub { line-height: 18px; max-width: var(--ls-measure); }
+.au-card .ls-card-value { overflow-wrap: anywhere; }
+.au-route { margin: var(--ls-within) 0 0; max-width: var(--ls-measure); }
+.au-note { margin: 0 0 var(--ls-within); max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.au-why { display: flex; flex-wrap: wrap; gap: var(--ls-within) var(--ls-group); margin: 0; }
+.au-why .ls-cta { min-height: 44px; }
+/* The waterfall. */
+.au-wf { margin: 0; min-width: 0; }
+.au-wf-h { font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); margin: 0 0 var(--ls-within); }
+.au-wf-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.au-wf-row { min-width: 0; }
+.au-wf-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.au-wf-label { font-weight: var(--weight-semibold); color: var(--ink); }
+.au-wf-amt { margin-left: auto; font-weight: var(--weight-semibold); color: var(--ink); white-space: nowrap; }
+.au-wf-row.is-na .au-wf-amt { color: var(--ink-2); font-weight: var(--weight-body); }
+.au-wf-row.is-end { padding-top: 6px; border-top: 1px solid var(--line); }
+.au-wf-row.is-end .au-wf-label, .au-wf-row.is-end .au-wf-amt { font-size: var(--ls-support); }
+.au-wf-bar { display: block; width: 100%; height: 14px; overflow: visible; margin-top: 2px; }
+.au-wf-track { fill: var(--grid); }
+.au-wf-mark.is-total { fill: var(--seq-6); }
+.au-wf-mark.is-add { fill: var(--seq-4); }
+.au-wf-mark.is-end { fill: var(--seq-6); }
+.au-wf-mv { stroke: var(--ink); stroke-width: 2; }
+.au-wf-sub { margin: 2px 0 0; font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); }
+.au-wf-key { display: flex; align-items: center; gap: 8px; margin: var(--ls-within) 0 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); max-width: var(--ls-measure); }
+.au-wf-key-mv { flex: 0 0 auto; width: 2px; height: 14px; background: var(--ink); }
+/* The inputs. */
+.au-inputs { display: flex; flex-direction: column; gap: var(--ls-group); margin-top: var(--ls-group); min-width: 0; }
+.au-group, .au-checks { border: 0; margin: 0; padding: 0; min-width: 0; }
+.au-legend { padding: 0; margin: 0 0 var(--ls-within); font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
+.au-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: var(--ls-related); min-width: 0; }
+.au-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.au-label { font-size: var(--ls-meta); line-height: 16px; font-weight: var(--weight-semibold); color: var(--ink-2); }
+.au-in { width: 100%; min-height: 40px; }
+input.au-in { text-align: right; }
+/* What the deposit is a share of: the questions' chips, legend above. */
+.au-pick { border: 0; margin: 0; padding: 0; min-width: 0; }
+.au-pick > .pq-legend { height: auto; width: auto; margin: 0 0 4px; font-size: var(--ls-meta); line-height: 16px; white-space: normal; }
+.au-pick > .pq-seg { flex-wrap: wrap; }
+.au-kind { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: var(--ls-meta); }
+.pc-auction .au-inputs { margin-top: 0; }
+.pc-auction .au-grid { grid-template-columns: minmax(0, 1fr); }
+/* The checklist. */
+.au-checks { margin-top: var(--ls-group); }
+.au-checks:focus { outline: none; }
+.au-check-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ls-within); }
+.au-check-row { display: flex; align-items: flex-start; gap: var(--ls-related); min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm); cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease; }
+.au-check-row:hover { border-color: var(--line-2); }
+.au-check-row:has(input:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+.au-check-row:has(input:checked) { background: var(--surface-2, transparent); }
+.au-check-row > input { flex: 0 0 auto; width: 20px; height: 20px; margin: 2px 0 0; }
+.au-check-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.au-check-body > strong { font-size: var(--ls-support); color: var(--ink); }
+.au-src { margin: var(--ls-within) 0 0; padding-left: 18px; font-size: var(--ls-meta); line-height: 18px; }
+.au-src > li + li { margin-top: var(--ls-within); }
+@media (max-width: 639.98px) {
+  .au-cards, .au-grid { grid-template-columns: minmax(0, 1fr); }
+  .au-in { min-height: 44px; }
+}
+
 /* ---- end layout-system ---- */
 
 /* ---- evidence-classes ---- */
