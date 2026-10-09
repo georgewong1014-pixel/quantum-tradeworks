@@ -2838,7 +2838,13 @@ for (const w of [360, 390]) {
    ON THE LAYOUT SYSTEM (7 Oct 2026): on a phone Save is the sticky action
    bar's (Analyse · Compare · Save this), and "the first screen" ends where
    the bar begins — the slider must be whole above it, not under it. The
-   Lab's checks above measure the same screen (vh: the bar's top). */
+   Lab's checks above measure the same screen (vh: the bar's top).
+   THE TWO QUESTIONS (the property decision layer, P1; the owner's
+   decisions of 7 and 9 Oct 2026) come first: at 1440 whole between the
+   identity line and the tiles; on a phone folded into the identity line's
+   one 44px summary line — "Residential · Subsale" and Change — whole on
+   the first screen with everything above, and the first slider still whole
+   above the bar, in the page's font and in Verdana. */
 {
   const fails = [], said = [];
   const ev = async (expression) => {
@@ -2874,6 +2880,9 @@ for (const w of [360, 390]) {
         const range = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length);
         return { y: Math.round(scrollY), vw: innerWidth, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           identity: box(document.querySelector('#views .lab-identity')), name: (document.getElementById('lab-status')?.textContent || '').trim(),
+          questions: ['what', 'how'].map(q => box(document.getElementById('lab-q-' + q))),
+          summary: box(document.querySelector('#views .lab-id-meta.has-sum')), summaryWords: (document.getElementById('lab-q-sum')?.textContent || '').trim(),
+          change: box(document.getElementById('lab-q-change')), folded: document.getElementById('lab-q-change')?.getAttribute('aria-expanded') === 'false',
           tiles: [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: n.querySelector('.lab-tile-label')?.textContent.trim(), at: box(n) })),
           slider: box(range), sliderOf: range?.id || null,
           save: box(document.getElementById(innerWidth < 640 ? 'ls-act-save' : 'lab-id-save')), next: box(document.querySelector('#views .lab-tile-next')),
@@ -2887,20 +2896,29 @@ for (const w of [360, 390]) {
       const labels = r.tiles.map(t => t.label);
       if (JSON.stringify(labels) !== JSON.stringify(['Cash required', 'Monthly position', 'Net yield', 'Next step'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
       r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
+      if (w >= 600) {
+        r.questions.forEach((q, i) => { if (!whole(q)) fails.push(`${at}: "${['What are you buying?', 'How are you buying?'][i]}" ${q ? `(${q.t}–${q.b}px)` : '(none)'} is not whole in the first ${r.vh}px`); });
+        if (r.questions[0] && r.identity && r.questions[0].t < r.identity.b - 1) fails.push(`${at}: the questions stand above the identity line`);
+        if (r.questions[1] && r.tiles[0]?.at && r.questions[1].b > r.tiles[0].at.t + 1) fails.push(`${at}: the tiles stand above the questions`);
+      } else {
+        if (!whole(r.summary) || !r.change || r.summary.h < 43.5) fails.push(`${at}: the questions' summary line ${r.summary ? `(${r.summary.t}–${r.summary.b}px, ${r.summary.h}px high)` : '(none)'} is not a whole 44px line on the first screen`);
+        if (r.summaryWords !== 'Residential · Subsale' || !r.folded) fails.push(`${at}: the summary reads "${r.summaryWords}"${r.folded ? '' : ' and the questions are open'} on a first visit, not "Residential · Subsale", folded`);
+        if (r.questions.some(Boolean)) fails.push(`${at}: the questions are drawn open on a first visit`);
+      }
       if (!whole(r.slider)) fails.push(`${at}: the first slider${r.sliderOf ? ` (#${r.sliderOf})` : ''} ${r.slider ? `(${r.slider.t}–${r.slider.b}px)` : '(none in sight)'} is not whole in the first ${r.vh}px`);
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
       if (w < 600) {
         if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: Save (the action bar's, on a phone) is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
         if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
       }
-      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
+      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b}, ${w >= 600 ? `questions to ${r.questions[1]?.b}` : `summary ${r.summary?.t}–${r.summary?.b}`}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
     }
   } finally {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL n3-first-view — /property's first screen (N3, D18): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
+  else console.log(`ok   n3-first-view: on a first visit /property opens the Scenario Lab, its identity line, the two questions (at 1440 whole; on a phone their 44px summary line, folded), its four tiles and its first slider whole on the first screen — ${said.join('; ')}; on a phone Save and the next step are 44px targets and nothing scrolls sideways`);
 }
 /* ---- end n3-first-view ---- */
 /* ---- layout-system ---- */
@@ -2917,8 +2935,9 @@ for (const w of [360, 390]) {
      - the sticky action bar is in view at the foot of the window — Analyse,
        Compare, Save this — each a 44px target inside the screen, clear of
        the safe area, and nothing is under it: /property's first slider sits
-       above it on the first screen, and at the end of each page the
-       footer's last line does;
+       above it on the first screen, and so does the two questions' summary
+       line (the property decision layer, P1), and at the end of each page
+       the footer's last line does;
      - every word on the page is set in one of the scale's sizes (the
        --ls-* tokens at that width), at 390 and at 1440;
      - and at 1024 and 1440 no block of text runs wider than 70 characters
@@ -2981,6 +3000,8 @@ for (const w of [360, 390]) {
           window.scrollTo(0, 0); await frames();
           const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
           out.slider = range && location.pathname === '/property' ? [Math.round(range.getBoundingClientRect().top), Math.round(range.getBoundingClientRect().bottom)] : null;
+          const sumLine = document.querySelector('#views .lab-id-meta.has-sum');
+          out.firstScreen = sumLine && shown(sumLine) && location.pathname === '/property' ? Math.round(sumLine.getBoundingClientRect().bottom) : null;
           /* The footer's end, at the page's end. */
           window.scrollTo(0, document.documentElement.scrollHeight); await frames(); await frames();
           const legal = [...document.querySelectorAll('body > .footer *')].filter(n => shown(n) && n.childElementCount === 0 && n.textContent.trim()).pop();
@@ -3001,6 +3022,8 @@ for (const w of [360, 390]) {
             if (a.cut) fails.push(`${at}: "${a.word}" in the bar is cut short`);
           });
           if (r.slider != null && r.slider[1] > r.bar.top && r.slider[0] < r.vh) fails.push(`${at}: the first slider (${r.slider.join("–")}px) is under the action bar from ${r.bar.top}px`);
+          if (r.firstScreen == null && path === '/property') fails.push(`${at}: no summary line of the two questions on /property's first screen`);
+          else if (r.firstScreen != null && r.firstScreen > r.bar.top) fails.push(`${at}: the two questions' summary line ends at ${r.firstScreen}px, under the action bar from ${r.bar.top}px`);
           if (r.footEnd == null || r.footEnd > r.barTopAtEnd + 1) fails.push(`${at}: at the page's end the footer's last line ends at ${r.footEnd}px, under the bar from ${r.barTopAtEnd}px`);
         }
         r.rows.forEach(([name, x]) => { if (x && x.lines > 1) fails.push(`${at}: ${name} take ${x.lines} lines (their tops ${x.spread}px apart), not one`); else if (x) said.rows++; });
@@ -3072,9 +3095,147 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL layout-system — the pages on the layout system: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); if (fails.length > 40) console.log(`     … and ${fails.length - 40} more`); }
-  else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (the first slider above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
+  else console.log(`ok   layout-system: /property and /property/calculator at 360, 390 and 430, in the page's font and in Verdana — the action bar fixed at the window's foot with Analyse · Compare · Save, every action a 44px target on the screen and nothing under it (the first slider and the questions' summary line above it, the footer's end above it at the page's end; ${said.bars} pages); ${said.rows} tab rows on one line each; the financing scenarios and the cost breakdown cards, not tables (${said.tables}), the entered scenario alone until "Compare …" brings the others; every word in a size of the scale at 390, 1024 and 1440 (${said.words} pages); none of ${said.blocks} text blocks at 1024 and 1440 wider than 70 characters`);
 }
 /* ---- end layout-system ---- */
+/* ---- p1-questions ---- */
+/* THE TWO QUESTIONS, FIRST, AS DRAWN (the property decision layer, P1; the
+   owner's decisions of 7 and 9 Oct 2026). On /property and
+   /property/calculator, at 360×640, 390×844 and 430×932 and at 1440×900,
+   in the page's font and in Verdana (CI's Linux sans is as wide):
+     - from a desk the page's first form controls are the choices of "What
+       are you buying?", then of "How are you buying?" — before every
+       slider, field and other choice — each question's choices on one line;
+     - on a phone the questions are folded into one summary line —
+       "Residential · Subsale" and Change, a 44px target — and Change,
+       pressed from the keyboard, opens them in place: nothing above the
+       line moves, it says it is expanded, the first controls past it are
+       "What are you buying?" then "How are you buying?", each one line of
+       44px chips that scrolls sideways with its legend whole; Escape folds
+       them and gives the keyboard back to Change;
+     - the choices are drawn in Verdana when Verdana is forced, and the page
+       never scrolls sideways;
+     - and on a phone, Commercial chosen brings the commercial kinds as one
+       more line of chips, the summary saying "Commercial".
+   Each fails on 3d75b6a8, where neither page asks either question. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const key = async (k, code, vk, text) => {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk, ...(text ? { text } : {}) }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk }, sessionId);
+    await sleep(250);
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const read = (prefix) => `(() => {
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { if (!shown(n)) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), h: Math.round(b.height) }; };
+    const controls = [...document.querySelectorAll('#views input, #views select, #views textarea')].filter(n => n.type !== 'hidden' && shown(n));
+    const order = [];
+    for (const c of controls) { const g = c.closest('[data-pq]') ? (c.closest('[data-q]')?.dataset.q || '?') : 'other'; if (order[order.length - 1] !== g) order.push(g); }
+    const q = (name) => { const fs = document.getElementById('${prefix}-q-' + name); if (!shown(fs)) return null;
+      const seg = fs.querySelector('.pq-seg'), lg = fs.querySelector('legend');
+      const opts = [...seg.children].filter(shown).map(o => { const b = o.getBoundingClientRect(); return { word: o.textContent.trim(), t: Math.round(b.top), h: Math.round(b.height), w: Math.round(b.width) }; });
+      return { chips: seg.classList.contains('ls-chips'), lines: new Set(opts.map(o => Math.round(o.t / 6))).size, opts, scrolls: seg.scrollWidth > seg.clientWidth + 1,
+        legend: lg ? { words: lg.textContent.trim(), cut: lg.scrollHeight > lg.clientHeight + 1 || lg.scrollWidth > lg.clientWidth + 1 } : null,
+        face: getComputedStyle(seg.querySelector('.lab-seg-opt')).fontFamily };
+    };
+    const change = document.getElementById('${prefix}-q-change');
+    const line = change ? change.closest('.pq-sum, .lab-id-meta') : null;
+    const above = [...document.querySelectorAll('#views h1, #views .lab-id-name, #views .pc-page > .ls-disclosure')].map(box).filter(Boolean).map(b => b.t);
+    return { order: order.slice(0, 4), what: q('what'), how: q('how'), sub: q('sub'), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      change: box(change), line: box(line), expanded: change?.getAttribute('aria-expanded') || null, controls: change?.getAttribute('aria-controls') || null,
+      words: (document.getElementById('${prefix}-q-sum')?.textContent || '').trim(), focus: document.activeElement?.id || null, above };
+  })()`;
+  const chipsOk = (at, x, legend, want, phone, font) => {
+    if (!x) { fails.push(`${at}: "${legend}" is not drawn`); return; }
+    if (JSON.stringify(x.opts.map(o => o.word)) !== JSON.stringify(want)) fails.push(`${at}: "${legend}" offers ${JSON.stringify(x.opts.map(o => o.word))}`);
+    if (!x.legend || x.legend.words !== legend || x.legend.cut) fails.push(`${at}: the legend ${x.legend ? `"${x.legend.words}"${x.legend.cut ? ' is cut' : ''}` : 'is missing'}`);
+    if (x.lines !== 1) fails.push(`${at}: "${legend}"'s choices take ${x.lines} lines, not one`);
+    if (phone) {
+      if (!x.chips) fails.push(`${at}: "${legend}" is not a row of chips`);
+      x.opts.forEach(o => { if (o.h < 43.5) fails.push(`${at}: "${o.word}" is ${o.w}×${o.h}px, not a 44px target`); });
+    }
+    if (font && !/Verdana/.test(x.face)) fails.push(`${at}: "${legend}" was drawn in ${x.face}, not Verdana`);
+  };
+  const W = [['what', 'What are you buying?', ['Residential', 'Commercial', 'Land']], ['how', 'How are you buying?', ['New development', 'Subsale', 'Auction']]];
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932], [1440, 900]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const phone = w < 640;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: phone }, sessionId);
+      await load('/privacy'); await forget();
+      for (const [path, prefix, view] of [['/property', 'lab', 'propertyLab'], ['/property/calculator', 'pc', 'property']]) {
+        const at = `${w}×${h} ${path}${font ? ' in Verdana' : ''}`;
+        const got = await load(path);
+        if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
+        await face(font);
+        let r = await ev(read(prefix));
+        if (phone) {
+          /* Folded: the summary line, and no question drawn. */
+          if (!r.change || !r.line || r.line.h < 43.5 || r.change.h < 43.5) fails.push(`${at}: the summary line is ${r.line ? `${r.line.h}px high` : 'not drawn'}, Change ${r.change ? `${r.change.h}px` : 'not drawn'} — not one 44px line`);
+          if (r.words !== 'Residential · Subsale') fails.push(`${at}: the summary reads "${r.words}", not "Residential · Subsale"`);
+          if (r.expanded !== 'false' || r.controls !== `${prefix}-q` || r.what || r.how) fails.push(`${at}: folded, the questions are ${r.what || r.how ? 'drawn' : 'hidden'} and Change says aria-expanded=${r.expanded}, aria-controls=${r.controls}`);
+          const was = r;
+          /* Opened from the keyboard. */
+          await ev(`(() => { const b = document.getElementById('${prefix}-q-change'); b.scrollIntoView({ block: 'center', behavior: 'instant' }); b.focus(); return document.activeElement === b; })()`);
+          const before = await ev(read(prefix));
+          await key('Enter', 'Enter', 13, '\r');
+          r = await ev(read(prefix));
+          if (r.expanded !== 'true') fails.push(`${at}: Enter on Change left aria-expanded=${r.expanded}`);
+          if (r.change?.t !== before.change?.t || r.line?.t !== before.line?.t || JSON.stringify(r.above) !== JSON.stringify(before.above)) fails.push(`${at}: opening moved what is above it (Change ${before.change?.t}→${r.change?.t}, the line ${before.line?.t}→${r.line?.t})`);
+          if (r.order[0] !== 'what' || r.order[1] !== 'how') fails.push(`${at}: opened, the first controls are ${JSON.stringify(r.order)}, not "What are you buying?" then "How are you buying?"`);
+          W.forEach(([n, legend, want]) => chipsOk(at, r[n], legend, want, true, font));
+          if (r.over > 0) fails.push(`${at}: opened, the page scrolls ${r.over}px sideways`);
+          /* Commercial (390 only): its kinds, and the summary says so. */
+          if (w === 390) {
+            await ev(`(() => { document.querySelector('label[for="${prefix}-q-what-commercial"]').click(); return true; })()`);
+            await sleep(400);
+            const c = await ev(read(prefix));
+            if (!c.sub || !c.sub.chips || c.sub.lines !== 1 || c.sub.opts.some(o => o.h < 43.5)) fails.push(`${at}: Commercial chosen, its kinds are ${c.sub ? `${c.sub.lines} line(s), ${c.sub.opts.map(o => `${o.word} ${o.h}px`).join(', ')}` : 'not drawn'}`);
+            if (!/^Commercial · Subsale$/.test(c.words) || c.expanded !== 'true') fails.push(`${at}: Commercial chosen, the summary reads "${c.words}" and the questions are ${c.expanded === 'true' ? 'open' : 'folded'}`);
+            if (c.over > 0) fails.push(`${at}: Commercial chosen, the page scrolls ${c.over}px sideways`);
+          }
+          /* Escape folds them, the keyboard back on Change. */
+          await ev(`(() => { const r = document.querySelector('#${prefix}-q-what input:checked'); r.focus(); return document.activeElement === r; })()`);
+          await key('Escape', 'Escape', 27);
+          const e = await ev(read(prefix));
+          if (e.expanded !== 'false' || e.what || e.focus !== `${prefix}-q-change`) fails.push(`${at}: Escape left aria-expanded=${e.expanded}, the questions ${e.what ? 'drawn' : 'folded'}, the keyboard on #${e.focus}`);
+          said.push(`${at.replace(' in Verdana', ' V')}: "${was.words}" ${was.line?.h}px`);
+          await forget();
+        } else {
+          if (r.order[0] !== 'what' || r.order[1] !== 'how') fails.push(`${at}: the page's first controls are ${JSON.stringify(r.order)}, not "What are you buying?" then "How are you buying?"`);
+          W.forEach(([n, legend, want]) => chipsOk(at, r[n], legend, want, false, font));
+          if (r.change) fails.push(`${at}: the summary line's Change is drawn from a desk`);
+          said.push(`${at.replace(' in Verdana', ' V')}: whole`);
+        }
+        if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL p1-questions — the two questions first; on a phone one summary line that opens them (the property decision layer, P1): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   p1-questions: on /property and /property/calculator, in the page's font and in Verdana — at 1440 the first controls are "What are you buying?" then "How are you buying?", each one line; at 360, 390 and 430 one 44px summary line, "Residential · Subsale" and Change, which Enter opens in place (nothing above it moves, aria-expanded true) onto the two questions first, each one line of 44px chips with its legend whole, Commercial adding its kinds and saying so, and Escape folds them with the keyboard back on Change; nothing scrolls the page sideways (${said.slice(0, 6).join('; ')} …)`);
+}
+/* ---- end p1-questions ---- */
 /* ---- home-3a ---- */
 /* THE HOMEPAGE CLEANUP, AS DRAWN (plan Phase 3A and 3B; the owner's
    decisions D5, D17, D21 and D22) — the plan's [browser] lines, in the page's

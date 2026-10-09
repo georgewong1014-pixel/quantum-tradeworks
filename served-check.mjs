@@ -1500,7 +1500,11 @@ const HOME_PAGE = read(HOME);
      not the same claim"), the pillar table and the list of blockers inside
      closed <details>, with the worst blocker in sight on one line, and the
      cash to complete and the monthly position stated once above the
-     sections. */
+     sections.
+   THE TWO QUESTIONS (the property decision layer, P1, 8 Oct 2026) are the
+   page's first controls, between the identity line and the tiles: "the
+   first form control" above is the first one after them ([data-pq]), and
+   the p1-questions check below holds them to being first. */
 {
   const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
   const BLOCK = new Set(['p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'header', 'footer', 'nav', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
@@ -1515,7 +1519,7 @@ const HOME_PAGE = read(HOME);
     const from = html.search(/<main\b/), to = html.indexOf('</main>', from);
     const body = from < 0 ? '' : html.slice(from, to < 0 ? undefined : to);
     const stack = [], blocks = [], tags = [], runs = [];
-    let cur = [], control = null;
+    let cur = [], control = null, qControl = null;
     const visible = () => stack.every(f => !f.skip && !(f.closed && !f.inSummary));
     const inClosed = () => stack.some(f => f.closed && !f.inSummary);
     const flush = () => { const w = cur.join(' ').split(/\s+/).filter(t => /[\p{L}\p{N}]/u.test(t)); if (w.length) blocks.push(w); cur = []; };
@@ -1533,12 +1537,14 @@ const HOME_PAGE = read(HOME);
       if (tag === 'script' || tag === 'style' || tag === 'template') { const e = body.indexOf(`</${tag}`, re.lastIndex); re.lastIndex = e < 0 ? body.length : e; continue; }
       const inert = attr(raw, 'data-inert'), type = (attr(raw, 'type') || '').toLowerCase();
       const isControl = (tag === 'input' && type !== 'hidden') || tag === 'select' || tag === 'textarea' || ['field', 'range', 'choice'].includes(inert);
-      tags.push({ at: m.index, tag, raw, visible: visible(), closed: inClosed() });
-      if (isControl && visible() && !control) { flush(); control = { at: m.index, tag, inert, blocks: blocks.length }; }
+      const inPq = stack.some(f => f.pq);
+      tags.push({ at: m.index, tag, raw, visible: visible(), closed: inClosed(), pq: inPq });
+      if (isControl && visible() && inPq && !qControl) qControl = { at: m.index, tag, inert, blocks: blocks.length };
+      if (isControl && visible() && !inPq && !control) { flush(); control = { at: m.index, tag, inert, blocks: blocks.length }; }
       if (VOID.has(tag) || raw.endsWith('/>')) continue;
       const cls = ` ${attr(raw, 'class') || ''} `;
       const f = { tag, skip: tag === 'svg' || attr(raw, 'hidden') !== null || attr(raw, 'aria-hidden') === 'true' || / sr-only /.test(cls),
-        closed: tag === 'details' && attr(raw, 'open') === null, inSummary: false };
+        closed: tag === 'details' && attr(raw, 'open') === null, inSummary: false, pq: attr(raw, 'data-pq') !== null };
       if (tag === 'summary' && stack[stack.length - 1]?.closed) stack[stack.length - 1].inSummary = true;
       stack.push(f);
     }
@@ -1562,7 +1568,7 @@ const HOME_PAGE = read(HOME);
       }
       return out.replace(/\s+/g, ' ').trim();
     };
-    return { body, blocks, tags, runs, control, textOf };
+    return { body, blocks, tags, runs, control, qControl, textOf };
   };
   const p = [], said = {};
   const got = await getAll(['/property', '/property/calculator']);
@@ -1621,6 +1627,67 @@ const HOME_PAGE = read(HOME);
   }
   judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and "not a real listing" in sight; /property/calculator keeps the methodology, the pillar table and its blockers in closed drawers, the worst in sight ("${said.worst}…"), and says the cash to complete and the monthly position once above its sections`,
     '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
+
+  /* ---- p1-questions ---- */
+  /* THE TWO QUESTIONS, SERVED FIRST (the property decision layer, P1; the
+     owner's brief of 7 Oct 2026). On /property and /property/calculator, as
+     a fetch reads them: the questions ([data-pq]) serve "What are you
+     buying?" with Residential · Commercial · Land and "How are you
+     buying?" with New development · Subsale · Auction, each a row of
+     choices that is one line of chips on a phone (ls-chips), and the
+     optional objective; their first choice is the page's first form
+     control — before every slider, field and other choice in <main> — and
+     on /property it stands after the identity line and before the tiles;
+     and the sample is served answered as every deal was before the
+     questions: Residential, Subsale, no objective. */
+  {
+    const q = [], qs = {};
+    const choices = (S, group) => {
+      const fs = S.tags.find(t => t.tag === 'fieldset' && attr(t.raw, 'data-q') === group && t.pq);
+      if (!fs) return null;
+      const end = S.tags.find(t => t.at > fs.at && (t.tag === 'fieldset' || !t.pq))?.at ?? Infinity;
+      const opts = S.tags.filter(t => t.at > fs.at && t.at < end && / lab-seg-opt /.test(` ${attr(t.raw, 'class') || ''} `));
+      const row = S.tags.find(t => t.at > fs.at && t.at < end && / lab-seg /.test(` ${attr(t.raw, 'class') || ''} `));
+      return { legend: S.textOf(S.tags.find(t => t.at > fs.at && t.tag === 'legend')?.at ?? -1),
+        chips: !!row && / ls-chips /.test(` ${attr(row.raw, 'class') || ''} `), visible: fs.visible,
+        opts: opts.map(o => { const all = S.textOf(o.at, true); return { label: S.textOf(o.at).replace(/[☑☐]/g, '').trim(), on: all.includes('☑') }; }) };
+    };
+    for (const [path, S, prefix] of [['/property', L, 'lab'], ['/property/calculator', C, 'pc']]) {
+      const what = choices(S, 'what'), how = choices(S, 'how'), why = choices(S, 'why');
+      if (!what || !how) { q.push(`${path}: serves no ${!what ? '"What are you buying?"' : '"How are you buying?"'} among its questions ([data-pq])`); continue; }
+      const W = [['What are you buying?', what, ['Residential', 'Commercial', 'Land'], 'Residential'], ['How are you buying?', how, ['New development', 'Subsale', 'Auction'], 'Subsale']];
+      for (const [legend, g, want, on] of W) {
+        if (g.legend !== legend) q.push(`${path}: a question reads "${g.legend}", not "${legend}"`);
+        if (!g.visible) q.push(`${path}: "${legend}" is not visible`);
+        if (JSON.stringify(g.opts.map(o => o.label)) !== JSON.stringify(want)) q.push(`${path}: "${legend}" offers ${JSON.stringify(g.opts.map(o => o.label))}, not ${JSON.stringify(want)}`);
+        const ons = g.opts.filter(o => o.on).map(o => o.label);
+        if (ons.join() !== on) q.push(`${path}: "${legend}" is served answered ${ons.join(', ') || 'with nothing'}, not ${on} — the answer every deal had before the question`);
+        if (!g.chips) q.push(`${path}: "${legend}"'s choices are not a row of chips (ls-chips) for a phone`);
+      }
+      if (!why || why.legend !== 'Objective (optional)' || why.opts.filter(o => o.on).map(o => o.label).join() !== 'Not chosen') q.push(`${path}: the objective is served ${why ? `"${why.legend}" answered ${why.opts.filter(o => o.on).map(o => o.label).join(', ')}` : 'not at all'}, not optional and not chosen`);
+      if (!S.qControl) q.push(`${path}: the questions serve no choice`);
+      else if (S.control && S.qControl.at > S.control.at) q.push(`${path}: a form control comes before the questions`);
+      /* On a phone the questions fold into one summary line (the owner's
+         decision, 9 Oct 2026): served with it, saying the answers, its
+         Change beside it; the questions themselves served whole under it, as
+         a page with no script shows them. */
+      const sumAt = S.tags.find(t => attr(t.raw, 'id') === `${prefix}-q-sum`);
+      const sumWords = sumAt ? S.textOf(sumAt.at, true) : null;
+      if (sumWords !== 'Residential · Subsale') q.push(`${path}: the questions' summary line is served ${sumWords == null ? 'not at all' : `reading "${sumWords}"`}, not "Residential · Subsale"`);
+      if (!S.tags.some(t => attr(t.raw, 'id') === `${prefix}-q-change`)) q.push(`${path}: the summary line's Change is not served`);
+      if (sumAt && S.qControl && sumAt.at > S.qControl.at) q.push(`${path}: the summary line is served after the questions`);
+      qs[path] = `${what.opts.map(o => o.label + (o.on ? '*' : '')).join(' · ')} / ${how.opts.map(o => o.label + (o.on ? '*' : '')).join(' · ')}`;
+    }
+    if (L.qControl) {
+      const id = L.tags.find(t => / lab-identity /.test(` ${attr(t.raw, 'class') || ''} `));
+      const tile = L.tags.find(t => attr(t.raw, 'data-tile') !== null);
+      if (!id || id.at > L.qControl.at) q.push('/property: the questions come before the identity line, or there is none');
+      if (!tile || tile.at < L.qControl.at) q.push('/property: a tile comes before the questions');
+    }
+    judge(q, `the two questions are served first on /property (after the identity line, before the tiles) and on /property/calculator, each a row of chips for a phone and, for a phone, their summary line served ahead of them ("Residential · Subsale" and Change), the sample answered as every deal was: ${Object.entries(qs).map(([k, v]) => `${k} ${v}`).join('; ')}; the objective optional, not chosen`,
+      'the two questions are not the first controls of /property and the calculator, or the sample is not served as a subsale of its class (the property decision layer, P1)');
+  }
+  /* ---- end p1-questions ---- */
 }
 /* ---- end n3-property-landing ---- */
 /* ---- layout-system ---- */

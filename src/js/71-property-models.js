@@ -806,6 +806,11 @@ const PM_FIELD_WORDS = {
   disposerCategory: 'Who is selling', flatQuotePct: 'Flat-rate quote (%)', flatQuoteAmount: 'Flat-rate amount (RM)',
   flatQuoteYears: 'Flat-rate term (years)', mrtaPremium: 'MRTA premium (RM)', mltaPremiumAnnual: 'MLTA premium a year (RM)',
   propertyClassOverride: 'Asset class', valuationRule: 'What the loan is calculated on', userStarted: 'started by you',
+  /* The property decision layer's answers (P1, P2: 70-property.js). */
+  route: 'How you are buying', commercialSubtype: 'Commercial kind', objective: 'Objective', askingPrice: 'Asking price (RM)',
+  comparableIds: 'Comparables named', tenancy: 'Existing tenancy', tenancyRent: 'Rent under the existing tenancy (RM a month)',
+  condition: 'Condition', buildingAge: 'Age of the building (years)', chargesToBuyer: 'Outstanding charges passed to you (RM)',
+  targetKind: 'Target', targetValue: 'Target figure',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure
@@ -813,7 +818,7 @@ function pmOverrideLine(ov, max = 6) {
   const bits = Object.entries(ov || {}).filter(([k]) => k !== 'touched').map(([k, v]) => {
     if (isRecord(v)) return PM_RECORD_WORDS[k] || k;
     const label = PROPERTY_I18N[`in.${k}`]?.en || PM_FIELD_WORDS[k] || k;
-    const shown = typeof v === 'number' ? fmtNum(v, Number.isInteger(v) ? 0 : 2) : v === null ? 'not set' : String(v);
+    const shown = Array.isArray(v) ? `${v.length}` : typeof v === 'number' ? fmtNum(v, Number.isInteger(v) ? 0 : 2) : v === null ? 'not set' : String(v);
     return `${label} ${shown}`;
   });
   return bits.length > max ? `${bits.slice(0, max).join('; ')}; and ${bits.length - max} more` : bits.join('; ');

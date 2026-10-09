@@ -437,6 +437,16 @@ const CP_IN = {
   propertyClassOverride: (v) => (v && PROPERTY_CLASSES[v] ? PROPERTY_CLASSES[v].label : 'As the property type has it'),
   titleType: (v) => TITLE_TYPES.find(t => t.id === v)?.label || 'Not recorded',
   projectId: (v) => (PROJECTS.find(p => p.id === v) || {}).name || 'None named',
+  /* The property decision layer's answers (P1, P2): each in its own words. */
+  route: (v) => PROPERTY_ROUTES[v || DEFAULT_PROPERTY_ROUTE]?.label || PROPERTY_ROUTES[DEFAULT_PROPERTY_ROUTE].label,
+  commercialSubtype: (v) => COMMERCIAL_SUBTYPES[v]?.label || 'Not chosen',
+  objective: (v) => PROPERTY_OBJECTIVES[v]?.label || 'Not chosen',
+  askingPrice: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'Not entered'),
+  comparableIds: (v) => (Array.isArray(v) && v.length ? `${v.length} named from the register` : 'None named'),
+  tenancy: (v) => SUBSALE_TENANCY[v]?.label || 'Not recorded', tenancyRent: (v) => (num0(v) > 0 ? cpMoneyMonth(v) : 'Not entered'),
+  condition: (v) => SUBSALE_CONDITION[v]?.label || 'Not recorded', buildingAge: (v) => (v == null ? 'Not entered' : cpPlural(v, 'year')),
+  chargesToBuyer: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
+  targetKind: (v) => PRICE_TARGETS[v]?.label || 'Not set', targetValue: (v) => (v == null ? 'Not set' : cpN(v)),
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property

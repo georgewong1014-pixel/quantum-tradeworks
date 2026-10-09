@@ -124,6 +124,36 @@ for (const [f, text] of scannerSrc) {
 bad += liveBad;
 if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of ${scannerSrc.length} scanner modules — ${liveSeen} use${liveSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
 
+/* ---- p1-route ---- */
+/* THE PROPERTY DECISION LAYER SAYS WHAT THE FIGURES IMPLY, NEVER A VERDICT
+   (the owner's brief of 7 Oct 2026: "the figures you entered imply…",
+   never "good deal"; the objective never ranks; no ranked risk ladder). In
+   the text of the property modules — comments left out — no phrase that
+   grades a deal or a route, or tells the reader what to do, is used as a
+   claim: only in a sentence that denies it. The price gap and the price
+   that makes this work are where such words would creep in first. */
+{
+  const ADVICE = /\b(good deal|great deal|better deal|bad deal|bargain|undervalued|overvalued|under-?priced|over-?priced|below market|above market|you should (?:buy|sell|offer|pay)|worth buying|best (?:route|option|choice)|safest|riskiest|recommended price)\b/gi;
+  const ADVICE_DENIAL = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing`, 'i');
+  const files = readdirSync(join(ROOT, 'src', 'js')).filter(f => /^(70-property|75-property-grade|82-property-lab|83-property-decision)\.js$/.test(f));
+  let adviceBad = 0, adviceSeen = 0;
+  for (const f of files) {
+    const code = uncommented(readFileSync(join(ROOT, 'src', 'js', f), 'utf8'));
+    for (const m of code.matchAll(ADVICE)) {
+      adviceSeen++;
+      const s = sentenceAt(code, m.index, m[0].length);
+      if (ADVICE_DENIAL.test(s)) continue;
+      adviceBad++;
+      console.error(`FAIL  "${m[0]}" used as a verdict in ${f}`);
+      console.error(`      “${s.slice(0, 220)}”`);
+    }
+  }
+  bad += adviceBad;
+  if (files.length !== 4) { bad++; console.error(`FAIL  the property decision layer's wording check read ${files.length} of its 4 modules`); }
+  else if (!adviceBad) console.log(`ok    no verdict on a deal or a route ("good deal", "undervalued", "below market", "you should buy", …) in the text of the ${files.length} property modules — ${adviceSeen} use${adviceSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
+}
+/* ---- end p1-route ---- */
+
 /* ---- bugfix3: property ---- */
 /* A WORKED FIGURE IN THE LAND-UNITS HEADER IS THE ARITHMETIC OF ITS OWN
    CONSTANTS. It said the listings' rounded 40.47 m² a point moves a 60-point
