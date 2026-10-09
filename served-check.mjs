@@ -2334,7 +2334,7 @@ const HOME_PAGE = read(HOME);
     for (const h of hrefs) if (st.get(h)?.status !== 200) p.push(`/research links ${h}, served ${described(st.get(h))}`);
     said.links = hrefs.length;
   }
-  judge(p, `/research served as N7 orders it: the search its first form control after ${said.wordsBeforeSearch} words (40 or fewer); the three filed examples, each a link to its filer's page with columns of its filed revenue and net income as data/us.json holds them (${(said.marks || []).join(', ')} marks) and "Filed · SEC 10-K · US$"; More ways in ${said.ways} links, the six lenses, the Trading Index and the Cash Wheel among them, Banks and REITs Illustrative; ${said.links} addresses served 200; no baseCcy among its reads (${said.reads}); the coverage line ${said.coverage} time; ${said.empty} one-line empty states`,
+  judge(p, `/research served as N7 orders it: the search its first form control after ${said.wordsBeforeSearch} words (40 or fewer); the three filed examples, each a link to its filer's page with columns of its filed revenue and net income as data/us.json holds them (${(said.marks || []).join(', ')} marks) and "Filed · SEC 10-K · US$"; More ways in ${said.ways} links, the six lenses, the Trading Index and the Cash Wheel among them, Bursa Malaysia, Banks, REITs and Dividend research Illustrative; ${said.links} addresses served 200; no baseCcy among its reads (${said.reads}); the coverage line ${said.coverage} time; ${said.empty} one-line empty states`,
     '/research is not served as N7 accepts it');
 }
 /* ---- end n7-research-front ---- */

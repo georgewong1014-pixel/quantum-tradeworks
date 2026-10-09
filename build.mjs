@@ -1823,7 +1823,8 @@ export function homeBudgets(html) {
      net income, and a year the file does not hold has no mark (a gap);
    - no example links an illustrative company;
    - under "More ways in", the six lenses, the Trading Index and the Cash
-     Wheel are each an <a href>; Banks and REITs carry the Illustrative
+     Wheel are each an <a href>; Bursa Malaysia, Banks, REITs and Dividend
+     research (its yield needs a price) carry the Illustrative
      badge, the Trading Index "Scanner tool"; nothing there is a <div> with
      a tool's path and no address;
    - data-served-reads names no baseCcy;
@@ -1916,7 +1917,7 @@ export function researchFront(html, { usFile = null, companies = [] } = {}) {
     const links = allOf(more).filter(n => n.tag === 'a' && attrOf(n, 'href'));
     const linkOf = (name) => links.find(a => sightText(a).includes(name));
     for (const name of [...RESEARCH_LENSES, 'Trading Index', 'Cash Wheel']) if (!linkOf(name)) p.push(`"${name}" is not an <a href> under "More ways in"`);
-    for (const name of ['Banks', 'REITs']) { const a = linkOf(name); if (a && !allOf(a).some(n => attrOf(n, 'data-kind-badge') === 'illustrative')) p.push(`the ${name} lens carries no Illustrative badge`); }
+    for (const name of ['Bursa Malaysia', 'Banks', 'REITs', 'Dividend research']) { const a = linkOf(name); if (a && !allOf(a).some(n => attrOf(n, 'data-kind-badge') === 'illustrative')) p.push(`the ${name} lens carries no Illustrative badge`); }
     const ti = linkOf('Trading Index');
     if (ti && !/\bScanner tool\b/.test(sightText(ti))) p.push('the Trading Index is not marked "Scanner tool"');
     const divs = allOf(more).filter(n => n.tag !== 'a' && attrOf(n, 'data-tool-path') !== null);

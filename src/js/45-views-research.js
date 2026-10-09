@@ -958,20 +958,20 @@ VIEWS.researchHome = () => {
      with the reason (gateToolLink, 35-ui.js). */
   const viaTemplate = (id) => () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === id));
   const lenses = [
-    ['Bursa Malaysia', 'Malaysian listings in the beta universe.', '/discover/screener?market=MY', () => { const s = blankScreen(); s.universe = 'MY'; State.screen = screenFitClass(s); State.appliedTemplate = null; }],
-    ['US equities', 'US listings, filed with the SEC.', '/discover/screener?market=US', () => { const s = blankScreen(); s.universe = 'US'; State.screen = s; State.appliedTemplate = null; }],
-    ['Banks', 'Deposit takers, on measures that fit a bank balance sheet.', '/discover/screener?template=my-banks', viaTemplate('my-banks'), 'illustrative'],
-    ['REITs', 'Property trusts, on distribution and gearing.', '/discover/screener?template=my-reits', viaTemplate('my-reits'), 'illustrative'],
-    ['Dividend research', 'Payout covered by cash rather than borrowing.', '/discover/screener?template=div-cover', viaTemplate('div-cover')],
+    ['Bursa Malaysia', 'Malaysian listings in the beta universe.', '/discover/screener?market=MY', () => { const s = blankScreen(); s.universe = 'MY'; State.screen = screenFitClass(s); State.appliedTemplate = null; }, 'illustrative', 'Every Bursa company here carries illustrative figures'],
+    ['US equities', 'US listings, each labelled filed or illustrative.', '/discover/screener?market=US', () => { const s = blankScreen(); s.universe = 'US'; State.screen = s; State.appliedTemplate = null; }],
+    ['Banks', 'Deposit takers, on measures that fit a bank balance sheet.', '/discover/screener?template=my-banks', viaTemplate('my-banks'), 'illustrative', 'The lens screens the illustrative Malaysian set'],
+    ['REITs', 'Property trusts, on distribution and gearing.', '/discover/screener?template=my-reits', viaTemplate('my-reits'), 'illustrative', 'The lens screens the illustrative Malaysian set'],
+    ['Dividend research', 'Payout covered by cash rather than borrowing.', '/discover/screener?template=div-cover', viaTemplate('div-cover'), 'illustrative', 'Its yield needs a price, and only the illustrative companies carry one'],
     ['Sarawak Economy Watch', 'Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', '/discover/sarawak', null],
   ];
   /* The press sets the screen up, then goes to the screener itself: the
      address's parameter is for a link opened anew, and applied twice it
      would replace the class the reader chose (applyTemplate keeps it). */
-  const way = ([name, line, path, setUp, kind], tag = null) => el('li', {}, el('a', { class: 'rf-way', href: href(path),
+  const way = ([name, line, path, setUp, kind, fine], tag = null) => el('li', {}, el('a', { class: 'rf-way', href: href(path),
     onclick: inAppPress(setUp ? path.replace(/\?.*$/, '') : path, setUp) }, [
     el('span', { class: 'rf-way-hd' }, [el('span', { class: 'rf-way-name' }, name),
-      kind ? kindBadge(kind, { link: false, fine: 'The lens screens the illustrative Malaysian set' }) : null,
+      kind ? kindBadge(kind, { link: false, fine }) : null,
       tag ? el('span', { class: 'chip rf-way-tag' }, tag) : null]),
     el('span', { class: 'rf-way-sub' }, line)]));
   wrap.append(el('section', { class: 'rf-more ls-section', 'aria-labelledby': 'rf-more-hd' }, [
