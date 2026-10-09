@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5441dd1b7063c27a",
-      "changed": "2026-10-08"
+      "digest": "99ca679b8d10c0ba",
+      "changed": "2026-10-09"
     },
     "pages/about.html": {
       "path": "/about",
@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4e6bc38f7cf79a98",
-      "changed": "2026-10-08"
+      "digest": "fac61988251b82ce",
+      "changed": "2026-10-09"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4184,8 +4184,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "2b16492714b6530f",
-      "changed": "2026-10-08"
+      "digest": "716c679e6dbdffee",
+      "changed": "2026-10-09"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -4329,8 +4329,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b4d8b1bbce02de3e",
-      "changed": "2026-10-08"
+      "digest": "f30b03d8ad3f3c1b",
+      "changed": "2026-10-09"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -4579,7 +4579,7 @@
         ]
       },
       "inert": {
-        "buttons": 26,
+        "buttons": 27,
         "fields": 11,
         "choices": 26,
         "roles": 0,
@@ -4590,8 +4590,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "278b314fb03e5378",
-      "changed": "2026-10-08"
+      "digest": "0c962310f1dc4b69",
+      "changed": "2026-10-09"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -4637,7 +4637,7 @@
         ]
       },
       "inert": {
-        "buttons": 60,
+        "buttons": 61,
         "fields": 84,
         "choices": 26,
         "roles": 0,
@@ -4648,8 +4648,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "7de967280361bcf3",
-      "changed": "2026-10-08"
+      "digest": "77d7e124f37f64c6",
+      "changed": "2026-10-09"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -4695,7 +4695,7 @@
         ]
       },
       "inert": {
-        "buttons": 26,
+        "buttons": 27,
         "fields": 11,
         "choices": 26,
         "roles": 0,
@@ -4706,8 +4706,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "25c05904ff4fa9d2",
-      "changed": "2026-10-08"
+      "digest": "03fa926764414414",
+      "changed": "2026-10-09"
     },
     "pages/property/models.html": {
       "path": "/property/models",
