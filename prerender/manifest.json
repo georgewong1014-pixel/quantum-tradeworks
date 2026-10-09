@@ -4780,7 +4780,7 @@
         ]
       },
       "inert": {
-        "buttons": 6,
+        "buttons": 7,
         "fields": 1,
         "choices": 0,
         "roles": 0,
@@ -4791,7 +4791,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4c4f0f3b2d11357a",
+      "digest": "680f94fd4a8c50c1",
       "changed": "2026-10-09"
     },
     "pages/pricing.html": {
@@ -5199,7 +5199,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2150f388829e1f06",
+      "digest": "3125d4ac17af9697",
       "changed": "2026-10-09"
     },
     "pages/terms.html": {
