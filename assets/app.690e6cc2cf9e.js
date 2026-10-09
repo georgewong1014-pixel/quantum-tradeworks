@@ -55077,7 +55077,7 @@ function evidenceFlowCard() {
   const radios = (name, opts, cur, onPick) => el('div', { class: 'ef-chips ls-chips', role: 'presentation' }, opts.map(([v, label]) => {
     const id = `${name}-${v}`;
     return el('label', { class: `ef-chip${cur === v ? ' is-on' : ''}`, for: id }, [
-      el('input', { type: 'radio', name, id, value: v, checked: cur === v ? '' : null, onchange: () => onPick(v) }), el('span', {}, label)]);
+      el('input', { type: 'radio', class: 'lab-radio', name, id, value: v, checked: cur === v ? '' : null, onchange: () => onPick(v) }), el('span', {}, label)]);
   }));
 
   /* 1 — where */
@@ -55238,9 +55238,9 @@ VIEWS.comparables = () => {
       tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
   } else {
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it from the district panel on the calculator, where the city and district are already set.'));
+      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.'));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
-    head.append(workedExampleControls());
+    head.append(workedExampleControls({ primary: false }));
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/calculator'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/calculator'); } },
@@ -56999,7 +56999,7 @@ function clearWorkedExample() {
    Focus fell to <body> after both; it now goes to the counterpart, marked
    data-worked-example, or to <main> where there is none (focusAfterRedraw,
    05-plans.js). */
-function workedExampleControls({ compact = false } = {}) {
+function workedExampleControls({ compact = false, primary = true } = {}) {
   const row = el('div', { class: 'row row-wrap', style: `gap:8px;${compact ? '' : 'margin-top:var(--md)'}` });
   if (hasWorkedExample()) {
     row.append(el('button', { class: 'btn btn-ghost btn-sm', data: { workedExample: 'remove' }, onclick: () => {
@@ -57008,7 +57008,7 @@ function workedExampleControls({ compact = false } = {}) {
       toast(`Worked example removed — ${n} record${n === 1 ? '' : 's'}. Anything you recorded is untouched.`);
     } }, 'Remove the worked example'));
   } else {
-    row.append(el('button', { class: 'btn btn-primary btn-sm', data: { workedExample: 'load' }, onclick: () => {
+    row.append(el('button', { class: `btn ${primary ? 'btn-primary' : 'btn-ghost'} btn-sm`, data: { workedExample: 'load' }, onclick: () => {
       const r = seedWorkedExample();
       render(); focusAfterRedraw('#views [data-worked-example]');
       toast(`${r.added} illustrative records loaded across ${r.areas} districts. Every one is marked as invented.`);
