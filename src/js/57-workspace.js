@@ -152,6 +152,13 @@ VIEWS.workspace = () => {
      which is drawn by the shell. */
   wrap.append(pageHead({ title: 'Everything you have saved', lede: 'Everything saved in this browser, each with the version it was saved against.',
     note: 'Valuation runs, comparisons, screens, investment cases and tool snapshots — and whether the model or the data under each has moved since.' }));
+  /* The seeded investment cases are listed here, each with its "sample"
+     chip, and the page said nothing more: under "Everything you have saved"
+     a first visit read "2 saved items" as its own. The banner every other
+     personal page carries where seeded data shows (sampleBanner, 50-views-
+     studio.js), and the count says which are samples (the 9 Oct 2026 audit,
+     item #7: this page is served pre-rendered, as a first visit sees it). */
+  appendSampleBanner(wrap);
 
   /* The limits, before the list: where this lives, and what "moved" means. */
   const lim = el('div', { class: 'card ws-limits' });
@@ -207,8 +214,10 @@ VIEWS.workspace = () => {
       if (f && at != null) f.setSelectionRange(at, at);
     } }));
   bar.append(el('div', { class: 'row row-wrap', style: 'gap:var(--md);align-items:flex-end' }, [seg, q]));
+  const samplesN = all.filter(i => i.sample).length;
+  const samplesSaid = !samplesN ? '' : samplesN === all.length ? (all.length === 1 ? ', a sample — not yours' : ', all samples — not yours') : `, ${samplesN} of them sample${samplesN === 1 ? '' : 's'} — not yours`;
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `${all.length} saved item${all.length === 1 ? '' : 's'}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : '; none saved under a model or data version this build has since replaced'}.`));
+    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : '; none saved under a model or data version this build has since replaced'}.`));
   wrap.append(bar);
 
   const needle = W.q.trim().toLowerCase();

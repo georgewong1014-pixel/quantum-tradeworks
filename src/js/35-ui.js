@@ -3003,7 +3003,10 @@ const SERVED_READS = {
      changed a page), and by reading each view (what no such drawing could
      show: a run saved, a review written, a series pasted, an address's
      ?kind=). The scanner's and the wheel's /my/ addresses are their pages'
-     own (scannerDashboard, wheel, above).
+     own (scannerDashboard, wheel, above). The sample banner (sampleBanner)
+     reads all four seeded kinds and shows while any seed is left; each page
+     that draws it names one of them, whose fresh value holds seeds, so
+     wherever such a page stands its banner is a fresh visitor's too.
      /my/portfolio: the holdings, the cases covering them, the dividends
      recorded, the withholding rates, a price typed in, the plan (the
      cross-asset card) and the deal it would add, the base currency. */

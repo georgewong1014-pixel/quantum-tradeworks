@@ -758,7 +758,7 @@ const HOME_PAGE = read(HOME);
   for (const path of own) if (rw.filter(x => x.source === path).length !== 1) p.push(`vercel.json has ${rw.filter(x => x.source === path).length} rewrites for ${path}, not one`);
 
   /* Every other form of a company address, and an unknown company. */
-  const OTHER = ['/company/aapl', '/company/AAPL-SEC', '/company/CIK0000320193', '/company/aapl-apple', '/company/AAPL-apple-inc', '/company/aapl-apple-inc-extra',
+  const OTHER = ['/company/aapl', '/company/CIK0000320193', '/company/aapl-apple', '/company/AAPL-apple-inc', '/company/aapl-apple-inc-extra',
     '/company/1155', '/company/maybank', '/company/1155.KL', '/company/1155-malayan-banking-berhad', '/company/aapl-apple-inc/report', '/company/1155-malayan-banking/report',
     '/app/equities/aapl', '/app/equities/aapl-apple-inc', '/app/equities/1155/financials', '/app/equities/brk-b-berkshire-hathaway/report', '/company/no-such-company-for-served-check'];
   const QUERY = [['/company/aapl-apple-inc?tab=valuation', '/company/aapl-apple-inc'], ['/company/1155-malayan-banking?tab=financials&real=0', '/company/1155-malayan-banking']];
@@ -771,6 +771,8 @@ const HOME_PAGE = read(HOME);
   }
   for (const [a, b] of QUERY) if (more.get(a).status !== 200 || more.get(a).body !== more.get(b).body) p.push(`${a}: ${described(more.get(a))}, not the page ${b} is served`);
 
+  /* /company/AAPL-SEC, a filer's id, is a 308 to its own page since the 9 Oct
+     2026 audit (deep-links, below). */
   judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files (and a filer's page its committed render), carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
     'a company\'s own address is not served its own head, or another form of it is not the generic page');
 }
@@ -861,11 +863,6 @@ const HOME_PAGE = read(HOME);
     if (x.views === null) { p.push(`${path}: no <div id="views"> where the template has it`); continue; }
     if (rd) {
       carrying++;
-      /* By the address, not the file (2026-10-04): /my/wheel and /my/options
-         were served the wheel's page, render and all, /my/scanner the
-         Scanner dashboard's, and this said "only My Workspace's pages are
-         left out" because their files were not under pages/my/. */
-      if (myWorkspace({ path, head: router.headAt(path) })) p.push(`${path}: a My Workspace address is served a render (${rd.render}), where no /my/ address carries one`);
       if (x.views !== servedViews(rd)) p.push(`${path}: #views is not ${rd.render} exactly${ISLAND_PAGES.includes(rd.file) ? ', with the recorded journeys in it' : ''}`);
       if (x.served !== rd.path) p.push(`${path}: #views is marked data-served=${JSON.stringify(x.served)}, not ${rd.path}`);
       if ((x.tabs ?? null) !== (rd.tabs ?? null)) p.push(`${path}: its tab row is ${x.tabs ? 'not' : 'missing, where it is'} ${rd.tabsFile} exactly`);
@@ -880,7 +877,9 @@ const HOME_PAGE = read(HOME);
     } else {
       empty++;
       if (x.views !== '' || x.served !== null || x.tabs !== null || x.chrome !== null) p.push(`${path}: carries no render, but its #views, tab row or chrome is not the template's`);
-      if (!myWorkspace({ path, head: router.headAt(path) })) p.push(`${path}: is in no render's scope, and only My Workspace's addresses are left out`);
+      /* Every static route carries its render since the 9 Oct 2026 audit
+         (item #7): My Workspace's were the ones left out. */
+      p.push(`${path}: carries no render, where every static route's page does`);
       const want = nav();
       for (const k of Object.keys(NAV_SLOTS)) if (x.slots[k] !== want[k]) p.push(`${path}: its ${k} is not NAV_MARKUP's`);
     }
@@ -934,7 +933,7 @@ const HOME_PAGE = read(HOME);
   const SEARCH_WORDS = /The down arrow moves into the results|<span class="kbd">Enter<\/span> open/;
   /* As text: index.html's inline script, which writes them, may name them. */
   for (const [path, r] of [...got, ...others]) if (SEARCH_WORDS.test(r.body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, ''))) p.push(`${path}: carries the search box's keys as text`);
-  judge(p, `${carrying} static routes are served their page's own render in #views exactly (each with its own h1 — one per canonical address — its tab row and its chrome) and ${empty} (My Workspace's addresses) none; the renders' own files are noindex and disallowed; every page's header, sidebar and footer lists are NAV_MARKUP's links — every product with a path and every resource a link, Business Intelligence text — marked as the page's render marked them; no page carries the search box's keys`,
+  judge(p, `${carrying} static routes are served their page's own render in #views exactly (each with its own h1 — one per canonical address — its tab row and its chrome), My Workspace's among them, and ${empty} none; the renders' own files are noindex and disallowed; every page's header, sidebar and footer lists are NAV_MARKUP's links — every product with a path and every resource a link, Business Intelligence text — marked as the page's render marked them; no page carries the search box's keys`,
     'a page is not served its own content or its navigation');
 }
 /* ---- end prerender ---- */
@@ -2338,6 +2337,125 @@ const HOME_PAGE = read(HOME);
     '/research is not served as N7 accepts it');
 }
 /* ---- end n7-research-front ---- */
+
+/* ---- deep-links ---- */
+/* DEEP LINKS, AS SERVED (the 9 Oct 2026 audit, item #7; the owner's track
+   B). A fetch of /company/AAPL-SEC, /my/alerts or /my/reports returned the
+   app's shell and nothing of the page — no h1, no line saying what it
+   holds — on production. Held here, before any script:
+   - every SEC filer's id (/company/AAPL-SEC, in upper, lower and mixed
+     case) is a 308 to the company's own pre-rendered page, and nothing
+     else is: an illustrative company's address, an id no company has, a
+     longer address and the report are the router's (the generic page), as
+     before; the query rides along — /company/AAPL-SEC?tab=financials
+     arrives at /company/aapl-apple-inc?tab=financials, which is served the
+     company's own page with its h1;
+   - each filer's own page previews as the company: its title names it, and
+     its description, og: and twitter: tags name it, its ticker, the SEC,
+     the fiscal years its statements span as data/us.json holds them and
+     its CIK — and no price;
+   - every My Workspace address (/my/…, and the aliases of its pages) is
+     served its page as a fresh visitor's: #views marked data-served, its
+     own h1, a lede saying what the page holds, what its render read on
+     <html> (so the head's script can keep it from a reader holding their
+     own), "None yet" where nothing is the reader's — no "0 of 1", "— 0" or
+     "0/3" — and every sample under the banner that says it is one; and
+     robots.txt still disallows each, and the sitemap names none.
+   Each fails on 09e9083e, which served every one of those addresses the
+   generic page or a page with an empty #views. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, has = B.hasClass, sight = B.sightText;
+  const p = [], said = { redirects: 0, previews: 0, kept: [], my: 0, samples: 0 };
+  const { companies } = companyPlan(ORIGIN, router);
+  const filers = companies.filter(co => co.company.real);
+  const US_FILE = JSON.parse(read('data/us.json'));
+  const US = new Map((US_FILE.results || []).map(r => [`${r.id}-SEC`, r]));
+  const GENERIC_PAGE = read(GENERIC);
+  const locOf = (r) => { const l = r.headers.get('location'); try { return l ? new URL(l, BASE) : null; } catch { return null; } };
+  /* 1. Each filer's id, in three cases, a 308 to its own page. */
+  const forms = (id) => [...new Set([id, id.toLowerCase(), id[0] + id.slice(1).toLowerCase()])];
+  const asked = filers.flatMap(co => forms(co.id).map(f => [co, `/company/${f}`]));
+  const got = await getAll(asked.map(([, path]) => path), 12);
+  for (const [co, path] of asked) {
+    const r = got.get(path), to = locOf(r);
+    if (r.status !== 308 || !to || to.pathname !== co.path || to.search) p.push(`${path}: ${described(r)}${to ? ` to ${to.pathname}${to.search}` : ''}, not a 308 to ${co.path}`);
+    else said.redirects++;
+  }
+  const ids = (VERCEL.redirects || []).filter(x => /^\/company\//.test(x.source));
+  const byDest = new Map(filers.map(co => [co.path, co]));
+  if (ids.length !== filers.length || ids.some(x => !byDest.has(x.destination) || x.permanent !== true))
+    p.push(`vercel.json carries ${ids.length} company redirects, where each of the ${filers.length} filers has one permanent redirect to its own page`);
+  /* 2. The query kept, and the page it arrives at. */
+  for (const [from, want] of [['/company/AAPL-SEC?tab=financials', '/company/aapl-apple-inc?tab=financials'],
+    ['/company/msft-sec?tab=valuation&utm_source=served-check', '/company/msft-microsoft-corp?tab=valuation&utm_source=served-check']]) {
+    const r = await get(from), to = locOf(r);
+    if (r.status !== 308 || !to || to.pathname + to.search !== want) { p.push(`${from}: ${described(r)}${to ? ` to ${to.pathname}${to.search}` : ''}, not a 308 to ${want}, the query kept`); continue; }
+    const page = await get(want);
+    const co = filers.find(x => x.path === to.pathname);
+    const views = page.status === 200 ? all(B.htmlTree(page.body)).find(n => attr(n, 'id') === 'views') : null;
+    const h1 = views ? all(views).find(n => n.tag === 'h1') : null;
+    if (page.status !== 200) p.push(`${want}: ${described(page)}`);
+    else if (!views || attr(views, 'data-served') !== to.pathname || !h1 || sight(h1) !== US.get(co?.id)?.name)
+      p.push(`${want}: not served its company's own page (#views ${views ? `marked ${attr(views, 'data-served')}` : 'missing'}, h1 ${JSON.stringify(h1 ? sight(h1) : null)})`);
+    else said.kept.push(`${from} → ${want}`);
+  }
+  /* 3. Nothing else redirected. */
+  for (const path of ['/company/MAYBANK', '/company/maybank', '/company/1155', '/company/ZZZZ-SEC', '/company/aapl-sec-x', '/company/AAPL-SEC/report', '/app/equities/AAPL-SEC']) {
+    const r = await get(path);
+    if (r.status !== 200 || r.body !== GENERIC_PAGE) p.push(`${path}: ${described(r)}${locOf(r) ? ` to ${locOf(r).pathname}` : ''}, not the generic page, 200 — the router's address`);
+  }
+  /* 4. Each filer's page previews as the company. */
+  const own = await getAll(filers.map(co => co.path), 12);
+  for (const co of filers) {
+    const f = US.get(co.id), r = own.get(co.path);
+    if (!f || r.status !== 200) { p.push(`${co.path}: ${f ? described(r) : `${co.id} is not in data/us.json`}`); continue; }
+    const h = headOf(r.body);
+    const ys = f.years.filter(Number.isInteger);
+    const span = Math.min(...ys) === Math.max(...ys) ? `FY${ys[0]}` : `FY${Math.min(...ys)}–FY${Math.max(...ys)}`;
+    const bad = [];
+    if (!h.title || !h.title.includes(f.name)) bad.push(`title ${JSON.stringify(h.title)}`);
+    if (!h.description || !h.description.startsWith(`${f.name} (`) || !h.description.includes(`filed with the SEC, ${span} (CIK ${Number(f.cik)})`)) bad.push(`description ${JSON.stringify(h.description)}`);
+    if (h.ogTitle !== h.title || h.twitterTitle !== h.title || h.ogDescription !== h.description || h.twitterDescription !== h.description) bad.push('og:/twitter: tags that are not the title and the description');
+    if (/(US\$|\$|RM)\s?\d/.test(`${h.title} ${h.description}`)) bad.push('a price in the title or the description');
+    if (bad.length) p.push(`${co.path}: ${bad.join('; ')}`); else said.previews++;
+  }
+  /* 5. My Workspace's addresses. */
+  const robots = (await get('/robots.txt')).body;
+  const sitemap = (await get('/sitemap.xml')).body;
+  const mine = statics.filter(path => myWorkspace({ path, head: router.headAt(path) }));
+  const SAMPLE_BANNER = /Sample data These holdings, investment cases, watchlists and price alerts were written into this browser .* They are not yours/;
+  const NONE = { '/my/reports': /No reports yet/, '/my/watchlists': /None of your own yet/, '/my/alerts': /Price alerts — none of your own yet/, '/my/data': /Saved work — none yet/ };
+  const pages = await getAll(mine);
+  for (const path of mine) {
+    const r = pages.get(path);
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    const tree = B.htmlTree(r.body);
+    const views = all(tree).find(n => attr(n, 'id') === 'views');
+    const html = all(tree).find(n => n.tag === 'html');
+    const h1 = views ? all(views).find(n => n.tag === 'h1') : null;
+    const lede = views ? all(views).find(n => n.tag === 'p' && has(n, 'page-lede')) : null;
+    const text = views ? sight(views) : '';
+    const bad = [];
+    if (!views || attr(views, 'data-served') === null) bad.push('#views is not a served page');
+    if (!h1 || !sight(h1)) bad.push('no h1');
+    if (!lede || sight(lede).split(/\s+/).length < 5) bad.push('no lede saying what the page holds');
+    if (!html || !attr(html, 'data-served-reads')) bad.push('<html> does not say what its render read, so the head\'s script could not keep it from a reader holding their own');
+    const nought = text.match(/(^|\s)0 of \d|— 0(\s|$)|(^|\s)0\/\d/);
+    if (nought) bad.push(`a nought of the reader's own in sight: …${text.slice(Math.max(0, nought.index - 30), nought.index + 40)}…`);
+    if (NONE[path] && !NONE[path].test(text)) bad.push(`not "${NONE[path].source}"`);
+    if (/\bsample\b/i.test(text)) {
+      if (!SAMPLE_BANNER.test(text)) bad.push('samples in sight with no banner saying they are not the reader\'s');
+      else said.samples++;
+    }
+    if (B.robotsAllows(robots, path).allowed) bad.push('robots.txt allows it');
+    if (sitemap.includes(`${ORIGIN}${path}<`)) bad.push('sitemap.xml lists it');
+    if (bad.length) p.push(`${path}: ${bad.join('; ')}`); else said.my++;
+  }
+  judge(p, `deep links (audit #7): ${said.redirects} filer ids (${filers.length} filers in three cases) are each a 308 to the company's own page, one permanent redirect each in vercel.json, and illustrative, unknown, longer and report addresses are not; ${said.kept.join(' and ')}, the query kept, each its company's page with its h1; ${said.previews} filers' pages preview with the company's name, the SEC, its fiscal years and CIK and no price; ${said.my} of ${mine.length} My Workspace addresses served their page as a fresh visitor's — h1, lede, its reads on <html>, "None yet" and no nought of the reader's, ${said.samples} with samples under the sample banner — and kept out of crawlers and the sitemap`,
+    'a deep link is not served its page');
+}
+/* ---- end deep-links ---- */
 
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

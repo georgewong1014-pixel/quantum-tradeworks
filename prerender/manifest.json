@@ -4504,6 +4504,296 @@
       "digest": "0c08d38b87385152",
       "changed": "2026-10-03"
     },
+    "pages/my/alerts.html": {
+      "path": "/my/alerts",
+      "view": "alerts",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "My Alerts",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          2
+        ]
+      },
+      "inert": {
+        "buttons": 13,
+        "fields": 0,
+        "choices": 10,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "a61d32a37895a4b9",
+      "changed": "2026-10-09"
+    },
+    "pages/my/data.html": {
+      "path": "/my/data",
+      "view": "userdata",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Bring your own prices",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          8
+        ]
+      },
+      "inert": {
+        "buttons": 7,
+        "fields": 2,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 1,
+        "notShown": 1,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "562d4bcb20d77263",
+      "changed": "2026-10-09"
+    },
+    "pages/my/portfolio.html": {
+      "path": "/my/portfolio",
+      "view": "portfolio",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Understand your exposures — not a trading screen",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          3
+        ]
+      },
+      "inert": {
+        "buttons": 21,
+        "fields": 4,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 1,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "d58df8cd9e80e762",
+      "changed": "2026-10-09"
+    },
+    "pages/my/reports.html": {
+      "path": "/my/reports",
+      "view": "reports",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Reports",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          4
+        ]
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "fe3f4bf9b5ba8910",
+      "changed": "2026-10-09"
+    },
+    "pages/my/scanner.html": {
+      "path": "/my/scanner",
+      "view": "scannerDashboard",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Scanner dashboard",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          6
+        ]
+      },
+      "inert": {
+        "buttons": 5,
+        "fields": 1,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "3c35ef3c24dc34e3",
+      "changed": "2026-10-09"
+    },
+    "pages/my/theses.html": {
+      "path": "/my/theses",
+      "view": "thesis",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "What you believe, and what would prove you wrong",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          3
+        ]
+      },
+      "inert": {
+        "buttons": 10,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f23635f2c7c03998",
+      "changed": "2026-10-09"
+    },
+    "pages/my/tracked.html": {
+      "path": "/my/tracked",
+      "view": "tracked",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Tracked",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          1
+        ]
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 0,
+        "choices": 0,
+        "roles": 111,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 111,
+        "emptyDetails": 0
+      },
+      "digest": "ccdaf62be89fdb8c",
+      "changed": "2026-10-09"
+    },
+    "pages/my/watchlists.html": {
+      "path": "/my/watchlists",
+      "view": "watchlists",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Watchlists",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          1
+        ]
+      },
+      "inert": {
+        "buttons": 22,
+        "fields": 5,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 1,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "28f10e2235ed42b0",
+      "changed": "2026-10-09"
+    },
+    "pages/my/wheel.html": {
+      "path": "/my/wheel",
+      "view": "wheel",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Options Cash Wheel",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          5
+        ]
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 17,
+        "choices": 5,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "11adaec76da1ab9c",
+      "changed": "2026-10-09"
+    },
+    "pages/my/workspace.html": {
+      "path": "/my/workspace",
+      "view": "workspace",
+      "state": "filings in",
+      "chrome": "app",
+      "h1": "Everything you have saved",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          3
+        ]
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 1,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 6,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "4c4f0f3b2d11357a",
+      "changed": "2026-10-09"
+    },
     "pages/pricing.html": {
       "path": "/pricing",
       "view": "plans",
