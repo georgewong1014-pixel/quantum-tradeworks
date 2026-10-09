@@ -621,7 +621,11 @@ function labDraw(P, focusId = null) {
 /* The fixed header, at every width, and the status of what is open. The
    claim is the brief's fixed wording (§8), whole at every width. */
 const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
-const LAB_NOT_OFFICIAL = 'Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
+/* The page's identity line says the same in one clause (the 9 Oct audit,
+   #5): every denial kept — arithmetic, not advice, not a valuation, not a
+   forecast, nothing ranked — and only the words around them dropped. */
+const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a valuation, not a forecast — nothing here is ranked.';
+const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -733,7 +737,7 @@ function labIdentity(P, lab, status) {
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
-    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM}`)]));
+    el('span', {}, `${LAB_NOT_OFFICIAL} ${LAB_CLAIM_SHORT}`)]));
   return box;
 }
 /* Save, as what it saves: the deal as a property until it is one, then the
@@ -1172,8 +1176,10 @@ function labKnob(P, lab, col, inp) {
      wrapped evidence tag stood between the slider and its results, and the
      last result left a 360×640 screen by up to 60px. Below a 600px panel the
      span and the notes that explain the knob sit in a panel this button
-     opens, straight after the knob's tags, closed at first; from 600px it is
-     not drawn and they stand as before. Nothing is reworded or dropped: the
+     opens, straight after the knob's tags, closed at first — AND AT EVERY
+     WIDTH since the 9 Oct audit (#5): a span's basis and a knob's notes are
+     its method, the evidence of the slider, one tap away on a desk as on a
+     phone. Nothing is reworded or dropped: the
      slider is still described by the span (aria-describedby reads a closed
      panel too), the evidence tag and a 0% rate's warning stay in sight, and
      a reader with no script is shown the panel open (styles.css). */
@@ -1254,7 +1260,8 @@ function labKnob(P, lab, col, inp) {
      in "About", so a deposit taken to 0% showed nothing to say that no
      lender approved it (the brief's gap rule). A fixed tag beside the
      evidence tag says it at every deposit and never comes or goes while the
-     slider moves; from 600px the whole note stands under the tags. */
+     slider moves — at every width now that the whole note is in "About"
+     at every width (the 9 Oct audit, #5). */
   if (k === 'downPct') tags.append(el('span', { class: 'lab-tag lab-tag-gap' }, 'Computed, not approved'));
   ft.append(tags);
   row.append(ft);
@@ -1466,7 +1473,10 @@ function labEvidence(P, lab) {
   const ctx = el('p', { class: 'metaline lab-context', id: labId(P, 'context') }, '');
   const rests = el('p', { class: 'metaline lab-rests', id: labId(P, 'rests') }, '');
   const movedBy = el('p', { class: 'metaline lab-movedby', id: labId(P, 'movedby') }, '');
-  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [movedBy, ctx, rests] });
+  /* Where every figure comes from — the page's lede said it until the 9 Oct
+     audit (#5) asked the lede to be a label's length. */
+  const model = el('p', { class: 'metaline lab-from-model' }, 'Every figure here is worked out by the calculator’s own model, on each column’s figures.');
+  const rest = lsEvidenceSection({ id: labId(P, 'ev-rests'), summary: 'What these figures rest on', body: [model, movedBy, ctx, rests] });
   const formula = el('p', { class: 'lab-formula', id: labId(P, 'ev-formula-text') }, '');
   const fhead = el('p', { class: 'ls-ev-k', id: labId(P, 'ev-formula-k') }, '');
   const how = lsEvidenceSection({ id: labId(P, 'ev-formula'), cls: 'ls-ev-wide', summary: 'How a figure is worked out', body: [fhead, formula] });
@@ -1540,7 +1550,7 @@ function labAlert(P, lab) {
   const q = d && onCalc ? propertyReviewQueue(d) : [];
   if (!q.length) return null;
   return lsAlertCard({ text: `${q.length} assumption${q.length === 1 ? '' : 's'} need${q.length === 1 ? 's' : ''} evidence`,
-    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''} — still the tool’s starting figures.`,
+    sub: `${q.slice(0, 3).map(x => x.label.toLowerCase()).join(', ')}${q.length > 3 ? ` and ${q.length - 3} more` : ''}.`,
     cta: lsCta('Review', { path: '/property/calculator#review', id: labId(P, 'review'), sr: ' them in the calculator' }), cls: 'lab-alert', attrs: { id: labId(P, 'alert') } });
 }
 /* Where a figure is entered, only while the column IS the calculator's
@@ -1729,7 +1739,9 @@ function labDrawCompare(P, lab, vm) {
   const panels = el('div', { class: `lab-cmp-panels${vm.tables.length > 1 ? ' is-multi' : ''}` });
   vm.tables.forEach((t, ti) => {
     const table = el('table', { class: `lab-cmp lab-form-${t.form}`, data: { field: t.field, form: t.form } });
-    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? `${vm.caption} ${t.title}.` : `${t.title}.`));
+    /* What is compared and in which order is said to the ear; the eye has
+       the switch and the rows A, B, C (the 9 Oct audit, #5). */
+    table.append(el('caption', { class: ti === 0 ? 'lab-cmp-cap' : 'lab-cmp-cap lab-cmp-sub' }, ti === 0 ? [el('span', { class: 'sr-only' }, `${vm.caption} `), `${t.title}.`] : `${t.title}.`));
     const tb = el('tbody');
     const rowEls = [];
     t.rows.forEach(r => {
@@ -1921,6 +1933,15 @@ function labCommits(P, lab, col) {
   /* The name is asked for where its Save was pressed: here, or under the
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
+  /* ONE LINE IN SIGHT, THE REST ONE TAP AWAY (the 9 Oct audit, #5: the Lab
+     "repeatedly explains … saving prerequisites"). What Save does, in a
+     line; why a scenario needs a property, what a commit marks as the
+     reader's and why the grade can stay U, under "How saving works" (L3,
+     closed) — every word of it kept. */
+  const line = !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
+    : canSave ? `Saving makes ${col.key}’s moved figures yours.`
+    : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
+    : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
   if (!rec) why.push(labScenarioAfterProperty(lab, col)
     ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
@@ -1929,7 +1950,13 @@ function labCommits(P, lab, col) {
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
     + 'Until then nothing moved here is saved or marked as yours. The grade stays U while any figure that drives it — the built-up area and the maintenance too — is still the tool’s starting figure.');
-  card.append(el('p', { class: 'metaline lab-commit-why' }, why.join(' ')));
+  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') }, line));
+  /* Open stays open while the card is drawn again under a move. */
+  const more = el('details', { class: 'pc-more ls-l3 lab-commit-more', id: labId(P, 'commit-more'), open: P.saveMoreOpen ? '' : null }, [
+    el('summary', { class: 'pc-more-sum' }, 'How saving works'),
+    el('p', { class: 'pc-more-body lab-commit-why' }, why.join(' '))]);
+  more.addEventListener('toggle', () => { P.saveMoreOpen = more.open; });
+  card.append(more);
   return card;
 }
 /* The column's figures as a commit writes them: the moved ones marked as
@@ -2323,7 +2350,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
     const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
-      : 'Moves you make here are kept until you close or reload this tab.';
+      : 'Unsaved moves are lost on reload or close.';
     labText(P.els.unsavedSay, s);
     P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
@@ -2427,8 +2454,11 @@ VIEWS.propertyLab = () => {
   /* Its own state, beside its name (N2b, the 5 Oct audit): TOOLS says beta,
      and TOOL_FLAGGED marks no tab Beta, so the page's only visible state
      was its product's "Property Intelligence · Live". */
+  /* The lede a label's length (the 9 Oct audit, #5: the Lab explained
+     itself before it showed anything): where the figures come from — the
+     calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Move a slider and every result below follows — from the calculator’s own model.' }));
+    lede: 'Move a slider and every figure below follows.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the

@@ -151,7 +151,7 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   if (PROPERTY_ROUTES[route].coming) notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' }, PROPERTY_ROUTES[route].coming));
   /* The auction risk mode (P3): where its terms go, and the gate. */
   if (route === 'auction') notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' },
-    'Auction: the purchase price is the winning bid you expect. Enter the Proclamation’s terms below — nothing of them is assumed — and no auction figure is final until its checklist is ticked.'));
+    'Auction: the price is the winning bid you expect, and no auction figure is final until its checklist is ticked.'));
   const book = propertyClassRulebook(cls);
   if (book) notes.push(el('p', { class: 'pq-note', 'data-note': 'class' }, book.line));
   /* The rules that differ by class, each with its standing and source: in
@@ -252,7 +252,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
       cta: lsCta('See why', { id: `${prefix}-pe-gap-why`, onclick: gapWhy, sr: ' the price gap is what it is' }) }));
   } else {
     const missing = g.status === 'no-comparables'
-      ? (g.asking ? 'Name the comparables from your register that this price is set against.' : 'Enter the asking price and name the comparables from your register it is set against.')
+      ? (g.asking ? 'Needs comparables named from your register.' : 'Needs the asking price and comparables from your register.')
       : `Enter the asking price to set it against the ${pqMoney(g.value)} your ${g.comps.length === 1 ? 'comparable implies' : `${g.comps.length} comparables imply`}.`;
     cards.append(lsActionCard({ title: 'Price gap', line: missing, cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': '' },
       cta: enter ? lsCta('Enter them in the calculator', { path: enter, id: `${prefix}-pe-gap-go` })
@@ -260,7 +260,9 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
   }
   /* The price that makes this work. */
   if (s.status === 'no-target') {
-    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'Set a target — a monthly position or a net yield — and the highest price that meets it is solved from these figures.',
+    /* One line (the 9 Oct audit, #5); how it is solved is "How the price is
+       solved", in the evidence. */
+    cards.append(lsActionCard({ title: 'The price that makes this work', line: 'The highest price that meets a target you set.',
       cls: 'pe-card pe-solve', attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': '' },
       cta: lsCta('Set a target', { id: `${prefix}-pe-target-go`, onclick: setTarget }) }));
   } else {
@@ -385,7 +387,7 @@ function comparablesPick({ d, prefix, legend, toggle, cls = '' }) {
     ]);
   };
   if (!choices.length) fs.append(el('p', { class: 'metaline' },
-    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet. Record one in the comparables register, step by step: its locality, its source and date, and what it is.`));
+    `No ${land ? 'transacted land price' : 'transacted price'} is recorded in ${town} yet.`));
   choices.forEach(o => fs.append(row(o)));
   if (asks.length) {
     fs.append(el('p', { class: 'metaline comp-pick-apart' }, `Asking prices — shown apart, with their own median: an asking price is somebody’s hope, and is never in the value the transacted prices imply.`));
@@ -471,6 +473,7 @@ const AU_GROUPS = () => [
     fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
       ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
 ];
+const AU_HOW_OPEN = new Set();
 function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
   const box = el('div', { class: 'au-inputs', id: `${prefix}-au-inputs` });
   const m = dealModel(d);
@@ -480,7 +483,6 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const note = g.id === 'costs'
       ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
       : g.note;
-    if (note) fs.append(el('p', { class: 'au-note' }, note));
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step] of g.fields) {
       const id = `${prefix}-au-${k}`;
@@ -502,7 +504,20 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
       grid.append(f);
     }
     fs.append(grid);
-    if (g.after) fs.append(el('p', { class: 'au-note' }, g.after));
+    /* WHAT A GROUP'S FIGURES MEAN AND HOW THEY ARE USED, one tap away (L3;
+       the 9 Oct audit, #5: the Lab "repeatedly explains"). In sight stay the
+       section's lead — nothing of the sale assumed, not a valuation — and
+       each figure's badge, which says Unavailable until it is entered. */
+    const how = [note, g.after].filter(Boolean);
+    if (how.length) {
+      /* Kept open for the tab across the drawings an answer makes. */
+      const hid = `${prefix}-au-${g.id}-how`;
+      const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
+        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : 'How these terms are used'),
+        ...how.map(t => el('p', { class: 'pc-more-body au-note' }, t))]);
+      det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
+      fs.append(det);
+    }
     if (extra[g.id]) fs.append(extra[g.id]);
     box.append(fs);
   }
@@ -515,7 +530,9 @@ function auctionChecklist({ d, prefix, answer }) {
   const ticked = new Set(Array.isArray(d.auctionChecks) ? d.auctionChecks : []);
   const fs = el('fieldset', { class: 'au-checks', id: `${prefix}-au-checks`, tabindex: '-1' });
   fs.append(el('legend', { class: 'au-legend' }, `Before any auction figure is final — ${AUCTION_CHECK_IDS.length - AUCTION_CHECK_IDS.filter(id => ticked.has(id)).length} of ${AUCTION_CHECK_IDS.length} open`));
-  fs.append(el('p', { class: 'au-note' }, 'Drawn from the guidance the Malaysian Bar publishes on buying at an auction — guidance, not this tool’s rules, and not legal advice. Tick each once you have found it out; where the guidance comes from is under the evidence.'));
+  /* One line: whose guidance, and that it is not legal advice. Where it
+     comes from is under the evidence. */
+  fs.append(el('p', { class: 'au-note' }, 'From the Malaysian Bar’s guidance — not this tool’s rules, and not legal advice. Tick each once found out.'));
   const list = el('ul', { class: 'au-check-list' });
   for (const id of AUCTION_CHECK_IDS) {
     const c = AUCTION_CHECKS[id], cid = `${prefix}-au-ck-${id}`;
