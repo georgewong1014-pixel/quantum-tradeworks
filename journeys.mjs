@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, scanner, return, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, scanner, return, records, registers, cases, settings, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -57,9 +57,11 @@
  * journey names its outcome steps (outcomes, below; OUTCOME_STEPS); a step
  * that only opens a page is not one, and the calls-to-action journey, which
  * lands on every tool and does nothing there, has none. A 'live' row of
- * PRODUCTS or TOOLS (35-ui.js) names its journey and outcome step (proof), or
- * says it is not yet proven (proof: null) — and /status lists it so, beside
- * the Live badge it keeps; register-check holds every row to that.
+ * PRODUCTS or TOOLS (35-ui.js) names its journey and outcome step (proof),
+ * and /status shows each badge beside that step's last recorded result;
+ * register-check fails a live row that names none (plan item 6.5: the
+ * records, registers, cases and settings journeys below were written for
+ * the twelve that named none).
  *
  * WHAT A RESULT SAYS
  *
@@ -83,7 +85,8 @@
  *
  * Nothing is written to the site. Each journey runs in its own browser
  * context, so its storage starts empty (bar what the journey seeds, said
- * where it does) and is discarded with it.
+ * where it does) and is discarded with it. A file a page hands the reader
+ * (an export) is read back inside the page; nothing is downloaded.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { spawn, execFileSync } from 'node:child_process';
@@ -464,6 +467,33 @@ function selfTest() {
     t(Array.isArray(OUTCOME_STEPS.ctas) && OUTCOME_STEPS.ctas.length === 0 && ids.filter(id => id !== 'ctas').every(id => OUTCOME_STEPS[id].length > 0),
       'D15: the calls-to-action journey declares no outcome step (a landing proves the link, not the tool); every other journey declares at least one');
     t(readFileSync(join(ROOT, 'journeys.mjs'), 'utf8').includes(`--only <id,id>       some journeys: ${ids.join(', ')}\n`), 'the usage names every journey --only takes');
+    /* PLAN ITEM 6.5: the journeys written for the twelve unproven Live
+       badges touch nothing of the personal lane, and the one that starts
+       from an empty workspace seeds no sample. */
+    const own = ['records', 'registers', 'cases', 'settings', 'replay'].map(id => JOURNEYS.find(x => x.id === id));
+    t(own.every(Boolean) && own.every(x => !/personal-|price-history|prices\.json|scan-[a-z]+\.json/.test(String(x.run))) && JSON.stringify(own.find(x => x.id === 'cases').storage?.())?.includes('"theses":[]'),
+      `plan item 6.5: ${own.filter(Boolean).map(x => x.id).join(', ')} — each a journey, none naming a personal file, the cases journey starting from no sample case`);
+    /* THE 9 OCT AUDIT, ITEM 4: the replay journey's bars are the generated
+       series' own, worked here from its definition — and two of them are
+       the held → not held transition. */
+    const offBars = Object.entries(REPLAY_BARS).flatMap(([bar, want]) => {
+      const got = replaySeriesA(Number(bar));
+      const out = [];
+      if (got.state !== want.state) out.push(`bar ${bar}: the rule ${want.state}, the series ${got.state}`);
+      want.conds.forEach(([st, text, left, right], i) => {
+        const g = got.conds[i];
+        if (g[0] !== st || g[1] !== text) out.push(`bar ${bar} condition ${i + 1}: “${text}” (${st}), the series “${g[1]}” (${g[0]})`);
+        const tol = i === 0 ? 5e-5 : 5e-3;
+        if ((left === null) !== (g[2] === null) || (left !== null && Math.abs(g[2] - left) > tol)) out.push(`bar ${bar} condition ${i + 1}: value ${left}, the series ${g[2]}`);
+        if (i < 2 && ((right === null) !== (g[3] === null) || (right !== null && Math.abs(g[3] - right) > tol))) out.push(`bar ${bar} condition ${i + 1}: against ${right}, the series ${g[3]}`);
+      });
+      return out;
+    });
+    t(!offBars.length && REPLAY_BARS[66]?.state === 'MET' && REPLAY_BARS[65]?.state === 'NOT_MET' && Object.keys(REPLAY_BARS).length >= 2,
+      `the replay journey's bars (${Object.keys(REPLAY_BARS).join(', ')}) are generated series A's, worked from its definition by the textbook EMA, Wilder RSI and 20-bar mean volume — bar 66 Held, bar 65 Not held${offBars.length ? ` — not: ${offBars.slice(0, 3).join('; ')}` : ''}`);
+    const rp = String(JOURNEYS.find(x => x.id === 'replay')?.run || '');
+    t(/tab\.key\('ArrowLeft'\)[\s\S]*holds\(FIG, 65\)[\s\S]*tab\.key\('ArrowRight'\)[\s\S]*holds\(FIG, 66\)/.test(rp) && rp.includes('figure#hiw-scan-ex'),
+      'the replay journey moves the bar by the keyboard from 66 to 65 and back, holding each to its bar, on /app/scanner and on /how-it-works');
     /* journeysServed shows it, and the result beside a Live badge. */
     const steps = (names, failAt = null) => names.map((name, i) => ({ name, ms: 300, status: failAt === null || i < failAt ? 'OK' : i === failAt ? 'FAIL' : null })).filter(s => s.status);
     const rec2 = { kind: RESULT_KIND, schema: 2, ranAt: '2026-10-06T03:17:44.000Z', commit: '67d0e5185f3c', journeys: [
@@ -862,7 +892,7 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
     await sleep(200);
   };
   tab.key = async (key) => {
-    const map = { Enter: [13, '\r'], Tab: [9, ''], Escape: [27, ''], ArrowLeft: [37, ''], ArrowUp: [38, ''], ArrowRight: [39, ''], ArrowDown: [40, ''] };
+    const map = { Enter: [13, '\r'], Tab: [9, ''], Escape: [27, ''], ArrowLeft: [37, ''], ArrowUp: [38, ''], ArrowRight: [39, ''], ArrowDown: [40, ''], Home: [36, ''], End: [35, ''] };
     const [code, text] = map[key] || [key.toUpperCase().charCodeAt(0), key];
     await S('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: code, ...(text ? { text } : {}) });
     await S('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: code });
@@ -881,6 +911,33 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
     if (commit) await tab.key('Tab');
   };
   tab.text = (sel = 'main') => tab.eval(`(document.querySelector(${JSON.stringify(sel)})?.innerText || '')`);
+  /* A choice from a select, as a reader makes it: the control focused, the
+     option chosen, and the change it fires. A select's own popup is the
+     platform's, not the page's, and is not drawn headless, so the choice is
+     set on the control — one that is hidden, disabled or lacks the option
+     is said to, as a click would. */
+  tab.choose = async (find, value, what) => {
+    const r = await tab.eval(`(() => { const s = (${find}); if (!s) return 'missing';
+      s.scrollIntoView({ block: 'center', behavior: 'instant' });
+      if (!s.getClientRects().length) return 'hidden'; if (s.disabled) return 'disabled';
+      if (![...s.options].some(o => o.value === ${JSON.stringify(String(value))})) return 'no option ' + JSON.stringify([...s.options].map(o => o.value).slice(0, 12));
+      s.focus(); s.value = ${JSON.stringify(String(value))};
+      s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true })); return 'ok'; })()`);
+    if (r === 'missing') throw new StepError(`${what} is not on the page`);
+    if (r !== 'ok') throw new StepError(`${what} is ${r === 'hidden' || r === 'disabled' ? r : `offered without “${value}” (${r})`}`);
+    await sleep(200);
+  };
+  /* A file the page hands the reader (a Blob behind a download link), read
+     back in the page rather than written to disk: every Blob the page makes
+     a link to is kept from here on, and the browser downloads nothing. */
+  tab.keepDownloads = async () => {
+    await browser.send('Browser.setDownloadBehavior', { behavior: 'deny', browserContextId }).catch(() => {});
+    await tab.eval(`(() => { if (window.__journeyBlobs) return true; window.__journeyBlobs = [];
+      const make = URL.createObjectURL.bind(URL);
+      URL.createObjectURL = (b) => { if (b instanceof Blob) window.__journeyBlobs.push(b); return make(b); }; return true; })()`);
+  };
+  tab.lastDownload = (since) => tab.eval(`(async () => { const b = (window.__journeyBlobs || [])[${since}]; return b ? await b.text() : null; })()`);
+  tab.downloads = () => tab.eval(`(window.__journeyBlobs || []).length`);
   tab.close = async () => {
     browser.listeners.delete(listener);
     await browser.send('Target.closeTarget', { targetId }).catch(() => {});
@@ -958,10 +1015,62 @@ const FIGURE = `(labels) => { for (const label of labels) {
     if (v) return { label, value: v.textContent.trim() };
   }
 } return null; }`;
+/* That figure's text, by one label, or null. */
+const figureValue = (tab, label) => tab.eval(`(${FIGURE})(${JSON.stringify([label])})`).then(f => f?.value ?? null);
 
 /* ─── THE JOURNEYS ────────────────────────────────────────────────────────── */
 const visible = (sel) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find(n => n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden')`;
 const byText = (sel, re) => `[...document.querySelectorAll(${JSON.stringify(sel)})].find(n => n.getClientRects().length && ${re}.test(n.textContent.trim()))`;
+
+/* THE SCANNER EXAMPLE'S BARS (the replay journey; the 9 Oct audit, item
+   4). What each replayed bar of generated series A must show: the rule's
+   state, and each condition's state, sentence and two values (data-left,
+   data-right; null where the condition cannot be read). Written out, so a
+   change to the series or to the engine's arithmetic shows here as a
+   difference; held by the self-test to the series' own definition, worked
+   by the textbook formulas (replaySeriesA, below) — never to the engine
+   that draws the page. Bar 66 is the one bar the rule holds on, bar 65 the
+   one before it. */
+export const REPLAY_BARS = Object.freeze({
+  66: { state: 'MET', conds: [['MET', 'price 104.5000 crossed above EMA50 99.5909', 104.5, 99.5909], ['MET', 'volume 2200.00 above 1.5× 20-bar average volume 1590.00', 2200, 1590], ['MET', 'RSI14 68.85 between 50.00 and 70.00', 68.85, null]] },
+  65: { state: 'NOT_MET', conds: [['NOT_MET', 'price 96.3000 did not cross above EMA50 99.3906', 96.3, 99.3906], ['NOT_MET', 'volume 1000.00 not above 1.5× 20-bar average volume 1500.00', 1000, 1500], ['NOT_MET', 'RSI14 29.77 outside 50.00 and 70.00', 29.77, null]] },
+  60: { state: 'NOT_MET', conds: [['NOT_MET', 'price 101.0938 did not cross above EMA50 99.9474', 101.0938, 99.9474], ['NOT_MET', 'volume 1000.00 not above 1.5× 20-bar average volume 1500.00', 1000, 1500], ['MET', 'RSI14 63.70 between 50.00 and 70.00', 63.70, null]] },
+  20: { state: 'NOT_MET', conds: [['UNAVAILABLE', 'EMA50 needs 51 bars; 20 held', null, null], ['NOT_MET', 'volume 1000.00 not above 1.5× 20-bar average volume 1500.00', 1000, 1500], ['MET', 'RSI14 54.41 between 50.00 and 70.00', 54.41, null]] },
+  14: { state: 'UNAVAILABLE', conds: [['UNAVAILABLE', 'EMA50 needs 51 bars; 14 held', null, null], ['UNAVAILABLE', '1.5× 20-bar average volume needs 20 bars; 14 held', null, null], ['UNAVAILABLE', 'RSI14 needs 15 bars; 14 held', null, null]] },
+});
+/* Series A by its definition (scanFixture, 24-market-engine.js): sixty
+   closes of 100 + 1.5 sin(i/3) on 1,000 shares, five of 97.5 − 0.3i on
+   1,000, then 104.5 on 2,200. Its 50-bar EMA seeded with the mean of the
+   first fifty closes, Wilder's 14-bar RSI, and the 20-bar mean volume
+   that includes the bar — each by the textbook, here, from nothing of
+   the app's. Returns what each bar of REPLAY_BARS must read. */
+export function replaySeriesA(bar) {
+  const closes = [], vols = [];
+  for (let i = 0; i < 60; i++) { closes.push(100 + Math.sin(i / 3) * 1.5); vols.push(1000); }
+  for (let i = 0; i < 5; i++) { closes.push(97.5 - i * 0.3); vols.push(1000); }
+  closes.push(104.5); vols.push(2200);
+  const ema = [];
+  for (let i = 0, e = null; i < closes.length; i++) {
+    if (i === 49) e = closes.slice(0, 50).reduce((a, b) => a + b, 0) / 50;
+    else if (i > 49) e = closes[i] * (2 / 51) + e * (1 - 2 / 51);
+    ema.push(e);
+  }
+  const rsi = new Array(closes.length).fill(null);
+  let g = 0, l = 0;
+  for (let i = 1; i <= 14; i++) { const d = closes[i] - closes[i - 1]; g += Math.max(d, 0) / 14; l += Math.max(-d, 0) / 14; }
+  rsi[14] = 100 - 100 / (1 + g / l);
+  for (let i = 15; i < closes.length; i++) { const d = closes[i] - closes[i - 1]; g = (g * 13 + Math.max(d, 0)) / 14; l = (l * 13 + Math.max(-d, 0)) / 14; rsi[i] = 100 - 100 / (1 + g / l); }
+  const i = bar - 1, c = closes[i];
+  const conds = [];
+  if (bar < 51) conds.push(['UNAVAILABLE', `EMA50 needs 51 bars; ${bar} held`, null, null]);
+  else { const up = c > ema[i] && closes[i - 1] <= ema[i - 1]; conds.push([up ? 'MET' : 'NOT_MET', `price ${c.toFixed(4)} ${up ? 'crossed above' : 'did not cross above'} EMA50 ${ema[i].toFixed(4)}`, c, ema[i]]); }
+  if (bar < 20) conds.push(['UNAVAILABLE', `1.5× 20-bar average volume needs 20 bars; ${bar} held`, null, null]);
+  else { const lim = 1.5 * vols.slice(i - 19, i + 1).reduce((a, b) => a + b, 0) / 20, over = vols[i] > lim; conds.push([over ? 'MET' : 'NOT_MET', `volume ${vols[i].toFixed(2)} ${over ? 'above' : 'not above'} 1.5× 20-bar average volume ${lim.toFixed(2)}`, vols[i], lim]); }
+  if (bar < 15) conds.push(['UNAVAILABLE', `RSI14 needs 15 bars; ${bar} held`, null, null]);
+  else { const r = rsi[i], inside = r >= 50 && r <= 70; conds.push([inside ? 'MET' : 'NOT_MET', `RSI14 ${r.toFixed(2)} ${inside ? 'between' : 'outside'} 50.00 and 70.00`, r, null]); }
+  const states = conds.map(x => x[0]);
+  return { state: states.includes('NOT_MET') ? 'NOT_MET' : states.every(s => s === 'MET') ? 'MET' : 'UNAVAILABLE', conds };
+}
 
 const JOURNEYS = [
   {
@@ -1672,6 +1781,533 @@ const JOURNEYS = [
           async () => `“Continue” opened ${await tab.eval('location.pathname + location.search')} (${await tab.eval('State.view')}), not the saved property in the Scenario Lab`);
         await tab.expect(`(document.getElementById('lab-status')?.textContent || '').includes(${JSON.stringify(name)})`,
           async () => `the Lab's identity line reads “${(await tab.eval(`document.getElementById('lab-status')?.textContent || ''`)).trim().slice(0, 100)}”, not “${name}”`);
+      });
+    },
+  },
+  /* ─── THE TOOLS' OWN JOBS (plan item 6.5; the owner's decision D15) ──────
+     Twelve Live badges were proven by nothing but a landing. Each journey
+     below does what a group of them is for and checks the result it must
+     produce, as the tool's own statusNote (35-ui.js TOOLS) says it: a
+     contract entered and its obligation worked out, chart evidence recorded
+     and read, the reports that work prints opened; a comparable recorded
+     and listed with what it rests on, a locality recorded and shaded, a
+     property recorded and listed; an investment case written and checked,
+     a price threshold crossed and listed, a holding listed with its
+     return; closes pasted, listed and exported, the scanner's settings
+     kept. Every one runs on what the deployed site serves — the filed
+     statements, the illustrative set and its sample prices, the locality
+     positions — and writes nothing but this browser's own storage, which
+     goes with its context. */
+  {
+    id: 'records', name: 'Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports',
+    outcomes: ['Enter a contract: the obligation, the shortfall and the payoff at expiry', 'Reserve the cash: the put reads cash-secured',
+      'Load the §14 worked example: it returns 38, 35 and 77', 'Record a stronger daily price structure: the trend regime rises and the change is logged',
+      'Reports lists the contract, the trend evidence and Apple', 'The Cash Wheel’s decision record opens from Reports with the contract’s figures',
+      'The Trading Index’s decision record opens from Reports with the evidence’s figures', 'Apple’s research report opens from Reports'],
+    async run(j, tab) {
+      const fig = (labels) => tab.eval(`(${FIGURE})(${JSON.stringify(labels)})`);
+      /* The contract, and what it must come to — worked by hand, not by the
+         page: one contract of 100 shares at a US$40 strike is a US$4,000
+         obligation (no assignment fees); a US$1.25 credit a share less a
+         US$1 commission is US$124 received; at zero the shares lose the
+         whole US$4,000 less that US$124, US$3,876. With US$3,000 reserved
+         the put is US$1,000 short; with US$5,000, US$1,000 beyond. */
+      const CONTRACT = [['contractMultiplier', 100], ['contracts', 1], ['putStrike', 40], ['putCredit', 1.25], ['openCommission', 1], ['openFees', 0], ['assignmentFees', 0], ['eligibleCashUsd', 3000]];
+      const usd = (v) => tab.eval(`fmtMoney(${v}, 'USD')`);
+      const coverRow = `[...document.querySelectorAll('main table.dt tbody tr')].find(tr => tr.cells[0]?.textContent.trim() === 'Cash secures the put')?.cells[4]?.textContent.trim() || null`;
+      await step(j, tab, 'Open the Cash Wheel', BUDGET.load, async () => {
+        await tab.goto('/us-options/wheel');
+        await tab.expect(`State.view === 'wheel' && !!document.getElementById('w-putStrike')`, async () => `/us-options/wheel opened ${await tab.eval('State.view')}, not the Cash Wheel and its contract`);
+        /* A fresh browser holds no contract, and the page says so rather
+           than drawing a payoff of nothing. */
+        if (!(await tab.text()).includes('Nothing entered yet')) throw new StepError('before any contract is entered the page does not say that nothing is entered yet');
+      });
+      await step(j, tab, 'Enter a contract: the obligation, the shortfall and the payoff at expiry', BUDGET.action * 4, async () => {
+        for (const [k, v] of CONTRACT) await tab.fill(`document.getElementById('w-${k}')`, String(v), `The contract's ${k}`, { commit: true });
+        const [ob, short, worst] = [await usd(4000), await usd(1000), await usd(3876)];
+        await tab.expect(`(${FIGURE})(['Full assignment cash'])?.value === ${JSON.stringify(ob)}`,
+          async () => `one contract of 100 shares at a US$40 strike: the full assignment cash reads ${(await fig(['Full assignment cash']))?.value || 'nothing'}, not ${ob}`, 4000);
+        const down = await fig(['Maximum modelled downside']);
+        if (down?.value !== worst) throw new StepError(`the maximum modelled downside reads ${down?.value || 'nothing'}, not ${worst} (US$4,000 less the US$124 received)`);
+        const text = await tab.text();
+        if (!text.includes(`Short by ${short}`)) throw new StepError(`with US$3,000 reserved against a US$4,000 obligation the page does not say it is short by ${short}`);
+        const chip = await tab.eval(coverRow);
+        if (chip !== 'Not cash-secured') throw new StepError(`the collateral check reads “${chip || 'nothing'}”, not “Not cash-secured”`);
+        const payoff = await tab.eval(`(() => { const h = [...document.querySelectorAll('main .card h3, main .card .h-card')].find(n => n.textContent.trim() === 'What this pays, at expiry');
+          const card = h?.closest('.card'); return card ? [...card.querySelectorAll('svg')].reduce((a, s) => a + s.querySelectorAll('path, polyline, line').length, 0) : null; })()`);
+        if (!payoff) throw new StepError(payoff === null ? 'no payoff at expiry is drawn for the contract' : 'the payoff at expiry is drawn with no line');
+      });
+      await step(j, tab, 'Reserve the cash: the put reads cash-secured', BUDGET.action, async () => {
+        await tab.fill(`document.getElementById('w-eligibleCashUsd')`, '5000', 'The cash reserved', { commit: true });
+        await tab.expect(`${coverRow} === 'Cash-secured'`, async () => `with US$5,000 reserved the collateral check reads “${await tab.eval(coverRow) || 'nothing'}”`, 4000);
+        const beyond = await usd(1000);
+        if (!(await tab.text()).includes(`Fully secured, with ${beyond} beyond the obligation`)) throw new StepError(`the page does not say the put is fully secured with ${beyond} beyond the obligation`);
+      });
+      /* The specification's own fixture (§14), which the page says returns
+         38, 35 and 77; then one reading of the reader's own, which makes it
+         their evidence rather than the example. */
+      let regime = null;
+      await step(j, tab, 'Open the Trading Index', BUDGET.load, async () => {
+        await tab.goto('/research/trading-index');
+        await tab.expect(`State.view === 'tradingIndex' && !!document.getElementById('q-load-worked')`, async () => `/research/trading-index opened ${await tab.eval('State.view')}, not the Trading Index`);
+      });
+      const three = async () => [await fig(['Trend regime']), await fig(['First-tranche readiness']), await fig(['Screenshot confidence'])].map(x => x?.value ?? null);
+      await step(j, tab, 'Load the §14 worked example: it returns 38, 35 and 77', BUDGET.action, async () => {
+        await tab.click(`document.getElementById('q-load-worked')`, 'Load the §14 worked example');
+        await tab.expect(`(${FIGURE})(['Trend regime'])?.value === '38'`, async () => `the worked example's trend regime reads ${(await three())[0] ?? 'nothing'}, not 38`, 4000);
+        const got = await three();
+        if (got.join() !== '38,35,77') throw new StepError(`the worked example returns ${got.map(v => v ?? '—').join(', ')}, not 38, 35 and 77`);
+      });
+      await step(j, tab, 'Record a stronger daily price structure: the trend regime rises and the change is logged', BUDGET.action * 2, async () => {
+        const was = await tab.eval(`JSON.stringify(State.qtti.timeframes.daily.priceStructure)`);
+        if (was !== '{"state":"analyst","value":65}') throw new StepError(`the worked example's daily price structure is ${was}, not the analyst's 65`);
+        await tab.choose(`document.getElementById('q-daily-priceStructure')`, 'strong_bullish', 'The daily price structure');
+        await tab.expect(`Number((${FIGURE})(['Trend regime'])?.value) > 38`, async () => `a daily price structure raised from 65 to 100 left the trend regime at ${(await three())[0] ?? 'nothing'}`, 4000);
+        const r = await tab.eval(`(() => { const run = qttiRun(State.qtti); const log = State.qtti.corrections || [];
+          return { regime: run.regime, last: log[log.length - 1] || null, saved: JSON.stringify(store.read('qttiPlan', null)?.timeframes?.daily?.priceStructure || null) }; })()`);
+        regime = (await three())[0];
+        if (String(r.regime) !== regime) throw new StepError(`the page shows a trend regime of ${regime}, the index's own run ${r.regime}`);
+        if (!r.last || !/Daily/.test(r.last.field) || !/Price structure/.test(r.last.field) || !/65/.test(String(r.last.oldValue)) || !/100/.test(String(r.last.newValue))) throw new StepError(`the change is not logged as the daily price structure going from 65 to 100: ${JSON.stringify(r.last)}`);
+        if (r.saved !== '{"state":"strong_bullish","value":null}') throw new StepError(`the evidence kept in this browser reads ${r.saved}, not the strong bullish reading recorded`);
+      });
+      await step(j, tab, 'Open Apple’s company page', BUDGET.load, async () => {
+        await tab.goto('/company/aapl-apple-inc');
+        await tab.expect(`State.view === 'research' && /Apple/i.test(document.querySelector('main h1')?.textContent || '')`, 'the address did not open Apple’s company page');
+      });
+      const row = (id) => `document.querySelector('main li.rp-row[data-id=${JSON.stringify(id)}]')`;
+      const toReports = async () => {
+        await tab.goto('/my/reports');
+        await tab.expect(`State.view === 'reports' && !!document.getElementById('rp-records')`, async () => `/my/reports opened ${await tab.eval('State.view')}, not Reports`);
+      };
+      await step(j, tab, 'Reports lists the contract, the trend evidence and Apple', BUDGET.load, async () => {
+        await toReports();
+        const got = await tab.eval(`[${['wheel', 'tradingIndex', 'AAPL-SEC'].map(row).join(', ')}].map(li => li ? (li.querySelector('.rp-name')?.textContent || '') + ' | ' + (li.querySelector('.metaline')?.textContent || '') + ' | ' + [...li.querySelectorAll('.rp-acts a, .rp-acts button')].map(a => a.getAttribute('aria-label') || a.textContent.trim()).join(', ') : null)`);
+        const strike = await usd(40);
+        if (!got[0] || !got[0].startsWith('Unnamed contract — cash-secured put and covered call | ') || !got[0].includes(`Put strike ${strike}`) || !got[0].includes('Decision record — Cash Wheel contract'))
+          throw new StepError(`Reports lists the Cash Wheel's contract as “${got[0] || 'nothing'}”`);
+        const sym = await tab.eval(`State.qtti.symbol`);
+        if (!got[1] || !got[1].startsWith(`${sym} — trend evidence | `) || !got[1].includes(`Decision record — Trading Index, ${sym}`)) throw new StepError(`Reports lists the Trading Index evidence as “${got[1] || 'nothing'}”, with no decision record to open`);
+        if (!got[2] || !got[2].startsWith('Apple Inc. | ') || !got[2].includes('Research report — Apple Inc.')) throw new StepError(`Reports lists Apple as “${got[2] || 'nothing'}”, with no research report to open`);
+      });
+      await step(j, tab, 'The Cash Wheel’s decision record opens from Reports with the contract’s figures', BUDGET.load, async () => {
+        await tab.click(`document.getElementById('rp-rec-wheel')`, 'Decision record — Cash Wheel contract');
+        await tab.expect(`State.view === 'decisionRecord' && /^Unnamed contract — cash-secured put and covered call$/.test(document.querySelector('main .decision-record h1')?.textContent.trim() || '')`,
+          async () => `the Cash Wheel's decision record opened ${await tab.eval('location.pathname')} headed “${await tab.eval(`document.querySelector('main h1')?.textContent || ''`)}”`);
+        const figs = await tab.eval(`Object.fromEntries([...document.querySelectorAll('main .decision-record .dr-fig')].map(f => [f.querySelector('.caption')?.textContent.trim(), f.querySelector('.dr-fig-v')?.textContent.trim()]))`);
+        const want = { 'Cash to secure': await usd(4000), 'Premium received': await usd(124), 'Worst case at zero': await usd(3876) };
+        const off = Object.entries(want).filter(([k, v]) => figs[k] !== v).map(([k, v]) => `${k} ${figs[k] || 'missing'} (not ${v})`);
+        if (off.length) throw new StepError(`the record's figures are not the contract's: ${off.join('; ')}`);
+        if (!await tab.eval(`[...document.querySelectorAll('main .decision-record svg')].some(s => s.querySelectorAll('path, polyline, line').length)`)) throw new StepError('the record draws no payoff at expiry');
+      });
+      await step(j, tab, 'The Trading Index’s decision record opens from Reports with the evidence’s figures', BUDGET.load + BUDGET.action, async () => {
+        await toReports();
+        await tab.click(`document.getElementById('rp-rec-tradingIndex')`, 'Decision record — Trading Index');
+        const sym = await tab.eval(`State.qtti.symbol`);
+        await tab.expect(`State.view === 'decisionRecord' && (document.querySelector('main .decision-record h1')?.textContent.trim() || '') === ${JSON.stringify(`${sym} — trend evidence`)}`,
+          async () => `the Trading Index's decision record is headed “${await tab.eval(`document.querySelector('main h1')?.textContent || ''`)}”`);
+        const figs = await tab.eval(`Object.fromEntries([...document.querySelectorAll('main .decision-record .dr-fig')].map(f => [f.querySelector('.caption')?.textContent.trim(), f.querySelector('.dr-fig-v')?.textContent.trim()]))`);
+        if (figs['Trend regime'] !== regime || figs['Screenshot confidence'] !== '77' || !/^\d+$/.test(figs['First-tranche readiness'] || ''))
+          throw new StepError(`the record reads ${JSON.stringify(figs)}, not the trend regime ${regime} and the confidence 77 recorded`);
+      });
+      await step(j, tab, 'Apple’s research report opens from Reports', BUDGET.load + BUDGET.action, async () => {
+        await toReports();
+        await tab.click(`document.querySelector('main a[aria-label="Research report — Apple Inc."]')`, 'Research report — Apple Inc.');
+        await tab.expect(`State.view === 'researchReport' && /^\\/company\\/aapl[^/]*\\/report$/.test(location.pathname) && /Apple Inc\\./.test(document.querySelector('main h1')?.textContent || '')`,
+          async () => `the research report link opened ${await tab.eval('location.pathname')} (${await tab.eval('State.view')})`);
+      });
+    },
+  },
+  {
+    id: 'registers', name: 'Property registers: a comparable recorded, a locality shaded, a property listed',
+    outcomes: ['Record a transaction and a rent: each listed with what it rests on', 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow',
+      'Shade by achieved rent: the rent recorded for Tabuan shades it', 'Record a property: it is listed with what is known and what is not', 'It is still listed after a reload'],
+    async run(j, tab) {
+      const PLACE = 'Tabuan';
+      const REF = 'Journey check — tenancy agreement JC-1';
+      /* Two rows as a reader pastes them: a sale on a verified transaction,
+         sourced and not yet reviewed (Awaiting review), and an achieved rent
+         they supplied themselves (Sourced — you supplied). */
+      const CSV = ['city,area,propertyType,address,kind,value,date,evidence,sourceRef,sqft',
+        `kuching,${PLACE},Condominium,Journey check unit A,sold-price,480000,2026-09-15,verified,${REF},1100`,
+        `kuching,${PLACE},Condominium,Journey check unit B,let-rent,2100,2026-09-20,user,${REF},`].join('\n');
+      await step(j, tab, 'Open the comparables register: empty', BUDGET.load, async () => {
+        await tab.goto('/property/comparables');
+        await tab.expect(`State.view === 'comparables' && !!document.getElementById('register-import')`, async () => `/property/comparables opened ${await tab.eval('State.view')}, not the register`);
+        const n = await tab.eval(`(State.observations || []).length`);
+        if (n) throw new StepError(`a fresh browser's register holds ${n} records`);
+      });
+      await step(j, tab, 'Record a transaction and a rent: each listed with what it rests on', BUDGET.action * 4, async () => {
+        await tab.click(`document.getElementById('register-import')`, 'Import');
+        await tab.expect(`document.querySelector('#drawer')?.dataset.open === '1' && !!document.querySelector('#drawer textarea')`, 'Import opened nothing to paste into');
+        await tab.fill(`document.querySelector('#drawer textarea')`, CSV, 'The paste');
+        await tab.click(byText('#drawer button', '/^Check this paste$/'), 'Check this paste');
+        await tab.expect(`/\\b2 would be added\\./.test(document.querySelector('#drawer')?.innerText || '')`, async () => `the check says “${(await tab.text('#drawer')).replace(/\s+/g, ' ').slice(-200)}”, not that 2 would be added`, 4000);
+        await tab.click(byText('#drawer button', '/^Import 2 records$/'), 'Import 2 records');
+        await tab.expect(`(State.observations || []).length === 2 && document.querySelectorAll('main table.register-dt tbody tr').length === 2`, 'the two records are not listed in the register', 4000);
+        const rows = await tab.eval(`[...document.querySelectorAll('main table.register-dt tbody tr')].map(tr => [...tr.cells].slice(0, 10).map(td => td.textContent.replace(/\\s+/g, ' ').trim()))`);
+        const want = [
+          ['Awaiting review', 'Transacted price', '480,000', null, null, null, `${PLACE}, Kuching`, 'Journey check unit A', '2026-09-15', REF],
+          ['Sourced — you supplied', 'Achieved rent', '2,100 /month', '—', '—', null, `${PLACE}, Kuching`, 'Journey check unit B', '2026-09-20', REF],
+        ];
+        for (const w of want) {
+          const r = rows.find(x => x[1] === w[1]);
+          if (!r) throw new StepError(`the register lists no ${w[1].toLowerCase()} — it lists: ${rows.map(x => x[1]).join(', ')}`);
+          const off = w.map((v, i) => (v === null || r[i] === v ? null : `${['standing', 'what', 'amount', 'area', 'rate', 'ownership', 'where', 'address', 'date', 'source'][i]} “${r[i]}”, not “${v}”`)).filter(Boolean);
+          if (off.length) throw new StepError(`the ${w[1].toLowerCase()} is listed with ${off.join('; ')}`);
+        }
+        /* The sale's rate is its price over the floor area typed: RM480,000
+           over 1,100 sq ft. */
+        const sale = rows.find(x => x[1] === 'Transacted price');
+        const rate = await tab.eval(`fmtMoney(480000 / 1100, 'MYR', rateDp('sqft')) + '/' + areaUnit('sqft').short`);
+        if (sale[4] !== rate) throw new StepError(`the sale's rate reads “${sale[4]}”, not ${rate} (RM480,000 over 1,100 sq ft)`);
+      });
+      /* A locality's point on the map, as drawn: the marks on its own
+         centre (not the hit circle, not the count badge beside it). */
+      const point = (n) => tab.eval(`(() => { const g = document.querySelector('main svg[data-city="kuching"] g[data-area=${JSON.stringify(n)}]'); if (!g) return null;
+        const cs = [...g.querySelectorAll('circle')], hit = cs[0];
+        const marks = cs.slice(1).filter(c => c.getAttribute('cx') === hit.getAttribute('cx') && c.getAttribute('cy') === hit.getAttribute('cy'));
+        return { label: g.getAttribute('aria-label') || '', filled: marks.some(c => !['none', 'transparent'].includes(c.getAttribute('fill'))),
+          hollow: marks.some(c => c.getAttribute('fill') === 'none' && c.getAttribute('stroke-dasharray') === '3 2') }; })()`);
+      const OTHER = 'City centre';
+      await step(j, tab, 'Open the area screen: Kuching’s localities, each unrecorded one hollow', BUDGET.load, async () => {
+        await tab.goto('/property/areas');
+        await tab.expect(`State.view === 'areas' && !!document.querySelector('main svg[data-city="kuching"] g[data-area=${JSON.stringify(PLACE)}]')`,
+          async () => `the area screen draws no map of Kuching with ${PLACE} on it (${await tab.eval(`geoLoadState`)})`);
+        for (const n of [PLACE, OTHER]) {
+          const p = await point(n);
+          if (!p?.hollow || p.filled || !/Flood exposure: not recorded/.test(p.label)) throw new StepError(`with nothing recorded, ${n}'s point is ${p ? (p.filled ? 'shaded' : 'not drawn hollow') : 'not drawn'} (“${p?.label.slice(0, 90) || ''}”)`);
+        }
+      });
+      await step(j, tab, 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow', BUDGET.action * 4, async () => {
+        await tab.click(`document.getElementById('area-rec-${PLACE}')`, `Record — ${PLACE}`);
+        await tab.expect(`!!document.getElementById('ar-flood') && !!document.getElementById('ar-flood-save')`, `Record opened no recorder for ${PLACE}`);
+        await tab.choose(`document.getElementById('ar-flood')`, 'occasional', 'The flood classification');
+        await tab.choose(`document.getElementById('ar-flood-src')`, 'council', 'Where it was established');
+        await tab.fill(`document.getElementById('ar-flood-ref')`, 'Journey check — council flood record', 'The reference');
+        await tab.click(`document.getElementById('ar-flood-save')`, 'Save — flood exposure');
+        await tab.expect(`/^Flood recorded for ${PLACE}/.test(document.getElementById('toast')?.textContent || '')`, async () => `Save said “${await tab.eval(`document.getElementById('toast')?.textContent || 'nothing'`)}”`, 4000);
+        await tab.expect(`(() => { const g = document.querySelector('main svg[data-city="kuching"] g[data-area=${JSON.stringify(PLACE)}]'); return !!g && /Flood exposure: Occasional/.test(g.getAttribute('aria-label') || ''); })()`,
+          async () => `${PLACE}'s point is labelled “${(await point(PLACE))?.label.slice(0, 120) || 'nothing'}” after its flood exposure was saved`, 4000);
+        const p = await point(PLACE), o = await point(OTHER);
+        if (!p.filled || p.hollow) throw new StepError(`${PLACE}, recorded, is not shaded on the map`);
+        if (!o?.hollow || o.filled) throw new StepError(`${OTHER}, with nothing recorded, is ${o?.filled ? 'shaded' : 'not drawn hollow'} beside it`);
+        const cell = await tab.eval(`(() => { const tr = [...document.querySelectorAll('main table.dt tbody tr')].find(r => r.querySelector('th')?.textContent.trim() === ${JSON.stringify(PLACE)}); return tr?.cells[1]?.textContent.trim() || null; })()`);
+        if (cell !== 'Occasional') throw new StepError(`the table's flood cell for ${PLACE} reads “${cell || 'nothing'}”, not Occasional`);
+      });
+      await step(j, tab, 'Shade by achieved rent: the rent recorded for Tabuan shades it', BUDGET.action, async () => {
+        await tab.click(`document.getElementById('af-layer-achievedRent')`, 'Shade by — Achieved rent');
+        const rent = await tab.eval(`fmtMoney(2100, 'MYR', 0)`);
+        await tab.expect(`(() => { const g = document.querySelector('main svg[data-city="kuching"] g[data-area=${JSON.stringify(PLACE)}]'); return !!g && (g.getAttribute('aria-label') || '').includes(${JSON.stringify(`Achieved rent, median: ${rent}`)}); })()`,
+          async () => `shaded by achieved rent, ${PLACE}'s point is labelled “${(await point(PLACE))?.label.slice(0, 120) || 'nothing'}”, not its recorded ${rent}`, 4000);
+        const p = await point(PLACE), o = await point(OTHER);
+        if (!p.filled) throw new StepError(`the rent recorded for ${PLACE} does not shade it`);
+        if (!o?.hollow || o.filled) throw new StepError(`${OTHER}, with no rent recorded, is not drawn hollow`);
+      });
+      const NAME = `Journey check ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+      const card = `document.getElementById('opp-0-name')?.closest('.card')`;
+      const readCard = () => tab.eval(`(() => { const c = ${card}; if (!c) return null;
+        return { name: document.getElementById('opp-0-name').textContent.trim(), where: c.querySelector('.metaline')?.textContent.trim(),
+          chips: [...c.querySelectorAll('.chip')].map(x => x.textContent.trim()),
+          kv: Object.fromEntries([...c.querySelectorAll('dl.kv dt')].map(dt => [dt.textContent.trim(), dt.nextElementSibling?.textContent.trim()])) }; })()`);
+      await step(j, tab, 'Open the opportunity register: empty', BUDGET.load, async () => {
+        await tab.goto('/property/opportunities');
+        await tab.expect(`State.view === 'opportunities' && !!document.getElementById('opp-empty') && !!document.getElementById('opp-add')`, async () => `/property/opportunities opened ${await tab.eval('State.view')}, not an empty register`);
+      });
+      await step(j, tab, 'Record a property: it is listed with what is known and what is not', BUDGET.action * 4, async () => {
+        await tab.fill(`document.getElementById('opp-new-name')`, NAME, 'Project or address');
+        await tab.choose(`document.getElementById('opp-new-city')`, 'kuching', 'City');
+        await tab.choose(`document.getElementById('opp-new-district')`, PLACE, 'Area or district');
+        await tab.choose(`document.getElementById('opp-new-type')`, 'Condominium', 'Property type');
+        await tab.fill(`document.getElementById('opp-new-askingPrice')`, '450000', 'Asking price');
+        await tab.fill(`document.getElementById('opp-new-sqft')`, '1100', 'Built-up area');
+        await tab.fill(`document.getElementById('opp-new-source')`, 'Journey check — agent call', 'Where you found it');
+        await tab.click(`document.getElementById('opp-add')`, 'Add to register');
+        await tab.expect(`(document.getElementById('opp-0-name')?.textContent || '').trim() === ${JSON.stringify(NAME)}`, `“${NAME}” is not listed in the register`, 4000);
+        const c = await readCard();
+        const day = await tab.eval(`State.opportunities[0]?.capturedAt || ''`);
+        const asking = await tab.eval(`fmtAmount(450000, 'MYR')`);
+        const want = { where: `Kuching · ${PLACE} · Condominium`, chips: ['Captured', 'Availability never checked', `Recorded ${day}`],
+          kv: { 'Asking price': asking, 'Your negotiated price': 'none', 'Bank valuation': 'not obtained', 'Registered valuer': 'not obtained' } };
+        if (c.where !== want.where) throw new StepError(`the property is placed “${c.where}”, not “${want.where}”`);
+        const noChip = want.chips.filter(x => !c.chips.includes(x));
+        if (noChip.length || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new StepError(`the property's card does not say ${noChip.join(', ')} (it says ${c.chips.join(', ')})`);
+        const off = Object.entries(want.kv).filter(([k, v]) => c.kv[k] !== v).map(([k, v]) => `${k} “${c.kv[k] ?? 'missing'}”, not “${v}”`);
+        if (off.length) throw new StepError(`what is known and not known reads: ${off.join('; ')}`);
+      });
+      await step(j, tab, 'It is still listed after a reload', BUDGET.load, async () => {
+        await tab.goto('/property/opportunities');
+        const c = await readCard();
+        if (c?.name !== NAME) throw new StepError(`after a reload the register lists ${c ? `“${c.name}”` : 'nothing'}, not “${NAME}”`);
+      });
+    },
+  },
+  {
+    id: 'cases', name: 'Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed',
+    /* From an empty workspace of the reader's own: no sample case, alert,
+       portfolio or list (a fresh browser is given samples, and a sample is
+       not the reader's work). Tenaga, of the illustrative set, carries a
+       sample price on every site, so its case can be checked against a
+       price and a threshold crossed. */
+    storage: () => ({ theses: [], priceAlerts: [], portfolios: [{ id: 'pf-user', name: 'My portfolio', cash: 0, cashCcy: 'MYR', holdings: [] }],
+      watchlists: [{ id: 'wl-journey', name: 'Journey list', ids: [], added: {}, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), schema: 2 }], wlActive: 'wl-journey' }),
+    outcomes: ['Start a case: it is listed, its condition checked against the latest data held', 'Write the case in a sentence: kept after a reload',
+      'My Alerts lists the case’s breached condition as research, with its source period', 'Set a price threshold: crossed, and listed with its source once price moves are shown',
+      'Add a holding: listed, its price return worked from its cost, its case marked written'],
+    async run(j, tab) {
+      const CO = 'TENAGA';
+      let breached = null, thesisId = null;
+      await step(j, tab, 'Open Tenaga’s investment case tab', BUDGET.load, async () => {
+        await tab.goto('/research');
+        const path = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}) ? companyPath(BY_ID.get(${JSON.stringify(CO)}).c) : null`);
+        if (!path) throw new StepError(`${CO} is not among the companies loaded`);
+        await tab.goto(`${path}?tab=thesis`);
+        await tab.expect(`State.view === 'research' && State.ticker === ${JSON.stringify(CO)} && !!(${byText('main button', '/^Start a thesis$/')})`, async () => `${path}?tab=thesis opened ${await tab.eval('State.view')} with no “Start a thesis”`);
+      });
+      const condRow = `(() => { const tr = [...document.querySelectorAll('main table.dt tbody tr')].find(r => /base-case model estimate/.test(r.cells[0]?.textContent || '')); return tr ? [...tr.cells].map(td => td.textContent.replace(/\\s+/g, ' ').trim()) : null; })()`;
+      await step(j, tab, 'Start a case: it is listed, its condition checked against the latest data held', BUDGET.action * 2, async () => {
+        await tab.click(byText('main button', '/^Start a thesis$/'), 'Start a thesis');
+        await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && [...document.querySelectorAll('main h3.h-card')].some(h => h.textContent.trim() === ${JSON.stringify(CO)})`, `“Start a thesis” did not list a case on ${CO} under My investment cases`);
+        thesisId = await tab.eval(`State.theses.find(t => t.ticker === ${JSON.stringify(CO)})?.id || null`);
+        const r = await tab.eval(condRow);
+        if (!r) throw new StepError('the case lists no condition to check');
+        /* The condition is "more than 15% above the base-case estimate": its
+           current value, as the page states it, decides the state the page
+           must give — breached above 15, not breached at or below. */
+        const m = /^([+−-]?\d+(?:\.\d+)?)%$/.exec(r[2].replace('−', '-'));
+        if (!m) throw new StepError(`the condition's current value reads “${r[2]}” — Tenaga carries a sample price, so it can be checked`);
+        breached = Number(m[1]) > 15;
+        if (r[1] !== '> 15.0%') throw new StepError(`the condition's threshold reads “${r[1]}”, not “> 15.0%”`);
+        if (breached ? r[4] !== 'Breached' : !['Approaching threshold', 'Within threshold', 'Data stale'].includes(r[4])) throw new StepError(`at ${r[2]} against a threshold of more than 15% the condition reads “${r[4]}”`);
+        const tile = await figureValue(tab, 'Conditions breached');
+        if (tile !== (breached ? '1' : '0')) throw new StepError(`the Conditions breached tile reads ${tile}, with the condition ${breached ? '' : 'not '}breached`);
+      });
+      const CASE = 'Journey check: a regulated utility whose returns follow the tariff it is allowed.';
+      await step(j, tab, 'Write the case in a sentence: kept after a reload', BUDGET.load + BUDGET.action * 2, async () => {
+        await tab.click(`document.getElementById(${JSON.stringify(`thesis-edit-${thesisId}`)})`, 'Edit');
+        await tab.expect(`document.querySelector('#drawer')?.dataset.open === '1' && !!document.getElementById('th-oneLine')`, 'Edit opened no editor');
+        await tab.fill(`document.getElementById('th-oneLine')`, CASE, 'The one-sentence investment case');
+        await tab.click(byText('#drawer button', '/^Save$/'), 'Save');
+        await tab.expect(`/^Thesis saved/.test(document.getElementById('toast')?.textContent || '') && (document.querySelector('main')?.innerText || '').includes(${JSON.stringify(CASE)})`, 'Save did not show the case on its card', 4000);
+        await tab.goto('/my/theses');
+        if (!(await tab.text()).includes(CASE)) throw new StepError('after a reload the case no longer reads as written');
+      });
+      /* A research alert, by a test of its title. */
+      const item = (test) => `[...document.querySelectorAll('#al-research .noteitem')].map(n => ({ title: n.querySelector('.row > span:first-child')?.textContent.trim() || '', chip: n.querySelector('.row .chip')?.textContent.trim() || '', text: n.innerText.replace(/\\s+/g, ' ') })).find(x => (${test})(x.title)) || null`;
+      await step(j, tab, 'My Alerts lists the case’s breached condition as research, with its source period', BUDGET.load, async () => {
+        await tab.goto('/my/alerts');
+        await tab.expect(`State.view === 'alerts' && !!document.getElementById('al-research')`, async () => `/my/alerts opened ${await tab.eval('State.view')}`);
+        const it = await tab.eval(item(`t => /^${CO}\\b.* — thesis condition breached$/.test(t)`));
+        if (!breached) { if (it) throw new StepError('My Alerts lists a breach of a condition the case shows as not breached'); return; }
+        if (!it) throw new StepError(`My Alerts lists no research alert for the breached condition on ${CO}`);
+        if (it.chip !== 'Thesis condition') throw new StepError(`the breach is labelled “${it.chip}”, not as a thesis condition`);
+        if (!/FY\d{4} reported · /.test(it.text) || !/against your threshold of > 15\.0%/.test(it.text)) throw new StepError(`the breach does not give its source period and the threshold: ${it.text.slice(0, 200)}`);
+      });
+      await step(j, tab, 'Set a price threshold: crossed, and listed with its source once price moves are shown', BUDGET.action * 4, async () => {
+        const add = `(() => { const h = [...document.querySelectorAll('main .card-hd h3, main .card-hd .h-card')].find(n => /^Price alerts — /.test(n.textContent.trim())); return h ? [...h.closest('.card').querySelectorAll('button')].find(b => /Add$/.test(b.textContent.trim())) : null; })()`;
+        await tab.click(add, 'Price alerts — Add');
+        await tab.expect(`document.querySelector('#drawer')?.dataset.open === '1' && !!document.getElementById('pa-co')`, 'Add opened no price alert');
+        await tab.choose(`document.getElementById('pa-co')`, CO, 'The company');
+        await tab.choose(`document.getElementById('pa-op')`, '>', 'Trigger when the price is');
+        await tab.fill(`document.getElementById('pa-price')`, '7', 'The price', { commit: true });
+        await tab.click(byText('#drawer button', '/^Add alert$/'), 'Add alert');
+        await tab.expect(`/^Price alert set/.test(document.getElementById('toast')?.textContent || '')`, async () => `Add alert said “${await tab.eval(`document.getElementById('toast')?.textContent || 'nothing'`)}”`, 4000);
+        const px = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}).c.px.p`);
+        if (!(px > 7)) throw new StepError(`${CO}'s sample price is ${px}, not above the RM7 threshold`);
+        const rowSaid = await tab.eval(`(() => { const h = [...document.querySelectorAll('main .card-hd h3, main .card-hd .h-card')].find(n => /^Price alerts — /.test(n.textContent.trim()));
+          const r = h ? [...h.closest('.card').querySelectorAll('.row')].find(x => x.textContent.includes(${JSON.stringify(CO)})) : null; return r ? r.innerText.replace(/\\s+/g, ' ') : null; })()`);
+        const at = await tab.eval(`fmtMoney(7, 'MYR')`);
+        if (!rowSaid || !rowSaid.includes(`> ${at}`) || !rowSaid.includes('Crossed · Price move is off')) throw new StepError(`the alert is listed as “${rowSaid || 'nothing'}”, not crossed above ${at} with price moves off`);
+        if (await tab.eval(item(`t => / is above /.test(t)`))) throw new StepError('with price moves switched off, the research feed lists the crossed threshold');
+        await tab.click(`document.getElementById('ak-on-price')`, 'Alert types — Price move');
+        const title = `${CO}${await tab.eval(`illusText(BY_ID.get(${JSON.stringify(CO)}).c)`)} is above ${at}`;
+        await tab.expect(`!!(${item(`t => t === ${JSON.stringify(title)}`)})`, `with price moves shown, the research feed does not list “${title}”`, 4000);
+        const it = await tab.eval(item(`t => t === ${JSON.stringify(title)}`));
+        const now = await tab.eval(`fmtMoney(${px}, 'MYR')`);
+        if (it.chip !== 'Price move' || !it.text.includes(`Now ${now}.`) || !/ · threshold set by you/.test(it.text)) throw new StepError(`the crossed threshold is listed as “${it.text.slice(0, 220)}”`);
+      });
+      await step(j, tab, 'Scanner matches: the page says the scanner’s record cannot be seen here', BUDGET.action, async () => {
+        const said = await tab.eval(`[document.getElementById('al-scanner')?.innerText || '', document.getElementById('al-kind-scanner')?.textContent || '']`);
+        if (!said[0].includes('The scanner’s record cannot be seen from here') || !/no record here/.test(said[1])) throw new StepError(`with no scanner record here the page says “${said[0].replace(/\s+/g, ' ').slice(0, 160)}”`);
+      }, { gated: 'no scanner record ships' });
+      await step(j, tab, 'Add a holding: listed, its price return worked from its cost, its case marked written', BUDGET.load + BUDGET.action * 3, async () => {
+        await tab.goto('/my/portfolio');
+        await tab.expect(`State.view === 'portfolio' && /This portfolio is empty/.test(document.querySelector('main')?.innerText || '')`, 'the reader’s own portfolio does not start empty');
+        await tab.click(byText('main button', '/Add holding$/'), 'Add holding');
+        await tab.expect(`document.querySelector('#drawer')?.dataset.open === '1' && !!document.getElementById('hd-co')`, 'Add holding opened nothing');
+        await tab.choose(`document.getElementById('hd-co')`, CO, 'The company');
+        await tab.fill(`document.getElementById('hd-qty')`, '100', 'The quantity', { commit: true });
+        await tab.fill(`document.getElementById('hd-cost')`, '12', 'The cost per share', { commit: true });
+        await tab.click(byText('#drawer button', '/^Add holding$/'), 'Add holding — in the drawer');
+        await tab.expect(`/^Holding added/.test(document.getElementById('toast')?.textContent || '')`, async () => `Add holding said “${await tab.eval(`document.getElementById('toast')?.textContent || 'nothing'`)}”`, 4000);
+        const r = await tab.eval(`(() => { const tr = [...document.querySelectorAll('main table.dt tbody tr')].find(x => x.cells[0]?.textContent.includes(${JSON.stringify(CO)})); return tr ? [...tr.cells].map(td => td.textContent.replace(/\\s+/g, ' ').trim()) : null; })()`);
+        if (!r) throw new StepError(`the holdings list no ${CO}`);
+        /* Bought at RM12 a share, priced at the sample close: the price
+           return is (close − 12) ÷ 12, and 100 shares are worth 100 × close. */
+        const px = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}).c.px.p`);
+        const ret = await tab.eval(`withSign(${(px - 12) / 12 * 100}, 1)`);
+        if (r[1] !== '100') throw new StepError(`the holding's quantity reads “${r[1]}”, not 100`);
+        if (r[4] !== ret) throw new StepError(`bought at RM12 and priced at RM${px}, the price return reads “${r[4]}”, not ${ret}`);
+        if (r[5] !== 'same currency') throw new StepError(`a ringgit holding in a ringgit portfolio shows a currency effect of “${r[5]}”`);
+        if (r[10] !== 'Written') throw new StepError(`the holding's thesis column reads “${r[10]}”, with the case on ${CO} written`);
+        const value = await figureValue(tab, 'Portfolio value'), want = await tab.eval(`fmtAmount(${100 * px}, 'MYR')`);
+        if (value !== want) throw new StepError(`the portfolio value reads ${value}, not ${want} (100 shares at RM${px})`);
+      });
+    },
+  },
+  {
+    id: 'settings', name: 'Your data and settings: closes pasted, listed and exported; scanner settings kept',
+    outcomes: ['Paste closes: read, and listed once the page reloads', 'Export: the prices, and everything you have made, carry the closes',
+      'Change three scanner settings: each holds after a reload'],
+    async run(j, tab) {
+      const SYM = '1155';
+      const CLOSES = [['2026-09-29', 10.8], ['2026-09-30', 10.84], ['2026-10-01', 10.9], ['2026-10-02', 10.88], ['2026-10-05', 10.92]];
+      const same = (series) => !!series && Object.keys(series).length === CLOSES.length && CLOSES.every(([d, v]) => series[d] === v);
+      await step(j, tab, 'Open Your data & settings', BUDGET.load, async () => {
+        await tab.goto('/my/data');
+        await tab.expect(`State.view === 'userdata' && !!document.querySelector('main textarea[aria-label="Paste closes"]')`, async () => `/my/data opened ${await tab.eval('State.view')}, with nowhere to paste closes`);
+      });
+      await step(j, tab, 'Paste closes: read, and listed once the page reloads', BUDGET.load + BUDGET.action * 3, async () => {
+        await tab.fill(`document.getElementById('ud-sym')`, SYM, 'The symbol');
+        await tab.fill(`document.querySelector('main textarea[aria-label="Paste closes"]')`, CLOSES.map(([d, v]) => `${d},${v}`).join('\n'), 'The closes');
+        await tab.click(byText('main button', '/^Read what I pasted$/'), 'Read what I pasted');
+        await tab.expect(`/\\b5 closes read across 1 symbol\\./.test(document.querySelector('main')?.innerText || '')`, 'the page does not say it read 5 closes for 1 symbol', 4000);
+        await tab.eval('window.__journeyMark = 1');
+        await tab.click(byText('main button', '/^Reload to apply$/'), 'Reload to apply');
+        await tab.expect(`!window.__journeyMark && document.readyState === 'complete' && typeof State !== 'undefined' && State.view === 'userdata' && typeof realPending !== 'undefined' && !realPending`, 'the page did not come back after “Reload to apply”', 30000);
+        const row = await tab.eval(`(() => { const tr = [...document.querySelectorAll('main table.dt tbody tr')].find(r => r.cells[0]?.textContent.trim() === ${JSON.stringify(SYM)}); return tr ? [...tr.cells].slice(0, 5).map(td => td.textContent.trim()) : null; })()`);
+        if (!row) throw new StepError(`after the reload, “Loaded now” lists no ${SYM}`);
+        const name = await tab.eval(`(instruments?.instruments || []).find(x => x.symbol === ${JSON.stringify(SYM)})?.name || 'not in the instrument registry'`);
+        const want = [SYM, name, '5', CLOSES[0][0], CLOSES[CLOSES.length - 1][0]];
+        if (row.join(' | ') !== want.join(' | ')) throw new StepError(`“Loaded now” lists ${row.join(' | ')}, not ${want.join(' | ')}`);
+      });
+      await step(j, tab, 'Export: the prices, and everything you have made, carry the closes', BUDGET.action * 3, async () => {
+        await tab.keepDownloads();
+        let n = await tab.downloads();
+        await tab.click(byText('main button', '/^Export these prices$/'), 'Export these prices');
+        await tab.expect(`(window.__journeyBlobs || []).length > ${n}`, '“Export these prices” handed over no file', 4000);
+        let doc = null;
+        try { doc = JSON.parse(await tab.lastDownload(n)); } catch { /* said below */ }
+        if (!same(doc?.series?.[SYM])) throw new StepError(`the exported prices carry ${JSON.stringify(doc?.series?.[SYM] ?? null).slice(0, 160)}, not the 5 closes pasted`);
+        const held = await tab.eval(`(() => { const dt = [...document.querySelectorAll('main dl.kv dt')].find(d => d.textContent.trim() === 'Price series you pasted'); return dt?.nextElementSibling?.textContent.trim() || null; })()`);
+        if (held !== 'saved') throw new StepError(`“Everything you have made” lists the pasted series as ${held ? `“${held}”` : 'nothing'}`);
+        n = await tab.downloads();
+        await tab.click(byText('main button', '/^Export everything$/'), 'Export everything');
+        await tab.expect(`(window.__journeyBlobs || []).length > ${n}`, '“Export everything” handed over no file', 4000);
+        doc = null;
+        try { doc = JSON.parse(await tab.lastDownload(n)); } catch { /* said below */ }
+        if (doc?.format !== 'quantum-tradeworks/user-data' || !same(doc?.data?.userData?.series?.[SYM])) throw new StepError(`“Export everything” is ${doc ? `a ${doc.format} file whose pasted series are ${JSON.stringify(doc.data?.userData?.series ?? null).slice(0, 120)}` : 'not a JSON file'}`);
+      });
+      const sel = (label) => `document.querySelector(${JSON.stringify(`main select[aria-label="${label}"]`)})`;
+      const box = `document.querySelector('main input[type=checkbox][aria-label="Show the unread count in the navigation"]')`;
+      const read = () => tab.eval(`({ page: (${sel('Alerts per page')})?.value, precision: (${sel('Recorded values')})?.value, count: (${box})?.checked, kept: scanPrefsRead() })`);
+      await step(j, tab, 'Open the scanner’s settings', BUDGET.load, async () => {
+        await tab.goto('/app/scanner/settings');
+        await tab.expect(`State.view === 'scannerSettings' && !!(${sel('Alerts per page')}) && !!(${box})`, async () => `/app/scanner/settings opened ${await tab.eval('State.view')}, without its settings`);
+        const r = await read();
+        if (r.page === '100' || r.precision === 'rounded' || r.count === false) throw new StepError(`a fresh browser's settings already read ${JSON.stringify(r)}`);
+      });
+      await step(j, tab, 'Change three scanner settings: each holds after a reload', BUDGET.load + BUDGET.action * 3, async () => {
+        await tab.choose(sel('Alerts per page'), '100', 'Alerts per page');
+        await tab.expect(`/^Saved in this browser/.test(document.getElementById('toast')?.textContent || '')`, 'changing a setting did not say it was saved', 4000);
+        await tab.choose(sel('Recorded values'), 'rounded', 'Recorded values');
+        await tab.click(box, 'Show the unread count in the navigation');
+        await tab.expect(`(${box})?.checked === false`, 'the unread count could not be switched off');
+        await tab.goto('/app/scanner/settings');
+        const r = await read();
+        if (r.page !== '100' || r.precision !== 'rounded' || r.count !== false) throw new StepError(`after a reload the settings read ${r.page} alerts a page, ${r.precision} values and the unread count ${r.count ? 'on' : 'off'} — not 100, rounded and off`);
+        if (r.kept.pageSize !== 100 || r.kept.precision !== 'rounded' || r.kept.inApp !== false) throw new StepError(`this browser keeps ${JSON.stringify(r.kept)}, not the three settings changed`);
+      });
+    },
+  },
+  {
+    /* THE SCANNER'S EXAMPLE, REPLAYED (the 9 Oct audit, item 4). The replay
+       bar moved by the keyboard and by its value, and at each bar every
+       figure the page shows — the close, the 50-bar EMA, the volume against
+       one and a half times its 20-bar average, the 14-bar RSI — held to the
+       generated series' own values, worked out here from the series'
+       definition (scanFixture, 24-market-engine.js: sixty closes of
+       100 + 1.5 sin(i/3) on 1,000 shares, five of 97.5 − 0.3i, then 104.5 on
+       2,200) by the textbook formulas — an EMA seeded with the mean of its
+       first fifty closes, Wilder's RSI, a 20-bar mean volume that includes
+       the bar — not read from the engine that draws them. Bar 66 is the
+       one bar the rule holds on; bar 65 the one before it, where nothing
+       does. Nothing about the replay's prominence or its words is changed
+       or judged here. */
+    id: 'replay', name: 'Scanner example: its replay, bar by bar, against the generated series',
+    outcomes: ['Replay to bar 65 by the keyboard: Held becomes Not held, each figure the series’', 'Replay to bar 66 again: Not held becomes Held',
+      'Replay to bars 60, 20 and 14: each condition reads what the series allows', 'The how-it-works example replays the same'],
+    async run(j, tab) {
+      const FIX = REPLAY_BARS;
+      const WORD = { MET: 'Held', NOT_MET: 'Not held', UNAVAILABLE: 'Unavailable' };
+      const shown = (f) => tab.eval(`(() => { const f = document.querySelector(${JSON.stringify(f)}); if (!f) return null;
+        return { bar: f.querySelector('.scan-ex-verdict .num')?.textContent.trim(), value: f.querySelector('input[type=range]')?.value,
+          verdict: [f.querySelector('.scan-ex-v')?.dataset.state, f.querySelector('.scan-ex-v')?.textContent.trim()],
+          points: f.querySelector('path.scan-ex-close')?.getAttribute('data-points'),
+          conds: [...f.querySelectorAll('li.scan-ex-c')].map(li => ({ state: li.dataset.state, word: li.querySelector('.scan-ex-s')?.textContent.trim(), text: li.querySelector('.scan-ex-x')?.textContent.trim(),
+            left: JSON.parse(li.dataset.left || 'null'), right: JSON.parse(li.dataset.right || 'null') })) }; })()`);
+      /* The bar shown, held to the series: the bar, the verdict, the chart
+         drawn to that bar and no further, and each condition's state, word,
+         sentence and two values (to the four places the sentence prints
+         for prices, two for volume and the RSI). */
+      const holds = async (f, bar) => {
+        const s = await shown(f), want = FIX[bar];
+        if (!s) throw new StepError(`${f} is not on the page`);
+        const bad = [];
+        if (s.bar !== String(bar) || s.value !== String(bar)) bad.push(`it says bar ${s.bar} with the slider at ${s.value}`);
+        if (s.verdict[0] !== want.state || s.verdict[1] !== WORD[want.state]) bad.push(`the rule reads “${s.verdict[1]}” (${s.verdict[0]}), not “${WORD[want.state]}”`);
+        if (s.points !== String(bar)) bad.push(`the chart is drawn to ${s.points} bars`);
+        if (s.conds.length !== 3) bad.push(`${s.conds.length} conditions are shown, not 3`);
+        want.conds.forEach(([st, text, left, right], i) => {
+          const c = s.conds[i];
+          if (!c) return;
+          if (c.state !== st || c.word !== WORD[st]) bad.push(`condition ${i + 1} reads “${c.word}” (${c.state}), not “${WORD[st]}”`);
+          if (c.text !== text) bad.push(`condition ${i + 1} says “${c.text}”, where the series gives “${text}”`);
+          const tol = i === 0 ? 5e-5 : 5e-3;
+          if (left === null ? c.left !== null : !(Math.abs(c.left - left) <= tol)) bad.push(`condition ${i + 1} holds the value ${c.left}, the series ${left}`);
+          if (i < 2 && (right === null ? c.right !== null : !(Math.abs(c.right - right) <= tol))) bad.push(`condition ${i + 1} holds ${c.right} against it, the series ${right}`);
+          if (i === 2 && left !== null && JSON.stringify(c.right) !== '[50,70]') bad.push(`the RSI's range is ${JSON.stringify(c.right)}, not 50 to 70`);
+        });
+        if (bad.length) throw new StepError(`at bar ${bar}: ${bad.join('; ')}`);
+      };
+      const FIG = 'main figure.scan-ex';
+      const slider = (f) => `document.querySelector(${JSON.stringify(`${f} input[type=range]`)})`;
+      const setBar = (f, bar) => tab.eval(`(() => { const r = ${slider(f)}; r.value = '${bar}'; r.dispatchEvent(new Event('input', { bubbles: true })); return r.value; })()`);
+      await step(j, tab, 'Open the Scanner: its example at bar 66', BUDGET.load, async () => {
+        await tab.goto('/app/scanner');
+        await tab.expect(`!!document.querySelector(${JSON.stringify(`${FIG} input[type=range]`)})`, 'the Scanner shows no example with a replay bar');
+        await holds(FIG, 66);
+      });
+      await step(j, tab, 'Replay to bar 65 by the keyboard: Held becomes Not held, each figure the series’', BUDGET.action, async () => {
+        await tab.click(slider(FIG), 'The replay bar');
+        await tab.eval(`${slider(FIG)}.focus()`);
+        await tab.key('End');
+        await tab.expect(`${slider(FIG)}.value === '66'`, 'End did not take the replay to bar 66', 2000);
+        await holds(FIG, 66);
+        await tab.key('ArrowLeft');
+        await tab.expect(`${slider(FIG)}.value === '65'`, async () => `one step back the replay is at bar ${await tab.eval(`${slider(FIG)}.value`)}, not 65`, 2000);
+        await holds(FIG, 65);
+      });
+      await step(j, tab, 'Replay to bar 66 again: Not held becomes Held', BUDGET.action, async () => {
+        await tab.key('ArrowRight');
+        await tab.expect(`${slider(FIG)}.value === '66'`, 'one step on, the replay is not at bar 66', 2000);
+        await holds(FIG, 66);
+      });
+      await step(j, tab, 'Replay to bars 60, 20 and 14: each condition reads what the series allows', BUDGET.action, async () => {
+        for (const bar of [60, 20, 14]) { await setBar(FIG, bar); await holds(FIG, bar); }
+        await setBar(FIG, 66);
+        await holds(FIG, 66);
+      });
+      await step(j, tab, 'The how-it-works example replays the same', BUDGET.load + BUDGET.action, async () => {
+        const HIW = 'main figure#hiw-scan-ex';
+        await tab.goto('/how-it-works');
+        await tab.expect(`!!document.querySelector(${JSON.stringify(`${HIW} input[type=range]`)})`, '/how-it-works shows no example with a replay bar');
+        await holds(HIW, 66);
+        await tab.click(slider(HIW), 'The replay bar');
+        await tab.eval(`${slider(HIW)}.focus()`);
+        await tab.key('End');
+        await tab.key('ArrowLeft');
+        await tab.expect(`${slider(HIW)}.value === '65'`, 'the how-it-works replay did not step back to bar 65', 2000);
+        await holds(HIW, 65);
       });
     },
   },
