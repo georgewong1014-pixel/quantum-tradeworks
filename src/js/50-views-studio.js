@@ -2574,7 +2574,9 @@ VIEWS.portfolio = () => {
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
-    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${v / totalVal * 100}%;background:var(${SERIES[i % 8]})`, title: k })));
+    /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
+       is pre-rendered, and a served page must match its render on Linux and Windows. */
+    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: k })));
     card.append(bar);
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
@@ -2778,7 +2780,7 @@ VIEWS.portfolio = () => {
 
     const bar2 = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     const parts = [['Equities', securities, '--s1'], ['Cash', cashBase, '--s3'], ['Property equity', propEquity, '--s2']];
-    parts.forEach(([, v, cvar]) => bar2.append(el('i', { style: `width:${netWorth ? v / netWorth * 100 : 0}%;background:var(${cvar})` })));
+    parts.forEach(([, v, cvar]) => bar2.append(el('i', { style: `width:${netWorth ? Math.round(v / netWorth * 100 * 1e4) / 1e4 : 0}%;background:var(${cvar})` })));
     xa.append(bar2);
     const pl2 = el('div');
     parts.forEach(([label, v, cvar]) => pl2.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [

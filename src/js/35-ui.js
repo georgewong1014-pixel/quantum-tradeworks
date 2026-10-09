@@ -2877,8 +2877,16 @@ const SERVED_READ = {
   proposalDetails: () => store.read('proposalDetails', null),
   startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
 };
+/* Whether this browser keeps a key at all ('kept.deal'), where a page lists
+   what is kept rather than drawing from it: /my/data writes a row for each
+   key it finds kept ("Property deal inputs — a sample — not yours"), and a
+   fresh visitor keeps no deal, while a deal kept untouched reads as theirs
+   does (SERVED_READ.deal: not the reader's). The head's script reads it
+   from storage itself (build.mjs, FIRST_SCRIPT). */
+const servedKept = (k) => { try { return localStorage.getItem(STORE_PREFIX + k) !== null; } catch { return false; } };
 /* A parameter of the address, as a page reads it ('?saved'). */
-const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1)) : SERVED_READ[name]());
+const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1))
+  : name.startsWith('kept.') ? servedKept(name.slice(5)) : SERVED_READ[name]());
 /* Read by every page that waits. */
 const SERVED_READS_ALL = ['realData', 'ownerMachine'];
 /* Each waiting view that has a served page, and what its draw reads beyond
@@ -3033,11 +3041,14 @@ const SERVED_READS = {
   workspace: ['runs', 'comparisons', 'savedScreens', 'theses', 'reviews', 'savedWork', 'plan'],
   /* /my/data: everything "Everything you have made" lists (PORTABLE_KEYS,
      00-core.js), the saved work, the price series pasted and the Start here
-     panels hidden. */
+     panels hidden — and whether each of those keys is kept at all, since
+     the list has a row for every key kept: a sample deal, the Cash Wheel's
+     worked example or a base currency kept as its default reads as a fresh
+     visitor's value does, and is listed where theirs is not. */
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll'],
+    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh

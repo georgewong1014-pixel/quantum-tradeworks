@@ -1539,7 +1539,15 @@ try {
           page drawn is not the render.
        2. A RETURNING READER WITH ONLY THE SAMPLES a first visit gives (after
           /about) is shown each /my/ page as served before the script, and
-          the page drawn is its render. */
+          the page drawn is its render — or, where that reader's first draw
+          is not a fresh visitor's (/my/data lists the price alerts the
+          filings' arrival keeps), is kept out of sight and never shown it.
+          The page drawn is the first draw for a page that does not wait,
+          and the page once the filings land for one that does.
+       3. THE SAMPLES AND A DEAL KEPT UNTOUCHED, on /my/data, which lists
+          every key this browser keeps: the deal reads as a fresh visitor's
+          (not the reader's) but is listed, so the page is kept out of sight
+          before the script (kept.<key>, SERVED_READS.userdata). */
     {
       const said = [];
       const mine = pages.filter(s => s.path.startsWith('/my/'));
@@ -1568,13 +1576,26 @@ try {
         const before = await value(`({ hidden: document.documentElement.hasAttribute('data-served-hidden'), stops: ${STOPS} })`);
         await releaseScript();
         await until(`typeof State !== 'undefined' && !!State.view`);
+        /* The page drawn: a page that waits for the filings, once they land
+           (the served page stands until then); every other page, by its
+           first draw, which replaces the served page the moment the script
+           runs — what changes once its data lands changes as it always has
+           (a fresh visitor's /my/wheel says the company report opens once
+           the filings have loaded, then what this month's reports leave). */
+        const waits = manifest.pages?.[s.file]?.state === 'filings in';
+        let first = null;
+        if (!waits) {
+          await until(`!document.getElementById('views').hasAttribute('data-served')`);
+          first = await value(`(${textOf})(document.getElementById('views'))`);
+        }
         holding = false; for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid); held = [];
         await quiet(SETTLED);
         const after = await value(`({ frames: window.__dl || [], text: (${textOf})(document.getElementById('views')), h1: (document.querySelector('#views h1')?.textContent || '').replace(/\\s+/g, ' ').trim() })`);
-        return { painted: true, before, after, want: await value(`(${P.textOfMarkup})(${P.servedText}, ${JSON.stringify(read(s.render).replace(/\n$/, ''))})`) };
+        return { painted: true, before, after, drawn: waits ? after.text : first, want: await value(`(${P.textOfMarkup})(${P.servedText}, ${JSON.stringify(read(s.render).replace(/\n$/, ''))})`) };
       };
       const shownServed = (r) => r.after.frames.some(k => /^served\|\|shown$/.test(k));
-      let own = 0, samples = 0;
+      let own = 0, samples = 0, dealSample = 0;
+      const samplesHidden = [];
       try {
         /* 1. The reader's own, by the app's own hand. */
         await firstVisit();
@@ -1600,10 +1621,10 @@ try {
             const r = await visit(s, raw);
             const at = `${s.path}, a returning reader with their own (${label})`;
             if (!r.painted) { said.push(`${at}: the served page was not painted before the script`); continue; }
-            const ok = r.before.hidden && r.before.stops === 0 && !shownServed(r) && r.after.text !== r.want;
+            const ok = r.before.hidden && r.before.stops === 0 && !shownServed(r) && r.drawn !== r.want;
             if (!r.before.hidden || r.before.stops) said.push(`${at}: the fresh visitor's page was not kept out of sight before the script (${JSON.stringify(r.before)})`);
             if (shownServed(r)) said.push(`${at}: a frame showed the served page (${r.after.frames.join(' → ')})`);
-            if (r.after.text === r.want) said.push(`${at}: the page drawn is the fresh visitor's render`);
+            if (r.drawn === r.want) said.push(`${at}: the page drawn is the fresh visitor's render`);
             if (ok) own++;
           }
         }
@@ -1616,9 +1637,40 @@ try {
           const r = await visit(s, firstOnly);
           const at = `${s.path}, a reader holding only a first visit's samples`;
           if (!r.painted) { said.push(`${at}: the served page was not painted before the script`); continue; }
-          if (r.before.hidden) said.push(`${at}: kept out of sight before the script`);
-          if (r.after.text !== r.want) { let i = 0; while (i < r.want.length && r.want[i] === r.after.text[i]) i++; said.push(`${at}: the page drawn is not its render, from character ${i}: served …${r.want.slice(Math.max(0, i - 30), i + 60)}… drawn …${r.after.text.slice(Math.max(0, i - 30), i + 60)}…`); }
-          else if (!r.before.hidden) samples++;
+          const drawn = r.drawn ?? '';
+          if (!r.before.hidden) {
+            /* Shown as served: the page drawn must be the render. */
+            if (drawn !== r.want) { let i = 0; while (i < r.want.length && r.want[i] === drawn[i]) i++; said.push(`${at}: shown the page as served, and the page drawn is not its render, from character ${i}: served …${r.want.slice(Math.max(0, i - 30), i + 60)}… drawn …${drawn.slice(Math.max(0, i - 30), i + 60)}…`); }
+            else samples++;
+          } else if (drawn === r.want) said.push(`${at}: kept out of sight before the script, though the page drawn is its render`);
+          /* Kept out of sight, where this reader's first draw is not a fresh
+             visitor's: /my/data lists the price alerts the filings' arrival
+             keeps (remapSavedIds, 25-universe.js), which a first visit to
+             /my/data itself does not yet keep. Never shown, then. */
+          else if (r.before.stops || shownServed(r)) said.push(`${at}: kept out of sight, but a frame showed the served page or something in it took focus (${JSON.stringify(r.before)}; ${r.after.frames.join(' → ')})`);
+          else samplesHidden.push(s.path);
+        }
+        /* 3. The samples, and a deal kept untouched: what reads as a fresh
+              visitor's deal (not the reader's), but kept, which /my/data
+              lists ("Property deal inputs — a sample — not yours") where a
+              fresh visitor keeps none. Either the page is kept out of sight
+              before the script, or the page drawn is its render. */
+        const dataPage = mine.find(s => s.path === '/my/data');
+        if (dataPage) {
+          await firstVisit();
+          await openFree('/about');
+          const dealKept = await value(`(() => { store.write('deal', State.deal); return !dealIsTheReaders(State.deal) && store.read('deal', null) !== null; })()`).catch(e => `threw: ${e.message}`);
+          if (dealKept !== true) said.push(`a deal kept untouched could not be made: ${dealKept}`);
+          await send('Page.navigate', { url: `${live}/robots.txt` }, sid); await sleep(400);
+          const withDeal = await value(DUMP) || {};
+          for (const [label, raw] of [['since this release', withDeal], ['before it (no digest kept)', Object.fromEntries(Object.entries(withDeal).filter(([k]) => k !== 'servedReads'))]]) {
+            const r = await visit(dataPage, raw);
+            const at = `/my/data, a reader holding the samples and a deal kept untouched (${label})`;
+            if (!r.painted) { said.push(`${at}: the served page was not painted before the script`); continue; }
+            if (r.drawn !== r.want && (!r.before.hidden || r.before.stops || shownServed(r)))
+              said.push(`${at}: shown the fresh visitor's page before the script (${JSON.stringify(r.before)}; ${r.after.frames.join(' → ')}), and then drew another`);
+            else dealSample++;
+          }
         }
       } catch (e) {
         said.push(`the checks could not run: ${e.message}`);
@@ -1626,7 +1678,7 @@ try {
         await releaseAll();
         if (framesId) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: framesId }, sid);
       }
-      const what = `My Workspace's ${mine.length} pages served (deep links, audit #7): ${own} of ${mine.length * 2} visits by a returning reader with their own (digests kept, and none) kept the fresh page out of sight before the script, no frame showing it and nothing in it focusable, and drew the reader's; ${samples} of ${mine.length} visits holding only a first visit's samples were shown the page as served, and drew it as its render`;
+      const what = `My Workspace's ${mine.length} pages served (deep links, audit #7): ${own} of ${mine.length * 2} visits by a returning reader with their own (digests kept, and none) kept the fresh page out of sight before the script, no frame showing it and nothing in it focusable, and drew the reader's; ${samples} of ${mine.length} visits holding only a first visit's samples were shown the page as served, and drew it as its render${samplesHidden.length ? ` (${samplesHidden.join(', ')} kept out of sight instead and never shown: its first draw lists what the filings' arrival keeps)` : ''}; ${dealSample} of 2 visits to /my/data holding a deal kept untouched as well were never shown a page other than the one drawn`;
       if (said.length) { bad.push('my-workspace'); console.log(`FAIL ${what}`); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
       else console.log(`ok   ${what}`);
     }

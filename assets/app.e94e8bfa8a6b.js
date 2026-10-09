@@ -14843,8 +14843,16 @@ const SERVED_READ = {
   proposalDetails: () => store.read('proposalDetails', null),
   startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
 };
+/* Whether this browser keeps a key at all ('kept.deal'), where a page lists
+   what is kept rather than drawing from it: /my/data writes a row for each
+   key it finds kept ("Property deal inputs — a sample — not yours"), and a
+   fresh visitor keeps no deal, while a deal kept untouched reads as theirs
+   does (SERVED_READ.deal: not the reader's). The head's script reads it
+   from storage itself (build.mjs, FIRST_SCRIPT). */
+const servedKept = (k) => { try { return localStorage.getItem(STORE_PREFIX + k) !== null; } catch { return false; } };
 /* A parameter of the address, as a page reads it ('?saved'). */
-const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1)) : SERVED_READ[name]());
+const servedRead = (name) => (name.startsWith('?') ? new URLSearchParams(location.search).get(name.slice(1))
+  : name.startsWith('kept.') ? servedKept(name.slice(5)) : SERVED_READ[name]());
 /* Read by every page that waits. */
 const SERVED_READS_ALL = ['realData', 'ownerMachine'];
 /* Each waiting view that has a served page, and what its draw reads beyond
@@ -14999,11 +15007,14 @@ const SERVED_READS = {
   workspace: ['runs', 'comparisons', 'savedScreens', 'theses', 'reviews', 'savedWork', 'plan'],
   /* /my/data: everything "Everything you have made" lists (PORTABLE_KEYS,
      00-core.js), the saved work, the price series pasted and the Start here
-     panels hidden. */
+     panels hidden — and whether each of those keys is kept at all, since
+     the list has a row for every key kept: a sample deal, the Cash Wheel's
+     worked example or a base currency kept as its default reads as a fresh
+     visitor's value does, and is listed where theirs is not. */
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll'],
+    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
@@ -25867,7 +25878,9 @@ VIEWS.portfolio = () => {
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
-    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${v / totalVal * 100}%;background:var(${SERIES[i % 8]})`, title: k })));
+    /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
+       is pre-rendered, and a served page must match its render on Linux and Windows. */
+    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: k })));
     card.append(bar);
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
@@ -26071,7 +26084,7 @@ VIEWS.portfolio = () => {
 
     const bar2 = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     const parts = [['Equities', securities, '--s1'], ['Cash', cashBase, '--s3'], ['Property equity', propEquity, '--s2']];
-    parts.forEach(([, v, cvar]) => bar2.append(el('i', { style: `width:${netWorth ? v / netWorth * 100 : 0}%;background:var(${cvar})` })));
+    parts.forEach(([, v, cvar]) => bar2.append(el('i', { style: `width:${netWorth ? Math.round(v / netWorth * 100 * 1e4) / 1e4 : 0}%;background:var(${cvar})` })));
     xa.append(bar2);
     const pl2 = el('div');
     parts.forEach(([label, v, cvar]) => pl2.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
