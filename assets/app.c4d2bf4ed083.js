@@ -11342,6 +11342,37 @@ function columnChart(container, { cats, series, fmt = v => fmtNum(v, 1), title =
   });
 }
 
+/* ------------------------------------------------ filed revenue columns */
+/* A FILER'S REVENUE AND NET INCOME, AS FILED (plan item 3.8's component;
+   the homepage's Equities card and, since N7, Research's three examples).
+   F: { name, years, rev, ni } — US$ billions by fiscal year, as the
+   statement tuple holds them. A pair of columns a year, revenue then net
+   income, each mark carrying its year, its line and its value (data-fy,
+   data-line, data-v) so a fetch can hold it to data/us.json; the latest
+   revenue printed above its column, the first and last years under the
+   axis. A year the record does not hold is drawn as a gap, never a value.
+   Markup, not nodes, so the page draws it in its first draw and a fetch
+   reads the same figures; every position is rounded to one decimal of the
+   fixed viewBox, so a render is the same in every browser. */
+function filedColumnsSvg(F, { W = 300, H = 136 } = {}) {
+  const n = F.years.length, top = 16, base = 116, gap = 6;
+  const max = Math.max(...F.rev.filter(isNum), ...F.ni.filter(isNum));
+  const slot = W / n, bw = (slot - gap) / 2;
+  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
+  const marks = F.years.map((fy, i) => {
+    const x = i * slot + gap / 2;
+    return [
+      isNum(F.rev[i]) ? `<rect class="pub-col pub-col-rev" x="${x.toFixed(1)}" y="${y(F.rev[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.rev[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '',
+      isNum(F.ni[i]) ? `<rect class="pub-col pub-col-ni" x="${(x + bw).toFixed(1)}" y="${y(F.ni[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.ni[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="ni" data-v="${F.ni[i]}"/>` : '',
+    ].join('');
+  }).join('');
+  const last = n - 1;
+  return `<svg class="pub-vis-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue and net income, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars. Revenue ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}; net income ${fmtCap(F.ni[0], 'USD')} to ${fmtCap(F.ni[last], 'USD')}.`)}">`
+    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${marks}`
+    + (isNum(F.rev[last]) ? `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(1)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>` : '')
+    + `<text class="pub-vis-tick" x="0" y="${H - 4}">FY${F.years[0]}</text><text class="pub-vis-tick" x="${W}" y="${H - 4}" text-anchor="end">FY${F.years[last]}</text></svg>`;
+}
+
 /* ------------------------------------------------------------ line chart */
 function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName = '--s1', markLo, markHi, title = '' }) {
   chartHost(container, (W) => {
@@ -13731,6 +13762,18 @@ function applyRoute() {
      "Check whether a dividend is sustainable" opened the default columns. It
      is applied once and the parameter dropped from the address, so a later
      tab change inside Discover does not reload it over the reader's edits. */
+  /* A market named in the address (?market=MY, ?market=US) opens the
+     screener on that market's listings, as Research's market lenses do when
+     pressed (N7): their links say it, so one opened in a new tab, or by a
+     reader with no script who then gets it, opens the same screen. Applied
+     once and dropped, as the template is. */
+  if (route.view === 'discover' && /^(MY|US)$/.test(qs.get('market') || '')) {
+    const s = blankScreen(); s.universe = qs.get('market');
+    State.screen = s.universe === 'MY' ? screenFitClass(s) : s; State.appliedTemplate = null;
+    qs.delete('market');
+    const rest = qs.toString();
+    history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));
+  }
   if (route.view === 'discover' && qs.get('template')) {
     const t = SCREEN_TEMPLATES.find(x => x.id === qs.get('template'));
     if (t) { const s = blankScreen(); t.apply(s); State.screen = screenFitClass(s); State.appliedTemplate = t.id; }
@@ -14807,8 +14850,12 @@ const SERVED_READS = {
      screen (?tab=, ?template=, the market kept), saved screens, the table's
      density, the currencies, a price typed in. */
   discover: ['discoverTab', 'screen', 'savedScreens', 'density', 'baseCcy', 'screenCcy', 'plan', 'manualPrices', 'startHere', 'reportLog'],
-  /* /research, /app/equities, /app/equities/explore. */
-  researchHome: ['plan', 'theses', 'recentCompanies', 'startHere', 'reportLog'],
+  /* /research, /app/equities, /app/equities/explore: the reader's own
+     cases and the companies they opened, and the report meter the filed
+     examples are drawn by (a month's reports used draws them unlinked).
+     Not the Start here panel, which the page no longer draws (N7), and not
+     the base currency: the examples are in US$, their filing currency. */
+  researchHome: ['plan', 'theses', 'recentCompanies', 'reportLog'],
   /* A filed company's own page (/company/<ticker>-<name>; the owner's second
      track, 8 Oct 2026: build.mjs, companyScope): the report meter (a month's
      reports used refuses the page) and the plan's limits, the list the
@@ -15836,9 +15883,13 @@ const startHereHidden = () => { const v = store.read('startHere', {}); return v 
    with, and the panel stood a screen of words above them — about 50 of the
    page's 180 before its first control. The calculator and Property's other
    tools keep it. */
+/* Nor on Research's front page (N7, D20): its three filed examples are what
+   the panel offered — Apple's filed figures — one press from them, and the
+   panel stood about a hundred words above the search, its first control.
+   The screener, Compare and the queue keep it. */
 function startHereFor(view = State.view) {
   const pid = productOf(view);
-  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab') return null;
+  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab' || view === 'researchHome') return null;
   if (!TOOLS.some(t => t.product === pid && toolViews(t).includes(view))) return null;
   return startHereHidden()[pid] ? null : pid;
 }
@@ -16013,10 +16064,12 @@ function startHereSettings() {
    (N5: in its first view the example on a generated series beside the
    state, and how to run the worker an L3 <details>), and My Dashboard,
    /app (D12: five metric cards of the reader's own work, each section a
-   named one). The rest come later, one at a time.
+   named one), and Research's front page, /research (N7: the search first,
+   three filed examples, the reader's own, more ways in). The rest come
+   later, one at a time.
    ========================================================================== */
 
-const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home'];
+const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home', 'researchHome'];
 const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
 const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
 const lsOn = (view = State.view) => LS_VIEWS.includes(view);
@@ -20723,23 +20776,83 @@ function companyActions(r) {
    company happened to be first in the universe — Apple — so a Malaysian
    visitor clicking "Research" was shown a US technology report and could
    reasonably read that as the product's own preference. A navigation link must
-   never silently choose a security. */
-VIEWS.researchHome = () => {
-  const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
-  /* The one head every product page wears (pageHead, 36-layouts.js). */
-  wrap.append(pageHead({ title: 'Start from a company, a market or a question',
-    lede: 'Find a company by name, ticker, listing code or CIK — or start from a market.',
-    note: 'Nothing on this page is ordered by preference, and opening it does not choose a company for you.' }));
+   never silently choose a security.
 
-  const search = el('div', { class: 'card' });
-  search.append(cardHead('Find a company', 'By name, ticker, listing code, CIK or an old link — and by market and coverage.'));
+   RESEARCH'S FRONT PAGE (the 5 Oct addendum's N7; the owner's D20), on the
+   layout system. It said 144 words before its first field — a Start here
+   panel, a note and a card's heading over the search — and its six ways in
+   were <div>s with no address. Now, in this order:
+   1. the head: the h1 and a one-line lede;
+   2. the search, the page's first control;
+   3. three filed examples — Apple, JPMorgan Chase, Realty Income: a
+      technology company, a bank and a REIT — each its filed revenue and net
+      income as columns (filedColumnsSvg, plan 3.8's component), in US$, its
+      filing currency, badged Filed, a link to its Financials;
+   4. Recently viewed and saved cases: the reader's own, or one line saying
+      there is nothing yet (no sample case shown as theirs, no count);
+   5. More ways in: the six lenses, the Trading Index (a Scanner tool) and
+      the Cash Wheel, each a real link;
+   6. the coverage line, once.
+   The Start here panel is not drawn here (startHereFor): the examples are
+   what it offered, one press from their figures. The page reads no base
+   currency: the examples are in their filing currency for every reader. */
+const RESEARCH_EXAMPLES = [
+  { id: 'AAPL-SEC', name: 'Apple', what: 'Technology' },
+  { id: 'JPM-SEC', name: 'JPMorgan Chase', what: 'Bank' },
+  { id: 'O-SEC', name: 'Realty Income', what: 'REIT' },
+];
+/* An in-app press on a link: the address, without a reload. */
+const inAppPress = (path, before = null) => (e) => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+  e.preventDefault(); before?.(); navigate(path);
+};
+function researchExample(x) {
+  const r = BY_ID.get(x.id);
+  const tick = x.id.replace(/-SEC$/, '');
+  /* Only a filer's own record is drawn, and only a filer is linked: with the
+     filings not loaded there is no filed figure here, and it says so. */
+  if (!r?.c?.real) return el('li', { class: 'rf-ex rf-ex-off', 'data-example': tick }, [
+    el('h3', { class: 'rf-ex-name' }, x.name),
+    el('p', { class: 'rf-ex-note' }, [kindBadge('unavailable', { link: false }),
+      typeof realPending !== 'undefined' && realPending ? ' Opens once the filings have loaded.' : ' Its filed statements did not load here.']),
+  ]);
+  const { c, d } = r;
+  const yrs = yearsOf(c);
+  const k = Math.max(0, yrs.length - 10);
+  const F = { name: x.name, years: yrs.slice(k), rev: d.rev.slice(k), ni: d.ni.slice(k) };
+  const path = `${companyPath(c)}?tab=financials`;
+  const srcId = `rf-ex-src-${tick.toLowerCase()}`;
+  const body = [
+    el('span', { class: 'rf-ex-hd' }, [el('h3', { class: 'rf-ex-name' }, x.name), el('span', { class: 'rf-ex-tk' }, `${c.tk} · ${x.what}`)]),
+    el('span', { class: 'rf-ex-plot', html: filedColumnsSvg(F) }),
+    el('span', { class: 'rf-ex-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rev' }), 'Revenue', el('i', { class: 'pub-sw pub-sw-ni' }), 'Net income']),
+    el('span', { class: 'rf-ex-ft' }, [
+      el('span', { class: 'rf-ex-src', id: srcId }, [kindBadge('filed', { link: false, fine: `${x.name}, SEC 10-K` }), el('span', {}, '· SEC 10-K · US$')]),
+      el('span', { class: 'rf-ex-go', 'aria-hidden': 'true' }, ['Financials', el('span', { class: 'rf-ex-arrow' }, '→')]),
+    ]),
+  ];
+  /* The month's reports used on this plan: the company page would only say
+     it is not available, so the example is drawn, not linked, and says when
+     it opens (as Start here named a refused report). */
+  const meter = reportAllowed(c.id);
+  if (!meter.ok) return el('li', {}, el('div', { class: 'rf-ex rf-ex-off', 'data-example': tick }, [...body,
+    el('p', { class: 'rf-ex-note' }, `This month’s ${lim('reportsPerMonth')} company reports on this plan are used, so it opens next month.`)]));
+  return el('li', {}, el('a', { class: 'rf-ex', href: href(path), 'data-example': tick, 'aria-label': `${x.name}’s filed financials`, 'aria-describedby': srcId,
+    onclick: inAppPress(path) }, body));
+}
+
+VIEWS.researchHome = () => {
+  const wrap = el('div', { class: 'ls-page rf-page' });
+  /* The one head every product page wears (pageHead, 36-layouts.js). */
+  wrap.append(pageHead({ title: 'Research a company', lede: 'Search by name, ticker, listing code or CIK.' }));
+
   const inp = el('input', { class: 'input', type:'search', placeholder:'Maybank, 1155, AAPL, CIK0000320193…',
     'aria-label':'Search for a company', style: 'flex:1;min-width:200px' });
   const sel = (label, opts) => { const x = el('select', { class: 'select', 'aria-label': label, style: 'width:auto;flex:none' });
     opts.forEach(([v, l]) => x.append(el('option', { value: v }, l))); return x; };
   const mkSel = sel('Market', [['', 'All markets'], ['US', 'United States'], ['MY', 'Bursa Malaysia']]);
   const cvSel = sel('Coverage', [['', 'Any coverage'], ['FILED', 'Filed statements'], ['ILLUSTRATIVE', 'Illustrative'], ['UNAVAILABLE', 'Price only']]);
-  const results = el('div', { style: 'margin-top:10px;display:flex;flex-direction:column;gap:4px' });
+  const results = el('div', { class: 'rf-results' });
   /* Over the canonical registry, so every name an instrument goes by matches,
      and a price-only instrument is listed as such rather than absent. */
   const runSearch = () => {
@@ -20785,90 +20898,77 @@ VIEWS.researchHome = () => {
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); act(); } });
   inp.classList.add('rh-search');
   const eq = typeof productById === 'function' ? productById('equities') : null;
-  search.append(el('div', { class: 'row row-wrap rh-searchrow', style: 'gap:8px' }, [inp, mkSel, cvSel,
-    el('button', { type: 'button', class: 'btn btn-primary rh-go', onclick: act }, eq?.action || 'Research a company')]));
-  search.append(results);
-  wrap.append(search);
+  wrap.append(el('div', { class: 'rf-search', role: 'search', 'aria-label': 'Find a company' }, [
+    el('div', { class: 'row row-wrap rh-searchrow', style: 'gap:8px' }, [inp, mkSel, cvSel,
+      el('button', { type: 'button', class: 'btn btn-primary rh-go', onclick: act }, eq?.action || 'Research a company')]),
+    results]));
 
-  /* Collections, described by what they contain. applyTemplate only sets the
-     screen and re-renders whatever view is current, so the three template
-     cards used to leave the reader on this page with nothing visibly changed;
-     each now goes to the screener it has just set up, as the market cards do. */
-  const viaTemplate = (id) => () => { applyTemplate(SCREEN_TEMPLATES.find(t => t.id === id)); navigate('/discover/screener'); };
-  const colls = [
-    ['Bursa Malaysia',  'Malaysian listings in the beta universe.',      () => { const s = blankScreen(); s.universe='MY'; State.screen=screenFitClass(s); State.appliedTemplate=null; navigate('/discover/screener'); }],
-    ['US equities',     'US listings, filed with the SEC.',              () => { const s = blankScreen(); s.universe='US'; State.screen=s; State.appliedTemplate=null; navigate('/discover/screener'); }],
-    ['Banks',           'Deposit takers, on measures that fit a bank balance sheet.', viaTemplate('my-banks')],
-    ['REITs',           'Property trusts, on distribution and gearing.', viaTemplate('my-reits')],
-    ['Dividend research','Payout covered by cash rather than borrowing.', viaTemplate('div-cover')],
-    ['Sarawak Economy Watch','Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', () => navigate('/discover/sarawak')],
-  ];
-  const cg = el('div', { class: 'grid grid-3' });
-  colls.forEach(([t, b, go]) => {
-    /* Each card names the tool it opens (data-tool-path), so where that tool
-       cannot be used here — the filings failed to load — the shell's gate
-       draws the card as text with the reason (gateToolLink, 35-ui.js). */
-    const card = el('div', { class: 'card task-card', role:'button', tabindex:'0', 'data-tool-path': t === 'Sarawak Economy Watch' ? '/discover/sarawak' : '/discover/screener' });
-    card.append(el('h3', { class: 'h-card' }, t));
-    card.append(el('p', { class: 'body', style: 'font-size:13px' }, b));
-    const act = () => go();
-    card.addEventListener('click', act);
-    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
-    cg.append(card);
-  });
-  wrap.append(cg);
+  /* The filed examples. */
+  wrap.append(el('section', { class: 'rf-sec ls-section', 'aria-labelledby': 'rf-ex-hd' }, [
+    el('div', { class: 'rf-sec-hd' }, [
+      el('h2', { class: 'h-section', id: 'rf-ex-hd' }, 'Filed examples'),
+      el('p', { class: 'rf-sec-note' }, 'A technology company, a bank and a REIT, from their 10-K filings. Examples, not a preference.'),
+    ]),
+    el('ul', { class: 'rf-examples' }, RESEARCH_EXAMPLES.map(researchExample)),
+  ]));
 
-  /* Two finished workspaces that had no inbound link anywhere in the product
-     and were reachable only by typing the URL. These are real anchors rather
-     than role="button" divs, so they can be opened in a new tab, copied,
-     reached by keyboard and read by a screen reader as the links they are —
-     every other tile on this page is a div and none of them can. */
-  const tools = el('div', { class: 'card' });
-  tools.append(cardHead('Timing and position workspaces',
-    'Separate from company research, and gated separately. Neither carries any weight in a research score.'));
-  const tl = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' });
-  [['/research/trading-index', 'QT Trading Index',
-    'Multi-timeframe trend and your own first-tranche rules, from chart evidence you record. Works on an ETF or a contract, which have no filings to research.'],
-   ['/us-options/wheel', 'US Options Cash Wheel',
-    'Cash-secured put and covered-call arithmetic with collateral gates, from figures you enter.']].forEach(([path, title, note]) => {
-    const a = el('a', { class: 'card task-card', href: href(path), style: 'flex:1 1 260px;text-decoration:none',
-      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate(path); } });
-    a.append(el('h3', { class: 'h-card' }, title));
-    a.append(el('p', { class: 'body', style: 'font-size:13px' }, note));
-    tl.append(a);
-  });
-  tools.append(tl);
-  wrap.append(tools);
-
-  /* Recently viewed and saved cases, each empty-stated honestly. */
+  /* The reader's own: what they opened, and the cases they wrote. A case
+     seeded into a first visit's browser is a sample, not theirs, and is not
+     listed under their cases; nothing here is a count. */
   const recent = (State.recentCompanies || []).map(id => BY_ID.get(id)).filter(Boolean).slice(0, 6);
-  const rc = el('div', { class: 'card' });
-  rc.append(cardHead('Recently viewed', 'The last companies you opened in this browser.'));
-  if (recent.length) {
-    const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
-    recent.forEach(r => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      onclick: () => { State.ticker = r.c.id; navigate(companyPath(r.c)); } }, (r.c.tk || r.c.code) + illusText(r.c))));
-    rc.append(row);
-  } else rc.append(el('p', { class: 'metaline' }, 'Nothing yet. Companies you open will be listed here.'));
-  wrap.append(rc);
+  const seeded = (t) => typeof SEEDED_THESIS_IDS !== 'undefined' && SEEDED_THESIS_IDS.includes(t.id);
+  const own = (State.theses || []).filter(t => !seeded(t)).slice(0, 6);
+  const col = (id, title, items, empty) => el('div', { class: 'rf-mine-col' }, [
+    el('h2', { class: 'rf-mine-hd', id }, title),
+    items.length ? el('ul', { class: 'rf-mine-list', 'aria-labelledby': id }, items) : el('p', { class: 'rf-empty' }, empty),
+  ]);
+  const link = (path, kids) => el('a', { class: 'rf-mine-link', href: href(path), onclick: inAppPress(path) }, kids);
+  wrap.append(el('section', { class: 'rf-mine ls-section', 'aria-label': 'Your research in this browser' }, [
+    col('rf-recent-hd', 'Recently viewed', recent.map(r => el('li', {}, link(companyPath(r.c), [
+      el('span', { class: 'rf-mine-tk' }, r.c.tk || r.c.code), el('span', { class: 'rf-mine-name' }, r.c.name),
+      r.c.real ? null : el('span', { class: 'chip chip-bronze' }, 'illustrative')]))),
+      'None yet — companies you open are listed here.'),
+    col('rf-cases-hd', 'Saved cases', own.map(t => { const r = BY_ID.get(t.ticker);
+      return el('li', {}, link('/my/theses', [el('span', { class: 'rf-mine-tk' }, r?.c.tk || t.ticker), r ? el('span', { class: 'rf-mine-name' }, r.c.name) : null])); }),
+      'None yet — a case records your reasoning on a company.'),
+  ]));
 
-  const cases = el('div', { class: 'card' });
-  cases.append(cardHead('Saved research cases', 'Your own written theses and their conditions.'));
-  const th = State.theses || [];
-  if (th.length) {
-    const row = el('div', { class: 'row row-wrap', style: 'gap:8px' });
-    /* A seeded case says it is a sample, as the dashboard and the personal
-       pages do: under "Your own written theses" the two seeded ones read as
-       the visitor's. */
-    const seeded = (t) => typeof SEEDED_THESIS_IDS !== 'undefined' && SEEDED_THESIS_IDS.includes(t.id);
-    th.slice(0, 8).forEach(t => row.append(el('button', { class: 'btn btn-ghost btn-sm',
-      'aria-label': seeded(t) ? `${t.ticker}, sample case` : null,
-      onclick: () => navigate('/my/theses') }, [t.ticker, seeded(t) ? el('span', { class: 'chip chip-bronze', 'aria-hidden': 'true' }, 'sample') : null])));
-    cases.append(row);
-  } else cases.append(el('p', { class: 'metaline' }, 'No cases saved yet. A case records your own reasoning and the conditions that would change it.'));
-  wrap.append(cases);
+  /* More ways in: the six lenses, each a link to the screen it opens — the
+     address says the market (?market=) or the template (?template=), so it
+     opens the same in a new tab — and, pressed here, set up as before; the
+     two timing and position workspaces. Each names the tool it opens, so
+     where that tool cannot be used here the shell's gate draws it as text
+     with the reason (gateToolLink, 35-ui.js). */
+  const viaTemplate = (id) => () => applyTemplate(SCREEN_TEMPLATES.find(t => t.id === id));
+  const lenses = [
+    ['Bursa Malaysia', 'Malaysian listings in the beta universe.', '/discover/screener?market=MY', () => { const s = blankScreen(); s.universe = 'MY'; State.screen = screenFitClass(s); State.appliedTemplate = null; }],
+    ['US equities', 'US listings, filed with the SEC.', '/discover/screener?market=US', () => { const s = blankScreen(); s.universe = 'US'; State.screen = s; State.appliedTemplate = null; }],
+    ['Banks', 'Deposit takers, on measures that fit a bank balance sheet.', '/discover/screener?template=my-banks', viaTemplate('my-banks'), 'illustrative'],
+    ['REITs', 'Property trusts, on distribution and gearing.', '/discover/screener?template=my-reits', viaTemplate('my-reits'), 'illustrative'],
+    ['Dividend research', 'Payout covered by cash rather than borrowing.', '/discover/screener?template=div-cover', viaTemplate('div-cover')],
+    ['Sarawak Economy Watch', 'Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', '/discover/sarawak', null],
+  ];
+  /* The press sets the screen up, then goes to the screener itself: the
+     address's parameter is for a link opened anew, and applied twice it
+     would replace the class the reader chose (applyTemplate keeps it). */
+  const way = ([name, line, path, setUp, kind], tag = null) => el('li', {}, el('a', { class: 'rf-way', href: href(path),
+    onclick: inAppPress(setUp ? path.replace(/\?.*$/, '') : path, setUp) }, [
+    el('span', { class: 'rf-way-hd' }, [el('span', { class: 'rf-way-name' }, name),
+      kind ? kindBadge(kind, { link: false, fine: 'The lens screens the illustrative Malaysian set' }) : null,
+      tag ? el('span', { class: 'chip rf-way-tag' }, tag) : null]),
+    el('span', { class: 'rf-way-sub' }, line)]));
+  wrap.append(el('section', { class: 'rf-more ls-section', 'aria-labelledby': 'rf-more-hd' }, [
+    el('div', { class: 'rf-sec-hd' }, [el('h2', { class: 'h-section', id: 'rf-more-hd' }, 'More ways in'),
+      el('p', { class: 'rf-sec-note' }, 'By market or business model. Nothing here is ordered by preference.')]),
+    el('ul', { class: 'rf-ways' }, lenses.map(l => way(l))),
+    el('p', { class: 'rf-sub-hd' }, 'Timing and position — gated separately, and no weight in a research score'),
+    el('ul', { class: 'rf-ways rf-ways-tools' }, [
+      way(['QT Trading Index', 'Multi-timeframe trend and your own first-tranche rules, from chart evidence you record.', '/research/trading-index', null], 'Scanner tool'),
+      way(['US Options Cash Wheel', 'Cash-secured put and covered-call arithmetic, from figures you enter.', '/us-options/wheel', null]),
+    ]),
+  ]));
 
-  wrap.append(el('p', { class: 'metaline' },
+  wrap.append(el('p', { class: 'metaline rf-coverage' },
     coverageSentence('source') + ' It is not a complete listing of either market.'));
   return wrap;
 };
@@ -26443,22 +26543,9 @@ function pubVisEquities() {
   const F = HOME_FILED;
   const fig = el('figure', { class: 'pub-vis pub-vis-eq', 'aria-labelledby': 'pub-vis-eq-src' });
   if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-cap', id: 'pub-vis-eq-src' }, kindBadge('unavailable'), ' Filed example not loaded')); return fig; }
-  const n = F.years.length, W = 300, H = 136, top = 16, base = 116, gap = 6;
-  const max = Math.max(...F.rev.filter(isNum), ...F.ni.filter(isNum));
-  const slot = W / n, bw = (slot - gap) / 2;
-  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
-  const marks = F.years.map((fy, i) => {
-    const x = i * slot + gap / 2;
-    return [
-      isNum(F.rev[i]) ? `<rect class="pub-col pub-col-rev" x="${x.toFixed(1)}" y="${y(F.rev[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.rev[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '',
-      isNum(F.ni[i]) ? `<rect class="pub-col pub-col-ni" x="${(x + bw).toFixed(1)}" y="${y(F.ni[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.ni[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="ni" data-v="${F.ni[i]}"/>` : '',
-    ].join('');
-  }).join('');
-  const last = n - 1;
-  const svg = `<svg class="pub-vis-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue and net income, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars. Revenue ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}; net income ${fmtCap(F.ni[0], 'USD')} to ${fmtCap(F.ni[last], 'USD')}.`)}">`
-    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${marks}`
-    + `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(1)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>`
-    + `<text class="pub-vis-tick" x="0" y="${H - 4}">FY${F.years[0]}</text><text class="pub-vis-tick" x="${W}" y="${H - 4}" text-anchor="end">FY${F.years[last]}</text></svg>`;
+  /* The shared component (filedColumnsSvg, 30-charts.js), as Research's
+     examples draw it. */
+  const svg = filedColumnsSvg(F);
   fig.append(el('a', { class: 'pub-vis-link', href: href(F.path), 'data-path': F.path, 'aria-label': `${F.name}’s filed statements` }, el('span', { class: 'pub-vis-plot', html: svg })));
   fig.append(el('figcaption', { class: 'pub-vis-cap' }, [
     el('p', { class: 'pub-vis-src', id: 'pub-vis-eq-src' }, [kindBadge('filed', { fine: `${F.name}, SEC 10-K` }), el('span', {}, `${F.name.replace(/ Inc\.?$/, '')} · SEC 10-K · US$`)]),

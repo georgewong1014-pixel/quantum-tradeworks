@@ -125,22 +125,9 @@ function pubVisEquities() {
   const F = HOME_FILED;
   const fig = el('figure', { class: 'pub-vis pub-vis-eq', 'aria-labelledby': 'pub-vis-eq-src' });
   if (!F || !F.years?.length) { fig.append(el('figcaption', { class: 'pub-vis-cap', id: 'pub-vis-eq-src' }, kindBadge('unavailable'), ' Filed example not loaded')); return fig; }
-  const n = F.years.length, W = 300, H = 136, top = 16, base = 116, gap = 6;
-  const max = Math.max(...F.rev.filter(isNum), ...F.ni.filter(isNum));
-  const slot = W / n, bw = (slot - gap) / 2;
-  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
-  const marks = F.years.map((fy, i) => {
-    const x = i * slot + gap / 2;
-    return [
-      isNum(F.rev[i]) ? `<rect class="pub-col pub-col-rev" x="${x.toFixed(1)}" y="${y(F.rev[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.rev[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '',
-      isNum(F.ni[i]) ? `<rect class="pub-col pub-col-ni" x="${(x + bw).toFixed(1)}" y="${y(F.ni[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.ni[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="ni" data-v="${F.ni[i]}"/>` : '',
-    ].join('');
-  }).join('');
-  const last = n - 1;
-  const svg = `<svg class="pub-vis-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue and net income, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars. Revenue ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}; net income ${fmtCap(F.ni[0], 'USD')} to ${fmtCap(F.ni[last], 'USD')}.`)}">`
-    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${marks}`
-    + `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(1)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>`
-    + `<text class="pub-vis-tick" x="0" y="${H - 4}">FY${F.years[0]}</text><text class="pub-vis-tick" x="${W}" y="${H - 4}" text-anchor="end">FY${F.years[last]}</text></svg>`;
+  /* The shared component (filedColumnsSvg, 30-charts.js), as Research's
+     examples draw it. */
+  const svg = filedColumnsSvg(F);
   fig.append(el('a', { class: 'pub-vis-link', href: href(F.path), 'data-path': F.path, 'aria-label': `${F.name}’s filed statements` }, el('span', { class: 'pub-vis-plot', html: svg })));
   fig.append(el('figcaption', { class: 'pub-vis-cap' }, [
     el('p', { class: 'pub-vis-src', id: 'pub-vis-eq-src' }, [kindBadge('filed', { fine: `${F.name}, SEC 10-K` }), el('span', {}, `${F.name.replace(/ Inc\.?$/, '')} · SEC 10-K · US$`)]),

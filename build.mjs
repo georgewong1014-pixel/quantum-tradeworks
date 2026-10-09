@@ -1806,6 +1806,157 @@ export function homeBudgets(html) {
   else if (FOOTER_LEGAL_SHA && legalSha !== FOOTER_LEGAL_SHA) p.push(`p.footer-legal is not its text of 4 Oct 2026 (sha ${legalSha}, not ${FOOTER_LEGAL_SHA})`);
   return { problems: p, said };
 }
+/* ─── RESEARCH'S FRONT PAGE (the 5 Oct addendum's N7; the owner's D20) ──────
+   /research said 134 words before its first control — a Start here panel,
+   an eyebrow, a heading, a lede, a note and a card's heading — and its six
+   ways in were <div>s with no address. Held here on /research as served
+   (build --check, on the committed render; served-check, on the fetch),
+   each an [fetch] line of N7's Accept, by the plan's counting rule
+   (sightText, wordsIn):
+   - the search is the first form control in <main> (input, select,
+     textarea, button, or a served control made inert, data-inert), with
+     RESEARCH_FIRST_WORDS words or fewer in sight in <main> before it;
+   - three example links (a.rf-ex), Apple, JPMorgan Chase and Realty Income,
+     each to its own filed company page, each holding an <svg> of 10 data
+     marks or more (data-v) and "Filed · SEC 10-K · US$" in sight; with the
+     served data/us.json given, every mark is that year's filed revenue or
+     net income, and a year the file does not hold has no mark (a gap);
+   - no example links an illustrative company;
+   - under "More ways in", the six lenses, the Trading Index and the Cash
+     Wheel are each an <a href>; Banks and REITs carry the Illustrative
+     badge, the Trading Index "Scanner tool"; nothing there is a <div> with
+     a tool's path and no address;
+   - data-served-reads names no baseCcy;
+   - the coverage line once, and the page in N7's order: the h1, the search,
+     the examples, Recently viewed and saved cases, More ways in, the
+     coverage line. */
+export const RESEARCH_FIRST_WORDS = 40;
+export const RESEARCH_EXAMPLE_IDS = ['AAPL', 'JPM', 'O'];
+export const RESEARCH_LENSES = ['Bursa Malaysia', 'US equities', 'Banks', 'REITs', 'Dividend research', 'Sarawak Economy Watch'];
+export const RESEARCH_FILED_LABEL = 'Filed · SEC 10-K · US$';
+export const COVERAGE_TAIL = 'It is not a complete listing of either market';
+export function researchFront(html, { usFile = null, companies = [] } = {}) {
+  const p = [], said = {};
+  const root = htmlTree(html);
+  const nodes = allOf(root);
+  const main = nodes.find(n => n.tag === 'main');
+  if (!main) return { problems: ['/research serves no <main>'], said };
+  const inMain = allOf(main);
+  const order = new Map(inMain.map((n, i) => [n, i]));
+  /* The first form control, and the words in sight before it. */
+  const isControl = (n) => /^(input|select|textarea|button)$/.test(n.tag) || attrOf(n, 'data-inert') !== null;
+  /* Walked to the search, so the words before it are counted whatever
+     control comes first (the measure N7 quotes, 134 on 5 Oct). */
+  let text = '', before = null, first = null, search = null;
+  const walk = (x) => {
+    for (const k of x.kids || []) {
+      if (search) return;
+      if (k.tag === '#text') { text += unEntity(k.text); continue; }
+      if (hiddenNode(k)) continue;
+      if (x.tag === 'details' && attrOf(x, 'open') === null && k.tag !== 'summary') continue;
+      if (isControl(k)) {
+        if (!first) { first = k; before = text; }
+        if (hasClass(k, 'rh-search')) { search = k; return; }
+      }
+      text += ' '; walk(k); text += ' ';
+    }
+  };
+  walk(main);
+  if (before === null) before = text;
+  said.wordsBefore = wordsIn(before).length;
+  said.wordsBeforeSearch = search ? wordsIn(text).length : null;
+  said.firstControl = first ? `${first.tag}.${(attrOf(first, 'class') || '').trim().replace(/\s+/g, '.')}` : null;
+  if (!search || first !== search) p.push(`the first form control in <main> is ${said.firstControl ? `"${said.firstControl}"` : 'none'}, not the search (.rh-search)`);
+  const counted = search ? said.wordsBeforeSearch : said.wordsBefore;
+  if (counted > RESEARCH_FIRST_WORDS) p.push(`<main> has ${counted} words in sight before ${search ? 'the search' : 'its first form control'}, more than ${RESEARCH_FIRST_WORDS}: "${(search ? text : before).replace(/\s+/g, ' ').trim().slice(0, 160)}…"`);
+  /* The examples. */
+  const pathOf = (h) => { try { return new URL(h, 'https://x.invalid/').pathname; } catch { return null; } };
+  const coByPath = new Map(companies.map(co => [co.path, co]));
+  const exs = inMain.filter(n => n.tag === 'a' && hasClass(n, 'rf-ex'));
+  said.examples = exs.length;
+  for (const a of exs) {
+    const co = coByPath.get(pathOf(attrOf(a, 'href')));
+    if (companies.length && (!co || !co.company.real)) p.push(`an example links ${attrOf(a, 'href')}, ${co ? 'an illustrative company' : 'no company page'}`);
+  }
+  said.marks = [];
+  for (const id of RESEARCH_EXAMPLE_IDS) {
+    const co = companies.find(x => x.id === `${id}-SEC`);
+    const a = co ? exs.find(x => pathOf(attrOf(x, 'href')) === co.path) : exs.find(x => attrOf(x, 'data-example') === id);
+    if (!a) { p.push(`no example links ${co ? co.path : `${id}'s filed page`}`); continue; }
+    const svgs = allOf(a).filter(n => n.tag === 'svg');
+    const marks = svgs.flatMap(s => allOf(s).filter(n => attrOf(n, 'data-v') !== null));
+    said.marks.push(`${id} ${marks.length}`);
+    if (marks.length < 10) p.push(`the ${id} example holds ${svgs.length ? `an <svg> of ${marks.length} data marks` : 'no <svg>'}, not 10 or more`);
+    const text = sightText(a);
+    if (!text.includes(RESEARCH_FILED_LABEL)) p.push(`the ${id} example does not read "${RESEARCH_FILED_LABEL}" in sight ("${text.slice(0, 100)}")`);
+    if (!allOf(a).some(n => attrOf(n, 'data-kind-badge') === 'filed')) p.push(`the ${id} example carries no Filed badge`);
+    if (allOf(a).some(n => ['a', 'button', 'details'].includes(n.tag) || attrOf(n, 'data-inert') !== null)) p.push(`the ${id} example's link holds a control`);
+    if (usFile) {
+      const s = filedSeries(usFile, id);
+      if (!s) { p.push(`data/us.json holds no ${id}`); continue; }
+      const bad = [];
+      s.years.forEach((fy, i) => {
+        for (const [line, want] of [['rev', s.rev[i]], ['ni', s.ni[i]]]) {
+          const m = marks.filter(n => attrOf(n, 'data-fy') === String(fy) && attrOf(n, 'data-line') === line);
+          if (typeof want !== 'number') { if (m.length) bad.push(`FY${fy} ${line} drawn (${attrOf(m[0], 'data-v')}) where the file holds none`); continue; }
+          if (m.length !== 1 || Number(attrOf(m[0], 'data-v')) !== want) bad.push(`FY${fy} ${line} ${m.length ? attrOf(m[0], 'data-v') : 'missing'} (filed ${want})`);
+        }
+      });
+      const held = s.rev.filter(v => typeof v === 'number').length + s.ni.filter(v => typeof v === 'number').length;
+      if (marks.length !== held) bad.push(`${marks.length} marks for ${held} filed figures`);
+      if (bad.length) p.push(`the ${id} example's columns are not its filed revenue and net income in data/us.json: ${bad.slice(0, 4).join('; ')}`);
+    }
+  }
+  /* More ways in. */
+  const moreHd = inMain.find(n => /^h[1-6]$/.test(n.tag) && sightText(n) === 'More ways in');
+  let more = moreHd ? moreHd.parent : null;
+  while (more && more.tag !== 'section' && more.tag !== 'main') more = more.parent;
+  if (!more || more.tag !== 'section') p.push('no <section> headed "More ways in"');
+  else {
+    const links = allOf(more).filter(n => n.tag === 'a' && attrOf(n, 'href'));
+    const linkOf = (name) => links.find(a => sightText(a).includes(name));
+    for (const name of [...RESEARCH_LENSES, 'Trading Index', 'Cash Wheel']) if (!linkOf(name)) p.push(`"${name}" is not an <a href> under "More ways in"`);
+    for (const name of ['Banks', 'REITs']) { const a = linkOf(name); if (a && !allOf(a).some(n => attrOf(n, 'data-kind-badge') === 'illustrative')) p.push(`the ${name} lens carries no Illustrative badge`); }
+    const ti = linkOf('Trading Index');
+    if (ti && !/\bScanner tool\b/.test(sightText(ti))) p.push('the Trading Index is not marked "Scanner tool"');
+    const divs = allOf(more).filter(n => n.tag !== 'a' && attrOf(n, 'data-tool-path') !== null);
+    if (divs.length) p.push(`${divs.length} way(s) in under "More ways in" are a <${divs[0].tag}> with a tool's path and no address`);
+    said.ways = links.length;
+  }
+  /* What the page reads. */
+  const reads = /<html[^>]*\sdata-served-reads="([^"]*)"/.exec(html)?.[1] ?? null;
+  said.reads = reads;
+  if (reads !== null && /\bbaseCcy\b/.test(reads)) p.push(`its served reads name the base currency (${reads})`);
+  /* The coverage line once, and the order. */
+  const cov = sightText(root).split(COVERAGE_TAIL).length - 1;
+  said.coverage = cov;
+  if (cov !== 1) p.push(`the coverage line is in sight ${cov} times, not once`);
+  const at = (pred) => { const n = inMain.find(pred); return n ? order.get(n) : -1; };
+  const seq = [
+    ['the h1', at(n => n.tag === 'h1')],
+    ['the search', search ? order.get(search) : -1],
+    ['the examples', exs.length ? order.get(exs[0]) : -1],
+    ['Recently viewed', at(n => /^h[1-6]$/.test(n.tag) && sightText(n) === 'Recently viewed')],
+    ['Saved cases', at(n => /^h[1-6]$/.test(n.tag) && sightText(n) === 'Saved cases')],
+    ['More ways in', moreHd ? order.get(moreHd) : -1],
+    ['the coverage line', at(n => n.tag === 'p' && sightText(n).includes(COVERAGE_TAIL))],
+  ];
+  const missing = seq.filter(([, i]) => i < 0).map(([w]) => w);
+  if (missing.length) p.push(`not in <main>: ${missing.join(', ')}`);
+  else for (let i = 1; i < seq.length; i++) if (seq[i][1] < seq[i - 1][1]) { p.push(`${seq[i][0]} comes before ${seq[i - 1][0]}, not in N7's order`); break; }
+  /* The reader's own, said as nothing yet to a fresh visitor: no sample
+     shown as theirs, and no count. */
+  const mine = inMain.find(n => hasClass(n, 'rf-mine'));
+  if (!mine) p.push('no .rf-mine (Recently viewed and saved cases)');
+  else {
+    const t = sightText(mine);
+    if (/\bsample\b/i.test(t)) p.push(`Recently viewed and saved cases show a sample as the reader's: "${t.slice(0, 120)}"`);
+    if (/\d/.test(t)) p.push(`Recently viewed and saved cases carry a count or figure: "${t.slice(0, 120)}"`);
+    said.empty = inMain.filter(n => hasClass(n, 'rf-empty')).length;
+    if (said.empty !== 2) p.push(`${said.empty} one-line empty states, not two (a fresh visitor has nothing viewed or saved)`);
+  }
+  return { problems: p, said };
+}
 /* Every served page has its own <div id="views"> within SERVED_VIEWS_BYTES
    (PAGE CONTENT FIRST, above). */
 export function viewsLateProblems(pages) {
@@ -2099,8 +2250,13 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const largest = Math.max(...[notFound, ...pages.values()].map(p => Buffer.byteLength(p, 'utf8')));
   /* The homepage's budgets (plan 3.6), on / as served with its render. */
   const homeBudget = !bare && rendered.renders.has('index.html') ? homeBudgets(pages.get(HOME)) : null;
+  /* Research's front page (N7), on /research as served with its render. */
+  const RESEARCH_PAGE = `${PAGES}/research.html`;
+  const researchCheck = !bare && rendered.renders.has('research.html') && pages.has(RESEARCH_PAGE)
+    ? researchFront(pages.get(RESEARCH_PAGE), { usFile: JSON.parse(readFileSync(join(ROOT, 'data', 'us.json'), 'utf8')), companies: plan.companies }) : null;
   const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
-    ...kindProblems(), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : [])];
+    ...kindProblems(), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : []),
+    ...(researchCheck ? researchCheck.problems.map(x => `/research (${RESEARCH_PAGE}), its front page (N7): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
   const isCompanyPage = (f) => f.startsWith(COMPANY_PAGES);

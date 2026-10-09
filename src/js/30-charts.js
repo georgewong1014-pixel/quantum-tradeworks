@@ -750,6 +750,37 @@ function columnChart(container, { cats, series, fmt = v => fmtNum(v, 1), title =
   });
 }
 
+/* ------------------------------------------------ filed revenue columns */
+/* A FILER'S REVENUE AND NET INCOME, AS FILED (plan item 3.8's component;
+   the homepage's Equities card and, since N7, Research's three examples).
+   F: { name, years, rev, ni } — US$ billions by fiscal year, as the
+   statement tuple holds them. A pair of columns a year, revenue then net
+   income, each mark carrying its year, its line and its value (data-fy,
+   data-line, data-v) so a fetch can hold it to data/us.json; the latest
+   revenue printed above its column, the first and last years under the
+   axis. A year the record does not hold is drawn as a gap, never a value.
+   Markup, not nodes, so the page draws it in its first draw and a fetch
+   reads the same figures; every position is rounded to one decimal of the
+   fixed viewBox, so a render is the same in every browser. */
+function filedColumnsSvg(F, { W = 300, H = 136 } = {}) {
+  const n = F.years.length, top = 16, base = 116, gap = 6;
+  const max = Math.max(...F.rev.filter(isNum), ...F.ni.filter(isNum));
+  const slot = W / n, bw = (slot - gap) / 2;
+  const y = (v) => base - (Math.max(0, v) / max) * (base - top);
+  const marks = F.years.map((fy, i) => {
+    const x = i * slot + gap / 2;
+    return [
+      isNum(F.rev[i]) ? `<rect class="pub-col pub-col-rev" x="${x.toFixed(1)}" y="${y(F.rev[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.rev[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="rev" data-v="${F.rev[i]}"/>` : '',
+      isNum(F.ni[i]) ? `<rect class="pub-col pub-col-ni" x="${(x + bw).toFixed(1)}" y="${y(F.ni[i]).toFixed(1)}" width="${bw.toFixed(1)}" height="${(base - y(F.ni[i])).toFixed(1)}" rx="1.5" data-fy="${fy}" data-line="ni" data-v="${F.ni[i]}"/>` : '',
+    ].join('');
+  }).join('');
+  const last = n - 1;
+  return `<svg class="pub-vis-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(`${F.name}: filed revenue and net income, fiscal ${F.years[0]} to ${F.years[last]}, in US dollars. Revenue ${fmtCap(F.rev[0], 'USD')} to ${fmtCap(F.rev[last], 'USD')}; net income ${fmtCap(F.ni[0], 'USD')} to ${fmtCap(F.ni[last], 'USD')}.`)}">`
+    + `<line class="pub-vis-base" x1="0" x2="${W}" y1="${base}" y2="${base}"/>${marks}`
+    + (isNum(F.rev[last]) ? `<text class="pub-vis-val" x="${W}" y="${(y(F.rev[last]) - 4).toFixed(1)}" text-anchor="end">${fmtCap(F.rev[last], 'USD')}</text>` : '')
+    + `<text class="pub-vis-tick" x="0" y="${H - 4}">FY${F.years[0]}</text><text class="pub-vis-tick" x="${W}" y="${H - 4}" text-anchor="end">FY${F.years[last]}</text></svg>`;
+}
+
 /* ------------------------------------------------------------ line chart */
 function lineChart(container, { values, labels, fmt = v => fmtNum(v, 2), varName = '--s1', markLo, markHi, title = '' }) {
   chartHost(container, (W) => {

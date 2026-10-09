@@ -974,6 +974,23 @@ const JOURNEYS = [
     outcomes: ['Search for “apple”', 'Financials: the filed statements, and where a figure came from', 'Add to watchlist', 'The watchlist lists it'],
     async run(j, tab) {
       await step(j, tab, 'Open Equities Research', BUDGET.load, () => tab.goto('/research'));
+      /* RESEARCH'S FRONT PAGE (the 5 Oct addendum's N7; D20): its Apple
+         example is one press from Apple's filed revenue — Financials, the
+         Revenue columns drawn from the filed statements — where it took
+         the search, a result and the tab (three actions). Then back, for
+         the search. */
+      await step(j, tab, 'One press on the Apple example: its filed revenue chart', BUDGET.action + BUDGET.load, async () => {
+        const ex = `document.querySelector('main a.rf-ex[data-example="AAPL"]')`;
+        if (!await tab.eval(`!!(${ex})`)) throw new StepError('/research shows no Apple example to press');
+        await tab.click(ex, 'The Apple example');
+        await tab.expect(`State.view === 'research' && /^\\/company\\/aapl/.test(location.pathname) && !!BY_ID.get(State.ticker)?.c.real
+          && /^Financials$/.test(document.querySelector('main [role=tab][aria-selected="true"]')?.textContent.trim() || '')`,
+          async () => `the Apple example opened ${await tab.eval('location.pathname + location.search')} (${await tab.eval('State.view')}), not Apple’s filed Financials`);
+        await tab.expect(`(() => { const s = [...document.querySelectorAll('main svg.chart')].find(x => x.getAttribute('aria-label') === 'Reported financials');
+          const card = s?.closest('.card'); return !!s && s.querySelectorAll('path').length >= 10 && [...(card?.querySelectorAll('.legend .legend-item') || [])].some(n => n.textContent.trim() === 'Revenue'); })()`,
+          async () => `Apple’s Financials tab draws no revenue chart (its charts: ${await tab.eval(`JSON.stringify([...document.querySelectorAll('main svg')].filter(s => s.getAttribute('aria-label')).map(s => [s.getAttribute('class'), s.getAttribute('aria-label').slice(0, 40), s.querySelectorAll('path').length]).slice(0, 6))`)})`, 6000);
+        await tab.goto('/research');
+      });
       await step(j, tab, 'Search for “apple”', BUDGET.action, async () => {
         await tab.click(visible('[data-open-search]'), 'The search button');
         await tab.expect(`document.activeElement?.id === 'searchInput'`, 'the search box did not open with the cursor in it', 3000);

@@ -1188,7 +1188,8 @@ try {
       out.tile = tile ? { value: tile.querySelector('.stat-value').textContent, style: tile.querySelector('.stat-value').getAttribute('style') || '' } : null;
       if (saved) State.valuation[abbv.c.id] = saved; else delete State.valuation[abbv.c.id];
       navigate('/research');
-      const card = [...document.querySelectorAll('[role=button]')].find(x => x.querySelector('h3')?.textContent === 'Banks');
+      /* N7: the Banks lens is a link (a.rf-way) to the screen it sets up. */
+      const card = [...document.querySelectorAll('main a.rf-way')].find(x => x.querySelector('.rf-way-name')?.textContent === 'Banks');
       card?.click();
       out.banks = { view: State.view, path: location.pathname, tpl: State.appliedTemplate };
       return out;
@@ -1200,7 +1201,7 @@ try {
     if (!r.alert.editor || r.alert.co !== 'MAYBANK' || r.alert.falseBuilder) p.push(`Create a price alert: ${JSON.stringify(r.alert)}`);
     if (!r.editedNote) p.push('edited assumptions are not named on the snapshot that still shows the defaults');
     if (r.tile && r.tile.value === '—' && /--dn-text|--ok-text/.test(r.tile.style)) p.push(`the absent "vs base-case value" is coloured: ${r.tile.style}`);
-    if (r.banks.path !== '/discover/screener' || r.banks.tpl !== 'my-banks') p.push(`the research-home Banks card: ${JSON.stringify(r.banks)}`);
+    if (r.banks.path !== '/discover/screener' || r.banks.tpl !== 'my-banks') p.push(`the research-home Banks lens: ${JSON.stringify(r.banks)}`);
     if (p.length) fail('every control on the company page does what it says', p);
     else ok(`every control on the company page does what it says — peers capped at ${r.compare.cap}, Banks opens the screener, the alert editor opens on MAYBANK, the tabs are a tablist, ${r.priceCard.want} from the high on the sample`);
   }

@@ -108,9 +108,13 @@ const startHereHidden = () => { const v = store.read('startHere', {}); return v 
    with, and the panel stood a screen of words above them — about 50 of the
    page's 180 before its first control. The calculator and Property's other
    tools keep it. */
+/* Nor on Research's front page (N7, D20): its three filed examples are what
+   the panel offered — Apple's filed figures — one press from them, and the
+   panel stood about a hundred words above the search, its first control.
+   The screener, Compare and the queue keep it. */
 function startHereFor(view = State.view) {
   const pid = productOf(view);
-  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab') return null;
+  if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab' || view === 'researchHome') return null;
   if (!TOOLS.some(t => t.product === pid && toolViews(t).includes(view))) return null;
   return startHereHidden()[pid] ? null : pid;
 }

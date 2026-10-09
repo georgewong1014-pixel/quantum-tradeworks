@@ -2037,6 +2037,92 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
 .rh-searchrow .input.rh-search { padding: 0 14px; }
 .rh-searchrow .rh-go { min-height: 48px; padding: 0 20px; font-size: var(--text-body); }
 @media (max-width: 560px) { .rh-searchrow .rh-go { flex: 1 1 100%; } }
+
+/* ---- research-front ---- */
+/* RESEARCH'S FRONT PAGE (N7; D20), on the layout system: the head, the
+   search, three filed examples, the reader's own, more ways in, the
+   coverage line — related things close, each concept a step apart. */
+.rf-page { display: flex; flex-direction: column; gap: var(--ls-concept); }
+.rf-page > .page-hd { margin-bottom: calc(var(--ls-group) - var(--ls-concept)); }
+:root .ls-view .rh-searchrow :is(.input.rh-search, .select, .rh-go) { font-size: var(--ls-body); }
+.rf-search { display: flex; flex-direction: column; gap: var(--ls-related); }
+.rf-results { display: flex; flex-direction: column; gap: var(--ls-within); }
+.rf-results:empty { display: none; }
+.rf-sec-hd { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ls-within); margin: 0 0 var(--ls-group); }
+.rf-sec-hd .h-section { margin: 0; }
+.rf-sec-note { margin: 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+/* The examples: one surface each, the plot in a well a step down. */
+.rf-examples, .rf-ways, .rf-mine-list { list-style: none; margin: 0; padding: 0; }
+.rf-examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 248px), 1fr)); gap: var(--ls-group); }
+:root .ls-view .rf-examples > li { display: flex; min-width: 0; max-width: none; }
+.rf-ex {
+  position: relative; flex: 1 1 auto; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  padding: 14px 14px 12px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface-2);
+  color: inherit; text-decoration: none;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 18px 44px -30px color-mix(in srgb, var(--ink) 34%, transparent);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+a.rf-ex:hover { transform: translateY(-2px); border-color: var(--line-2);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--ink) 6%, transparent), 0 24px 52px -28px color-mix(in srgb, var(--ink) 40%, transparent); }
+a.rf-ex:active { transform: translateY(0); }
+a.rf-ex:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+a.rf-ex:hover .pub-col { opacity: .82; }
+.rf-ex-hd { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px var(--ls-related); }
+:root .ls-view .rf-ex-name, .rf-ex-name { margin: 0; font-size: var(--ls-body); line-height: 22px; font-weight: var(--weight-bold); color: var(--ink); letter-spacing: -.01em; }
+.rf-ex-tk { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-3); letter-spacing: .03em; }
+.rf-ex-plot { display: block; padding: 10px 10px 4px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface-sunk) 70%, var(--surface-2)); box-shadow: inset 0 0 0 1px var(--line); }
+.rf-ex-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); }
+.rf-ex-ft { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px var(--ls-group); margin-top: auto; }
+.rf-ex-src { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--ls-meta); line-height: 18px; font-weight: var(--weight-semibold); color: var(--ink); }
+.rf-ex-go { display: inline-flex; align-items: center; gap: 4px; font-size: var(--ls-support); font-weight: var(--weight-bold); color: var(--brand); }
+.rf-ex-arrow { display: inline-block; transition: transform 200ms ease; }
+a.rf-ex:hover .rf-ex-arrow { transform: translateX(3px); }
+.rf-ex-off { box-shadow: none; background: var(--surface); }
+.rf-ex-note { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+/* The reader's own: two quiet columns, a hairline above each. */
+.rf-mine { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--ls-group) var(--ls-concept); }
+.rf-mine-col { min-width: 0; padding-top: var(--ls-related); border-top: 1px solid var(--line); }
+:root .ls-view .rf-mine-hd, .rf-mine-hd { margin: 0 0 var(--ls-within); font-size: var(--ls-body); line-height: 22px; font-weight: var(--weight-bold); color: var(--ink); }
+.rf-empty { margin: 0; font-size: var(--ls-support); line-height: 20px; color: var(--ink-2); }
+.rf-mine-list { display: flex; flex-wrap: wrap; gap: var(--ls-related); }
+.rf-mine-link { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); text-decoration: none; font-size: var(--ls-support);
+  transition: border-color 160ms ease, transform 160ms ease; }
+.rf-mine-link:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.rf-mine-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.rf-mine-tk { font-weight: var(--weight-bold); }
+.rf-mine-name { color: var(--ink-2); max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* More ways in: links, each a name, its badge and one line. */
+.rf-ways { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: var(--ls-related); }
+:root .ls-view .rf-ways > li { display: flex; min-width: 0; max-width: none; }
+.rf-way {
+  flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--ls-within); min-width: 0; min-height: 44px;
+  padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2);
+  color: inherit; text-decoration: none; transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+a.rf-way:hover { border-color: var(--line-2); transform: translateY(-1px); box-shadow: 0 14px 30px -24px color-mix(in srgb, var(--ink) 40%, transparent); }
+a.rf-way:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.rf-way-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--ls-related); }
+.rf-way-name { font-size: var(--ls-support); line-height: 20px; font-weight: var(--weight-bold); color: var(--ink); }
+.rf-way-sub { font-size: var(--ls-meta); line-height: 17px; color: var(--ink-2); }
+.rf-sub-hd { margin: var(--ls-group) 0 var(--ls-related); font-size: var(--ls-meta); line-height: 16px; font-weight: var(--weight-bold); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.rf-coverage { margin: 0; }
+/* A phone sequences: the field across the screen, the two filters under it
+   side by side, and the examples one a screen, swiped sideways with the
+   next one's edge in sight — not three charts stacked three screens deep. */
+@media (max-width: 639.98px) {
+  .rf-search .rh-searchrow .input.rh-search { flex: 1 1 100% !important; min-width: 0 !important; }
+  .rf-search .rh-searchrow .select { flex: 1 1 0 !important; width: auto !important; min-width: 0; }
+  .rf-examples { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 86%; overflow-x: auto; overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory; scroll-padding-inline: 0; padding: 2px 2px 14px; margin: -2px -2px 0; scrollbar-width: thin; }
+  :root .ls-view .rf-examples > li { scroll-snap-align: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rf-ex, .rf-ex-arrow, .rf-way, .rf-mine-link { transition: none; }
+  a.rf-ex:hover, a.rf-way:hover, .rf-mine-link:hover, a.rf-ex:hover .rf-ex-arrow { transform: none; }
+}
+/* ---- end research-front ---- */
 /* The sample-data banner on the personal pages (sampleBanner,
    50-views-studio.js): a bronze note with room inside its rule. */
 .sample-banner {
