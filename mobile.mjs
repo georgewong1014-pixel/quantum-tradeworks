@@ -3236,6 +3236,107 @@ for (const w of [360, 390]) {
   else console.log(`ok   p1-questions: on /property and /property/calculator, in the page's font and in Verdana — at 1440 the first controls are "What are you buying?" then "How are you buying?", each one line; at 360, 390 and 430 one 44px summary line, "Residential · Subsale" and Change, which Enter opens in place (nothing above it moves, aria-expanded true) onto the two questions first, each one line of 44px chips with its legend whole, Commercial adding its kinds and saying so, and Escape folds them with the keyboard back on Change; nothing scrolls the page sideways (${said.slice(0, 6).join('; ')} …)`);
 }
 /* ---- end p1-questions ---- */
+
+/* ---- p3-auction ---- */
+/* THE AUCTION RISK MODE ON A PHONE (the property decision layer, P3). A
+   deal answered Auction with the Proclamation's terms entered, on
+   /property (the Lab) and /property/calculator, at 360×640, 390×844 and
+   430×932, in the page's font and in Verdana:
+     - the auction section is drawn — the alert "Not final: 6 checks open",
+       the effective acquisition cost and the true discount as L1 metric
+       cards, the forfeiture exposure, the waterfall a row a step — and
+       nothing on the page scrolls sideways; every waterfall row, card and
+       input stands inside the section;
+     - every control in it is a 44px target: the inputs, the deposit's two
+       chips, each check's row, the calls to action; a kind badge reaches
+       44px by its ::after;
+     - the action bar stands at the window's foot, and on /property at
+       390×844 the first slider is still whole above it on the first
+       screen.
+   Fails on a4a8d0b4, where Auction draws no auction section. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
+  const read = (sec) => `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { if (!shown(n)) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+    const s = document.getElementById('${sec}');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    const sb = s.getBoundingClientRect();
+    const roots = [s, ...(document.getElementById('auction') ? [document.getElementById('auction')] : [])];
+    const ctrls = roots.flatMap(r => [...r.querySelectorAll('input:not([type=checkbox]):not([type=radio]), .au-pick .lab-seg-opt, .au-check-row, .ls-cta, button, select')]).filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const badges = roots.flatMap(r => [...r.querySelectorAll('a.kind-badge')]).filter(shown).filter(n => { const a = getComputedStyle(n, '::after'); return n.getBoundingClientRect().height + 24 < 43.5 || a.content === 'none' || a.position !== 'absolute'; }).length;
+    const inside = [...s.querySelectorAll('.au-wf-row, .au-card, .au-field, .au-check-row, .ls-card')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < sb.left - 0.5 || b.right > sb.right + 0.5; }).map(n => n.dataset.step || n.dataset.au || n.className.split(' ')[0]);
+    const bar = document.querySelector('.ls-actbar');
+    const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, badges, inside,
+      alert: (document.querySelector('#${sec} .au-alert .ls-card-title')?.textContent || '').trim(),
+      l1: [...s.querySelectorAll('[data-au-fig][data-level="1"]')].map(n => n.dataset.auFig), forfeit: s.querySelector('[data-au-fig="forfeiture"] [data-value]')?.dataset.value || '',
+      rows: s.querySelectorAll('.au-wf-row').length, controls: ctrls.length,
+      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      face: getComputedStyle(s.querySelector('.au-wf-amt') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      for (const [path, sec, view] of [['/property/calculator?d=' + TERMS, 'pc-au', 'property'], ['/property', 'lab-au', 'propertyLab']]) {
+        const at = `${w}×${h} ${path.split('?')[0]}${font ? ' in Verdana' : ''}`;
+        const got = await load(path);
+        if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        /* The first screen first: the slider above the bar (the Lab). */
+        if (view === 'propertyLab') {
+          const top = await ev(read(sec));
+          if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+        }
+        await ev(`(() => { const s = document.getElementById('${sec}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await sleep(200);
+        const r = await ev(read(sec));
+        if (r.none) { fails.push(`${at}: no auction section (#${sec}) for a deal answered Auction`); continue; }
+        if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+        if (!/^Not final: 6 checks open$/.test(r.alert)) fails.push(`${at}: the alert reads "${r.alert}", not "Not final: 6 checks open"`);
+        if (JSON.stringify(r.l1) !== '["effective","discount"]') fails.push(`${at}: the L1 cards are ${JSON.stringify(r.l1)}, not the effective acquisition cost and the true discount`);
+        if (r.forfeit !== '42000') fails.push(`${at}: the forfeiture exposure reads "${r.forfeit}", not RM42,000`);
+        if (r.rows !== 9) fails.push(`${at}: the waterfall has ${r.rows} rows, not 9`);
+        if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+        if (r.badges) fails.push(`${at}: ${r.badges} kind badge(s) without a 44px reach`);
+        if (r.inside.length) fails.push(`${at}: outside the section's width: ${r.inside.slice(0, 4).join(', ')}`);
+        if (!r.bar || r.barFixed !== 'fixed' || r.bar.b > r.vh + 0.5) fails.push(`${at}: the action bar is ${r.bar ? `${r.barFixed}, ${r.bar.t}–${r.bar.b}px of ${r.vh}` : 'not drawn'}`);
+        if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+        said.push(`${at.replace(' in Verdana', ' V')}: ${r.controls} controls`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL p3-auction — the auction risk mode on a phone (the property decision layer, P3): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   p3-auction: a deal answered Auction, its terms entered, on /property/calculator and /property at 360, 390 and 430, in the page's font and in Verdana — "Not final: 6 checks open", the effective acquisition cost and the true discount as L1 cards, the exposure RM42,000, the waterfall's 9 rows inside the section; every input, chip, check row and call to action a 44px target and every kind badge 44px by its reach; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
+}
+/* ---- end p3-auction ---- */
 /* ---- home-3a ---- */
 /* THE HOMEPAGE CLEANUP, AS DRAWN (plan Phase 3A and 3B; the owner's
    decisions D5, D17, D21 and D22) — the plan's [browser] lines, in the page's

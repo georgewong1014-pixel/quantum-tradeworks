@@ -300,26 +300,37 @@ const PROPERTY_TYPE_CLASS = {
    "changed since saved" because a question was added, and its figures are
    byte for byte what they were (model-test, p1-route).
 
-   THE ROUTES NOT MODELLED YET SAY SO. New development (P4) and auction (P3)
-   are selectable, and until their models arrive they are modelled as a
-   subsale, said in one line where the answer is given. The fee rulebook's
-   lines are the ones written for an SPA and the transfer (FEE_TABLE,
-   purchaseLegal's rule 1): no developer (HDA) or auction term — a deposit
-   and balance from a Proclamation of Sale, arrears passed by it — is
-   applied to either, because none is modelled, and none is invented.
+   THE ROUTE NOT MODELLED YET SAYS SO. New development (P4) is selectable,
+   and until its model arrives it is modelled as a subsale, said in one
+   line where the answer is given; no developer (HDA) term is applied,
+   because none is modelled, and none is invented.
+
+   AUCTION IS MODELLED (P3, the auction risk mode: auctionModel,
+   75-property-grade.js). Its terms — the deposit, what it is a share of,
+   the days to pay the balance, the arrears the Proclamation of Sale passes
+   to the buyer — are the reader's, entered from the Proclamation and its
+   Conditions of Sale, and NEVER assumed: until they are entered, every
+   figure resting on them is Unavailable. Nothing of the auction changes a
+   deal that has not entered it (dealModel adds its lines only once
+   entered), so a deal answered Auction with nothing entered prints the
+   subsale's figures, line for line.
    ========================================================================== */
 const PROPERTY_ROUTES = {
   newdev:  { id:'newdev',  label:'New development', modelled:false, phase:'P4',
     coming:'The new-development model is coming; these figures treat it as a subsale.' },
   subsale: { id:'subsale', label:'Subsale', modelled:true },
-  auction: { id:'auction', label:'Auction', modelled:false, phase:'P3',
-    coming:'The auction model is coming; these figures treat it as a subsale.' },
+  auction: { id:'auction', label:'Auction', modelled:true, phase:'P3' },
 };
 const PROPERTY_ROUTE_IDS = ['newdev', 'subsale', 'auction'];
 const DEFAULT_PROPERTY_ROUTE = 'subsale';
 const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route : DEFAULT_PROPERTY_ROUTE);
 /* What the fee rulebook does for a route it does not model: nothing of its
    own — the subsale's lines, said. */
+/* On the auction route the rulebook's lines stand as for a transfer on the
+   winning bid, with one exception the reader makes: their lawyer's quote
+   for the legal and search costs, once entered, takes the place of the
+   purchase legal fees (an auction has no SPA). */
+const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price; your lawyer’s quote for the legal and search costs, once entered, takes the place of its purchase legal fees — an auction has no SPA. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
   : null);
@@ -734,9 +745,63 @@ const SUBSALE_CONDITION = {
   uninspected: { id:'uninspected', label:'Not inspected' },
 };
 const PRICE_TARGET_KINDS = ['monthly', 'yield'];
+
+/* THE AUCTION RISK MODE'S ANSWERS (P3). What the deposit is a share of is
+   the Proclamation's to say — some state the reserve price, the Malaysian
+   Bar's guidance speaks of the purchase price — so it is asked, never
+   assumed. */
+const AUCTION_DEPOSIT_OF = {
+  reserve: { id:'reserve', label:'Of the reserve price' },
+  bid:     { id:'bid',     label:'Of the winning bid' },
+};
+/* THE CHECKLIST, before any auction figure is called final. Drawn from the
+   guidance the Malaysian Bar publishes on buying at an auction — cited as
+   guidance, never as a rule of this tool's: each item says what to find
+   out, in the guidance's words where it has them, and where it is said. */
+const AUCTION_GUIDANCE = {
+  bar2019: { title: 'Buying property at an auction — Zemilah Mohd Noor, The Star, 4 March 2019, published by the Malaysian Bar',
+    url: 'https://www.malaysianbar.org.my/conveyancing_practice/buying_property_at_an_auction.html' },
+  bar2006: { title: 'LAW & REALTY: Making a bid at a public auction — Andrew Wong, the Bar Council’s Conveyancing Practice Committee, The Sun, 30 June 2006, published by the Malaysian Bar',
+    url: 'https://www.malaysianbar.org.my/conveyancing_practice/law_realty_making_a_bid_at_a_public_auction.html' },
+  bar2008: { title: 'Auction caution — Bhag Singh, The Star, 11 March 2008, published by the Malaysian Bar',
+    url: 'https://www.malaysianbar.org.my/news_features/law_article_auction_caution.html' },
+};
+const AUCTION_CHECKS = {
+  occupancy: { id:'occupancy', label:'Occupancy', sources:['bar2019', 'bar2006', 'bar2008'],
+    what:'Whether the property is occupied or vacant, and whether the occupant is a tenant or the owner. The guidance says the bank has no obligation to give vacant possession: the buyer takes possession at their own cost.' },
+  title: { id:'title', label:'Title and encumbrances', sources:['bar2019', 'bar2008'],
+    what:'Whether the title has been issued, any encumbrance — a private caveat among them — affecting it, and whether the state authority’s consent is needed for the transfer. A land search; the guidance notes a property is commonly sold subject to the charges and caveats on it.' },
+  charges: { id:'charges', label:'Outstanding charges', sources:['bar2019', 'bar2006'],
+    what:'Outstanding maintenance fees, quit rent, assessment and charges for electricity, water, waste or sewerage — and whether the Proclamation passes them to you or pays them out of the purchase money.' },
+  developer: { id:'developer', label:'Developer status', sources:['bar2019', 'bar2006'],
+    what:'Where no title has been issued, whether the developer is still around or has been wound up, and its consent to the transfer, which the guidance says is the purchaser’s to obtain.' },
+  condition: { id:'condition', label:'Repair condition', sources:['bar2019', 'bar2008'],
+    what:'The condition of the property and what repair and renovation will cost. The guidance warns that photographs may not show its real state; inspect it if you can.' },
+  proclamation: { id:'proclamation', label:'The Proclamation’s terms', sources:['bar2019', 'bar2006'],
+    what:'The Proclamation of Sale and its Conditions: the deposit, the days to pay the balance — the guidance says usually 90 or 120 — and whether an extension may be granted, and at what interest.' },
+};
+const AUCTION_CHECK_IDS = Object.keys(AUCTION_CHECKS);
+/* The arrears a Proclamation may pass to the buyer, each entered on its own
+   (the brief's four: maintenance, quit rent, assessment and utilities). */
+const AUCTION_ARREARS = [
+  ['arrearsMaintenance', 'Maintenance and sinking fund'],
+  ['arrearsQuitRent', 'Quit rent'],
+  ['arrearsAssessment', 'Assessment'],
+  ['arrearsUtilities', 'Utilities'],
+];
+/* The reader's own comparable prices, typed — beside any named from the
+   register (priceGap) — up to three. */
+const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
 const ansEnum = (ids) => (raw) => (ids.includes(raw) ? raw : undefined);
 const ansSum = (raw) => (/^\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
 const ansSigned = (raw) => (/^-?\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
+const ansPct = (raw) => { const v = ansSum(raw); return v !== undefined && v <= 100 ? v : undefined; };
+const ansDays = (raw) => (/^\d{1,4}$/.test(String(raw)) ? Number(raw) : undefined);
+/* The checks ticked, in the checklist's own order and words. */
+const ansChecks = (raw) => {
+  const ids = String(raw).split(',').filter(Boolean);
+  return ids.length && ids.every(id => AUCTION_CHECK_IDS.includes(id)) ? AUCTION_CHECK_IDS.filter(id => ids.includes(id)) : undefined;
+};
 const DEAL_ANSWER_FIELDS = {
   /* Subsale is the absence of the key, so the address never carries it. */
   route: ansEnum(PROPERTY_ROUTE_IDS.filter(r => r !== DEFAULT_PROPERTY_ROUTE)),
@@ -750,6 +815,15 @@ const DEAL_ANSWER_FIELDS = {
   chargesToBuyer: ansSum,
   targetKind: ansEnum(PRICE_TARGET_KINDS),
   targetValue: ansSigned,
+  /* The auction risk mode (P3): the Proclamation's terms, the reader's
+     comparables and estimates, and the checks ticked. */
+  reservePrice: ansSum,
+  auctionComp1: ansSum, auctionComp2: ansSum, auctionComp3: ansSum,
+  arrearsMaintenance: ansSum, arrearsQuitRent: ansSum, arrearsAssessment: ansSum, arrearsUtilities: ansSum,
+  auctionRepairs: ansSum, possessionCost: ansSum, possessionMonths: ansSum, auctionLegal: ansSum,
+  auctionDepositPct: ansPct, auctionDepositOf: ansEnum(Object.keys(AUCTION_DEPOSIT_OF)), auctionBalanceDays: ansDays,
+  auctionBuffer: ansSum, auctionHoldMonths: ansSum,
+  auctionChecks: ansChecks,
 };
 const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
 /* The one way an answer is written to a deal: the default is the key's

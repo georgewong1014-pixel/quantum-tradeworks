@@ -447,6 +447,9 @@ const CP_IN = {
   condition: (v) => SUBSALE_CONDITION[v]?.label || 'Not recorded', buildingAge: (v) => (v == null ? 'Not entered' : cpPlural(v, 'year')),
   chargesToBuyer: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
   targetKind: (v) => PRICE_TARGETS[v]?.label || 'Not set', targetValue: (v) => (v == null ? 'Not set' : cpN(v)),
+  /* The auction risk mode's answers (P3): a term not entered says so. */
+  auctionDepositOf: (v) => AUCTION_DEPOSIT_OF[v]?.label || 'Not entered',
+  auctionChecks: (v) => (Array.isArray(v) && v.length ? `${v.length} of ${AUCTION_CHECK_IDS.length} ticked` : 'None ticked'),
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
