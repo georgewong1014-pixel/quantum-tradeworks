@@ -4607,6 +4607,12 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
   #views[data-served] [data-now] { visibility: hidden; }
 }
 #views[data-served] [data-now=""]:empty::before { content: "\a0"; }
+/* A coverage cell held to the longer of its served and waiting texts
+   (coverageCell, 15-derivation.js): the unseen copy and the words share one
+   grid cell, so the box is the taller of the two before and after the draw. */
+.cov-hold { display: grid; }
+.cov-hold > *, .cov-hold::after { grid-area: 1 / 1; }
+.cov-hold::after { content: attr(data-hold); visibility: hidden; }
 /* A /status result chip (healthChip, 91-health.js) is as wide as the widest
    thing it can say, in any font (2026-10-04). Served it says "Not run",
    drawn "Checking…", then its result; at its 4.75rem floor "Checking…" fit

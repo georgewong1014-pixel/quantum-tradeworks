@@ -473,8 +473,20 @@ function covText(fn, pending = COVERAGE_PENDING) {
    it never loads. The element is marked so (data-now, NOW in 35-ui.js):
    served, it says who counts it; drawn, the count or the wait. */
 const COVERAGE_SERVED = 'Counted by this page’s script once the audited set has loaded.';
-function coverageCell(tag, attrs, text) {
-  return el(tag, String(text).includes(COVERAGE_PENDING) ? { ...attrs, 'data-now': COVERAGE_SERVED } : attrs, text);
+/* HELD TO THE LONGER OF ITS TWO TEXTS (`hold`, 10 Oct 2026). The served box
+   is the served sentence's; the wait drawn into it is longer, and in a
+   narrow column it took another line: on /status at 390 the US equities row
+   grew 18px when the page was drawn, and a reader scrolled below it moved
+   (CI, coverage-frames, once the journeys record made the page long enough
+   to put the reader there). A held cell stacks an unseen copy of the longer
+   text (an attribute, never the page's words) under its own, so served and
+   drawn take the same lines in any font. */
+function coverageCell(tag, attrs, text, { hold = false } = {}) {
+  const t = String(text);
+  if (!t.includes(COVERAGE_PENDING)) return el(tag, attrs, text);
+  if (!hold) return el(tag, { ...attrs, 'data-now': COVERAGE_SERVED }, text);
+  return el(tag, { ...attrs, class: `${attrs.class || ''} cov-hold`.trim(), 'data-hold': t.length >= COVERAGE_SERVED.length ? t : COVERAGE_SERVED },
+    el('span', { 'data-now': COVERAGE_SERVED }, text));
 }
 
 /* The same fact as a sentence, so two surfaces cannot word it differently.
