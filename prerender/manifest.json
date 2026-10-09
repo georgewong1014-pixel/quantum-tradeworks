@@ -4905,12 +4905,12 @@
         "forms": 0,
         "removed": 0,
         "notShown": 0,
-        "now": 17,
+        "now": 29,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "057b8c05d666d430",
-      "changed": "2026-10-07"
+      "digest": "2150f388829e1f06",
+      "changed": "2026-10-09"
     },
     "pages/terms.html": {
       "path": "/terms",

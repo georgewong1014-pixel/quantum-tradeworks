@@ -518,9 +518,10 @@ function journeyLinesPaint() {
    drawn empty here with data-now), kept as served until this tab's own read
    of the record returns, then drawn from it with the same function — and,
    apart, the Live tools "not yet proven by a journey", read from the same
-   rows (proof: null). Nothing is moved to Beta here: the badges stay as
-   the registry writes them while their journeys are written (plan item
-   6.5). */
+   rows (proof: null). Since plan item 6.5 there are none — every Live row
+   names its journey, and register-check fails one that does not — so the
+   list says "None"; it stays, so that a badge that ever lost its proof
+   would be said here rather than dropped. */
 const PROOF_UNPROVEN = 'not yet proven by a journey';
 function proofResultNode(journey, step) {
   const span = el('span', { class: 'proof-result', 'data-proof-journey': journey, 'data-proof-step': step, 'data-now': '' });
