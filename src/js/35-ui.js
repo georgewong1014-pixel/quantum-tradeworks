@@ -2354,7 +2354,7 @@ function renderProductTabs() {
   });
   const nav = p
     ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
-    : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: 'ws-tabs' });
+    : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: chips ? 'ws-tabs ls-chips-row' : 'ws-tabs' });
   host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
   host.dataset.strip = strip;
@@ -2857,7 +2857,11 @@ const SERVED_READS = {
      samples, and the first steps. The last visit (dashVisit, which the page
      itself keeps as it draws) is said only to a visitor with something of
      their own, which these already name: a reload of the dashboard is
-     served. */
+     served. As a workspace (D12, 8 Oct 2026) it reads nothing more: the
+     company last opened (recentCompanies), the saved properties
+     (savedWork), the research, price and screen alerts (theses,
+     priceAlerts, savedScreens) — a returning reader holding any of them
+     is never shown the first visit's page. */
   home: ['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
     'comparisons', 'runs', 'reviews', 'scanSetups', 'deal'],
   /* /research/queue: the cards' arrangement, the active list, the

@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, scanner, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, scanner, return, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1497,6 +1497,77 @@ const JOURNEYS = [
          recorded as gated: it proves the page says why it cannot evaluate,
          not that an evaluation ran (N1b). */
       }, synthetic ? undefined : { gated: 'no prices ship' });
+    },
+  },
+  {
+    /* THE RETURN JOURNEY (plan item 6.2; the owner's decision D12, 8 Oct
+       2026). /app is the returning reader's workspace, in two variants:
+       - a company opened, then /app: on a first visit its "Recently opened"
+         row names it, and one press opens it again;
+       - a property saved, then the homepage: "Open workspace" (the first
+         press) opens My Dashboard with the reader's work first — the five
+         counts, "Saved properties" reading 1 — and its "Continue" (the
+         second) reopens the property in the Scenario Lab, by name.
+       Nothing but this browser's own storage is written; Apple is a filed
+       company, the same on every site. */
+    id: 'return', name: 'Workspace: a returning reader resumes in two presses',
+    outcomes: ['Its “Recently opened” row opens Apple', 'Saved properties tile reads 1', 'Continue reopens it: the second press'],
+    async run(j, tab) {
+      const name = `Return journey ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+      await step(j, tab, 'Open Apple’s company page', BUDGET.load, async () => {
+        await tab.goto('/company/aapl-apple-inc');
+        await tab.expect(`State.view === 'research' && /Apple/i.test(document.querySelector('main h1')?.textContent || '')`, 'the address did not open Apple’s company page');
+      });
+      await step(j, tab, 'Open My Dashboard: a first visit', BUDGET.load, async () => {
+        await tab.goto('/app');
+        await tab.expect(`State.view === 'home' && !!document.querySelector('#views .dash-start')`, 'My Dashboard is not the first visit\'s, with nothing of the reader\'s saved');
+      });
+      await step(j, tab, 'Its “Recently opened” row opens Apple', BUDGET.action, async () => {
+        const row = `document.querySelector('#views li[data-sec="recent"] a[href]')`;
+        const said = await tab.eval(`(${row})?.textContent.replace(/\\s+/g, ' ').trim() || null`);
+        if (!said) throw new StepError('the first visit lists no “Recently opened” row that is a link');
+        if (!/AAPL/.test(said) || !/Apple/.test(said)) throw new StepError(`the “Recently opened” row reads “${said.slice(0, 120)}”, not Apple`);
+        await tab.click(row, 'The “Recently opened” row');
+        await tab.expect(`State.view === 'research' && /^\\/company\\/aapl/.test(location.pathname) && /Apple/i.test(document.querySelector('main h1')?.textContent || '')`,
+          async () => `the row opened ${await tab.eval('location.pathname')}, not Apple’s company page`);
+      });
+      /* A property of the reader's own: a price typed in (one holding only
+         the sample inputs is a sample, never counted as theirs). */
+      await step(j, tab, 'Save a property of your own', BUDGET.load + BUDGET.action * 2, async () => {
+        await tab.goto('/property/calculator');
+        const price = `(() => { const l = [...document.querySelectorAll('main label[for]')].find(x => /^Purchase price/.test(x.textContent.trim())); return l ? document.getElementById(l.htmlFor) : null; })()`;
+        await tab.fill(price, '615000', 'The purchase price', { commit: true });
+        await sleep(300);
+        tab.prompt = name;
+        await tab.click(byText('main button', '/^Save this (property|deal)$/'), 'Save this property');
+        await tab.expect(`/Saved/.test(document.getElementById('toast')?.textContent || '') && pmAll().some(r => r.name === ${JSON.stringify(name)})`, `the property “${name}” was not saved`, 4000);
+      });
+      await step(j, tab, 'Open the homepage', BUDGET.load, () => tab.goto('/'));
+      await step(j, tab, 'Press “Open workspace”: the reader’s work first', BUDGET.action, async () => {
+        await tab.click(visible('a.pub-cta'), 'The header’s “Open workspace”');
+        await tab.expect(`State.view === 'home' && location.pathname === '/app' && !document.getElementById('views').hasAttribute('data-served') && document.querySelectorAll('#views .dash-tile').length === 5`,
+          async () => `“Open workspace” opened ${await tab.eval('location.pathname')} without the five counts`);
+        const order = await tab.eval(`(() => { const t = document.querySelector('#views .dash-tiles'), s = document.querySelector('#views .dash-steps');
+          return { start: !!document.querySelector('#views .dash-start'), before: !s || !!(t.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING) }; })()`);
+        if (order.start || !order.before) throw new StepError(`the reader's work is not first: the first-visit steps ${order.start ? 'are shown' : 'come before the counts'}`);
+      });
+      await step(j, tab, 'Saved properties tile reads 1', BUDGET.action, async () => {
+        const tiles = await tab.eval(`Object.fromEntries([...document.querySelectorAll('#views .dash-tile')].map(t => [t.dataset.tile, { v: t.querySelector('.dash-tile-v')?.textContent.trim(), sub: t.querySelector('.ls-card-sub')?.textContent.trim(), href: t.getAttribute('href') }]))`);
+        const p = tiles.properties;
+        if (!p || p.v !== '1') throw new StepError(`the Saved properties tile reads ${JSON.stringify(p?.v ?? null)}, not 1`);
+        if (!p.sub.includes(name)) throw new StepError(`the Saved properties tile names “${p.sub}”, not “${name}”`);
+        if (tiles.recent?.v !== 'AAPL' || !/^\/company\/aapl/.test(tiles.recent?.href || '')) throw new StepError(`the Recently opened count reads ${JSON.stringify(tiles.recent)}, not Apple`);
+        const row = await tab.eval(`(document.querySelector('#views .dash-row-first')?.textContent || '').replace(/\\s+/g, ' ')`);
+        if (!/Saved property/.test(row) || /Tool snapshot/i.test(row) || !row.includes(name)) throw new StepError(`the row Continue sits on reads “${row.slice(0, 120)}”, not the saved property`);
+      });
+      await step(j, tab, 'Continue reopens it: the second press', BUDGET.load, async () => {
+        await tab.click(`document.querySelector('#views .dash-row-first .dash-continue')`, '“Continue”');
+        const id = await tab.eval(`pmAll().find(r => r.name === ${JSON.stringify(name)})?.id || null`);
+        await tab.expect(`State.view === 'propertyLab' && location.pathname === '/property' && new URLSearchParams(location.search).get('model') === ${JSON.stringify(id)}`,
+          async () => `“Continue” opened ${await tab.eval('location.pathname + location.search')} (${await tab.eval('State.view')}), not the saved property in the Scenario Lab`);
+        await tab.expect(`(document.getElementById('lab-status')?.textContent || '').includes(${JSON.stringify(name)})`,
+          async () => `the Lab's identity line reads “${(await tab.eval(`document.getElementById('lab-status')?.textContent || ''`)).trim().slice(0, 100)}”, not “${name}”`);
+      });
     },
   },
   {

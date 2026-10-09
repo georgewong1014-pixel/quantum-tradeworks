@@ -114,11 +114,11 @@ function workspaceItems() {
     const prop = w.kind === 'property' && typeof pmIsProperty === 'function' && pmIsProperty(w);
     const nSc = prop ? (w.scenarios || []).length : 0;
     items.push({
-      kind: 'work', key: w.id, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
+      kind: 'work', key: w.id, prop, name: w.name, subject: WORK_KINDS[w.kind]?.label || w.kind, ids: [],
       created: w.stamp?.savedAt || w.savedAt, stamp: w.stamp, legacy: { model: w.modelVersion }, illustrative: null,
       sample, sampleWhy: sample ? 'Every input in it is the tool’s own sample or worked example. Not your work.' : null,
       detail: (sample ? (w.kind === 'property' ? 'The calculator’s sample inputs, as saved — none of them is yours' : 'The worked example, as saved — none of it is yours')
-        : 'Your own inputs to the tool, as saved') + (nSc ? ` · ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''),
+        : prop ? 'Your own figures for this property, as saved' : 'Your own inputs to the tool, as saved') + (nSc ? ` · ${nSc} scenario${nSc === 1 ? '' : 's'}` : ''),
       open: () => {
         if (prop) { openPropertyModel(w.id); return; }
         if (!resumeWork(w.id)) { toast('That record holds nothing to restore'); return; }
@@ -258,7 +258,7 @@ VIEWS.workspace = () => {
     list.append(el('li', { class: 'ws-row' }, [
       el('div', { class: 'ws-name' }, [
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
-          el('span', { class: 'chip' }, WORKSPACE_KIND_ONE[i.kind]),
+          el('span', { class: 'chip' }, i.prop ? 'Saved property' : WORKSPACE_KIND_ONE[i.kind]),
           i.sample ? el('span', { class: 'chip chip-bronze', title: i.sampleWhy || 'Seeded on a first visit to show what a case looks like. Not your work.' }, 'sample') : null,
           i.illustrative === 'all' ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
             : i.illustrative === 'some' ? el('span', { class: 'chip chip-bronze', title: 'Some of the companies in it carry synthetic figures.' }, 'partly illustrative') : null,

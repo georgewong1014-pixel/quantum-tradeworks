@@ -5901,3 +5901,94 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   #views .tile-btn[data-inert="button"][data-act] { display: flex !important; }
 }
 /* ---- end evidence-classes ---- */
+/* ---- d12: workspace ---- */
+/* MY DASHBOARD AS A WORKSPACE (the owner's decision D12, 8 Oct 2026;
+   40-views-discover.js). /app is on the layout system (LS_VIEWS): its
+   sections are named sections, its five counts metric cards, its type the
+   scale's. A step carries a schematic picture with no figure in it; a
+   first visit lists the workspace's five parts with what each holds now,
+   "None yet"; a returning reader's five counts lead the page.
+   Only transform, opacity and box-shadow move. */
+/* A step or a row is a structure of its own words, each held to the
+   measure where it is a block (a caption, a line): not the item itself. */
+:root .ls-view .dash :is(li.dash-step, .dash-list > li) { max-width: none; }
+:root .ls-view .dash :is(.dash-step-body .caption, .dash-row-s, .dash-more-link .caption, .dash-secs-lede, .dash-start-lede, .dash-empty .caption) { font-size: var(--ls-support); line-height: 1.5; }
+:root .ls-view .dash :is(.dash-row-t, .dash-more-link strong) { font-size: var(--ls-support); }
+:root .ls-view .dash .dash-row-k { font-size: var(--ls-meta); }
+:root .ls-view .dash .dash-empty-t { font-size: var(--ls-body); }
+:root .ls-view .dash .dash-foot { font-size: var(--ls-support); }
+.dash-start-lede { margin: var(--ls-within) 0 0; }
+
+/* The step's picture, between its mark and its words. */
+.dash-step { grid-template-columns: 32px 64px minmax(0, 1fr) auto; }
+/* Beside the counts, a step not taken is its mark, its words and its action
+   under them: the column is narrow, and its picture is the first visit's. */
+.dash-steps-sm .dash-step { grid-template-columns: 26px minmax(0, 1fr); }
+.dash-steps-sm .dash-step-pic { display: none; }
+.dash-steps-sm .dash-step-go { grid-column: 2; justify-self: start; }
+.dash-step-pic {
+  display: grid; place-items: center; width: 64px; height: 48px; padding: 2px; border-radius: var(--r-md);
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, var(--surface-2)); border: 1px solid var(--line);
+}
+.dash-step-pic svg { width: 100%; height: 100%; display: block; }
+.dash-step-pic .dsp-2 { stroke: var(--bronze); }
+.dash-step-pic .dsp-dot { fill: var(--surface-2); stroke: var(--brand); }
+.dash-step[data-done="1"] .dash-step-pic { opacity: .6; }
+
+/* The workspace's five parts, on a first visit: a row each, a door each. */
+.dash-secs-lede { margin: var(--ls-within) 0 var(--ls-related); color: var(--ink-2); }
+.dash-sec { min-height: 56px; }
+.dash-sec-ic {
+  flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
+  background: var(--brand-wash); color: var(--brand);
+}
+.dash-sec .dash-row-t .ls-badge { margin-left: 2px; }
+.dash-secs .dash-row-t strong { overflow-wrap: anywhere; }
+
+/* Five counts: one row of five from 1440px, three and two below, one a
+   row on a phone (the phone rule above). The card is the layout system's
+   metric card, with the dashboard's own room for its arrow. */
+.dash-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.dash-tile.ls-card {
+  padding: var(--md) calc(var(--md) + 20px) var(--md) var(--md); gap: var(--ls-within);
+  border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 14px 36px -22px color-mix(in srgb, var(--ink) 34%, transparent);
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+.dash-tile.ls-card:hover { transform: translateY(-2px); box-shadow: 0 2px 4px color-mix(in srgb, var(--ink) 6%, transparent), 0 20px 40px -20px color-mix(in srgb, var(--ink) 40%, transparent); }
+.dash-tile .ls-card-hd { justify-content: flex-start; flex-wrap: nowrap; margin-bottom: 2px; }
+.dash-tile .ls-card-label { min-width: 0; overflow-wrap: anywhere; }
+.dash-tile .ls-card-value { margin: 0; white-space: normal; overflow-wrap: anywhere; }
+.dash-tile .dash-tile-v.is-text { font-size: var(--ls-l2); line-height: 1.25; }
+.dash-tile .ls-card-sub { line-height: 1.45; }
+.dash-tile > .ls-badge { align-self: flex-start; margin-top: var(--ls-within); }
+.dash-tile .dash-tile-go { top: var(--md); }
+.dash-cont-card .card-hd .dash-all { flex: none; }
+@media (max-width: 1439px) {
+  .dash-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1024px) {
+  .dash-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .dash-step { grid-template-columns: 28px 48px minmax(0, 1fr); }
+  .dash-step-pic { width: 48px; height: 36px; }
+  .dash-step-go { grid-column: 2 / -1; }
+  .dash-tiles { grid-template-columns: minmax(0, 1fr); }
+  .dash-tile.ls-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--md); row-gap: 2px; align-items: center; padding: var(--sm) 40px var(--sm) var(--md); }
+  .dash-tile > :not(.dash-tile-v):not(.dash-tile-go) { grid-column: 1; }
+  .dash-tile .dash-tile-v { grid-column: 2; grid-row: 1 / span 4; text-align: right; }
+  .dash-tile .dash-tile-v.is-text { font-size: var(--ls-body); }
+  .dash-tile .ls-card-hd { grid-column: 1; }
+  .dash-tile > .ls-badge { grid-column: 1; justify-self: start; margin-top: 0; }
+  .dash-tile .dash-tile-go { top: 50%; margin-top: -9px; }
+}
+/* A finger's targets: every door on the page is 44px each way. */
+@media (pointer: coarse), (max-width: 768px) {
+  .dash .btn, .dash-more-link { min-height: 44px; }
+  .dash .btn { display: inline-flex; align-items: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dash-tile.ls-card:hover { transform: none; }
+}
+/* ---- end d12: workspace ---- */
