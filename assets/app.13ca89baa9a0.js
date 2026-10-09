@@ -20919,7 +20919,7 @@ VIEWS.researchHome = () => {
   const seeded = (t) => typeof SEEDED_THESIS_IDS !== 'undefined' && SEEDED_THESIS_IDS.includes(t.id);
   const own = (State.theses || []).filter(t => !seeded(t)).slice(0, 6);
   const col = (id, title, items, empty) => el('div', { class: 'rf-mine-col' }, [
-    el('h3', { class: 'rf-mine-hd', id }, title),
+    el('h2', { class: 'rf-mine-hd', id }, title),
     items.length ? el('ul', { class: 'rf-mine-list', 'aria-labelledby': id }, items) : el('p', { class: 'rf-empty' }, empty),
   ]);
   const link = (path, kids) => el('a', { class: 'rf-mine-link', href: href(path), onclick: inAppPress(path) }, kids);
