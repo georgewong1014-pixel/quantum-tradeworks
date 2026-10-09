@@ -4580,7 +4580,7 @@
       },
       "inert": {
         "buttons": 27,
-        "fields": 11,
+        "fields": 12,
         "choices": 26,
         "roles": 0,
         "forms": 0,
@@ -4590,7 +4590,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0c962310f1dc4b69",
+      "digest": "beb7d088df237a54",
       "changed": "2026-10-09"
     },
     "pages/property/areas.html": {
@@ -4619,8 +4619,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "08f0e52b918b6c60",
-      "changed": "2026-10-07"
+      "digest": "720a6353d700f625",
+      "changed": "2026-10-09"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -4648,7 +4648,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "77d7e124f37f64c6",
+      "digest": "d6b38431b27517e6",
       "changed": "2026-10-09"
     },
     "pages/property/comparables.html": {
@@ -4666,9 +4666,9 @@
         ]
       },
       "inert": {
-        "buttons": 7,
-        "fields": 1,
-        "choices": 0,
+        "buttons": 8,
+        "fields": 6,
+        "choices": 8,
         "roles": 0,
         "forms": 0,
         "removed": 0,
@@ -4677,8 +4677,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "aa4206fbb32af87e",
-      "changed": "2026-10-07"
+      "digest": "22b31d2d478839c1",
+      "changed": "2026-10-09"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -4696,7 +4696,7 @@
       },
       "inert": {
         "buttons": 27,
-        "fields": 11,
+        "fields": 12,
         "choices": 26,
         "roles": 0,
         "forms": 0,
@@ -4706,7 +4706,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "03fa926764414414",
+      "digest": "3b8625eb77590033",
       "changed": "2026-10-09"
     },
     "pages/property/models.html": {
