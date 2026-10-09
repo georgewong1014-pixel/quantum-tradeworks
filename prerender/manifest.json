@@ -217,7 +217,7 @@
       "view": "researchHome",
       "state": "filings in",
       "chrome": "app",
-      "h1": "Start from a company, a market or a question",
+      "h1": "Research a company",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -227,19 +227,19 @@
         ]
       },
       "inert": {
-        "buttons": 5,
+        "buttons": 1,
         "fields": 3,
         "choices": 0,
-        "roles": 6,
+        "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 0,
+        "notShown": 1,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3c6265dd402ba9c",
-      "changed": "2026-10-04"
+      "digest": "d7c921be556eaefa",
+      "changed": "2026-10-09"
     },
     "pages/app/equities/compare.html": {
       "path": "/app/equities/compare",
@@ -275,7 +275,7 @@
       "view": "researchHome",
       "state": "filings in",
       "chrome": "app",
-      "h1": "Start from a company, a market or a question",
+      "h1": "Research a company",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -285,19 +285,19 @@
         ]
       },
       "inert": {
-        "buttons": 5,
+        "buttons": 1,
         "fields": 3,
         "choices": 0,
-        "roles": 6,
+        "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 0,
+        "notShown": 1,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3c6265dd402ba9c",
-      "changed": "2026-10-04"
+      "digest": "d7c921be556eaefa",
+      "changed": "2026-10-09"
     },
     "pages/app/scanner.html": {
       "path": "/app/scanner",
@@ -4772,7 +4772,7 @@
       "view": "researchHome",
       "state": "filings in",
       "chrome": "app",
-      "h1": "Start from a company, a market or a question",
+      "h1": "Research a company",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -4782,19 +4782,19 @@
         ]
       },
       "inert": {
-        "buttons": 5,
+        "buttons": 1,
         "fields": 3,
         "choices": 0,
-        "roles": 6,
+        "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 0,
+        "notShown": 1,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b465fc794dee57af",
-      "changed": "2026-10-06"
+      "digest": "b3216b2335314503",
+      "changed": "2026-10-09"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",

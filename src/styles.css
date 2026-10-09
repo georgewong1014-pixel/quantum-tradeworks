@@ -2107,6 +2107,16 @@ a.rf-way:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .rf-way-sub { font-size: var(--ls-meta); line-height: 17px; color: var(--ink-2); }
 .rf-sub-hd { margin: var(--ls-group) 0 var(--ls-related); font-size: var(--ls-meta); line-height: 16px; font-weight: var(--weight-bold); letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
 .rf-coverage { margin: 0; }
+/* A phone sequences: the field across the screen, the two filters under it
+   side by side, and the examples one a screen, swiped sideways with the
+   next one's edge in sight — not three charts stacked three screens deep. */
+@media (max-width: 639.98px) {
+  .rf-search .rh-searchrow .input.rh-search { flex: 1 1 100% !important; min-width: 0 !important; }
+  .rf-search .rh-searchrow .select { flex: 1 1 0 !important; width: auto !important; min-width: 0; }
+  .rf-examples { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 86%; overflow-x: auto; overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory; scroll-padding-inline: 0; padding: 2px 2px 14px; margin: -2px -2px 0; scrollbar-width: thin; }
+  :root .ls-view .rf-examples > li { scroll-snap-align: start; }
+}
 @media (prefers-reduced-motion: reduce) {
   .rf-ex, .rf-ex-arrow, .rf-way, .rf-mine-link { transition: none; }
   a.rf-ex:hover, a.rf-way:hover, .rf-mine-link:hover, a.rf-ex:hover .rf-ex-arrow { transform: none; }
