@@ -579,7 +579,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -599,8 +599,10 @@ function labDraw(P, focusId = null) {
      C side by side and keeping one. */
   const chain = labChain(P, lab, col);
   const alert = P.compact ? null : labAlert(P, lab);
+  /* The price against the reader's evidence (the decision layer, P2). */
+  const price = P.compact ? null : labPriceSection(P, lab);
   const evidence = labEvidence(P, lab);
-  outputs.append(...[chain, alert, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -646,7 +648,10 @@ function labHeader(P, lab) {
        property (labArrive). */
     else if (st.kind === 'model') status.append('The deal on the calculator, as it was when the lab opened — ', el('strong', {}, `“${st.rec.name}”`), ' is saved since; open it from My properties to see its columns.');
     else status.append(el('strong', {}, 'The deal on the calculator'), ' — not saved as a property');
-    hd.append(labIdentity(P, lab, status), labTiles(P, lab));
+    /* The two questions and the objective (the decision layer, P1:
+       83-property-decision.js) after the line that names the property and
+       its disclosures, and before the figures their answers lead. */
+    hd.append(labIdentity(P, lab, status), labQuestions(P, lab), labTiles(P, lab));
   }
   return hd;
 }
@@ -717,7 +722,13 @@ function labIdentity(P, lab, status) {
   const d = labSubjectInputs(lab);
   const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
   P.els.idAct = labIdentityAct(P, lab);
-  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, d ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d)) : null]));
+  /* On a phone the place line carries the two questions' summary and its
+     Change (83-property-decision.js): one 44px line, the questions opening
+     under the identity line — the answers as the column the sliders move
+     holds them, which are the property's own until a move is made. */
+  const meta = !d ? null : P.compact ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d))
+    : el('p', { class: 'lab-id-meta has-sum' }, [el('span', { class: 'lab-id-place' }, labPlaceLine(d)), pqSummaryLine(labAnswerInputs(lab) || d, P.idPrefix), pqChangeButton(P.idPrefix)]);
+  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, meta]));
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
@@ -734,7 +745,9 @@ function labIdentityAct(P, lab) {
   /* While its name is asked for, under the line, the form's Save is the
      one to press: one primary, not two. */
   if (lab.naming?.at === 'identity') return box;
-  if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+  if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)));
+  else if (!lab.model) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) }, labGuidedWords(lab, col)));
   else if (labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
@@ -748,11 +761,22 @@ function labIdentityAct(P, lab) {
    words until the badge set lands (plan 3.7): "Illustrative default" while
    any figure it is worked from is still the tool's seeded one, else the
    weakest evidence among them — and the next step. */
-const LAB_TILES = [
-  { key: 'safeCashRequired', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'] },
-  { key: 'cashflowMonthly', level: 1, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'] },
-  { key: 'netYield', level: 2, rests: ['price', 'rent', 'vacancyPct', 'maintenance'] },
-];
+const LAB_TILE_RESTS = {
+  safeCashRequired: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'],
+  cashflowMonthly: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'],
+  netYield: ['price', 'rent', 'vacancyPct', 'maintenance'],
+  valueLessLoanAtExit: ['price', 'downPct', 'ratePct', 'tenureYears', 'apprecPct', 'holdYears'],
+  irrPct: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance', 'apprecPct', 'holdYears'],
+};
+/* WHICH THREE, AND WHICH LEAD: the objective's (PROPERTY_OBJECTIVES,
+   70-property.js) — the first two the decision (L1), the third its context
+   (L2). With none chosen, the three /property has always opened on. The
+   objective decides what leads and nothing else: the columns below keep
+   their order, and nothing is ranked. */
+const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
+/* A tile's label where the chain's is a sentence long. */
+const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)}` };
+const LAB_TILE_NOTE = { valueLessLoanAtExit: (m) => (isNum(m.valueLessLoanAtExit) ? 'before selling costs' : null) };
 function labTileKind(d, rests) {
   const keys = rests.filter(k => propertyInputApplies(d, k));
   if (keys.some(k => inputIsSeeded(d, k))) return { kind: 'illustrative_default', words: evidenceOf('illustrative_default').label };
@@ -765,15 +789,15 @@ function labTiles(P, lab) {
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
   const rec = lab.model ? pmFind(lab.model) : null;
   const grid = el('div', { class: 'lab-tiles', role: 'list', 'aria-label': rec ? `“${rec.name}” as saved` : 'The deal on the calculator' });
-  for (const t of LAB_TILES) {
+  for (const t of labTileSet(labAnswerInputs(lab) || d)) {
     const f = LAB_FIGURES.find(x => x.key === t.key);
     const v = run ? f.read(run.m, d) : null;
     const kind = d ? labTileKind(d, t.rests) : { kind: 'unavailable', words: 'Unavailable' };
     /* THE SYSTEM'S METRIC CARD (37-layout-system.js): the cash and the
        month are the decision (L1, the card-metric size); the yield
        qualifies them (L2, medium). */
-    const card = lsMetricCard({ label: f.label(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
-      sub: run ? (f.note(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
+    const card = lsMetricCard({ label: (LAB_TILE_LABEL[t.key] || f.label)(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
+      sub: run ? ((LAB_TILE_NOTE[t.key] || f.note)(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
       cls: 'lab-tile', attrs: { role: 'listitem', 'data-tile': t.key }, valueAttrs: { class: 'lab-tile-val', 'data-value': isNum(v) ? String(v) : '' } });
     card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
     card.querySelector('.ls-card-label').classList.add('lab-tile-label');
@@ -827,6 +851,153 @@ function labNextTile(P, lab, d) {
   return card;
 }
 
+/* ------------------------------------------- the questions (P1) and the price (P2) */
+/* THE TWO QUESTIONS AND THE OBJECTIVE (83-property-decision.js), as the
+   columns hold them: an answer given here is a move of every column, so
+   they read from the column the sliders move. Its summary is the identity
+   line's on a phone (labIdentity), so the block carries none of its own. */
+const labAnswerInputs = (lab) => labActive(lab)?.work || labSubjectInputs(lab);
+function labQuestions(P, lab) {
+  const d = labAnswerInputs(lab);
+  if (!d) return null;
+  return propertyQuestions({ d, prefix: P.idPrefix, summary: !!P.compact, answer: (k, v) => labAnswer(P, lab, k, v) });
+}
+/* SAVING IS THE ONLY WRITE (the owner's decision, 9 Oct 2026). What is
+   bought, how, the objective and the price's target are answers about the
+   property, so one answer moves every column at once — A, B and C stay one
+   property — and the figures follow at the next paint. Like any move it is
+   kept in this tab's memory and written nowhere: not the calculator's deal,
+   not a saved property, not the address. It is written when the reader
+   saves: the guided Save of an unsaved deal saves the property with its
+   answers (labSaveProperty); a saved property's Save beside its name
+   writes them to it (labSaveAnswers); and a scenario saved, or a column
+   opened in the calculator, carries them as it carries its other moves.
+   lab.answers holds what was answered, for those saves. */
+function labAnswer(P, lab, k, v) {
+  const write = pqWriter(k, v, { touch: false });
+  let changed = false;
+  for (const col of lab.cols) {
+    const next = pmCopy(col.work);
+    if (!write(next)) continue;
+    for (const key of new Set([...Object.keys(next), ...Object.keys(col.work)])) {
+      if (PM_POINTERS.includes(key) || pmCanon(next[key]) === pmCanon(col.work[key])) continue;
+      labWrite(col, key, next[key]);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  lab.answers = { ...(lab.answers || {}), ...(isRecord(k) ? k : { [k]: v }) };
+  const focus = document.activeElement?.id || null;
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, focus);
+  labAfterStructure(P, lab, { address: false });
+}
+/* The answers given here, as a writer of a deal — the class marked as the
+   reader's, as a commit marks a moved figure. */
+const labAnswersWriter = (lab) => pqWriter(lab.answers || {}, null);
+/* Whether the answers would change what is saved: the property as saved,
+   or the deal on the calculator. */
+function labAnswersPending(lab) {
+  if (!lab.answers || !Object.keys(lab.answers).length) return false;
+  const d = labSubjectInputs(lab);
+  if (!d) return false;
+  const copy = pmCopy(d);
+  return labAnswersWriter(lab)(copy) && pmCanon(pmBare(copy)) !== pmCanon(pmBare(d));
+}
+const labSaveAnswersWords = (lab) => `Save what and how you are buying to “${pmFind(lab.model)?.name || 'this property'}”`;
+/* A saved property's answers, written to it on Save — and to the
+   calculator's copy of it where that is the one open there, so it does not
+   read as changed. Its columns read the property again, the answers no
+   longer moves of theirs; a lab variant, which reads nothing, takes them on
+   its base as the property did (labFact). */
+function labSaveAnswers(P, lab) {
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (!rec) return false;
+  const write = labAnswersWriter(lab);
+  if (!pmAnswerRecord(rec.id, write)) return false;
+  if (State.deal?.modelId === rec.id && write(State.deal)) saveDeal();
+  for (const col of lab.cols) if (col.source === 'variant') labFact(col, write);
+  lab.answers = {};
+  if (!labRebase(lab)) return false;
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'next-go')]);
+  labAfterStructure(P, lab, { address: true });
+  toast(`Saved what and how you are buying to “${rec.name}”: ${pqSummaryText(pmInputsOf(pmFind(rec.id)))}.`);
+  return true;
+}
+function labFact(col, write) {
+  const base = pmCopy(col.baseInputs), work = pmCopy(col.work);
+  write(base); write(work);
+  const moves = {};
+  for (const k of Object.keys(col.moves)) if (pmCanon(work[k]) !== pmCanon(base[k])) moves[k] = work[k];
+  Object.assign(col, { baseInputs: base, work, moves, cur: null, ref: labRun(base), ver: (col.ver || 0) + 1 });
+}
+
+/* THE PRICE, AGAINST THE READER'S EVIDENCE (P2): the price gap and the
+   price that makes this work, for the column the sliders move — a what-if
+   moved in B is set against the same comparables and the same target. The
+   inputs it reads are the property's (the asking price, the comparables
+   named, the target), entered in the calculator and, for the target, here. */
+function labPriceSection(P, lab) {
+  const card = el('section', { class: 'card ls-section lab-pe', id: labId(P, 'pe'), 'aria-labelledby': labId(P, 'pe-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'pe-h') }, 'The price, against your evidence'));
+  const route = el('p', { class: 'metaline pe-route', id: labId(P, 'pe-route') });
+  const cards = el('div', { class: 'pe-cards-wrap', id: labId(P, 'pe-cards') });
+  const d = labAnswerInputs(lab);
+  const target = d ? priceTargetControls({ d, prefix: P.idPrefix, answer: (k, v) => labAnswer(P, lab, k, v) }) : null;
+  const tryBox = el('div', { class: 'pe-try', id: labId(P, 'pe-try') });
+  card.append(route, cards, target, tryBox);
+  P.els.pe = { card, route, cards, tryBox, sig: null };
+  return card;
+}
+/* Its figures, at a paint. The gap is arithmetic on a few records, worked
+   out at once; the solve is twenty-odd runs of the model, so a drag waits
+   for the slider to rest (140ms) and the figure shown until then is the
+   last one solved, for the figures it names. The first drawing solves at
+   once, so the served page carries it. */
+const LAB_PE_WAIT = 140;
+function labPricePaint(P, lab, { initial = false } = {}) {
+  const pe = P.els?.pe;
+  if (!pe || !pe.card.isConnected && !initial) return;
+  const col = labActive(lab), d = col.work;
+  const key = pmRunKey(d);
+  if (!P.peSolve || P.peSolve.key !== key) {
+    if (initial || !P.peSolve) P.peSolve = { key, s: solveDealPrice(d) };
+    else {
+      clearTimeout(P.peTimer);
+      P.peTimer = setTimeout(() => {
+        const L = LAB[P.key];
+        if (!L || !P.node.isConnected) return;
+        const c = labActive(L);
+        P.peSolve = { key: pmRunKey(c.work), s: solveDealPrice(c.work) };
+        labPricePaint(P, L);
+      }, LAB_PE_WAIT);
+    }
+  }
+  const s = P.peSolve.s, g = priceGap(d);
+  const routeNote = PROPERTY_ROUTES[dealRoute(d)].coming || '';
+  const sig = JSON.stringify([col.key, g.status, g.value, g.asking, g.price, g.comps.map(c => [c.id, c.implied]), s, num0(d.price), routeNote]);
+  if (pe.sig === sig) return;
+  pe.sig = sig;
+  labText(pe.route, routeNote);
+  pe.route.hidden = !routeNote;
+  const onCalc = !lab.model || State.deal?.modelId === lab.model;
+  pe.cards.replaceChildren(priceEvidenceCards({ d, g, s, prefix: P.idPrefix,
+    gapWhy: () => lsOpenEvidence(pe.gapEv), solveWhy: () => lsOpenEvidence(pe.solveEv),
+    enter: onCalc ? '/property/calculator#d-askingPrice' : '/property/models',
+    setTarget: () => { const r = document.getElementById(`${P.idPrefix}-q-target-monthly`); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
+  /* The solved price, tried in the column the sliders move — as a move,
+     a what-if like any other, kept in this tab until saved. */
+  const solved = s.status === 'solved' && Math.round(num0(d.price)) !== s.price;
+  pe.tryBox.replaceChildren(...(solved ? [el('button', { type: 'button', class: 'btn btn-ghost btn-sm pe-try-btn', id: labId(P, 'pe-try-btn'),
+    onclick: () => {
+      const L = LAB[P.key], c = labActive(L);
+      labWrite(c, 'price', s.price);
+      labSchedule();
+      liveSay(`${c.key}’s price set to ${labMoney(s.price)}, a move kept in this tab until saved.`);
+    } }, `Try ${labMoney(s.price)} in ${col.key}`)] : []));
+  if (pe.gapText) labText(pe.gapText, priceGapFormula(g));
+  if (pe.solveText) labText(pe.solveText, priceSolveFormula(s, d));
+}
+
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
    Analyse — the product's action, the full model in the calculator;
    Compare — A, B and C side by side, below; Save this — the conversion,
@@ -838,6 +1009,7 @@ function labBarSave() {
   if (!lab) return { aria: 'Nothing to save', disabled: true };
   const col = labActive(lab);
   if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
+  if (lab.model && labAnswersPending(lab)) return { aria: labSaveAnswersWords(lab), run: () => labSaveAnswers(P, lab) };
   /* The same guided save as the identity line's: the property's name and,
      where the column holds figures a scenario would keep, its own. */
   if (!lab.model) return { aria: labGuidedWords(lab, col), run: () => labNaming(P, lab, labGuidedNaming(lab, 'identity')) };
@@ -1250,7 +1422,20 @@ function labEvidence(P, lab) {
   P.els.grade.whyBody = why.querySelector('.lab-grade-why-body');
   P.els.context = ctx; P.els.rests = rests; P.els.movedBy = movedBy;
   P.els.how = { node: how, head: fhead, formula };
-  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, how] });
+  /* How the price gap and the solved price are worked out (P2) — above
+     "How a figure is worked out", which a row pressed from 1440px writes
+     into and so grows: below it, these moved with every row pressed
+     (coverage-frames). */
+  const pe = [];
+  if (P.els.pe) {
+    const gapText = el('p', { class: 'lab-formula', id: labId(P, 'ev-gap-text') }, '');
+    const solveText = el('p', { class: 'lab-formula', id: labId(P, 'ev-solve-text') }, '');
+    P.els.pe.gapEv = lsEvidenceSection({ id: labId(P, 'ev-gap'), summary: 'How the price gap is worked out', body: [gapText] });
+    P.els.pe.solveEv = lsEvidenceSection({ id: labId(P, 'ev-solve'), summary: 'How the price is solved', body: [solveText] });
+    P.els.pe.gapText = gapText; P.els.pe.solveText = solveText;
+    pe.push(P.els.pe.gapEv, P.els.pe.solveEv);
+  }
+  return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, ...pe, how] });
 }
 /* From 1440px a row of the chain shows its formula in the drawer. */
 function labShowFormula(P, key) {
@@ -1671,7 +1856,7 @@ function labCommits(P, lab, col) {
    tool's illustrative default (the verification of 4 Oct 2026, F5). */
 function labNext(col) {
   const next = pmCopy(col.work);
-  for (const k of labMarked(col)) markTouched(next, k);
+  for (const k of labMarked(col)) if (!DEAL_ANSWER_KEYS.includes(k)) markTouched(next, k);
   return next;
 }
 /* What a commit's toast says of the figures it marked, and of the grade:
@@ -1753,14 +1938,18 @@ function labNameForm(P, lab, col) {
    in the same action. */
 function labSaveProperty(P, lab, name, scenario = null) {
   const fromId = lab.naming?.at === 'identity';
+  /* The answers given here are the property's: saved with it. */
+  const answered = lab.answers && Object.keys(lab.answers).length ? labAnswersWriter(lab) : null;
+  const before = answered ? pmCopy(State.deal) : null;
+  if (answered) answered(State.deal);
   const rec = saveActiveProperty({ name: String(name || '').trim() || pmNameOf(State.deal) });
-  if (!rec) return;
+  if (!rec) { if (before) State.deal = before; return; }
   const moved = lab.cols.map(c => ({ key: c.key, moves: { ...c.moves }, name: c.name, source: c.source, of: c.of, baseInputs: c.baseInputs, inherited: c.inherited || {} }));
   delete LAB[lab.key];
   const next = labEnsure({ kind: 'model', id: rec.id, cols: ['base'] });
   next.cols = moved.map(m => {
     const c = m.source === 'deal' ? labCol(m.key, 'base', 'As saved', pmInputsOf(rec))
-      : labCol(m.key, 'variant', m.name, m.baseInputs, { of: m.of, inherited: pmCopy(m.inherited) });
+      : labCol(m.key, 'variant', m.name, answered ? (() => { const b = pmCopy(m.baseInputs); answered(b); return b; })() : m.baseInputs, { of: m.of, inherited: pmCopy(m.inherited) });
     for (const [k, v] of Object.entries(m.moves)) labWrite(c, k, v);
     return c;
   });
@@ -2066,6 +2255,8 @@ function labPaintPanel(P, { initial = false } = {}) {
     if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
+  /* The price against the evidence (P2). */
+  labPricePaint(P, lab, { initial });
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);

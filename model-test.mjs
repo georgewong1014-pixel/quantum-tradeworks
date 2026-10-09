@@ -5462,6 +5462,252 @@ try {
   }
   /* ---- end n3-landing ---- */
 
+  /* ---- p1-route ---- */
+  /* THE PROPERTY DECISION LAYER, P1 AND P2 (the owner's brief of 7 Oct 2026;
+     70-property.js PROPERTY_ROUTES, 83-property-decision.js).
+     R1 — the questions change no figure of any deal that exists. Nine deals
+          as a browser holds them (no route, no subtype, no objective): the
+          model's whole result, as JSON, has the fingerprint it had on the
+          base, 3d75b6a8 (recorded there, FNV-1a and length — a deliberate
+          change to the model records them again); each is a subsale of the
+          class it had; answering New development or Auction gives the same
+          figures, line for line (those models arrive in P3/P4, and no
+          route-specific fee line is applied), and answering Subsale after
+          either leaves the deal the deal it was; a property saved without
+          the questions opens unchanged, its run the same.
+     R2 — the answers travel in the address in their own words only, and
+          the comparables a deal names never do.
+     R3 — the price that makes this work: for a target the reader sets, the
+          solved price meets it in the model's own figures and one ringgit
+          more does not (several cases); a target out of reach says so, and
+          so do a yield for a parcel and a loan with no schedule.
+     R4 — the price gap is worked out from the comparables the deal names
+          and nothing else in the register. */
+  const p1try = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+  await p1try("p1 R1: the questions change no figure of a deal that exists", async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+      const print = (d) => { const s = JSON.stringify(dealModel(d)); return fnv(s) + ':' + s.length; };
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const deals = {
+        sample: base(),
+        land: { ...base(), propertyType: 'Land', landSqft: 4000, sqft: 0 },
+        shophouse: { ...base(), propertyType: 'Shophouse', rent: 3500, sqft: 1600 },
+        condoAsCommercial: { ...base(), propertyClassOverride: 'commercial' },
+        taxed: { ...base(), rent: 3600, marginalTaxPct: 24 },
+        cash: { ...base(), downPct: 100 },
+        lowValuation: { ...base(), bankValuation: 540000 },
+        noTenure: { ...base(), tenureYears: 0 },
+        managed: { ...base(), selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150, renovation: 60000, renoValueRecoveryPct: 40 },
+      };
+      /* Recorded on the base (3d75b6a8), before the decision layer. */
+      const BASE = { sample: '64ad018a:26490', land: '5fd071bf:26044', shophouse: 'ec3d5e3d:26325', condoAsCommercial: '199f6813:26491',
+        taxed: '5ed2ee3a:26680', cash: '992946cf:25261', lowValuation: 'cb5c4910:26638', noTenure: '31f73f48:24330', managed: '90a88244:26557' };
+      const p = [];
+      for (const [k, d] of Object.entries(deals)) {
+        const was = pmCanon(d), cls = propertyClassOf(d);
+        const now = print(d);
+        if (now !== BASE[k]) p.push(k + ': the model prints ' + now + ', the base printed ' + BASE[k]);
+        if (dealRoute(d) !== 'subsale') p.push(k + ': an unanswered deal is ' + dealRoute(d) + ', not a subsale');
+        for (const route of ['newdev', 'auction']) {
+          const a = pmCopy(d); setDealAnswer(a, 'route', route);
+          if (dealRoute(a) !== route) p.push(k + ': answering ' + route + ' did not store it');
+          if (print(a) !== now) p.push(k + ': answered ' + route + ', the figures changed (' + print(a) + ')');
+          setDealAnswer(a, 'route', 'subsale');
+          if (pmCanon(a) !== was) p.push(k + ': Subsale after ' + route + ' is not the deal it was');
+        }
+        if (propertyClassOf(d) !== cls) p.push(k + ': the class moved');
+      }
+      /* A property saved before the questions: opens unchanged. */
+      const keep = { deal: State.deal, list: store.read('savedWork', []) };
+      State.deal = base(); saveDeal();
+      const rec = saveActiveProperty({ name: 'p1 saved before the questions' });
+      let saved = null;
+      if (!rec) p.push('the sample could not be saved as a property');
+      else {
+        const st = propertyStatus(State.deal);
+        saved = { dirty: st.dirty, kind: st.kind, hasRoute: 'route' in (pmInputsOf(pmFind(rec.id)) || {}), print: print(pmInputsOf(pmFind(rec.id))), url: dealToParam(State.deal) };
+        if (st.kind !== 'model' || st.dirty) p.push('the saved property opens ' + (st.dirty ? 'changed since saved' : st.kind));
+        if (saved.print !== BASE.sample) p.push('the saved property prints ' + saved.print);
+        if (saved.url !== '') p.push('the sample\\'s address carries "' + saved.url + '"');
+        deletePropertyModel(rec.id);
+      }
+      State.deal = keep.deal; store.write('savedWork', keep.list); saveDeal();
+      return JSON.stringify({ p, n: Object.keys(deals).length, saved });
+    })()`));
+    if (r.p.length) fail('p1 R1: the questions change no figure of a deal that exists', r.p);
+    else ok(`p1 R1: ${r.n} deals as a browser holds them print the base's figures byte for byte (3d75b6a8's fingerprints), each a subsale of its own class; New development and Auction give the same figures until their models arrive, and Subsale after either is the deal it was; a property saved without the questions opens unchanged`);
+  });
+  await p1try("p1 R2: the answers travel in the address in their own words", async () => {
+    const r = await evaluate(`(() => {
+      const fresh = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const d = fresh();
+      setDealAnswer(d, 'route', 'auction'); setDealAnswer(d, 'propertyClass', 'x');
+      d.propertyClassOverride = 'commercial';
+      setDealAnswer(d, 'commercialSubtype', 'office'); setDealAnswer(d, 'objective', 'growth');
+      setDealAnswer(d, 'askingPrice', 610000); setDealAnswer(d, 'targetKind', 'yield'); setDealAnswer(d, 'targetValue', -2.5);
+      setDealAnswer(d, 'comparableIds', ['obs-1', 'obs-2']);
+      d.evidence.askingPrice = 'developer';
+      const s = dealToParam(d);
+      const back = fresh(); applyDealParam(back, s);
+      const junk = fresh();
+      applyDealParam(junk, 'route:subsale~route:%3Cx%3E~commercialSubtype:shop~objective:best~askingPrice:1e3~askingPrice:-5~targetKind:irr~comparableIds:obs-1~tenancy:yes');
+      return { s, back: { route: back.route, sub: back.commercialSubtype, obj: back.objective, ask: back.askingPrice, tk: back.targetKind, tv: back.targetValue, ev: back.evidence.askingPrice, comps: back.comparableIds ?? null, cls: back.propertyClassOverride },
+        junk: DEAL_ANSWER_KEYS.concat('comparableIds').filter(k => k in junk) };
+    })()`);
+    const b = r.back;
+    if (b.route !== 'auction' || b.sub !== 'office' || b.obj !== 'growth' || b.ask !== 610000 || b.tk !== 'yield' || b.tv !== -2.5 || b.ev !== 'developer' || b.cls !== 'commercial') fail('p1 R2: the address does not carry the answers', r);
+    else if (b.comps !== null || /comparableIds/.test(r.s)) fail('p1 R2: the comparables a deal names travel in the address — they are this browser\'s records', r);
+    else if (r.junk.length) fail('p1 R2: the address took an answer not in its own words', r);
+    else ok(`p1 R2: the answers travel in the address in their own words ("${r.s.slice(0, 90)}…"), the comparables named do not, and "subsale", "<x>", "1e3", "-5" for a price, "irr" and "yes" are refused`);
+  });
+  await p1try("p2 R3: the price that makes this work meets its target", async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const before = pmCanon(State.deal);
+      const cases = [
+        ['sample, monthly ≥ RM0', base(), { kind: 'monthly', value: 0 }],
+        ['sample, monthly ≥ −RM500', base(), { kind: 'monthly', value: -500 }],
+        ['sample, net yield ≥ 3%', base(), { kind: 'yield', value: 3 }],
+        ['commercial shophouse, monthly ≥ RM500', { ...base(), propertyType: 'Shophouse', rent: 3500, sqft: 1600, askingPrice: 900000 }, { kind: 'monthly', value: 500 }],
+        ['managed, valuation below price, yield ≥ 2.5%', { ...base(), selfManaged: false, mgmtPct: 8, bankValuation: 540000 }, { kind: 'yield', value: 2.5 }],
+        ['taxed, monthly ≥ RM200', { ...base(), rent: 3600, marginalTaxPct: 24 }, { kind: 'monthly', value: 200 }],
+      ];
+      const out = [];
+      for (const [name, d, t] of cases) {
+        const s = solveDealPrice(d, t);
+        const f = PRICE_TARGETS[t.kind].field;
+        const at = dealModel({ ...d, price: s.price })[f], above = dealModel({ ...d, price: s.price + 1 })[f];
+        out.push({ name, status: s.status, price: s.price, at, above, value: t.value, runs: s.runs,
+          ok: s.status === 'solved' && Number.isInteger(s.price) && at >= t.value && !(above >= t.value) && s.achieved === at });
+      }
+      const inf = solveDealPrice(base(), { kind: 'monthly', value: 5000 });
+      const infAt = dealModel({ ...base(), price: PRICE_SOLVE_FLOOR }).cashflowMonthly;
+      const infWords = priceSolveWords(inf, base());
+      const parcel = solveDealPrice({ ...base(), propertyType: 'Land', landSqft: 4000 }, { kind: 'yield', value: 3 });
+      const noLoan = solveDealPrice({ ...base(), tenureYears: 0 }, { kind: 'monthly', value: 0 });
+      const held = solveDealPrice({ ...base(), bankValuation: 300000, valuationRule: 'valuation_only' }, { kind: 'monthly', value: -2000 });
+      const none = solveDealPrice(base());
+      return JSON.stringify({ out, inf: { status: inf.status, atFloor: inf.atFloor, infAt, finding: infWords.finding },
+        parcel: parcel.status, noLoan: noLoan.status, held: { status: held.status, ceiling: held.ceiling }, none: none.status, untouched: pmCanon(State.deal) === before });
+    })()`));
+    const p = [];
+    r.out.filter(x => !x.ok).forEach(x => p.push(`${x.name}: ${x.status} at RM${x.price} gives ${x.at}, RM1 more ${x.above}, target ${x.value}`));
+    if (r.inf.status !== 'infeasible' || !(r.inf.atFloor < 5000) || r.inf.atFloor !== r.inf.infAt || !/do not reach a monthly position of RM5,000 at any price/.test(r.inf.finding)) p.push(`a monthly position of RM5,000: ${JSON.stringify(r.inf)}`);
+    if (r.parcel !== 'not-applicable') p.push(`a net yield for a parcel: ${r.parcel}`);
+    if (r.noLoan !== 'unknown') p.push(`a loan with no schedule: ${r.noLoan}`);
+    if (r.held.status !== 'unbounded') p.push(`a loan held to a valuation: ${JSON.stringify(r.held)}`);
+    if (r.none !== 'no-target') p.push(`no target: ${r.none}`);
+    if (!r.untouched) p.push('solving wrote the deal on the calculator');
+    if (p.length) fail('p2 R3: the price that makes this work meets its target in the model\'s own figures, to the ringgit', p);
+    else ok(`p2 R3: the price solved for ${r.out.length} targets meets each in dealModel's own figures and RM1 more does not (${r.out.map(x => `${x.name} → RM${x.price}, ${x.runs} runs`).join('; ')}); RM5,000 a month is out of reach and says so ("${r.inf.finding.slice(0, 80)}…"); a parcel's yield is not applicable, a loan with no schedule unknown, a loan held to a valuation unbounded; the deal on the calculator untouched`);
+  });
+  await p1try("p2 R4: the price gap is worked out only from the comparables named", async () => {
+    const r = await evaluate(`(() => {
+      const keep = State.observations;
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      State.observations = [];
+      const add = (o) => addObservation({ city: 'kuching', area: 'Tabuan', evidence: 'user', date: '2026-06-01', sourceRef: 'test', propertyType: 'Condominium', ...o });
+      const a = add({ kind: 'sold-price', value: 500000, sqft: 1000 });
+      const b = add({ kind: 'sold-price', value: 660000, sqft: 1100 });
+      const c = add({ kind: 'sold-price', value: 450000 });
+      const unnamed = add({ kind: 'sold-price', value: 900000, sqft: 900 });
+      const asking = add({ kind: 'ask-price', value: 700000, sqft: 1000 });
+      const sample = add({ kind: 'sold-price', value: 300000, sqft: 1000, sample: true });
+      const elsewhere = addObservation({ city: 'sibu', area: 'Sibu Jaya', kind: 'sold-price', value: 250000, evidence: 'user', date: '2026-06-01', sourceRef: 't', propertyType: 'Condominium', sqft: 1000 });
+      const d = { ...base(), askingPrice: 610000, comparableIds: [a.id, b.id, c.id, asking.id, sample.id, 'obs-gone'] };
+      const g = priceGap(d);
+      const choices = dealComparableChoices(d).map(o => o.id);
+      unnamed.value = 1; const g2 = priceGap(d);
+      const none = priceGap({ ...base(), askingPrice: 610000 });
+      State.observations = keep; saveObservations();
+      return { value: g.value, named: g.comps.map(x => [x.id === a.id ? 'a' : x.id === b.id ? 'b' : x.id === c.id ? 'c' : x.id, Math.round(x.implied), x.basis]),
+        notUsed: g.notUsed, gap: g.askingGap, status: g.status, value2: g2.value, none: { status: none.status, value: none.value },
+        choices: { unnamed: choices.includes(unnamed.id), asking: choices.includes(asking.id), sample: choices.includes(sample.id), elsewhere: choices.includes(elsewhere.id) },
+        words: priceGapWords(g).finding };
+    })()`);
+    /* a: 500 a sq ft × 1,050 = 525,000; b: 600 × 1,050 = 630,000; c: 450,000 as recorded; median 525,000. */
+    const want = [['a', 525000, 'rate'], ['b', 630000, 'rate'], ['c', 450000, 'price']];
+    const p = [];
+    if (r.status !== 'ok' || r.value !== 525000) p.push(`the comparable value is ${r.value} (${r.status}), not the median of the three named, 525,000`);
+    if (JSON.stringify([...r.named].sort()) !== JSON.stringify(want)) p.push(`worked from ${JSON.stringify(r.named)}, not only the three named transacted prices`);
+    if (r.notUsed !== 3) p.push(`${r.notUsed} named records said unused, not 3 (the asking price, the worked example, the one gone)`);
+    if (!r.gap || r.gap.amount !== 85000) p.push(`the gap is ${JSON.stringify(r.gap)}, not RM85,000`);
+    if (r.value2 !== r.value) p.push('changing a record not named moved the gap');
+    if (r.none.status !== 'no-comparables' || r.none.value !== null) p.push(`with none named the register still gave a value: ${JSON.stringify(r.none)}`);
+    if (!r.choices.unnamed || r.choices.asking || r.choices.sample || r.choices.elsewhere) p.push(`offered for naming: ${JSON.stringify(r.choices)}`);
+    if (!/the 3 comparables you named imply/.test(r.words || '')) p.push(`said: "${r.words}"`);
+    if (p.length) fail('p2 R4: the price gap is worked out only from the comparables named', p);
+    else ok(`p2 R4: the price gap is worked out from the three comparables named and nothing else — ${r.named.map(x => `${x[0]} ${x[1]} by ${x[2]}`).join(', ')}, median RM${r.value} — "${r.words}"; an asking price, the worked example and a record gone are named and not used, a record not named moves nothing, and none named gives no value`);
+  });
+  /* R5 — SAVING IS THE ONLY WRITE (the owner's decision, 9 Oct 2026). On a
+     saved property open in the Lab, Auction and then Land answered: every
+     column takes them at once as moves (Land withholds the yield at the
+     next paint), the property reads as not saved (its Save offers to save
+     them), and nothing is written — the saved record and the calculator's
+     deal as they were. Reloaded without saving, the record is unchanged
+     and the Lab holds no move. Saved, the record takes them. */
+  await p1try('p1 R5: an answer on a saved property is written only on Save', async () => {
+    const one = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+      State.deal = base(); saveDeal();
+      const rec = saveActiveProperty({ name: 'p1 R5 saved property' });
+      if (!rec) return JSON.stringify({ err: 'not saved' });
+      navigate('/property'); await w(500);
+      const record = JSON.stringify(pmFind(rec.id)), deal = JSON.stringify(store.read('deal', null));
+      const lab = LAB[labSubject];
+      if (!lab || lab.model !== rec.id) return JSON.stringify({ err: 'the Lab did not open the saved property: ' + labSubject });
+      const yieldBefore = labActive(lab).cur?.m?.netYield ?? null;
+      document.querySelector('label[for="lab-q-how-auction"]').click(); await w(200);
+      document.querySelector('label[for="lab-q-what-land"]').click(); await w(400);
+      const L = LAB[labSubject], col = labActive(L);
+      return JSON.stringify({ id: rec.id, record, deal, keep,
+        cols: L.cols.map(c => [c.key, c.work.route ?? null, Object.keys(c.moves).sort().join('+')]),
+        yieldBefore, yieldAfter: col.cur?.m?.netYield ?? null,
+        save: (document.getElementById('lab-id-save')?.textContent || '').trim(),
+        recordNow: JSON.stringify(pmFind(rec.id)), dealNow: JSON.stringify(store.read('deal', null)), address: location.search });
+    })()`));
+    if (one.err) throw new Error(one.err);
+    await send('Page.reload', {}, sessionId);
+    for (const t = Date.now(); ; await sleep(150)) {
+      const r = await send('Runtime.evaluate', { expression: 'typeof propertyPagesSettled === "function" && propertyPagesSettled() && typeof LAB !== "undefined" && !!labSubject', returnByValue: true }, sessionId);
+      if (r.result?.result?.value === true) break;
+      if (Date.now() - t > 30000) throw new Error('the Lab did not come back after the reload');
+    }
+    const two = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const recordAfter = JSON.stringify(pmFind(${JSON.stringify(one.id)})), dealAfter = JSON.stringify(store.read('deal', null));
+      const L = LAB[labSubject];
+      const after = { recordAfter, dealAfter, subject: labSubject, moves: L ? L.cols.map(c => Object.keys(c.moves).length).reduce((a, b) => a + b, 0) : null };
+      /* And saved: the answers go to the record. */
+      document.querySelector('label[for="lab-q-how-auction"]').click(); await w(300);
+      const P = labPagePanel();
+      const saved = labSaveAnswers(P, LAB[labSubject]);
+      const rec = pmFind(${JSON.stringify(one.id)});
+      after.saved = { ok: saved, route: pmInputsOf(rec)?.route ?? null, dirty: propertyStatus(State.deal).dirty };
+      deletePropertyModel(rec.id);
+      const keep = ${JSON.stringify(one.keep)}; const k = JSON.parse(keep);
+      store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+      return JSON.stringify(after);
+    })()`));
+    const p = [];
+    if (one.cols.some(c => c[1] !== 'auction' || !/route/.test(c[2]) || !/propertyClassOverride/.test(c[2]))) p.push(`the answers are not a move of every column: ${JSON.stringify(one.cols)}`);
+    if (!(one.yieldBefore > 0) || one.yieldAfter !== null) p.push(`Land answered, the net yield went from ${one.yieldBefore} to ${one.yieldAfter}, not withheld at once`);
+    if (!/^Save what and how you are buying to/.test(one.save)) p.push(`the property does not read as not saved — its Save says "${one.save}"`);
+    if (one.recordNow !== one.record) p.push('answering wrote the saved record');
+    if (one.dealNow !== one.deal) p.push('answering wrote the calculator\'s deal');
+    if (/route|auction/.test(one.address)) p.push(`answering wrote the address: ${one.address}`);
+    if (two.recordAfter !== one.record) p.push('after the reload the saved record is not the one saved');
+    if (two.dealAfter !== one.deal) p.push('after the reload the calculator\'s deal is not the one it was');
+    if (two.subject !== `m:${one.id}` || two.moves !== 0) p.push(`after the reload the Lab opens ${two.subject} with ${two.moves} moves`);
+    if (!two.saved.ok || two.saved.route !== 'auction' || two.saved.dirty) p.push(`Save: ${JSON.stringify(two.saved)}`);
+    if (p.length) fail('p1 R5: an answer on a saved property is written only on Save', p);
+    else ok(`p1 R5: on a saved property Auction and Land become moves of every column (${one.cols.map(c => c[0]).join(', ')}), the yield withheld at once and Save offered ("${one.save.slice(0, 50)}…"); the saved record, the calculator's deal and the address unwritten, and after a reload without saving the record is unchanged and the Lab holds no move; Save writes Auction to the record`);
+  });
+  /* ---- end p1-route ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

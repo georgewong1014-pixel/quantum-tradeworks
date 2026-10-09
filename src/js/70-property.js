@@ -265,7 +265,7 @@ const PROPERTY_CLASSES = {
   residential: { id:'residential', label:'Residential', letsToTenant:true, strataCharges:true,
     note:'A dwelling let to an occupier. Every default in this tool was written for this class.' },
   commercial:  { id:'commercial',  label:'Commercial',  letsToTenant:true, strataCharges:true,
-    note:'A shop, shophouse or commercial lot. Several fee and tax lines genuinely differ for this class and none of them are class-aware yet — the figures shown are the residential ones.' },
+    note:'A shop, office, industrial unit or commercial lot let to a tenant. The fee rulebook prices its purchase as it prices any property — its lines are written for any property — and no rate is made up for the class. What the rulebook does not hold, a lender’s commercial terms or a tax charged on a commercial rent, is not priced here: check it with the lender and a tax adviser.' },
   land:        { id:'land',        label:'Land',        letsToTenant:false, strataCharges:false,
     note:'A bare parcel. It carries cost and it may appreciate, but it has no tenancy — so rent, vacancy, yield, debt-service cover and break-even rent are not quantities this asset has.' },
 };
@@ -278,6 +278,103 @@ const PROPERTY_TYPE_CLASS = {
   'Shophouse':'commercial', 'Commercial lot':'commercial',
   'Land':'land',
 };
+
+/* ==========================================================================
+   THE TWO QUESTIONS AND THE OBJECTIVE — THE PROPERTY DECISION LAYER, P1
+   (the owner's brief, 7 Oct 2026: briefs/README-property-decision-layer.md)
+
+   What are you buying? — the class above (PROPERTY_CLASSES), set through the
+   same override the calculator's Asset class select writes, and for a
+   commercial class its subtype. How are you buying? — the purchase route.
+   And, optionally, the objective, which decides which figures lead (L1/L2
+   in the layout system) and nothing else: it never ranks, never reorders a
+   column and never says which option is better (the owner's answers: the
+   lens never reorders columns; no ranked risk ladder).
+
+   ABSENT IS THE DEFAULT, AND THE DEFAULT IS WHAT EVERY DEAL ALREADY WAS.
+   Every deal and every saved property was modelled as a subsale of its
+   current class. So a deal holds no `route` until the reader answers with
+   another route; subsale is the absence of the key (dealRoute), and a
+   deal saved before the question existed and one answered "Subsale" are
+   the same deal to every comparison (pmSame) — no saved property opens
+   "changed since saved" because a question was added, and its figures are
+   byte for byte what they were (model-test, p1-route).
+
+   THE ROUTES NOT MODELLED YET SAY SO. New development (P4) and auction (P3)
+   are selectable, and until their models arrive they are modelled as a
+   subsale, said in one line where the answer is given. The fee rulebook's
+   lines are the ones written for an SPA and the transfer (FEE_TABLE,
+   purchaseLegal's rule 1): no developer (HDA) or auction term — a deposit
+   and balance from a Proclamation of Sale, arrears passed by it — is
+   applied to either, because none is modelled, and none is invented.
+   ========================================================================== */
+const PROPERTY_ROUTES = {
+  newdev:  { id:'newdev',  label:'New development', modelled:false, phase:'P4',
+    coming:'The new-development model is coming; these figures treat it as a subsale.' },
+  subsale: { id:'subsale', label:'Subsale', modelled:true },
+  auction: { id:'auction', label:'Auction', modelled:false, phase:'P3',
+    coming:'The auction model is coming; these figures treat it as a subsale.' },
+};
+const PROPERTY_ROUTE_IDS = ['newdev', 'subsale', 'auction'];
+const DEFAULT_PROPERTY_ROUTE = 'subsale';
+const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route : DEFAULT_PROPERTY_ROUTE);
+/* What the fee rulebook does for a route it does not model: nothing of its
+   own — the subsale's lines, said. */
+const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
+  ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
+  : null);
+
+/* The commercial subtypes the brief names. A subtype is recorded and said;
+   it sets no rate: no fee, duty or tax line in the rulebook differs between
+   them, and none is invented. */
+const COMMERCIAL_SUBTYPES = {
+  'ground-retail': { id:'ground-retail', label:'Ground-floor retail' },
+  'upper-floor':   { id:'upper-floor',   label:'Upper-floor shop/office' },
+  'whole-shoplot': { id:'whole-shoplot', label:'Whole shoplot' },
+  office:          { id:'office',        label:'Office' },
+  industrial:      { id:'industrial',    label:'Industrial' },
+};
+const COMMERCIAL_SUBTYPE_IDS = Object.keys(COMMERCIAL_SUBTYPES);
+const dealCommercialSubtype = (d) => (propertyClassOf(d) === 'commercial' && Object.hasOwn(COMMERCIAL_SUBTYPES, d?.commercialSubtype) ? d.commercialSubtype : null);
+
+/* THE OBJECTIVE: which of the figures lead. `tiles` are the Scenario Lab's
+   three figure tiles in the order they stand, each with its level; the
+   first two lead (L1), the third qualifies them (L2). With none chosen the
+   tiles are the ones /property has always opened on. Wording only says
+   what leads — never which objective, route or property is the better. */
+const PROPERTY_OBJECTIVES = {
+  cashflow: { id:'cashflow', label:'Cash flow',            tiles:['cashflowMonthly', 'netYield', 'safeCashRequired'] },
+  growth:   { id:'growth',   label:'Capital growth',       tiles:['valueLessLoanAtExit', 'safeCashRequired', 'cashflowMonthly'] },
+  valueadd: { id:'valueadd', label:'Value add',            tiles:['safeCashRequired', 'valueLessLoanAtExit', 'irrPct'] },
+  ownuse:   { id:'ownuse',   label:'Own use + investment', tiles:['cashflowMonthly', 'safeCashRequired', 'netYield'] },
+};
+const PROPERTY_OBJECTIVE_IDS = Object.keys(PROPERTY_OBJECTIVES);
+const PROPERTY_OBJECTIVE_NONE = { id:null, label:'Not chosen', tiles:['safeCashRequired', 'cashflowMonthly', 'netYield'] };
+const dealObjective = (d) => (d && Object.hasOwn(PROPERTY_OBJECTIVES, d.objective) ? PROPERTY_OBJECTIVES[d.objective] : PROPERTY_OBJECTIVE_NONE);
+
+/* What a class's figures rest on in the rulebook, said where the class is
+   chosen. Residential says nothing new: every default was written for it.
+   Commercial: the rulebook's verified lines are written for any property —
+   the transfer duty of Item 32(a), the loan agreement duty, Sarawak's
+   advocates' scale, service tax and the valuation scale — and apply to a
+   shop as they stand; the two rules that do turn on the class (the
+   first-home exemption, residential only; the non-citizen transfer rates,
+   8% residential and 4% other) are held and applied to no class; and what
+   a lender offers on a commercial loan is the lender's, entered by the
+   reader. Nothing in it is a rate this tool made up. */
+function propertyClassRulebook(cls) {
+  if (cls === 'commercial') return {
+    line: `Commercial: the fee rulebook (${FEE_TABLE.version}) prices the purchase with the lines it uses for any property — no rate is made up for the class.`,
+    /* Each rule that does turn on the class, with its standing in the
+       rulebook and its source; then what the rulebook does not hold. */
+    differs: [
+      ...FEE_TABLE.notApplied.filter(x => x.id === 'firstHome' || x.id === 'nonCitizen').map(x => ({ title: x.title, state: 'Held in the rulebook, not applied', what: x.what, source: x.source || null })),
+      { title: 'A lender’s terms for a commercial loan', state: 'Not in the rulebook', what: 'The margin of finance and the tenure are the lender’s policy: enter the ones you are offered.', source: null },
+      { title: 'A tax charged on a commercial rent', state: 'Not in the rulebook', what: 'Not priced here: check it with a tax adviser.', source: null },
+    ] };
+  if (cls === 'land') return { line: PROPERTY_CLASSES.land.note, differs: [] };
+  return null;
+}
 
 /* NAPIC's five categories, mapped INTO the three classes. The header above
    promised this mapping and for one release it did not exist — the promise was
@@ -615,6 +712,65 @@ const SHARE_SKIP = new Set(['city', 'district', 'propertyType', 'evidence', 'che
 const SHARE_KEYS = Object.keys(PROPERTY_DEFAULT_DEAL).filter(k => !SHARE_SKIP.has(k));
 const SHARE_STR = /^[\w .,'()\/-]{0,40}$/;
 
+/* THE DECISION LAYER'S ANSWERS (P1, P2) — NOT IN THE DEFAULT DEAL, ON PURPOSE.
+   Each is absent until the reader gives it, so a deal from before these
+   questions existed is the same object it was (see PROPERTY_ROUTES). They
+   travel in the address as the default deal's fields do, each typed by its
+   own parser rather than by a default it does not have: an enumeration
+   only in its own words, a sum only as digits as written. A parser's
+   undefined is "not a value this field takes", and the part is skipped.
+   The comparables a deal names do not travel: they are records in this
+   browser's register, and a recipient has none of them. */
+const SUBSALE_TENANCY = {
+  vacant:   { id:'vacant',   label:'Vacant possession' },
+  tenanted: { id:'tenanted', label:'Sold with a tenant in place' },
+  unknown:  { id:'unknown',  label:'Not known yet' },
+};
+const SUBSALE_CONDITION = {
+  asnew:       { id:'asnew',       label:'As new' },
+  good:        { id:'good',        label:'Good' },
+  fair:        { id:'fair',        label:'Fair — some work' },
+  work:        { id:'work',        label:'Needs work' },
+  uninspected: { id:'uninspected', label:'Not inspected' },
+};
+const PRICE_TARGET_KINDS = ['monthly', 'yield'];
+const ansEnum = (ids) => (raw) => (ids.includes(raw) ? raw : undefined);
+const ansSum = (raw) => (/^\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
+const ansSigned = (raw) => (/^-?\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
+const DEAL_ANSWER_FIELDS = {
+  /* Subsale is the absence of the key, so the address never carries it. */
+  route: ansEnum(PROPERTY_ROUTE_IDS.filter(r => r !== DEFAULT_PROPERTY_ROUTE)),
+  commercialSubtype: ansEnum(COMMERCIAL_SUBTYPE_IDS),
+  objective: ansEnum(PROPERTY_OBJECTIVE_IDS),
+  askingPrice: ansSum,
+  tenancy: ansEnum(Object.keys(SUBSALE_TENANCY)),
+  tenancyRent: ansSum,
+  condition: ansEnum(Object.keys(SUBSALE_CONDITION)),
+  buildingAge: ansSum,
+  chargesToBuyer: ansSum,
+  targetKind: ansEnum(PRICE_TARGET_KINDS),
+  targetValue: ansSigned,
+};
+const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
+/* The one way an answer is written to a deal: the default is the key's
+   absence (subsale, no subtype, no objective, nothing entered), so
+   answering "Subsale" after "Auction" leaves the deal exactly as it was
+   before either. The comparables a deal names are a list of register ids.
+   Returns whether the deal changed. */
+function setDealAnswer(d, k, v) {
+  if (!d) return false;
+  let next;
+  if (k === 'comparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
+  else if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) next = v == null || v === '' ? undefined : DEAL_ANSWER_FIELDS[k](String(v));
+  else return false;
+  const had = d[k];
+  if (next === undefined) { if (!Object.hasOwn(d, k)) return false; delete d[k]; return had !== undefined; }
+  if (pmCanonSafe(had) === pmCanonSafe(next)) return false;
+  d[k] = next;
+  return true;
+}
+const pmCanonSafe = (v) => JSON.stringify(v === undefined ? null : v);
+
 function dealToParam(d) {
   const parts = [];
   for (const k of SHARE_KEYS) {
@@ -624,6 +780,13 @@ function dealToParam(d) {
     if (typeof v === 'number' && Number.isFinite(v)) parts.push(`${k}:${v}`);
     else if (typeof v === 'boolean') parts.push(`${k}:${v}`);
     else if (typeof v === 'string' && SHARE_STR.test(v)) parts.push(`${k}:${encodeURIComponent(v)}`);
+  }
+  /* The decision layer's answers, only those given and only in their own
+     words (DEAL_ANSWER_FIELDS). */
+  for (const k of DEAL_ANSWER_KEYS) {
+    const v = d[k];
+    if (v == null || v === '' || DEAL_ANSWER_FIELDS[k](String(v)) === undefined) continue;
+    parts.push(`${k}:${encodeURIComponent(String(v))}`);
   }
   for (const [k, v] of Object.entries(d.evidence || {})) {
     if (v && v !== PROPERTY_DEFAULT_DEAL.evidence[k] && SHARE_STR.test(String(v))) parts.push(`evidence.${k}:${encodeURIComponent(v)}`);
@@ -661,7 +824,7 @@ function applyDealParam(d, str) {
     if (k.startsWith('evidence.')) {
       const ek = k.slice(9);
       /* Evidence is graded for the deal's own fields, and only those. */
-      if (!Object.prototype.hasOwnProperty.call(PROPERTY_DEFAULT_DEAL, ek) || !SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
+      if (!(Object.prototype.hasOwnProperty.call(PROPERTY_DEFAULT_DEAL, ek) || DEAL_ANSWER_KEYS.includes(ek)) || !SHARE_STR.test(raw) || !EVIDENCE.some(e => e.id === raw)) continue;
       d.evidence = d.evidence || {};
       if (d.evidence[ek] !== raw) { d.evidence[ek] = raw; changed = true; }
       continue;
@@ -677,6 +840,12 @@ function applyDealParam(d, str) {
       const bag = ev ? 'checkEvidence' : 'checks';
       d[bag] = { ...(d[bag] || {}) };
       if (d[bag][id] !== raw) { d[bag][id] = raw; changed = true; }
+      continue;
+    }
+    /* An answer of the decision layer, in its own words or not at all. */
+    if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) {
+      if (DEAL_ANSWER_FIELDS[k](raw) === undefined) continue;
+      if (setDealAnswer(d, k, raw)) changed = true;
       continue;
     }
     if (!SHARE_KEYS.includes(k)) continue;
@@ -1295,10 +1464,10 @@ const FEE_TABLE = {
   /* Held, and not applied by default: whether they apply turns on facts about
      the buyer this tool does not ask for. */
   notApplied: [
-    { title: 'First-home stamp duty exemption', applied: false,
+    { id: 'firstHome', classes: ['residential'], title: 'First-home stamp duty exemption', applied: false,
       what: '100% of the duty on the transfer (P.U.(A) 53/2021, amended by P.U.(A) 448/2025) and on the loan agreement (P.U.(A) 54/2021, amended by P.U.(A) 449/2025), for one residential unit with a market value of RM500,000 or less, bought by a Malaysian citizen who has never owned a residential property, under an SPA executed from 1 January 2021 to 31 December 2027; the loan from a listed lender. LHDN’s declaration excludes SOHO, SOFO, SOVO and serviced apartments, which the Malaysian Bar disputes. Expired: the 75% remission for RM500,001–1,000,000 (SPAs of 1 June 2022 to 31 December 2023).',
       source: { title: 'Malaysian Bar Circular No 128/2026 (16 April 2026)', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Circular%20No%20128-2026.pdf' } },
-    { title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
+    { id: 'nonCitizen', classes: ['residential', 'commercial', 'land'], title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
       what: 'A flat RM8 per RM100 on residential property from 1 January 2026 (Item 32(ab), Finance Act 2025, Act 874), and RM4 per RM100 on other property from 1 January 2024 (Item 32(aa)). This tool charges Item 32(a), the scale for a citizen or permanent resident.',
       source: { title: 'Stamp Act 1949, First Schedule, Items 32(aa)–(ab); Finance Act 2025 (Act 874)', url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf' } },
     { title: 'Stamp duty self-assessment (STSDS)', applied: false,
@@ -2484,6 +2653,14 @@ const PROPERTY_I18N = {
   'in.landSqft':  { en:'Land area (sq ft, 0 if none)', ms:'Keluasan tanah (sq ft, 0 jika tiada)', zh:'土地面积 (sq ft，无则填 0)' },
   'in.parking':   { en:'Allocated parking bays', ms:'Petak letak kereta diperuntukkan', zh:'分配的停车位' },
   'in.price':     { en:'Purchase price (RM)', ms:'Harga belian (RM)', zh:'购买价格 (RM)' },
+  /* The subsale evidence (the property decision layer, P2). */
+  'in.askingPrice':   { en:'Asking price (RM)', ms:'Harga diminta (RM)', zh:'要价 (RM)' },
+  'in.tenancy':       { en:'Existing tenancy', ms:'Penyewaan sedia ada', zh:'现有租约' },
+  'in.tenancyRent':   { en:'Rent under the existing tenancy (RM a month)', ms:'Sewa di bawah penyewaan sedia ada (RM sebulan)', zh:'现有租约的租金 (每月 RM)' },
+  'in.condition':     { en:'Condition', ms:'Keadaan', zh:'状况' },
+  'in.buildingAge':   { en:'Age of the building (years)', ms:'Usia bangunan (tahun)', zh:'建筑楼龄 (年)' },
+  'in.chargesToBuyer':{ en:'Outstanding charges passed to you (RM)', ms:'Caj tertunggak yang dipindahkan kepada anda (RM)', zh:'转由您承担的欠缴费用 (RM)' },
+  'in.evidenceFrom':  { en:'Where this figure came from', ms:'Sumber angka ini', zh:'此数字的来源' },
   'in.bankValuation': { en:'Bank or valuer estimate (RM, 0 if not yet known)', ms:'Nilaian bank atau penilai (RM, 0 jika belum diketahui)', zh:'银行或估价师估值 (RM，未知则填 0)' },
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
@@ -2965,6 +3142,61 @@ function comparableSupport(d) {
       ? (d.price - price.median) / price.median * 100 : null,
     rentVsMedian: isNum(rent.median) && rent.median > 0 && isNum(d.rent)
       ? (d.rent - rent.median) / rent.median * 100 : null,
+  };
+}
+
+/* THE PRICE GAP (the property decision layer, P2: the subsale evidence model).
+   ---------------------------------------------------------------------------
+   The asking price set against the value the reader's OWN comparables imply
+   — the ones they named for this deal (d.comparableIds), from their
+   register — and against the price they negotiated, which is the price the
+   model runs on. Never against a market figure: this product holds none for
+   Sarawak, and the comparables are named every time the gap is shown.
+
+   Which records can be named: a transacted price of the deal's kind — a
+   built property's sale for a building, a land sale for a parcel — in the
+   deal's town, and not the worked example's invented rows. An asking price
+   is somebody's hope and implies no value. Each named record implies a
+   value: its price per square foot of the same kind of area times this
+   property's area where both areas are recorded, else its price as
+   recorded (said so). The comparable value is the median of those — the
+   register's own rule, one unusual record does not move it. */
+const PRICE_GAP_KINDS = { residential: 'sold-price', commercial: 'sold-price', land: 'land-sold' };
+function dealComparableChoices(d) {
+  const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
+const comparableName = (o) => [String(o.address || '').trim() || String(o.sourceRef || '').trim() || OBS_BY_ID[o.kind]?.label || 'A record', o.area].filter(Boolean).join(', ');
+function priceGap(d) {
+  const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
+  const areaKey = kind === 'land-sold' ? 'landSqft' : 'sqft';
+  const ids = Array.isArray(d?.comparableIds) ? d.comparableIds : [];
+  const all = State.observations || [];
+  const named = ids.map(id => all.find(o => o && o.id === id)).filter(Boolean);
+  /* A record named before the class changed, or since removed, is said, not
+     used: a land sale does not value a condominium. */
+  const used = named.filter(o => o.kind === kind && !o.sample && isNum(o.value) && o.value > 0);
+  const notUsed = ids.length - used.length;
+  const subjectArea = num0(d?.[areaKey]);
+  const comps = used.map(o => {
+    const area = num0(o[areaKey]);
+    const byRate = area > 0 && subjectArea > 0;
+    return { id: o.id, name: comparableName(o), price: o.value, date: o.date || null, evidence: o.evidence || null,
+      standing: observationStanding(o), area: area || null,
+      implied: byRate ? o.value / area * subjectArea : o.value, basis: byRate ? 'rate' : 'price',
+      rate: area > 0 ? o.value / area : null };
+  });
+  const vals = comps.map(c => c.implied).sort((a, b) => a - b);
+  const value = vals.length ? (vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2) : null;
+  const asking = isNum(d?.askingPrice) && d.askingPrice > 0 ? d.askingPrice : null;
+  const price = num0(d?.price) > 0 ? num0(d.price) : null;
+  const gapOf = (p) => (isNum(p) && isNum(value) && value > 0 ? { amount: p - value, pct: (p - value) / value * 100 } : null);
+  return {
+    status: !comps.length ? 'no-comparables' : !asking ? 'no-asking' : 'ok',
+    kind, areaKey, subjectArea: subjectArea || null, comps, value, notUsed,
+    asking, askingGap: gapOf(asking), price, priceGap: gapOf(price),
+    /* Asking less negotiated: what the negotiation took off, or added. */
+    negotiated: isNum(asking) && isNum(price) ? asking - price : null,
   };
 }
 

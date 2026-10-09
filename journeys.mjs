@@ -1264,7 +1264,8 @@ const JOURNEYS = [
        lists it. */
     id: 'lab', name: 'Property landing: the Scenario Lab moves, compares and saves',
     outcomes: ['Move the rent: the monthly position and the net yield follow, the repayment does not', 'Move the rate: the repayment follows, the net yield does not',
-      'Compare by cash flow: A, then B', 'Save the property, then B as a scenario', 'It is listed with the saved properties'],
+      'Compare by cash flow: A, then B', 'Save the property, then B as a scenario', 'It is listed with the saved properties',
+      'Choose Commercial and Subsale, set a target: the price that makes it work is solved'],
     async run(j, tab) {
       /* The chain's figures as the page holds them, by row. */
       const chain = `Object.fromEntries([...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].map(n => [n.dataset.lab, n.dataset.value]))`;
@@ -1352,6 +1353,51 @@ const JOURNEYS = [
       await step(j, tab, 'It is listed with the saved properties', BUDGET.load, async () => {
         await tab.goto('/property/models');
         await tab.expect(`(document.querySelector('main')?.innerText || '').includes(${JSON.stringify(name)})`, `“${name}” is not listed on My properties`);
+      });
+      /* THE PROPERTY DECISION LAYER, P1 AND P2 (the owner's brief of 7 Oct
+         2026, and the decision of 9 Oct: saving is the only write). Back on
+         /property, the property just saved answers the two questions —
+         Commercial; Auction, which says its model is coming and the figures
+         are a subsale's, then Subsale — and a target (a monthly position of
+         at least RM0) gives the price that makes this work, which the
+         calculator's own model meets at that price and not one ringgit
+         above it. Nothing of it is written until Save: the saved property
+         is as it was, and its Save offers to save the answers; pressed, the
+         property is Commercial, a subsale, with its target. */
+      await step(j, tab, 'Choose Commercial and Subsale, set a target: the price that makes it work is solved', BUDGET.action * 3, async () => {
+        await tab.goto('/property');
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('lab-q-what')`, 'the Scenario Lab does not ask “What are you buying?”');
+        /* On a phone the questions are folded behind their summary line. */
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length; })() && document.getElementById('lab-q-change').getAttribute('aria-expanded') === 'false'`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        const saved = `pmInputsOf(pmFind(State.deal.modelId)) || {}`;
+        const was = await tab.eval(`JSON.stringify(${saved})`);
+        const work = `labActive(LAB[labSubject]).work`;
+        await tab.click(`document.querySelector('label[for="lab-q-what-commercial"]')`, 'What are you buying? — Commercial');
+        await tab.expect(`propertyClassOf(${work}) === 'commercial' && !!document.getElementById('lab-q-sub')`, async () => `Commercial chosen, the columns hold ${await tab.eval(`propertyClassOf(${work})`)} and ${await tab.eval(`document.getElementById('lab-q-sub') ? 'its kinds are asked' : 'its kinds are not asked'`)}`);
+        await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
+        await tab.expect(`/The auction model is coming; these figures treat it as a subsale/.test(document.getElementById('lab-q')?.textContent || '') && (${work}).route === 'auction'`, 'Auction chosen, the page does not say its model is coming and the figures are a subsale’s');
+        await tab.click(`document.querySelector('label[for="lab-q-how-subsale"]')`, 'How are you buying? — Subsale');
+        await tab.expect(`!(${work}).route && document.getElementById('lab-q-how-subsale')?.checked === true && !/model is coming/.test(document.getElementById('lab-q')?.textContent || '')`, 'Subsale chosen, the columns do not read as a subsale');
+        await tab.click(`document.querySelector('label[for="lab-q-target-monthly"]')`, 'Target — Monthly position at least');
+        await tab.fill(`document.getElementById('lab-pe-target-value')`, '0', 'The target figure', { commit: true });
+        await tab.expect(`document.querySelector('#lab-pe-cards [data-pe="solve"]')?.dataset.status === 'solved'`, async () => `with a target of RM0 a month the card reads “${await tab.eval(`(document.querySelector('#lab-pe-cards [data-pe="solve"]')?.textContent || 'nothing').slice(0, 120)`)}”`, 4000);
+        const r = JSON.parse(await tab.eval(`(() => {
+          const card = document.querySelector('#lab-pe-cards [data-pe="solve"]');
+          const price = Number(card.dataset.value), col = labActive(LAB[labSubject]);
+          return JSON.stringify({ price, at: dealModel({ ...col.work, price }).cashflowMonthly, above: dealModel({ ...col.work, price: price + 1 }).cashflowMonthly,
+            words: card.querySelector('.ls-card-title')?.textContent || '', unwritten: JSON.stringify(${saved}) === ${JSON.stringify(was)},
+            save: (document.getElementById('lab-id-save')?.textContent || labBarSave().aria || '').trim() });
+        })()`));
+        if (!(r.price > 0) || !(r.at >= 0) || r.above >= 0) throw new StepError(`the price solved is RM${r.price}: the model gives ${r.at} a month there and ${r.above} one ringgit above`);
+        if (!/the figures you entered give a monthly position of at least RM0/.test(r.words)) throw new StepError(`the solved price is said as “${r.words}”`);
+        if (!r.unwritten) throw new StepError('the answers were written to the saved property before Save');
+        if (!/^Save what and how you are buying to/.test(r.save)) throw new StepError(`with the answers not saved, Save says “${r.save}”`);
+        /* Saved: the property takes them. */
+        if (await tab.eval(`!!document.getElementById('lab-id-save')?.getClientRects().length`)) await tab.click(`document.getElementById('lab-id-save')`, 'Save what and how you are buying');
+        else await tab.click(`document.getElementById('ls-act-save')`, 'Save this — in the action bar');
+        await tab.expect(`propertyClassOf(${saved}) === 'commercial' && !(${saved}).route && (${saved}).targetKind === 'monthly' && (${saved}).targetValue === 0`,
+          async () => `after Save the property holds ${await tab.eval(`JSON.stringify({ cls: propertyClassOf(${saved}), route: (${saved}).route ?? null, target: [(${saved}).targetKind, (${saved}).targetValue] })`)}`, 4000);
       });
     },
   },

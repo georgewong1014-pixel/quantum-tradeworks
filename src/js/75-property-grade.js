@@ -639,6 +639,11 @@ function dealModel(d) {
         /* Only when it exists. A zero row for a gap there isn't would train the
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
+        /* Arrears the sale passes to the buyer, as the reader's SPA or the
+           management's statement says (the subsale evidence model, P2): their
+           own figure, and only when entered — a deal without it is the deal it
+           was, line for line. */
+        ...(num0(d.chargesToBuyer) > 0 ? [['Outstanding charges passed to you', num0(d.chargesToBuyer)]] : []),
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
         feeLine('disbursements', {}),
@@ -1361,6 +1366,67 @@ function renovationReturn(d, m) {
   };
 }
 
+/* THE PRICE THAT MAKES THIS WORK (the property decision layer, P2).
+   ---------------------------------------------------------------------------
+   The highest purchase price at which the figures the reader entered meet a
+   target they set — a monthly position of at least X, or a net yield of at
+   least Y — found by running THIS model (dealModel) at trial prices with
+   every other input held. No second model, no shortcut formula: what the
+   page shows at the solved price is what the solve tested.
+
+   WHY BISECTION IS ENOUGH. With every other input held, both measures can
+   only fall as the price rises: the loan is a share of the price (or of the
+   lower of the price and an entered valuation), so the repayment rises and
+   the monthly position falls or stays; the net operating income does not
+   depend on the price, so the net yield is it divided by a larger price.
+   So "meets the target" holds below some price and fails above it.
+
+   TOLERANCE: ONE RINGGIT, ON THE PRICE — NONE ON THE TARGET. The search is
+   over whole ringgit, between RM1,000 and four times the larger of the
+   price and the asking price (and at least RM400,000). The price returned
+   is the highest whole-ringgit price at which the model's figure meets the
+   target exactly (>=, no allowance), and at one ringgit more it does not;
+   both runs are returned, so a test or a reader can see it. Said otherwise:
+   - infeasible — the target is not met even at RM1,000 (the rent, the
+     running costs or the loan terms, not the price, stand in the way);
+   - unbounded — it is met even at the top of the range (a loan held to an
+     entered valuation stops following the price);
+   - not applicable — a net yield for a class with no tenancy;
+   - unknown — the model cannot compute the measure (a loan with no
+     schedule). */
+const PRICE_TARGETS = {
+  monthly: { id: 'monthly', label: 'Monthly position', field: 'cashflowMonthly', words: 'a monthly position', fmt: (v) => fmtMoney(v, 'MYR', 0), unit: 'RM a month' },
+  yield: { id: 'yield', label: 'Net yield', field: 'netYield', words: 'a net yield', fmt: (v) => fmtPct(v, 2), unit: '%' },
+};
+const PRICE_SOLVE_FLOOR = 1000;
+const dealTarget = (d) => (d && PRICE_TARGETS[d.targetKind] && isNum(d.targetValue) ? { kind: d.targetKind, value: d.targetValue } : null);
+function solveDealPrice(d, target = dealTarget(d)) {
+  const t = target && PRICE_TARGETS[target.kind];
+  if (!t || !isNum(target.value)) return { status: 'no-target' };
+  if (t.id === 'yield' && !PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant)
+    return { status: 'not-applicable', target: t, value: target.value, why: 'A class with no tenancy earns no rent, so no price gives it a net yield.' };
+  let runs = 0;
+  const at = (p) => { runs++; return dealModel({ ...d, price: p }); };
+  const reads = (m) => m[t.field];
+  const meets = (m) => isNum(reads(m)) && reads(m) >= target.value;
+  let lo = PRICE_SOLVE_FLOOR;
+  const mLo = at(lo);
+  if (!isNum(reads(mLo))) return { status: 'unknown', target: t, value: target.value, runs,
+    why: 'The model cannot compute this figure for these inputs: the loan has no schedule of repayments (a tenure of 0).' };
+  if (!meets(mLo)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
+  let hi = Math.ceil(Math.max(num0(d.price), num0(d.askingPrice), 100000) * 4);
+  const mHi = at(hi);
+  if (meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (meets(at(mid))) lo = mid; else hi = mid;
+  }
+  const m = at(lo), over = at(lo + 1);
+  return { status: 'solved', target: t, value: target.value, price: lo, achieved: reads(m), above: reads(over), aboveMeets: meets(over),
+    vsPrice: num0(d.price) > 0 ? lo - num0(d.price) : null,
+    vsAsking: isNum(d.askingPrice) && d.askingPrice > 0 ? lo - d.askingPrice : null, runs };
+}
+
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
 function num0(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
@@ -1795,6 +1861,16 @@ const PC_ANSWER_CARDS = [
   { key: 'complete', level: 2, rests: ['price', 'downPct'] },
   { key: 'breakeven', level: 2, rests: ['price', 'downPct', 'ratePct', 'tenureYears', 'vacancyPct', 'maintenance'] },
 ];
+/* Each card's figure, by the model's own name, for the objective's lead
+   (PROPERTY_OBJECTIVES, 70-property.js): with an objective chosen a card
+   leads (L1) when its figure is one of the two the objective leads with,
+   and qualifies (L2) otherwise; with none, the levels above. */
+const PC_ANSWER_FIELD = { safe: 'safeCashRequired', monthly: 'cashflowMonthly', complete: 'cashStillRequiredToComplete', breakeven: 'breakEvenRent' };
+function pcAnswerLevel(d, t) {
+  const o = dealObjective(d);
+  if (!o.id) return t.level;
+  return o.tiles.slice(0, 2).includes(PC_ANSWER_FIELD[t.key]) ? 1 : 2;
+}
 /* THE CALCULATOR'S ACTION BAR ON A PHONE (the layout system, under 640px,
    in its dock): Analyse — the one-page answer, the figures and the grade;
    Compare — the Scenarios section; Save this — what the model bar's Save
@@ -1865,6 +1941,11 @@ VIEWS.property = () => {
      before it is replaced. The report paywall's buttons at the page's end
      were once its only filled ones, 15,000px down. */
   wrap.append(propertyModelBar(d));
+  /* THE TWO QUESTIONS AND THE OBJECTIVE (the property decision layer, P1;
+     83-property-decision.js), before every other field: what is bought and
+     how select the model, and the objective which figures lead. Written to
+     the deal as any field here is. */
+  wrap.append(propertyQuestions({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
   /* The five sections below, reached from wherever the page is scrolled to. */
   wrap.append(propertySectionIndex());
 
@@ -1922,7 +2003,10 @@ VIEWS.property = () => {
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
       isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
   };
-  for (const t of PC_ANSWER_CARDS) {
+  /* The objective decides which lead (PC_ANSWER_LEAD): the cards keep
+     their places, and only their weight follows it. */
+  for (const t0 of PC_ANSWER_CARDS) {
+    const t = { ...t0, level: pcAnswerLevel(d, t0) };
     const [l, v, s, tone] = answerFigs[t.key];
     const card = el('div', { class: `panel ls-card ls-l${t.level}`, 'data-card': 'metric', 'data-level': String(t.level), 'data-answer': t.key },
       statTile(l, v, { sub: s, tone }));
@@ -2812,6 +2896,13 @@ VIEWS.property = () => {
       rail.append(f);
     });
   });
+
+  /* THE SUBSALE EVIDENCE (the property decision layer, P2), in the
+     Acquisition section beside the purchase it qualifies: what was asked,
+     what is known of the unit — its tenancy, condition, age and what the
+     sale passes to the buyer — each with where it came from; and the
+     comparables from the register this price is set against. */
+  acq.inputs.append(pcSubsaleInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -3815,7 +3906,7 @@ VIEWS.property = () => {
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
-  acq.outputs.append(buyCard);
+  acq.outputs.append(buyCard, pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);

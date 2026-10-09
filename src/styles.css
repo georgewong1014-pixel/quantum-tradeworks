@@ -5676,30 +5676,30 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    the product's name, which the product's header names just above it —
    kept for the ear only. */
 @container lab (max-width: 599px) {
-  .lab-hd { margin-bottom: var(--xs); gap: 4px; }
+  .lab-hd { margin-bottom: var(--ls-within); gap: 4px; }
   .lab-inputs { gap: 4px; }
   .lab-identity { gap: 4px; }
   .lab-claim.lab-id-claim { font-size: var(--ls-meta); line-height: 16px; }
   .lab-id-claim > .chip { height: 16px; padding: 0 6px; font-size: var(--ls-meta); vertical-align: 0; }
-  .lab-tiles { gap: 6px; }
-  .lab-tile { padding: 7px 10px 8px; }
+  .lab-tiles { gap: var(--ls-within); }
+  .lab-tile { padding: 4px 10px 5px; }
   .lab-tile .ls-card-label, .lab-tile .ls-badge { line-height: 15px; }
-  .lab-tile .ls-card-value { margin-top: 3px; }
-  .lab-tile .ls-card-sub { line-height: 15px; margin-top: 2px; }
+  .lab-tile .ls-card-value { margin-top: 1px; line-height: 1.04; }
+  .lab-tile .ls-card-sub { line-height: 15px; margin-top: 0; }
   .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
   .ls-card.lab-tile-next .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
 @media (max-width: 662px) {
-  :root[data-served] .lab-hd { margin-bottom: var(--xs); gap: 4px; }
+  :root[data-served] .lab-hd { margin-bottom: var(--ls-within); gap: 4px; }
   :root[data-served] .lab-inputs { gap: 4px; }
   :root[data-served] .lab-identity { gap: 4px; }
   :root[data-served] .lab-claim.lab-id-claim { font-size: var(--ls-meta); line-height: 16px; }
   :root[data-served] .lab-id-claim > .chip { height: 16px; padding: 0 6px; font-size: var(--ls-meta); vertical-align: 0; }
-  :root[data-served] .lab-tiles { gap: 6px; }
-  :root[data-served] .lab-tile { padding: 7px 10px 8px; }
+  :root[data-served] .lab-tiles { gap: var(--ls-within); }
+  :root[data-served] .lab-tile { padding: 4px 10px 5px; }
   :root[data-served] .lab-tile .ls-card-label, :root[data-served] .lab-tile .ls-badge { line-height: 15px; }
-  :root[data-served] .lab-tile .ls-card-value { margin-top: 3px; }
-  :root[data-served] .lab-tile .ls-card-sub { line-height: 15px; margin-top: 2px; }
+  :root[data-served] .lab-tile .ls-card-value { margin-top: 1px; line-height: 1.04; }
+  :root[data-served] .lab-tile .ls-card-sub { line-height: 15px; margin-top: 0; }
   :root[data-served] .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
   :root[data-served] .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
@@ -5815,6 +5815,102 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   /* Six ways to compare in the figures' column: three a row, never one
      word left alone on a second. */
   :root .ls-page .lab-seg-by, :root[data-served] .ls-page .lab-seg-by { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* THE TWO QUESTIONS AND THE OBJECTIVE (the property decision layer, P1;
+   83-property-decision.js), on /property and the calculator. Each question
+   is its legend beside one row of choices — the Lab's segmented choices
+   (lab-seg), and under 640px one line of chips that scrolls sideways
+   (ls-chips), a 44px target each. From a desk the questions stand side by
+   side and wrap as a group, never a choice to a second line. */
+.pq { display: flex; flex-direction: column; gap: var(--ls-related); min-width: 0; margin: var(--ls-related) 0 0; }
+.pq-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ls-related) var(--ls-concept); min-width: 0; }
+.pq-q { flex: 0 1 auto; max-width: 100%; }
+.pq-q > .pq-legend { display: flex; align-items: center; height: 44px; margin-right: var(--ls-related); line-height: 16px; letter-spacing: 0;
+  text-transform: none; font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); white-space: nowrap; }
+.pq-seg { flex-wrap: nowrap; }
+/* The choice IS the chip: its radio is drawn as nothing over the whole of
+   it, so the keyboard lands on a box the size of what the reader sees —
+   not a 1px point a focus walk reads as hidden (mobile.mjs) — and the chip
+   carries the ring. Served with no script the radio is its mark, which
+   stays out of sight as every lab-radio's does. */
+.pq-opt > input.lab-radio { appearance: none; -webkit-appearance: none; inset: 0; width: auto; height: auto; margin: 0; opacity: 1;
+  border: 0; border-radius: inherit; background: transparent; pointer-events: auto; cursor: pointer; overflow: visible; }
+.pq-opt > input.lab-radio:focus-visible { outline: none; }
+.pq-notes { display: flex; flex-direction: column; gap: var(--ls-within); min-width: 0; }
+.pq-note { margin: 0; max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.pq-note-route { color: var(--bronze); font-weight: var(--weight-semibold); }
+.pc-page > .pq { margin: 0 0 var(--md); }
+/* ON A PHONE, ONE LINE (the owner's decision, 9 Oct 2026): the questions
+   fold behind their summary and Change — a 44px line, the whole of it the
+   target (Change's ::after) — and open in place under it. On the Lab the
+   summary is the identity line's place line's second line; on the
+   calculator it heads the questions. Folded only where a script runs: with
+   none they stand open under their summary. */
+/* From 640px out of sight and out of reach, never display:none: the page
+   served carries the summary as the phone draws it (prerender serves only
+   what is displayed where it draws). */
+.pq-sum, .pq-sumline, .pq-change { visibility: hidden; position: absolute; display: block; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  margin: 0; padding: 0; border: 0; background: none; font: inherit; text-align: left; }
+@media (max-width: 639.98px) {
+  .pq-sum, .pq-sumline, .pq-change { visibility: visible; position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; }
+  .pq-sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--ls-related); position: relative; min-height: 44px; margin: 0; }
+  .lab-id-meta.has-sum { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "place change" "sum change";
+    align-items: center; column-gap: var(--ls-related); position: relative; min-height: 44px; }
+  .lab-id-meta.has-sum > .lab-id-place { grid-area: place; min-width: 0; }
+  .lab-id-meta.has-sum > .pq-sumline { grid-area: sum; }
+  .lab-id-meta.has-sum > .pq-change { grid-area: change; }
+  .pq-sumline { display: block; min-width: 0; font-size: var(--ls-meta); line-height: 18px; font-weight: var(--weight-semibold); color: var(--ink); }
+  .pq-change { display: inline-flex; align-items: center; min-height: 44px; padding: 0; margin: 0; border: 0; background: none; font: inherit;
+    font-size: var(--ls-support); font-weight: var(--weight-bold); color: var(--brand); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; cursor: pointer; }
+  .pq-change::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-sm); }
+  .pq-change:focus-visible { outline: none; }
+  .pq-sum:has(.pq-change:focus-visible), .lab-id-meta.has-sum:has(.pq-change:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: var(--r-sm); }
+  .pq-change-chev { display: inline-block; margin-left: 4px; text-decoration: none; transition: transform 160ms ease; }
+  .pq-change[aria-expanded="true"] .pq-change-chev { transform: rotate(90deg); }
+}
+@media (max-width: 639.98px) and (scripting: enabled) {
+  .pq:not(.is-open) > .pq-body { display: none; }
+  .pq:not(.is-open):not(:has(> .pq-sum)) { display: none; }
+}
+.pq-more { max-width: var(--ls-measure); }
+.pq-more-sum { cursor: pointer; font-size: var(--ls-meta); line-height: 20px; font-weight: var(--weight-semibold); color: var(--brand); }
+.pq-more-list { margin: var(--ls-within) 0 0; padding-left: 18px; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.pq-more-list > li + li { margin-top: var(--ls-within); }
+@media (pointer: coarse), (max-width: 768px) { .pq-more-sum { padding: 12px 0; } }
+@media (max-width: 639.98px) {
+  /* Tight to the identity line above and the tiles below: the line, the
+     questions and the four figures share a phone's first screen. */
+  .pq { margin-top: 0; }
+  .pq-row { flex-direction: column; gap: var(--ls-within); }
+  .pq-q { width: 100%; }
+  /* The question two lines high beside its chips, in a wide sans too. */
+  .pq-q > .pq-legend { width: 6.25rem; white-space: normal; }
+}
+
+/* THE PRICE, AGAINST THE READER'S EVIDENCE (P2): two cards — the price
+   gap and the price that makes this work, each an insight card, or an
+   action card while what it needs is missing — the target's controls
+   under them, and what is tried or used. */
+.pe-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: var(--ls-related); margin-top: var(--ls-related); min-width: 0; }
+.pe-card .ls-card-row { flex-wrap: wrap; align-items: flex-start; }
+.pe-card .ls-card-row > .ls-card-body { flex-basis: 12rem; }
+.pe-fig { margin: 0; white-space: nowrap; }
+.pe-card .ls-card-sub { line-height: 18px; }
+.pe-route { margin: var(--ls-within) 0 0; color: var(--bronze); }
+.pe-route[hidden] { display: none; }
+.pe-target { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ls-related) var(--ls-group); margin-top: var(--ls-group); min-width: 0; }
+.pe-target-val { display: flex; align-items: center; gap: var(--ls-related); min-width: 0; }
+.pe-target-label { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); }
+.pe-target-input { width: 8rem; min-height: 40px; text-align: right; }
+.pe-try:empty { display: none; }
+.pe-try { margin: var(--ls-related) 0 0; }
+.pc-sub-ev { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; flex-basis: 100%; margin-top: 4px; }
+.pc-sub-comps { border: 0; margin: 0; padding: 0; min-width: 0; }
+@media (max-width: 639.98px) {
+  .pe-target { flex-direction: column; align-items: stretch; }
+  .pe-target-input { min-height: 44px; }
+  .pe-try .btn { min-height: 44px; }
 }
 
 /* ---- end layout-system ---- */
