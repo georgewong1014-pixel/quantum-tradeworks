@@ -16672,7 +16672,12 @@ VIEWS.researchQueue = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, dataChip(r.c), kindBadge(priceKindOf(r.c), { link: false, fine: 'The price and its move' })]));
+      /* One word for the kind, not two: the badge (D6) says Illustrative, so
+         the older lowercase chip beside it is left out; and the line wraps,
+         or in a narrow column the ticker, chip and badge ran the page 32px
+         wide at 1024 in CI's font (/research/queue, 10 Oct 2026). */
+      const pk = priceKindOf(r.c);
+      nm.append(el('div', { class: 'row row-wrap', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, pk === 'illustrative' ? null : dataChip(r.c), kindBadge(pk, { link: false, fine: 'The price and its move' })]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
@@ -16703,7 +16708,8 @@ VIEWS.researchQueue = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt), kindBadge(kindFor(r.c, 'yours'), { link: false, fine: 'The price against the model estimate' })]));
+    const vk = kindFor(r.c, 'yours');
+    nm.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), vk === 'illustrative' ? null : dataChip(r.c), marketChip(r.c.mkt), kindBadge(vk, { link: false, fine: 'The price against the model estimate' })]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
     /* diffClass, not `pos`. A gap to a model estimate is not a gain, and the
