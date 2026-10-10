@@ -784,7 +784,7 @@ VIEWS.home = () => {
     const main = el('div', { class: 'dash-side' }, [card, myDashSections(o)]);
     const aside = el('div', { class: 'dash-side' }, [ways, o.samples ? myDashSampleNote() : null]);
     wrap.append(el('div', { class: 'dash-first' }, [main, aside]));
-    wrap.append(myDashFoot());
+    wrap.append(backupLine({ compact: true }), myDashFoot());
     return wrap;
   }
 
@@ -828,7 +828,7 @@ VIEWS.home = () => {
   if (o.samples) side.append(myDashSampleNote());
   split.append(main, side);
   wrap.append(split);
-  wrap.append(myDashFoot());
+  wrap.append(backupLine({ compact: true }), myDashFoot());
   return wrap;
 };
 
@@ -997,7 +997,7 @@ function myDashSampleNote() {
        given nothing. */
     el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
       'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear the sample data'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]);
 }
 

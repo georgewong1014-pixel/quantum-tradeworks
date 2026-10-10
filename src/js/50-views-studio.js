@@ -2391,7 +2391,7 @@ function sampleBanner() {
     /* The banner goes with what it describes, and the button with it: focus
        fell to the top of the page. It goes to the page's heading, as the
        dashboard's "Clear the sample data" sends it (40-views-discover.js). */
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear and start my own'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear and start my own'),
   ]));
   return b;
 }

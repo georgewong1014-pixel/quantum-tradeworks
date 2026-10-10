@@ -8972,10 +8972,16 @@ try {
       await evaluate(`(() => { State.watchlists.push({ id: 'wl-2', name: 'Sample list', ids: [], added: {}, createdAt: '2026-09-01T00:00:00Z', updatedAt: null, schema: WATCHLIST_SCHEMA });
         saveWatchlists(); render(); return true; })()`);
       wl.banner = await focusOn(`document.querySelector('#main .sample-banner button')`);
-      await key('Enter'); await sleep(350); wl.cleared = await active();
+      /* Asked first (the 10 Oct 2026 audit, #8): the drawer says what goes,
+         with "Export first"; its clear button hands focus on as the banner's
+         did. */
+      await key('Enter'); await sleep(450);
+      wl.asked = await evaluate(`!!document.querySelector('#drawerBody [data-clear-confirm] [data-export-first]')`);
+      await focusOn(`document.querySelector('#drawerBody [data-clear-go]')`);
+      await key('Enter'); await sleep(450); wl.cleared = await active();
       say(wl.middle === `BUTTON:Remove ${tks[2]} from Core watchlist` && wl.last === 'INPUT:Add a company to Core watchlist' && wl.deleted === 'INPUT:New watchlist name'
-        && wl.banner && wl.cleared === 'H1:Watchlists',
-        `WS-16 × on the middle row → ${wl.middle}; × on the last → ${wl.last}; Delete → ${wl.deleted}; Clear and start my own → ${wl.cleared}`);
+        && wl.banner && wl.asked && wl.cleared === 'H1:Watchlists',
+        `WS-16 × on the middle row → ${wl.middle}; × on the last → ${wl.last}; Delete → ${wl.deleted}; Clear and start my own → ${wl.asked ? 'asked first, with Export first' : 'NOT asked first'}, then cleared → ${wl.cleared}`);
 
       /* SCN-05 — the example picker shows the example loaded, so the next
          change moves on from it. */
@@ -9600,6 +9606,113 @@ try {
             `a browser already holding ${name} for every kept key reads them as absent, the seeded lists as cleared: the filings load and ${PAGES.length} pages draw with no error`);
         }
       }
+
+      /* ---- backup-restore ---- */
+      /* BK-01 and BK-02 (the 10 Oct 2026 audit, #8). The reader's work, made
+         by the app's own hand — a watchlist, an investment case, a price
+         alert, a comparable with its source and date, a saved property with
+         a scenario, a Scenario Lab comparison of the two, a saved equities
+         comparison and two settings — exported, the browser cleared, and the
+         file imported twice: every item back once, each as it was exported
+         (its evidence tag, source and date with it), the backup line saying
+         when it was exported and nothing since; and a file from an older
+         build imported for what it can, saying what it skipped, what it
+         refused and what it does not carry. */
+      {
+        const made = async () => evaluate(`(async () => { ${W}
+          const at = new Date().toISOString();
+          const r = wlCreate('BK journey list'); if (!r.ok) return 'no list: ' + r.why; wlAdd(r.watchlist.id, 'MSFT-SEC');
+          State.theses = [...State.theses, { id: 't-bk-1', ticker: 'MSFT-SEC', oneLine: 'BK own case.', quality: '', valCase: '', catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2026-12-01', conf: 'Medium', questions: [], created: '2026-10-01' }]; saveTheses();
+          State.priceAlerts = [...State.priceAlerts, { id: 'pa-bk-1', ticker: 'MSFT-SEC', op: '>', price: 600, note: 'BK alert', updatedAt: at }]; store.write('priceAlerts', State.priceAlerts);
+          addObservation({ district: 'Kuching', locality: 'Tabuan Jaya', date: '2026-08-14', price: 498000, sqft: 1250, propertyType: 'Terrace', sourceRef: 'SPA ref BK-0814', sourceName: 'Own record', evidence: 'verified' });
+          const rec = pmNewRecord({ ...pmSampleDeal(), price: 512000, rent: 2300 }, 'BK saved property', at);
+          if (!persistWork([rec, ...loadWork()])) return 'property not kept';
+          const sc = pmAddScenario(rec.id, { rent: 2100 }, 'BK lower rent'); if (!sc) return 'scenario not kept';
+          store.write('labComparisons', [{ id: 'lc-bk-1', name: 'BK lab comparison', model: rec.id, cols: ['pm:' + rec.id, 'pm:' + rec.id + '/' + sc.id], lens: LAB_LENS_DEFAULT, metric: 'yield', createdAt: at }, ...labComparisons()]);
+          State.wht = { ...State.wht, US: 15 }; store.write('wht', State.wht);
+          store.write('baseCcy', 'USD');
+          navigate('/compare?companies=AAPL-SEC,MSFT-SEC'); await w(400);
+          if (!saveComparison('BK compare set')) return 'comparison not saved';
+          return true; })()`);
+        const NAMES = `({ lists: State.watchlists.filter(x => x.name === 'BK journey list').length, cases: State.theses.filter(x => x.id === 't-bk-1').length,
+          alerts: State.priceAlerts.filter(x => x.id === 'pa-bk-1').length, comps: State.observations.filter(x => x.sourceRef === 'SPA ref BK-0814').length,
+          props: pmAll().filter(x => x.name === 'BK saved property').length, scen: pmAll().filter(x => x.name === 'BK saved property').flatMap(x => x.scenarios || []).filter(s => s.name === 'BK lower rent').length,
+          lab: labComparisons().filter(x => x.id === 'lc-bk-1').length, cmp: loadComparisons().filter(x => x.name === 'BK compare set').length, wht: State.wht.US, ccy: store.read('baseCcy', null) })`;
+        /* What the browser held before, put back after: the checks below this
+           block read the dashboard's rows, which the items made here would crowd. */
+        const held = await evaluate(`JSON.stringify(Object.fromEntries(Object.keys(localStorage).map(k => [k, localStorage.getItem(k)])))`);
+        const p1 = [];
+        await wsOpen('/my/data', FRESH('pro'));
+        const mk = await made().catch(e => `threw: ${e.message.split('\n')[0]}`);
+        if (mk !== true) p1.push(`the reader's work could not be made: ${mk}`);
+        const before = await evaluate(`(() => { const doc = exportEverything(); recordExport('everything'); return { doc: JSON.stringify(doc), names: ${NAMES}, health: backupHealth() }; })()`).catch(e => ({ threw: e.message }));
+        if (before.threw) p1.push(`the export threw: ${before.threw}`);
+        else {
+          if (before.health.since !== 0 || !before.health.at || !(before.health.own >= 8)) p1.push(`just after the export the backup line's record reads ${JSON.stringify(before.health)}, not exported with nothing since`);
+          const nb = before.names;
+          if (Object.entries(nb).some(([k, v]) => !['wht', 'ccy'].includes(k) && v !== 1)) p1.push(`before the export the items are not each held once: ${JSON.stringify(nb)}`);
+          const counts = [];
+          for (const round of [1, 2]) {
+            if (round === 1) await wsOpen('/my/data', FRESH('pro'));
+            const r = await evaluate(`(() => { const x = importEverything(JSON.parse(${JSON.stringify(before.doc)})); if (!x.ok) return { err: x.err }; x.apply(); return { incoming: x.incoming.length, refused: x.refused.length, ignored: x.ignored.length }; })()`).catch(e => ({ err: e.message }));
+            if (r.err) { p1.push(`import ${round}: ${r.err}`); break; }
+            if (r.refused || r.ignored) p1.push(`import ${round}: ${r.refused} refused and ${r.ignored} ignored of this build's own export`);
+            await wsOpen('/my/data');
+            const now = await evaluate(`(() => { const doc = JSON.parse(${JSON.stringify(before.doc)}); const off = Object.keys(doc.data).filter(k => JSON.stringify(store.read(k, null)) !== JSON.stringify(doc.data[k]));
+              return { names: ${NAMES}, off, again: JSON.stringify(exportEverything().data) === JSON.stringify(doc.data), own: backupHealth().own,
+                obs: (() => { const o = State.observations.find(x => x.sourceRef === 'SPA ref BK-0814'); return o ? [o.date, o.sourceName, o.evidence].join(' · ') : null; })(),
+                line: document.querySelector('#views [data-backup-line]')?.textContent || null }; })()`);
+            counts.push(now);
+            if (Object.entries(now.names).some(([k, v]) => !['wht', 'ccy'].includes(k) && v !== 1)) p1.push(`after import ${round} the items are not each held once: ${JSON.stringify(now.names)}`);
+            if (now.names.wht !== 15 || now.names.ccy !== 'USD') p1.push(`after import ${round} the settings read withholding ${now.names.wht} and base currency ${now.names.ccy}, not 15 and USD`);
+            if (now.off.length) p1.push(`after import ${round} these differ from the file: ${now.off.join(', ')}`);
+            if (!now.again) p1.push(`after import ${round} an export is not the file that was imported`);
+            if (now.own !== before.health.own) p1.push(`after import ${round} ${now.own} items of the reader's are held, where the export held ${before.health.own}`);
+            if (now.obs !== '2026-08-14 · Own record · verified') p1.push(`after import ${round} the comparable's date, source and evidence read ${now.obs}`);
+            if (!/^Never exported — \d+ items of yours are only in this browser$/.test(now.line || '')) p1.push(`after import ${round} the backup line reads "${now.line}" — this browser has not exported what it now holds`);
+          }
+          if (!p1.length) ok(`fixwave workspace BK-01: export → clear → import → import again holds each of ${Object.keys(before.names).length - 2} kinds of item once and both settings, every key as exported (provenance kept: ${counts[1]?.obs}), and ${before.health.own} items of the reader's both times — never doubled`);
+        }
+        if (p1.length) fail('fixwave workspace BK-01: export → clear → import twice brings back each item once, as exported', p1);
+
+        const p2 = [];
+        const older = await evaluate(`(async () => { ${W}
+          const kept = JSON.stringify(labComparisons());
+          const doc = { format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-20T08:00:00Z', model: 'qt-0.9-older', data: {
+            watchlists: [{ id: 'wl-old', name: 'Old build list', ids: ['AAPL-SEC'], added: { 'AAPL-SEC': '2026-09-19T00:00:00Z' }, createdAt: '2026-09-19T00:00:00Z', updatedAt: '2026-09-19T00:00:00Z' }],
+            theses: [{ id: 't-old', ticker: 'AAPL-SEC', oneLine: 'Old build case.', quality: '', valCase: '', catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2026-12-01', conf: 'Low', questions: [], created: '2026-09-19' }],
+            watchlist: ['AAPL'], portfolios: { name: 'one portfolio, not a list', holdings: [] }, priceAlerts: null } };
+          const r = importEverything(doc);
+          openRestoreDrawer(); await w(350);
+          document.querySelector('#drawerBody textarea').value = JSON.stringify(doc);
+          [...document.querySelectorAll('#drawerBody button')].find(b => b.textContent.trim() === 'Check this file').click(); await w(120);
+          const drawer = txt(document.getElementById('drawerBody'));
+          const exportFirst = !!document.querySelector('#drawerBody [data-export-first]');
+          closeDrawer({ restore: false }); await w(350);
+          const newer = importEverything({ ...doc, version: 2 });
+          if (r.ok) r.apply();
+          return { ok: r.ok, incoming: r.incoming, ignored: r.ignored, refused: (r.refused || []).map(x => x.k), missing: r.missing || null, drawer, exportFirst, newer: !!newer.newer,
+            after: { list: store.read('watchlists', []).map(x => x.name).join(), cases: store.read('theses', []).map(x => x.id).join(), labKept: JSON.stringify(labComparisons()) === kept, portfolios: Array.isArray(store.read('portfolios', null)) } };
+        })()`).catch(e => ({ threw: e.message }));
+        if (older.threw) p2.push(`the check threw: ${older.threw}`);
+        else {
+          if (!older.ok || older.incoming.join() !== 'watchlists,theses') p2.push(`the older file restores ${older.ok ? older.incoming.join(', ') : 'nothing'}, not its watchlists and investment cases`);
+          if (!older.ignored.includes('watchlist')) p2.push(`the retired key "watchlist" is not named as ignored (${older.ignored.join(', ') || 'none'})`);
+          if (older.refused.join() !== 'portfolios,priceAlerts') p2.push(`refused: ${older.refused.join(', ') || 'nothing'}, not the portfolio record and the empty alerts`);
+          if (!Array.isArray(older.missing) || !older.missing.includes('labComparisons') || !older.missing.includes('scanSetups')) p2.push(`what the file does not carry is not named (${JSON.stringify(older.missing)?.slice(0, 120)})`);
+          if (!/Ignored, because this build does not recognise them: watchlist\./.test(older.drawer)) p2.push('the drawer does not say the retired key was ignored');
+          if (!/Portfolios and holdings — not restored/.test(older.drawer)) p2.push('the drawer does not say the portfolios were not restored');
+          if (!/Not in this file, so kept as this browser holds them: [^.]*Scenario Lab comparisons/.test(older.drawer)) p2.push(`the drawer does not say what the file lacks is kept: "${older.drawer.slice(0, 400)}"`);
+          if (!/exported under model qt-0\.9-older/.test(older.drawer)) p2.push('the drawer does not name the older model the file was exported under');
+          if (!older.exportFirst) p2.push('the drawer offers no "Export first" before replacing');
+          if (!older.newer) p2.push('a file of a later format version is not said to be one');
+          if (older.after.list !== 'Old build list' || older.after.cases !== 't-old' || !older.after.labKept || !older.after.portfolios) p2.push(`after the restore: ${JSON.stringify(older.after)}`);
+        }
+        if (p2.length) fail('fixwave workspace BK-02: a file from an older build imports what it can and says what it skipped', p2);
+        else ok(`fixwave workspace BK-02: a file from an older build restores its watchlists and cases, names the retired key it ignored, the two values it refused, and the kinds it does not carry (${older.missing.length}, the Scenario Lab comparisons kept as held), its older model, with "Export first" offered; a later format is said to be one`);
+        await wsOpen('/app', `Object.entries(${held}).forEach(([k, v]) => localStorage.setItem(k, v))`);
+      }
+      /* ---- end backup-restore ---- */
     } catch (err) {
       fail('fixwave workspace: the checks stopped', String(err.message).split('\n')[0]);
     } finally {
@@ -10615,7 +10728,7 @@ try {
       registerActor: /name or initials you give the register log/, registerLog: /register records/, reportLog: /company reports you opened this month/,
       requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
       savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/, startHere: /Start here panels you have hidden/,
-      servedReads: /a digest of what the pages read/,
+      servedReads: /a digest of what the pages read/, lastExport: /when you last exported, with a fingerprint of each item/,
       scanPrefs: /scanner notification and display preferences/, scanSetups: /scanner setups with every version/, screen: /screener’s current filters/,
       screenCcy: /currency the Compare and screener pages total in/, sensAxes: /valuation sensitivity grid/, theme: /theme/, theses: /investment cases/,
       valuation: /valuation assumptions you edit/, watchlist: /watchlists/, watchlists: /watchlists/, wheelLegs: /Cash Wheel plan and its legs/,

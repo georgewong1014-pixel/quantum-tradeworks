@@ -686,18 +686,32 @@ function openRestoreDrawer() {
       report.append(el('ul', { class: 'ticklist', style: 'margin-top:6px' }, r.refused.map(({ k, why }) =>
         el('li', {}, `${(PORTABLE_KEYS.find(x => x.k === k) || {}).label || k} — not restored: it ${why}`))));
     }
-    if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-ignored': '' },
       `Ignored, because this build does not recognise them: ${r.ignored.join(', ')}.`));
+    /* A file from another build (the 10 Oct 2026 audit, #8): one from a
+       later format is said to be, and what a file does not carry is named
+       where this browser holds something for it — kept as it is. */
+    if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
+      `This file was written by a later build (format ${r.version}; this build writes ${EXPORT_VERSION}). Only what this build recognises is restored.`));
+    const keptHere = (r.missing || []).filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length); });
+    if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
+      `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this build is ${MODEL_VERSION}.` : ''}`));
 
-    report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
-      if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
-      r.apply();
-      closeDrawer();
-      /* A full reload rather than render(): half this state was read into
-         module-level variables at boot, and repainting over them would show a
-         mixture of the old and the new. */
-      location.reload();
-    } }, `Restore ${r.incoming.length} item${r.incoming.length === 1 ? '' : 's'}`));
+    /* Replacing is clearing what is here now: the export of it is offered
+       first, as before every clear (confirmClear, 55-views-public.js). */
+    report.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);font-weight:600' },
+      'Replacing cannot be undone without an export of what this browser holds now.'));
+    report.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
+      el('button', { class: 'btn btn-ghost btn-sm', 'data-export-first': '', onclick: () => { if (downloadEverything()) toast('Exported what this browser holds now — the file is in your downloads'); } }, 'Export first'),
+      el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+        if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
+        r.apply();
+        closeDrawer();
+        /* A full reload rather than render(): half this state was read into
+           module-level variables at boot, and repainting over them would show a
+           mixture of the old and the new. */
+        location.reload();
+      } }, `Restore ${r.incoming.length} item${r.incoming.length === 1 ? '' : 's'}`)]));
   } }, 'Check this file');
   body.append(check);
   body.append(report);

@@ -289,6 +289,20 @@ function remapSavedIds(pairs) {
   let n = 0;
   let wl = false;
   (State.watchlists || []).forEach(w => { const next = list(w.ids); if (changed(next, w.ids)) { w.ids = next; wl = true; } });
+  /* And the date each company was added, which is keyed by its id: renamed
+     with it. Left under the stand-in's id, the date read as unknown for the
+     filer (migrateWatchlists keyed it afresh, as null, on the next load), and
+     a list exported, cleared and restored came back changed by that next
+     load (the 10 Oct 2026 audit, #8: a restore must not lose provenance). */
+  (State.watchlists || []).forEach(w => {
+    if (!isRecord(w?.added)) return;
+    for (const [from, to] of map) {
+      if (!(from in w.added)) continue;
+      if (!(to in w.added) || (w.added[to] == null && w.added[from] != null)) w.added[to] = w.added[from];
+      delete w.added[from];
+      wl = true;
+    }
+  });
   if (wl) { store.write('watchlists', State.watchlists); n++; }
   const cmp = list(State.compare); if (changed(cmp, State.compare)) { State.compare = cmp; store.write('compare', cmp); n++; }
   const rc = list(State.recentCompanies); if (changed(rc, State.recentCompanies)) { State.recentCompanies = rc; store.write('recentCompanies', rc); n++; }
