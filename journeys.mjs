@@ -940,17 +940,23 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
   /* Typed as a reader types it: focus by a click, everything in the box
      selected, the new text inserted over it. A number box commits on Tab. */
   tab.fill = async (find, value, what, { commit = false } = {}) => {
+    await tab.eval(`(window.__fillBox = ${find}, true)`).catch(() => null);
     await tab.click(find, what);
+    const afterClick = await tab.eval(`(() => { const b = window.__fillBox; return { focused: !!b && document.activeElement === b, connected: !!b && b.isConnected }; })()`).catch(() => null);
     await S('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2, commands: ['selectAll'] });
     await S('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
-    await tab.eval(`(window.__fillBox = ${find}, true)`).catch(() => null);
     await S('Input.insertText', { text: String(value) });
     await sleep(150);
     const got = await tab.eval(`(${find})?.value ?? null`).catch(() => null);
     /* Say why, when it fails: a box redrawn under the typing, or the typing
        gone to another element. */
     if (got !== null && got !== String(value)) {
-      const why = await tab.eval(`(() => { const a = document.activeElement; return (window.__fillBox && !window.__fillBox.isConnected ? 'the box was drawn again while it was typed into; ' : '') + 'focus is on ' + (a ? a.tagName.toLowerCase() + (a.id ? '#' + a.id : '') : 'nothing'); })()`).catch(() => '');
+      const why = await tab.eval(`(() => { const a = document.activeElement, b = window.__fillBox, now = ${find};
+        const name = (e) => e ? e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className.trim() ? '.' + e.className.trim().split(/\s+/).slice(0, 2).join('.') : '') : 'nothing';
+        const r = now?.getBoundingClientRect(); const at = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+        return [b && !b.isConnected ? 'the box was drawn again (the one clicked is gone)' : 'the box clicked is still the page’s',
+          'after the click it ${afterClick ? (afterClick.focused ? 'had' : 'did not have') : 'may have had'} focus${afterClick && !afterClick.connected ? ' and was already gone' : ''}',
+          'focus is now on ' + name(a), 'at its centre now: ' + name(at), 'window ' + innerWidth + '×' + innerHeight].join('; '); })()`).catch(() => '');
       throw new StepError(`${what} holds “${got}” after typing “${value}”${why ? ` (${why})` : ''}`);
     }
     if (commit) await tab.key('Tab');
