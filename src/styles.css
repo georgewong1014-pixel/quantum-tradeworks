@@ -4681,7 +4681,9 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    on the check's name by baseline. */
 .health-chip { flex-direction: column; gap: 0; }
 .health-chip::before, .health-chip::after { order: 1; height: 0; overflow: hidden; visibility: hidden; }
-.health-chip::before { content: "Checking\2026"; }
+/* Since 10 Oct 2026 the served chip says "In browser": it stands under
+   "Checking…", one line each, and the chip is the wider of the two. */
+.health-chip::before { content: "Checking\2026\A In browser"; white-space: pre; }
 .health-chip::after { content: "Degraded"; }
 
 /* While the served page stands for the filings after the script has run
@@ -5498,6 +5500,35 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 }
 /* An empty list takes no room, served or drawn. */
 #views[data-served] ul.journeys-list[data-now=""]:empty::before { content: none; }
+/* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026; kindsNode,
+   91-health.js). A row as a journey's: the chip, the kind's name and what it
+   covers on one line; its counts, commit, time and run under the name on a
+   wide screen and the whole width on a phone; under a CI kind, each suite
+   as it printed. */
+.checks-kinds { list-style: none; padding: 0; margin: var(--sm) 0 0; }
+#views[data-served] ul.checks-kinds[data-now=""]:empty::before { content: none; }
+.kind-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.kind-row > .health-chip { flex: none; min-width: 4.75rem; justify-content: center; }
+.kind-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.kind-of { font-weight: var(--weight-body); color: var(--ink-2); }
+.kind-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
+@media (max-width: 640px) { .kind-body { padding-left: 0; } }
+.kind-body > .caption { margin: 0; max-width: 72ch; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.kind-body > .caption > .journeys-log { white-space: nowrap; }
+.kind-suites { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-2); max-width: 72ch; }
+.kind-suites > li { overflow-wrap: anywhere; }
+.kind-mark {
+  display: inline-block; min-width: 4.6em; padding: 0 5px; border: 1px solid var(--line-2); border-radius: 4px;
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .04em; text-align: center; color: var(--ink-2);
+}
+.kind-suites > li[data-mark="ok"] > .kind-mark { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 38%, transparent); }
+.kind-suites > li[data-mark="fail"] > .kind-mark { color: var(--critical-text); border-color: color-mix(in srgb, var(--critical) 42%, transparent); background: color-mix(in srgb, var(--critical) 8%, transparent); }
+.kind-suites > li[data-mark="notrun"] > .kind-mark { border-style: dashed; color: var(--ink); }
+.kind-count { font-variant-numeric: tabular-nums; color: var(--ink); }
+.kind-said { color: var(--ink-3); }
+/* CI's results beside the in-browser checks: one text served and drawn. */
+#health-ci { margin: var(--sm) 0 0; max-width: 72ch; overflow-wrap: anywhere; }
+#views[data-served] #health-ci[data-now=""]:empty::before { content: none; }
 /* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, plan item 2.6;
    proofSection, 91-health.js). A row as a journey's: the badge, the tool's
    name and product on one line; the journey, its outcome step and the last

@@ -4750,7 +4750,9 @@ a.start-here-ex:hover, button.start-here-ex:hover { color: var(--brand); }
    on the check's name by baseline. */
 .health-chip { flex-direction: column; gap: 0; }
 .health-chip::before, .health-chip::after { order: 1; height: 0; overflow: hidden; visibility: hidden; }
-.health-chip::before { content: "Checking\2026"; }
+/* Since 10 Oct 2026 the served chip says "In browser": it stands under
+   "Checking…", one line each, and the chip is the wider of the two. */
+.health-chip::before { content: "Checking\2026\A In browser"; white-space: pre; }
 .health-chip::after { content: "Degraded"; }
 
 /* While the served page stands for the filings after the script has run
@@ -5567,6 +5569,35 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 }
 /* An empty list takes no room, served or drawn. */
 #views[data-served] ul.journeys-list[data-now=""]:empty::before { content: none; }
+/* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026; kindsNode,
+   91-health.js). A row as a journey's: the chip, the kind's name and what it
+   covers on one line; its counts, commit, time and run under the name on a
+   wide screen and the whole width on a phone; under a CI kind, each suite
+   as it printed. */
+.checks-kinds { list-style: none; padding: 0; margin: var(--sm) 0 0; }
+#views[data-served] ul.checks-kinds[data-now=""]:empty::before { content: none; }
+.kind-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.kind-row > .health-chip { flex: none; min-width: 4.75rem; justify-content: center; }
+.kind-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.kind-of { font-weight: var(--weight-body); color: var(--ink-2); }
+.kind-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }
+@media (max-width: 640px) { .kind-body { padding-left: 0; } }
+.kind-body > .caption { margin: 0; max-width: 72ch; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.kind-body > .caption > .journeys-log { white-space: nowrap; }
+.kind-suites { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-label); line-height: 1.5; color: var(--ink-2); max-width: 72ch; }
+.kind-suites > li { overflow-wrap: anywhere; }
+.kind-mark {
+  display: inline-block; min-width: 4.6em; padding: 0 5px; border: 1px solid var(--line-2); border-radius: 4px;
+  font-size: var(--text-micro); font-weight: var(--weight-bold); letter-spacing: .04em; text-align: center; color: var(--ink-2);
+}
+.kind-suites > li[data-mark="ok"] > .kind-mark { color: var(--ok-text); border-color: color-mix(in srgb, var(--ok) 38%, transparent); }
+.kind-suites > li[data-mark="fail"] > .kind-mark { color: var(--critical-text); border-color: color-mix(in srgb, var(--critical) 42%, transparent); background: color-mix(in srgb, var(--critical) 8%, transparent); }
+.kind-suites > li[data-mark="notrun"] > .kind-mark { border-style: dashed; color: var(--ink); }
+.kind-count { font-variant-numeric: tabular-nums; color: var(--ink); }
+.kind-said { color: var(--ink-3); }
+/* CI's results beside the in-browser checks: one text served and drawn. */
+#health-ci { margin: var(--sm) 0 0; max-width: 72ch; overflow-wrap: anywhere; }
+#views[data-served] #health-ci[data-now=""]:empty::before { content: none; }
 /* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT (D15, plan item 2.6;
    proofSection, 91-health.js). A row as a journey's: the badge, the tool's
    name and product on one line; the journey, its outcome step and the last
@@ -65151,9 +65182,16 @@ const journeysServed = (function journeysServed(doc) {
      no price history, because none ships — is "gated", with its reason. */
   const mark = (s) => (s.status === 'FAIL' ? 'FAIL' : s.gated ? 'gated' : 'OK');
   const steps = (j) => (Array.isArray(j.steps) ? j.steps : []).filter(s => s && typeof s.name === 'string' && ['OK', 'SLOW', 'FAIL'].includes(s.status));
+  /* THE CALLS TO ACTION, COUNTED FROM THE STEPS (the daily audit of 10 Oct
+     2026): the note said "30 calls to action pressed" over 31 listed steps.
+     The first step opens the dashboard and is not a call to action; every
+     step after it is one. A record written before the note said so is said
+     the same way here, from its own steps. */
+  const ctaCount = (j) => { const n = steps(j).length - 1; return n + ' calls to action pressed (' + (n + 1) + ' steps: the page opened, then each call)'; };
   const items = list.map(j => {
-    const detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
+    let detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
       : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
+    if (j.id === 'ctas' && j.status !== 'FAIL' && steps(j).length > 1) detail = detail.replace(/\b\d+ calls to action pressed(?: \(\d+ steps: the page opened, then each call\))?/, () => ctaCount(j));
     const st = steps(j);
     return '<li class="journey-row" id="' + idOf(j) + '" data-status="' + j.status + '">'
       + '<span class="chip health-chip ' + STATE[j.status][0] + '">' + STATE[j.status][1] + '</span>'
@@ -65208,6 +65246,104 @@ const journeysServed = (function journeysServed(doc) {
    journeys themselves are named (proofSection). */
 const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
+/* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
+   and 7). health/checks.json, written with the journeys' record by the same
+   workflow: checks.yml's suites on the commit the site serves, by kind —
+   Numbers, Data, Layout & served pages — beside the journeys. Drawn by
+   checks-record.mjs's one renderer (checksServed), put here by the build
+   with the suites it counts, so the served words and the drawn ones are one
+   text; a suite with no result for the commit reads "Not run for <commit>",
+   never Pass. */
+const HEALTH_CHECKS_FILE = 'health/checks.json';
+const checksServed = (function checksServed(checks, journeys, suites) {
+  const REPO_URL = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
+  const KINDS = [['journeys', 'Journeys', 'journeys.mjs, on the live site'], ['numbers', 'Numbers', 'known-answer and invariant suites, in CI'],
+    ['data', 'Data', 'the shipped data and the register, in CI'], ['layout', 'Layout & served pages', 'phone widths, first frames and served pages, in CI']];
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const CHIP = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'], 'NOT RUN': ['', 'Not run'] };
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const two = (n) => (n < 10 ? '0' : '') + n;
+  const when = (iso) => { const d = typeof iso === 'string' ? new Date(iso) : null; return d && Number.isFinite(d.getTime()) ? d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ', ' + two(d.getUTCHours()) + ':' + two(d.getUTCMinutes()) + ' UTC' : null; };
+  const sha7 = (s) => (/^[0-9a-f]{7,40}$/.test(String(s || '')) ? String(s).slice(0, 7) : null);
+  const runOk = (u) => /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/\d+$/.test(String(u || ''));
+  const n = (k) => Number(k).toLocaleString('en-US');
+  const list = Array.isArray(suites) ? suites : [];
+  /* The commit the site serves: the journeys' record names it. */
+  const jdoc = journeys && typeof journeys.ranAt === 'string' && Array.isArray(journeys.journeys) && journeys.journeys.length ? journeys : null;
+  const site = sha7(jdoc && jdoc.commit);
+  const cdoc = checks && Array.isArray(checks.suites) && sha7(checks.commit) ? checks : null;
+  /* CI's results count for the site's commit only — or, with no journeys
+     record to name one, for the commit the record names. */
+  const forSite = !!cdoc && (!site || sha7(cdoc.commit) === site);
+  const target = site || sha7(cdoc && cdoc.commit);
+  const byId = {};
+  if (forSite) cdoc.suites.forEach(s => { if (s && typeof s.id === 'string') byId[s.id] = s; });
+  const ciRun = forSite && runOk(cdoc.run) ? cdoc.run : null;
+  const ciAt = forSite ? when(cdoc.ranAt) : null;
+  const log = (url, words) => '<a class="journeys-log" href="' + esc(url) + '">' + words + '</a>';
+  const notRunFor = 'Not run' + (target ? ' for ' + target : '');
+  const status = {};
+  const rows = KINDS.map(([id, name, of]) => {
+    let st, line, items = '';
+    if (id === 'journeys') {
+      const js = jdoc ? jdoc.journeys.filter(j => j && CHIP[j.status] && j.status !== 'NOT RUN') : [];
+      if (!js.length) { st = 'NOT RUN'; line = 'Not run yet: no run of the journeys on the live site is recorded.'; }
+      else {
+        const c = (s) => js.filter(j => j.status === s).length;
+        st = c('FAIL') ? 'FAIL' : c('DEGRADED') ? 'DEGRADED' : 'PASS';
+        /* The failing journeys by name; their steps are listed below. */
+        const failed = js.filter(j => j.status === 'FAIL').map(j => esc(j.name));
+        line = c('PASS') + ' of ' + js.length + ' journeys pass' + (c('DEGRADED') ? ', ' + c('DEGRADED') + ' degraded' : '') + (c('FAIL') ? ', ' + c('FAIL') + ' failed (' + failed.join('; ') + ')' : '')
+          + ' · the live site, ' + (when(jdoc.ranAt) || 'its time not recorded') + (site ? ' · ' + site : ', its commit not identified') + ' · '
+          + (runOk(jdoc.run) ? log(jdoc.run, 'run log') : log(REPO_URL + '/actions/workflows/journeys.yml', 'run history'));
+      }
+    } else {
+      const mine = list.filter(s => s.kind === id);
+      const got = mine.map(s => {
+        const r = byId[s.id];
+        return r && (r.status === 'PASS' || r.status === 'FAIL') ? { s, r } : { s, r: null };
+      });
+      const pass = got.filter(x => x.r && x.r.status === 'PASS').length, fail = got.filter(x => x.r && x.r.status === 'FAIL').length, none = got.length - pass - fail;
+      st = !got.length ? 'NOT RUN' : fail ? 'FAIL' : none ? 'NOT RUN' : 'PASS';
+      const checked = got.reduce((a, x) => a + (x.r && Number.isFinite(x.r.passed) ? x.r.passed : 0), 0);
+      const ofChecks = got.reduce((a, x) => a + (x.r && Number.isFinite(x.r.passed) ? x.r.passed + (Number.isFinite(x.r.failed) ? x.r.failed : 0) : 0), 0);
+      const where = (forSite ? 'CI on ' + target + (ciAt ? ', ' + ciAt : '') : notRunFor) + ' · ' + (ciRun ? log(ciRun, 'run log') : log(REPO_URL + '/actions/workflows/checks.yml', 'run history'));
+      if (st === 'NOT RUN') {
+        line = notRunFor + ': ' + (none === got.length ? (got.length === 1 ? 'its one suite has no result' : 'none of its ' + got.length + ' suites has a result') + ' recorded for this commit'
+          : none + ' of its ' + got.length + ' suites ' + (none === 1 ? 'has' : 'have') + ' no result for this commit; ' + pass + ' passed')
+          + ' · ' + (ciRun ? log(ciRun, 'run log') : log(REPO_URL + '/actions/workflows/checks.yml', 'run history'));
+      } else {
+        line = pass + ' of ' + got.length + ' suites pass' + (fail ? ', ' + fail + ' failed' : '') + (none ? ', ' + none + ' not run' : '') + (ofChecks ? ' · ' + n(checked) + ' of ' + n(ofChecks) + ' checks' : '') + ' · ' + where;
+      }
+      items = '<ol class="kind-suites" aria-label="' + esc(name) + ': each suite">' + got.map(({ s, r }) => {
+        const mark = r ? (r.status === 'PASS' ? 'PASS' : 'FAIL') : 'Not run';
+        const said = r ? (r.said ? esc(r.said) : r.status === 'PASS' ? 'passed' : 'failed') : 'not run for ' + (target || 'this commit');
+        const count = r && Number.isFinite(r.passed) ? ' <span class="kind-count">' + n(r.passed) + '/' + n(r.passed + (Number.isFinite(r.failed) ? r.failed : 0)) + '</span>' : '';
+        return '<li data-mark="' + (r ? (r.status === 'PASS' ? 'ok' : 'fail') : 'notrun') + '"><span class="kind-mark">' + mark + '</span> ' + esc(s.name) + count + '<span class="kind-said"> — ' + said + '</span></li>';
+      }).join('') + '</ol>';
+    }
+    status[id] = st;
+    return '<li class="kind-row" id="kind-' + id + '" data-status="' + st.replace(' ', '-') + '">'
+      + '<span class="chip health-chip' + (CHIP[st][0] ? ' ' + CHIP[st][0] : '') + '">' + CHIP[st][1] + '</span>'
+      + '<p class="kind-name">' + esc(name) + '<span class="kind-of"> · ' + esc(of) + '</span></p>'
+      + '<div class="kind-body"><p class="caption">' + line + '</p>' + items + '</div></li>';
+  }).join('');
+  /* The line beside the in-browser checks: what CI found on this commit for
+     the two kinds those checks sample. */
+  const ciSaid = ['numbers', 'data'].map(id => {
+    const name = KINDS.find(k => k[0] === id)[1];
+    if (status[id] === 'NOT RUN') return name + ' not run for ' + (target || 'this commit');
+    const mine = list.filter(s => s.kind === id);
+    const pass = mine.filter(s => byId[s.id] && byId[s.id].status === 'PASS').length;
+    const checked = mine.reduce((a, s) => a + (byId[s.id] && Number.isFinite(byId[s.id].passed) ? byId[s.id].passed : 0), 0);
+    const of = mine.reduce((a, s) => a + (byId[s.id] && Number.isFinite(byId[s.id].passed) ? byId[s.id].passed + (Number.isFinite(byId[s.id].failed) ? byId[s.id].failed : 0) : 0), 0);
+    return name + ' ' + status[id] + ' (' + pass + ' of ' + mine.length + ' suites' + (of ? ', ' + n(checked) + '/' + n(of) + ' checks' : '') + ')';
+  });
+  const ci = 'Runs in your browser when the page loads — results for this commit from CI: ' + ciSaid.join(' · ')
+    + (forSite ? ' · ' + target + (ciAt ? ', ' + ciAt : '') : '') + ' · <a class="journey-line-link" href="#health-kinds-h">details</a>';
+  return { kinds: rows, ci, status, commit: target };
+});
+const CHECK_SUITES = [{"id":"model-test","name":"model-test","kind":"numbers"},{"id":"equity-test","name":"equity-test","kind":"numbers"},{"id":"scanner-test","name":"scanner-test","kind":"numbers"},{"id":"ingest-test","name":"ingest-test","kind":"numbers"},{"id":"history-store-test","name":"history-store-test","kind":"numbers"},{"id":"data-check","name":"data-check","kind":"data"},{"id":"register-check","name":"register-check","kind":"data"},{"id":"served-check-data","name":"served-check, data blocks","kind":"data"},{"id":"served-check","name":"served-check, pages","kind":"layout"},{"id":"build-check","name":"build --check","kind":"layout"},{"id":"prerender-check","name":"prerender --check","kind":"layout"},{"id":"sweep","name":"sweep","kind":"layout"},{"id":"coverage-frames","name":"coverage-frames","kind":"layout"},{"id":"mobile","name":"mobile","kind":"layout"}];
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
 /* A recorded run older than this says so. Runs are recorded at least twice
@@ -65440,7 +65576,7 @@ const HEALTH_FULL = [
 
 /* ---- running them ---- */
 /* kept: the journeys summary standing as served until the read returns. */
-const HEALTH = { quick: new Map(), quickAt: 0, full: new Map(), fullRunning: false, journeys: null, journeysAt: 0, kept: null };
+const HEALTH = { quick: new Map(), quickAt: 0, full: new Map(), fullRunning: false, journeys: null, journeysAt: 0, kept: null, checks: null };
 
 async function healthRunList(list, into) {
   await Promise.all(list.map(async (c) => {
@@ -65466,6 +65602,21 @@ async function healthLoadJourneys() {
     return doc.ranAt == null ? { state: 'none' } : { state: 'ok', doc };
   } catch (e) {
     return { state: 'unreadable', why: `it could not be fetched (${e.message})` };
+  }
+}
+
+/* CI's results, read as the journeys' are: no-store, absent is none, and
+   one that is not a record of CI's results is unreadable — shown as no
+   result, never guessed. */
+async function healthLoadChecks() {
+  try {
+    const r = await fetch(`${BASE}/${HEALTH_CHECKS_FILE}`, { cache: 'no-store' });
+    if (r.status === 404) return { state: 'none' };
+    if (!r.ok || !/json/i.test(r.headers.get('content-type') || '')) return { state: 'unreadable' };
+    const doc = await r.json();
+    return doc && doc.kind === 'quantum-tradeworks-checks' && Array.isArray(doc.suites) ? { state: 'ok', doc } : { state: 'unreadable' };
+  } catch {
+    return { state: 'unreadable' };
   }
 }
 
@@ -65507,7 +65658,9 @@ function healthReadJourneys() {
   if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
   HEALTH.journeysAt = now;
   HEALTH.journeys = null;
-  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); statusModelPaint(); });
+  HEALTH.checks = null;
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); statusModelPaint(); kindsPaint(); });
+  healthLoadChecks().then(r => { HEALTH.checks = r; kindsPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -65523,8 +65676,12 @@ function healthReadJourneys() {
    check prints — is the same in every tab, and is served as it is. */
 /* Each no longer than what the tab says there first, so nothing below moves
    when it does (a phone wraps the longer onto a second line). */
-const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this page’s script.',
-  quick: 'Run in your browser by this page’s script.',
+/* SAID FOR WHAT IT IS (the daily audit of 10 Oct 2026, item 3): a bare "Not
+   run" in the served chip read as checks that never run. Served, the chip
+   says where they run — "In browser" — and the line above the list says
+   what CI found on this commit for the same kinds (#health-ci, ciNode). */
+const HEALTH_NOT_RUN = { chip: 'In browser', detail: 'Runs in your browser when the page loads.',
+  quick: 'Runs in your browser when the page loads.',
   journeys: 'Read from the site by this page’s script.' };
 /* One width whatever it says (health-chip, styles.css): served it says
    "Not run", drawn "Checking…" and then its result, and the check's name
@@ -65768,6 +65925,42 @@ function statusModelPaint() {
   const html = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).model;
   for (const n of document.querySelectorAll('#views .status-model-result')) if (n.innerHTML !== html) n.innerHTML = html;
 }
+/* THE FOUR KINDS, AND CI BESIDE THE IN-BROWSER CHECKS (the 10 Oct audit).
+   #health-kinds: Journeys, Numbers, Data, Layout & served pages, each its
+   own status, counts, commit, time and Actions run. #health-ci: under
+   "Checked in your browser now", what CI found on this commit for Numbers
+   and Data, so a reader with no script reads a result there. Both served by
+   the build from the committed records, drawn empty here with data-now,
+   kept as served until this tab's own reads of both records return, then
+   drawn from them with the same function (checksServed) — the proof slots'
+   way, so the served block and the drawn one are one text and take the same
+   lines. Nothing in them is the tab's own now. */
+const checksDrawn = () => (HEALTH.journeys && HEALTH.checks && checksServed
+  ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES) : null);
+function keptOrDrawn(node, sel, part) {
+  const out = checksDrawn();
+  if (out) node.innerHTML = out[part];
+  else {
+    const was = document.querySelector(`#views ${sel}`);
+    if (was && was.textContent.trim()) node.innerHTML = was.innerHTML;
+    healthReadJourneys();
+  }
+  return node;
+}
+const kindsNode = () => keptOrDrawn(el('ul', { id: 'health-kinds', class: 'checks-kinds', 'data-now': '' }), '#health-kinds', 'kinds');
+const ciNode = () => keptOrDrawn(el('p', { class: 'metaline', id: 'health-ci', 'data-now': '' }), '#health-ci', 'ci');
+function kindsPaint() {
+  const out = checksDrawn();
+  if (!out) return;
+  const place = notePlace();
+  try {
+    for (const [sel, part] of [['#health-kinds', 'kinds'], ['#health-ci', 'ci']]) {
+      const n = document.querySelector(`#views ${sel}`);
+      if (n && n.innerHTML !== out[part]) n.innerHTML = out[part];
+    }
+  } finally { keepPlace(place); }
+}
+
 function statusPropertySection() {
   healthReadJourneys();
   const p = productById('property');
@@ -65797,12 +65990,19 @@ function healthSection() {
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'health-h' }, 'Does each tool work?'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Two kinds of evidence, each saying only what it checked: complete journeys through the live site, as last recorded, and the tools’ own code run in your browser when the page opens.'),
+      'Each kind of check on its own, each saying only what it checked: journeys through the live site and CI’s suites on the same commit, as last recorded, and the tools’ own code run in your browser when the page opens.'),
   ])));
 
-  /* The recorded journeys first (N1c): the result a fetch of this page
+  /* The four kinds first (the 10 Oct audit): each its own result, from the
+     records, before the journeys' steps and the checks only a browser runs. */
+  card.append(el('h3', { class: 'eyebrow', id: 'health-kinds-h', style: 'margin:var(--md) 0 0' }, 'Each kind of check, for the commit served'));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    'Published separately, each from its recorded result: the journeys on the live site, and CI’s suites — the numbers, the data, the layout and the served pages — run by GitHub Actions on the commit the site serves. The counts are what each suite printed. A suite with no result for that commit says “Not run”, never Pass.'));
+  card.append(kindsNode());
+
+  /* The recorded journeys next (N1c): the result a fetch of this page
      reads, before the checks only a browser runs. */
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Complete journeys on the live site'));
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, compares two filed companies and saves and reopens the comparison, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
   /* As served until this tab's read of the record returns (healthPaintNow):
@@ -65835,6 +66035,7 @@ function healthSection() {
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'Each tool’s own code, run in your browser by this page’s script when the page opens, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
+  card.append(ciNode());
   card.append(healthList('health-quick'));
   card.append(el('p', { class: 'metaline', id: 'health-quick-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.quick }));
   const run = el('button', { class: 'btn btn-ghost btn-sm', id: 'health-full-run', type: 'button', onclick: async () => {

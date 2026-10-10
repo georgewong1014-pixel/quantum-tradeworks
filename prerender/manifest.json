@@ -5222,11 +5222,11 @@
         "forms": 0,
         "removed": 0,
         "notShown": 0,
-        "now": 30,
+        "now": 32,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "01923136d5659f32",
+      "digest": "27a33951027e8409",
       "changed": "2026-10-10"
     },
     "pages/terms.html": {

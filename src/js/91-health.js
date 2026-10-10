@@ -46,6 +46,17 @@ const journeysServed = /*@INJECT:journeysServed*/ null;
    journeys themselves are named (proofSection). */
 const JOURNEY_NAMES = /*@INJECT:journeyNames*/ null;
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
+/* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
+   and 7). health/checks.json, written with the journeys' record by the same
+   workflow: checks.yml's suites on the commit the site serves, by kind —
+   Numbers, Data, Layout & served pages — beside the journeys. Drawn by
+   checks-record.mjs's one renderer (checksServed), put here by the build
+   with the suites it counts, so the served words and the drawn ones are one
+   text; a suite with no result for the commit reads "Not run for <commit>",
+   never Pass. */
+const HEALTH_CHECKS_FILE = 'health/checks.json';
+const checksServed = /*@INJECT:checksServed*/ null;
+const CHECK_SUITES = /*@INJECT:checkSuites*/ null;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';
 /* A recorded run older than this says so. Runs are recorded at least twice
@@ -278,7 +289,7 @@ const HEALTH_FULL = [
 
 /* ---- running them ---- */
 /* kept: the journeys summary standing as served until the read returns. */
-const HEALTH = { quick: new Map(), quickAt: 0, full: new Map(), fullRunning: false, journeys: null, journeysAt: 0, kept: null };
+const HEALTH = { quick: new Map(), quickAt: 0, full: new Map(), fullRunning: false, journeys: null, journeysAt: 0, kept: null, checks: null };
 
 async function healthRunList(list, into) {
   await Promise.all(list.map(async (c) => {
@@ -304,6 +315,21 @@ async function healthLoadJourneys() {
     return doc.ranAt == null ? { state: 'none' } : { state: 'ok', doc };
   } catch (e) {
     return { state: 'unreadable', why: `it could not be fetched (${e.message})` };
+  }
+}
+
+/* CI's results, read as the journeys' are: no-store, absent is none, and
+   one that is not a record of CI's results is unreadable — shown as no
+   result, never guessed. */
+async function healthLoadChecks() {
+  try {
+    const r = await fetch(`${BASE}/${HEALTH_CHECKS_FILE}`, { cache: 'no-store' });
+    if (r.status === 404) return { state: 'none' };
+    if (!r.ok || !/json/i.test(r.headers.get('content-type') || '')) return { state: 'unreadable' };
+    const doc = await r.json();
+    return doc && doc.kind === 'quantum-tradeworks-checks' && Array.isArray(doc.suites) ? { state: 'ok', doc } : { state: 'unreadable' };
+  } catch {
+    return { state: 'unreadable' };
   }
 }
 
@@ -345,7 +371,9 @@ function healthReadJourneys() {
   if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
   HEALTH.journeysAt = now;
   HEALTH.journeys = null;
-  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); statusModelPaint(); });
+  HEALTH.checks = null;
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); statusModelPaint(); kindsPaint(); });
+  healthLoadChecks().then(r => { HEALTH.checks = r; kindsPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -361,8 +389,12 @@ function healthReadJourneys() {
    check prints — is the same in every tab, and is served as it is. */
 /* Each no longer than what the tab says there first, so nothing below moves
    when it does (a phone wraps the longer onto a second line). */
-const HEALTH_NOT_RUN = { chip: 'Not run', detail: 'Run in your browser by this page’s script.',
-  quick: 'Run in your browser by this page’s script.',
+/* SAID FOR WHAT IT IS (the daily audit of 10 Oct 2026, item 3): a bare "Not
+   run" in the served chip read as checks that never run. Served, the chip
+   says where they run — "In browser" — and the line above the list says
+   what CI found on this commit for the same kinds (#health-ci, ciNode). */
+const HEALTH_NOT_RUN = { chip: 'In browser', detail: 'Runs in your browser when the page loads.',
+  quick: 'Runs in your browser when the page loads.',
   journeys: 'Read from the site by this page’s script.' };
 /* One width whatever it says (health-chip, styles.css): served it says
    "Not run", drawn "Checking…" and then its result, and the check's name
@@ -606,6 +638,42 @@ function statusModelPaint() {
   const html = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).model;
   for (const n of document.querySelectorAll('#views .status-model-result')) if (n.innerHTML !== html) n.innerHTML = html;
 }
+/* THE FOUR KINDS, AND CI BESIDE THE IN-BROWSER CHECKS (the 10 Oct audit).
+   #health-kinds: Journeys, Numbers, Data, Layout & served pages, each its
+   own status, counts, commit, time and Actions run. #health-ci: under
+   "Checked in your browser now", what CI found on this commit for Numbers
+   and Data, so a reader with no script reads a result there. Both served by
+   the build from the committed records, drawn empty here with data-now,
+   kept as served until this tab's own reads of both records return, then
+   drawn from them with the same function (checksServed) — the proof slots'
+   way, so the served block and the drawn one are one text and take the same
+   lines. Nothing in them is the tab's own now. */
+const checksDrawn = () => (HEALTH.journeys && HEALTH.checks && checksServed
+  ? checksServed(HEALTH.checks.state === 'ok' ? HEALTH.checks.doc : null, HEALTH.journeys.state === 'ok' ? HEALTH.journeys.doc : null, CHECK_SUITES) : null);
+function keptOrDrawn(node, sel, part) {
+  const out = checksDrawn();
+  if (out) node.innerHTML = out[part];
+  else {
+    const was = document.querySelector(`#views ${sel}`);
+    if (was && was.textContent.trim()) node.innerHTML = was.innerHTML;
+    healthReadJourneys();
+  }
+  return node;
+}
+const kindsNode = () => keptOrDrawn(el('ul', { id: 'health-kinds', class: 'checks-kinds', 'data-now': '' }), '#health-kinds', 'kinds');
+const ciNode = () => keptOrDrawn(el('p', { class: 'metaline', id: 'health-ci', 'data-now': '' }), '#health-ci', 'ci');
+function kindsPaint() {
+  const out = checksDrawn();
+  if (!out) return;
+  const place = notePlace();
+  try {
+    for (const [sel, part] of [['#health-kinds', 'kinds'], ['#health-ci', 'ci']]) {
+      const n = document.querySelector(`#views ${sel}`);
+      if (n && n.innerHTML !== out[part]) n.innerHTML = out[part];
+    }
+  } finally { keepPlace(place); }
+}
+
 function statusPropertySection() {
   healthReadJourneys();
   const p = productById('property');
@@ -635,12 +703,19 @@ function healthSection() {
   card.append(el('div', { class: 'card-hd' }, el('div', {}, [
     el('h2', { class: 'h-card', id: 'health-h' }, 'Does each tool work?'),
     el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
-      'Two kinds of evidence, each saying only what it checked: complete journeys through the live site, as last recorded, and the tools’ own code run in your browser when the page opens.'),
+      'Each kind of check on its own, each saying only what it checked: journeys through the live site and CI’s suites on the same commit, as last recorded, and the tools’ own code run in your browser when the page opens.'),
   ])));
 
-  /* The recorded journeys first (N1c): the result a fetch of this page
+  /* The four kinds first (the 10 Oct audit): each its own result, from the
+     records, before the journeys' steps and the checks only a browser runs. */
+  card.append(el('h3', { class: 'eyebrow', id: 'health-kinds-h', style: 'margin:var(--md) 0 0' }, 'Each kind of check, for the commit served'));
+  card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
+    'Published separately, each from its recorded result: the journeys on the live site, and CI’s suites — the numbers, the data, the layout and the served pages — run by GitHub Actions on the commit the site serves. The counts are what each suite printed. A suite with no result for that commit says “Not run”, never Pass.'));
+  card.append(kindsNode());
+
+  /* The recorded journeys next (N1c): the result a fetch of this page
      reads, before the checks only a browser runs. */
-  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--md) 0 0' }, 'Complete journeys on the live site'));
+  card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Complete journeys on the live site'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'A real browser, driven through the deployed site by GitHub Actions after each production deployment that changes the site, twice a day on a schedule (03:17 and 15:17 UTC, which GitHub may start late) and when started by hand: it finds a company and opens its filed statements, filters the screener, compares two filed companies and saves and reopens the comparison, models and saves a property, builds and saves a scanner setup, and presses each primary call to action. Every such run is recorded here — never the run on the deployment of the record itself, which serves the same app. Each step is marked OK, FAIL or gated: gated is a step that passes by checking that a tool refuses honestly, such as the scanner’s evaluate step, which checks that the page says there is no price history to evaluate, because this site ships no prices. A journey proves that the path works on the live site, not that any figure on it is accurate. Nothing checks the site between runs.'));
   /* As served until this tab's read of the record returns (healthPaintNow):
@@ -673,6 +748,7 @@ function healthSection() {
   card.append(el('h3', { class: 'eyebrow', style: 'margin:var(--lg) 0 0' }, 'Checked in your browser now'));
   card.append(el('p', { class: 'caption', style: 'margin-top:4px;max-width:72ch' },
     'Each tool’s own code, run in your browser by this page’s script when the page opens, on inputs whose answers are known without it. Nothing is sent anywhere, and nothing here says the site stayed working after you looked.'));
+  card.append(ciNode());
   card.append(healthList('health-quick'));
   card.append(el('p', { class: 'metaline', id: 'health-quick-sum', role: 'status', style: 'margin-top:var(--sm)', 'data-now': HEALTH_NOT_RUN.quick }));
   const run = el('button', { class: 'btn btn-ghost btn-sm', id: 'health-full-run', type: 'button', onclick: async () => {
