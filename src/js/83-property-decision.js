@@ -35,6 +35,9 @@
    action card while something it needs is missing), the working in the
    evidence (L3). The wording is the figures': "the figures you entered
    imply…", never a verdict on the deal.
+
+   P3 (auction), P4 (new development) and P5 (commercial: the four rents,
+   rent sustainability and lease-down) follow below, each with its header.
    ========================================================================== */
 
 /* -------------------------------------------------------------- answers */
