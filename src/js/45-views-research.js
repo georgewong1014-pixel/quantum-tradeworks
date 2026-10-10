@@ -1777,7 +1777,7 @@ function tabSnapshot(r) {
   const real = realSeriesFor(c);
   const tc = el('div', { class: 'card' });
   tc.append(cardHead('Trend context',
-    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.', null, { kind: kindFor(c, 'yours'), fine: 'From the closes you supplied' }));
+    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.', null, real ? { kind: kindFor(c, 'yours'), fine: 'From the closes you supplied' } : { kind: 'unavailable', fine: 'No closes held for this company' }));
   if (!real) {
     tc.append(el('p', { class: 'body', style: 'font-size:13px' },
       priceHistory(c)
