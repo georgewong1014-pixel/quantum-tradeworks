@@ -3253,6 +3253,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
   border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2);
   font-size: var(--ls-meta); font-weight: var(--weight-semibold); line-height: 1; color: var(--ink-2);
   text-decoration: none; white-space: nowrap; vertical-align: middle;
+  text-transform: none; letter-spacing: 0;
 }
 a.kind-badge { transition: border-color 160ms ease, color 160ms ease; }
 a.kind-badge:hover { border-color: var(--line-2); color: var(--ink); }
@@ -3285,6 +3286,9 @@ th .kind-th { vertical-align: middle; }
 .card-hd-t > .h-card { margin: 0; }
 .stat-kind { margin-top: 2px; }
 .lab-chain-kind { margin: 0 0 var(--sm); }
+.lab-knob-ft > .lab-knob-kind { flex: none; }
+.dr-kind { margin: 0 0 6px; }
+.scr-pick-kinds { margin: 6px 0 0; font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; }
 /* /data-sources#kinds: the eight, each beside its meaning. */
 .kinds-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px var(--md); margin: var(--md) 0; align-items: baseline; }
 .kinds-list dt { margin: 0; }

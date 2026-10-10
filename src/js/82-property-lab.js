@@ -1195,6 +1195,15 @@ function labSpan(col, inp) {
   if (!(hi > lo)) hi = lo + inp.step;
   return [+lo.toFixed(2), +hi.toFixed(2)];
 }
+/* An input's D6 badge (N6): its evidence on the ladder, as a kind — a
+   seeded default Illustrative, with the ladder's note in its title. */
+function labInputBadge(d, k) {
+  const ev = shownEvidence(d, k);
+  const b = kindBadge(KIND_OF_EVIDENCE[ev] || 'yours', { fine: `${evidenceOf(ev).label}: ${evidenceOf(ev).note}` });
+  b.classList.add('lab-knob-kind');
+  b.dataset.ev = ev;
+  return b;
+}
 function labEvidenceWords(d, k) {
   const ev = shownEvidence(d, k);
   return ev === 'illustrative_default' ? 'Illustrative default — not yours, and not from any market' : `Evidence: ${evidenceOf(ev).label}`;
@@ -1301,7 +1310,8 @@ function labKnob(P, lab, col, inp) {
      slider moves — at every width now that the whole note is in "About"
      at every width (the 9 Oct audit, #5). */
   if (k === 'downPct') tags.append(el('span', { class: 'lab-tag lab-tag-gap' }, 'Computed, not approved'));
-  ft.append(tags);
+  knob.kind = labInputBadge(col.work, k);
+  ft.append(knob.kind, tags);
   row.append(ft);
   /* In sight whatever the panel: what to do where there is no slider, and
      a 0% rate's warning. */
@@ -2274,6 +2284,7 @@ function labPaintPanel(P, { initial = false } = {}) {
       labAttr(kn.range, 'aria-describedby', desc);
       labAttr(kn.num, 'aria-describedby', desc);
     }
+    if (kn.kind && kn.kind.dataset.ev !== shownEvidence(d, inp.k)) { const nb = labInputBadge(d, inp.k); kn.kind.replaceWith(nb); kn.kind = nb; }
     if (kn.ev) { labText(kn.ev, labEvidenceWords(d, inp.k)); labClass(kn.ev, 'is-default', shownEvidence(d, inp.k) === 'illustrative_default'); }
     if (kn.zero) kn.zero.hidden = !(m && m.zeroRateModelled);
     if (kn.recover) labText(kn.recover, num0(d.renoValueRecoveryPct) > 0

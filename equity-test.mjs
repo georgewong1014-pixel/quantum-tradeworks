@@ -2177,7 +2177,7 @@ try {
       navigate('/company/aapl-apple-inc/report'); await wait(150);
       const cover = () => document.querySelector('.rr-cover')?.textContent || '';
       out.view = State.view; out.filed = /SEC-filed statements/.test(cover()) && !/illustrative figures/.test(cover());
-      out.legend = ['Reported', 'Calculated', 'Market', 'Modelled', 'Illustrative'].every(k => new RegExp('\\\\n' + k + '\\\\n').test(txt()));
+      out.legend = ['Reported', 'Derived', 'Market', 'Modelled', 'Illustrative'].every(k => new RegExp('\\\\n' + k + '\\\\n').test(txt()));
       out.chrome = /your browser’s own/.test(document.querySelector('.dr-chrome')?.textContent || '') && /Nothing is generated on a server/.test(document.querySelector('.dr-chrome')?.textContent || '');
       out.blankMetric = [...document.querySelectorAll('.research-report table.dt tbody tr')].filter(tr => tr.cells.length === 5 && !tr.cells[1].textContent.trim()).length;
       navigate('/app/equities/maybank/report'); await wait(150);

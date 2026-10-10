@@ -1741,7 +1741,11 @@ VIEWS.sarawak = () => {
     const rt = el('table', { class: 'dt' });
     rt.append(el('thead', {}, el('tr', {}, ['Code', 'Company', 'Suggested theme', 'Closes held',
       'vs 200-day', 'Financial statements', 'Exposure recorded'].map((h, i) =>
-      el('th', { style: i === 1 || i === 2 ? 'text-align:left' : null }, h)))));
+      /* D6, once a column: closes and the 200-day gap are the reader's own
+         (Unavailable while none is held); no statements are held. */
+      el('th', { style: i === 1 || i === 2 ? 'text-align:left' : null }, i === 3 || i === 4
+        ? [h, kindTh(flagged.some(x => trackedHistory?.series?.[x.symbol]) ? 'yours' : 'unavailable', 'Closes you supplied')]
+        : i === 5 ? [h, kindTh('unavailable', 'No statements held for these companies')] : h)))));
     const rb = el('tbody');
     [...flagged].sort((a, b) => String(a.symbol).localeCompare(String(b.symbol))).forEach(i => {
       const series = trackedHistory?.series?.[i.symbol] || null;

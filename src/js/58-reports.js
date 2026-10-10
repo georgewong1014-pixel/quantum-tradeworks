@@ -207,6 +207,8 @@ VIEWS.reports = () => {
           !c.real ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
             : c.personal ? el('span', { class: 'chip chip-bronze' }, 'annual statements — personal research')
             : el('span', { class: 'chip' }, 'SEC-filed statements'),
+          /* D6: the report's figures' kind. */
+          kindBadge(rowKind(c), { fine: 'The report’s figures' }),
         ]),
         el('strong', { class: 'rp-name' }, c.name),
         el('span', { class: 'metaline' }, [c.tk, why].filter(Boolean).join(' · ')),
@@ -235,6 +237,8 @@ VIEWS.reports = () => {
         el('div', { class: 'rp-chips' }, [
           onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
           workIsSample(rec) ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
+          /* D6: the property's figures' kind, its weakest input. */
+          (() => { const k = workIsSample(rec) ? { kind: 'illustrative', fine: 'The sample deal' } : dealKind(d); return kindBadge(k.kind, { fine: k.fine }); })(),
           nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
           full ? el('span', { class: 'chip', title: 'The full investor report is previewed in this browser for this property’s project — nothing is on sale, and nothing was charged.' }, 'full report previewed') : null,
         ]),

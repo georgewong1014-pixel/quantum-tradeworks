@@ -89,6 +89,9 @@ function decisionRecordProperty() {
      is every line. */
   const unpriced = m.missingCostLines || [];
   const shortOf = (groups) => unpriced.filter(x => !groups || groups.includes(x.groupId));
+  /* D6, once for the strip: the weakest input the figures rest on, the
+     cash's fee lines included (dealKind, 82-property-lab.js). */
+  { const k = dealKind(d, m, { fees: true }); out.append(el('p', { class: 'dr-kind' }, kindWithFine(k.kind, k.fine, { link: false }))); }
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null,
      shortOf(['acquisition', 'financing'])],
@@ -259,6 +262,8 @@ function decisionRecordWheel() {
     'This is the worked contract this tool carries as an illustration. The strike, premium and expiry were not '
     + 'quoted by any broker and no chain data is connected.'));
 
+  /* D6, once for the strip: the worked contract's, or the reader's own. */
+  out.append(el('p', { class: 'dr-kind' }, kindWithFine(p.isWorkedExample ? 'illustrative' : num0(p.putStrike) > 0 ? 'yours' : 'unavailable', p.isWorkedExample ? 'Illustrative · the worked contract' : num0(p.putStrike) > 0 ? 'Yours · the contract you entered' : 'Unavailable · no contract entered', { link: false })));
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to secure', isNum(m.requiredAssignmentCash) ? fmtMoney(m.requiredAssignmentCash, 'USD') : null],
    ['Premium received', isNum(m.putPremiumCashReceived) ? fmtMoney(m.putPremiumCashReceived, 'USD') : null],
@@ -354,6 +359,8 @@ VIEWS.decisionRecord = () => {
       el('p', { class: 'metaline' },
         [preparedNow(), 'research only, not advice']),
     ]));
+    /* D6, once for the strip (qttiKind, 85-trading-index.js). */
+    { const k = r.assessable ? qttiKind(State.qtti) : { kind: 'unavailable', fine: 'Unavailable · not assessable yet' }; out.append(el('p', { class: 'dr-kind' }, kindWithFine(k.kind, k.fine, { link: false }))); }
     const figs = el('div', { class: 'dr-figs' });
     /* Confidence is its own measure: a run is assessable before its five
        components are scored, and String(null) printed "null" in the record

@@ -171,6 +171,11 @@ for (const route of ROUTES) {
     if (/RMnull|null–null|\\[object Object\\]/.test(t)) out.push('renders a null or object literal');
     if (document.body.innerText.trim().length < 200) out.push('page is nearly empty');
     if (document.documentElement.scrollWidth > window.innerWidth + 2) out.push('horizontal overflow');
+    /* D6: no metric card of the layout system drawn without its kind badge
+       (build --check and served-check read the served pages; this, every
+       route as drawn, the reader's own states included). */
+    const bareCards = [...document.querySelectorAll('[data-card="metric"]')].filter(n => !n.querySelector('[data-kind-badge]'));
+    if (bareCards.length) out.push(bareCards.length + ' metric card(s) drawn with no kind badge: ' + bareCards.map(n => (n.querySelector('.ls-card-label') || n).textContent.trim().slice(0, 30)).join(' | '));
     return out;
   })()` }, sessionId);
   const textIssues = probe.result?.result?.value || [];

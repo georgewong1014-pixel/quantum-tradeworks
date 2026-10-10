@@ -249,7 +249,7 @@ function tabValuation(r) {
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
              : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
     editable ? el('button', { class: 'btn btn-quiet btn-sm', id: 'studio-reset', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); renderKeepFocus(); toast('Reset to derived defaults'); } }, 'Reset')
-             : el('span', { class: 'chip chip-bronze' }, 'Read-only')));
+             : el('span', { class: 'chip chip-bronze' }, 'Read-only'), { kind: kindFor(c, 'modelled'), fine: 'Assumptions you can change' }));
 
   /* Whose assumptions these are, said above them: how many differ from the
      derived defaults, when they were last edited, and — where the model or
@@ -490,7 +490,7 @@ function studioOutputs(r, inputs, redraw) {
         el('span', { class: 'chip' }, `${run.confBand} confidence`),
         el('span', { class: 'chip' }, `${run.conf}/100`),
       ]),
-    ])));
+    ]), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
   head.append(rangeStrip(run.vals.bear, run.vals.base, run.vals.bull, c.px.p, c.ccy));
   const grid = el('div', { class: 'grid g-4', style: 'margin-top:var(--lg)' });
   [['Bear', run.vals.bear, run.mos?.bear], ['Base', run.vals.base, run.mos?.base], ['Bull', run.vals.bull, run.mos?.bull]].forEach(([label, v, mos]) => {
@@ -503,6 +503,7 @@ function studioOutputs(r, inputs, redraw) {
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
   pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.px?.manual ? 'Price (entered by you)' : c.real ? 'Market price' : 'Sample price'));
+  pp.append(kindBadge(priceKindOf(c), { fine: c.real ? 'A price you supplied' : 'The sample price' }));
   pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
   /* The same stamp the provenance strip uses, so one page cannot date a
      price two ways — and a filed company with no price no longer gets a
@@ -526,7 +527,7 @@ function studioOutputs(r, inputs, redraw) {
   const drivers = driverImpact(c, d, inputs);
   const dr = el('div', { class: 'card' });
   dr.append(cardHead('Which assumptions actually move the answer',
-    'Each bar is the change in the base-case model estimate per share when that one assumption is stepped up and down, holding the others fixed. Ranked by the size of the effect.'));
+    'Each bar is the change in the base-case model estimate per share when that one assumption is stepped up and down, holding the others fixed. Ranked by the size of the effect.', null, { kind: kindFor(c, 'modelled'), fine: 'The model' }));
   const dh = el('div', { style: 'width:100%' });
   dr.append(dh);
   dr.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -544,7 +545,7 @@ function studioOutputs(r, inputs, redraw) {
   const grid2 = sensitivityGrid(inputs, ax);
   const sens = el('div', { class: 'card' });
   sens.append(cardHead('Sensitivity',
-    `Value per share across ${ax.x.label.toLowerCase()} and ${ax.y.label.toLowerCase()}. The outlined cell is the current base case; the fill shows the implied premium or discount to the market price.`));
+    `Value per share across ${ax.x.label.toLowerCase()} and ${ax.y.label.toLowerCase()}. The outlined cell is the current base case; the fill shows the implied premium or discount to the market price.`, null, { kind: kindFor(c, 'modelled'), fine: 'The model' }));
   sens.append(sensitivityControls(r, inputs, chosen, redraw));
   const sh2 = el('div', { style: 'width:100%;overflow-x:auto' });
   sens.append(sh2);
@@ -561,7 +562,7 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- value bridge ---------- */
   const bridge = el('div', { class: 'card' });
   bridge.append(cardHead('What makes up the base-case model estimate',
-    'The composition of the value per share. It shows where the answer comes from — which is usually more useful than the answer.'));
+    'The composition of the value per share. It shows where the answer comes from — which is usually more useful than the answer.', null, { kind: kindFor(c, 'modelled'), fine: 'The model' }));
   const bh = el('div', { style: 'width:100%' });
   bridge.append(bh);
   let steps;
@@ -617,7 +618,7 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- forecast table & model notes ---------- */
   if (inputs.model === 'scenario') {
     const ft = el('div', { class: 'card' });
-    ft.append(cardHead('Explicit forecast', 'Revenue, the margin applied to it, and the cash flow the model is actually discounting.'));
+    ft.append(cardHead('Explicit forecast', 'Revenue, the margin applied to it, and the cash flow the model is actually discounting.', null, { kind: kindFor(c, 'modelled'), fine: 'The model’s forecast' }));
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, ['Year', 'Revenue growth', `Revenue (${c.ccy}bn)`, 'Operating margin', `Free cash flow (${c.ccy}bn)`, 'Discount factor', `Present value (${c.ccy}bn)`].map(h => el('th', {}, h)))));
@@ -634,7 +635,7 @@ function studioOutputs(r, inputs, redraw) {
 
   if (inputs.model === 'dcf') {
     const ft = el('div', { class: 'card' });
-    ft.append(cardHead('Explicit forecast', 'The cash flows the model is actually discounting.'));
+    ft.append(cardHead('Explicit forecast', 'The cash flows the model is actually discounting.', null, { kind: kindFor(c, 'modelled'), fine: 'The model’s forecast' }));
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, ['Year', 'Growth applied', `Free cash flow (${c.ccy}bn)`, 'Discount factor', `Present value (${c.ccy}bn)`].map(h => el('th', {}, h)))));
@@ -651,7 +652,7 @@ function studioOutputs(r, inputs, redraw) {
   const applicable = nm.filter(x => isNum(x.value));
   const nineCard = el('div', { class: 'card' });
   nineCard.append(cardHead(`All nine methods — ${applicable.length} applicable to ${c.tk}`,
-    'The router selects one primary model, but every method is computed. Where a method does not fit this business it says so rather than producing a number. Wide disagreement between methods is information, not an error.'));
+    'The router selects one primary model, but every method is computed. Where a method does not fit this business it says so rather than producing a number. Wide disagreement between methods is information, not an error.', null, { kind: kindFor(c, 'modelled'), fine: 'The models' }));
   const ntw = el('div', { class: 'tablewrap' });
   const nt = el('table', { class: 'dt' });
   nt.append(el('thead', {}, el('tr', {}, ['#', 'Method', 'Value per share', 'vs price', 'Basis'].map(h => el('th', {}, h)))));
@@ -2167,7 +2168,9 @@ VIEWS.compare = () => {
   thr.append(el('th', { class: 'pin' }, 'Measure'));
   /* Each column says SEC-filed or illustrative (dataChip, Release B E2): the
      filed column was the one with no word. */
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  /* D6: each column's company kind once, in its header (kindBadge after the
+     chip); each section's computation kind once, in its divider row. */
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindBadge(rowKind(r.c), { fine: r.c.tk }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
@@ -2193,7 +2196,7 @@ VIEWS.compare = () => {
       const tr = el('tr');
       tr.append(el('td', { class: 'pin ident', colspan: rows.length + 1,
         style: 'background:var(--surface-sunk);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700' },
-        label.replace(/—/g, '').trim()));
+        [label.replace(/—/g, '').trim(), ' ', kindBadge(/Valuation|Scores/.test(label) ? 'modelled' : 'derived', { fine: /Valuation|Scores/.test(label) ? 'The model, on each company’s own figures' : 'Filed lines and arithmetic on them, on each company’s own figures' })]));
       tb.append(tr); return;
     }
     const tr = el('tr');
@@ -2212,7 +2215,7 @@ VIEWS.compare = () => {
 
   /* quality / valuation matrix */
   const mx = el('div', { class: 'card' });
-  mx.append(cardHead('Quality against valuation', 'Same axes as the Value Radar, restricted to the selected companies.'));
+  mx.append(cardHead('Quality against valuation', 'Same axes as the Value Radar, restricted to the selected companies.', null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
   const host = el('div', { style: 'width:100%' });
   mx.append(host);
   mx.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -2489,24 +2492,28 @@ VIEWS.portfolio = () => {
   const fxContribution = totalCost ? sum(priced.map(p => p.fxRet * p.costBase)) / totalCost : 0;
   const feeTotal = sum(pos.map(p => toBase((p.h.fee || 0) - (p.h.rebate || 0), p.r.c.ccy)));
   const unpricedNote = unpricedN ? `${unpricedN} without a price excluded` : '';
+  /* D6: a seeded portfolio, or one holding a synthetic company on its
+     sample price, is Illustrative; any other the reader's own (Yours). */
+  const PK = SEEDED_PF_IDS.includes(pf.id) ? { kind: 'illustrative', fine: 'A sample portfolio' }
+    : pos.some(p => !p.r.c.real) ? { kind: 'illustrative', fine: 'Holds illustrative companies on sample prices' } : { kind: 'yours', fine: 'Your holdings and prices' };
   const tiles = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   tiles.append(el('div', { class: 'card' }, statTile('Portfolio value', fmtAmount(totalVal, State.baseCcy),
-    { sub: `${pos.length} position${pos.length === 1 ? '' : 's'}${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash` })));
+    { sub: `${pos.length} position${pos.length === 1 ? '' : 's'}${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash`, ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Unrealised change', totalCost ? withSign((securities - totalCost) / totalCost * 100, 1) : '—',
     { sub: totalCost ? `of which ${withSign(fxContribution, 1)} is currency${unpricedNote ? ` · ${unpricedNote}` : ''}`
                      : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
-      tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text' })));
+      tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text', ...(totalCost ? PK : { kind: 'unavailable', fine: 'No priced holding' }) })));
   const withThesis = pos.filter(p => p.thesis);
   tiles.append(el('div', { class: 'card' }, statTile('Covered by a thesis', `${withThesis.length}/${pos.length}`,
-    { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—' })));
+    { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—', ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Transaction costs paid', fmtAmount(feeTotal, State.baseCcy),
-    { sub: 'Fees net of rebates, included in the cost base' })));
+    { sub: 'Fees net of rebates, included in the cost base', ...PK })));
   wrap.append(tiles);
 
   /* holdings table */
   const hc = el('div', { class: 'card', style: 'padding:0;overflow:hidden;margin-bottom:var(--md)' });
   const hh = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
-  hh.append(el('h3', { class: 'h-card' }, 'Holdings'));
+  hh.append(el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card' }, 'Holdings'), kindBadge(PK.kind, { fine: PK.fine })]));
   /* "Sample positions." only on a seeded portfolio: it ended the caption of
      every portfolio, the reader's own included. */
   hh.append(el('p', { class: 'caption', style: 'margin-top:2px' },
@@ -2570,7 +2577,7 @@ VIEWS.portfolio = () => {
     : `Left out: ${unpricedTks.join(', ')}. No price is carried for ${oneLeft ? 'it' : 'them'} here, so ${oneLeft ? 'it has' : 'they have'} no value to share — not a share of nought.`;
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
-    card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.'));
+    card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
@@ -2611,7 +2618,7 @@ VIEWS.portfolio = () => {
   const inc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   inc.append(cardHead('Income',
     'Received, declared, projected and after-withholding are four separate figures. They are never added together.'
-    + (noDpsCount ? ` ${noDpsCount} holding${noDpsCount === 1 ? '' : 's'} carr${noDpsCount === 1 ? 'ies' : 'y'} no dividend line and ${noDpsCount === 1 ? 'is' : 'are'} excluded from the projection — not counted as paying nothing.` : '')));
+    + (noDpsCount ? ` ${noDpsCount} holding${noDpsCount === 1 ? '' : 's'} carr${noDpsCount === 1 ? 'ies' : 'y'} no dividend line and ${noDpsCount === 1 ? 'is' : 'are'} excluded from the projection — not counted as paying nothing.` : ''), null, PK));
   const ig2 = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
   ig2.append(el('div', { class: 'panel' }, statTile('Dividends received', fmtAmount(recTotal, State.baseCcy),
     { sub: received.length
@@ -2696,7 +2703,7 @@ VIEWS.portfolio = () => {
   /* ---------- dividend projection ---------- */
   const dc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   dc.append(cardHead('How the projection is built',
-    'Projected income from the current holdings at the latest declared dividend per share. It assumes the distribution is repeated — it is a projection from reported history, not a forecast, and a cut or a special dividend would change it.'));
+    'Projected income from the current holdings at the latest declared dividend per share. It assumes the distribution is repeated — it is a projection from reported history, not a forecast, and a cut or a special dividend would change it.', null, PK));
   /* Each yield divides income by the value or cost of the SAME holdings. The
      income of an unpriced holding over the value of the priced ones overstated
      yield on value, and every holding's cost under the income of the ones with
@@ -2763,7 +2770,7 @@ VIEWS.portfolio = () => {
     const equityIncome = grossIncome;
 
     xa.append(cardHead('Cross-asset net worth',
-      'Equity holdings and the modelled property in one place. Property is carried at the purchase price less the outstanding loan — an entry cost, not a valuation.'));
+      'Equity holdings and the modelled property in one place. Property is carried at the purchase price less the outstanding loan — an entry cost, not a valuation.', null, { kind: kindFirst([PK.kind, dealKind(State.deal).kind, 'modelled']), fine: 'Your holdings and the modelled property' }));
     const xg = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
     xg.append(el('div', { class: 'panel' }, statTile('Net worth', fmtAmount(netWorth, State.baseCcy), { sub: 'Securities, cash and property equity' })));
     xg.append(el('div', { class: 'panel' }, statTile('Property equity', fmtAmount(propEquity, State.baseCcy),

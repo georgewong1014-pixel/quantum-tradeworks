@@ -1499,7 +1499,7 @@ VIEWS.scannerSetups = () => {
   const ev = el('div', { class: 'card' });
   ev.append(cardHead('Evaluate now — nothing recorded', haveHistory
     ? 'Runs the engine the worker runs, here, on data/price-history.json as the worker reads it. The worker writes the record; this writes nothing.'
-    : 'No price history is loaded, so there is nothing to evaluate. On the deployed site there never is: none of the prices this product could ship are licensed for it to redistribute.'));
+    : 'No price history is loaded, so there is nothing to evaluate. On the deployed site there never is: none of the prices this product could ship are licensed for it to redistribute.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const host = el('div', { style: 'margin-top:var(--sm)' });
   const fileSetups = fileCheck?.setups || [];
   const run = (list, which) => {
@@ -2742,7 +2742,7 @@ VIEWS.scannerAlerts = () => {
      alone was 22px, half the 44px a finger needs, and nothing around it
      was a target. */
   const hit = (box) => el('label', { class: 'scan-tick-hit' }, box);
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', class: 'scan-tick' }, hit(allBox)), ...['Status', 'Bar', 'Setup', 'Instrument', 'Event', 'Close', ''].map(h => el('th', { scope: 'col', class: h === 'Close' ? 'num' : null }, h || el('span', { class: 'sr-only' }, 'Detail')))])));
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', class: 'scan-tick' }, hit(allBox)), ...['Status', 'Bar', 'Setup', 'Instrument', 'Event', 'Close', ''].map(h => el('th', { scope: 'col', class: h === 'Close' ? 'num' : null }, h === 'Close' ? [h, kindTh('yours', 'Your own close on the bar')] : h || el('span', { class: 'sr-only' }, 'Detail')))])));
   t.append(el('tbody', {}, slice.map(a => {
     const id = scanAlertIdOf(a);
     const s = scanAlertStatus(a, st);
@@ -2993,7 +2993,7 @@ VIEWS.scannerAlert = () => {
   /* ---- the bar ---- */
   const mk = a.market ? scanMarket(a.market) : null;
   const c1 = el('div', { class: 'card' });
-  c1.append(cardHead('The bar', 'What was evaluated, and when.'));
+  c1.append(cardHead('The bar', 'What was evaluated, and when.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const f1 = el('div', { class: 'scan-facts' });
   f1.append(scanFact('Candle date', bar, `${SCAN_TIMEFRAMES[scanTimeframe(a.timeframe)]?.label || a.timeframe || 'Daily'} bar${a.market ? ` · the ${a.market} session, in ${mk?.tz || 'its time zone'}` : ''}`));
   f1.append(scanFact('Bar status', a.barStatus || nr, a.barStatus ? SCAN_BAR_STATUS_TEXT[a.barStatus] : null));
@@ -3055,7 +3055,7 @@ VIEWS.scannerAlert = () => {
   /* ---- every condition, with its values ---- */
   const c3 = el('div', { class: 'card' });
   const mc = Array.isArray(a.matchedConditions) ? a.matchedConditions : null;
-  c3.append(cardHead('Every condition, with its values', mc ? `${prefs.precision === 'full' ? 'Values as the engine computed them, to twelve significant digits' : 'Values rounded as the tables round them'} — the display is set in the scanner settings.` : 'This record carries each condition’s text and whether it held, but not its values: it predates engine 0.3.0.'));
+  c3.append(cardHead('Every condition, with its values', mc ? `${prefs.precision === 'full' ? 'Values as the engine computed them, to twelve significant digits' : 'Values rounded as the tables round them'} — the display is set in the scanner settings.` : 'This record carries each condition’s text and whether it held, but not its values: it predates engine 0.3.0.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const t = el('table', { class: 'dt' });
   t.append(el('caption', { class: 'sr-only' }, 'Conditions evaluated on this bar'));
   if (mc) {
@@ -3084,7 +3084,7 @@ VIEWS.scannerAlert = () => {
 
   /* ---- the closes up to it, and the bar evaluated again ---- */
   const c5 = el('div', { class: 'card' });
-  c5.append(cardHead('Evaluated again', 'The closes up to this bar and no further, and the same conditions on the history as it is loaded now, cut at the bar.'));
+  c5.append(cardHead('Evaluated again', 'The closes up to this bar and no further, and the same conditions on the history as it is loaded now, cut at the bar.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   /* The sparkline draws the cut series only, so no close after the bar is
      on it; the text beside it says what it shows, for anyone who cannot
      see the line. */

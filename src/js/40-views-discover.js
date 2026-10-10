@@ -65,6 +65,8 @@ VIEWS.researchQueue = () => {
     card.append(statTile('Cap-weighted move vs previous close', withSign(s.wChg, 2), {
       sub: `${s.advancers} of ${s.total} ${s.filed ? 'filed companies with a supplied close' : 'illustrative companies on sample prices'} advancing${s.asOf.length ? ` · ${s.asOf.join('; ')}` : ''}`,
       tone: !isNum(s.wChg) ? null : s.wChg >= 0 ? '--ok-text' : '--dn-text',
+      /* D6: on the reader's supplied closes, or the sample prices. */
+      kind: !s.filed ? 'illustrative' : isNum(s.wChg) ? 'yours' : 'unavailable', fine: !s.filed ? 'Sample prices' : isNum(s.wChg) ? 'Closes you supplied' : 'No close supplied',
     }));
     if (s.leftOut) card.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
       `${s.leftOut} illustrative ${s.leftOut === 1 ? 'company is' : 'companies are'} left out, so supplied closes and sample prices are not averaged together.`));
@@ -86,7 +88,8 @@ VIEWS.researchQueue = () => {
         ? `Indicative sample rate · ${FX.asOf || 'no observation date — nobody observed it'}`
         : FX.named
         ? `${FX.named} · ${FX.asOf || 'date not stated'}`
-        : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}` }));
+        : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}`,
+      kind: FX.source === 'sample' ? 'illustrative' : 'yours', fine: FX.source === 'sample' ? 'An indicative sample rate' : 'A rate you supplied' }));
   if (FX.crossChecked) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
     `Cross-checked against an independent source: ${FX.crossChecked}.`));
   if (fxRejected) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--dn-text)' },
@@ -181,6 +184,10 @@ VIEWS.researchQueue = () => {
        synthetic event, and the page's META says each company is labelled. */
     const fr = BY_ID.get(f.id);
     if (fr) { const ic = dataChip(fr.c); if (ic) t.append(ic); }
+    /* D6, the event's own kind: a gap to the model or a move needs the
+       price (the reader's own), a payout or a drawdown is arithmetic on the
+       lines, a risk grade the model's — on the company's own kind. */
+    if (fr) t.append(kindBadge(kindFor(fr.c, { valuation: 'yours', price: 'yours', dividend: 'derived', fundamental: 'derived', risk: 'modelled' }[f.kind] || 'derived'), { fine: f.kind }));
     if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, activeWLIsSample() ? 'Sample watchlist' : 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
@@ -221,7 +228,7 @@ VIEWS.researchQueue = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, dataChip(r.c)]));
+      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, dataChip(r.c), kindBadge(priceKindOf(r.c), { link: false, fine: 'The price and its move' })]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
@@ -252,7 +259,7 @@ VIEWS.researchQueue = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt)]));
+    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt), kindBadge(kindFor(r.c, 'yours'), { link: false, fine: 'The price against the model estimate' })]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
     /* diffClass, not `pos`. A gap to a model estimate is not a gain, and the
@@ -1914,6 +1921,9 @@ function renderScreener() {
            triangle", "Value, up down arrow". */
         html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
+      /* D6, once a column (the rows keep their company's kind): no link —
+         the header is the sort control. */
+      if (c2.k !== 'ident') { const k = screenerColKind(c2.k, sorted, sc); const b = kindBadge(k.kind, { link: false, fine: k.fine }); b.classList.add('kind-th'); th.append(b); }
       htr.append(th);
     });
     thead.append(htr); table.append(thead);
@@ -2055,6 +2065,13 @@ function renderScreener() {
     tw.append(el('div', { class: 'scr-pick' }, [
       el('p', { class: 'scr-pick-hd', id: 'scr-pick-hd' }, `Measures on each card · up to ${CARD_MAX}`),
       pickRow,
+      /* D6, once a kind for the measures on the cards (the table's column
+         badges, which a phone does not show): the kind, then its measures. */
+      (() => {
+        const by = new Map();
+        pickable.filter(c2 => picked.includes(c2.k)).forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
+        return by.size ? el('p', { class: 'scr-pick-kinds' }, [...by].flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null)) : null;
+      })(),
     ]));
     const pickedCols = pickable.filter(c2 => picked.includes(c2.k));
     /* A measure on a card reads as the table's cell does — its figure, or
@@ -2242,7 +2259,7 @@ function riskPill(band) {
    ========================================================================== */
 const PROVENANCE = {
   reported:   { label: 'Reported',   cls: 'chip chip-ok',     note: 'Taken directly from a filed statement line. Not adjusted.' },
-  calculated: { label: 'Calculated', cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
+  calculated: { label: 'Derived',    cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
   modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see and change. A different set of assumptions gives a different number.' },
   market:     { label: 'Market',     cls: 'chip',             note: 'Needs a price. The price comes from the source stated on the company page — an end-of-day close you supplied or a figure you entered — never from a licensed feed, because none is connected.' },
   /* Two more kinds the four above could not say. A figure on a synthetic
@@ -2281,6 +2298,16 @@ function statusChip(st) {
    price is market; anything that is an output of assumptions is modelled. */
 const FIELD_PROVENANCE = Object.fromEntries(METRICS.filter(x => x.kind !== 'calculated').map(x => [x.k, x.kind]));
 const provenanceOf = (k) => FIELD_PROVENANCE[k] || 'calculated';
+/* A screener column's kind (D6): the scores and the model's estimate are
+   Modelled; a measure by its provenance (KIND_OF_PROVENANCE) — one needing
+   a price is the reader's own, Unavailable where no row holds one; and on
+   the illustrative set every column is Illustrative. */
+function screenerColKind(k, rows, sc) {
+  const own = ['quality', 'value', 'mos', 'risk'].includes(k) ? 'modelled' : KIND_OF_PROVENANCE[provenanceOf(k)] || 'derived';
+  const comp = own === 'yours' && !rows.some(r => isNum(r.m?.[k])) ? 'unavailable' : own;
+  const kind = kindFirst([comp, screenClassOf(sc) === 'illustrative' ? 'illustrative' : null].filter(Boolean));
+  return { kind, fine: kind === 'unavailable' ? 'Needs a price' : kind === 'illustrative' ? 'The illustrative set' : KIND_BADGES[kind].word };
+}
 
 /* Which stored lines each measure is arithmetic on. `price` is the quoted
    price and `history` the reader's own closes; everything else is a column
@@ -3269,6 +3296,13 @@ function renderRadar() {
     [['--seq-6', 'Low risk'], ['--seq-4', 'Medium risk'], ['--seq-2', 'High risk']].forEach(([v, l]) =>
       leg.append(el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(${v})"></span>${l}` })));
   }
+  /* D6: the kinds of the marks plotted — each a gap between a price and the
+     model, so the reader's own price (Yours) or a synthetic company's sample
+     (Illustrative) — counted, in the legend. */
+  const plottedKinds = new Map();
+  rows.forEach(r => { const k = kindFor(r.c, 'yours'); plottedKinds.set(k, (plottedKinds.get(k) || 0) + 1); });
+  [...plottedKinds].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0])).forEach(([k, n]) =>
+    leg.append(el('span', { class: 'legend-item' }, [kindBadge(k, { fine: `${n} plotted` }), ` ${n} ${k === 'illustrative' ? 'illustrative' : 'on your price'}`])));
   leg.append(el('span', { class: 'legend-item', style: 'margin-left:auto' , html: `<span class="legend-key" style="background:var(--ink-3);width:6px;height:6px;border-radius:50%"></span>Mark area = market capitalisation in ${State.baseCcy}` }));
   if (!nothing) card.append(leg);
   card.append(el('div', { style: 'margin-top:var(--sm)' },

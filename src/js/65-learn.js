@@ -97,7 +97,7 @@ function learnDictionary() {
       tb.append(el('tr', { class: x.blocked ? 'dict-row-blocked' : null }, [
         el('td', { class: 'ident' }, [metricLabel(x.k, x.label), el('div', { class: 'dict-kind' }, x.blocked
           ? el('span', { class: 'chip chip-bronze' }, 'Blocked')
-          : provChip(x.kind))]),
+          : [provChip(x.kind), ' ', kindBadge(KIND_OF_PROVENANCE[x.kind] || 'derived')])]),
         el('td', { class: 'dict-text' }, x.help?.simple || ''),
         el('td', { class: 'dict-text' }, [el('div', {}, x.formula),
           inputs.length || x.needs ? el('div', { class: 'caption' }, [
@@ -273,7 +273,7 @@ function learnData() {
     t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map((x, i) => el('td', { style: i ? 'text-align:left;white-space:normal' : '' }, x))))));
     tw.append(t); return tw;
   };
-  lg.append(legendTable(['Kind', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [provChip(k), PROVENANCE[k].note])));
+  lg.append(legendTable(['Kind', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [[provChip(k), ' ', kindBadge(KIND_OF_PROVENANCE[k], { link: false })], PROVENANCE[k].note])));
   lg.append(legendTable(['Absence', 'Meaning'], Object.entries(ABSENCE).map(([k, a]) => [el('span', { class: 'chip chip-bronze' }, `Unavailable — ${k}`), a.legend])));
   lg.append(el('p', { class: 'metaline' }, 'Every empty cell on the screener prints the short form of its reason and opens the drawer that names the line, the flag or the price behind it.'));
   wrap.append(lg);
