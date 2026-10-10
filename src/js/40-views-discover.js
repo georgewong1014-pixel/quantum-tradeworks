@@ -2012,7 +2012,7 @@ function renderScreener() {
       const by = new Map();
       cols.filter(c2 => c2.k !== 'ident').forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
       return el('p', { class: 'scr-col-kinds' }, [...by].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0]))
-        .flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null));
+        .flatMap(([k, labels], i, all) => [kindBadge(k, { fine: labels.join(', ') }), ` ${labels.join(', ')}${i < all.length - 1 ? ' · ' : ''}`]));
     })();
     tw.append(colKinds, table);
 
@@ -2077,7 +2077,7 @@ function renderScreener() {
       (() => {
         const by = new Map();
         pickable.filter(c2 => picked.includes(c2.k)).forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
-        return by.size ? el('p', { class: 'scr-pick-kinds' }, [...by].flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null)) : null;
+        return by.size ? el('p', { class: 'scr-pick-kinds' }, [...by].flatMap(([k, labels], i, all) => [kindBadge(k, { fine: labels.join(', ') }), ` ${labels.join(', ')}${i < all.length - 1 ? ' · ' : ''}`])) : null;
       })(),
     ]));
     const pickedCols = pickable.filter(c2 => picked.includes(c2.k));

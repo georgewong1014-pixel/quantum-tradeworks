@@ -815,16 +815,6 @@ function dealKind(d, m = null, { rests = null, fees = false, also = [] } = {}) {
   const kind = kindFirst(kinds);
   return { kind, fine: kind === base ? ev.words : kind === 'placeholder' ? 'Fee lines unchecked' : KIND_BADGES[kind].word };
 }
-/* A Lab column's kind: the weakest input it rests on, and Placeholder
-   where its cash carries fee lines nobody has checked. */
-function labColTag(col) {
-  const d = col?.work;
-  if (!d || !(num0(d.price) > 0)) return labTag({ kind: 'unavailable', words: 'Unavailable' });
-  const m = col.cur?.m || labRun(d)?.m;
-  const tag = labTag(labTileKind(d, evidenceDriversFor(d)), { fees: m?.unconfirmedCost > 0 });
-  tag.dataset.at = tag.textContent;
-  return tag;
-}
 function labTiles(P, lab) {
   const d = labSubjectInputs(lab);
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
@@ -1443,11 +1433,6 @@ function labChain(P, lab, col) {
     el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${col.name}`]),
     (P.els.baseline = el('span', { class: 'metaline lab-baseline' }, `Changes ${bl.label}`)),
   ]));
-  /* The rows' kind, once for the column (D6): the weakest of the figures
-     they rest on, the cash's unchecked fee lines included; kept up to date
-     as the column's figures change (labPaintPanel). */
-  P.els.chainKind = el('p', { class: 'lab-chain-kind' }, labColTag(col));
-  card.append(P.els.chainKind);
   const list = el('div', { class: 'lab-chain' });
   const d = col.work;
   for (const f of LAB_FIGURES) {
@@ -2241,10 +2226,6 @@ function labPaintPanel(P, { initial = false } = {}) {
   /* What the changes are against, once a paint: worked out for each row,
      it compared two whole deals seven times a frame. */
   const bl = labBaseline(lab, col);
-  if (P.els.chainKind) {
-    const tag = labColTag(col);
-    if (P.els.chainKind.firstChild?.dataset?.at !== tag.dataset.at) P.els.chainKind.replaceChildren(tag);
-  }
   const focused = document.activeElement;
   /* The knobs. */
   for (const inp of LAB_INPUTS) {
