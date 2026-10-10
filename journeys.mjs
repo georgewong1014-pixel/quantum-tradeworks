@@ -2706,6 +2706,11 @@ const JOURNEYS = [
         await press('/', `[...document.querySelectorAll(${JSON.stringify(CARDS)})].filter(n => n.getClientRects().length)[${i}]`, cards[i], `Homepage card “${cards[i]}”`);
       }
 
+      /* THE PROPERTY LANDING (/property-investing): its one primary call to
+         action, into the Scenario Lab. */
+      await load('/property-investing').catch(() => {});
+      await press('/property-investing', visible('#views a.pi-cta-primary'), 'Open the Scenario Lab', '/property-investing: “Open the Scenario Lab”');
+
       /* THE HOMEPAGE'S PROPERTY CARD (plan item 3.8): the compact Scenario
          Lab on the sample deal. Its price, moved to the far end of its
          span, moves all three of its figures — Monthly repayment, Cash

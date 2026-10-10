@@ -1447,6 +1447,91 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end n2d-property-split ---- */
 
+/* ---- property-investing ---- */
+/* /property-investing, THE PROPERTY LANDING FOR SEARCH (the owner's
+   decision of 7 Oct 2026), as a fetch that runs no script reads it:
+   1. served 200 with its own h1 in #views, its own title, description,
+      canonical (itself) and og: tags, and listed in the served sitemap;
+   2. one primary call to action (.btn-primary) in #views, to /property —
+      the Scenario Lab — and the calculator beside it as a lower one;
+   3. the disclosures in sight: not advice, not an official property
+      valuation, a registered valuer's, "Sample deal — not a real listing"
+      under each of its two figures with the Illustrative badge, no
+      licensed transactions or listings, no building-level figures;
+   4. no marketing claim: none of the banned words (best, guaranteed,
+      recommend, top pick, winner, outperform, accurate, proven, trusted,
+      testimonial, risk-free, #1), no paid call to action (Upgrade, Pro,
+      Buy now, Sign up, Subscribe), no request to anywhere but this site
+      (no tracking) and no form;
+   5. light: well under the 200kB a page may weigh (at most 120kB);
+   6. linked from the footer on every page (one sample: /, /pricing). */
+{
+  const p = [];
+  const PATH = '/property-investing';
+  const words = (html) => html.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+  const got = await getAll([PATH, '/sitemap.xml', '/', '/pricing']);
+  const r = got.get(PATH);
+  const said = { bytes: Buffer.byteLength(r.body || '', 'utf8') };
+  if (r.status !== 200) p.push(`${PATH}: ${described(r)}`);
+  else {
+    const head = headOf(r.body), want = expectHead(PATH);
+    if (head.canonical !== `${ORIGIN}${PATH}`) p.push(`${PATH}: its canonical is ${head.canonical}, not ${ORIGIN}${PATH}`);
+    for (const k of ['title', 'description', 'ogUrl', 'ogTitle', 'ogDescription']) if (head[k] !== want[k]) p.push(`${PATH}: its ${k} is ${JSON.stringify(head[k])}, not the router's ${JSON.stringify(want[k])}`);
+    if (head.robots) p.push(`${PATH}: it asks not to be indexed (${head.robots})`);
+    if (!/[Ss]arawak/.test(head.description || '') || !/not a valuation, not advice/i.test(head.description || '')) p.push(`${PATH}: its meta description does not say Sarawak and "not a valuation, not advice": ${JSON.stringify(head.description)}`);
+    const at = r.body.indexOf('<div id="views"'), end = r.body.indexOf('<div class="disclosure"', at);
+    const views = at < 0 ? '' : r.body.slice(at, end < 0 ? undefined : end);
+    const text = words(views);
+    said.h1 = words(/<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(views)?.[1] || '');
+    if ((views.match(/<h1\b/g) || []).length !== 1 || said.h1 !== 'Work out a Sarawak property before you buy') p.push(`${PATH}: #views serves ${(views.match(/<h1\b/g) || []).length} h1, "${said.h1}" — not its own one`);
+    const primary = [...views.matchAll(/<a\b[^>]*class="[^"]*\bbtn-primary\b[^"]*"[^>]*>/g)].map(m => /href="([^"]*)"/.exec(m[0])?.[1]);
+    said.primary = primary;
+    if (primary.length !== 1 || primary[0] !== '/property') p.push(`${PATH}: ${primary.length} primary call(s) to action (${primary.join(', ') || 'none'}), not one to /property`);
+    if (!/<a\b[^>]*href="\/property\/calculator"[^>]*>Or start in the calculator/.test(views)) p.push(`${PATH}: no secondary call to action to /property/calculator`);
+    if (/<(form|input type="(email|text|tel)")\b/.test(views)) p.push(`${PATH}: #views serves a form or a text field — this page collects nothing`);
+    for (const [re, what] of [[/not advice/, '"not advice"'], [/not an official property valuation/, '"not an official property valuation"'], [/registered valuer/, 'that a registered valuer values a property'],
+      [/No licensed transactions or listings ship here/, 'that no licensed transactions or listings ship'], [/the sample projects are synthetic/, 'that the sample projects are synthetic'],
+      [/Nothing is shown or estimated building by building/, 'that no building-level figure is shown'], [/Nothing is recommended or ranked/, 'that nothing is recommended or ranked']])
+      if (!re.test(text)) p.push(`${PATH}: does not say ${what}`);
+    const sample = (text.match(/Illustrative Sample deal — not a real listing/g) || []).length;
+    said.sample = sample;
+    if (sample !== 2) p.push(`${PATH}: "Sample deal — not a real listing" with its Illustrative badge under ${sample} figures, not both`);
+    /* The cost stack adds up, and to the Lab figure's cash required. */
+    const total = Number(/class="pi-stack-total num" data-v="(\d+)"/.exec(views)?.[1]);
+    const segs = [...views.matchAll(/<rect class="pi-seg pi-k-[a-z]+" x="([\d.]+)" y="0" width="([\d.]+)" height="10" data-v="(\d+)"/g)];
+    const labCash = Number(/data-figure="safeCashRequired" data-v="([\d.]+)"/.exec(views)?.[1]);
+    said.stack = `${segs.length} parts of RM${total.toLocaleString('en')}`;
+    if (!segs.length || !Number.isFinite(total)) p.push(`${PATH}: serves no cost stack`);
+    else {
+      const sum = segs.reduce((t, m) => t + Number(m[3]), 0);
+      if (Math.abs(sum - total) > segs.length) p.push(`${PATH}: the cost stack's parts add to ${sum}, not its total ${total}`);
+      if (!(Math.abs(labCash - total) < 1)) p.push(`${PATH}: the cost stack's total ${total} is not the Lab figure's cash required ${labCash}`);
+      if (segs.some(m => !/^\d+(\.\d{1,4})?$/.test(m[1]) || !/^\d+(\.\d{1,4})?$/.test(m[2]))) p.push(`${PATH}: a cost stack position is not rounded to 1e-4`);
+    }
+    if (!/class="ls-disclosure pi-disclosure"/.test(views)) p.push(`${PATH}: the disclosure is not served in sight beside the call to action (.ls-disclosure)`);
+    const BANNED = /\b(best|guarantee[ds]?|recommended|we recommend|top picks?|winners?|outperform\w*|accurate|accuracy|proven|trusted|testimonials?|risk[- ]free|no\. ?1|number one)\b|#1\b/gi;
+    const claims = [...text.matchAll(BANNED)].map(m => text.slice(Math.max(0, m.index - 30), m.index + 40)).filter(c => !/\b(no|not|nothing|never)\b[^.]*$/i.test(c.slice(0, 30)));
+    if (claims.length) p.push(`${PATH}: a marketing claim: ${claims.map(c => `…${c}…`).join(' | ')}`);
+    const paid = text.match(/\b(Upgrade|Property Pro|Buy now|Sign up|Sign in|Subscribe|Get started for)\b/);
+    if (paid) p.push(`${PATH}: a paid or account call to action: "${paid[0]}"`);
+    const off = [...r.body.matchAll(/\b(?:src|href|action)="(https?:)?\/\/([^/"]+)/g)].map(m => m[2]).filter(h => !ORIGIN.includes(h) && !/^(fonts\.(googleapis|gstatic)\.com)$/.test(h));
+    const offScripts = [...r.body.matchAll(/<script\b[^>]*\bsrc="([^"]*)"/g)].map(m => m[1]).filter(s => !/^\/assets\/app\.[0-9a-f]+\.js$/.test(s));
+    if (offScripts.length) p.push(`${PATH}: loads a script other than the app's: ${offScripts.join(', ')}`);
+    const viewsOff = [...views.matchAll(/\b(?:src|href|action)="(https?:)?\/\/([^/"]+)/g)].map(m => m[2]);
+    if (viewsOff.length) p.push(`${PATH}: #views reaches off the site (${[...new Set(viewsOff)].join(', ')}) — nothing here is measured or sent`);
+    said.off = [...new Set(off)];
+    if (said.bytes > 120 * 1024) p.push(`${PATH}: ${said.bytes.toLocaleString('en')} bytes, over the 120kB this page is held to (the limit for any page is 200kB)`);
+  }
+  const sm = got.get('/sitemap.xml')?.body || '';
+  if (!sm.includes(`<loc>${ORIGIN}${PATH}</loc>`)) p.push(`the served sitemap does not list ${ORIGIN}${PATH}`);
+  for (const at of ['/', '/pricing']) {
+    const foot = /<ul id="footResources"[^>]*>([\s\S]*?)<\/ul>/.exec(got.get(at)?.body || '')?.[1] || '';
+    if (!/<a href="\/property-investing"[^>]*>Property investing in Sarawak<\/a>/.test(foot)) p.push(`${at}: the footer's Resources does not link ${PATH}`);
+  }
+  judge(p, `${PATH} is served its own page (${(said.bytes || 0).toLocaleString('en')} bytes): h1 "${said.h1 || '—'}", its own description, canonical and og: tags, in the sitemap; one primary call to action (${(said.primary || []).join(', ')}) and the calculator beside it; the cost stack ${said.stack || '—'}, the Lab figure's cash required; not advice, not an official valuation, "Sample deal — not a real listing" under ${said.sample ?? 0} figures, no licensed data, no building-level figure; no banned word, paid call to action, form or off-site request; linked from the footer`,
+    `${PATH} is not served as the property landing it must be`);
+}
+/* ---- end property-investing ---- */
 
 /* ---- robots-noindex ---- */
 /* FETCHABLE, AND OUT OF SEARCH (plan item 1.1; the owner's decision D2 of
@@ -1849,7 +1934,8 @@ const HOME_PAGE = read(HOME);
   /* /app/scanner joined with its first view (N5, 8 Oct 2026); /app, My
      Dashboard, as a workspace (D12, 8 Oct 2026). */
   /* /research, Research's front page (N7, 9 Oct 2026). */
-  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner', '/app', '/research'];
+  /* /property-investing, the property landing for search (10 Oct 2026). */
+  const LS_PAGES = ['/property', '/property/calculator', '/app/scanner', '/app', '/research', '/property-investing'];
   const got = await getAll(LS_PAGES);
   /* The stylesheet the pages load. */
   const cssHref = ((got.get('/property')?.body || '').match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];

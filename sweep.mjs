@@ -13,6 +13,8 @@ const ROUTES = [
   '/', '/app', '/welcome', '/discover', '/discover/screener', '/discover/value-map',
   /* Release A: how each product works, and the Equities research queue. */
   '/how-it-works', '/research/queue',
+  /* The property landing for search (10 Oct 2026). */
+  '/property-investing',
   /* The two discover tabs with no path of their own. */
   '/discover?tab=ideas', '/discover?tab=heatmap',
   '/research', '/company/aapl-apple-inc',
