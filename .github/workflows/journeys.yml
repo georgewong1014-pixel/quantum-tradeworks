@@ -200,7 +200,19 @@ jobs:
           git show origin/main:health/journeys.json > "$RUNNER_TEMP/recorded.json" 2>/dev/null || rm -f "$RUNNER_TEMP/recorded.json"
           deployed=''
           author=''
-          if [ -n "$DEPLOY_SHA" ] && git diff --name-only "$DEPLOY_SHA^" "$DEPLOY_SHA" > "$RUNNER_TEMP/deployed-files.txt" 2>/dev/null; then
+          # What the deployment changed since the commit the record last ran
+          # on, not since the deployed commit's parent: a push whose last
+          # commit changed nothing (an empty build commit, 7f407394 on 11 Oct
+          # 2026) listed no files, read as "not known", and was not recorded.
+          # A bot record's deployment still lists only the records and the
+          # island pages, so the guard is unchanged. The parent is the fallback
+          # where the recorded commit is not an ancestor.
+          base="$DEPLOY_SHA^"
+          if [ -f "$RUNNER_TEMP/recorded.json" ]; then
+            prev=$(node -e "try { process.stdout.write(JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).commit || '') } catch {}" "$RUNNER_TEMP/recorded.json")
+            if [ -n "$prev" ] && [ -n "$DEPLOY_SHA" ] && [ "$prev" != "$DEPLOY_SHA" ] && git merge-base --is-ancestor "$prev" "$DEPLOY_SHA" 2>/dev/null; then base="$prev"; fi
+          fi
+          if [ -n "$DEPLOY_SHA" ] && git diff --name-only "$base" "$DEPLOY_SHA" > "$RUNNER_TEMP/deployed-files.txt" 2>/dev/null; then
             deployed="$RUNNER_TEMP/deployed-files.txt"
             author=$(git log -1 --format='%an' "$DEPLOY_SHA")
           fi

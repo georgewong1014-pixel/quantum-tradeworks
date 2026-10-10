@@ -593,7 +593,11 @@ function selfTest() {
   if (existsSync(wf)) {
     const y = readFileSync(wf, 'utf8').replace(/\r\n/g, '\n');
     t(!/^concurrency:/m.test(y) && /^ {4}concurrency:\n {6}group: journeys\n {6}cancel-in-progress: false$/m.test(y), 'the workflow: one concurrency group, the job\'s — a skipped preview event cannot cancel a pending production run');
-    t(/--decide [^\n]*--deployed-files/.test(y) && /git diff --name-only "\$DEPLOY_SHA\^" "\$DEPLOY_SHA"/.test(y), 'the workflow: the deployed commit\'s files reach the commit rule');
+    /* Since the commit the record last ran on, with the parent as the
+       fallback: a push ending in an empty commit listed no files and was not
+       recorded (7f407394, 11 Oct 2026). */
+    t(/--decide [^\n]*--deployed-files/.test(y) && /base="\$DEPLOY_SHA\^"/.test(y) && /git merge-base --is-ancestor "\$prev" "\$DEPLOY_SHA"/.test(y)
+      && /git diff --name-only "\$base" "\$DEPLOY_SHA"/.test(y), 'the workflow: the deployment\'s files since the last recorded commit (or its parent) reach the commit rule');
     const perms = /^permissions:\n((?: {2}[^\n]*\n)+)/m.exec(y);
     t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'actions: write,checks: read,contents: write,issues: write', 'the workflow: permissions actions, contents and issues write, and checks read (CI\'s annotations on the served commit), nothing else');
     const wait = Number((/--commit "\$DEPLOY_SHA" --wait (\d+)/.exec(y) || [])[1]);
