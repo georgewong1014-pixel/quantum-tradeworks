@@ -345,7 +345,7 @@ function healthReadJourneys() {
   if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
   HEALTH.journeysAt = now;
   HEALTH.journeys = null;
-  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); });
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); statusModelPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -577,6 +577,58 @@ function proofSection() {
   return card;
 }
 
+/* PROPERTY ON TWO LINES (N2d, the 5 Oct audit; the owner's decision D17).
+   "Live" beside Property read as live market data. The badge is the
+   model's: every figure is worked out from what the reader enters. So
+   /status says it on two lines, above "Does each tool work?":
+     Model: Live — the property journeys' last recorded results, the run's
+       time and commit (journeysServed's model), served by the build from
+       the committed record into a slot drawn empty here with data-now,
+       kept as served until this tab's own read of the record returns, then
+       drawn from it with the same function — the proof slots' way, so the
+       served line and the drawn one are one text and take the same lines;
+     Market data: Data Gated — the register's own label (FEATURE_STATUS),
+       and what is gated: no licensed transactions or listings, and the
+       sample projects are synthetic. */
+function statusModelNode() {
+  const span = el('span', { class: 'status-model-result', 'data-now': '' });
+  const J = HEALTH.journeys;
+  if (J) span.innerHTML = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).model;
+  else {
+    const was = document.querySelector('#views .status-model-result');
+    if (was && was.textContent.trim()) span.innerHTML = was.innerHTML;
+  }
+  return span;
+}
+function statusModelPaint() {
+  const J = HEALTH.journeys;
+  if (!J) return;
+  const html = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).model;
+  for (const n of document.querySelectorAll('#views .status-model-result')) if (n.innerHTML !== html) n.innerHTML = html;
+}
+function statusPropertySection() {
+  healthReadJourneys();
+  const p = productById('property');
+  const gated = FEATURE_STATUS.find(s => s.id === 'data-gated');
+  const box = el('section', { class: 'card status-property', id: 'status-property', 'aria-labelledby': 'status-property-h' });
+  box.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-property-h' }, p ? p.name : 'Property Intelligence'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
+      'Its Live badge is the model’s: every figure is worked out from what you enter. The market data is a separate matter.'),
+  ])));
+  box.append(el('dl', { class: 'status-split' }, [
+    el('div', { class: 'status-split-row', 'data-split': 'model' }, [
+      el('dt', {}, 'Model:'),
+      el('dd', {}, [el('span', { class: 'status-badge status-live' }, PRODUCT_STATUS.live), ' — ', statusModelNode()]),
+    ]),
+    el('div', { class: 'status-split-row', 'data-split': 'market' }, [
+      el('dt', {}, 'Market data:'),
+      el('dd', {}, [el('span', { class: 'chip status-gated', title: gated?.note || null }, gated?.label || 'Data Gated'), ' — no licensed transactions or listings; the sample projects are synthetic']),
+    ]),
+  ]));
+  return box;
+}
+
 function healthSection() {
   healthStart();
   const card = el('section', { class: 'card', id: 'health', 'aria-labelledby': 'health-h' });
@@ -601,6 +653,19 @@ function healthSection() {
     sum.querySelector('.journeys-age')?.remove();
     HEALTH.kept = sum;
     jlist.innerHTML = wasList.innerHTML;
+  } else if (HEALTH.journeys?.state === 'ok') {
+    /* DRAWN AGAIN WITH THE RECORD ALREADY READ (10 Oct 2026): the page is
+       drawn a second time when the filings land, and by then the record has
+       usually been read. The list was drawn empty and filled a frame later
+       (healthPaint, below): for one frame every row under it — "What proves
+       each Live badge" first — stood 5,000px higher, a layout shift of 0.10
+       under a reader scrolled to Property's two lines at 390. Drawn from
+       the record at once, by the same function. */
+    const out = journeysServed(HEALTH.journeys.doc);
+    sum.innerHTML = out.sum;
+    const age = Date.now() - Date.parse(HEALTH.journeys.doc.ranAt);
+    if (age > HEALTH_STALE_MS) sum.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
+    jlist.innerHTML = out.list;
   }
   card.append(sum, jlist);
   card.append(proofSection());

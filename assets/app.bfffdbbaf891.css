@@ -5520,6 +5520,16 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .proof-status[data-status="FAIL"] { color: var(--critical-text); }
 /* The unproven: a badge and a name each, so as many to a line as fit. */
 #health-unproven { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); column-gap: var(--lg); }
+/* PROPERTY ON TWO LINES (N2d; statusPropertySection, 91-health.js): what
+   the badge rests on, the model and the market data, a row each — the
+   label, then its state and what it means; on a phone the words take the
+   whole width under the label. */
+.status-split { margin: var(--sm) 0 0; }
+.status-split-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.status-split-row > dt { flex: none; min-width: 7.5rem; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.status-split-row > dd { flex: 1 1 20rem; min-width: 0; max-width: 72ch; margin: 0; font-size: var(--text-label); line-height: 1.6; color: var(--ink-2); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.status-split-row > dd > :is(.status-badge, .chip) { vertical-align: 1px; }
+.status-gated { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
 /* ---- end journeys-served ---- */
 
 /* ---- layout-system ---- */

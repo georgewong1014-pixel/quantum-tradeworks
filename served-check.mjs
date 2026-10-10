@@ -1399,6 +1399,55 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end live-proof ---- */
 
+/* ---- n2d-property-split ---- */
+/* PROPERTY ON TWO LINES (N2d, the 5 Oct audit; the owner's decision D17).
+   "Live" beside Property read as live market data. /status says what the
+   badge rests on, on two lines, before any script:
+   1. "Model: Live — property journey <result> · <date, time UTC> · <sha> ·
+      details": the property journeys' last recorded results, exactly
+      journeysServed(record).model of the record this same site serves;
+   2. "Market data: Data Gated — no licensed transactions or listings; the
+      sample projects are synthetic", the Data Gated label the register's
+      own (FEATURE_STATUS). */
+{
+  const p = [];
+  const words = (html) => html.replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').replace(/ ([.,;:])/g, '$1').trim();
+  const rec = await fetch(`${BASE}/health/journeys.json?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(e => ({ unreadable: e.message }));
+  const want = journeysServed(rec);
+  const status = (await getAll(['/status'])).get('/status').body || '';
+  const sec = /<section class="card status-property" id="status-property"[^>]*>([\s\S]*?)<\/section>/.exec(status)?.[1];
+  const row = (k) => new RegExp(`<div class="status-split-row" data-split="${k}">([\\s\\S]*?)</div>`).exec(sec || '')?.[1];
+  const said = {};
+  if (sec == null) p.push('/status serves no Property section (#status-property) saying what its Live badge rests on');
+  else {
+    const model = row('model'), market = row('market');
+    if (model == null) p.push('/status: the Property section serves no "Model:" line');
+    else {
+      said.model = words(model);
+      const slot = /<span class="status-model-result" data-now="">([\s\S]*?)<\/span><\/dd>/.exec(model)?.[1];
+      if (!/^<dt>Model:<\/dt><dd><span class="status-badge status-live">Live<\/span> — /.test(model)) p.push(`/status: the model line does not read "Model: Live — …": "${said.model.slice(0, 80)}"`);
+      if (slot == null) p.push('/status: the model line serves no recorded result (.status-model-result)');
+      else {
+        if (typeof want.model !== 'string') p.push('journeysServed (journeys.mjs) draws no model line');
+        else if (slot !== want.model) p.push(`/status: the model line is not the record's: served "${words(slot).slice(0, 100)}", the record "${words(want.model).slice(0, 100)}"`);
+        if (want.recorded && !/^property journey (PASS|DEGRADED|FAIL)\b.* · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · [0-9a-f]{7} · details$/.test(words(slot))) p.push(`/status: the model line does not name the property journey's result, its UTC time and a 7-character commit: "${words(slot).slice(0, 120)}"`);
+        if (want.recorded && !/href="#journey-property"/.test(slot)) p.push('/status: the model line links no property journey on the page');
+      }
+    }
+    if (market == null) p.push('/status: the Property section serves no "Market data:" line');
+    else {
+      said.market = words(market);
+      if (!/^<dt>Market data:<\/dt><dd><span class="chip status-gated"[^>]*>Data Gated<\/span> — /.test(market)) p.push(`/status: the market data line is not marked Data Gated: "${said.market.slice(0, 80)}"`);
+      if (said.market !== 'Market data: Data Gated — no licensed transactions or listings; the sample projects are synthetic') p.push(`/status: the market data line reads "${said.market}"`);
+    }
+    if (!(status.indexOf('id="status-property"') < status.indexOf('id="health-h"'))) p.push('/status: the Property section is not served above "Does each tool work?"');
+  }
+  judge(p, `/status serves Property on two lines (N2d): "${said.model || '—'}" — the record's property journeys, their time and commit — and "${said.market || '—'}"`,
+    '/status does not serve Property\'s model and market data on two lines');
+}
+/* ---- end n2d-property-split ---- */
+
+
 /* ---- robots-noindex ---- */
 /* FETCHABLE, AND OUT OF SEARCH (plan item 1.1; the owner's decision D2 of
    5 Oct 2026). robots.txt said Disallow: /app$ and Disallow: /app/scanner,
