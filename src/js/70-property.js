@@ -300,10 +300,20 @@ const PROPERTY_TYPE_CLASS = {
    "changed since saved" because a question was added, and its figures are
    byte for byte what they were (model-test, p1-route).
 
-   THE ROUTE NOT MODELLED YET SAYS SO. New development (P4) is selectable,
-   and until its model arrives it is modelled as a subsale, said in one
-   line where the answer is given; no developer (HDA) term is applied,
-   because none is modelled, and none is invented.
+   NEW DEVELOPMENT IS MODELLED (P4, the developer premium model:
+   newDevModel, 75-property-grade.js). The price is the SPA price; the
+   premium is set against a completed comparable the reader enters or
+   names from their register; the progressive drawdown is the reader's own
+   schedule — Sarawak's prescribed stage percentages (the Housing
+   Development (Control and Licensing) Regulations, 2014, Third Schedule)
+   are offered only as a labelled template the reader applies, never as a
+   default — and its timing, the SPA month and the month of vacant
+   possession are theirs to enter. Nothing of it changes a deal that has
+   not entered it: interest during construction is a line of the cash
+   required only once the schedule, its months and both dates are
+   entered, and a developer's rebate only once entered, so a deal answered
+   New development with nothing entered prints the subsale's figures,
+   line for line.
 
    AUCTION IS MODELLED (P3, the auction risk mode: auctionModel,
    75-property-grade.js). Its terms — the deposit, what it is a share of,
@@ -316,8 +326,7 @@ const PROPERTY_TYPE_CLASS = {
    subsale's figures, line for line.
    ========================================================================== */
 const PROPERTY_ROUTES = {
-  newdev:  { id:'newdev',  label:'New development', modelled:false, phase:'P4',
-    coming:'The new-development model is coming; these figures treat it as a subsale.' },
+  newdev:  { id:'newdev',  label:'New development', modelled:true, phase:'P4' },
   subsale: { id:'subsale', label:'Subsale', modelled:true },
   auction: { id:'auction', label:'Auction', modelled:true, phase:'P3' },
 };
@@ -330,6 +339,11 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    winning bid, with one exception the reader makes: their lawyer's quote
    for the legal and search costs, once entered, takes the place of the
    purchase legal fees (an auction has no SPA). */
+/* On the new-development route the rulebook's lines stand as on any SPA:
+   it prices the SPA, the loan and the transfer on the SPA price. A legal
+   fee the developer pays, a cash rebate or another incentive is the
+   reader's to enter, as one figure, and comes off the cash required. */
+const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
 const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price; your lawyer’s quote for the legal and search costs, once entered, takes the place of its purchase legal fees — an auction has no SPA. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
@@ -792,6 +806,100 @@ const AUCTION_ARREARS = [
 /* The reader's own comparable prices, typed — beside any named from the
    register (priceGap) — up to three. */
 const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
+
+/* THE DEVELOPER PREMIUM MODEL'S SOURCES (P4). This tool's places are in
+   Sarawak, where a licensed developer's sale is made on the forms Sarawak
+   prescribes — the Housing Development (Control and Licensing) Regulations,
+   2014, made under the Housing Development (Control and Licensing)
+   Ordinance, 2013 [Cap. 69] — not on Peninsular Malaysia's Schedules G and
+   H under the Housing Development (Control and Licensing) Act 1966, which
+   does not extend to Sarawak. Read from the gazetted text (Swk. L.N. 105,
+   the Sarawak Government Gazette Part II, 28 October 2014, as Sarawak
+   LawNet serves it): an amendment since, or the SPA in front of the
+   reader, is what binds — the reader checks theirs. */
+const NEWDEV_SOURCE = {
+  title: 'The Housing Development (Control and Licensing) Regulations, 2014 (Swk. L.N. 105), Sarawak Government Gazette Part II, 28 October 2014 — made under the Housing Development (Control and Licensing) Ordinance, 2013 [Cap. 69]',
+  url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_33_105I.pdf',
+};
+/* THE DEFECT LIABILITY PERIOD, as the prescribed agreements state it: a
+   feature of the route, never a figure in any sum. Form B (land and
+   building), clause 22, and Form C (subdivided building), clause 28:
+   defects, shrinkage or other faults that become apparent within eighteen
+   calendar months after vacant possession, due to defective workmanship or
+   materials or to building otherwise than to the approved plans, are
+   repaired and made good by the developer at its own cost within fourteen
+   days of the purchaser's written notice; if not, the purchaser may
+   recover the cost, including from the sum the developer's advocates hold
+   as stakeholder. */
+const NEWDEV_DLP = {
+  months: 18, days: 14,
+  words: 'Defect liability: defects, shrinkage or other faults that appear within 18 calendar months of vacant possession, from defective workmanship or materials or from building otherwise than to the approved plans, are the developer’s to repair at its own cost within 14 days of your written notice — or you may recover the cost, including from the sum its advocates hold as stakeholder.',
+  cite: 'Sarawak’s prescribed sale and purchase agreements: Form B (land and building), clause 22, and Form C (subdivided building), clause 28, Housing Development (Control and Licensing) Regulations, 2014.',
+};
+/* THE STAGE PERCENTAGES SARAWAK PRESCRIBES — a TEMPLATE the reader may
+   apply, labelled and cited, never a default: until a schedule is entered
+   or a template applied, interest during construction is Unavailable. The
+   Third Schedule (Clause 3(1)), "Schedule of payment of purchase price", of
+   each form; Form B's Part D (sub-divided building) has Form C's
+   percentages. Each stage is billed within fourteen days of the developer's
+   written notice of its completion; when that is, the reader enters. */
+const NEWDEV_TEMPLATES = {
+  'swk-c': { id: 'swk-c', label: 'Subdivided building (strata) — Form C', form: 'Form C, Third Schedule', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [20, 'Reinforced concrete framework and floor slab of the parcel'],
+    [20, 'The walls of the parcel with door and window frames in position'],
+    [10, 'Roofing/ceiling, electrical conduit, plumbing, gas piping and internal telephone trunking'], [10, 'Internal plastering of the parcel'],
+    [5, 'External plastering and painting of the building'], [5, 'Painting of the building'],
+    [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the subsidiary title']] },
+  'swk-b1': { id: 'swk-b1', label: 'Land and building, single storey — Form B, Part A', form: 'Form B, Third Schedule, Part A', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [20, 'Reinforced concrete framework with walls in position'], [5, 'Roofing'],
+    [10, 'Internal plastering, electrical conduits and plumbing'], [10, 'External plastering'],
+    [10, 'Ceiling, doors and windows including glazing, soil drainage and septic tank'], [10, 'Driveway, apron, perimeter drain, fencing and gate'],
+    [5, 'Painting and physical completion'], [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the land title']] },
+  'swk-b2': { id: 'swk-b2', label: 'Land and building, double storey — Form B, Part B', form: 'Form B, Third Schedule, Part B', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [15, 'Ground floor slab, ground floor columns'],
+    [5, 'First floor slab, roof beam and walls in position'], [5, 'Wall position'], [5, 'Upper roofing'], [7.5, 'Roofing'],
+    [7.5, 'Internal plastering, electrical conduits and plumbing'], [7.5, 'External plastering'],
+    [7.5, 'Ceiling, doors and windows including glazing, soil drainage, septic tank and lower roofing'],
+    [5, 'Driveway, apron, perimeter drain, fencing and gate'], [5, 'Painting and physical completion'],
+    [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the land title']] },
+  'swk-b3': { id: 'swk-b3', label: 'Land and building, three storey — Form B, Part C', form: 'Form B, Third Schedule, Part C', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [15, 'Ground floor slab, ground floor columns'], [20, 'First floor slab, first floor column'],
+    [5, 'Second floor slab, roof beam and walls in position'], [5, 'Roofing'], [5, 'Internal plastering'], [5, 'External plastering and painting'],
+    [5, 'Ceiling, doors and windows including glazing, soil drainage, septic tank and lower roofing'],
+    [5, 'Driveway, apron, perimeter drain, fencing and gate'], [5, 'Painting and physical completion'],
+    [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the land title']] },
+};
+const NEWDEV_TEMPLATE_IDS = Object.keys(NEWDEV_TEMPLATES);
+/* A schedule, as the deal holds it: "pct@month" a stage, in the order
+   billed, the month the months after signing (blank until entered) —
+   "10@0,15@6,20@". At most 20 stages, each 0–100%, to two decimals. */
+const NEWDEV_STAGE = /^(\d{1,3}(?:\.\d{1,2})?)@(\d{0,3})$/;
+function parseNdSchedule(raw) {
+  const parts = String(raw ?? '').split(',');
+  if (!String(raw ?? '').length || parts.length > 20) return null;
+  const out = [];
+  for (const p of parts) {
+    const m = NEWDEV_STAGE.exec(p);
+    if (!m || Number(m[1]) > 100) return null;
+    out.push({ pct: Number(m[1]), month: m[2] === '' ? null : Number(m[2]) });
+  }
+  return out;
+}
+const ndScheduleText = (stages) => stages.map(s => `${+Number(s.pct).toFixed(2)}@${s.month == null ? '' : s.month}`).join(',');
+/* The template a schedule's percentages are, stage for stage, if any. */
+const ndTemplateOf = (stages) => (Array.isArray(stages) && stages.length
+  ? NEWDEV_TEMPLATE_IDS.map(id => NEWDEV_TEMPLATES[id]).find(t => t.stages.length === stages.length && t.stages.every(([p], i) => p === stages[i].pct)) || null
+  : null);
+/* A month, as an <input type="month"> gives it: "2026-10". */
+const ND_MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
+const ndMonthIndex = (s) => { const m = ND_MONTH.exec(String(s || '')); return m ? Number(m[1]) * 12 + Number(m[2]) - 1 : null; };
+const ndMonthWords = (s) => { const i = ndMonthIndex(s); return i == null ? 'not entered' : new Date(Date.UTC(Math.floor(i / 12), i % 12, 1)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+const ansMonth = (raw) => (ND_MONTH.test(String(raw)) && Number(String(raw).slice(0, 4)) >= 1990 && Number(String(raw).slice(0, 4)) <= 2100 ? String(raw) : undefined);
+const ansDate = (raw) => (/^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/.test(String(raw)) ? String(raw) : undefined);
+/* Where a typed comparable came from: a document or a web page's address,
+   in at most 120 characters, and none of the address's own separators. */
+const ansSource = (raw) => { const s = String(raw).trim(); return s && s.length <= 120 && !/[~<>"`\\]/.test(s) ? s : undefined; };
+const ansSchedule = (raw) => (parseNdSchedule(raw) ? ndScheduleText(parseNdSchedule(raw)) : undefined);
 const ansEnum = (ids) => (raw) => (ids.includes(raw) ? raw : undefined);
 const ansSum = (raw) => (/^\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
 const ansSigned = (raw) => (/^-?\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
@@ -824,6 +932,14 @@ const DEAL_ANSWER_FIELDS = {
   auctionDepositPct: ansPct, auctionDepositOf: ansEnum(Object.keys(AUCTION_DEPOSIT_OF)), auctionBalanceDays: ansDays,
   auctionBuffer: ansSum, auctionHoldMonths: ansSum,
   auctionChecks: ansChecks,
+  /* The developer premium model (P4): a completed comparable typed, with
+     where it came from and its date; the SPA month and the month of vacant
+     possession; the reader's schedule of progressive drawdown; and what
+     the developer gives back. */
+  ndCompPrice: ansSum, ndCompSource: ansSource, ndCompDate: ansDate,
+  ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
+  ndSchedule: ansSchedule,
+  ndRebates: ansSum,
   /* Mortgage protection, optional and off by default (the fee rulebook
      1.1.0): 'included' carries it in the cash required at the rulebook's
      estimate until a quote replaces it. Absent is out. */

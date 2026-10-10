@@ -579,7 +579,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -600,8 +600,10 @@ function labDraw(P, focusId = null) {
   const chain = labChain(P, lab, col);
   const alert = P.compact ? null : labAlert(P, lab);
   /* The price against the reader's evidence (the decision layer, P2) —
-     or, answered Auction, the auction risk mode in its place (P3). */
-  const price = P.compact ? null : dealRoute(labAnswerInputs(lab)) === 'auction' ? labAuctionSection(P, lab) : labPriceSection(P, lab);
+     or, answered Auction, the auction risk mode in its place (P3), or,
+     answered New development, the developer premium model (P4). */
+  const route = dealRoute(labAnswerInputs(lab));
+  const price = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : labPriceSection(P, lab);
   const evidence = labEvidence(P, lab);
   outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
@@ -1053,6 +1055,66 @@ function labAuctionPaint(P, lab) {
     toChecklist: () => lsGoTo(document.getElementById(labId(P, 'au-checks')), document.querySelector(`#${labId(P, 'au-checks')} input:not(:checked)`)) }));
   if (au.wfText) labText(au.wfText, auctionWaterfallFormula(a));
   if (au.fxText) labText(au.fxText, auctionForfeitureFormula(a));
+}
+
+/* THE DEVELOPER PREMIUM MODEL (the decision layer, P4; 83-property-
+   decision.js), in the price section's place once New development is
+   answered. A what-if until Save, as every answer here is: the comparable,
+   the dates, the schedule and the rebates entered are a move of every
+   column (labAnswer), A, B and C staying one property, written only by
+   Save. The SPA price is the Price slider, and the rent at completion the
+   Rent slider: the column they move is the one worked through. The inputs
+   are drawn with the page; the figures follow each paint (labNewDevPaint),
+   the rent that would cover the premium — runs of the model — once a drag
+   rests, as the solved price does (LAB_PE_WAIT). */
+function labNewDevSection(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-nd au nd', id: labId(P, 'nd'), 'aria-labelledby': labId(P, 'nd-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'nd-h') }, 'The new development, worked through'));
+  card.append(el('p', { class: 'metaline au-route' }, `${ND_LEAD} A what-if of every column until you save it.`));
+  const figs = el('div', { class: 'au-figs', id: labId(P, 'nd-figs') });
+  card.append(figs);
+  if (d) {
+    const answer = (k, v) => labAnswer(P, lab, k, v);
+    card.append(ndInputs({ d, prefix: P.idPrefix, answer,
+      extra: { comp: comparablesPick({ d, prefix: P.idPrefix, legend: 'Completed comparables from your register', toggle: (ids) => answer('comparableIds', ids) }) },
+      where: { rent: 'The Rent slider.', vacancy: 'Set in the calculator.', furnishing: 'The Renovation slider.' } }));
+  }
+  P.els.nd = { card, figs, sig: null };
+  return card;
+}
+function labNewDevPaint(P, lab, { initial = false } = {}) {
+  const nd = P.els?.nd;
+  if (!nd) return;
+  const col = labActive(lab), d = col.work;
+  const m = col.cur?.m || dealModel(d);
+  const key = pmRunKey(d);
+  if (!P.ndSolve || P.ndSolve.key !== key) {
+    if (initial || !P.ndSolve) P.ndSolve = { key, n: ndModelOf(d, m) };
+    else {
+      clearTimeout(P.ndTimer);
+      P.ndTimer = setTimeout(() => {
+        const L = LAB[P.key];
+        if (!L || !P.node.isConnected) return;
+        const c = labActive(L);
+        P.ndSolve = { key: pmRunKey(c.work), n: ndModelOf(c.work, c.cur?.m || dealModel(c.work)) };
+        labNewDevPaint(P, L);
+      }, LAB_PE_WAIT);
+    }
+  }
+  /* Every figure but the solved rent at once; the rent the last solved,
+     for the figures it names, until the drag rests. */
+  const n = ndModelOf(d, m, { solve: false });
+  if (P.ndSolve.key === key) n.rentNeeded = P.ndSolve.n.rentNeeded;
+  const sig = JSON.stringify([col.key, n.premium, n.paid, n.comp, n.cash, n.build.status, n.build.idc, n.build.missing, n.vpMonthly, n.exits.map(e => e.value), n.rentNeeded, n.growthNeeded, n.premiumKind, n.rentKind]);
+  if (nd.sig === sig) return;
+  nd.sig = sig;
+  nd.figs.replaceChildren(ndResults({ n, d, prefix: P.idPrefix,
+    why: { premium: () => lsOpenEvidence(nd.premiumEv), idc: () => lsOpenEvidence(nd.idcEv), exit: () => lsOpenEvidence(nd.exitEv), needed: () => lsOpenEvidence(nd.neededEv) } }));
+  if (nd.premiumText) labText(nd.premiumText, ndPremiumFormula(n));
+  if (nd.idcText) labText(nd.idcText, ndConstructionFormula(n));
+  if (nd.exitText) labText(nd.exitText, ndExitFormula(n));
+  if (nd.neededText) labText(nd.neededText, ndNeededFormula(n));
 }
 
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
@@ -1528,6 +1590,14 @@ function labEvidence(P, lab) {
     P.els.au.srcEv = lsEvidenceSection({ id: labId(P, 'ev-au-src'), summary: 'Where the checklist comes from', body: [auctionGuidanceList()] });
     P.els.au.wfText = wfText; P.els.au.fxText = fxText;
     pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
+  }
+  /* The new development's working and its sources (P4), there too. */
+  if (P.els.nd) {
+    const nd = P.els.nd, sec = (k, summary) => { const t = el('p', { class: 'lab-formula', id: labId(P, `ev-nd-${k}-text`) }, ''); nd[`${k}Text`] = t; nd[`${k}Ev`] = lsEvidenceSection({ id: labId(P, `ev-nd-${k}`), summary, body: [t] }); return nd[`${k}Ev`]; };
+    pe.push(sec('premium', 'How the premium is worked out'), sec('idc', 'How construction interest is worked out'), sec('exit', 'How the exit values are worked out'),
+      sec('needed', 'How the rent and growth needed are found'));
+    nd.srcEv = lsEvidenceSection({ id: labId(P, 'ev-nd-src'), summary: 'Where the template comes from', body: [ndSourcesList()] });
+    pe.push(nd.srcEv);
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
@@ -2372,9 +2442,10 @@ function labPaintPanel(P, { initial = false } = {}) {
     if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
-  /* The price against the evidence (P2), or the auction (P3). */
+  /* The price against the evidence (P2), the auction (P3) or the new development (P4). */
   labPricePaint(P, lab, { initial });
   labAuctionPaint(P, lab);
+  labNewDevPaint(P, lab, { initial });
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);

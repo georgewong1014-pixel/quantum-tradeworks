@@ -3348,6 +3348,108 @@ for (const w of [360, 390]) {
   else console.log(`ok   p3-auction: a deal answered Auction, its terms entered, on /property/calculator and /property at 360, 390 and 430, in the page's font and in Verdana — "Not final: 6 checks open", the effective acquisition cost and the true discount as L1 cards, the exposure RM42,000, the waterfall's 9 rows inside the section; every input, chip, check row and call to action a 44px target and every kind badge 44px by its reach; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
 }
 /* ---- end p3-auction ---- */
+/* ---- p4-newdev ---- */
+/* THE DEVELOPER PREMIUM MODEL ON A PHONE (the property decision layer,
+   P4). The sample deal answered New development, a completed comparable
+   RM100,000 under its price, the SPA and VP months, and Sarawak's Form C
+   template spaced to VP, on /property/calculator and /property (the Lab),
+   at 360×640, 390×844 and 430×932, in the page's font and in Verdana:
+     - the section is drawn — the developer premium (RM100,000) and the
+       cash required as L1 metric cards, construction interest worked out,
+       the exit values a row each (3) — and nothing on the page scrolls
+       sideways; every card, row, field and stage stands inside the section;
+     - every control in it is a 44px target: the inputs, the template's
+       select, each stage's Remove, Add a stage, Apply this template,
+       Space the stages evenly, the calls to action; a kind badge reaches
+       44px by its ::after;
+     - the action bar stands at the window's foot, and on /property at
+       390×844 the first slider is still whole above it on the first
+       screen.
+   Fails on f11163b0, where New development draws no such section. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const TERMS = 'route:newdev~ndCompPrice:472000~ndCompDate:2026-08-01~ndSpaMonth:2026-10~ndVpMonth:2029-10~ndSchedule:10@0,15@4,20@8,20@12,10@16,10@20,5@24,5@28,2.5@32,2.5@36';
+  const read = (sec) => `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { if (!shown(n)) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+    const s = document.getElementById('${sec}');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    const sb = s.getBoundingClientRect();
+    const roots = [s, ...(document.getElementById('newdev') ? [document.getElementById('newdev')] : [])];
+    const ctrls = roots.flatMap(r => [...r.querySelectorAll('input:not([type=checkbox]):not([type=radio]), .ls-cta, button, select')]).filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const badges = roots.flatMap(r => [...r.querySelectorAll('a.kind-badge')]).filter(shown).filter(n => { const a = getComputedStyle(n, '::after'); return n.getBoundingClientRect().height + 24 < 43.5 || a.content === 'none' || a.position !== 'absolute'; }).length;
+    const inside = roots.flatMap(r => [...r.querySelectorAll('.au-wf-row, .au-card, .au-field, .nd-stage, .ls-card, .nd-tools')]).filter(shown).filter(n => { const p = n.closest('#${sec}, #newdev').getBoundingClientRect(); const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.dataset.exit || n.dataset.nd || n.className.split(' ')[0]);
+    const bar = document.querySelector('.ls-actbar');
+    const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, badges, inside,
+      l1: [...s.querySelectorAll('[data-nd-fig][data-level="1"]')].map(n => n.dataset.ndFig), premium: s.querySelector('[data-nd-fig="premium"] [data-value]')?.dataset.value || '',
+      idc: s.querySelector('[data-nd-fig="idc"]')?.dataset.status || '', rows: s.querySelectorAll('.nd-exit .au-wf-row').length, stages: roots.flatMap(r => [...r.querySelectorAll('.nd-stage')]).length, controls: ctrls.length,
+      dlp: !!s.querySelector('.nd-dlp'),
+      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      face: getComputedStyle(s.querySelector('.ls-card-value') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      for (const [path, sec, view] of [['/property/calculator?d=' + TERMS, 'pc-nd', 'property'], ['/property', 'lab-nd', 'propertyLab']]) {
+        const at = `${w}×${h} ${path.split('?')[0]}${font ? ' in Verdana' : ''}`;
+        const got = await load(path);
+        if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        if (view === 'propertyLab') {
+          const top = await ev(read(sec));
+          if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+        }
+        await ev(`(() => { const s = document.getElementById('${sec}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await sleep(200);
+        const r = await ev(read(sec));
+        if (r.none) { fails.push(`${at}: no developer premium section (#${sec}) for a deal answered New development`); continue; }
+        if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+        if (JSON.stringify(r.l1) !== '["premium","cash"]') fails.push(`${at}: the L1 cards are ${JSON.stringify(r.l1)}, not the developer premium and the cash required`);
+        if (r.premium !== '100000') fails.push(`${at}: the premium reads "${r.premium}", not RM100,000`);
+        if (r.idc !== 'ok') fails.push(`${at}: construction interest is ${r.idc}, not worked out`);
+        if (r.rows !== 3) fails.push(`${at}: the exit values have ${r.rows} rows, not 3`);
+        if (r.stages !== 10) fails.push(`${at}: the schedule has ${r.stages} stages, not Form C's 10`);
+        if (!r.dlp) fails.push(`${at}: the defect liability line is not drawn`);
+        if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+        if (r.badges) fails.push(`${at}: ${r.badges} kind badge(s) without a 44px reach`);
+        if (r.inside.length) fails.push(`${at}: outside the section's width: ${r.inside.slice(0, 4).join(', ')}`);
+        if (!r.bar || r.barFixed !== 'fixed' || r.bar.b > r.vh + 0.5) fails.push(`${at}: the action bar is ${r.bar ? `${r.barFixed}, ${r.bar.t}–${r.bar.b}px of ${r.vh}` : 'not drawn'}`);
+        if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+        said.push(`${at.replace(' in Verdana', ' V')}: ${r.controls} controls`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL p4-newdev — the developer premium model on a phone (the property decision layer, P4): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   p4-newdev: a deal answered New development — a completed comparable, the SPA and VP months, Sarawak's Form C template spaced to VP — on /property/calculator and /property at 360, 390 and 430, in the page's font and in Verdana: the developer premium (RM100,000) and the cash required as L1 cards, construction interest worked out, 3 exit rows and the defect liability line inside the section; every input, select, stage control and call to action a 44px target and every kind badge 44px by its reach; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
+}
+/* ---- end p4-newdev ---- */
 /* ---- lab-words ---- */
 /* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
    "Scenario Lab is useful but too explanation-heavy, especially for

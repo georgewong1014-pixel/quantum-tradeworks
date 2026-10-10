@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, scanner, return, records, registers, cases, settings, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, scanner, return, records, registers, cases, settings, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1658,6 +1658,80 @@ const JOURNEYS = [
           return JSON.stringify({ market: a.market, named: a.marketFrom.named.map(c => c.id), text: (card?.textContent || '').replace(/\\s+/g, ' ') }); })()`));
         if (r.market !== 540000 || JSON.stringify(r.named) !== JSON.stringify([recId])) throw new StepError(`the market value is ${r.market} from ${JSON.stringify(r.named)}, not the RM540,000 the record implies`);
         if (!r.text.includes(SRC) || !/Sept? 2026/.test(r.text)) throw new StepError(`the true discount does not name the record with its source and date: “${r.text.slice(0, 220)}”`);
+      });
+    },
+  },
+  {
+    /* NEW DEVELOPMENT: THE DEVELOPER PREMIUM MODEL (the property decision
+       layer, P4). A fresh browser, the sample deal on /property: answered
+       New development, the premium is Unavailable — no comparable is
+       assumed. A completed comparable RM100,000 under the SPA price, typed
+       with its source and date, and the SPA and VP months: the premium
+       reads "You are paying RM100,000 / +…% over the completed comparable
+       you entered", the model's own. Construction interest stays
+       Unavailable until a schedule is entered: Sarawak's Form C template,
+       applied by a press and named on the schedule, still Unavailable
+       until its months are given; spaced evenly to VP, it is worked out —
+       the model's own, a line of the cash required. Nothing is written to
+       the calculator's deal: a what-if until saved. */
+    id: 'newdev', name: 'Property new development: a comparable and a schedule, the premium read',
+    outcomes: ['Choose New development: the premium is Unavailable without a comparable', 'Enter a completed comparable and the dates: the premium is read',
+      'Apply the Form C template and space it to VP: construction interest is worked out'],
+    async run(j, tab) {
+      const work = `labActive(LAB[labSubject]).work`;
+      const dealAt = `JSON.stringify(store.read('deal', null))`;
+      let deal0;
+      await step(j, tab, 'Open /property: the Scenario Lab on the sample deal', BUDGET.load, async () => {
+        await tab.goto('/property');
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('lab-q-how')`, async () => `/property opened ${await tab.eval('State.view')}, not the Scenario Lab with its questions`);
+        deal0 = await tab.eval(dealAt);
+      });
+      await step(j, tab, 'Choose New development: the premium is Unavailable without a comparable', BUDGET.action * 2, async () => {
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        await tab.click(`document.querySelector('label[for="lab-q-how-newdev"]')`, 'How are you buying? — New development');
+        await tab.expect(`(${work}).route === 'newdev' && !!document.getElementById('lab-nd') && !document.getElementById('lab-pe')`, 'New development chosen, the developer premium model is not drawn in the price section’s place');
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ premium: (document.querySelector('#lab-nd [data-nd-fig="premium"] .ls-card-value')?.textContent || '').trim(),
+          badge: document.querySelector('#lab-nd [data-nd-fig="premium"] [data-kind-badge]')?.dataset.kindBadge || null,
+          idc: document.querySelector('#lab-nd [data-nd-fig="idc"]')?.dataset.status || null, dlp: (document.getElementById('lab-nd-dlp')?.textContent || '') })`));
+        if (r.premium !== 'Unavailable' || r.badge !== 'unavailable') throw new StepError(`with no comparable the premium reads “${r.premium}” (${r.badge}), not Unavailable — a comparable was assumed`);
+        if (r.idc !== 'unavailable') throw new StepError(`with no schedule entered, construction interest is ${r.idc} — a schedule was assumed`);
+        if (!/Defect liability, 18 months from vacant possession/.test(r.dlp)) throw new StepError(`the route's defect liability reads “${r.dlp.slice(0, 80)}”`);
+      });
+      await step(j, tab, 'Enter a completed comparable and the dates: the premium is read', BUDGET.action * 4, async () => {
+        const price = Number(await tab.eval(`(${work}).price`));
+        await tab.fill(`document.getElementById('lab-nd-ndCompPrice')`, String(price - 100000), 'The completed comparable’s price', { commit: true });
+        await tab.fill(`document.getElementById('lab-nd-ndCompSource')`, 'SPA of a completed unit, journey', 'Where it came from', { commit: true });
+        for (const [id, v] of [['lab-nd-ndCompDate', '2026-08-01'], ['lab-nd-ndSpaMonth', '2026-10'], ['lab-nd-ndVpMonth', '2029-10']]) {
+          await tab.eval(`(() => { const n = document.getElementById(${JSON.stringify(id)}); n.value = ${JSON.stringify(v)}; n.dispatchEvent(new Event('change', { bubbles: true })); return n.value; })()`);
+          await sleep(300);
+        }
+        await tab.expect(`document.querySelector('#lab-nd [data-nd-fig="premium"] [data-value]')?.dataset.value === '100000'`,
+          async () => `a comparable RM100,000 under the price, the premium reads “${await tab.eval(`(document.querySelector('#lab-nd [data-nd-fig="premium"]')?.textContent || 'nothing').slice(0, 120)`)}”`, 4000);
+        const r = JSON.parse(await tab.eval(`(() => { const n = newDevModel(${work}); const card = document.querySelector('#lab-nd [data-nd-fig="premium"]');
+          return JSON.stringify({ model: n.premium?.amount, pct: n.premium?.pct, text: (card?.textContent || '').replace(/\\s+/g, ' '), cols: LAB[labSubject].cols.map(c => c.work.ndCompPrice ?? null) }); })()`));
+        if (r.model !== 100000) throw new StepError(`the model's premium is ${r.model}, not RM100,000`);
+        if (!r.text.includes(`You are paying RM100,000 / +${r.pct.toFixed(1)}% over the completed comparable you entered`)) throw new StepError(`the premium is said as “${r.text.slice(0, 200)}”`);
+        if (!r.text.includes('SPA of a completed unit, journey') || !/Aug 2026/.test(r.text)) throw new StepError(`the premium does not name the comparable with its source and date: “${r.text.slice(0, 220)}”`);
+        if (r.cols.some(v => v !== price - 100000)) throw new StepError(`the comparable is not an answer of every column: ${JSON.stringify(r.cols)}`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('entering the comparable wrote the calculator’s deal — it is a what-if until saved');
+      });
+      await step(j, tab, 'Apply the Form C template and space it to VP: construction interest is worked out', BUDGET.action * 4, async () => {
+        await tab.choose(`document.getElementById('lab-nd-tpl')`, 'swk-c', 'The template — Subdivided building, Form C');
+        await tab.click(`document.getElementById('lab-nd-tpl-go')`, 'Apply this template');
+        await tab.expect(`(${work}).ndSchedule === '10@,15@,20@,20@,10@,10@,5@,5@,2.5@,2.5@' && /Form C/.test(document.querySelector('#lab-nd-drawdown .nd-sched-kind')?.textContent || '')`,
+          async () => `after Apply the schedule is “${await tab.eval(`(${work}).ndSchedule || 'none'`)}”, named “${await tab.eval(`(document.querySelector('#lab-nd-drawdown .nd-sched-kind')?.textContent || '').slice(0, 80)`)}”`);
+        const still = await tab.eval(`document.querySelector('#lab-nd [data-nd-fig="idc"]')?.dataset.status || null`);
+        if (still !== 'unavailable') throw new StepError(`with the template's months not entered, construction interest is ${still} — months were assumed`);
+        await tab.click(`document.getElementById('lab-nd-even')`, 'Space the stages evenly to VP');
+        await tab.expect(`document.querySelector('#lab-nd [data-nd-fig="idc"]')?.dataset.status === 'ok'`, 'spaced to VP, construction interest is not worked out', 4000);
+        const r = JSON.parse(await tab.eval(`(() => { const d = ${work}, m = dealModel(d), b = ndConstruction(d, m.loan);
+          const card = document.querySelector('#lab-nd [data-nd-fig="idc"] [data-value]'), cash = document.querySelector('#lab-nd [data-nd-fig="cash"] [data-value]');
+          return JSON.stringify({ shown: Number(card?.dataset.value), model: b.idc, cash: Number(cash?.dataset.value), modelCash: Math.round(m.safeCashRequired),
+            line: m.costGroups.flatMap(g => g.items).filter(it => it[0] === 'Interest during construction').map(it => it[1]), sched: d.ndSchedule }); })()`));
+        if (!(r.model > 0) || r.shown !== r.model) throw new StepError(`construction interest reads ${r.shown}; the model gives ${r.model} on “${r.sched}”`);
+        if (r.cash !== r.modelCash || JSON.stringify(r.line) !== JSON.stringify([r.model])) throw new StepError(`the cash required reads ${r.cash} (the model ${r.modelCash}) with construction lines ${JSON.stringify(r.line)}`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('the schedule wrote the calculator’s deal — it is a what-if until saved');
       });
     },
   },

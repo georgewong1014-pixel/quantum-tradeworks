@@ -6271,6 +6271,38 @@ input.au-in { text-align: right; }
   .au-in { min-height: 44px; }
 }
 
+/* THE DEVELOPER PREMIUM MODEL (the property decision layer, P4;
+   83-property-decision.js). On the auction's system: L1 the premium and the
+   cash required, L2 the construction interest, the monthly position from
+   VP and the exit values (the waterfall's rows, a bar each), then what
+   would justify the premium (an insight card). The schedule a row a stage:
+   its share, its month and Remove; under 640px every control 44px. */
+.nd-l2 { margin-top: 0; }
+/* The premium is two figures, the amount and its share: on a narrow card they
+   wrap between them, never inside one. */
+.nd-premium .ls-card-value { white-space: normal; }
+.nd-v { white-space: nowrap; }
+.nd-dlp { margin: 0; max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
+.nd-dlp > strong { color: var(--ink); }
+.nd-cite { color: var(--ink-3); }
+.nd-where { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); }
+.nd-at-v { margin: 0; font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); }
+.nd-sched-kind { margin: 0 0 var(--ls-within); max-width: var(--ls-measure); }
+.nd-stages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ls-within); min-width: 0; }
+.nd-stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: 4px var(--ls-related); min-width: 0; }
+.nd-stage-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nd-stage-what { grid-column: 1 / -1; margin: 0; font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); max-width: var(--ls-measure); }
+.nd-stage-rm { min-height: 40px; }
+.nd-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ls-related); margin-top: var(--ls-related); min-width: 0; }
+.nd-tpl-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px var(--ls-related); min-width: 0; }
+.nd-tpl-row > .au-label { flex-basis: 100%; }
+.nd-tpl { width: auto; max-width: 100%; min-height: 40px; }
+@media (max-width: 639.98px) {
+  .nd-stage-rm, .nd-tools .btn, .nd-tpl { min-height: 44px; }
+  .nd-tools, .nd-tpl-row { flex-direction: column; align-items: stretch; }
+  .nd-tpl { width: 100%; }
+}
+
 /* ---- end layout-system ---- */
 
 /* ---- evidence-classes ---- */
@@ -38724,10 +38756,20 @@ const PROPERTY_TYPE_CLASS = {
    "changed since saved" because a question was added, and its figures are
    byte for byte what they were (model-test, p1-route).
 
-   THE ROUTE NOT MODELLED YET SAYS SO. New development (P4) is selectable,
-   and until its model arrives it is modelled as a subsale, said in one
-   line where the answer is given; no developer (HDA) term is applied,
-   because none is modelled, and none is invented.
+   NEW DEVELOPMENT IS MODELLED (P4, the developer premium model:
+   newDevModel, 75-property-grade.js). The price is the SPA price; the
+   premium is set against a completed comparable the reader enters or
+   names from their register; the progressive drawdown is the reader's own
+   schedule — Sarawak's prescribed stage percentages (the Housing
+   Development (Control and Licensing) Regulations, 2014, Third Schedule)
+   are offered only as a labelled template the reader applies, never as a
+   default — and its timing, the SPA month and the month of vacant
+   possession are theirs to enter. Nothing of it changes a deal that has
+   not entered it: interest during construction is a line of the cash
+   required only once the schedule, its months and both dates are
+   entered, and a developer's rebate only once entered, so a deal answered
+   New development with nothing entered prints the subsale's figures,
+   line for line.
 
    AUCTION IS MODELLED (P3, the auction risk mode: auctionModel,
    75-property-grade.js). Its terms — the deposit, what it is a share of,
@@ -38740,8 +38782,7 @@ const PROPERTY_TYPE_CLASS = {
    subsale's figures, line for line.
    ========================================================================== */
 const PROPERTY_ROUTES = {
-  newdev:  { id:'newdev',  label:'New development', modelled:false, phase:'P4',
-    coming:'The new-development model is coming; these figures treat it as a subsale.' },
+  newdev:  { id:'newdev',  label:'New development', modelled:true, phase:'P4' },
   subsale: { id:'subsale', label:'Subsale', modelled:true },
   auction: { id:'auction', label:'Auction', modelled:true, phase:'P3' },
 };
@@ -38754,6 +38795,11 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    winning bid, with one exception the reader makes: their lawyer's quote
    for the legal and search costs, once entered, takes the place of the
    purchase legal fees (an auction has no SPA). */
+/* On the new-development route the rulebook's lines stand as on any SPA:
+   it prices the SPA, the loan and the transfer on the SPA price. A legal
+   fee the developer pays, a cash rebate or another incentive is the
+   reader's to enter, as one figure, and comes off the cash required. */
+const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
 const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price; your lawyer’s quote for the legal and search costs, once entered, takes the place of its purchase legal fees — an auction has no SPA. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
@@ -39216,6 +39262,100 @@ const AUCTION_ARREARS = [
 /* The reader's own comparable prices, typed — beside any named from the
    register (priceGap) — up to three. */
 const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
+
+/* THE DEVELOPER PREMIUM MODEL'S SOURCES (P4). This tool's places are in
+   Sarawak, where a licensed developer's sale is made on the forms Sarawak
+   prescribes — the Housing Development (Control and Licensing) Regulations,
+   2014, made under the Housing Development (Control and Licensing)
+   Ordinance, 2013 [Cap. 69] — not on Peninsular Malaysia's Schedules G and
+   H under the Housing Development (Control and Licensing) Act 1966, which
+   does not extend to Sarawak. Read from the gazetted text (Swk. L.N. 105,
+   the Sarawak Government Gazette Part II, 28 October 2014, as Sarawak
+   LawNet serves it): an amendment since, or the SPA in front of the
+   reader, is what binds — the reader checks theirs. */
+const NEWDEV_SOURCE = {
+  title: 'The Housing Development (Control and Licensing) Regulations, 2014 (Swk. L.N. 105), Sarawak Government Gazette Part II, 28 October 2014 — made under the Housing Development (Control and Licensing) Ordinance, 2013 [Cap. 69]',
+  url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_33_105I.pdf',
+};
+/* THE DEFECT LIABILITY PERIOD, as the prescribed agreements state it: a
+   feature of the route, never a figure in any sum. Form B (land and
+   building), clause 22, and Form C (subdivided building), clause 28:
+   defects, shrinkage or other faults that become apparent within eighteen
+   calendar months after vacant possession, due to defective workmanship or
+   materials or to building otherwise than to the approved plans, are
+   repaired and made good by the developer at its own cost within fourteen
+   days of the purchaser's written notice; if not, the purchaser may
+   recover the cost, including from the sum the developer's advocates hold
+   as stakeholder. */
+const NEWDEV_DLP = {
+  months: 18, days: 14,
+  words: 'Defect liability: defects, shrinkage or other faults that appear within 18 calendar months of vacant possession, from defective workmanship or materials or from building otherwise than to the approved plans, are the developer’s to repair at its own cost within 14 days of your written notice — or you may recover the cost, including from the sum its advocates hold as stakeholder.',
+  cite: 'Sarawak’s prescribed sale and purchase agreements: Form B (land and building), clause 22, and Form C (subdivided building), clause 28, Housing Development (Control and Licensing) Regulations, 2014.',
+};
+/* THE STAGE PERCENTAGES SARAWAK PRESCRIBES — a TEMPLATE the reader may
+   apply, labelled and cited, never a default: until a schedule is entered
+   or a template applied, interest during construction is Unavailable. The
+   Third Schedule (Clause 3(1)), "Schedule of payment of purchase price", of
+   each form; Form B's Part D (sub-divided building) has Form C's
+   percentages. Each stage is billed within fourteen days of the developer's
+   written notice of its completion; when that is, the reader enters. */
+const NEWDEV_TEMPLATES = {
+  'swk-c': { id: 'swk-c', label: 'Subdivided building (strata) — Form C', form: 'Form C, Third Schedule', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [20, 'Reinforced concrete framework and floor slab of the parcel'],
+    [20, 'The walls of the parcel with door and window frames in position'],
+    [10, 'Roofing/ceiling, electrical conduit, plumbing, gas piping and internal telephone trunking'], [10, 'Internal plastering of the parcel'],
+    [5, 'External plastering and painting of the building'], [5, 'Painting of the building'],
+    [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the subsidiary title']] },
+  'swk-b1': { id: 'swk-b1', label: 'Land and building, single storey — Form B, Part A', form: 'Form B, Third Schedule, Part A', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [20, 'Reinforced concrete framework with walls in position'], [5, 'Roofing'],
+    [10, 'Internal plastering, electrical conduits and plumbing'], [10, 'External plastering'],
+    [10, 'Ceiling, doors and windows including glazing, soil drainage and septic tank'], [10, 'Driveway, apron, perimeter drain, fencing and gate'],
+    [5, 'Painting and physical completion'], [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the land title']] },
+  'swk-b2': { id: 'swk-b2', label: 'Land and building, double storey — Form B, Part B', form: 'Form B, Third Schedule, Part B', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [15, 'Ground floor slab, ground floor columns'],
+    [5, 'First floor slab, roof beam and walls in position'], [5, 'Wall position'], [5, 'Upper roofing'], [7.5, 'Roofing'],
+    [7.5, 'Internal plastering, electrical conduits and plumbing'], [7.5, 'External plastering'],
+    [7.5, 'Ceiling, doors and windows including glazing, soil drainage, septic tank and lower roofing'],
+    [5, 'Driveway, apron, perimeter drain, fencing and gate'], [5, 'Painting and physical completion'],
+    [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the land title']] },
+  'swk-b3': { id: 'swk-b3', label: 'Land and building, three storey — Form B, Part C', form: 'Form B, Third Schedule, Part C', stages: [
+    [10, 'On signing the agreement'], [15, 'Foundation works'], [15, 'Ground floor slab, ground floor columns'], [20, 'First floor slab, first floor column'],
+    [5, 'Second floor slab, roof beam and walls in position'], [5, 'Roofing'], [5, 'Internal plastering'], [5, 'External plastering and painting'],
+    [5, 'Ceiling, doors and windows including glazing, soil drainage, septic tank and lower roofing'],
+    [5, 'Driveway, apron, perimeter drain, fencing and gate'], [5, 'Painting and physical completion'],
+    [2.5, 'The issuance of the occupation permit'], [2.5, 'The issuance of the land title']] },
+};
+const NEWDEV_TEMPLATE_IDS = Object.keys(NEWDEV_TEMPLATES);
+/* A schedule, as the deal holds it: "pct@month" a stage, in the order
+   billed, the month the months after signing (blank until entered) —
+   "10@0,15@6,20@". At most 20 stages, each 0–100%, to two decimals. */
+const NEWDEV_STAGE = /^(\d{1,3}(?:\.\d{1,2})?)@(\d{0,3})$/;
+function parseNdSchedule(raw) {
+  const parts = String(raw ?? '').split(',');
+  if (!String(raw ?? '').length || parts.length > 20) return null;
+  const out = [];
+  for (const p of parts) {
+    const m = NEWDEV_STAGE.exec(p);
+    if (!m || Number(m[1]) > 100) return null;
+    out.push({ pct: Number(m[1]), month: m[2] === '' ? null : Number(m[2]) });
+  }
+  return out;
+}
+const ndScheduleText = (stages) => stages.map(s => `${+Number(s.pct).toFixed(2)}@${s.month == null ? '' : s.month}`).join(',');
+/* The template a schedule's percentages are, stage for stage, if any. */
+const ndTemplateOf = (stages) => (Array.isArray(stages) && stages.length
+  ? NEWDEV_TEMPLATE_IDS.map(id => NEWDEV_TEMPLATES[id]).find(t => t.stages.length === stages.length && t.stages.every(([p], i) => p === stages[i].pct)) || null
+  : null);
+/* A month, as an <input type="month"> gives it: "2026-10". */
+const ND_MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
+const ndMonthIndex = (s) => { const m = ND_MONTH.exec(String(s || '')); return m ? Number(m[1]) * 12 + Number(m[2]) - 1 : null; };
+const ndMonthWords = (s) => { const i = ndMonthIndex(s); return i == null ? 'not entered' : new Date(Date.UTC(Math.floor(i / 12), i % 12, 1)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+const ansMonth = (raw) => (ND_MONTH.test(String(raw)) && Number(String(raw).slice(0, 4)) >= 1990 && Number(String(raw).slice(0, 4)) <= 2100 ? String(raw) : undefined);
+const ansDate = (raw) => (/^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/.test(String(raw)) ? String(raw) : undefined);
+/* Where a typed comparable came from: a document or a web page's address,
+   in at most 120 characters, and none of the address's own separators. */
+const ansSource = (raw) => { const s = String(raw).trim(); return s && s.length <= 120 && !/[~<>"`\\]/.test(s) ? s : undefined; };
+const ansSchedule = (raw) => (parseNdSchedule(raw) ? ndScheduleText(parseNdSchedule(raw)) : undefined);
 const ansEnum = (ids) => (raw) => (ids.includes(raw) ? raw : undefined);
 const ansSum = (raw) => (/^\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
 const ansSigned = (raw) => (/^-?\d+(\.\d+)?$/.test(String(raw)) ? Number(raw) : undefined);
@@ -39248,6 +39388,14 @@ const DEAL_ANSWER_FIELDS = {
   auctionDepositPct: ansPct, auctionDepositOf: ansEnum(Object.keys(AUCTION_DEPOSIT_OF)), auctionBalanceDays: ansDays,
   auctionBuffer: ansSum, auctionHoldMonths: ansSum,
   auctionChecks: ansChecks,
+  /* The developer premium model (P4): a completed comparable typed, with
+     where it came from and its date; the SPA month and the month of vacant
+     possession; the reader's schedule of progressive drawdown; and what
+     the developer gives back. */
+  ndCompPrice: ansSum, ndCompSource: ansSource, ndCompDate: ansDate,
+  ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
+  ndSchedule: ansSchedule,
+  ndRebates: ansSum,
   /* Mortgage protection, optional and off by default (the fee rulebook
      1.1.0): 'included' carries it in the cash required at the rulebook's
      estimate until a quote replaces it. Absent is out. */
@@ -42748,6 +42896,9 @@ const PM_FIELD_WORDS = {
   auctionRepairs: 'Repairs (RM)', possessionCost: 'Possession cost (RM)', possessionMonths: 'Possession time (months)', auctionLegal: 'Legal and search costs (RM)',
   auctionDepositPct: 'Deposit (%)', auctionDepositOf: 'Deposit of', auctionBalanceDays: 'Days to pay the balance', auctionBuffer: 'Financing buffer (RM)',
   auctionHoldMonths: 'Holding period (months)', auctionChecks: 'Auction checks ticked',
+  /* The developer premium model's answers (P4). */
+  ndCompPrice: 'Completed comparable price (RM)', ndCompSource: 'Completed comparable — where it came from', ndCompDate: 'Completed comparable — its date',
+  ndSpaMonth: 'SPA signed (month)', ndVpMonth: 'Vacant possession expected (month)', ndSchedule: 'Progressive drawdown schedule', ndRebates: 'Developer rebates and incentives (RM)',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure
@@ -43518,6 +43669,11 @@ const CP_IN = {
   /* The auction risk mode's answers (P3): a term not entered says so. */
   auctionDepositOf: (v) => AUCTION_DEPOSIT_OF[v]?.label || 'Not entered',
   auctionChecks: (v) => (Array.isArray(v) && v.length ? `${v.length} of ${AUCTION_CHECK_IDS.length} ticked` : 'None ticked'),
+  /* The developer premium model's answers (P4): a figure not entered says so. */
+  ndCompPrice: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'Not entered'), ndRebates: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
+  ndCompSource: (v) => (v ? String(v) : 'Not entered'), ndCompDate: (v) => (v ? String(v) : 'Not entered'),
+  ndSpaMonth: (v) => ndMonthWords(v), ndVpMonth: (v) => ndMonthWords(v),
+  ndSchedule: (v) => { const st = parseNdSchedule(v), t = ndTemplateOf(st); return st ? `${st.length} stage${st.length === 1 ? '' : 's'}${t ? `, Sarawak’s ${t.form} template` : ''}` : 'Not entered'; },
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
@@ -45470,6 +45626,18 @@ function dealModel(d) {
     ...(num0(d.auctionRepairs) > 0 ? [['Repairs', num0(d.auctionRepairs)]] : []),
     ...(num0(d.possessionCost) > 0 ? [['Possession cost', num0(d.possessionCost)]] : []),
   ];
+  /* THE NEW-DEVELOPMENT ROUTE (the decision layer, P4): interest during
+     construction — interest only, on what the loan has released, until
+     vacant possession (ndConstruction, below) — is cash the buyer pays
+     before any rent, and a line of the financing costs once the reader's
+     schedule, its months and both dates are entered; never before, never
+     at a schedule assumed. A rebate or incentive the developer gives, as
+     the reader entered it, comes off the acquisition costs. Neither exists
+     until entered, so a deal answered New development with nothing entered
+     is the deal it was. */
+  const newDevRoute = dealRoute(d) === 'newdev';
+  const ndBuild = newDevRoute ? ndConstruction(d, loan) : null;
+  const ndRebate = newDevRoute && isNum(d.ndRebates) && d.ndRebates > 0 ? d.ndRebates : 0;
   const valuationR = resolveFee('valuationFee', { price: d.price });
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
@@ -45495,6 +45663,8 @@ function dealModel(d) {
         /* On the auction route, the arrears its Proclamation passes to the
            buyer take that line's place (P3). */
         ...auctionLines,
+        /* What the developer gives back (P4), as entered: off the cash. */
+        ...(ndRebate > 0 ? [['Developer rebates and incentives', -ndRebate]] : []),
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
         /* The transfer, and the charge where there is a loan (fee rulebook
@@ -45527,6 +45697,8 @@ function dealModel(d) {
              { status:'quote', provenance:'quote', quotedLine:true, id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
                why:null, note:'The one-off premium you entered on the financing panel. A lender’s or insurer’s quotation, not a figure from the fee rulebook.' }]]
           : mrtaIncluded ? [feeLine('mortgageProtection', {})] : []),
+        /* Interest during construction (P4), once it can be worked out. */
+        ...(ndBuild?.status === 'ok' && ndBuild.idc > 0 ? [['Interest during construction', ndBuild.idc]] : []),
       ] },
     { id:'improvement', label:'Initial improvement costs', items:[
         ['Renovation and furnishing', renovation],
@@ -46424,6 +46596,130 @@ function auctionModel(d, m = dealModel(d)) {
     effective, effectiveKind,
     trueDiscount: vs(effective), bidDiscount: vs(bid), reserveDiscount: vs(reserve),
     forfeiture, checksTicked: ticked, checksOpen, final: checksOpen.length === 0,
+  };
+}
+
+/* THE DEVELOPER PREMIUM MODEL (the property decision layer, P4).
+   ---------------------------------------------------------------------------
+   A new development is bought off plan at the SPA price, paid by stages as
+   it is built, and earns nothing until vacant possession (VP). Five
+   figures, each from the reader's own figures:
+   - THE DEVELOPER PREMIUM: the price paid — the SPA price less the
+     developer's rebates and incentives entered — against the value a
+     completed comparable implies: the median of the comparable price the
+     reader typed (with its source and date) and the transacted prices they
+     named from their register (priceGap). Unavailable with none: no market
+     figure stands in for it.
+   - INTEREST DURING CONSTRUCTION, from the reader's schedule of progressive
+     drawdown (ndConstruction): the buyer's own money pays the first stages
+     and the loan the rest, each release charged interest only, at the
+     rate entered, from the month it is drawn until VP.
+   - THE CASH REQUIRED: the calculator's own (dealModel's ledger), which
+     carries that interest and the rebate once entered.
+   - THE MONTHLY POSITION FROM VP: the calculator's monthly position, at the
+     rent and the vacancy the reader assumes for completion — badged
+     Modelled, an assumption.
+   - EXIT VALUES at VP+3, VP+5 and VP+10: the completed comparable's value
+     grown at the reader's appreciation rate from the SPA month — Modelled,
+     never a forecast; Unavailable without a comparable or the two dates.
+   And what would justify the premium: the rent at which the deal at the
+   SPA price gives the monthly position it gives priced at the comparable
+   (a solve on dealModel, to the ringgit), and the yearly growth at which a
+   completed unit's value reaches the price paid by VP.
+   Defect liability is a feature of the route (NEWDEV_DLP), never a figure. */
+const ndMonthsBetween = (a, b) => { const i = ndMonthIndex(a), j = ndMonthIndex(b); return i == null || j == null ? null : j - i; };
+function ndConstruction(d, loan) {
+  const stages = parseNdSchedule(d?.ndSchedule);
+  const template = ndTemplateOf(stages);
+  const vpMonths = ndMonthsBetween(d?.ndSpaMonth, d?.ndVpMonth);
+  const total = stages ? +stages.reduce((t, s) => t + s.pct, 0).toFixed(4) : null;
+  const missing = [
+    !stages ? 'your schedule of progressive drawdown' : null,
+    stages && Math.abs(total - 100) > 1e-6 ? `stages that add to 100% (yours add to ${fmtNum(total, total % 1 ? 2 : 0)}%)` : null,
+    stages && stages.some(s => s.month == null) ? `the month of ${stages.filter(s => s.month == null).length === stages.length ? 'each stage' : `${stages.filter(s => s.month == null).length} of ${stages.length} stages`}` : null,
+    ndMonthIndex(d?.ndSpaMonth) == null ? 'the SPA month' : null,
+    ndMonthIndex(d?.ndVpMonth) == null ? 'the month of vacant possession' : null,
+    vpMonths != null && vpMonths <= 0 ? 'a vacant-possession month after the SPA month' : null,
+  ].filter(Boolean);
+  const base = { stages, template, vpMonths, total, missing, ratePct: num0(d?.ratePct) };
+  if (missing.length) return { ...base, status: 'unavailable', idc: null, draws: null };
+  const price = num0(d.price), lent = Math.max(0, num0(loan));
+  /* Own money first, then the loan: the buyer's share of the price (the
+     price less the loan) pays the stages until it is spent. Billed in the
+     order of their months, in the schedule's order within a month. */
+  const own = Math.max(0, price - lent);
+  const order = stages.map((s, i) => ({ ...s, i })).sort((a, b) => a.month - b.month || a.i - b.i);
+  let paid = 0, idc = 0;
+  const r = num0(d.ratePct) / 100 / 12;
+  const draws = order.map(s => {
+    const amount = price * s.pct / 100;
+    const fromLoan = Math.max(0, Math.min(paid + amount, price) - Math.max(paid, own));
+    paid += amount;
+    const months = Math.max(0, vpMonths - s.month);
+    const interest = fromLoan * r * months;
+    idc += interest;
+    return { i: s.i, pct: s.pct, month: s.month, amount, own: amount - fromLoan, fromLoan, months, interest };
+  });
+  return { ...base, status: lent > 0 ? 'ok' : 'no-loan', idc: Math.round(idc), draws, own, loan: lent };
+}
+/* The rent that justifies the premium: the lowest monthly rent (to the
+   ringgit) at which dealModel at the deal's own price gives at least the
+   monthly position it gives priced the premium lower — every other figure
+   held. The monthly position rises with the rent, so bisection finds it. */
+function ndRentNeeded(d, premium) {
+  if (!PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) return { status: 'not-applicable', why: 'A class with no tenancy earns no rent.' };
+  if (!(premium > 0)) return { status: 'no-premium' };
+  const target = dealModel({ ...d, price: num0(d.price) - premium }).cashflowMonthly;
+  const at = (rent) => dealModel({ ...d, rent }).cashflowMonthly;
+  if (!isNum(target) || !isNum(at(num0(d.rent)))) return { status: 'unknown', why: 'The loan has no schedule of repayments (a tenure of 0).' };
+  let lo = 0, hi = Math.max(1000, num0(d.rent) * 4);
+  let runs = 0;
+  while (at(hi) < target && runs < 20) { hi *= 2; runs++; }
+  if (at(hi) < target) return { status: 'unknown', why: 'No rent the model can reach covers it.' };
+  if (at(lo) >= target) return { status: 'solved', rent: 0, target, extra: -num0(d.rent) };
+  while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (at(mid) >= target) hi = mid; else lo = mid; }
+  return { status: 'solved', rent: hi, target, achieved: at(hi), below: at(hi - 1), extra: hi - num0(d.rent) };
+}
+function newDevModel(d, m = dealModel(d), { solve = true } = {}) {
+  const has = (k) => isNum(d?.[k]);
+  const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
+  const price = num0(d?.price) > 0 ? num0(d.price) : null;
+  const priceKind = inputIsSeeded(d, 'price') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'price')] || 'yours';
+  const rebates = has('ndRebates') && d.ndRebates > 0 ? d.ndRebates : 0;
+  const paid = price != null ? price - rebates : null;
+  /* The completed comparable: typed, and named from the register. */
+  const g = priceGap(d);
+  const typed = has('ndCompPrice') && d.ndCompPrice > 0
+    ? { price: d.ndCompPrice, source: String(d.ndCompSource || '').trim() || null, date: d.ndCompDate || null, kind: kindOf('ndCompPrice') } : null;
+  const values = [...g.comps.map(c => c.implied), ...(typed ? [typed.price] : [])];
+  const comp = values.length ? medianOf(values) : null;
+  const compKind = values.length ? kindFirst([...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours'), ...(typed ? [typed.kind] : [])]) || 'yours' : 'unavailable';
+  const premium = isNum(paid) && isNum(comp) && comp > 0 ? { amount: paid - comp, pct: (paid - comp) / comp * 100 } : null;
+  const premiumKind = premium ? kindFirst([priceKind, compKind]) || 'derived' : 'unavailable';
+  /* The construction. */
+  const build = ndConstruction(d, m.loan);
+  /* Exit values, from the comparable, at the reader's rate. */
+  const growth = num0(d?.apprecPct);
+  const exitMissing = [!isNum(comp) ? 'a completed comparable' : null, build.vpMonths == null || build.vpMonths <= 0 ? 'the SPA month and the month of vacant possession' : null].filter(Boolean);
+  const exits = [3, 5, 10].map(n => {
+    if (exitMissing.length) return { n, status: 'unavailable', value: null, years: null };
+    const years = build.vpMonths / 12 + n;
+    return { n, status: 'ok', years, value: comp * Math.pow(1 + growth / 100, years) };
+  });
+  /* What would justify the premium. */
+  const rentNeeded = !premium ? { status: 'no-comparable' } : solve ? ndRentNeeded(d, premium.amount) : { status: 'pending' };
+  const growthNeeded = !premium ? { status: 'no-comparable' }
+    : !(build.vpMonths > 0) ? { status: 'no-dates' }
+    : !(premium.amount > 0) ? { status: 'no-premium' }
+    : { status: 'solved', pct: (Math.pow(paid / comp, 12 / build.vpMonths) - 1) * 100, years: build.vpMonths / 12 };
+  const rentKind = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant ? (inputIsSeeded(d, 'rent') || KIND_OF_EVIDENCE[shownEvidence(d, 'rent')] === 'illustrative' ? 'illustrative' : 'modelled') : 'unavailable';
+  return {
+    price, priceKind, rebates, paid, comp, compKind, compFrom: { named: g.comps, typed, notUsed: g.notUsed },
+    premium, premiumKind, build,
+    idcKind: build.status === 'ok' || build.status === 'no-loan' ? 'modelled' : 'unavailable',
+    cash: m.safeCashRequired, cashMissing: m.missingCostLines || [], cashUnverified: m.unconfirmedCost,
+    vpMonthly: m.cashflowMonthly, rent: num0(d?.rent), occupancyPct: 100 - num0(d?.vacancyPct), rentKind,
+    growth, exits, exitMissing, rentNeeded, growthNeeded,
   };
 }
 
@@ -47902,7 +48198,7 @@ VIEWS.property = () => {
      what is known of the unit — its tenancy, condition, age and what the
      sale passes to the buyer — each with where it came from; and the
      comparables from the register this price is set against. */
-  acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : pcSubsaleInputs(d));
+  acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : dealRoute(d) === 'newdev' ? pcNewDevInputs(d) : pcSubsaleInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -48931,7 +49227,7 @@ VIEWS.property = () => {
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
-  acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : pcPriceEvidence(d));
+  acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : dealRoute(d) === 'newdev' ? pcNewDev(d) : pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
@@ -52460,7 +52756,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -52481,8 +52777,10 @@ function labDraw(P, focusId = null) {
   const chain = labChain(P, lab, col);
   const alert = P.compact ? null : labAlert(P, lab);
   /* The price against the reader's evidence (the decision layer, P2) —
-     or, answered Auction, the auction risk mode in its place (P3). */
-  const price = P.compact ? null : dealRoute(labAnswerInputs(lab)) === 'auction' ? labAuctionSection(P, lab) : labPriceSection(P, lab);
+     or, answered Auction, the auction risk mode in its place (P3), or,
+     answered New development, the developer premium model (P4). */
+  const route = dealRoute(labAnswerInputs(lab));
+  const price = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : labPriceSection(P, lab);
   const evidence = labEvidence(P, lab);
   outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
@@ -52934,6 +53232,66 @@ function labAuctionPaint(P, lab) {
     toChecklist: () => lsGoTo(document.getElementById(labId(P, 'au-checks')), document.querySelector(`#${labId(P, 'au-checks')} input:not(:checked)`)) }));
   if (au.wfText) labText(au.wfText, auctionWaterfallFormula(a));
   if (au.fxText) labText(au.fxText, auctionForfeitureFormula(a));
+}
+
+/* THE DEVELOPER PREMIUM MODEL (the decision layer, P4; 83-property-
+   decision.js), in the price section's place once New development is
+   answered. A what-if until Save, as every answer here is: the comparable,
+   the dates, the schedule and the rebates entered are a move of every
+   column (labAnswer), A, B and C staying one property, written only by
+   Save. The SPA price is the Price slider, and the rent at completion the
+   Rent slider: the column they move is the one worked through. The inputs
+   are drawn with the page; the figures follow each paint (labNewDevPaint),
+   the rent that would cover the premium — runs of the model — once a drag
+   rests, as the solved price does (LAB_PE_WAIT). */
+function labNewDevSection(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-nd au nd', id: labId(P, 'nd'), 'aria-labelledby': labId(P, 'nd-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'nd-h') }, 'The new development, worked through'));
+  card.append(el('p', { class: 'metaline au-route' }, `${ND_LEAD} A what-if of every column until you save it.`));
+  const figs = el('div', { class: 'au-figs', id: labId(P, 'nd-figs') });
+  card.append(figs);
+  if (d) {
+    const answer = (k, v) => labAnswer(P, lab, k, v);
+    card.append(ndInputs({ d, prefix: P.idPrefix, answer,
+      extra: { comp: comparablesPick({ d, prefix: P.idPrefix, legend: 'Completed comparables from your register', toggle: (ids) => answer('comparableIds', ids) }) },
+      where: { rent: 'The Rent slider.', vacancy: 'Set in the calculator.', furnishing: 'The Renovation slider.' } }));
+  }
+  P.els.nd = { card, figs, sig: null };
+  return card;
+}
+function labNewDevPaint(P, lab, { initial = false } = {}) {
+  const nd = P.els?.nd;
+  if (!nd) return;
+  const col = labActive(lab), d = col.work;
+  const m = col.cur?.m || dealModel(d);
+  const key = pmRunKey(d);
+  if (!P.ndSolve || P.ndSolve.key !== key) {
+    if (initial || !P.ndSolve) P.ndSolve = { key, n: ndModelOf(d, m) };
+    else {
+      clearTimeout(P.ndTimer);
+      P.ndTimer = setTimeout(() => {
+        const L = LAB[P.key];
+        if (!L || !P.node.isConnected) return;
+        const c = labActive(L);
+        P.ndSolve = { key: pmRunKey(c.work), n: ndModelOf(c.work, c.cur?.m || dealModel(c.work)) };
+        labNewDevPaint(P, L);
+      }, LAB_PE_WAIT);
+    }
+  }
+  /* Every figure but the solved rent at once; the rent the last solved,
+     for the figures it names, until the drag rests. */
+  const n = ndModelOf(d, m, { solve: false });
+  if (P.ndSolve.key === key) n.rentNeeded = P.ndSolve.n.rentNeeded;
+  const sig = JSON.stringify([col.key, n.premium, n.paid, n.comp, n.cash, n.build.status, n.build.idc, n.build.missing, n.vpMonthly, n.exits.map(e => e.value), n.rentNeeded, n.growthNeeded, n.premiumKind, n.rentKind]);
+  if (nd.sig === sig) return;
+  nd.sig = sig;
+  nd.figs.replaceChildren(ndResults({ n, d, prefix: P.idPrefix,
+    why: { premium: () => lsOpenEvidence(nd.premiumEv), idc: () => lsOpenEvidence(nd.idcEv), exit: () => lsOpenEvidence(nd.exitEv), needed: () => lsOpenEvidence(nd.neededEv) } }));
+  if (nd.premiumText) labText(nd.premiumText, ndPremiumFormula(n));
+  if (nd.idcText) labText(nd.idcText, ndConstructionFormula(n));
+  if (nd.exitText) labText(nd.exitText, ndExitFormula(n));
+  if (nd.neededText) labText(nd.neededText, ndNeededFormula(n));
 }
 
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
@@ -53409,6 +53767,14 @@ function labEvidence(P, lab) {
     P.els.au.srcEv = lsEvidenceSection({ id: labId(P, 'ev-au-src'), summary: 'Where the checklist comes from', body: [auctionGuidanceList()] });
     P.els.au.wfText = wfText; P.els.au.fxText = fxText;
     pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
+  }
+  /* The new development's working and its sources (P4), there too. */
+  if (P.els.nd) {
+    const nd = P.els.nd, sec = (k, summary) => { const t = el('p', { class: 'lab-formula', id: labId(P, `ev-nd-${k}-text`) }, ''); nd[`${k}Text`] = t; nd[`${k}Ev`] = lsEvidenceSection({ id: labId(P, `ev-nd-${k}`), summary, body: [t] }); return nd[`${k}Ev`]; };
+    pe.push(sec('premium', 'How the premium is worked out'), sec('idc', 'How construction interest is worked out'), sec('exit', 'How the exit values are worked out'),
+      sec('needed', 'How the rent and growth needed are found'));
+    nd.srcEv = lsEvidenceSection({ id: labId(P, 'ev-nd-src'), summary: 'Where the template comes from', body: [ndSourcesList()] });
+    pe.push(nd.srcEv);
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
@@ -54253,9 +54619,10 @@ function labPaintPanel(P, { initial = false } = {}) {
     if (P.address) labBarSync();
     if (had) document.getElementById(had)?.focus({ preventScroll: true });
   }
-  /* The price against the evidence (P2), or the auction (P3). */
+  /* The price against the evidence (P2), the auction (P3) or the new development (P4). */
   labPricePaint(P, lab, { initial });
   labAuctionPaint(P, lab);
+  labNewDevPaint(P, lab, { initial });
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);
@@ -54527,6 +54894,9 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   /* The auction risk mode (P3): where its terms go, and the gate. */
   if (route === 'auction') notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' },
     'Auction: the price is the winning bid you expect, and no auction figure is final until its checklist is ticked.'));
+  /* The developer premium model (P4): where its figures come from. */
+  if (route === 'newdev') notes.push(el('p', { class: 'pq-note pq-note-route', 'data-note': 'route' },
+    'New development: the price is the SPA price, set against a completed comparable you enter; nothing of the developer’s schedule is assumed.'));
   const book = propertyClassRulebook(cls);
   if (book) notes.push(el('p', { class: 'pq-note', 'data-note': 'class' }, book.line));
   /* The rules that differ by class, each with its standing and source: in
@@ -55062,6 +55432,321 @@ function pcAuction(d) {
     toChecklist: () => lsGoTo(document.getElementById('pc-au-checks'), document.querySelector('#pc-au-checks input:not(:checked)')) }));
   sec.append(auctionChecklist({ d, prefix: 'pc', answer: (k, v) => { if (setDealAnswer(d, k, v)) { saveDeal(); renderKeepFocus(); } } }));
   sec.append(wfDet, fxDet, srcDet);
+  return sec;
+}
+
+/* ==========================================================================
+   P4, NEW DEVELOPMENT: THE DEVELOPER PREMIUM MODEL (the brief's "New
+   development: the developer premium model"; the model is newDevModel,
+   75-property-grade.js; the sources NEWDEV_SOURCE, NEWDEV_DLP and
+   NEWDEV_TEMPLATES, 70-property.js)
+   --------------------------------------------------------------------------
+   Inputs, each with its kind badge (D6): the SPA price (the purchase price;
+   on the Lab, the Price slider); a completed comparable typed with its
+   source and date, or named from the register; the SPA month and the month
+   of vacant possession; the reader's schedule of progressive drawdown —
+   Sarawak's prescribed stage percentages offered only as a labelled, cited
+   template the reader applies, and its months theirs to enter (or to space
+   evenly, by a press of theirs, said so); the developer's rebates and
+   incentives; and, from the rest of the model, the rent at completion and
+   the occupancy (the reader's assumptions, badged so) and the furnishing.
+   Outputs on the layout system: L1 the developer premium and the cash
+   required (metric cards); L2 the interest during construction, the
+   monthly position from VP, the exit values at VP+3, VP+5 and VP+10
+   (Modelled — never a forecast) and what would justify the premium; L3 how
+   each is worked out, and where the template and the defect liability
+   period come from. Defect liability is stated as a feature of the route,
+   never a figure. Wording is the figures': "the figures you entered
+   imply…"; nothing is ranked.
+   ========================================================================== */
+const ndSign = (v) => (v < 0 ? '−' : '+');
+const ndPctWords = (v) => `${ndSign(v)}${fmtNum(Math.abs(v), 1)}%`;
+const ND_LEAD = 'Nothing of the developer’s terms is assumed: the comparable, the dates and the schedule are the ones you enter. Not a valuation.';
+/* A typed comparable, named as the register's are: its amount, its date
+   and its source — "not entered" where the reader has not given them. */
+const ndTypedWords = (t) => `your completed comparable — ${pqMoney(t.price)}, ${t.date ? pqWhen(t.date) : 'date not entered'}, source: ${t.source || 'not entered'}`;
+const ndCompList = (n) => [...n.compFrom.named.map(pqCompWords), ...(n.compFrom.typed ? [ndTypedWords(n.compFrom.typed)] : [])];
+/* The months of a schedule, spread evenly from signing (month 0) to VP —
+   the reader's press, never a default. */
+const ndEvenMonths = (count, vp) => Array.from({ length: count }, (_, i) => (count < 2 ? 0 : Math.round(i * vp / (count - 1))));
+
+/* THE INPUTS. `answer(k, v)` writes one (the page's own writer);
+   `evidence(k, label)` draws where a figure came from, where the page asks
+   it (the calculator); `extra.comp` is the register's pick; `where` says
+   where the figures this route reads from the rest of the model are set. */
+const ND_TPL_PICK = {};
+function ndInputs({ d, prefix, answer, evidence = null, extra = {}, where = {} }) {
+  const box = el('div', { class: 'au-inputs nd-inputs', id: `${prefix}-nd-inputs` });
+  const field = (k, label, control, kind = auKindOfInput(d, k), fine = null) => el('div', { class: 'au-field', 'data-nd': k, 'data-kind': kind }, [
+    el('label', { for: `${prefix}-nd-${k}`, class: 'au-label' }, label), control,
+    el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null])]);
+  const input = (k, attrs) => el('input', { class: 'input au-in', id: `${prefix}-nd-${k}`, value: d[k] ?? '', placeholder: 'Not entered',
+    onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); }, ...attrs });
+  const group = (id, legend, kids) => {
+    const fs = el('fieldset', { class: `au-group nd-group nd-group-${id}`, id: `${prefix}-nd-${id}` });
+    fs.append(el('legend', { class: 'au-legend' }, legend));
+    fs.append(...kids.filter(Boolean));
+    return fs;
+  };
+  /* The completed comparable. */
+  box.append(group('comp', 'A completed comparable', [
+    el('div', { class: 'au-grid' }, [
+      field('ndCompPrice', 'Completed comparable price (RM)', input('ndCompPrice', { type: 'number', min: '0', step: '1000', inputmode: 'decimal', class: 'input au-in num' })),
+      field('ndCompSource', 'Where it came from', input('ndCompSource', { type: 'text', maxlength: '120', autocomplete: 'off', placeholder: 'A document, or a page’s address' })),
+      field('ndCompDate', 'Its date', input('ndCompDate', { type: 'date' })),
+    ]),
+    extra.comp || null,
+  ]));
+  /* The dates. */
+  box.append(group('dates', 'Signing and completion', [el('div', { class: 'au-grid' }, [
+    field('ndSpaMonth', 'SPA signed (month)', input('ndSpaMonth', { type: 'month', placeholder: 'YYYY-MM' })),
+    field('ndVpMonth', 'Vacant possession expected (month)', input('ndVpMonth', { type: 'month', placeholder: 'YYYY-MM' })),
+  ])]));
+  /* The schedule of progressive drawdown. */
+  box.append(ndScheduleEditor({ d, prefix, answer }));
+  /* What the developer gives back. */
+  box.append(group('developer', 'From the developer', [el('div', { class: 'au-grid' }, [
+    field('ndRebates', 'Rebates and incentives (RM)', input('ndRebates', { type: 'number', min: '0', step: '500', inputmode: 'decimal', class: 'input au-in num' })),
+  ])]));
+  /* At completion: the model's own rent, vacancy and furnishing, named here
+     as the assumptions they are on this route. */
+  const letting = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
+  const assumed = (k) => (inputIsSeeded(d, k) || KIND_OF_EVIDENCE[shownEvidence(d, k)] === 'illustrative' ? 'illustrative' : 'modelled');
+  const line = (label, value, kind, fine, whereText) => el('div', { class: 'au-field nd-at', 'data-kind': kind }, [
+    el('p', { class: 'au-label' }, label), el('p', { class: 'nd-at-v num' }, value),
+    el('p', { class: 'au-kind' }, [auBadge(kind, fine), whereText ? el('span', { class: 'nd-where' }, whereText) : null])]);
+  box.append(group('completion', 'At completion — your assumptions', [el('div', { class: 'au-grid' }, [
+    letting ? line('Rent at completion', `${pqMoney(num0(d.rent))} a month`, assumed('rent'), 'your assumption of the rent once the keys are handed over — not an observed rent', where.rent || null) : null,
+    letting ? line('Occupancy', `${fmtNum(100 - num0(d.vacancyPct), 0)}%`, assumed('vacancyPct'), 'your assumption: 100% less the vacancy you set', where.vacancy || null) : null,
+    line('Furnishing on completion', pqMoney(num0(d.renovation)), inputIsSeeded(d, 'renovation') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'renovation')] || 'yours', 'the renovation and furnishing figure, paid at vacant possession on this route', where.furnishing || null),
+  ])]));
+  return box;
+}
+/* THE SCHEDULE, a row a stage: its share of the price and the month after
+   signing it is billed, the reader's. The template, if any, is named. */
+function ndScheduleEditor({ d, prefix, answer }) {
+  const stages = parseNdSchedule(d.ndSchedule) || [];
+  const tpl = ndTemplateOf(stages);
+  const vp = ndMonthsBetween(d.ndSpaMonth, d.ndVpMonth);
+  const write = (next) => answer('ndSchedule', next.length ? ndScheduleText(next) : null);
+  const fs = el('fieldset', { class: 'au-group nd-group nd-group-drawdown', id: `${prefix}-nd-drawdown` });
+  fs.append(el('legend', { class: 'au-legend' }, 'Progressive drawdown — your schedule'));
+  const kind = !stages.length ? 'unavailable' : tpl ? 'modelled' : 'yours';
+  fs.append(el('p', { class: 'au-kind nd-sched-kind', 'data-kind': kind }, [
+    auBadge(kind, !stages.length ? 'no schedule entered' : tpl ? `${tpl.form}, applied by you as a template` : 'your schedule'),
+    el('span', { class: 'nd-where' }, !stages.length ? 'No schedule entered — apply a template below, or add your SPA’s stages.'
+      : tpl ? `Template: Sarawak’s ${tpl.form} percentages (2014 Regulations), applied by you. Replace them with your SPA’s if they differ.`
+        : `Your ${stages.length} stage${stages.length === 1 ? '' : 's'}, adding to ${fmtNum(stages.reduce((t, s) => t + s.pct, 0), 1)}%.`)]));
+  if (stages.length) {
+    const list = el('ol', { class: 'nd-stages' });
+    stages.forEach((s, i) => {
+      const set = (key, raw) => {
+        const next = stages.map(x => ({ ...x }));
+        const v = String(raw).trim();
+        if (key === 'pct') next[i].pct = v === '' ? 0 : Math.min(100, Math.max(0, +Number(v).toFixed(2) || 0));
+        else next[i].month = v === '' ? null : Math.min(999, Math.max(0, Math.round(Number(v)) || 0));
+        write(next);
+      };
+      list.append(el('li', { class: 'nd-stage', 'data-stage': String(i) }, [
+        el('div', { class: 'nd-stage-f' }, [el('label', { class: 'au-label', for: `${prefix}-nd-pct-${i}` }, `Stage ${i + 1} (% of price)`),
+          el('input', { class: 'input au-in num', id: `${prefix}-nd-pct-${i}`, type: 'number', min: '0', max: '100', step: '0.5', inputmode: 'decimal', value: String(s.pct), onchange: (e) => set('pct', e.target.value) })]),
+        el('div', { class: 'nd-stage-f' }, [el('label', { class: 'au-label', for: `${prefix}-nd-mo-${i}` }, 'Month after signing'),
+          el('input', { class: 'input au-in num', id: `${prefix}-nd-mo-${i}`, type: 'number', min: '0', max: '999', step: '1', inputmode: 'numeric', value: s.month == null ? '' : String(s.month), placeholder: 'Not entered', onchange: (e) => set('month', e.target.value) })]),
+        el('button', { type: 'button', class: 'btn btn-ghost btn-sm nd-stage-rm', id: `${prefix}-nd-rm-${i}`, 'aria-label': `Remove stage ${i + 1}`,
+          onclick: () => write(stages.filter((_, j) => j !== i)) }, 'Remove'),
+        tpl ? el('p', { class: 'nd-stage-what' }, tpl.stages[i][1]) : null,
+      ]));
+    });
+    fs.append(list);
+  }
+  const landed = d.titleType !== 'strata' && /terrace|semi|bungalow|house|landed/i.test(String(d.propertyType || ''));
+  const pick = ND_TPL_PICK[prefix] || (landed ? 'swk-b2' : 'swk-c');
+  const sel = el('select', { class: 'select au-in nd-tpl', id: `${prefix}-nd-tpl`, onchange: (e) => { ND_TPL_PICK[prefix] = e.target.value; } },
+    NEWDEV_TEMPLATE_IDS.map(id => el('option', { value: id, selected: id === pick ? '' : null }, NEWDEV_TEMPLATES[id].label)));
+  fs.append(el('div', { class: 'nd-tools' }, [
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm nd-add', id: `${prefix}-nd-add`, onclick: () => write([...stages, { pct: 0, month: null }]) }, 'Add a stage'),
+    el('div', { class: 'nd-tpl-row' }, [
+      el('label', { class: 'au-label', for: `${prefix}-nd-tpl` }, 'A template from Sarawak’s prescribed SPA'), sel,
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm nd-tpl-go', id: `${prefix}-nd-tpl-go`,
+        onclick: () => { const t = NEWDEV_TEMPLATES[document.getElementById(`${prefix}-nd-tpl`)?.value || pick]; if (t) write(t.stages.map(([p]) => ({ pct: p, month: null }))); } }, 'Apply this template')]),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm nd-even', id: `${prefix}-nd-even`, disabled: stages.length && vp > 0 ? null : '',
+      title: stages.length && vp > 0 ? null : 'Needs stages and both months',
+      onclick: () => { const ms = ndEvenMonths(stages.length, vp); write(stages.map((s, i) => ({ ...s, month: ms[i] }))); } }, 'Space the stages evenly to VP'),
+  ]));
+  /* How the template and the months are used: one tap away (L3). */
+  const hid = `${prefix}-nd-drawdown-how`;
+  const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
+    el('summary', { class: 'pc-more-sum' }, 'How the schedule is used'),
+    el('p', { class: 'pc-more-body au-note' }, 'Each stage is a share of the SPA price, billed in the month after signing you enter (the prescribed agreement bills it within fourteen days of the developer’s notice that the stage is complete). Your own money pays the first stages and the loan the rest; the interest during construction is the loan’s rate on what it has released, until vacant possession. The template is Sarawak’s prescribed percentages, never a default: nothing is worked out until you apply it or enter your own, and its months are yours — “Space the stages evenly to VP” spreads them for you, and the developer’s progress claims will differ.')]);
+  det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
+  fs.append(det);
+  return fs;
+}
+
+/* THE EXIT VALUES (L2): a row a horizon, its bar on one scale with the
+   price paid marked on every bar. Positions rounded to 1/10000 of a per
+   cent, so every browser draws them alike (0c4ba54b). */
+function ndExitFigure(n, prefix) {
+  const fig = el('figure', { class: 'au-wf nd-exit', id: `${prefix}-nd-exit`, 'aria-labelledby': `${prefix}-nd-exit-h` });
+  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-nd-exit-h` }, 'Exit value at VP+3, VP+5 and VP+10 — modelled, not a forecast'));
+  const vals = n.exits.map(e => e.value).filter(isNum);
+  const top = Math.max(...vals, isNum(n.paid) ? n.paid : 0, 1);
+  const X = (v) => auR4(Math.max(0, Math.min(100, v / top * 100)));
+  const list = el('ol', { class: 'au-wf-rows' });
+  for (const e of n.exits) {
+    const has = isNum(e.value);
+    const svg = sv('svg', { class: 'au-wf-bar', width: '100%', height: '14', 'aria-hidden': 'true', focusable: 'false' });
+    svg.append(sv('rect', { class: 'au-wf-track', x: '0', y: '2', width: '100%', height: '10', rx: '3' }));
+    if (has) svg.append(sv('rect', { class: 'au-wf-mark is-total', x: '0%', y: '2', width: `${X(e.value)}%`, height: '10', rx: '3' }));
+    if (isNum(n.paid)) svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(n.paid)}%`, x2: `${X(n.paid)}%`, y1: '0', y2: '14' }));
+    list.append(el('li', { class: `au-wf-row is-total${has ? '' : ' is-na'}`, 'data-exit': String(e.n), 'data-value': has ? String(Math.round(e.value)) : '' }, [
+      el('p', { class: 'au-wf-hd' }, [el('span', { class: 'au-wf-label' }, `VP+${e.n}`), ' ', auBadge(has ? 'modelled' : 'unavailable', has ? 'your appreciation assumption, not a forecast' : null),
+        el('span', { class: 'au-wf-amt num' }, has ? pqMoney(e.value) : 'Unavailable')]),
+      svg,
+      el('p', { class: 'au-wf-sub' }, has ? `${fmtNum(e.years, 1)} years from signing` : `Needs ${auList(n.exitMissing)}`),
+    ]));
+  }
+  fig.append(list);
+  if (isNum(n.paid) && vals.length) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }),
+    `The upright line on each bar is the ${pqMoney(n.paid)} you pay. The bars are the completed comparable’s ${pqMoney(n.comp)} grown ${fmtNum(n.growth, 1)}% a year — your assumption.`]));
+  return fig;
+}
+
+/* THE FIGURES: L1 and L2, and the route's defect liability. `why` holds
+   what each "How … is worked out" opens. */
+function ndResults({ n, d, prefix, why = {} }) {
+  const box = el('div', { class: 'au-results nd-results', id: `${prefix}-nd-results` });
+  const cards = el('div', { class: 'au-cards' });
+  const p = n.premium;
+  cards.append(lsMetricCard({ label: 'Developer premium', level: 1, cls: 'au-card nd-card nd-premium',
+    badge: auBadge(n.premiumKind, p ? null : 'no completed comparable entered'),
+    value: p ? [el('span', { class: 'nd-v' }, pqSigned(p.amount)), ' · ', el('span', { class: 'nd-v' }, ndPctWords(p.pct))] : 'Unavailable',
+    attrs: { 'data-nd-fig': 'premium' }, valueAttrs: { 'data-value': p ? String(Math.round(p.amount)) : '', 'data-pct': p ? String(auR4(p.pct)) : '' },
+    sub: p ? `You are paying ${pqMoney(Math.abs(p.amount))} / ${ndPctWords(p.pct)} ${p.amount >= 0 ? 'over' : 'under'} the completed comparable you entered: ${pqMoney(n.paid)}${n.rebates ? ` (the SPA price ${pqMoney(n.price)} less ${pqMoney(n.rebates)} of rebates and incentives)` : ''} against ${pqMoney(n.comp)}, from ${ndCompList(n).join('; ')}.`
+      : 'Enter a completed comparable, or name one from your register: the premium is set against yours only, never a market figure.' }));
+  const b = n.build;
+  const seededCash = ['price', 'downPct', 'ratePct', 'tenureYears'].some(k => inputIsSeeded(d, k));
+  const cashKind = kindFirst([seededCash ? 'illustrative' : null, n.cashUnverified > 0 ? 'placeholder' : null, b.status === 'ok' ? 'modelled' : null].filter(Boolean)) || 'derived';
+  cards.append(lsMetricCard({ label: 'Cash required', level: 1, cls: 'au-card nd-card nd-cash', badge: auBadge(cashKind),
+    value: auMoney(n.cash), attrs: { 'data-nd-fig': 'cash' }, valueAttrs: { 'data-value': isNum(n.cash) ? String(Math.round(n.cash)) : '' },
+    sub: `${b.status === 'ok' ? `With ${pqMoney(b.idc)} of interest during construction.` : b.status === 'no-loan' ? 'No loan, so no interest during construction.' : 'Interest during construction not included: Unavailable until it can be worked out.'}${n.rebates ? ` Less ${pqMoney(n.rebates)} of rebates and incentives.` : ''}${n.cashUnverified > 0 ? ` ${pqMoney(n.cashUnverified)} on unverified lines.` : ''}` }));
+  box.append(cards);
+  const ctx = el('div', { class: 'au-cards nd-l2' });
+  ctx.append(lsMetricCard({ label: 'Interest during construction', level: 2, cls: 'au-card nd-card nd-idc', badge: auBadge(n.idcKind, b.status === 'unavailable' ? 'not entered' : 'the rate and the months you entered'),
+    value: b.status === 'ok' || b.status === 'no-loan' ? pqMoney(b.idc ?? 0) : 'Unavailable',
+    attrs: { 'data-nd-fig': 'idc', 'data-status': b.status }, valueAttrs: { 'data-value': b.status === 'ok' || b.status === 'no-loan' ? String(b.idc ?? 0) : '' },
+    sub: b.status === 'ok' ? `Interest only on what the ${pqMoney(b.loan)} loan has released, at ${fmtNum(b.ratePct, 2)}% a year, until vacant possession ${b.vpMonths} months after signing — on ${b.template ? `the ${b.template.form} template you applied` : 'your schedule'}.`
+      : b.status === 'no-loan' ? 'No loan: nothing is released, so nothing is charged.'
+        : `Enter ${auList(b.missing)}, or apply the template — never assumed.` }));
+  const letting = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
+  ctx.append(lsMetricCard({ label: 'Monthly position from VP', level: 2, cls: 'au-card nd-card nd-vp', badge: auBadge(isNum(n.vpMonthly) ? (n.rentKind === 'illustrative' ? 'illustrative' : 'modelled') : 'unavailable', 'your assumptions of the rent and the occupancy at completion'),
+    value: isNum(n.vpMonthly) ? `${n.vpMonthly < 0 ? '−' : ''}${pqMoney(Math.abs(n.vpMonthly))}` : 'Unavailable',
+    attrs: { 'data-nd-fig': 'vp' }, valueAttrs: { 'data-value': isNum(n.vpMonthly) ? String(Math.round(n.vpMonthly)) : '' },
+    sub: isNum(n.vpMonthly) ? (letting
+      ? `At the rent you assume for completion, ${pqMoney(n.rent)} a month, ${fmtNum(n.occupancyPct, 0)}% occupied, with the loan fully released. Nothing comes in before the keys.`
+      : 'A class with no tenancy: the instalment and the running costs, with the loan fully released.') : 'The loan has no schedule of repayments.' }));
+  box.append(ctx);
+  box.append(ndExitFigure(n, prefix));
+  /* What would justify the premium. */
+  const rn = n.rentNeeded, gn = n.growthNeeded;
+  if (!p) {
+    box.append(lsActionCard({ title: 'What would justify the premium', line: 'Needs a completed comparable: the rent and the growth that would cover the premium are worked out from yours.',
+      cls: 'nd-card nd-needed', attrs: { 'data-nd-fig': 'needed', 'data-status': 'no-comparable' },
+      cta: lsCta('Enter one', { id: `${prefix}-nd-needed-go`, onclick: () => { const x = document.getElementById(`${prefix}-nd-ndCompPrice`); if (x) { x.scrollIntoView({ block: 'center' }); x.focus({ preventScroll: true }); } } }) }));
+  } else {
+    const figure = rn.status === 'solved' ? pqMoney(rn.rent) : rn.status === 'no-premium' ? 'No premium' : rn.status === 'pending' ? '…' : '—';
+    const finding = rn.status === 'solved'
+      ? `The figures you entered imply a rent of ${pqMoney(rn.rent)} a month — ${pqMoney(Math.abs(rn.extra))} ${rn.extra >= 0 ? 'more' : 'less'} than the ${pqMoney(n.rent)} you assume — to give the ${rn.target < 0 ? '−' : ''}${pqMoney(Math.abs(rn.target))} monthly position the same deal gives priced at the comparable.`
+      : rn.status === 'no-premium' ? 'The price you pay is at or under the completed comparable you entered: there is no premium to cover.'
+        : rn.status === 'pending' ? 'Working out the rent that covers the premium.' : (rn.why || 'Not computable for these inputs.');
+    const sub = gn.status === 'solved' ? `Or values growing ${fmtNum(gn.pct, 1)}% a year, for a completed unit worth ${pqMoney(n.comp)} to be worth the ${pqMoney(n.paid)} you pay by vacant possession, ${fmtNum(gn.years, 1)} years after signing.`
+      : gn.status === 'no-dates' ? 'The growth that would cover it needs the SPA month and the month of vacant possession.' : null;
+    box.append(lsInsightCard({ label: 'What would justify the premium', cls: 'nd-card nd-needed', attrs: { 'data-nd-fig': 'needed', 'data-status': rn.status, 'data-value': rn.status === 'solved' ? String(rn.rent) : '', 'data-growth': gn.status === 'solved' ? String(auR4(gn.pct)) : '' },
+      figure: el('p', { class: 'ls-card-figure num pe-fig' }, figure), finding: el('p', { class: 'ls-card-title' }, finding), sub: sub ? el('p', { class: 'ls-card-sub' }, sub) : null,
+      cta: lsCta('See why', { id: `${prefix}-nd-needed-why`, onclick: why.needed, sr: ' this rent and growth would cover the premium' }) }));
+  }
+  /* The route's defect liability: a feature, not a figure. */
+  box.append(el('p', { class: 'nd-dlp', id: `${prefix}-nd-dlp` }, [el('strong', {}, `Defect liability, ${NEWDEV_DLP.months} months from vacant possession. `),
+    'Defects that appear in that time from defective workmanship or materials are the developer’s to repair at its own cost within 14 days of your written notice. ', el('span', { class: 'nd-cite' }, NEWDEV_DLP.cite)]));
+  const links = [why.premium ? lsCta('How the premium is worked out', { id: `${prefix}-nd-premium-why`, onclick: why.premium }) : null,
+    why.idc ? lsCta('How construction interest is worked out', { id: `${prefix}-nd-idc-why`, onclick: why.idc }) : null,
+    why.exit ? lsCta('How the exit values are worked out', { id: `${prefix}-nd-exit-why`, onclick: why.exit }) : null].filter(Boolean);
+  if (links.length) box.append(el('p', { class: 'au-why' }, links));
+  return box;
+}
+
+/* L3: the working, in words. */
+function ndPremiumFormula(n) {
+  if (!isNum(n.comp)) return 'Unavailable: no completed comparable is entered or named. The premium is the price you pay against what a completed unit like it fetched — your comparable, typed with its source and date or named from your register, never a market figure.';
+  const named = n.compFrom.named.map(c => `${c.name} ${pqMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
+  const typed = n.compFrom.typed ? [ndTypedWords(n.compFrom.typed)] : [];
+  const all = [...named, ...typed];
+  return `The completed comparable: ${all.length === 1 ? all[0] : `the median of ${auList(all)}`} = ${pqMoney(n.comp)}. `
+    + `The price you pay: the SPA price ${pqMoney(n.price)}${n.rebates ? ` − rebates and incentives ${pqMoney(n.rebates)} = ${pqMoney(n.paid)}` : ' (no rebate entered)'}. `
+    + (n.premium ? `Premium = ${pqMoney(n.paid)} − ${pqMoney(n.comp)} = ${pqSigned(n.premium.amount)}; as a share of the comparable, ${pqSigned(n.premium.amount)} ÷ ${pqMoney(n.comp)} = ${ndPctWords(n.premium.pct)}. ` : 'No price is entered. ')
+    + 'Every figure is yours, as each badge says. Not a valuation.';
+}
+function ndConstructionFormula(n) {
+  const b = n.build;
+  if (b.status === 'unavailable') return `Unavailable until you enter ${auList(b.missing)}. Nothing is assumed: no schedule, no months and no dates stand in for yours. Sarawak’s prescribed stage percentages are offered as a template you may apply — never applied for you.`;
+  if (b.status === 'no-loan') return 'No loan: your own money pays every stage, so nothing is released and no interest is charged.';
+  const rows = b.draws.map(x => `stage ${x.i + 1}, ${fmtNum(x.pct, x.pct % 1 ? 1 : 0)}% (${pqMoney(x.amount)}) in month ${x.month}: ${x.fromLoan > 0 ? `${pqMoney(x.fromLoan)} from the loan × ${x.months} month${x.months === 1 ? '' : 's'} = ${pqMoney(x.interest)}` : 'your own money'}`);
+  return `Your own money — the price less the ${pqMoney(b.loan)} loan, ${pqMoney(b.own)} — pays the first stages; the loan the rest. Each release is charged interest only, at ${fmtNum(b.ratePct, 2)}% a year ÷ 12 a month, from the month it is drawn until vacant possession in month ${b.vpMonths} (${ndMonthWords(n.spaMonth)} to ${ndMonthWords(n.vpMonth)}); a stage billed after it adds nothing. `
+    + `${rows.join('; ')}. Interest during construction = ${pqMoney(b.idc)}, a line of the cash required. `
+    + `${b.template ? `The percentages are Sarawak’s ${b.template.form} (the 2014 Regulations), applied by you as a template.` : 'The percentages are yours.'} The rate is the loan rate you entered, held through the construction. Not a lender’s quotation.`;
+}
+function ndExitFormula(n) {
+  if (n.exitMissing.length) return `Unavailable until you enter ${auList(n.exitMissing)}. The exit values are grown from what a completed unit fetched — your comparable — never from the price you pay, which carries the premium.`;
+  return `Exit value = the completed comparable ${pqMoney(n.comp)} × (1 + ${fmtNum(n.growth, 1)}%) ^ years from the SPA month: `
+    + `${n.exits.map(x => `VP+${x.n}, ${fmtNum(x.years, 2)} years → ${pqMoney(x.value)}`).join('; ')}. `
+    + 'The growth is your appreciation assumption — Modelled, and not a forecast: another rate gives another figure. The comparable is taken as the value at the SPA month, whatever its own date. Not a valuation.';
+}
+function ndNeededFormula(n) {
+  const rn = n.rentNeeded, gn = n.growthNeeded;
+  if (!n.premium) return 'Needs a completed comparable: the premium, and what would cover it, are worked out from yours.';
+  const rent = rn.status === 'solved'
+    ? `Rent: the calculator’s model (dealModel) is run at trial rents, every other figure as entered, until the monthly position at the SPA price is at least the ${pqMoney(rn.target)} it gives with the price ${pqMoney(n.premium.amount)} lower — the premium taken off. At ${pqMoney(rn.rent)} a month it is ${pqMoney(rn.achieved)}; at ${pqMoney(rn.rent - 1)}, ${pqMoney(rn.below)}.`
+    : rn.status === 'no-premium' ? 'Rent: there is no premium to cover.' : rn.status === 'pending' ? 'Rent: being worked out.' : `Rent: ${rn.why || 'not computable for these inputs.'}`;
+  const growth = gn.status === 'solved'
+    ? `Growth: (${pqMoney(n.paid)} ÷ ${pqMoney(n.comp)}) ^ (1 ÷ ${fmtNum(gn.years, 2)} years) − 1 = ${fmtNum(gn.pct, 2)}% a year, the rate at which a completed unit is worth what you pay by vacant possession.`
+    : gn.status === 'no-dates' ? 'Growth: needs the SPA month and the month of vacant possession.' : '';
+  return `${rent} ${growth} What the figures you entered imply — not a recommendation, and not a forecast.`.replace(/\s+/g, ' ').trim();
+}
+function ndSourcesList() {
+  return el('div', {}, [
+    el('p', { class: 'lab-formula' }, `The template percentages and the defect liability period are Sarawak’s, as the prescribed sale and purchase agreements state them — Forms B and C of the Housing Development (Control and Licensing) Regulations, 2014, under Sarawak’s Ordinance of 2013 [Cap. 69]. Peninsular Malaysia’s Schedules G and H, under the Housing Development (Control and Licensing) Act 1966, do not apply in Sarawak. Read from the gazetted text; an amendment since, or your own SPA, is what binds. ${NEWDEV_DLP.words}`),
+    el('ul', { class: 'au-src' }, [el('li', {}, el('a', { href: NEWDEV_SOURCE.url, target: '_blank', rel: 'noopener' }, NEWDEV_SOURCE.title))]),
+  ]);
+}
+/* The model, with the two months its words name. */
+const ndModelOf = (d, m, opts) => Object.assign(newDevModel(d, m, opts), { spaMonth: d.ndSpaMonth, vpMonth: d.ndVpMonth });
+
+/* --------------------------------------------------- on the calculator */
+function pcNewDevInputs(d) {
+  const box = el('div', { class: 'pc-auction pc-newdev', id: 'newdev' });
+  box.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, 'The new development'));
+  box.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, 'The purchase price above is the SPA price: every figure is worked from it.'));
+  box.append(ndInputs({ d, prefix: 'pc',
+    answer: (k, v) => { if (pcSubAnswer(d, k, v)) renderKeepFocus(); },
+    evidence: (k, label) => (k === 'ndCompPrice' || k === 'ndRebates' ? pcEvidencePick(d, k, label) : null),
+    extra: { comp: pcComparablesFieldset(d, 'Completed comparables from your register') },
+    where: { rent: 'Set under Rental & expenses.', vacancy: 'Set under Rental & expenses.', furnishing: 'The renovation and furnishing, under Purchase.' } }));
+  return box;
+}
+function pcNewDev(d) {
+  const n = ndModelOf(d);
+  const sec = el('section', { class: 'card ls-section au nd', id: 'pc-nd', 'aria-labelledby': 'pc-nd-h' });
+  sec.append(el('h3', { class: 'h-card', id: 'pc-nd-h' }, 'The new development, worked through'));
+  sec.append(el('p', { class: 'metaline au-route' }, ND_LEAD));
+  const det = (id, summary, body) => el('details', { class: 'pc-more ls-l3', id }, [el('summary', { class: 'pc-more-sum' }, summary), typeof body === 'string' ? el('p', { class: 'pc-more-body lab-formula' }, body) : body]);
+  const prDet = det('pc-nd-premium-ev', 'How the premium is worked out', ndPremiumFormula(n));
+  const idcDet = det('pc-nd-idc-ev', 'How construction interest is worked out', ndConstructionFormula(n));
+  const exDet = det('pc-nd-exit-ev', 'How the exit values are worked out', ndExitFormula(n));
+  const neDet = det('pc-nd-needed-ev', 'How the rent and growth needed are found', ndNeededFormula(n));
+  const srcDet = det('pc-nd-src-ev', 'Where the template comes from', ndSourcesList());
+  sec.append(ndResults({ n, d, prefix: 'pc', why: { premium: () => lsOpenEvidence(prDet), idc: () => lsOpenEvidence(idcDet), exit: () => lsOpenEvidence(exDet), needed: () => lsOpenEvidence(neDet) } }));
+  sec.append(el('p', { class: 'metaline nd-fees' }, newDevFeeNote()));
+  sec.append(prDet, idcDet, exDet, neDet, srcDet);
   return sec;
 }
 /* ==========================================================================
@@ -63377,7 +64062,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';

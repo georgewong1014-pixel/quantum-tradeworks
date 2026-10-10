@@ -450,6 +450,11 @@ const CP_IN = {
   /* The auction risk mode's answers (P3): a term not entered says so. */
   auctionDepositOf: (v) => AUCTION_DEPOSIT_OF[v]?.label || 'Not entered',
   auctionChecks: (v) => (Array.isArray(v) && v.length ? `${v.length} of ${AUCTION_CHECK_IDS.length} ticked` : 'None ticked'),
+  /* The developer premium model's answers (P4): a figure not entered says so. */
+  ndCompPrice: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'Not entered'), ndRebates: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
+  ndCompSource: (v) => (v ? String(v) : 'Not entered'), ndCompDate: (v) => (v ? String(v) : 'Not entered'),
+  ndSpaMonth: (v) => ndMonthWords(v), ndVpMonth: (v) => ndMonthWords(v),
+  ndSchedule: (v) => { const st = parseNdSchedule(v), t = ndTemplateOf(st); return st ? `${st.length} stage${st.length === 1 ? '' : 's'}${t ? `, Sarawak’s ${t.form} template` : ''}` : 'Not entered'; },
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
