@@ -179,10 +179,18 @@ VIEWS.areas = () => {
   };
   const shown = names.filter(passes);
   const bands = layerBands(layer, S.city, shown);
+  /* The screen's figures' kind (D6), once for the map and once for the
+     table: medians of the reader's own records, Illustrative where any is
+     a worked example's, Unavailable while nothing is recorded. */
+  const AK = (() => {
+    const ms = shown.map(n => areaMetrics(S.city, n)).filter(x => x.total > 0);
+    if (!ms.length) return { kind: 'unavailable', fine: 'Nothing recorded yet' };
+    return ms.some(x => x.sampleN) ? { kind: 'illustrative', fine: 'Includes worked-example records' } : { kind: 'yours', fine: 'Medians of your own records' };
+  })();
 
   /* ---- the map ---- */
   const mapCard = el('div', { class: 'card' });
-  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why));
+  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why, null, AK));
 
   const paint = (n) => {
     if (!shown.includes(n)) return null;
@@ -370,7 +378,7 @@ VIEWS.areas = () => {
   tCard.append(cardHead(`${shown.length} of ${names.length} localit${names.length === 1 ? 'y' : 'ies'}`,
     shown.length === names.length
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
-      : 'Filtered. The map shades the same set.'));
+      : 'Filtered. The map shades the same set.', null, AK));
   /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
      said where its absence is seen (the daily audit's item #6). */
   if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
@@ -809,7 +817,10 @@ VIEWS.comparables = () => {
         : '—';
       const title = TITLE_TYPES.find(x => x.id === o.titleType);
       tb.append(el('tr', {}, [
-        el('td', { style: 'text-align:left' }, el('span', { class: s.tone, title: s.why }, s.label)),
+        /* The record's kind beside its standing (D6): a worked example's is
+           Illustrative, an asking price Quoted, any other the reader's own. */
+        el('td', { style: 'text-align:left' }, [el('span', { class: s.tone, title: s.why }, s.label), ' ',
+          kindBadge(s.id === 'sample' ? 'illustrative' : kind && kind.asking ? 'quoted' : 'yours', { fine: s.id === 'sample' ? 'Worked example' : kind && kind.asking ? 'Quoted, not achieved' : 'Your own record' })]),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
           `${kind ? kind.label : o.kind}${kind && kind.asking ? ' · quoted, not achieved' : ''}`),
         el('td', { class: 'num', style: 'text-align:left' },
@@ -1586,11 +1597,13 @@ function localityTransactions(city, area, { splitBand = true } = {}) {
 function localityTransactionPanel(city, area) {
   const cohorts = localityTransactions(city, area);
   const card = el('div', { class: 'card' });
+  /* D6, once: the reader's own records, Illustrative where any is the worked example's. */
+  const TK = !cohorts.length ? null : cohorts.some(c => c.sampleN) ? { kind: 'illustrative', fine: 'Includes worked-example records' } : { kind: 'yours', fine: 'Transactions you recorded' };
   card.append(cardHead(`Your own recorded transactions — ${area}`,
     'Transactions you recorded, by category, subtype, tenure and area band. These are the only dated transactions this '
     + 'product holds — NAPIC publishes no transaction dates, so nothing above this panel can contribute to a latest sale. '
     + 'A single "last price" for a locality would not be useful anyway: the most recent sale in a district is as likely to '
-    + 'be agricultural land as the property you are asking about.'));
+    + 'be agricultural land as the property you are asking about.', null, (TK || {})));
 
   if (!cohorts.length) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },

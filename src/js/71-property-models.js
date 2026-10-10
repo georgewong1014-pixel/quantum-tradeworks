@@ -964,7 +964,8 @@ function propertyScenariosPanel(d = State.deal) {
   const t = el('table', { class: 'dt pm-sc-table' });
   t.append(el('caption', { class: 'sr-only' }, `${shown.map(c => c.short).join(', ')}, side by side`));
   t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', style: 'text-align:left' }, el('span', { class: 'sr-only' }, 'Figure')),
-    ...shown.map(c => el('th', { scope: 'col', class: 'num' }, c.short))])));
+    /* Each column's kind once, in its header (D6): its weakest input. */
+    ...shown.map(c => { const k = dealKind(c.inputs); return el('th', { scope: 'col', class: 'num' }, [c.short, kindTh(k.kind, k.fine)]); })])));
   const tb = el('tbody');
   figs[0].forEach(([label], r) => tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, label),
     ...figs.map(f => el('td', { class: `num ${f[r][2]}`.trim() }, f[r][1]))])));
@@ -1105,6 +1106,8 @@ VIEWS.propertyModels = () => {
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
           onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
           sample ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
+          /* The row's figures' kind (D6): its weakest input. */
+          (() => { const k = dealKind(d); return kindBadge(k.kind, { fine: k.fine }); })(),
           rec.source?.kind === 'opportunity' ? el('span', { class: 'chip' }, 'From the opportunity register') : null,
           nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
         ]),
@@ -1122,7 +1125,7 @@ VIEWS.propertyModels = () => {
   const proj = PROJECTS.find(p => p.id === sd.projectId);
   ul.append(el('li', { class: 'pm-row pm-sample' }, [
     el('div', { class: 'pm-row-main' }, [
-      el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample — not a real listing')]),
+      el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample — not a real listing'), kindBadge('illustrative', { fine: 'The sample deal' })]),
       el('strong', {}, `Sample deal${proj ? ` — ${proj.name}` : ''}`),
       el('span', { class: 'metaline' }, `${pmPlace(sd)} · ${sd.propertyType} · illustrative figures this tool carries, chosen by nobody for any property`),
     ]),

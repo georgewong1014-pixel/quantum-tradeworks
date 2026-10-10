@@ -1068,6 +1068,14 @@ const OPP_EDIT_OPEN = new Set();
 let OPP_SEQ = 0;
 /* What "Record a property" holds before Add — see the form. */
 let oppDraft = null;
+/* A candidate's figures' kind (D6): its weakest input, the cash's fee
+   lines, and a seller's asking price where one is recorded (Quoted). */
+function oppKind(x) {
+  const k = dealKind(x.d, x.m, { fees: true });
+  const asked = isNum(x.o.deal?.price) && x.o.deal.price > 0;
+  const kind = kindFirst([k.kind, asked ? 'quoted' : null].filter(Boolean));
+  return { kind, fine: kind === k.kind ? k.fine : 'The asking price, as quoted' };
+}
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
@@ -1198,7 +1206,8 @@ VIEWS.opportunities = () => {
     cmp.append(cardHead('Side by side',
       `${modelled.length} candidates under one set of assumptions. Where a record states a figure the model uses it; where it does not, the calculator’s current inputs stand in — so a difference between two columns can be a difference between two properties or between what is known about them.`));
     const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, x.o.name))])));
+    /* Each candidate's kind once, in its column's header (D6). */
+    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => { const k = oppKind(x); return el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, [x.o.name, ' ', kindTh(k.kind, k.fine)]); })])));
     const rows = [
       ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
       ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
@@ -1255,6 +1264,8 @@ VIEWS.opportunities = () => {
           ? el('span', { class: 'chip chip-bronze' }, `Availability last checked ${age}d ago — treat as unknown`)
           : el('span', { class: 'chip chip-bronze' }, 'Availability never checked'),
       el('span', { class: 'chip' }, `Recorded ${o.capturedAt}`),
+      /* The card's figures' kind (D6). */
+      (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
     ]));
 
     /* Four prices, kept apart. */

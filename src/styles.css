@@ -3272,6 +3272,19 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 @media (pointer: coarse), (max-width: 768px) {
   a.kind-badge::after { content: ""; position: absolute; inset: -12px -2px; }
 }
+/* A badge with the figure's finer word beside it (kindWithFine), and a
+   table's badge in its header (kindTh). */
+.kind-with { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; min-width: 0; }
+.kind-with.ls-badge { padding: 0; }
+.kind-fine { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); line-height: 16px; white-space: nowrap; }
+.kind-th { margin-left: 6px; text-transform: none; letter-spacing: 0; font-weight: var(--weight-semibold); }
+th .kind-th { vertical-align: middle; }
+/* A card's badge beside its title (cardHead's kind), and a stat tile's
+   (statTile's kind) under its figure. */
+.card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.card-hd-t > .h-card { margin: 0; }
+.stat-kind { margin-top: 2px; }
+.lab-chain-kind { margin: 0 0 var(--sm); }
 /* /data-sources#kinds: the eight, each beside its meaning. */
 .kinds-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px var(--md); margin: var(--md) 0; align-items: baseline; }
 .kinds-list dt { margin: 0; }

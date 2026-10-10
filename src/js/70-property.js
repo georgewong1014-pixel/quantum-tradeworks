@@ -1681,7 +1681,7 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   const base = line.appliesTo ? bases[line.appliesTo] : null;
   /* A line that documents its base (the loan's legal fees) has nothing to
      charge without one: no loan is no fee, not the scale's minimum. */
-  if (line.needsBase && isNum(base) && !(base > 0)) { out.amount = 0; out.status = provenance === 'verified' ? 'verified' : 'placeholder'; out.why = 'Nothing to charge it on.'; return out; }
+  if (line.needsBase && isNum(base) && !(base > 0)) { out.amount = 0; out.status = provenance === 'verified' ? 'verified' : provenance === 'quote' ? 'quote' : 'placeholder'; out.why = 'Nothing to charge it on.'; return out; }
   if (line.basis === 'percent') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or base is missing.'; return out; }
     out.amount = base * line.percent / 100;

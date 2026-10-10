@@ -191,15 +191,17 @@ function financingChoicesPanel(d, m) {
     const reducingPmt = monthlyInstalment(flatAmount, num0(d.ratePct), flatYrs);
     const reducingInterest = isNum(reducingPmt) ? reducingPmt * flatYrs * 12 - flatAmount : null;
 
+    /* D6: a lender's quotation, on the amount you entered, the renovation, or the 50,000 stand-in. */
+    const FQ = kindFirst(['quoted', num0(d.flatQuoteAmount) > 0 ? 'yours' : num0(d.renovation) > 0 ? dealKind(d, m, { rests: ['renovation'] }).kind : 'illustrative']);
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
     g.append(el('div', { class: 'panel ls-fig' }, statTile('Quoted as flat',
-      fmtPct(d.flatQuotePct, 2), { sub: `On ${fmtMoney(flatAmount, 'MYR', 0)} over ${flatYrs} years` })));
+      fmtPct(d.flatQuotePct, 2), { sub: `On ${fmtMoney(flatAmount, 'MYR', 0)} over ${flatYrs} years`, kind: FQ })));
     g.append(el('div', { class: 'panel ls-fig' }, statTile('What that really costs',
       isNum(realRate) ? fmtPct(realRate, 2) : '—',
-      { sub: isNum(realRate) ? 'The same monthly payment, charged the normal way' : (eq.why || 'Not computable'), tone: '--bronze' })));
+      { sub: isNum(realRate) ? 'The same monthly payment, charged the normal way' : (eq.why || 'Not computable'), tone: '--bronze', kind: isNum(realRate) ? FQ : 'unavailable' })));
     g.append(el('div', { class: 'panel ls-fig' }, statTile('Every month',
       isNum(eq.flat.monthly) ? fmtMoney(eq.flat.monthly, 'MYR', 0) : '—',
-      { sub: isNum(reducingPmt) ? `Against ${fmtMoney(reducingPmt, 'MYR', 0)} at your ${fmtPct(num0(d.ratePct), 2)}` : 'Per month' })));
+      { sub: isNum(reducingPmt) ? `Against ${fmtMoney(reducingPmt, 'MYR', 0)} at your ${fmtPct(num0(d.ratePct), 2)}` : 'Per month', kind: isNum(eq.flat.monthly) ? FQ : 'unavailable' })));
     card.append(g);
 
     if (isNum(realRate)) {
@@ -310,9 +312,9 @@ function financingChoicesPanel(d, m) {
     const g2 = el('div', { class: 'grid g-2', style: 'margin-top:var(--md)' });
     g2.append(el('div', { class: 'panel ls-fig' }, statTile('Reducing cover, all in',
       fmtMoney(fin ? fin.totalPaid : d.mrtaPremium, 'MYR', 0),
-      { sub: fin ? 'Premium plus the interest, if added to the loan' : 'Premium' })));
+      { sub: fin ? 'Premium plus the interest, if added to the loan' : 'Premium', kind: 'quoted', fine: 'The premium you were quoted' })));
     g2.append(el('div', { class: 'panel ls-fig' }, statTile('Level cover, all in',
-      fmtMoney(mltaTotal, 'MYR', 0), { sub: `${fmtMoney(d.mltaPremiumAnnual, 'MYR', 0)} a year for ${mortgageYrs} years` })));
+      fmtMoney(mltaTotal, 'MYR', 0), { sub: `${fmtMoney(d.mltaPremiumAnnual, 'MYR', 0)} a year for ${mortgageYrs} years`, kind: 'quoted', fine: 'The premium you were quoted' })));
     card.append(g2);
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'A total is not the whole comparison. The level cover leaves money behind if you claim, can be cashed in if you '

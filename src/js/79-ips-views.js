@@ -133,8 +133,10 @@ function environmentalPanel(d) {
   }
 
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  /* D6: the percentages are the tool's planning figures, to be replaced
+     (Placeholder) — badged once on their two columns. */
   t.append(el('thead', {}, el('tr', {}, ['Allowance', 'Triggered by', '% of value a year', 'Per year', 'What it covers']
-    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, i === 2 || i === 3 ? [h, kindTh('placeholder', 'Planning figures, not survey results')] : h)))));
   const tb = el('tbody');
   env.items.forEach(i => {
     tb.append(el('tr', {}, [
@@ -172,7 +174,7 @@ function rentVersusBuyPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Rent, or buy',
     'IPS §6.8. For a property you would use yourself rather than let, the comparison is between owning it all year '
-    + 'and renting it for the weeks you actually want it.'));
+    + 'and renting it for the weeks you actually want it.', null, dealKind(d, m)));
 
   const weeks = num0(State.deal.ownUseWeeks);
   const f = el('div', { class: 'assumption', style: 'margin-top:var(--md)' });
