@@ -819,8 +819,10 @@ VIEWS.comparables = () => {
       tb.append(el('tr', {}, [
         /* The record's kind beside its standing (D6): a worked example's is
            Illustrative, an asking price Quoted, any other the reader's own. */
-        el('td', { style: 'text-align:left' }, [el('span', { class: s.tone, title: s.why }, s.label), ' ',
-          kindBadge(s.id === 'sample' ? 'illustrative' : kind && kind.asking ? 'quoted' : 'yours', { fine: s.id === 'sample' ? 'Worked example' : kind && kind.asking ? 'Quoted, not achieved' : 'Your own record' })]),
+        /* Its word from the stylesheet (kindTh), so the cell reads as its
+           standing, as the journeys and the register's readers read it. */
+        el('td', { style: 'text-align:left' }, [el('span', { class: s.tone, title: s.why }, s.label),
+          kindTh(s.id === 'sample' ? 'illustrative' : kind && kind.asking ? 'quoted' : 'yours', s.id === 'sample' ? 'Worked example' : kind && kind.asking ? 'Quoted, not achieved' : 'Your own record')]),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
           `${kind ? kind.label : o.kind}${kind && kind.asking ? ' · quoted, not achieved' : ''}`),
         el('td', { class: 'num', style: 'text-align:left' },
