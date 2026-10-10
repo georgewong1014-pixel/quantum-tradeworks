@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, scanner, return, records, registers, cases, settings, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, scanner, return, records, registers, cases, settings, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1732,6 +1732,100 @@ const JOURNEYS = [
         if (!(r.model > 0) || r.shown !== r.model) throw new StepError(`construction interest reads ${r.shown}; the model gives ${r.model} on “${r.sched}”`);
         if (r.cash !== r.modelCash || JSON.stringify(r.line) !== JSON.stringify([r.model])) throw new StepError(`the cash required reads ${r.cash} (the model ${r.modelCash}) with construction lines ${JSON.stringify(r.line)}`);
         if (await tab.eval(dealAt) !== deal0) throw new StepError('the schedule wrote the calculator’s deal — it is a what-if until saved');
+      });
+    },
+  },
+  {
+    /* COMMERCIAL: THE FOUR RENTS, RENT SUSTAINABILITY AND LEASE-DOWN (the
+       property decision layer, P5). A fresh browser, the sample deal on
+       /property: answered Commercial — whole shoplot, the commercial
+       section is drawn and, with nothing entered, sustainability and the
+       twelve-month reserve are Unavailable — nothing is assumed. The
+       tenancy, a contract rent of RM4,600 and its expiry, and a model rent
+       of RM4,000 on the Rent box: the yield both ways, the model's own.
+       An achieved rent of RM4,180 recorded in the register's guided flow
+       and used in the Lab: the sustainability line reads "Current rent is
+       10% above the observed comparable you recorded", and the reserve for
+       twelve months vacant is the model's own. Nothing is written to the
+       calculator's deal: a what-if until saved. */
+    id: 'commercial', name: 'Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read',
+    outcomes: ['Choose Commercial — whole shoplot: sustainability and the reserve are Unavailable', 'Enter the contract rent, its expiry and the model rent: the yield both ways',
+      'Record an achieved rent and use it in the Lab', 'Read the sustainability line and the 12-month reserve'],
+    async run(j, tab) {
+      const SRC = 'Tenancy agreement seen, journey';
+      const work = `labActive(LAB[labSubject]).work`;
+      const dealAt = `JSON.stringify(store.read('deal', null))`;
+      const fig = (k) => `(document.querySelector('#lab-cm [data-cm-fig="${k}"]') || null)`;
+      let deal0, recId;
+      await step(j, tab, 'Open /property: the Scenario Lab on the sample deal', BUDGET.load, async () => {
+        await tab.goto('/property');
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('lab-q-what')`, async () => `/property opened ${await tab.eval('State.view')}, not the Scenario Lab with its questions`);
+        deal0 = await tab.eval(dealAt);
+      });
+      await step(j, tab, 'Choose Commercial — whole shoplot: sustainability and the reserve are Unavailable', BUDGET.action * 3, async () => {
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        await tab.click(`document.querySelector('label[for="lab-q-what-commercial"]')`, 'What are you buying? — Commercial');
+        await tab.expect(`!!document.querySelector('label[for="lab-q-sub-whole-shoplot"]')`, 'Commercial chosen, its kinds are not asked');
+        await tab.click(`document.querySelector('label[for="lab-q-sub-whole-shoplot"]')`, 'Which kind? — Whole shoplot');
+        await tab.expect(`propertyClassOf(${work}) === 'commercial' && (${work}).commercialSubtype === 'whole-shoplot' && !!document.getElementById('lab-cm')`, 'Commercial — whole shoplot chosen, the commercial section is not drawn');
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ sustain: ${fig('sustain')}?.dataset.status || null, r12: ${fig('reserve-12')}?.querySelector('.ls-card-value')?.textContent.trim() || null,
+          badge: ${fig('reserve-12')}?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null, rents: [...document.querySelectorAll('#lab-cm [data-rent]')].map(n => n.dataset.rent) })`));
+        if (r.sustain !== 'no-comparables') throw new StepError(`with no achieved rent named, sustainability is ${r.sustain} — a comparable was assumed`);
+        if (r.r12 !== 'Unavailable' || r.badge !== 'unavailable') throw new StepError(`with no lease entered the 12-month reserve reads “${r.r12}” (${r.badge}) — a lease was assumed`);
+        if (r.rents.join() !== 'contract,asking,observed,model') throw new StepError(`the four rents are drawn as ${JSON.stringify(r.rents)}`);
+      });
+      await step(j, tab, 'Enter the contract rent, its expiry and the model rent: the yield both ways', BUDGET.action * 5, async () => {
+        await tab.click(`document.querySelector('label[for="lab-q-cm-tenancy-tenanted"]')`, 'Current tenancy — Tenanted');
+        await tab.expect(`!!document.getElementById('lab-cm-tenancyRent')`, 'Tenanted chosen, the contract rent is not asked');
+        await tab.fill(`document.getElementById('lab-cm-tenancyRent')`, '4600', 'The contract rent', { commit: true });
+        await tab.eval(`(() => { const n = document.getElementById('lab-cm-cmLeaseExpiry'); n.value = '2027-04'; n.dispatchEvent(new Event('change', { bubbles: true })); return n.value; })()`);
+        await sleep(300);
+        await tab.fill(`document.getElementById('lab-n-rent')`, '4000', 'The model rent — the Rent box', { commit: true });
+        await tab.expect(`(${work}).rent === 4000 && (${work}).tenancyRent === 4600 && (${work}).cmLeaseExpiry === '2027-04'`,
+          async () => `the column holds ${await tab.eval(`JSON.stringify({ rent: (${work}).rent, contract: (${work}).tenancyRent, expiry: (${work}).cmLeaseExpiry })`)}`, 4000);
+        await sleep(400);
+        const r = JSON.parse(await tab.eval(`(() => { const d = ${work}, c = commercialModel(d);
+          return JSON.stringify({ yc: c.yields.contract, ym: c.yields.model, mc: dealModel({ ...d, rent: 4600 }).netYield, mm: dealModel(d).netYield,
+            shownC: Number(${fig('yield-contract')}?.querySelector('[data-value]')?.dataset.value), shownM: Number(${fig('yield-model')}?.querySelector('[data-value]')?.dataset.value),
+            rents: [...document.querySelectorAll('#lab-cm [data-rent]')].map(n => [n.dataset.rent, n.dataset.value]) }); })()`));
+        if (Math.abs(r.yc - r.mc) > 1e-9 || Math.abs(r.ym - r.mm) > 1e-9) throw new StepError(`the yields ${r.yc} and ${r.ym} are not the model's ${r.mc} and ${r.mm}`);
+        if (Math.abs(r.shownC - r.yc) > 1e-3 || Math.abs(r.shownM - r.ym) > 1e-3) throw new StepError(`the cards read ${r.shownC}% and ${r.shownM}%, the model ${r.yc}% and ${r.ym}%`);
+        if (JSON.stringify(r.rents) !== JSON.stringify([['contract', '4600'], ['asking', ''], ['observed', ''], ['model', '4000']])) throw new StepError(`the four rents read ${JSON.stringify(r.rents)} — not each its own`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('entering the rents wrote the calculator’s deal — it is a what-if until saved');
+      });
+      await step(j, tab, 'Record an achieved rent and use it in the Lab', BUDGET.load + BUDGET.action * 5, async () => {
+        await tab.click(`document.getElementById('lab-cm-register')`, 'Record one in the comparables register');
+        await tab.expect(`State.view === 'comparables' && !!document.getElementById('evidence-flow')`, 'the comparables register’s guided flow did not open');
+        await tab.click(`document.querySelector('label[for="ef-srckind-doc"]')`, 'Where it came from — A document');
+        await tab.fill(`document.getElementById('ef-src')`, SRC, 'The document');
+        await tab.eval(`(() => { const d = document.getElementById('ef-date'); d.value = '2026-08-01'; d.dispatchEvent(new Event('change', { bubbles: true })); return d.value; })()`);
+        await tab.click(`document.querySelector('label[for="ef-kind-let-rent"]')`, 'What it is — Achieved rent');
+        await tab.fill(`document.getElementById('ef-value')`, '4180', 'The amount');
+        await tab.click(`document.querySelector('label[for="ef-checked-yes"]')`, 'Checked against the source — yes');
+        await tab.click(`document.getElementById('ef-record')`, 'Record it');
+        await tab.expect(`!!document.getElementById('ef-done') && (State.observations || [])[0]?.kind === 'let-rent'`, async () => `Record it saved nothing: “${await tab.eval(`document.getElementById('toast')?.textContent || ''`)}”`, 4000);
+        recId = await tab.eval(`State.observations[0].id`);
+        await tab.click(`document.getElementById('ef-use')`, 'Use it in the Scenario Lab');
+        await tab.expect(`State.view === 'propertyLab' && (${work}).rentComparableIds?.includes(${JSON.stringify(recId)})`,
+          async () => `the Lab opened with ${await tab.eval(`JSON.stringify((${work})?.rentComparableIds || null)`)} named`, 6000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ cls: propertyClassOf(${work}), contract: (${work}).tenancyRent, box: document.querySelector('[data-rent-comp=${JSON.stringify(JSON.stringify(recId)).slice(1, -1)}] input')?.checked ?? null })`));
+        if (r.cls !== 'commercial' || r.contract !== 4600) throw new StepError(`back in the Lab the answers are ${JSON.stringify(r)} — the what-if was lost on the way`);
+        if (r.box !== true) throw new StepError(`the record's box among the achieved rents is ${r.box === null ? 'not drawn' : 'not ticked'}`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('using it wrote the calculator’s deal — it is a what-if until saved');
+      });
+      await step(j, tab, 'Read the sustainability line and the 12-month reserve', BUDGET.action * 2, async () => {
+        await tab.expect(`${fig('sustain')}?.dataset.status === 'ok'`, async () => `sustainability is ${await tab.eval(`${fig('sustain')}?.dataset.status || 'not drawn'`)}`, 4000);
+        const r = JSON.parse(await tab.eval(`(() => { const d = ${work}, c = commercialModel(d), s = ${fig('sustain')}, r = ${fig('reserve-12')};
+          return JSON.stringify({ title: s?.querySelector('.ls-card-title')?.textContent || '', sub: s?.querySelector('.ls-card-sub')?.textContent || '', lo: c.sustain.contract?.lo,
+            shown: Number(r?.querySelector('[data-value]')?.dataset.value), model: c.lease.scenarios.find(x => x.months === 12).reserve, burn: c.lease.burn,
+            table: [...document.querySelectorAll('#lab-cm-ld-table tbody tr')].map(t => Number(t.dataset.reserve)), models: c.lease.scenarios.map(x => x.reserve) }); })()`));
+        if (r.title !== 'Current rent is 10% above the observed comparable you recorded.') throw new StepError(`the sustainability line reads “${r.title}”`);
+        if (Math.abs(r.lo - (4600 - 4180) / 4180 * 100) > 1e-9) throw new StepError(`the model sets RM4,600 against RM4,180 at ${r.lo}%`);
+        if (!r.sub.includes('RM4,180') || !/Aug 2026/.test(r.sub)) throw new StepError(`the line does not name the comparable with its amount and date: “${r.sub.slice(0, 200)}”`);
+        if (!(r.model > 0) || r.shown !== r.model || Math.abs(r.model - Math.round(12 * r.burn)) > 0.5) throw new StepError(`the 12-month reserve reads ${r.shown}; the model gives ${r.model} (12 × ${r.burn})`);
+        if (JSON.stringify(r.table) !== JSON.stringify(r.models)) throw new StepError(`the lease-down table reads ${JSON.stringify(r.table)}, the model ${JSON.stringify(r.models)}`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('reading the figures wrote the calculator’s deal');
       });
     },
   },

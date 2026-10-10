@@ -3450,6 +3450,112 @@ for (const w of [360, 390]) {
   else console.log(`ok   p4-newdev: a deal answered New development — a completed comparable, the SPA and VP months, Sarawak's Form C template spaced to VP — on /property/calculator and /property at 360, 390 and 430, in the page's font and in Verdana: the developer premium (RM100,000) and the cash required as L1 cards, construction interest worked out, 3 exit rows and the defect liability line inside the section; every input, select, stage control and call to action a 44px target and every kind badge 44px by its reach; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
 }
 /* ---- end p4-newdev ---- */
+/* ---- p5-commercial ---- */
+/* THE COMMERCIAL MODELS ON A PHONE (the property decision layer, P5). A
+   whole shoplot — tenanted at RM4,600 to April 2027, RM5,000 asked, a
+   model rent of RM4,000, RM30,000 of fit-out — with two achieved rents of
+   the reader's named, on /property/calculator and /property (the Lab), at
+   360×640, 390×844 and 430×932, in the page's font and in Verdana:
+     - the section is drawn — the net yield at the contract and at the model
+       rent and the twelve-month reserve as the L1 metric cards,
+       sustainability worked out, the four rents a row each, the lease-down
+       four rows that are cards (its table's head out of sight) — and
+       nothing on the page scrolls sideways; every card, row, field and
+       lease-down card stands inside its section;
+     - every control in it is a 44px target: the inputs, the evidence
+       selects, the calls to action; a kind badge reaches 44px by its
+       ::after;
+     - the action bar stands at the window's foot, and on /property at
+       390×844 the first slider is still whole above it on the first
+       screen.
+   Fails on ff0b6e6e, where no commercial section is drawn. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const TERMS = 'type=shophouse&d=rent:4000~commercialSubtype:whole-shoplot~tenancy:tenanted~tenancyRent:4600~cmLeaseExpiry:2027-04~cmFitOut:30000~cmAskingRent:5000';
+  const RECORD = `(() => { const add = (v, dt) => addObservation({ city: 'kuching', area: 'Tabuan', kind: 'let-rent', value: v, date: dt, sourceRef: 'https://example.com/p5-mobile-' + v, evidence: 'user', scope: 'area' });
+    return JSON.stringify([add(3740, '2026-06-01').id, add(4180, '2026-08-01').id]); })()`;
+  const read = (sec) => `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { if (!shown(n)) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+    const s = document.getElementById('${sec}');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    const roots = [s, ...(document.getElementById('commercial') ? [document.getElementById('commercial')] : [])];
+    const ctrls = roots.flatMap(r => [...r.querySelectorAll('input:not([type=checkbox]):not([type=radio]), .ls-cta, button, select')]).filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const badges = roots.flatMap(r => [...r.querySelectorAll('a.kind-badge')]).filter(shown).filter(n => { const a = getComputedStyle(n, '::after'); return n.getBoundingClientRect().height + 24 < 43.5 || a.content === 'none' || a.position !== 'absolute'; }).length;
+    const inside = roots.flatMap(r => [...r.querySelectorAll('.au-wf-row, .au-card, .au-field, .ls-card, .cm-ld-table tr, .comp-pick-row')]).filter(shown).filter(n => { const p = n.closest('#${sec}, #commercial').getBoundingClientRect(); const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.dataset.cm || n.dataset.rent || n.dataset.months || n.className.split(' ')[0]);
+    const bar = document.querySelector('.ls-actbar');
+    const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
+    const head = s.querySelector('.cm-ld-table thead');
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, badges, inside,
+      l1: [...s.querySelectorAll('[data-cm-fig][data-level="1"]')].map(n => n.dataset.cmFig), sustain: s.querySelector('[data-cm-fig="sustain"]')?.dataset.status || '',
+      r12: s.querySelector('[data-cm-fig="reserve-12"] [data-value]')?.dataset.value || '', rents: s.querySelectorAll('[data-rent]').length,
+      cards: [...s.querySelectorAll('.cm-ld-table tbody tr')].filter(n => shown(n) && getComputedStyle(n).display === 'block').length, headHidden: !shown(head),
+      controls: ctrls.length, bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      face: getComputedStyle(s.querySelector('.ls-card-value') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const ids = await ev(RECORD);
+      for (const [path, sec, view] of [['/property/calculator?' + TERMS, 'pc-cm', 'property'], ['/property', 'lab-cm', 'propertyLab']]) {
+        const at = `${w}×${h} ${path.split('?')[0]}${font ? ' in Verdana' : ''}`;
+        const got = await load(path);
+        if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
+        if (view === 'property') { await ev(`(() => { State.deal.rentComparableIds = ${ids}; saveDeal(); render(); return true; })()`); await sleep(500); }
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        if (view === 'propertyLab') {
+          const top = await ev(read(sec));
+          if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+        }
+        await ev(`(() => { const s = document.getElementById('${sec}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await sleep(200);
+        const r = await ev(read(sec));
+        if (r.none) { fails.push(`${at}: no commercial section (#${sec}) for a deal answered Commercial`); continue; }
+        if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+        if (JSON.stringify(r.l1) !== '["yield-contract","yield-model","reserve-12"]') fails.push(`${at}: the L1 cards are ${JSON.stringify(r.l1)}, not the yield both ways and the twelve-month reserve`);
+        if (r.sustain !== 'ok') fails.push(`${at}: sustainability is ${r.sustain}, not worked out`);
+        if (!(Number(r.r12) > 30000)) fails.push(`${at}: the twelve-month reserve reads "${r.r12}"`);
+        if (r.rents !== 4) fails.push(`${at}: ${r.rents} rent rows, not 4`);
+        if (r.cards !== 4 || !r.headHidden) fails.push(`${at}: the lease-down is ${r.cards} card(s), its head ${r.headHidden ? 'hidden' : 'in sight'} — not four cards`);
+        if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+        if (r.badges) fails.push(`${at}: ${r.badges} kind badge(s) without a 44px reach`);
+        if (r.inside.length) fails.push(`${at}: outside the section's width: ${r.inside.slice(0, 4).join(', ')}`);
+        if (!r.bar || r.barFixed !== 'fixed' || r.bar.b > r.vh + 0.5) fails.push(`${at}: the action bar is ${r.bar ? `${r.barFixed}, ${r.bar.t}–${r.bar.b}px of ${r.vh}` : 'not drawn'}`);
+        if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+        said.push(`${at.replace(' in Verdana', ' V')}: ${r.controls} controls`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL p5-commercial — the commercial models on a phone (the property decision layer, P5): ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   p5-commercial: a whole shoplot answered Commercial — tenanted at RM4,600 to Apr 2027, a model rent of RM4,000, two achieved rents named — on /property/calculator and /property at 360, 390 and 430, in the page's font and in Verdana: the yield both ways and the twelve-month reserve as L1 cards, sustainability worked out, 4 rent rows and the lease-down as 4 cards inside the section; every input, select and call to action a 44px target and every kind badge 44px by its reach; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
+}
+/* ---- end p5-commercial ---- */
 /* ---- lab-words ---- */
 /* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
    "Scenario Lab is useful but too explanation-heavy, especially for

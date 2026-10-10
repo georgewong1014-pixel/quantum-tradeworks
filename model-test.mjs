@@ -6484,6 +6484,243 @@ try {
   });
   /* ---- end p4-newdev ---- */
 
+  /* ---- p5-commercial ---- */
+  /* COMMERCIAL: THE FOUR RENTS, RENT SUSTAINABILITY AND LEASE-DOWN (the
+     property decision layer, P5; commercialModel, 75-property-grade.js;
+     83-property-decision.js). Each fails on ff0b6e6e, where none of this
+     exists.
+     C1 — the four rents stay separate: contract (the tenancy's), asking,
+          observed (the median of the achieved rents named — an asking rent
+          named is never in it) and model (the expected rent) are four
+          figures, each moved by its own input and no other, each with its
+          own kind; and they leave the calculator's own figures as they were.
+     C2 — sustainability is a range from the comparables, worked out here:
+          RM4,600 against RM3,740 and RM4,180 is "10–23% above the observed
+          comparables you recorded" — on the calculator's card too.
+     C3 — without comparables the observed rent and sustainability are
+          Unavailable, said so on the calculator.
+     C4 — each lease-down reserve and effective yield, worked out here by
+          hand (no loan, then a loan), on the calculator's table and L1
+          card too; a vacant unit begins now; a lease past the hold is said;
+          without the lease expiry it is Unavailable — never assumed.
+     C5 — residential deals unchanged: the commercial fields change no
+          figure of the calculator's model, and a residential deal draws no
+          commercial section.
+     C6 — the answers travel in the address in their own words only; the
+          achieved rents named, this browser's records, do not.
+     C7 — on the Lab, Commercial and its rents are a what-if of every column
+          until Save, which writes them. */
+  const p5try = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+  const P5_BASE = `({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot', sqft: 1600, rent: 4000 })`;
+  /* Two achieved rents and one asking rent recorded, named; the register
+     put back after. */
+  const P5_OBS = `const keepObs = State.observations; State.observations = [];
+      const add = (kind, v, dt) => addObservation({ city: 'kuching', area: 'Tabuan', kind, value: v, date: dt, sourceRef: 'https://example.com/p5-' + v, evidence: 'user', scope: 'area' });
+      const r1 = add('let-rent', 3740, '2026-06-01'), r2 = add('let-rent', 4180, '2026-08-01'), ask = add('ask-rent', 9000, '2026-07-01');
+      const restore = () => { State.observations = keepObs; saveObservations(); };`;
+  await p5try('p5 C1: the four rents stay separate', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      ${P5_OBS}
+      const d = { ...${P5_BASE}, tenancy: 'tenanted', tenancyRent: 4600, cmAskingRent: 5000, rentComparableIds: [r1.id, r2.id, ask.id] };
+      const rents = (x) => commercialModel(x).rents.map(y => [y.id, y.value, y.kind]);
+      const base = rents(d);
+      const moved = {
+        contract: rents({ ...d, tenancyRent: 4800 }), asking: rents({ ...d, cmAskingRent: 5500 }),
+        observed: rents({ ...d, rentComparableIds: [r1.id] }), model: rents({ ...d, rent: 4400, touched: { rent: true } }),
+      };
+      const c = commercialModel(d);
+      const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16); };
+      const bare = { ...${P5_BASE}, tenancy: 'tenanted' };
+      const print = (x) => fnv(JSON.stringify(dealModel(x)));
+      const same = print(bare) === print({ ...bare, tenancyRent: 4600, cmAskingRent: 5000, rentComparableIds: [r1.id, r2.id], cmLeaseExpiry: '2027-04', cmFitOut: 30000, cmEscalation: '10% at renewal', cmDeposit: 3, cmTenant: 'A clinic', cmBusiness: 'Clinic', cmFrontage: 22, cmPosition: 'corner', cmFloor: 'Ground', cmParking: 'Rear lane loading' });
+      restore();
+      return JSON.stringify({ base, moved, notUsed: c.notUsed, observed: c.observed, same });
+    })()`));
+    const p = [];
+    if (JSON.stringify(r.base) !== JSON.stringify([['contract', 4600, 'yours'], ['asking', 5000, 'yours'], ['observed', 3960, 'yours'], ['model', 4000, 'illustrative']])) p.push(`the four rents: ${JSON.stringify(r.base)}`);
+    const idx = { contract: 0, asking: 1, observed: 2, model: 3 }, want = { contract: 4800, asking: 5500, observed: 3740, model: 4400 };
+    for (const [k, rows] of Object.entries(r.moved)) rows.forEach((row, i) => {
+      if (i === idx[k] ? row[1] !== want[k] : row[1] !== r.base[i][1]) p.push(`moving the ${k} rent moved the ${row[0]} rent to ${row[1]}`);
+    });
+    if (r.moved.model[3][2] !== 'modelled') p.push(`the model rent, once the reader's, is ${r.moved.model[3][2]}, not Modelled`);
+    if (r.notUsed !== 1 || r.observed.n !== 2 || r.observed.lo !== 3740 || r.observed.hi !== 4180) p.push(`an asking rent named entered the observed rent: ${JSON.stringify(r.observed)}, ${r.notUsed} not used`);
+    if (!r.same) p.push('the commercial fields changed a figure of the calculator\'s model');
+    if (p.length) fail('p5 C1: the four rents stay separate', p);
+    else ok('p5 C1: the contract (RM4,600, Yours), asking (RM5,000, Yours), observed (RM3,960 — the median of RM3,740 and RM4,180, Yours) and model (RM4,000, Illustrative; Modelled once the reader\'s) rents are four figures, each moved by its own input alone; an asking rent named is never in the observed median; the commercial fields change no figure of the calculator\'s model');
+  });
+  await p5try('p5 C2: rent sustainability is a range from the comparables', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      ${P5_OBS}
+      const d = { ...${P5_BASE}, tenancy: 'tenanted', tenancyRent: 4600, rentComparableIds: [r1.id, r2.id] };
+      const s = commercialModel(d).sustain;
+      const one = commercialModel({ ...d, rentComparableIds: [r2.id] }).sustain;
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const n = document.querySelector('#pc-cm [data-cm-fig="sustain"]');
+      const card = n ? { type: n.dataset.card, status: n.dataset.status, lo: n.dataset.lo, hi: n.dataset.hi, figure: n.querySelector('.ls-card-figure')?.textContent, title: n.querySelector('.ls-card-title')?.textContent, sub: n.querySelector('.ls-card-sub')?.textContent } : null;
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); restore(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ s, one, card });
+    })()`));
+    const p = [];
+    const lo = (4600 - 4180) / 4180 * 100, hi = (4600 - 3740) / 3740 * 100, med = (4600 - 3960) / 3960 * 100;
+    if (r.s.status !== 'ok' || Math.abs(r.s.contract.lo - lo) > 1e-9 || Math.abs(r.s.contract.hi - hi) > 1e-9 || Math.abs(r.s.contract.median - med) > 1e-9) p.push(`the range: ${JSON.stringify(r.s.contract)}, not ${lo}–${hi} (median ${med})`);
+    if (Math.abs(r.one.contract.lo - (4600 - 4180) / 4180 * 100) > 1e-9 || r.one.contract.lo !== r.one.contract.hi) p.push(`one comparable: ${JSON.stringify(r.one.contract)}`);
+    const c = r.card;
+    if (!c || c.type !== 'insight' || c.status !== 'ok' || c.figure !== '+10–23%' || c.title !== 'Current rent is 10–23% above the observed comparables you recorded.' || !/RM3,740 to RM4,180, median RM3,960/.test(c.sub) || !/Jun 2026 – Aug 2026/.test(c.sub)) p.push(`the calculator's card: ${JSON.stringify(c)}`);
+    if (p.length) fail('p5 C2: rent sustainability is a range from the comparables', p);
+    else ok(`p5 C2: RM4,600 against achieved rents of RM3,740 and RM4,180 is ${lo.toFixed(2)}% over the highest and ${hi.toFixed(2)}% over the lowest — "${c.title}" (${c.figure}), with their range, median and dates named; one comparable gives one figure`);
+  });
+  await p5try('p5 C3: without comparables, the observed rent and sustainability are Unavailable', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      ${P5_OBS}
+      const d = { ...${P5_BASE}, tenancy: 'tenanted', tenancyRent: 4600, rentComparableIds: [ask.id] };
+      const c = commercialModel(d);
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const n = document.querySelector('#pc-cm [data-cm-fig="sustain"]');
+      const row = document.querySelector('#pc-cm [data-rent="observed"]');
+      const shown = { type: n?.dataset.card, status: n?.dataset.status, text: (n?.textContent || '').replace(/\\s+/g, ' '), row: row ? { value: row.dataset.value, kind: row.dataset.kind, amt: row.querySelector('.au-wf-amt')?.textContent } : null };
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); restore(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ status: c.sustain.status, observed: c.observed, kind: c.observedKind, shown });
+    })()`));
+    const p = [];
+    if (r.status !== 'no-comparables' || r.observed !== null || r.kind !== 'unavailable') p.push(`the model: ${JSON.stringify(r)}`);
+    const s = r.shown;
+    if (s.type !== 'action' || s.status !== 'no-comparables' || !/Unavailable: needs achieved rents you recorded/.test(s.text)) p.push(`the card: ${JSON.stringify(s)}`);
+    if (!s.row || s.row.value !== '' || s.row.kind !== 'unavailable' || s.row.amt !== 'Unavailable') p.push(`the observed rent's row: ${JSON.stringify(s.row)}`);
+    if (p.length) fail('p5 C3: without comparables, the observed rent and sustainability are Unavailable', p);
+    else ok('p5 C3: with no achieved rent named (an asking rent named does not count), the observed comparable rent reads Unavailable with its badge, and rent sustainability is an action card: "Unavailable: needs achieved rents you recorded…"');
+  });
+  await p5try('p5 C4: each lease-down reserve and effective yield, by hand', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const now = cmThisMonth();
+      const mo = (i) => String(Math.floor(i / 12)) + '-' + String(i % 12 + 1).padStart(2, '0');
+      /* No loan, RM1,200 a year of assessment the only running cost: RM100 a month with no rent. */
+      const d = { ...${P5_BASE}, price: 1000000, downPct: 100, maintenance: 0, sinkingFund: 0, assessment: 1200, quitRent: 0, insurance: 0, selfManaged: true, repairReservePct: 0,
+        holdYears: 5, tenancy: 'tenanted', tenancyRent: 5000, cmLeaseExpiry: mo(now + 12), cmFitOut: 20000 };
+      const a = commercialModel(d, undefined, { asOf: now });
+      const loan = { ...d, downPct: 10, ratePct: 4.8, tenureYears: 30 };
+      const ml = dealModel(loan), b = commercialModel(loan, ml, { asOf: now });
+      const inst = monthlyInstalment(ml.loan, 4.8, 30);
+      const vacant = commercialModel({ ...d, tenancy: 'vacant' }, undefined, { asOf: now }).lease;
+      const beyond = commercialModel({ ...d, cmLeaseExpiry: mo(now + 72) }, undefined, { asOf: now }).lease.scenarios.map(s => [s.status, s.effYield]);
+      const none = commercialModel({ ...d, cmLeaseExpiry: undefined }, undefined, { asOf: now }).lease;
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const rows = [...document.querySelectorAll('#pc-cm-ld-table tbody tr')].map(t => [t.dataset.months, t.dataset.reserve, t.dataset.yield, t.textContent.replace(/\\s+/g, ' ').trim()]);
+      const card = document.querySelector('#pc-cm [data-cm-fig="reserve-12"] [data-value]')?.dataset.value;
+      const when = document.querySelector('#pc-cm-ld .cm-ld-kind')?.textContent || '';
+      State.deal = { ...d, cmLeaseExpiry: undefined }; delete State.deal.cmLeaseExpiry; saveDeal(); render(); await w(400);
+      const naCard = (document.querySelector('#pc-cm [data-cm-fig="reserve-12"]')?.textContent || '').replace(/\\s+/g, ' ');
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ a: a.lease.scenarios, burn: a.lease.burn, b: b.lease.scenarios.map(s => s.reserve), burnB: b.lease.burn, inst, fixedB: ml.fixedOperatingCosts,
+        vacant: vacant.scenarios.map(s => [s.cMonths, s.mMonths, s.effYield]), vstart: vacant.start, beyond, none: { missing: none.missing, s: none.scenarios.map(s => s.status) }, rows, card, when, naCard });
+    })()`));
+    const p = [];
+    /* Worked here: 60 months; RM5,000 for the 12 to the expiry, nothing for
+       the months vacant, RM4,000 after; RM100 a month of fixed costs for 60
+       months; RM20,000 of fit-out; over 5 years on RM1,000,000. */
+    const hand = [3, 6, 12, 18].map(n => ({ n, reserve: n * 100 + 20000, y: ((5000 * 12 + 4000 * (60 - 12 - n)) - 6000 - 20000) / 5 / 1000000 * 100 }));
+    if (r.burn !== 100) p.push(`with no loan the month with no rent costs ${r.burn}, not RM100`);
+    hand.forEach((h, i) => { const s = r.a[i]; if (!s || s.months !== h.n || s.reserve !== h.reserve || Math.abs(s.effYield - h.y) > 1e-9) p.push(`${h.n} months: reserve ${s?.reserve} (want ${h.reserve}), effective yield ${s?.effYield} (want ${h.y})`); });
+    /* With a loan: each reserve is its months × (the instalment + RM100) + RM20,000. */
+    [3, 6, 12, 18].forEach((n, i) => { const want = Math.round(n * (r.inst + 100) + 20000); if (r.b[i] !== want) p.push(`with a loan, ${n} months: reserve ${r.b[i]}, want ${want} (instalment ${r.inst.toFixed(2)})`); });
+    if (Math.abs(r.burnB - (r.inst + 100)) > 1e-6) p.push(`with a loan, a month with no rent costs ${r.burnB}, not the instalment ${r.inst} + RM100`);
+    if (r.vstart !== 0 || JSON.stringify(r.vacant.map(v => [v[0], v[1]])) !== '[[0,57],[0,54],[0,48],[0,42]]') p.push(`a vacant unit: ${JSON.stringify(r.vacant)} from month ${r.vstart}`);
+    if (r.beyond.some(([st]) => st !== 'beyond') || r.beyond.some(([, y]) => Math.abs(y - (5000 * 60 - 6000 - 0) / 5 / 1e6 * 100) > 1e-9)) p.push(`a lease past the hold: ${JSON.stringify(r.beyond)}`);
+    if (JSON.stringify(r.none.missing) !== '["the lease expiry"]' || r.none.s.some(s => s !== 'unavailable')) p.push(`no lease expiry: ${JSON.stringify(r.none)}`);
+    const shown = r.rows.map(x => [Number(x[0]), Number(x[1]), Number(x[2])]);
+    hand.forEach((h, i) => { const s = shown[i]; if (!s || s[0] !== h.n || s[1] !== h.reserve || Math.abs(s[2] - h.y) > 1e-4) p.push(`the table's ${h.n}-month row: ${JSON.stringify(r.rows[i])}`); });
+    if (r.card !== String(hand[2].reserve)) p.push(`the L1 card reads ${r.card}, not ${hand[2].reserve}`);
+    if (!/From the lease expiry, .+ — 12 months from .+, over your 5-year hold\. Each reserve is its months × RM100 with no rent \+ the RM20,000 fit-out you entered\./.test(r.when)) p.push(`the line under the table: "${r.when}"`);
+    if (!/Unavailable/.test(r.naCard) || !/Enter the lease expiry — never assumed/.test(r.naCard)) p.push(`without the lease expiry the card reads "${r.naCard}"`);
+    if (p.length) fail('p5 C4: each lease-down reserve and effective yield, by hand', p);
+    else ok(`p5 C4: a lease expiring in 12 months, RM5,000 then a model rent of RM4,000, RM100 a month with no rent, RM20,000 of fit-out, a 5-year hold on RM1,000,000 — reserves ${hand.map(h => `RM${h.reserve}`).join(', ')} and effective yields ${hand.map(h => `${h.y.toFixed(2)}%`).join(', ')} for 3, 6, 12 and 18 months vacant, worked out here and read off the calculator's table and L1 card; with a loan each reserve is its months × (instalment + RM100) + the fit-out; a vacant unit begins now; a lease past the hold is said; no lease expiry, Unavailable`);
+  });
+  await p5try('p5 C5: residential deals unchanged', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+      const print = (d) => { const s = JSON.stringify(dealModel(d)); return fnv(s) + ':' + s.length; };
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const cm = { cmAskingRent: 2000, cmLeaseExpiry: '2027-04', cmFitOut: 5000, cmPosition: 'corner', cmFrontage: 20 };
+      const sample = print(base()), withCm = print({ ...base(), ...cm });
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      State.deal = { ...base(), ...cm }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const calc = { section: !!document.getElementById('pc-cm'), inputs: !!document.getElementById('commercial'), tenancy: !!document.getElementById('d-tenancy') };
+      navigate('/property'); await w(600);
+      const lab = !!document.getElementById('lab-cm');
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ sample, withCm, calc, lab });
+    })()`));
+    const p = [];
+    if (r.sample !== '758435b8:31047' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint 758435b8:31047)`);
+    if (r.calc.section || r.calc.inputs || !r.calc.tenancy || r.lab) p.push(`a residential deal: ${JSON.stringify(r)}`);
+    if (p.length) fail('p5 C5: residential deals unchanged', p);
+    else ok('p5 C5: the sample prints P1 R1\'s fingerprint 758435b8:31047 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
+  });
+  await p5try('p5 C6: the answers travel in the address in their own words', async () => {
+    const r = await evaluate(`(() => {
+      const fresh = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const d = { ...fresh(), tenancy: 'tenanted', tenancyRent: 4600, cmAskingRent: 5000, cmLeaseExpiry: '2027-04', cmFitOut: 30000, cmEscalation: '10% at each renewal', cmDeposit: 3,
+        cmTenant: 'A clinic', cmBusiness: 'Clinic', cmFrontage: 22, cmPosition: 'corner', cmFloor: 'Ground', cmParking: 'Rear lane loading', rentComparableIds: ['obs-1'] };
+      const s = dealToParam(d);
+      const back = fresh(); applyDealParam(back, s);
+      const junk = fresh();
+      applyDealParam(junk, 'cmLeaseExpiry:2027-13~cmPosition:end~cmAskingRent:-5~cmFitOut:1e5~cmTenant:a<b~rentComparableIds:obs-1~cmFrontage:x');
+      const keys = ['tenancy', 'tenancyRent', 'cmAskingRent', 'cmLeaseExpiry', 'cmFitOut', 'cmEscalation', 'cmDeposit', 'cmTenant', 'cmBusiness', 'cmFrontage', 'cmPosition', 'cmFloor', 'cmParking'];
+      return { s, back: keys.map(k => back[k] ?? null), want: keys.map(k => d[k]), comps: back.rentComparableIds ?? null, junk: [...keys, 'rentComparableIds'].filter(k => k in junk) };
+    })()`);
+    if (JSON.stringify(r.back) !== JSON.stringify(r.want)) fail('p5 C6: the address does not carry the answers', r);
+    else if (r.comps !== null || /rentComparableIds/.test(r.s)) fail('p5 C6: the achieved rents named travel in the address — they are this browser\'s records', r);
+    else if (r.junk.length) fail('p5 C6: the address took an answer not in its own words', r);
+    else ok(`p5 C6: the answers travel in the address in their own words ("${r.s.slice(0, 90)}…"); the achieved rents named do not; month 13, "end", a negative rent, "1e5", "a<b" and "x" are refused`);
+  });
+  await p5try('p5 C7: on the Lab, Commercial and its rents are written only on Save', async () => {
+    const one = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      ${P5_OBS}
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+      State.deal = base(); saveDeal();
+      const rec = saveActiveProperty({ name: 'p5 C7 saved property' });
+      if (!rec) { restore(); return JSON.stringify({ err: 'not saved' }); }
+      navigate('/property'); await w(500);
+      const record = JSON.stringify(pmFind(rec.id)), deal = JSON.stringify(store.read('deal', null));
+      document.querySelector('label[for="lab-q-what-commercial"]').click(); await w(300);
+      document.querySelector('label[for="lab-q-sub-whole-shoplot"]').click(); await w(300);
+      const drawn = !!document.getElementById('lab-cm');
+      document.querySelector('label[for="lab-q-cm-tenancy-tenanted"]').click(); await w(300);
+      const fill = async (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250); };
+      await fill('lab-cm-tenancyRent', '4600'); await fill('lab-cm-cmLeaseExpiry', '2027-04');
+      const box = document.querySelector('[data-rent-comp="' + r1.id + '"] input'); box.click(); await w(300);
+      const L = LAB[labSubject];
+      const out = { drawn, sustain: document.querySelector('#lab-cm [data-cm-fig="sustain"]')?.dataset.status,
+        cols: L.cols.map(c => [c.key, propertyClassOf(c.work), c.work.tenancyRent ?? null, (c.work.rentComparableIds || []).length]),
+        recordSame: JSON.stringify(pmFind(rec.id)) === record, dealSame: JSON.stringify(store.read('deal', null)) === deal, address: location.search };
+      out.saved = labSaveAnswers(labPagePanel(), L);
+      const after = pmInputsOf(pmFind(rec.id));
+      out.after = { cls: propertyClassOf(after), rent: after.tenancyRent ?? null, exp: after.cmLeaseExpiry ?? null, ids: after.rentComparableIds ?? null };
+      deletePropertyModel(rec.id);
+      const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+      restore(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ ...out, r1: r1.id });
+    })()`));
+    if (one.err) throw new Error(one.err);
+    const p = [];
+    if (!one.drawn) p.push('Commercial chosen, the commercial section is not drawn');
+    if (one.sustain !== 'ok') p.push(`a contract rent and an achieved rent named, sustainability is ${one.sustain}`);
+    if (one.cols.some(c => c[1] !== 'commercial' || c[2] !== 4600 || c[3] !== 1)) p.push(`the answers are not a move of every column: ${JSON.stringify(one.cols)}`);
+    if (!one.recordSame || !one.dealSame || /tenancyRent|cmLease/.test(one.address)) p.push(`written before Save: record ${one.recordSame ? 'unchanged' : 'written'}, deal ${one.dealSame ? 'unchanged' : 'written'}, address "${one.address}"`);
+    if (!one.saved || one.after.cls !== 'commercial' || one.after.rent !== 4600 || one.after.exp !== '2027-04' || JSON.stringify(one.after.ids) !== JSON.stringify([one.r1])) p.push(`Save: ${JSON.stringify(one.after)}`);
+    if (p.length) fail('p5 C7: on the Lab, Commercial and its rents are written only on Save', p);
+    else ok(`p5 C7: on a saved property in the Lab, Commercial — whole shoplot draws the commercial section; the tenancy, a RM4,600 contract rent, the lease expiry and an achieved rent named are moves of every column (${one.cols.map(c => c[0]).join(', ')}), sustainability worked out, with the record, the calculator's deal and the address unwritten; Save writes them to the property`);
+  });
+  /* ---- end p5-commercial ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

@@ -1068,7 +1068,8 @@ function cmSustainWords(c) {
   const s = c.sustain, o = c.observed;
   if (s.status === 'no-comparables') return null;
   const of = `${cmPlural(o.n, 'achieved rent')} you recorded — ${o.n === 1 ? pqMoney(o.lo) : `${pqMoney(o.lo)} to ${pqMoney(o.hi)}, median ${pqMoney(o.median)}`}, ${cmDates(o)}`;
-  const model = s.model ? `At renewal the lease is modelled at your model rent, ${pqMoney(c.model)} — ${cmR(s.model.median) === 0 ? 'their median' : `${cmR(s.model.median)}% ${s.model.median > 0 ? 'above' : 'below'} their median`}.` : '';
+  const ref = o.n === 1 ? 'it' : 'their median';
+  const model = s.model ? `At renewal the lease is modelled at your model rent, ${pqMoney(c.model)} — ${cmR(s.model.median) === 0 ? (o.n === 1 ? 'the same' : ref) : `${cmR(s.model.median)}% ${s.model.median > 0 ? 'above' : 'below'} ${ref}`}.` : '';
   if (s.status === 'ok') {
     const r = cmRangeWords(s.contract, o.n);
     return { figure: r.figure, finding: `Current rent is ${r.words}.`, sub: `The contract rent of ${pqMoney(c.contract)} a month against ${of}. ${model}`.trim() };
