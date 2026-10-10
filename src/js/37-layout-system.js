@@ -50,7 +50,10 @@
    later, one at a time.
    ========================================================================== */
 
-const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home', 'researchHome'];
+/* /property-investing (propertyInvesting, 56-property-investing.js): the
+   property landing for search — the Lab's figure and the cost stack first,
+   the tools as action cards, the disclosure in sight. */
+const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home', 'researchHome', 'propertyInvesting'];
 const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
 const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
 const lsOn = (view = State.view) => LS_VIEWS.includes(view);

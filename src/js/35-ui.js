@@ -883,7 +883,7 @@ const productTabs = (pid) => TOOLS.filter(t => t.product === pid && t.tab && too
 /* Which chrome a view wears. Everything not listed is a page a reader works
    in. The not-found card is public: a stranger who followed a dead link is
    not in anyone's workspace. */
-const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'plans', 'about', 'contact', 'privacy', 'terms',
+const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'propertyInvesting', 'plans', 'about', 'contact', 'privacy', 'terms',
   'learn', 'boundaries', 'status', 'ips', 'notfound']);
 const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 
@@ -1149,6 +1149,9 @@ const ROUTES = [
      (40-views-discover.js). Until a branch that defines a view is merged,
      its route shows the not-found card (applyRoute), never a blank page. */
   { path: '/how-it-works',        view: 'howItWorks', title: 'How it works' },
+  /* The property landing for search (56-property-investing.js; the owner's
+     decision of 7 Oct 2026): what the property tools do and do not do. */
+  { path: '/property-investing',  view: 'propertyInvesting', title: 'Property investing in Sarawak' },
   { path: '/research/queue',      view: 'researchQueue', title: 'Research queue' },
   { path: '/welcome',             view: 'onboarding',title: 'Get started' },
   { path: '/discover',            view: 'discover',  title: 'Discover' },
@@ -1278,6 +1281,7 @@ const ROUTES = [
 
 const META = {
   marketing: POSITIONING.description,
+  propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
@@ -2087,6 +2091,9 @@ const NAV_MARKUP = {
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
   footResources: () => [
     ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
+    /* The property landing (/property-investing): one link, the footer's
+       only — not in the header's Resources menu, which it would crowd. */
+    el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
     el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
   ],
 };

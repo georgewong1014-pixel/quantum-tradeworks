@@ -261,16 +261,23 @@ export function guardProblems(changed) {
      proof  proof(journey, step): the inner HTML of a Live badge's result on
             /status (D15, plan item 2.6) — the journey's last recorded
             result and what that run made of the badge's outcome step:
-            "PASS · outcome step OK · <date, time UTC> · details" */
+            "PASS · outcome step OK · <date, time UTC> · details"
+     model  the inner HTML of /status's Property "Model:" line (N2d, the
+            owner's decision D17): the property journey's and the Scenario
+            Lab journey's last recorded results, the run's UTC time and its
+            commit — "property journey PASS · Scenario Lab journey PASS ·
+            <date, time UTC> · <sha> · details". The market data is the
+            other line, and no journey speaks for it. */
 export function journeysServed(doc) {
   const REPO = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
   const LINES = { '/property': 'property', '/research': 'equities', '/app/scanner': 'scanner' };
+  const MODEL = [['property', 'property journey'], ['lab', 'Scenario Lab journey']];
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const STATE = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'] };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const two = (n) => (n < 10 ? '0' : '') + n;
   const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {},
-    proof: () => 'No recorded run to show.' };
+    proof: () => 'No recorded run to show.', model: 'no recorded run to show' };
   Object.keys(LINES).forEach(k => { empty.lines[k] = ''; });
   const at = doc && typeof doc.ranAt === 'string' ? new Date(doc.ranAt) : null;
   const list = doc && Array.isArray(doc.journeys) ? doc.journeys.filter(j => j && typeof j.id === 'string' && typeof j.name === 'string' && STATE[j.status]) : [];
@@ -329,7 +336,18 @@ export function journeysServed(doc) {
       + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + ' · ' + said + ' · ' + day + ' ' + at.getUTCFullYear() + ', ' + time
       + ' · <a class="journey-line-link" href="#' + idOf(j) + '">details</a>';
   };
-  return { recorded: true, sum, list: items, lines, proof };
+  /* PROPERTY'S MODEL LINE (N2d). Each property journey the run recorded,
+     by its result — a failure with its step — then the run's time and
+     commit; a journey the run did not include is left out, and a run with
+     neither says so. */
+  const ran = MODEL.map(([id, name]) => [list.find(x => x.id === id), name]).filter(([j]) => j);
+  const model = ran.length
+    ? ran.map(([j, name]) => name + ' <span class="proof-status" data-status="' + j.status + '">' + j.status + '</span>'
+        + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '')).join(' · ')
+      + ' · ' + day + ' ' + at.getUTCFullYear() + ', ' + time + (sha ? ' · ' + sha : '')
+      + ' · <a class="journey-line-link" href="#' + idOf(ran[0][0]) + '">details</a>'
+    : 'no property journey in the last recorded run';
+  return { recorded: true, sum, list: items, lines, proof, model };
 }
 
 const fmtS = (ms) => (ms == null ? '—' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
@@ -443,6 +461,16 @@ function selfTest() {
     t(!none.recorded && /^Not run yet\./.test(none.sum) && none.list === '' && Object.values(none.lines).every(l => l === '') && Object.keys(none.lines).length === 3, 'journeysServed: the placeholder serves "not run yet", no list and three empty lines');
     const old = journeysServed({ ...full, run: undefined });
     t(/<a class="journeys-log" href="https:\/\/github\.com\/georgewong1014-pixel\/quantum-tradeworks\/actions\/workflows\/journeys\.yml">public run history<\/a>$/.test(old.sum), 'journeysServed: a record with no run links the workflow\'s public run history, never a run it did not record');
+    /* N2d: Property's model line on /status — the property and Scenario Lab
+       journeys' results, the run's time and commit; a failure names its
+       step; a run without them, and no run, say so. */
+    const withLab = { ...full, journeys: [...full.journeys, { ...j('lab', 'FAIL', 'Save <B>'), name: 'Property landing: the Scenario Lab moves, compares and saves' }] };
+    t(out.model === 'property journey <span class="proof-status" data-status="PASS">PASS</span> · 5 Oct 2026, 10:30 UTC · 75312b2 · <a class="journey-line-link" href="#journey-property">details</a>',
+      `journeysServed: Property's model line — "property journey PASS · <date, time UTC> · <sha> · details" (${String(out.model).replace(/<[^>]*>/g, '').slice(0, 90)})`);
+    t(journeysServed(withLab).model.replace(/<[^>]*>/g, '') === 'property journey PASS · Scenario Lab journey FAIL at “Save &lt;B&gt;” · 5 Oct 2026, 10:30 UTC · 75312b2 · details',
+      'journeysServed: the model line adds the Scenario Lab journey, a failure with its step, escaped');
+    t(journeysServed({ ...full, journeys: full.journeys.filter(x => x.id !== 'property') }).model === 'no property journey in the last recorded run' && none.model === 'no recorded run to show',
+      'journeysServed: the model line says when the run has no property journey, and when there is no run');
     /* build.mjs imports this module, and this module imports build.mjs for
        --url production: a top-level await of it would wait on itself. */
     const own = readFileSync(join(ROOT, 'journeys.mjs'), 'utf8').split(/\r?\n/).filter(l => /^\S/.test(l) && /\bawait\b/.test(l) && !/^\s*(\/\/|\/\*|\*)/.test(l));
@@ -2677,6 +2705,11 @@ const JOURNEYS = [
         await load('/').catch(() => {});
         await press('/', `[...document.querySelectorAll(${JSON.stringify(CARDS)})].filter(n => n.getClientRects().length)[${i}]`, cards[i], `Homepage card “${cards[i]}”`);
       }
+
+      /* THE PROPERTY LANDING (/property-investing): its one primary call to
+         action, into the Scenario Lab. */
+      await load('/property-investing').catch(() => {});
+      await press('/property-investing', visible('#views a.pi-cta-primary'), 'Open the Scenario Lab', '/property-investing: “Open the Scenario Lab”');
 
       /* THE HOMEPAGE'S PROPERTY CARD (plan item 3.8): the compact Scenario
          Lab on the sample deal. Its price, moved to the far end of its

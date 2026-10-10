@@ -5588,6 +5588,16 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
 .proof-status[data-status="FAIL"] { color: var(--critical-text); }
 /* The unproven: a badge and a name each, so as many to a line as fit. */
 #health-unproven { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); column-gap: var(--lg); }
+/* PROPERTY ON TWO LINES (N2d; statusPropertySection, 91-health.js): what
+   the badge rests on, the model and the market data, a row each — the
+   label, then its state and what it means; on a phone the words take the
+   whole width under the label. */
+.status-split { margin: var(--sm) 0 0; }
+.status-split-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.status-split-row > dt { flex: none; min-width: 7.5rem; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.status-split-row > dd { flex: 1 1 20rem; min-width: 0; max-width: 72ch; margin: 0; font-size: var(--text-label); line-height: 1.6; color: var(--ink-2); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.status-split-row > dd > :is(.status-badge, .chip) { vertical-align: 1px; }
+.status-gated { background: var(--bronze-wash); color: var(--bronze); border-color: color-mix(in srgb, var(--bronze) 26%, transparent); }
 /* ---- end journeys-served ---- */
 
 /* ---- layout-system ---- */
@@ -6345,6 +6355,88 @@ input.au-in { text-align: right; }
 /* Words the reader records read from the left, as typed. */
 input.au-in[type="text"] { text-align: left; }
 
+/* -------------------------------------------- /property-investing (pi-) */
+/* The property landing for search (56-property-investing.js), on the
+   system: the question and its one action beside the Lab's figure on a
+   desk, under it on a phone; the cost stack; the tools as action cards; the
+   routes and what the tools do not do as lists on hairlines. */
+.pub.pi { gap: var(--xxxl); }
+@media (max-width: 639.98px) { .pub.pi { gap: var(--xxl); } }
+.pi-hero { display: grid; gap: var(--xl); align-items: center; padding: var(--xl) 0 0; }
+@media (min-width: 1024px) { .pi-hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: var(--xxl); } }
+@media (max-width: 639.98px) { .pi-hero { padding-top: var(--md); gap: var(--lg); } }
+.pi-kicker { margin: 0; font-size: var(--ls-meta); line-height: 16px; font-weight: var(--weight-bold); letter-spacing: .09em; text-transform: uppercase; color: var(--ink-2); }
+.pi-h1 { margin: var(--md) 0 0; max-width: 14em; font-size: var(--ls-hero); line-height: 1.05; font-weight: var(--weight-bold); letter-spacing: -.03em; text-wrap: balance; color: var(--ink); }
+.pi-lede { margin: var(--md) 0 0; max-width: 34em; font-size: var(--ls-body); line-height: 1.6; color: var(--ink-2); text-wrap: pretty; }
+@media (min-width: 1024px) { .pi-lede { font-size: var(--ls-section); line-height: 1.45; } }
+.pi-ctas { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--lg); margin-top: var(--lg); }
+.pi-ctas .pub-textlink { font-size: var(--ls-body); }
+@media (max-width: 479.98px) {
+  .pi-ctas { flex-direction: column; align-items: stretch; }
+  .pi-ctas .pi-cta-primary { width: 100%; justify-content: center; }
+  .pi-ctas .pi-cta-second { justify-content: center; }
+}
+.pi-disclosure { margin-top: var(--lg); }
+.pi-disclosure p { font-size: var(--ls-support); line-height: 1.5; color: var(--ink); }
+.pi-hero-fig { --acc: var(--s2); min-width: 0; }
+.pi-hero-fig .pub-vis { margin: 0; padding: var(--md); background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 24px 64px -32px color-mix(in srgb, var(--ink) 34%, transparent); }
+.pi-section { display: flex; flex-direction: column; gap: var(--ls-group); min-width: 0; scroll-margin-top: var(--lg); }
+.pi-h2 { margin: 0; font-size: var(--ls-section); line-height: 1.2; font-weight: var(--weight-bold); letter-spacing: -.015em; color: var(--ink); }
+.pi-body { margin: 0; font-size: var(--ls-body); line-height: 1.6; color: var(--ink-2); }
+/* The cost stack: the total, the bar, a row a kind with its badge. */
+.pi-stack { display: flex; flex-direction: column; gap: var(--md); max-width: 46rem; margin: 0; padding: var(--lg); border-radius: var(--r-lg);
+  background: var(--surface-2); border: 1px solid var(--line);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent), 0 24px 64px -36px color-mix(in srgb, var(--ink) 30%, transparent); }
+@media (max-width: 639.98px) { .pi-stack { padding: var(--md); } }
+.pi-stack-hd { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ls-within) var(--sm); }
+.pi-stack-k { margin: 0; font-size: var(--ls-meta); line-height: 16px; font-weight: var(--weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.pi-stack-total { margin: 0; font-size: var(--ls-metric); line-height: 1.1; font-weight: var(--weight-bold); letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pi-stack-bar { display: block; }
+.pi-stack-svg { display: block; width: 100%; height: 14px; border-radius: 4px; overflow: hidden; }
+.pi-k-own { fill: var(--s3); background: var(--s3); }
+.pi-k-verified { fill: var(--s1); background: var(--s1); }
+.pi-k-quote { fill: var(--s6); background: var(--s6); }
+.pi-k-estimate { fill: var(--s2); background: var(--s2); }
+.pi-stack-rows { list-style: none; margin: 0; padding: 0; }
+.pi-stack-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; align-items: center; gap: var(--ls-within) var(--sm); padding: 10px 0; border-top: 1px solid var(--line); max-width: none; }
+.pi-sw { display: block; width: 12px; height: 12px; border-radius: 3px; }
+.pi-stack-l { min-width: 0; font-size: var(--ls-support); line-height: 1.4; color: var(--ink); }
+.pi-stack-v { font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pi-stack-row > .kind-badge { justify-self: end; }
+@media (max-width: 479.98px) {
+  .pi-stack-row { grid-template-columns: 12px minmax(0, 1fr) auto; }
+  .pi-stack-row > .kind-badge { grid-column: 2 / -1; justify-self: start; }
+}
+.pi-stack-note { margin: 0; font-size: var(--ls-meta); line-height: 1.5; color: var(--ink-2); }
+.pi-stack-cap { display: flex; flex-direction: column; gap: var(--ls-within); margin: 0; }
+.pi-src { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: var(--ls-meta); line-height: 18px; font-weight: var(--weight-semibold); color: var(--ink); }
+.pi-src-line { margin: 0; font-size: var(--ls-meta); line-height: 1.5; color: var(--ink-2); }
+.pi-link { display: inline-flex; align-items: center; font-size: var(--ls-meta); font-weight: var(--weight-bold); color: var(--brand); text-decoration: underline; text-underline-offset: 3px; border-radius: var(--r-xs); }
+.pi-link:hover { text-decoration-thickness: 2px; }
+.pi-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (pointer: coarse), (max-width: 768px) { .pi-link { min-height: 44px; } }
+/* The tools: action cards, the line above the call. */
+.pi-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md); }
+@media (min-width: 640px) { .pi-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .pi-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.pi-card { padding: var(--md); gap: var(--ls-related); }
+.pi-card > .ls-card-sub { order: 1; margin: 0; font-size: var(--ls-support); line-height: 1.5; }
+.pi-card > .ls-card-act { order: 2; margin: auto 0 0; }
+.pi-saved { font-size: var(--ls-support); }
+/* The routes: a term and its line on a hairline. */
+.pi-route-list { margin: 0; }
+.pi-route { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px var(--md); padding: var(--sm) 0; border-top: 1px solid var(--line); }
+@media (min-width: 640px) { .pi-route { grid-template-columns: 11rem minmax(0, 1fr); } }
+.pi-route > dt { font-size: var(--ls-body); font-weight: var(--weight-semibold); color: var(--ink); }
+.pi-route > dd { margin: 0; font-size: var(--ls-support); line-height: 1.6; color: var(--ink-2); }
+/* What they do not do: each with a mark that says "not". */
+.pi-not-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sm); }
+@media (min-width: 1024px) { .pi-not-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--md) var(--xl); } }
+.pi-not-list > li { position: relative; padding-left: 28px; font-size: var(--ls-support); line-height: 1.6; color: var(--ink-2); }
+.pi-not-list > li::before { content: ""; position: absolute; left: 0; top: .3em; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--bronze); }
+.pi-not-list > li::after { content: ""; position: absolute; left: 1px; top: calc(.3em + 7px); width: 14px; height: 1.5px; background: var(--bronze); transform: rotate(-45deg); }
+.pi-not-list strong { font-weight: var(--weight-semibold); color: var(--ink); }
 /* ---- end layout-system ---- */
 
 /* ---- evidence-classes ---- */
@@ -6703,7 +6795,7 @@ input.au-in[type="text"] { text-align: left; }
       </div>
       <div>
         <h2>Resources</h2>
-        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Glossary</a></li><li><a href="/learn" data-path="/learn">Learn</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Build status</a></li><li><button type="button" class="linklike" data-action="report-error">Report a data error</button></li></ul>
+        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Glossary</a></li><li><a href="/learn" data-path="/learn">Learn</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Build status</a></li><li><a href="/property-investing" data-path="/property-investing">Property investing in Sarawak</a></li><li><button type="button" class="linklike" data-action="report-error">Report a data error</button></li></ul>
       </div>
       <div>
         <h2>Company</h2>
@@ -19628,7 +19720,7 @@ const productTabs = (pid) => TOOLS.filter(t => t.product === pid && t.tab && too
 /* Which chrome a view wears. Everything not listed is a page a reader works
    in. The not-found card is public: a stranger who followed a dead link is
    not in anyone's workspace. */
-const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'plans', 'about', 'contact', 'privacy', 'terms',
+const PUBLIC_VIEWS = new Set(['marketing', 'howItWorks', 'propertyInvesting', 'plans', 'about', 'contact', 'privacy', 'terms',
   'learn', 'boundaries', 'status', 'ips', 'notfound']);
 const chromeOf = (view) => (PUBLIC_VIEWS.has(view) ? 'public' : 'app');
 
@@ -19894,6 +19986,9 @@ const ROUTES = [
      (40-views-discover.js). Until a branch that defines a view is merged,
      its route shows the not-found card (applyRoute), never a blank page. */
   { path: '/how-it-works',        view: 'howItWorks', title: 'How it works' },
+  /* The property landing for search (56-property-investing.js; the owner's
+     decision of 7 Oct 2026): what the property tools do and do not do. */
+  { path: '/property-investing',  view: 'propertyInvesting', title: 'Property investing in Sarawak' },
   { path: '/research/queue',      view: 'researchQueue', title: 'Research queue' },
   { path: '/welcome',             view: 'onboarding',title: 'Get started' },
   { path: '/discover',            view: 'discover',  title: 'Discover' },
@@ -20023,6 +20118,7 @@ const ROUTES = [
 
 const META = {
   marketing: POSITIONING.description,
+  propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
@@ -20832,6 +20928,9 @@ const NAV_MARKUP = {
     : el('span', { class: 'foot-product foot-product-off' }, [p.name, productBadge(p.id)]))),
   footResources: () => [
     ...RESOURCES.filter(r => r.group === 'method' || r.path === '/status').map(r => el('li', {}, shellLink(r.path, {}, r.label))),
+    /* The property landing (/property-investing): one link, the footer's
+       only — not in the header's Resources menu, which it would crowd. */
+    el('li', {}, shellLink('/property-investing', {}, 'Property investing in Sarawak')),
     el('li', {}, el('button', { type: 'button', class: 'linklike', 'data-action': 'report-error' }, 'Report a data error')),
   ],
 };
@@ -22944,7 +23043,10 @@ function startHereSettings() {
    later, one at a time.
    ========================================================================== */
 
-const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home', 'researchHome'];
+/* /property-investing (propertyInvesting, 56-property-investing.js): the
+   property landing for search — the Lab's figure and the cost stack first,
+   the tools as action cards, the disclosure in sight. */
+const LS_VIEWS = ['propertyLab', 'property', 'scannerDashboard', 'home', 'researchHome', 'propertyInvesting'];
 const LS_BP = { tablet: 640, desktop: 1024, wide: 1440 };
 const LS_CARD_TYPES = ['metric', 'action', 'alert', 'insight'];
 const lsOn = (view = State.view) => LS_VIEWS.includes(view);
@@ -33764,7 +33866,10 @@ function pubLabRun(price) {
   d.price = price;
   return price > 0 ? { m: dealModel(d) } : null;
 }
-function pubVisProperty() {
+/* badgeLink: false where every target on the page is held to 44px
+   (/property-investing): the badge is then its word and its note, not a
+   link of its own. */
+function pubVisProperty({ badgeLink = true } = {}) {
   const inp = LAB_INPUT_BY_K.price;
   const base = num0(PROPERTY_DEFAULT_DEAL.price);
   const [lo, hi] = inp.span(base);
@@ -33817,7 +33922,7 @@ function pubVisProperty() {
     figs,
     el('div', { class: 'pub-lab-flow' }, [bars,
       el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rent' }), 'Rent', el('i', { class: 'pub-sw pub-sw-rep' }), 'Repayment', el('i', { class: 'pub-sw pub-sw-cost' }), 'Costs'])]),
-    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-lab-src' }, [kindBadge('illustrative', { fine: 'The sample deal' }), el('span', {}, 'Sample deal — not a real listing')])),
+    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-lab-src' }, [kindBadge('illustrative', { fine: 'The sample deal', link: badgeLink }), el('span', {}, 'Sample deal — not a real listing')])),
   );
   return fig;
 }
@@ -35558,6 +35663,170 @@ VIEWS.notfound = () => {
   return wrap;
 };
 
+/* ==========================================================================
+   PROPERTY INVESTING IN SARAWAK — /property-investing (the owner's decision
+   of 7 Oct 2026 on the marketing proposal: a search-targeted landing page
+   with the live Lab and the real cost stack)
+   --------------------------------------------------------------------------
+   For someone weighing a property purchase in Sarawak who has not yet met
+   the tools. It shows before it explains (the layout system's second
+   rule): the Scenario Lab, compact, on the sample deal, and where the
+   sample's cash required goes, by what it rests on — both drawn by the calculator's
+   own model (dealModel) and the fee rulebook, never typed. Then what the
+   tools do, the decision layer's four routes in a line each, and what the
+   tools do not do. One primary action, into the Lab (/property); the
+   calculator as the lower-friction second.
+
+   WHAT IT MAY SAY. Only what ships: the tools and the figures the page
+   draws. No testimonial, statistic, client, outcome or claim of accuracy;
+   no ranking word; no paid call to action; nothing collected and nothing
+   measured (no tracking). The disclosures stay in sight — not advice, not
+   an official valuation, the sample not a real listing — and the four
+   things the tools do not do have a section of their own. wording-check
+   holds this module and its render to that.
+
+   It reads nothing a browser keeps — the sample deal only — so the page
+   served is the page drawn, for every reader.
+   ========================================================================== */
+
+/* The sample's cash required (dealModel's ledger, ledgerSplit's lines), by
+   what each line rests on, the reader's own money first: the deposit, the
+   renovation and the reserve. */
+const PI_ROW = {
+  own: 'Deposit, renovation and reserve',
+  verified: 'Duties and fees computed from a cited rule',
+  quote: 'Quotations you entered',
+  estimate: 'Estimated lines',
+};
+const piRound = (v) => Math.round(v * 1e4) / 1e4;
+function piCashStack() {
+  const m = dealModel(pmCopy(PROPERTY_DEFAULT_DEAL));
+  const s = m.ledgerSplit || { kinds: {} };
+  /* By what each line rests on, not by its ledger kind: a kind mixes a
+     verified duty with an estimated fee charged on it, and its badge could
+     only be the weaker. The rows: the sample's own money; the lines
+     computed from a cited rule (Verified, the D6 badge Derived); a
+     quotation; and the estimates (Placeholder) — the amount the note under
+     them names line by line. */
+  const all = Object.values(s.kinds || {}).flatMap(x => x.lines || []);
+  const by = (k) => all.filter(l => (k === 'own' ? !l.provenance
+    : k === 'verified' ? l.provenance === 'verified'
+    : k === 'quote' ? l.provenance === 'quote'
+    : l.provenance === 'estimated' || l.provenance === 'unknown'));
+  const rows = ['own', 'verified', 'quote', 'estimate'].map(k => { const lines = by(k); return { k, lines, total: lines.reduce((t, l) => t + (isNum(l.amount) ? l.amount : 0), 0) }; })
+    .filter(r => r.lines.length && r.total > 0);
+  const sum = rows.reduce((t, r) => t + r.total, 0);
+  const total = isNum(m.safeCashRequired) ? m.safeCashRequired : sum;
+  /* A row's badge: the sample's own figures are Illustrative; a fee kind
+     wears the weakest of its lines' (KIND_OF_FEE: Verified lines are
+     Derived — arithmetic on the cited rule — and an estimate a Placeholder). */
+  const badgeOf = (r) => (r.k === 'own'
+    ? kindBadge('illustrative', { fine: 'The sample deal’s own figures', link: false })
+    : kindBadge(kindFirst(r.lines.map(l => KIND_OF_FEE[l.provenance] || 'illustrative')) || 'illustrative', { fine: PI_ROW[r.k], link: false }));
+  const labelOf = (r) => PI_ROW[r.k];
+  /* The bar: each kind's share of the total, its x and width rounded to
+     1e-4 so every browser draws the same served markup. */
+  let x = 0;
+  const rects = rows.map(r => {
+    const w = sum > 0 ? r.total / sum * 100 : 0;
+    const out = `<rect class="pi-seg pi-k-${r.k}" x="${piRound(x)}" y="0" width="${piRound(w)}" height="10" data-v="${Math.round(r.total)}"/>`;
+    x += w;
+    return out;
+  }).join('');
+  const fig = el('figure', { class: 'pi-stack', 'aria-labelledby': 'pi-stack-cap' });
+  fig.append(el('div', { class: 'pi-stack-hd' }, [
+    el('p', { class: 'pi-stack-k' }, 'Cash required'),
+    el('p', { class: 'pi-stack-total num', 'data-v': String(Math.round(total)) }, fmtMoney(total, 'MYR', 0)),
+  ]));
+  fig.append(el('span', { class: 'pi-stack-bar', html: `<svg class="pi-stack-svg" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="${esc(`The sample deal’s cash required, ${fmtMoney(total, 'MYR', 0)}: ${rows.map(r => `${labelOf(r).toLowerCase()} ${fmtMoney(r.total, 'MYR', 0)}`).join('; ')}.`)}">${rects}</svg>` }));
+  fig.append(el('ul', { class: 'pi-stack-rows' }, rows.map(r => el('li', { class: 'pi-stack-row', 'data-kind': r.k }, [
+    el('i', { class: `pi-sw pi-k-${r.k}`, 'aria-hidden': 'true' }),
+    el('span', { class: 'pi-stack-l' }, labelOf(r)),
+    el('span', { class: 'pi-stack-v num' }, fmtMoney(r.total, 'MYR', 0)),
+    badgeOf(r),
+  ]))));
+  const uncertain = (m.unconfirmedLines || []).length
+    ? `${fmtMoney(m.unconfirmedCost, 'MYR', 0)} of it rests on estimated lines: ${feeUncertainWords(m, (v) => fmtMoney(v, 'MYR', 0))}.`
+    : null;
+  if (uncertain) fig.append(el('p', { class: 'pi-stack-note' }, uncertain));
+  fig.append(el('figcaption', { class: 'pi-stack-cap', id: 'pi-stack-cap' }, [
+    el('p', { class: 'pi-src' }, [kindBadge('illustrative', { fine: 'The sample deal', link: false }), el('span', {}, 'Sample deal — not a real listing')]),
+    el('p', { class: 'pi-src-line' }, [`Fees from the fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. `,
+      el('a', { class: 'pi-link', href: href('/data-sources#fee-rulebook') }, 'Each line’s source')]),
+  ]));
+  return fig;
+}
+
+/* The tools, one action card each (the layout system's action card: a
+   title, one line, one call to action), in the product's tab order. */
+const PI_TOOLS = [
+  { title: 'Scenario Lab', line: 'Move price, deposit, rate, rent and renovation; up to three scenarios side by side, nothing ranked.', cta: 'Open the Lab', path: '/property' },
+  { title: 'Calculator', line: 'Cash required, monthly cash flow, yield and break-even rent, each fee line marked Verified or Estimated with its source.', cta: 'Open the calculator', path: '/property/calculator' },
+  { title: 'Comparables register', line: 'Record a transacted price or an achieved rent with what it rests on, then use it in a scenario.', cta: 'Record a comparable', path: '/property/comparables' },
+  { title: 'Area screen', line: 'The localities of a town, shaded by what you have recorded; an area with no record stays hollow.', cta: 'Screen a town', path: '/property/areas' },
+];
+/* The decision layer's routes (83-property-decision.js, P2–P5): what the
+   figures add on each, in a line. */
+const PI_ROUTES = [
+  ['Subsale', 'The gap between the asking price and the value your named comparables imply, and the highest price at which your target is met.'],
+  ['Auction', 'The effective acquisition cost, the true discount and the forfeiture exposure, from the Proclamation’s terms you enter — none assumed.'],
+  ['New development', 'The developer’s premium over your comparable, interest during construction from your drawdown schedule, and the cash flow from vacant possession.'],
+  ['Commercial', 'Four rents kept apart, never blended; the rent tested against your comparables; and 3, 6, 12 and 18 months vacant from the lease’s expiry.'],
+];
+/* What the tools do not do — each a sentence the page owes the reader. */
+const PI_NOT = [
+  ['Value a property.', 'That is a registered valuer’s work; these tools show what your figures imply.'],
+  ['Hold licensed market data.', 'No licensed transactions or listings ship here: the comparables are the ones you record, and the sample projects are synthetic.'],
+  ['Give figures for a named building.', 'Nothing is shown or estimated building by building.'],
+  ['Advise.', 'Nothing is recommended or ranked; check what applies to you with a lawyer, your lender and a tax adviser.'],
+];
+
+VIEWS.propertyInvesting = () => {
+  const wrap = el('div', { class: 'pub pi ls-page' });
+
+  /* -- the hero: the question, one action, the disclosure; the Lab beside -- */
+  const hero = el('section', { class: 'pi-hero', 'aria-labelledby': 'pi-h1' });
+  hero.append(el('div', { class: 'pi-hero-text' }, [
+    el('p', { class: 'pi-kicker' }, 'Property investing · Sarawak'),
+    el('h1', { class: 'pi-h1', id: 'pi-h1' }, 'Work out a Sarawak property before you buy'),
+    el('p', { class: 'pi-lede' }, 'The cash it needs, what each month leaves after the loan, and up to three scenarios side by side — from the figures you enter.'),
+    el('div', { class: 'pi-ctas' }, [
+      pubLink('/property', { class: 'btn btn-primary pub-btn pi-cta-primary' }, 'Open the Scenario Lab', pubArrow()),
+      pubLink('/property/calculator', { class: 'pub-textlink pi-cta-second' }, 'Or start in the calculator', pubArrow()),
+    ]),
+    el('div', { class: 'ls-disclosure pi-disclosure' }, el('p', {}, 'Arithmetic on your figures — not advice, and not an official property valuation.')),
+  ]));
+  hero.append(el('div', { class: 'pi-hero-fig' }, pubVisProperty({ badgeLink: false })));
+  wrap.append(hero);
+
+  /* -- the cost stack ------------------------------------------------------ */
+  const cash = el('section', { class: 'pi-section pi-cash', id: 'pi-cash', 'aria-labelledby': 'pi-cash-h' });
+  cash.append(el('h2', { class: 'pi-h2', id: 'pi-cash-h' }, 'Where the cash required goes'));
+  cash.append(el('p', { class: 'pi-body' }, `The sample deal’s cash required, by what each part rests on, from the calculator’s model and the fee rulebook ${FEE_TABLE.version}.`));
+  cash.append(piCashStack());
+  wrap.append(cash);
+
+  /* -- what the tools do ---------------------------------------------------- */
+  const tools = el('section', { class: 'pi-section pi-tools', id: 'pi-tools', 'aria-labelledby': 'pi-tools-h' });
+  tools.append(el('h2', { class: 'pi-h2', id: 'pi-tools-h' }, 'What the tools do'));
+  tools.append(el('div', { class: 'pi-cards' }, PI_TOOLS.map(t => lsActionCard({ title: t.title, line: t.line, cta: lsCta(t.cta, { path: t.path }), cls: 'pi-card' }))));
+  tools.append(el('p', { class: 'pi-body pi-saved' }, 'What you save stays in this browser — no account.'));
+  wrap.append(tools);
+
+  /* -- the decision layer --------------------------------------------------- */
+  const routes = el('section', { class: 'pi-section pi-routes', id: 'pi-routes', 'aria-labelledby': 'pi-routes-h' });
+  routes.append(el('h2', { class: 'pi-h2', id: 'pi-routes-h' }, 'Say what you are buying, and how'));
+  routes.append(el('p', { class: 'pi-body' }, 'Two questions start the Lab and the calculator: residential, commercial or land; subsale, auction or new development. The figures that follow are the route’s own.'));
+  routes.append(el('dl', { class: 'pi-route-list' }, PI_ROUTES.map(([k, v]) => el('div', { class: 'pi-route' }, [el('dt', {}, k), el('dd', {}, v)]))));
+  wrap.append(routes);
+
+  /* -- what they do not do -------------------------------------------------- */
+  const not = el('section', { class: 'pi-section pi-not', id: 'pi-not', 'aria-labelledby': 'pi-not-h' });
+  not.append(el('h2', { class: 'pi-h2', id: 'pi-not-h' }, 'What they do not do'));
+  not.append(el('ul', { class: 'pi-not-list' }, PI_NOT.map(([k, v]) => el('li', {}, [el('strong', {}, k), ' ', v]))));
+  wrap.append(not);
+  return wrap;
+};
 /* ==========================================================================
    RESEARCH WORKSPACE — everything saved, in one place, with its stamp
 
@@ -64323,6 +64592,7 @@ VIEWS.status = () => {
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'Nothing here is removed when it cannot yet work. It is labelled, and the thing blocking it is named — a capability with no stated gate and no owner is a promise, not a plan.'),
   ])));
+  wrap.append(statusPropertySection());   /* Property's model and market data on two lines (N2d): 91-health.js */
   wrap.append(healthSection());   /* Does each tool work? — and what proves each Live badge (D15): 91-health.js */
 
   const key = el('div', { class: 'card' });
@@ -64855,12 +65125,13 @@ const HEALTH_JOURNEYS_FILE = 'health/journeys.json';
 const journeysServed = (function journeysServed(doc) {
   const REPO = 'https://github.com/georgewong1014-pixel/quantum-tradeworks';
   const LINES = { '/property': 'property', '/research': 'equities', '/app/scanner': 'scanner' };
+  const MODEL = [['property', 'property journey'], ['lab', 'Scenario Lab journey']];
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const STATE = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'] };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const two = (n) => (n < 10 ? '0' : '') + n;
   const empty = { recorded: false, sum: 'Not run yet. No run of the journeys has been recorded for this site, so there is no result to show.', list: '', lines: {},
-    proof: () => 'No recorded run to show.' };
+    proof: () => 'No recorded run to show.', model: 'no recorded run to show' };
   Object.keys(LINES).forEach(k => { empty.lines[k] = ''; });
   const at = doc && typeof doc.ranAt === 'string' ? new Date(doc.ranAt) : null;
   const list = doc && Array.isArray(doc.journeys) ? doc.journeys.filter(j => j && typeof j.id === 'string' && typeof j.name === 'string' && STATE[j.status]) : [];
@@ -64919,7 +65190,18 @@ const journeysServed = (function journeysServed(doc) {
       + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '') + ' · ' + said + ' · ' + day + ' ' + at.getUTCFullYear() + ', ' + time
       + ' · <a class="journey-line-link" href="#' + idOf(j) + '">details</a>';
   };
-  return { recorded: true, sum, list: items, lines, proof };
+  /* PROPERTY'S MODEL LINE (N2d). Each property journey the run recorded,
+     by its result — a failure with its step — then the run's time and
+     commit; a journey the run did not include is left out, and a run with
+     neither says so. */
+  const ran = MODEL.map(([id, name]) => [list.find(x => x.id === id), name]).filter(([j]) => j);
+  const model = ran.length
+    ? ran.map(([j, name]) => name + ' <span class="proof-status" data-status="' + j.status + '">' + j.status + '</span>'
+        + (j.status === 'FAIL' ? ' at “' + esc(j.failedStep) + '”' : '')).join(' · ')
+      + ' · ' + day + ' ' + at.getUTCFullYear() + ', ' + time + (sha ? ' · ' + sha : '')
+      + ' · <a class="journey-line-link" href="#' + idOf(ran[0][0]) + '">details</a>'
+    : 'no property journey in the last recorded run';
+  return { recorded: true, sum, list: items, lines, proof, model };
 });
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
@@ -65225,7 +65507,7 @@ function healthReadJourneys() {
   if (now - HEALTH.journeysAt <= HEALTH_RERUN_MS) return;
   HEALTH.journeysAt = now;
   HEALTH.journeys = null;
-  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); });
+  healthLoadJourneys().then(r => { HEALTH.journeys = r; healthPaint(); journeyLinesPaint(); proofSlotsPaint(); statusModelPaint(); });
 }
 
 /* ---- drawing ---- */
@@ -65457,6 +65739,58 @@ function proofSection() {
   return card;
 }
 
+/* PROPERTY ON TWO LINES (N2d, the 5 Oct audit; the owner's decision D17).
+   "Live" beside Property read as live market data. The badge is the
+   model's: every figure is worked out from what the reader enters. So
+   /status says it on two lines, above "Does each tool work?":
+     Model: Live — the property journeys' last recorded results, the run's
+       time and commit (journeysServed's model), served by the build from
+       the committed record into a slot drawn empty here with data-now,
+       kept as served until this tab's own read of the record returns, then
+       drawn from it with the same function — the proof slots' way, so the
+       served line and the drawn one are one text and take the same lines;
+     Market data: Data Gated — the register's own label (FEATURE_STATUS),
+       and what is gated: no licensed transactions or listings, and the
+       sample projects are synthetic. */
+function statusModelNode() {
+  const span = el('span', { class: 'status-model-result', 'data-now': '' });
+  const J = HEALTH.journeys;
+  if (J) span.innerHTML = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).model;
+  else {
+    const was = document.querySelector('#views .status-model-result');
+    if (was && was.textContent.trim()) span.innerHTML = was.innerHTML;
+  }
+  return span;
+}
+function statusModelPaint() {
+  const J = HEALTH.journeys;
+  if (!J) return;
+  const html = (J.state === 'ok' ? journeysServed(J.doc) : journeysServed(null)).model;
+  for (const n of document.querySelectorAll('#views .status-model-result')) if (n.innerHTML !== html) n.innerHTML = html;
+}
+function statusPropertySection() {
+  healthReadJourneys();
+  const p = productById('property');
+  const gated = FEATURE_STATUS.find(s => s.id === 'data-gated');
+  const box = el('section', { class: 'card status-property', id: 'status-property', 'aria-labelledby': 'status-property-h' });
+  box.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'status-property-h' }, p ? p.name : 'Property Intelligence'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
+      'Its Live badge is the model’s: every figure is worked out from what you enter. The market data is a separate matter.'),
+  ])));
+  box.append(el('dl', { class: 'status-split' }, [
+    el('div', { class: 'status-split-row', 'data-split': 'model' }, [
+      el('dt', {}, 'Model:'),
+      el('dd', {}, [el('span', { class: 'status-badge status-live' }, PRODUCT_STATUS.live), ' — ', statusModelNode()]),
+    ]),
+    el('div', { class: 'status-split-row', 'data-split': 'market' }, [
+      el('dt', {}, 'Market data:'),
+      el('dd', {}, [el('span', { class: 'chip status-gated', title: gated?.note || null }, gated?.label || 'Data Gated'), ' — no licensed transactions or listings; the sample projects are synthetic']),
+    ]),
+  ]));
+  return box;
+}
+
 function healthSection() {
   healthStart();
   const card = el('section', { class: 'card', id: 'health', 'aria-labelledby': 'health-h' });
@@ -65481,6 +65815,19 @@ function healthSection() {
     sum.querySelector('.journeys-age')?.remove();
     HEALTH.kept = sum;
     jlist.innerHTML = wasList.innerHTML;
+  } else if (HEALTH.journeys?.state === 'ok') {
+    /* DRAWN AGAIN WITH THE RECORD ALREADY READ (10 Oct 2026): the page is
+       drawn a second time when the filings land, and by then the record has
+       usually been read. The list was drawn empty and filled a frame later
+       (healthPaint, below): for one frame every row under it — "What proves
+       each Live badge" first — stood 5,000px higher, a layout shift of 0.10
+       under a reader scrolled to Property's two lines at 390. Drawn from
+       the record at once, by the same function. */
+    const out = journeysServed(HEALTH.journeys.doc);
+    sum.innerHTML = out.sum;
+    const age = Date.now() - Date.parse(HEALTH.journeys.doc.ranAt);
+    if (age > HEALTH_STALE_MS) sum.append(el('span', { class: 'journeys-age' }, ` · recorded ${Math.floor(age / 3600000)} hours ago: runs are recorded at least twice a day, so the scheduled runs may not have run since.`));
+    jlist.innerHTML = out.list;
   }
   card.append(sum, jlist);
   card.append(proofSection());

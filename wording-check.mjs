@@ -404,6 +404,42 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 }
 /* ---- end scenario-lab ---- */
 
+/* ---- property-investing ---- */
+/* THE PROPERTY LANDING MAKES NO MARKETING CLAIM (the owner's decision of
+   7 Oct 2026: /property-investing is approved as a page about what ships;
+   no testimonials, statistics, accuracy or outcome claims, no "best" or
+   "guaranteed", no paid call to action). In its module's text — comments
+   left out — and in its render, no such word is used as a claim: only in a
+   sentence that denies it ("Nothing is recommended or ranked"). Absent, the
+   module is said to be. */
+{
+  const PI_BANNED = /\b(best|guarantee[ds]?|recommend\w*|top picks?|winners?|outperform\w*|accura(?:te|cy)|proven|trusted|testimonials?|risk[- ]free|number one|forecasts?|bargains?|undervalued|upgrade|buy now|sign up|subscribe)\b|#1\b/gi;
+  const PI_DENIAL = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing|never`, 'i');
+  let src = null, render = null;
+  try { src = readFileSync(join(ROOT, 'src', 'js', '56-property-investing.js'), 'utf8'); } catch { src = null; }
+  try { render = readFileSync(join(ROOT, 'prerender', 'property-investing.html'), 'utf8'); } catch { render = null; }
+  if (src === null || render === null) {
+    bad++;
+    console.error(`FAIL  the property landing ${src === null ? 'module (src/js/56-property-investing.js)' : 'render (prerender/property-investing.html)'} is missing, so its words cannot be checked`);
+  } else {
+    let piBad = 0, piSeen = 0;
+    const renderText = render.replace(/<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]*>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+    for (const [where, text] of [['56-property-investing.js', uncommented(src)], ['prerender/property-investing.html', renderText]]) {
+      for (const m of text.matchAll(PI_BANNED)) {
+        piSeen++;
+        const s = sentenceAt(text, m.index, m[0].length);
+        if (PI_DENIAL.test(s)) continue;
+        piBad++;
+        console.error(`FAIL  "${m[0]}" used as a claim in ${where}`);
+        console.error(`      “${s.slice(0, 220)}”`);
+      }
+    }
+    bad += piBad;
+    if (!piBad) console.log(`ok    the property landing (/property-investing) makes no marketing claim — no "best", "guaranteed", "recommend", accuracy, testimonial, forecast or paid call to action in its module or its render; ${piSeen} use${piSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
+  }
+}
+/* ---- end property-investing ---- */
+
 /* ---- positioning ---- */
 /* ONE SOURCE FOR THE POSITIONING COPY (plan item 3.5, 2026-10-07). What the
    site says it is — the title, the kicker, the lede, the one-liner and the

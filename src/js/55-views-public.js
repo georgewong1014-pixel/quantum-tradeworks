@@ -180,7 +180,10 @@ function pubLabRun(price) {
   d.price = price;
   return price > 0 ? { m: dealModel(d) } : null;
 }
-function pubVisProperty() {
+/* badgeLink: false where every target on the page is held to 44px
+   (/property-investing): the badge is then its word and its note, not a
+   link of its own. */
+function pubVisProperty({ badgeLink = true } = {}) {
   const inp = LAB_INPUT_BY_K.price;
   const base = num0(PROPERTY_DEFAULT_DEAL.price);
   const [lo, hi] = inp.span(base);
@@ -233,7 +236,7 @@ function pubVisProperty() {
     figs,
     el('div', { class: 'pub-lab-flow' }, [bars,
       el('p', { class: 'pub-vis-legend', 'aria-hidden': 'true' }, [el('i', { class: 'pub-sw pub-sw-rent' }), 'Rent', el('i', { class: 'pub-sw pub-sw-rep' }), 'Repayment', el('i', { class: 'pub-sw pub-sw-cost' }), 'Costs'])]),
-    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-lab-src' }, [kindBadge('illustrative', { fine: 'The sample deal' }), el('span', {}, 'Sample deal — not a real listing')])),
+    el('figcaption', { class: 'pub-vis-cap' }, el('p', { class: 'pub-vis-src', id: 'pub-vis-lab-src' }, [kindBadge('illustrative', { fine: 'The sample deal', link: badgeLink }), el('span', {}, 'Sample deal — not a real listing')])),
   );
   return fig;
 }

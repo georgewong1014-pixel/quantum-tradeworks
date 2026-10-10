@@ -974,6 +974,9 @@ try {
         say('first', !hiddenFresh.length, `a fresh visitor in Kuala Lumpur was not shown ${hiddenFresh.join(', ')}`);
 
         /* 2. The scrolled reader. */
+        /* /status at 390, scrolled so the window's top is at Property's
+           two lines (N2d; statusPropertySection, 91-health.js). */
+        const N2D_SCROLL = 380;
         const ANCHOR = `(() => { const v = document.getElementById('views'), w = document.createTreeWalker(v, NodeFilter.SHOW_TEXT); const seen = new Map(); let best = null;
           for (let n = w.nextNode(); n; n = w.nextNode()) { const t = n.data.replace(/\\s+/g, ' ').trim(); if (t.length < 6 || n.parentElement.closest('svg, [data-now]')) continue;
             const k = seen.get(t) || 0; seen.set(t, k + 1); const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect();
@@ -996,7 +999,11 @@ try {
            has and whose widths are DejaVu's kin, put the reader on such a
            row too, and fails the same way on b907f00; so /status is held in
            it as well (fontScript, prerender.mjs, from the first frame). */
+        /* And on Property's two lines (N2d, 10 Oct 2026): at 390 a reader
+           scrolled to them, the model line's recorded result wrapping over
+           three lines, in the page's font and in Verdana. */
         for (const [path, metrics, at, face = null] of [['/status', W1280, 0.5], ['/status', W390, 0.5], ['/status', W1280, 0.5, 'Verdana'], ['/status', W390, 0.5, 'Verdana'],
+          ['/status', W390, N2D_SCROLL], ['/status', W390, N2D_SCROLL, 'Verdana'],
           ['/property/calculator', W1280, 0.5], ['/property/calculator', W390, 0.3],
           ['/discover/screener', W390, 1618], ['/discover/screener', W1280, 0.5], ['/app', W1280, 0.6], ['/pricing', W390, 0.5], ['/research/queue', W1280, 0.5]]) {
           await size(metrics);
@@ -1371,10 +1378,10 @@ try {
       const W1280 = { ...P.VIEWPORT, deviceScaleFactor: 1, mobile: false }, W390 = { width: 390, height: 844, deviceScaleFactor: 1, mobile: true };
       const BLOCK = `(() => { const box = (n) => { if (!n) return null; const r = n.getBoundingClientRect(); return [Math.round(r.top + scrollY), Math.round(r.height)]; };
         const s = document.getElementById('health-journeys-sum'), l = document.getElementById('health-journeys'), lines = [...document.querySelectorAll('#views .journey-line')];
-        const pr = document.getElementById('health-proofs');
+        const pr = document.getElementById('health-proofs'), md = document.querySelector('#views .status-model-result');
         const html = (n) => (n ? n.innerHTML.replace(/<span class="journeys-age">[\\s\\S]*?<\\/span>/, '') : null);
         return { sum: html(s), list: html(l), line: html(lines[0]), lines: lines.length, sumBox: box(s), listBox: box(l), lineBox: box(lines[0]),
-          proofs: html(pr), proofsBox: box(pr),
+          proofs: html(pr), proofsBox: box(pr), model: html(md), modelBox: box(md && md.closest('.status-split-row')),
           next: box(document.querySelector('#views h1')), served: document.getElementById('views').hasAttribute('data-served'),
           read: typeof HEALTH !== 'undefined' && !!HEALTH.journeys }; })()`;
       const near = (a, b) => (a === null && b === null) || (!!a && !!b && Math.abs(a[0] - b[0]) <= 2 && Math.abs(a[1] - b[1]) <= 2);
@@ -1393,6 +1400,8 @@ try {
             /* Each Live badge's last result (D15, plan item 2.6), served
                from the record like the list above it. */
             if (!/<span class="proof-result"[^>]*>[^<]*<span class="proof-status"/.test(served.proofs || '')) { said.push(`${at}: served with no Live badge's last result: ${JSON.stringify((served.proofs || '').replace(/<[^>]*>/g, ' ').slice(0, 90))}`); continue; }
+            /* Property's model line (N2d), served from the record too. */
+            if (!/^property journey /.test((served.model || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no property journey on Property's model line: ${JSON.stringify((served.model || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
           } else if (served.lines !== 1 || !/^<span class="journey-line-label">Journey:<\/span> /.test(served.line || '')) { said.push(`${at}: served with no journey line (${served.lines} lines: ${JSON.stringify((served.line || '').slice(0, 80))})`); continue; }
           await releaseScript();
           await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete'`);
@@ -1405,8 +1414,8 @@ try {
           await painted();
           const settled = await value(BLOCK);
           for (const [when, x] of [['when the script drew it, the record still on its way', drawn], ['once the record was read and the page settled', settled]]) {
-            for (const k of path === '/status' ? ['sum', 'list', 'proofs'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
-            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
+            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
+            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
           }
           if (!settled.read) said.push(`${at}: the page never read the record`);
         }
@@ -1416,7 +1425,7 @@ try {
         await releaseAll();
         await send('Emulation.setDeviceMetricsOverride', W1280, sid);
       }
-      const what = 'the recorded journeys stand as served — /status\'s summary, its list and each Live badge\'s last result, and the journey line on /property, /research and /app/scanner — from the first frame, through the script\'s first draw with the record\'s read on its way, to the page settled: the same markup, where it stood, at 1280 and 390';
+      const what = 'the recorded journeys stand as served — /status\'s summary, its list, each Live badge\'s last result and Property\'s model line (N2d), and the journey line on /property, /research and /app/scanner — from the first frame, through the script\'s first draw with the record\'s read on its way, to the page settled: the same markup, where it stood, at 1280 and 390';
       if (said.length) { bad.push('journeys-served'); console.log(`FAIL ${what}`); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
       else console.log(`ok   ${what}`);
     }

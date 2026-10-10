@@ -13,6 +13,10 @@
       "destination": "/pages/how-it-works.html"
     },
     {
+      "source": "/property-investing",
+      "destination": "/pages/property-investing.html"
+    },
+    {
       "source": "/research/queue",
       "destination": "/pages/research/queue.html"
     },
@@ -1502,7 +1506,7 @@
       ]
     },
     {
-      "source": "/assets/app.c6b87b634513.js",
+      "source": "/assets/app.c7ea1d58e50b.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1519,7 +1523,7 @@
       ]
     },
     {
-      "source": "/assets/app.9c4bcfa9fc0b.css",
+      "source": "/assets/app.6fbc15e069d3.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1536,7 +1540,7 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.c6b87b634513\\.js$|assets/app\\.9c4bcfa9fc0b\\.css$).*)",
+      "source": "/((?!data/|assets/app\\.c7ea1d58e50b\\.js$|assets/app\\.6fbc15e069d3\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1544,7 +1548,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-xrh7Y0UT4aUpib9IJzAD9Y7X/+k8F2fNcD6DDD8Rvww=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-x+odWOULmQZm5MhZahOi4HSoZnB+zBPSoPS8K0B8PTI=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

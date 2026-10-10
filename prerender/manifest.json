@@ -4854,6 +4854,33 @@
       "digest": "811f465a32f70911",
       "changed": "2026-10-06"
     },
+    "pages/property-investing.html": {
+      "path": "/property-investing",
+      "view": "propertyInvesting",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Work out a Sarawak property before you buy",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 0,
+        "fields": 1,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "2c078345fa303704",
+      "changed": "2026-10-10"
+    },
     "pages/property.html": {
       "path": "/property",
       "view": "propertyLab",
@@ -5195,11 +5222,11 @@
         "forms": 0,
         "removed": 0,
         "notShown": 0,
-        "now": 29,
+        "now": 30,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "49cccdfc43ea3f78",
+      "digest": "01923136d5659f32",
       "changed": "2026-10-10"
     },
     "pages/terms.html": {

@@ -50,6 +50,7 @@ page of its own, with the company's own head (see Company pages, below).
 | `/` | marketing | public | — (public header) | canonical |
 | `/app` | home | app | My Dashboard (workspace) | canonical |
 | `/how-it-works` | howItWorks | public | — (public header) | canonical |
+| `/property-investing` | propertyInvesting | public | — (the footer's Resources) | canonical |
 | `/research/queue` | researchQueue | app | Equities Research (product) | canonical |
 | `/welcome` | onboarding | app | My Dashboard (reached from its "Other ways in") | canonical |
 | `/discover` | discover | app | Equities Research (product) | the tab on screen: `/discover/screener` with no `?tab=`, else `/discover?tab=<tab>` |
@@ -206,7 +207,7 @@ built, so that one address now has a page of its own.
 ## Sitemap
 
 `sitemap.xml` lists canonical, crawlable pages only: `/`, `/how-it-works`,
-`/research/queue`, `/property`, `/property/calculator`, `/property/opportunities`,
+`/research/queue`, `/property`, `/property/calculator`, `/property-investing`, `/property/opportunities`,
 `/property/comparables`, `/research`, `/research/trading-index`,
 `/us-options/wheel`, `/discover/screener`, `/discover/value-map`,
 `/discover/sarawak`, `/compare`, `/methodology`, `/learn/glossary`,

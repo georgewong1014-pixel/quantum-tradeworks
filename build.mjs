@@ -1097,6 +1097,9 @@ export function withServedRecord(r, served) {
   if (r.path === '/status') {
     put(/(<p class="metaline" id="health-journeys-sum"[^>]*>)[^<]*(<\/p>)/, served.sum, '#health-journeys-sum');
     put(/(<ul id="health-journeys" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.list, 'an empty #health-journeys marked data-now');
+    /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):
+       the property journeys' last recorded results, time and commit. */
+    put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, served.model, 'an empty .status-model-result marked data-now');
     /* Each Live badge's last result (D15, plan item 2.6; proofSection,
        91-health.js): every .proof-result slot, drawn empty and marked
        data-now, gets journeysServed's proof for the journey and the step

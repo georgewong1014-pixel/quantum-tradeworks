@@ -85,7 +85,9 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                 '/property/lab', '/property/lab?by=location',
                 /* Property's landing, the Lab with its identity line and four
                    tiles over the sliders (N3, D18). */
-                '/property'];
+                '/property',
+                /* The property landing for search (10 Oct 2026). */
+                '/property-investing'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -4133,6 +4135,83 @@ for (const w of [360, 390]) {
   else console.log(`ok   d12-workspace: /app at 360, 390 and 430, in the page's font and in Verdana, as a first visit and as a returning reader (${said.pages} pages) — nothing scrolls sideways; all ${said.targets} controls 44px each way; a picture on each of the four steps and no digit on a first visit; the returning reader's five counts before any step`);
 }
 /* ---- end d12-workspace ---- */
+
+/* ---- property-investing ---- */
+/* THE PROPERTY LANDING ON A PHONE (/property-investing, 56-property-
+   investing.js). At 360, 390 and 430, in the page's font and in Verdana
+   (CI's Linux sans is as wide), drawn by the script and as served with it
+   off:
+     - the page does not scroll sideways, and no block of it is wider than
+       the window;
+     - every control in the page — the two calls to action, each card's,
+       the price knob, the link to the rulebook's sources — is a 44px
+       target on both axes, the badges being words, not links;
+     - the primary call to action, "Open the Scenario Lab", is on the first
+       screen, and the disclosure is beside it, in sight. */
+{
+  const fails = [], said = { pages: 0, targets: 0 };
+  const PATH = '/property-investing';
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (script) => {
+    await send('Emulation.setScriptExecutionDisabled', { value: !script }, sessionId);
+    if (script) await ev('window.__pim = 1').catch(() => {});
+    await send('Page.navigate', { url: BASE + PATH }, sessionId);
+    for (let i = 0; i < 100; i++) {
+      await sleep(200);
+      try {
+        if (await ev(script ? `!window.__pim && document.readyState === 'complete' && typeof State !== 'undefined' && State.view === 'propertyInvesting'`
+          : `document.readyState === 'complete' && !!document.querySelector('#views h1')`)) break;
+      } catch { /* loading */ }
+    }
+    await sleep(400);
+  };
+  /* No requestAnimationFrame to wait on: with the page's script off, no
+     frame callback runs, and the wait never returned. */
+  const face = async (font) => { if (!font) return; await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`); await sleep(250); };
+  const PROBE = `(() => {
+    const W = innerWidth, views = document.getElementById('views');
+    const over = document.documentElement.scrollWidth - W;
+    const wide = [...views.querySelectorAll('*')].filter(n => { const b = n.getBoundingClientRect(); return b.width > 0 && (b.right > W + 1 || b.left < -1); })
+      .filter(n => { for (let p = n.parentElement; p && p !== views; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll') return false; } return true; })
+      .slice(0, 3).map(n => n.tagName.toLowerCase() + '.' + String(n.className?.baseVal ?? n.className).split(' ')[0]);
+    const ctl = [...views.querySelectorAll('a[href], button, summary, input, select, [data-inert]')].filter(n => n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden');
+    const small = ctl.filter(n => { const b = n.getBoundingClientRect(); return Math.min(b.width, b.height) < 43.5; })
+      .map(n => { const b = n.getBoundingClientRect(); return n.tagName.toLowerCase() + '.' + String(n.className).split(' ')[0] + ' ' + Math.round(b.width) + '×' + Math.round(b.height) + ' “' + n.textContent.trim().slice(0, 24) + '”'; });
+    const cta = views.querySelector('a.pi-cta-primary'), disc = views.querySelector('.pi-disclosure');
+    const cb = cta ? cta.getBoundingClientRect() : null, db = disc ? disc.getBoundingClientRect() : null;
+    return { over, wide, n: ctl.length, small, cta: !!cb && cb.top >= 0 && cb.bottom <= innerHeight, ctaText: cta ? cta.textContent.trim() : null,
+      disc: !!db && db.height > 0 && getComputedStyle(disc).visibility !== 'hidden', h1: views.querySelector('h1')?.textContent.trim() || null };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const w of [360, 390, 430]) for (const font of [null, 'Verdana, sans-serif']) for (const script of [true, false]) {
+      const h = w === 360 ? 640 : w === 390 ? 844 : 932;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      const at = `${w}×${h} ${PATH}${font ? ' in Verdana' : ''}${script ? '' : ', the script off'}`;
+      await load(script);
+      await face(font);
+      const r = await ev(PROBE);
+      said.pages++; said.targets += r.n;
+      if (r.h1 !== 'Work out a Sarawak property before you buy') fails.push(`${at}: its h1 is ${JSON.stringify(r.h1)}`);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.wide.length) fails.push(`${at}: wider than the window: ${r.wide.join(', ')}`);
+      if (script && r.small.length) fails.push(`${at}: ${r.small.length} of ${r.n} controls under 44px: ${r.small.slice(0, 5).join('; ')}`);
+      if (!r.cta || r.ctaText !== 'Open the Scenario Lab') fails.push(`${at}: the primary call to action ${r.ctaText ? `"${r.ctaText}" is not on the first screen` : 'is missing'}`);
+      if (!r.disc) fails.push(`${at}: the disclosure beside the call to action is not in sight`);
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setScriptExecutionDisabled', { value: false }, sessionId).catch(() => {});
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL property-investing — ${PATH} on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   property-investing: ${PATH} at 360, 390 and 430, in the page's font and in Verdana, drawn and with the script off (${said.pages} pages) — nothing scrolls sideways or runs past the window; all ${said.targets} controls drawn 44px each way; "Open the Scenario Lab" on the first screen with the disclosure beside it`);
+}
+/* ---- end property-investing ---- */
 
 
 } catch (e) {
