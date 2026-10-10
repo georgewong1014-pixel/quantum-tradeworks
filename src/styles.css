@@ -6450,3 +6450,92 @@ input.au-in[type="text"] { text-align: left; }
   .dash-tile.ls-card:hover { transform: none; }
 }
 /* ---- end d12: workspace ---- */
+/* ---- p6-compare ---- */
+/* ACROSS ROUTES AND ASSETS (the property decision layer, P6; 82-property-
+   lab.js, labXrCard). Columns of different properties side by side, each
+   on its own route and asset's model, in the reader's order: a header a
+   column, then a row a figure — its name across the row, a cell a column.
+   A column is told by its letter and its series colour, the comparison's
+   own (A teal, B brass, C slate); no colour marks a figure as good or bad,
+   and the lens never moves a column. On a phone (a panel under 600px) one
+   column at a time, chosen by the Show chips; from 600px every column
+   stands. Figures size to the card (container: lab-xr): at 1440 the
+   figures' column stands between the knobs and the evidence drawer. */
+.lab-xr { padding: var(--md); min-width: 0; container: lab-xr / inline-size; }
+.lab-xr-lede { margin: var(--ls-within) 0 0; max-width: var(--ls-measure); line-height: 1.5; }
+.lab-pick-lens { margin-top: var(--sm); }
+.lab-pick-lens .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 6px; }
+.lab-xr-say { margin: var(--ls-related) 0 0; min-height: 36px; line-height: 18px; max-width: var(--ls-measure); }
+.lab-xr-chart { margin: var(--sm) 0 0; }
+.lab-xr-chart-h { font-size: var(--ls-meta); line-height: 1.5; color: var(--ink-3); margin-bottom: 6px; }
+.lab-xr-bars { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.lab-xr-bar-hd { display: flex; align-items: baseline; gap: 6px; margin: 0 0 4px; font-size: var(--ls-support); line-height: 18px; min-width: 0; }
+.lab-xr-bar-hd .lab-letter { align-self: center; }
+.lab-xr-bar-name { flex: 1 1 auto; min-width: 0; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.lab-xr-bar-v { flex: none; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.lab-xr-bar-note { display: block; margin-top: 3px; }
+.lab-xr-key { margin-top: 6px; }
+.lab-xr-show { margin-top: var(--sm); }
+.lab-xr-show .lab-legend { float: none; display: block; line-height: 20px; margin: 0 0 6px; }
+.lab-xr-show .lab-seg-opt { gap: 6px; }
+.lab-xr-show-name { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lab-xr-grid { display: grid; grid-template-columns: repeat(var(--xr-n, 3), minmax(0, 1fr)); gap: 6px 8px; margin-top: var(--sm); min-width: 0; }
+.lab-xr-row { display: contents; }
+.lab-xr-rowhd { grid-column: 1 / -1; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line);
+  font-size: var(--ls-meta); font-weight: 700; letter-spacing: .02em; line-height: 16px; color: var(--ink-2); }
+.lab-xr-colhd { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 8px;
+  border-radius: var(--r-md); border: 1px solid var(--line); border-top: 3px solid var(--lab-c); background: var(--surface-2); }
+.lab-xr-colhd.is-active { outline: 2px solid var(--brand); outline-offset: -1px; }
+.lab-xr-colname { font-size: var(--ls-support); line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
+.lab-xr-ra { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lab-xr-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding: 6px 8px;
+  border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
+/* A figure a column's route or asset has not: said, outlined, never a figure. */
+.lab-xr-cell.is-na { background: none; border-style: dashed; padding-block: 4px; }
+.lab-xr .lab-xr-row .lab-xr-cell.is-na .lab-xr-v { font-size: var(--ls-meta); font-weight: 600; line-height: 16px; letter-spacing: 0; color: var(--ink-2); }
+.lab-xr-v { font-size: var(--ls-support); line-height: 1.25; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.lab-xr-row.is-l1 .lab-xr-v { font-size: var(--ls-body); }
+.lab-xr-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.lab-xr-nf { font-size: var(--ls-meta); font-weight: 700; line-height: 16px; color: var(--bronze); }
+.lab-xr-sub { font-size: var(--ls-meta); line-height: 1.4; color: var(--ink-2); overflow-wrap: anywhere; }
+/* A wide card: the leading figures at the card-metric size (L1). */
+@container lab-xr (min-width: 560px) {
+  .lab-xr-row.is-l1 .lab-xr-v { font-size: var(--ls-section); letter-spacing: -.01em; }
+  .lab-xr-row.is-l2 .lab-xr-v { font-size: var(--ls-body); }
+  .lab-xr-grid { gap: 6px 12px; }
+}
+@container lab-xr (min-width: 760px) {
+  .lab-xr-row.is-l1 .lab-xr-v { font-size: var(--ls-metric); line-height: 1.15; letter-spacing: -.02em; }
+}
+@container lab (min-width: 600px) {
+  .lab-xr-show { display: none; }
+  .lab-xr-bars { grid-template-columns: minmax(0, 1fr); }
+}
+/* A phone: one column at a time. */
+@container lab (max-width: 599px) {
+  .lab-xr-grid { grid-template-columns: minmax(0, 1fr); }
+  .lab-xr-grid[data-show="A"] [data-col]:not([data-col="A"]),
+  .lab-xr-grid[data-show="B"] [data-col]:not([data-col="B"]),
+  .lab-xr-grid[data-show="C"] [data-col]:not([data-col="C"]) { display: none; }
+  .lab-xr-row.is-l1 .lab-xr-v { font-size: var(--ls-metric); line-height: 1.15; letter-spacing: -.02em; }
+  .lab-xr-row.is-l2 .lab-xr-v { font-size: var(--ls-body); }
+}
+/* Adding a column from another property, and the saved comparisons. */
+.lab-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: var(--xs); }
+.lab-add-label { flex: 1 0 100%; font-size: var(--ls-support); font-weight: 600; color: var(--ink); }
+.lab-add .select-sm { max-width: min(100%, 22rem); }
+.lab-cmps { margin-top: var(--md); }
+.lab-cmp-what { flex: 1 0 100%; margin: 0; line-height: 1.5; max-width: var(--ls-measure); }
+.lab-cmps-h { margin: var(--md) 0 0; font-size: var(--ls-support); font-weight: 700; color: var(--ink); }
+.lab-cmps-list { list-style: none; margin: var(--xs) 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lab-cmps-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; padding: 6px 8px;
+  border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); }
+.lab-cmps-name { display: flex; flex-direction: column; min-width: 0; font-size: var(--ls-support); overflow-wrap: anywhere; }
+@media (pointer: coarse), (max-width: 768px) {
+  .lab-add .btn, .lab-add .select-sm, .lab-cmps .btn, .lab-cmp-form .input, .lab-col-acts .select-sm { min-height: 44px; }
+  .lab-cmps .btn, .lab-add .btn { display: inline-flex; align-items: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lab-xr .lab-bar-fill, .lab-xr .lab-bar-seg { transition: none !important; }
+}
+/* ---- end p6-compare ---- */

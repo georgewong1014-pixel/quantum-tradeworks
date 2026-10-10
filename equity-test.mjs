@@ -9541,7 +9541,7 @@ try {
       {
         const r = await evaluate(`(async () => { ${W}
           const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-29T00:00:00Z', data });
-          const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons'];
+          const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons', 'labComparisons'];
           const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails'];
           const bad = [];
           const accepted = (k, v) => { const x = importEverything(doc({ [k]: v })); return x.ok && x.incoming.includes(k); };
@@ -9571,10 +9571,10 @@ try {
         report('WS-01', 'a restore refuses, key by key and with the reason, any value that is not the shape this app writes', p);
 
         const BAD1 = { portfolios: { name: 'x', holdings: [] }, theses: { id: 't' }, priceAlerts: { id: 'x' }, watchlists: {}, observations: {}, savedWork: {}, runs: {},
-          dividendsReceived: {}, registerLog: {}, comparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
+          dividendsReceived: {}, registerLog: {}, comparisons: {}, labComparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
           deal: [], wheelPlan: [], qttiPlan: [], reviews: [], valuation: [], areaProfiles: [], demand: [], manualPrices: [], userData: [], wht: [],
           scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], registerActor: 5, baseCcy: 'EUR' };
-        const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons',
+        const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons', 'labComparisons',
           'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
         BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
         const PAGES = ['/my/portfolio', '/my/theses', '/my/alerts', '/my/workspace', '/my/watchlists', '/my/data', '/property/calculator', '/us-options/wheel',
@@ -10608,7 +10608,7 @@ try {
       manualPrices: /prices or statement lines you paste in/, observations: /prices and rents you record in the comparables register/,
       onboarding: /whether you dismissed the introduction/, opportunities: /saved property candidates/, plan: /the plan you are previewing/,
       portfolios: /portfolio holdings/, priceAlerts: /price alerts/, propertyReportLog: /included property reports you used this month/,
-      proposalDetails: /your details for proposals/,
+      proposalDetails: /your details for proposals/, labComparisons: /the Scenario Lab comparisons you save/,
       propertyReportsBought: /property reports you unlocked/, qttiPlan: /trading-index observations/, rateUnitBuilt: /units for property rates/,
       rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
       recent: /pages, tools and saved work you recently opened/,
