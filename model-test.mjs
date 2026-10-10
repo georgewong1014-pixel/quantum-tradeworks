@@ -6721,6 +6721,226 @@ try {
   });
   /* ---- end p5-commercial ---- */
 
+  /* ---- p6-compare ---- */
+  /* COMPARE ACROSS ROUTES AND ASSETS (the property decision layer, P6;
+     82-property-lab.js, labXrCard; the owner's decisions of 7 Oct 2026: the
+     lens never reorders or sorts the columns, no ranked ladder, saved only
+     on Save). Three saved properties — a subsale condominium (the sample's
+     figures), an auction condominium with the Proclamation's terms entered,
+     a subsale whole shoplot tenanted at RM4,600 — opened side by side by
+     the address (?model=A&cols=base,pm:B,pm:C). Each fails on 296147c0,
+     where a column is only ever a scenario of one property.
+     X1 — columns from different properties keep their own models: each
+          column holds its own property's inputs, its route and asset, and
+          every cell is its own model's figure (dealModel, auctionModel,
+          commercialModel, priceGap) on its own inputs, with that figure's
+          kind badge; "Not final" on the auction's while a check is open.
+     X2 — the lens never changes the column order: before and after every
+          lens, and with B's figures moved past A's, the columns' headers,
+          the chart's bars, A/B/C side by side and the Lab's own columns
+          read A, B, C; each lens leads with its own rows and draws its own
+          chart form; no ranking word.
+     X3 — a figure a column's route or asset has not reads "Not for this
+          route" (or "Not for this asset"), never nought and never blank.
+     X4 — no figure leaks between columns: a slider moved on B, and an
+          auction term answered on B, change B's cells and inputs alone; a
+          route answered on A moves A's property's columns alone.
+     X5 — a comparison is written only on Save, as its columns and lens,
+          never its moves; reopened by ?compare=, the same columns in the
+          same order and the same lens; the export carries it; the lens is
+          in the address (?lens=) and read from it. */
+  {
+    const x6try = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const X6_KEYS = ['savedWork', 'deal', 'labComparisons', 'dealBeforeLink'];
+    await evaluate(`(() => { window.__x6keep = { deal: State.deal, ls: Object.fromEntries(${JSON.stringify(X6_KEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])) };
+      localStorage.removeItem('vl.labComparisons'); return true; })()`);
+    const X6_SEED = `const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const save = (d, name) => { State.deal = d; saveDeal(); return saveActiveProperty({ name }).id; };
+      const ids = { a: save(base(), 'x6 condo'),
+        b: save({ ...base(), route: 'auction', price: 420000, reservePrice: 400000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90, auctionComp1: 520000, auctionComp2: 540000, auctionRepairs: 15000 }, 'x6 auction condo'),
+        c: save({ ...base(), propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot', sqft: 1600, price: 900000, rent: 4000, tenancy: 'tenanted', tenancyRent: 4600, cmLeaseExpiry: '2027-04', cmFitOut: 20000 }, 'x6 shoplot') };`;
+    /* Opens the three, and reads every cell, header and bar. */
+    const X6_OPEN = `const w = (ms) => new Promise(r => setTimeout(r, ms));
+      navigate('/property/lab?model=' + ids.a + '&cols=base,pm:' + ids.b + ',pm:' + ids.c); await w(900);`;
+    const X6_READ = `const read = () => ({
+        cells: Object.fromEntries([...document.querySelectorAll('#lab-xr-grid .lab-xr-cell')].map(c => [c.dataset.row + '|' + c.dataset.col, { v: c.dataset.value, t: c.querySelector('.lab-xr-v').textContent, k: c.dataset.kind, nf: c.dataset.final === 'false', badge: c.querySelector('[data-kind-badge]')?.dataset.kindBadge || null }])),
+        heads: [...document.querySelectorAll('#lab-xr-grid .lab-xr-colhd')].map(n => n.dataset.col).join(''),
+        bars: [...document.querySelectorAll('#lab-xr-chart .lab-xr-bar')].map(n => n.dataset.col).join(''),
+        abc: [...document.querySelectorAll('#lab-cmp tr.lab-cmp-row')].map(n => n.dataset.labCol).join(''),
+        show: [...document.querySelectorAll('input[name="lab-xr-show"]')].map(n => n.value).join(''),
+        lab: LAB[labSubject].cols.map(c => c.key + ':' + c.source).join(','),
+        rows: [...document.querySelectorAll('#lab-xr-grid .lab-xr-row[data-row]')].map(r => r.dataset.row),
+        levels: [...document.querySelectorAll('#lab-xr-grid .lab-xr-row[data-row]')].map(r => r.classList.contains('is-l1') ? 1 : 2),
+        form: document.querySelector('#lab-xr-chart figure')?.dataset.form || null,
+        text: (document.getElementById('lab-xr')?.textContent || '').replace(/\\s+/g, ' ') });`;
+    const X6_DROP = `for (const id of Object.values(ids)) deletePropertyModel(id); localStorage.removeItem('vl.labComparisons');`;
+
+    await x6try('p6 X1: columns from different properties keep their own models', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${X6_SEED} ${X6_OPEN} ${X6_READ}
+        const L = LAB[labSubject];
+        const ins = [ids.a, ids.b, ids.c].map(id => pmInputsOf(pmFind(id)));
+        const want = ins.map(d => { const m = dealModel(d); return { cash: m.safeCashRequired, monthly: m.cashflowMonthly, ny: Math.round(m.netYield * 1e4) / 1e4, vll: m.valueLessLoanAtExit }; });
+        const a = auctionModel(ins[1]), c = commercialModel(ins[2]);
+        const out = { has: !!document.getElementById('lab-xr'), own: L.cols.map((col, i) => pmCanon(pmBare(col.work)) === pmCanon(pmBare(ins[i]))),
+          routes: L.cols.map(col => labRouteAsset(col.work)), props: L.cols.map(col => col.prop), cells: read().cells, want,
+          au: { eff: a.effective, effKind: a.effectiveKind, td: Math.round(a.trueDiscount.pct * 1e4) / 1e4, fx: a.forfeiture.atRisk, open: a.checksOpen.length },
+          cm: { yc: Math.round(c.yields.contract * 1e4) / 1e4, ym: Math.round(c.yields.model * 1e4) / 1e4, r12: c.lease.scenarios.find(s => s.months === 12).reserve, rk: c.lease.reserveKind },
+          gap: priceGap(ins[0]).status };
+        ${X6_DROP}
+        return JSON.stringify(out); })()`));
+      const p = [];
+      if (!r.has) p.push('no comparison across routes is drawn for three properties of different routes and assets');
+      if (r.own.some(x => !x)) p.push(`a column does not hold its own property's inputs: ${JSON.stringify(r.own)}`);
+      if (JSON.stringify(r.routes) !== JSON.stringify(['Subsale · Residential', 'Auction · Residential', 'Subsale · Commercial — whole shoplot'])) p.push(`the columns' routes and assets: ${JSON.stringify(r.routes)}`);
+      const cl = r.cells || {};
+      ['A', 'B', 'C'].forEach((k, i) => {
+        if (Number(cl[`cash|${k}`]?.v) !== r.want[i].cash) p.push(`${k}'s cash required reads ${cl[`cash|${k}`]?.v}, its model ${r.want[i].cash}`);
+        if (Number(cl[`monthly|${k}`]?.v) !== r.want[i].monthly) p.push(`${k}'s monthly position reads ${cl[`monthly|${k}`]?.v}, its model ${r.want[i].monthly}`);
+        if (Number(cl[`netYield|${k}`]?.v) !== r.want[i].ny) p.push(`${k}'s net yield reads ${cl[`netYield|${k}`]?.v}, its model ${r.want[i].ny}`);
+        if (Number(cl[`vll|${k}`]?.v) !== r.want[i].vll) p.push(`${k}'s value less loan reads ${cl[`vll|${k}`]?.v}, its model ${r.want[i].vll}`);
+        if (!cl[`cash|${k}`]?.badge) p.push(`${k}'s cash required carries no kind badge`);
+      });
+      if (Number(cl['auEffective|B']?.v) !== r.au.eff || cl['auEffective|B']?.badge !== r.au.effKind) p.push(`B's effective acquisition cost: ${JSON.stringify(cl['auEffective|B'])}, its auction model ${r.au.eff} (${r.au.effKind})`);
+      if (Number(cl['auDiscount|B']?.v) !== r.au.td) p.push(`B's true discount: ${JSON.stringify(cl['auDiscount|B'])}, its auction model ${r.au.td}`);
+      if (Number(cl['auForfeit|B']?.v) !== r.au.fx || cl['auForfeit|B']?.badge !== 'yours') p.push(`B's forfeiture exposure: ${JSON.stringify(cl['auForfeit|B'])}, its auction model ${r.au.fx}`);
+      if (!(r.au.open > 0) || !['auEffective|B', 'auDiscount|B', 'auForfeit|B', 'auChecks|B'].every(k => cl[k]?.nf) || cl['auChecks|B']?.t !== `${r.au.open} of 6 open`) p.push(`with ${r.au.open} checks open the auction's figures do not each say Not final: ${JSON.stringify(['auEffective|B', 'auChecks|B'].map(k => cl[k]))}`);
+      if (Number(cl['cmYieldC|C']?.v) !== r.cm.yc || Number(cl['cmYieldM|C']?.v) !== r.cm.ym || Number(cl['cmReserve|C']?.v) !== r.cm.r12 || cl['cmReserve|C']?.badge !== r.cm.rk) p.push(`C's commercial figures: ${JSON.stringify(['cmYieldC|C', 'cmYieldM|C', 'cmReserve|C'].map(k => cl[k]))}, its model ${JSON.stringify(r.cm)}`);
+      if (r.gap !== 'no-comparables' || cl['priceGap|A']?.t !== 'Unavailable' || cl['priceGap|A']?.badge !== 'unavailable') p.push(`A's price gap with no comparable named: ${JSON.stringify(cl['priceGap|A'])}`);
+      if (p.length) fail('p6 X1: columns from different properties keep their own models', p);
+      else ok(`p6 X1: a subsale condominium, an auction condominium and a subsale whole shoplot side by side — each column holds its own property's inputs and route × asset; cash required, the monthly position, the net yield and value less loan are each column's own model's; B's effective cost (RM${Math.round(r.au.eff)}), true discount (${r.au.td}%) and forfeiture exposure (RM${r.au.fx}) are its auction model's, each "Not final" with ${r.au.open} checks open; C's yield at the contract and the model rent and its 12-month reserve (RM${r.cm.r12}) are its commercial model's; every figure with its own kind badge`);
+    });
+
+    await x6try('p6 X2: the lens never changes the column order', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${X6_SEED} ${X6_OPEN} ${X6_READ}
+        const seen = [{ lens: 'open', ...read() }];
+        for (const id of ['growth', 'risk', 'liquidity', 'cashflow', 'risk', 'growth']) {
+          document.querySelector('label[for="lab-lens-' + id + '"]').click(); await w(200);
+          seen.push({ lens: id, ...read() });
+        }
+        /* B's price taken down until its monthly position stands above A's
+           by far: the order is the reader's, not the figures'. */
+        const rb = document.getElementById('lab-col-B'); rb.checked = true; rb.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        const n = document.getElementById('lab-n-price'); n.value = '300000'; n.dispatchEvent(new Event('change', { bubbles: true })); await w(300);
+        for (const id of ['cashflow', 'liquidity']) { document.querySelector('label[for="lab-lens-' + id + '"]').click(); await w(200); seen.push({ lens: id + ' (B moved)', ...read() }); }
+        const orders = Object.fromEntries(LAB_LENSES.map(x => [x.id, x.order]));
+        ${X6_DROP}
+        return JSON.stringify({ seen: seen.map(s => ({ lens: s.lens, heads: s.heads, bars: s.bars, abc: s.abc, show: s.show, lab: s.lab, rows: s.rows, levels: s.levels, form: s.form, text: s.text })), orders }); })()`));
+      const p = [];
+      const first = r.seen[0];
+      if (first.heads !== 'ABC' || first.bars !== 'ABC' || first.abc !== 'ABC') p.push(`opened, the columns read ${first.heads} / ${first.bars} / ${first.abc}`);
+      const forms = {};
+      for (const s of r.seen) {
+        for (const k of ['heads', 'bars', 'abc', 'show', 'lab']) if (s[k] !== first[k]) p.push(`lens ${s.lens}: ${k} reads ${s[k]}, not ${first[k]} as opened`);
+        const id = s.lens.split(' ')[0];
+        if (r.orders[id]) {
+          const want = r.orders[id].filter(x => s.rows.includes(x));
+          if (JSON.stringify(s.rows) !== JSON.stringify(want)) p.push(`lens ${s.lens}: the rows lead ${s.rows.slice(0, 3).join(', ')}, not its own order ${want.slice(0, 3).join(', ')}`);
+          if (s.levels[0] !== 1 || s.levels[1] !== 1 || s.levels.slice(2).some(l => l !== 2)) p.push(`lens ${s.lens}: the leading rows are not the first two (L1): ${s.levels.join('')}`);
+          forms[id] = s.form;
+        }
+        const ranked = s.text.match(/\b(best|better|winner|top pick|recommend\w*|ranked first|safest|riskiest|preferred)\b/i);
+        if (ranked) p.push(`lens ${s.lens}: the comparison says "${ranked[0]}"`);
+      }
+      if (new Set(Object.values(forms)).size !== 4) p.push(`the four lenses draw ${JSON.stringify(forms)} — not four chart forms`);
+      const risk = r.seen.find(s => s.lens === 'risk');
+      if (JSON.stringify(risk?.rows.slice(0, 3)) !== JSON.stringify(['cmReserve', 'auForfeit', 'auChecks'])) p.push(`the risk lens leads with ${risk?.rows.slice(0, 3)}, not the reserve, the forfeiture and the checks`);
+      if (r.seen.find(s => s.lens === 'cashflow')?.rows[0] !== 'monthly') p.push('the cash-flow lens does not lead with the monthly position');
+      if (p.length) fail('p6 X2: the lens never changes the column order', p);
+      else ok(`p6 X2: through ${r.seen.length - 1} lens switches — growth, risk, liquidity, cash flow, risk, growth, then with B's price moved down to RM300,000 — the columns' headers, the chart's bars, A/B/C side by side, the Show chips and the Lab's own columns read A, B, C every time; each lens leads with its own two rows (cash flow: the monthly position; risk: the 12-month reserve, the forfeiture exposure, the auction's checks) and draws its own chart (${Object.entries(forms).map(([k, v]) => `${k} ${v}`).join(', ')}); no ranking word`);
+    });
+
+    await x6try('p6 X3: "Not for this route" where a figure does not apply', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${X6_SEED} ${X6_OPEN} ${X6_READ}
+        const c = read().cells; ${X6_DROP} return JSON.stringify(c); })()`));
+      const p = [];
+      const want = { 'auEffective|A': 'Not for this route', 'auDiscount|A': 'Not for this route', 'auForfeit|A': 'Not for this route', 'auChecks|A': 'Not for this route',
+        'auEffective|C': 'Not for this route', 'auChecks|C': 'Not for this route', 'priceGap|B': 'Not for this route',
+        'cmReserve|A': 'Not for this asset', 'cmReserve|B': 'Not for this asset', 'cmYieldC|A': 'Not for this asset', 'cmYieldM|B': 'Not for this asset' };
+      for (const [k, t] of Object.entries(want)) {
+        const x = r[k];
+        if (!x || x.t !== t || x.v !== '' || x.badge || x.k !== 'none') p.push(`${k}: ${JSON.stringify(x)}, not "${t}" with no figure and no badge`);
+      }
+      for (const [k, x] of Object.entries(r)) if (x.t.trim() === '' || /^(RM)?0(\.0+)?%?$/.test(x.t.trim()) && x.v === '') p.push(`${k} reads "${x.t}" — blank or nought for a figure not held`);
+      if (p.length) fail('p6 X3: "Not for this route" where a figure does not apply', p);
+      else ok(`p6 X3: the auction's four figures read "Not for this route" in the subsale columns, the price gap in the auction's, the commercial unit's yields and reserve "Not for this asset" in the condominiums' — no figure, no badge, never nought or blank (${Object.keys(r).length} cells)`);
+    });
+
+    await x6try('p6 X4: no figure leaks from one column into another', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${X6_SEED} ${X6_OPEN} ${X6_READ}
+        const L = () => LAB[labSubject];
+        const works = () => L().cols.map(c => pmCanon(c.work));
+        /* A row newly drawn for another column's route counts only where it holds a figure: a column it is not for says so. */
+        const diff = (a, b) => Object.keys(b).filter(k => (k in a ? JSON.stringify(a[k]) !== JSON.stringify(b[k]) : !/^Not for this /.test(b[k].t)));
+        const c0 = read().cells, w0 = works();
+        const rb = document.getElementById('lab-col-B'); rb.checked = true; rb.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        const range = document.getElementById('lab-r-price'); range.focus();
+        for (let i = 0; i < 5; i++) range.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        await w(350);
+        const c1 = read().cells, w1 = works();
+        const res = document.getElementById('lab-au-reservePrice'); res.value = '380000'; res.dispatchEvent(new Event('change', { bubbles: true })); await w(350);
+        const c2 = read().cells, w2 = works();
+        /* A route answered with the sliders on A moves A's property only. */
+        const ra = document.getElementById('lab-col-A'); ra.checked = true; ra.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        document.querySelector('label[for="lab-q-how-newdev"]').click(); await w(350);
+        const c3 = read().cells, w3 = works();
+        const routes = L().cols.map(c => dealRoute(c.work));
+        const forB = (document.querySelector('.pq-for')?.textContent || '');
+        ${X6_DROP}
+        return JSON.stringify({ slid: diff(c0, c1), slidW: w0.map((x, i) => x !== w1[i]), term: diff(c1, c2), termW: w1.map((x, i) => x !== w2[i]), route: diff(c2, c3), routeW: w2.map((x, i) => x !== w3[i]), routes, forB }); })()`));
+      const p = [];
+      const only = (keys, col) => keys.filter(k => !k.endsWith('|' + col));
+      if (!r.slid.length || only(r.slid, 'B').length) p.push(`B's price moved changed ${JSON.stringify(r.slid)}`);
+      if (JSON.stringify(r.slidW) !== '[false,true,false]') p.push(`B's price moved changed the inputs of ${JSON.stringify(r.slidW)}`);
+      if (JSON.stringify(r.term) !== '["auForfeit|B"]') p.push(`B's reserve price answered changed ${JSON.stringify(r.term)}, not B's forfeiture exposure alone`);
+      if (JSON.stringify(r.termW) !== '[false,true,false]') p.push(`B's reserve price answered changed the inputs of ${JSON.stringify(r.termW)}`);
+      if (JSON.stringify(r.routeW) !== '[true,false,false]' || JSON.stringify(r.routes) !== '["newdev","auction","subsale"]') p.push(`New development answered on A: inputs changed ${JSON.stringify(r.routeW)}, routes ${JSON.stringify(r.routes)}`);
+      if (only(r.route, 'A').length) p.push(`New development answered on A changed ${JSON.stringify(only(r.route, 'A'))}`);
+      if (p.length) fail('p6 X4: no figure leaks from one column into another', p);
+      else ok(`p6 X4: B's price moved five steps changed B's cells alone (${r.slid.length}: ${r.slid.map(k => k.split('|')[0]).join(', ')}); B's reserve price answered changed B's inputs and its forfeiture exposure alone; New development answered with the sliders on A moved A alone — B stays an auction, C a subsale`);
+    });
+
+    await x6try('p6 X5: a comparison is written only on Save, and reopens as saved', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${X6_SEED} ${X6_OPEN} ${X6_READ}
+        document.querySelector('label[for="lab-lens-risk"]').click(); await w(500);
+        const lensUrl = location.search;
+        const rb = document.getElementById('lab-col-B'); rb.checked = true; rb.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        const n = document.getElementById('lab-n-price'); n.value = '390000'; n.dispatchEvent(new Event('change', { bubbles: true })); await w(300);
+        const before = localStorage.getItem('vl.labComparisons');
+        const name = document.getElementById('lab-cmp-name'); name.value = 'x6 three routes'; name.dispatchEvent(new Event('input', { bubbles: true }));
+        document.getElementById('lab-cmp-save').click(); await w(400);
+        const saved = JSON.parse(localStorage.getItem('vl.labComparisons') || '[]');
+        const exported = exportEverything().data.labComparisons || null;
+        const listed = [...document.querySelectorAll('.lab-cmps-row')].map(x => x.dataset.cmp);
+        navigate('/property/calculator'); await w(500);
+        navigate('/property/lab?compare=' + saved[0]?.id); await w(900);
+        const back = { cols: LAB[labSubject].cols.map(c => c.key + ':' + labColId(c) + ':' + Object.keys(c.moves).length).join(','), lens: LAB[labSubject].lens,
+          checked: document.querySelector('input[name="lab-lens"]:checked')?.value, heads: read().heads, url: location.search };
+        await w(400); back.url2 = location.search;
+        navigate('/property/lab?model=' + ids.a + '&cols=base,pm:' + ids.c + '&lens=growth'); await w(900);
+        const arrive = { lens: LAB[labSubject].lens, checked: document.querySelector('input[name="lab-lens"]:checked')?.value, cols: LAB[labSubject].cols.map(c => labColId(c)).join(',') };
+        const out = { lensUrl, before, saved, exported: !!exported && exported.length === saved.length, listed, back, arrive, ids };
+        ${X6_DROP}
+        return JSON.stringify(out); })()`));
+      const p = [];
+      if (r.before !== null) p.push(`a lens switched and a price moved wrote the comparisons before Save: ${r.before}`);
+      if (!/[?&]lens=risk(&|$)/.test(r.lensUrl)) p.push(`the risk lens is not in the address: "${r.lensUrl}"`);
+      const s = r.saved[0];
+      if (r.saved.length !== 1 || !s || s.name !== 'x6 three routes' || s.lens !== 'risk' || JSON.stringify(s.cols) !== JSON.stringify(['pm:' + r.ids.a, 'pm:' + r.ids.b, 'pm:' + r.ids.c])) p.push(`Save wrote ${JSON.stringify(r.saved)}`);
+      if (s && JSON.stringify(s).includes('390000')) p.push('Save kept the unsaved move of B');
+      if (!r.exported) p.push('the export does not carry the saved comparison');
+      if (r.listed[0] !== s?.id) p.push(`the saved comparison is not listed in the Lab: ${JSON.stringify(r.listed)}`);
+      if (r.back.cols !== 'A:base:0,B:pm:' + r.ids.b + ':0,C:pm:' + r.ids.c + ':0' || r.back.lens !== 'risk' || r.back.checked !== 'risk' || r.back.heads !== 'ABC') p.push(`reopened: ${JSON.stringify(r.back)}`);
+      if (!/model=/.test(r.back.url2) || !/lens=risk/.test(r.back.url2) || /compare=/.test(r.back.url2)) p.push(`reopened, the address reads "${r.back.url2}" — not its columns and lens`);
+      if (r.arrive.lens !== 'growth' || r.arrive.checked !== 'growth' || r.arrive.cols !== 'base,pm:' + r.ids.c) p.push(`?cols=base,pm:C&lens=growth opened ${JSON.stringify(r.arrive)}`);
+      if (p.length) fail('p6 X5: a comparison is written only on Save, and reopens as saved', p);
+      else ok('p6 X5: a lens switched and a price moved write nothing; the lens is in the address (?lens=risk); Save writes the comparison — its name, A, B and C as the properties they read, the risk lens, never B\'s unsaved price — listed in the Lab and carried by the export; ?compare= reopens the same columns, in the same order, unmoved, with the risk lens, and the address names them; ?cols=…&lens=growth opens its columns on the growth lens');
+    });
+    await evaluate(`(() => { const k = window.__x6keep; if (!k) return false; for (const [key, v] of Object.entries(k.ls)) { if (v === null) localStorage.removeItem('vl.' + key); else localStorage.setItem('vl.' + key, v); }
+      State.deal = k.deal; navigate('/property/calculator'); return true; })()`);
+    await sleep(300);
+  }
+  /* ---- end p6-compare ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

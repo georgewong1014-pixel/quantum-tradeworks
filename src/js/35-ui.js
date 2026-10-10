@@ -2840,6 +2840,8 @@ const SERVED_READ = {
   savedScreens: () => State.savedScreens,
   savedWork: () => loadWork(),
   comparisons: () => loadComparisons(),
+  /* The Scenario Lab's saved comparisons across properties (P6). */
+  labComparisons: () => labComparisons(),
   runs: () => store.read('runs', []),
   reviews: () => store.read('reviews', {}),
   manualPrices: () => manualPrices,
@@ -2999,9 +3001,11 @@ const SERVED_READS = {
      from it), the labels in the reader's language, the report a figure is
      withheld behind and the plan that may include it, and the comparables
      the grade reads — no Start here panel since N3 (startHereFor). Its
-     ?model=, ?cols= and ?by= are read by the app as it draws (a page that
-     does not wait: its first draw replaces the served page at once). */
-  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations'],
+     ?model=, ?cols=, ?by=, ?lens= and ?compare= are read by the app as it
+     draws (a page that does not wait: its first draw replaces the served
+     page at once); and the comparisons across properties the reader saved
+     (P6). */
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -3061,7 +3065,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh

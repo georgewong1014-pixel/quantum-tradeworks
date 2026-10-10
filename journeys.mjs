@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, scanner, return, records, registers, cases, settings, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, scanner, return, records, registers, cases, settings, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1880,6 +1880,84 @@ const JOURNEYS = [
         if (!(r.model > 0) || r.shown !== r.model || Math.abs(r.model - Math.round(12 * r.burn)) > 0.5) throw new StepError(`the 12-month reserve reads ${r.shown}; the model gives ${r.model} (12 × ${r.burn})`);
         if (JSON.stringify(r.table) !== JSON.stringify(r.models)) throw new StepError(`the lease-down table reads ${JSON.stringify(r.table)}, the model ${JSON.stringify(r.models)}`);
         if (await tab.eval(dealAt) !== deal0) throw new StepError('reading the figures wrote the calculator’s deal');
+      });
+    },
+  },
+  {
+    /* ACROSS ROUTES AND ASSETS (the property decision layer, P6; D15 — a
+       journey for each route). Three properties saved in a fresh browser —
+       a subsale condominium (the sample's figures), an auction condominium
+       with the Proclamation's terms entered, a tenanted whole shoplot. The
+       Lab opened on the condominium; column C added from the auction
+       condominium and column B set to the shoplot, by the Columns card's
+       own controls: each column is worked through on its own route and
+       asset's model — the auction's effective cost its auction model's and
+       "Not final" with its checks open, the shoplot's 12-month reserve its
+       commercial model's, the condominium's auction figures "Not for this
+       route". Every lens switched: the columns stay A, B, C, the lens
+       leads with its own rows. Saved under a name, and reopened from the
+       Lab's list: the same columns in the same order, the same lens. */
+    id: 'routes', name: 'Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept',
+    outcomes: ['Add an auction condominium and a shoplot: each column on its own route', 'Switch the lens: the columns stay A, B, C', 'Save the comparison and reopen it'],
+    async run(j, tab) {
+      let ids;
+      const order = `JSON.stringify({ heads: [...document.querySelectorAll('#lab-xr-grid .lab-xr-colhd')].map(n => n.dataset.col).join(''),
+        bars: [...document.querySelectorAll('#lab-xr-chart .lab-xr-bar')].map(n => n.dataset.col).join(''),
+        abc: [...document.querySelectorAll('#lab-cmp tr.lab-cmp-row')].map(n => n.dataset.labCol).join(''),
+        lab: LAB[labSubject].cols.map(c => c.key).join(','), first: document.querySelector('#lab-xr-grid .lab-xr-row[data-row]')?.dataset.row || null })`;
+      const cell = (row, col) => `(document.querySelector('#lab-xr-grid .lab-xr-cell[data-row="${row}"][data-col="${col}"]') || null)`;
+      await step(j, tab, 'Open the Lab on a saved subsale condominium', BUDGET.load * 2, async () => {
+        await tab.goto('/property');
+        ids = JSON.parse(await tab.eval(`(() => {
+          const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+          const save = (d, name) => { State.deal = d; saveDeal(); return saveActiveProperty({ name }).id; };
+          return JSON.stringify({ a: save(base(), 'Journey condo, subsale'),
+            b: save({ ...base(), route: 'auction', price: 420000, reservePrice: 400000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90, auctionComp1: 520000, auctionComp2: 540000 }, 'Journey condo, auction'),
+            c: save({ ...base(), propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot', sqft: 1600, price: 900000, rent: 4000, tenancy: 'tenanted', tenancyRent: 4600, cmLeaseExpiry: '2027-04', cmFitOut: 20000 }, 'Journey shoplot, subsale') });
+        })()`));
+        await tab.goto(`/property/lab?model=${ids.a}`);
+        await tab.expect(`State.view === 'propertyLab' && labSubject === ${JSON.stringify('m:' + ids.a)} && !!document.getElementById('lab-add-from')`,
+          async () => `the Lab opened ${await tab.eval('labSubject')}, ${await tab.eval(`document.getElementById('lab-add-from') ? 'with' : 'without'`)} a way to add another property`);
+      });
+      await step(j, tab, 'Add an auction condominium and a shoplot: each column on its own route', BUDGET.action * 5, async () => {
+        await tab.choose(`document.getElementById('lab-add-from')`, `pm:${ids.b}`, 'Add column C from — the auction condominium');
+        await tab.click(`document.getElementById('lab-add')`, 'Add C');
+        await tab.expect(`LAB[labSubject].cols.map(c => c.key + ':' + c.source).join() === ${JSON.stringify(`A:base,B:variant,C:pm:${ids.b}`)} && !!document.getElementById('lab-xr')`,
+          async () => `after Add the columns are ${await tab.eval(`LAB[labSubject].cols.map(c => c.key + ':' + c.source).join()`)}${await tab.eval(`document.getElementById('lab-xr') ? '' : ', and no comparison across routes is drawn'`)}`);
+        await tab.choose(`document.getElementById('lab-shows-B')`, `pm:${ids.c}`, 'What column B shows — the shoplot');
+        await tab.expect(`LAB[labSubject].cols[1]?.source === ${JSON.stringify(`pm:${ids.c}`)}`, async () => `column B shows ${await tab.eval(`LAB[labSubject].cols[1]?.source`)}`);
+        const r = JSON.parse(await tab.eval(`(() => { const L = LAB[labSubject], v = (x) => x ? { t: x.querySelector('.lab-xr-v')?.textContent, v: x.dataset.value, nf: x.dataset.final === 'false', k: x.dataset.kind } : null;
+          const b = pmInputsOf(pmFind(${JSON.stringify(ids.b)})), c = pmInputsOf(pmFind(${JSON.stringify(ids.c)}));
+          return JSON.stringify({ routes: L.cols.map(x => labRouteAsset(x.work)), au: auctionModel(b).effective, r12: commercialModel(c).lease.scenarios.find(s => s.months === 12).reserve,
+            effC: v(${cell('auEffective', 'C')}), resB: v(${cell('cmReserve', 'B')}), effA: v(${cell('auEffective', 'A')}), resA: v(${cell('cmReserve', 'A')}), gapC: v(${cell('priceGap', 'C')}) }); })()`));
+        if (JSON.stringify(r.routes) !== JSON.stringify(['Subsale · Residential', 'Subsale · Commercial — whole shoplot', 'Auction · Residential'])) throw new StepError(`the columns' routes are ${JSON.stringify(r.routes)}`);
+        if (!r.effC || Number(r.effC.v) !== r.au || !r.effC.nf) throw new StepError(`C's effective acquisition cost reads ${JSON.stringify(r.effC)}; its auction model gives ${r.au}, not final`);
+        if (!r.resB || Number(r.resB.v) !== r.r12) throw new StepError(`B's 12-month reserve reads ${JSON.stringify(r.resB)}; its commercial model gives ${r.r12}`);
+        if (r.effA?.t !== 'Not for this route' || r.gapC?.t !== 'Not for this route' || r.resA?.t !== 'Not for this asset') throw new StepError(`a figure a column's route has not reads ${JSON.stringify([r.effA, r.gapC, r.resA])}`);
+      });
+      await step(j, tab, 'Switch the lens: the columns stay A, B, C', BUDGET.action * 5, async () => {
+        for (const [id, first] of [['risk', 'cmReserve'], ['growth', 'vll'], ['liquidity', 'cash'], ['cashflow', 'monthly']]) {
+          await tab.click(`document.querySelector('label[for="lab-lens-${id}"]')`, `Lens — ${id}`);
+          await tab.expect(`document.querySelector('#lab-xr-grid .lab-xr-row[data-row]')?.dataset.row === '${first}'`,
+            async () => `the ${id} lens leads with ${await tab.eval(`document.querySelector('#lab-xr-grid .lab-xr-row[data-row]')?.dataset.row`)}, not ${first}`);
+          const o = JSON.parse(await tab.eval(order));
+          if (o.heads !== 'ABC' || o.bars !== 'ABC' || o.abc !== 'ABC' || o.lab !== 'A,B,C') throw new StepError(`with the ${id} lens the columns read ${JSON.stringify(o)} — the lens moved a column`);
+        }
+      });
+      await step(j, tab, 'Save the comparison and reopen it', BUDGET.load * 2 + BUDGET.action * 3, async () => {
+        await tab.click(`document.querySelector('label[for="lab-lens-risk"]')`, 'Lens — risk');
+        if (await tab.eval(`localStorage.getItem('vl.labComparisons')`) !== null) throw new StepError('switching the lens wrote a comparison before Save');
+        await tab.fill(`document.getElementById('lab-cmp-name')`, 'Journey: three routes', 'Name this comparison');
+        await tab.click(`document.getElementById('lab-cmp-save')`, 'Save this comparison');
+        await tab.expect(`(store.read('labComparisons', []) || []).length === 1 && store.read('labComparisons', [])[0].lens === 'risk'`,
+          async () => `Save kept ${await tab.eval(`localStorage.getItem('vl.labComparisons')`)}`);
+        await tab.goto('/property/calculator');
+        await tab.goto('/property');
+        await tab.click(`document.getElementById('lab-cmp-open-0')`, 'Open — the saved comparison');
+        await tab.expect(`labSubject === ${JSON.stringify('m:' + ids.a)} && LAB[labSubject].cols.map(c => labColId(c)).join() === ${JSON.stringify(`base,pm:${ids.c},pm:${ids.b}`)} && LAB[labSubject].lens === 'risk'`,
+          async () => `reopened: ${await tab.eval(`labSubject + ' ' + LAB[labSubject].cols.map(c => labColId(c)).join() + ' ' + LAB[labSubject].lens`)}`);
+        const o = JSON.parse(await tab.eval(order));
+        if (o.heads !== 'ABC' || o.first !== 'cmReserve') throw new StepError(`reopened, the comparison reads ${JSON.stringify(o)}`);
       });
     },
   },
