@@ -1,0 +1,12 @@
+{
+  "kind": "quantum-tradeworks-checks",
+  "schema": 1,
+  "commit": null,
+  "recordedAt": null,
+  "run": null,
+  "ranAt": null,
+  "event": null,
+  "conclusion": null,
+  "note": "No CI result recorded yet. .github/workflows/journeys.yml replaces this file, with health/journeys.json, with the results of checks.yml on the commit the site serves (checks-record.mjs collect).",
+  "suites": []
+}

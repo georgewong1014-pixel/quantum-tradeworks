@@ -68,8 +68,9 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
-  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome, filedSeries, metricBadgeProblems } from './build.mjs';
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, servedRecords, withServedRecord, unservedChrome, filedSeries, metricBadgeProblems } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
+import { checksServed, checksProblem, SUITES as CHECK_SUITES } from './checks-record.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -87,7 +88,16 @@ const fail = (msg, detail = []) => {
   if (detail.length > 15) console.error(`      … and ${detail.length - 15} more`);
 };
 const ok = (msg) => { passes++; console.log(`ok    ${msg}`); };
-const judge = (problems, good, bad) => (problems.length ? fail(bad, problems) : ok(good));
+/* THE DATA BLOCKS, TALLIED APART (the daily audit of 10 Oct 2026, items 3
+   and 7). /status publishes Data and Layout & served pages separately
+   (checks-record.mjs): the blocks marked 'data' — the data files, the NAPIC
+   extract, the two health records — are counted on a line of their own
+   before the total, which checks-record.mjs reads as the Data part. */
+const DATA = { passed: 0, failed: 0 };
+const judge = (problems, good, bad, kind = null) => {
+  if (kind === 'data') DATA[problems.length ? 'failed' : 'passed']++;
+  return problems.length ? fail(bad, problems) : ok(good);
+};
 
 /* ─── WHAT EACH ADDRESS SHOULD BE ─────────────────────────────────────────── */
 const ORIGIN = siteOrigin(read('src/index.template.html'));
@@ -184,7 +194,7 @@ const RENDER_PLAN = routePlan(read('src/index.template.html'));
 const RENDERED = readRenders(prerenderScope(RENDER_PLAN));
 /* An island page's render as its page carries it: the committed record in
    its slots (build.mjs, THE RESULT, SERVED). */
-const SERVED_RECORD = journeysServed(readRecord());
+const SERVED_RECORD = servedRecords();
 const servedViews = (rd) => withServedRecord(rd, SERVED_RECORD);
 const NAV = navMarkup();
 const attrEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -390,7 +400,7 @@ const HOME_PAGE = read(HOME);
   const miss = got.get('/data/no-such-file.json');
   if (miss.status !== 404) p.push(`/data/no-such-file.json: ${described(miss)}, not 404 — a missing file must not look present`);
   judge(p, `data/*.json (${files.length} requests, versioned and bare) serve this checkout's files with the data cache headers; a missing one is 404; sitemap, robots and og.png serve`,
-    'a file does not serve as it should');
+    'a file does not serve as it should', 'data');
 }
 
 /* 6b. NAPIC, ONE DIVISION A FILE (plan item 1.6; the owner's D7, 6 Oct 2026).
@@ -465,7 +475,7 @@ const HOME_PAGE = read(HOME);
   }
   if (!holding) p.push('no served file holds a NAPIC benchmark row: the area screen has nothing to read');
   judge(p, `${SOURCE} is a 404, bare and versioned; of the ${servedText} text files the deployment holds, ${holding} hold NAPIC benchmarks, each one division's`,
-    'the NAPIC extract is served beyond one division a file');
+    'the NAPIC extract is served beyond one division a file', 'data');
 }
 
 /* 7. The sitemap names only canonical addresses, each served its own page. */
@@ -658,7 +668,29 @@ const HOME_PAGE = read(HOME);
   if (!versions) p.push('the app carries no DATA_VERSIONS to check');
   else if (Object.keys(JSON.parse(versions[1])).some(k => /journeys|health/.test(k))) p.push(`the build stamps a version on the journeys file (${versions[1]}), so build --check would depend on a file the workflow rewrites`);
   judge(p, `/health/journeys.json is served as JSON with no-cache and is not versioned by the build (${doc?.ranAt ? `a run of ${doc.ranAt}` : 'the placeholder: no run recorded yet'})`,
-    'the journeys result is not served as it is now');
+    'the journeys result is not served as it is now', 'data');
+}
+/* 10b. CI'S RESULTS, AS THEY ARE NOW (the daily audit of 10 Oct 2026, items
+      3 and 7). health/checks.json, which the journeys workflow writes with
+      the journeys' record: served 200 as JSON with no-cache, not versioned
+      by the build, and a record of CI's results (checks-record.mjs
+      checksProblem) — or the placeholder committed before the first. */
+{
+  const p = [];
+  const r = await fetch(`${BASE}/health/checks.json`, { signal: AbortSignal.timeout(30000) }).catch(e => ({ status: 0, error: e.message, headers: new Headers(), text: async () => '' }));
+  let doc = null;
+  if (r.status !== 200) p.push(`/health/checks.json: ${r.status || r.error}, not 200 — the placeholder is committed, so there is always a file`);
+  else {
+    if (!/^application\/json/i.test(r.headers.get('content-type') || '')) p.push(`/health/checks.json: Content-Type ${JSON.stringify(r.headers.get('content-type'))}, not JSON`);
+    if ((r.headers.get('cache-control') || '') !== 'no-cache') p.push(`/health/checks.json: Cache-Control ${JSON.stringify(r.headers.get('cache-control'))}, not no-cache — a reader could be shown an old result`);
+    try { doc = JSON.parse(await r.text()); } catch { p.push('/health/checks.json: not JSON'); }
+    const bad = doc && checksProblem(doc);
+    if (bad) p.push(`/health/checks.json is not a record of CI's results: ${bad}`);
+  }
+  const versions = /const DATA_VERSIONS = (\{[^;]*\});/.exec(APP.script.body);
+  if (versions && Object.keys(JSON.parse(versions[1])).some(k => /checks/.test(k))) p.push(`the build stamps a version on the checks record (${versions[1]})`);
+  judge(p, `/health/checks.json is served as JSON with no-cache and is not versioned by the build (${doc?.commit ? `CI's results on ${String(doc.commit).slice(0, 7)}: ${doc.suites.filter(s => s.status === 'PASS').length} of ${doc.suites.length} suites pass` : 'the placeholder: no CI result recorded yet'})`,
+    'the CI results\' record is not served as it is now', 'data');
 }
 /* ---- end audit1: health ---- */
 
@@ -1218,9 +1250,16 @@ const HOME_PAGE = read(HOME);
   if (r.status !== 200) p.push(`/status: ${described(r)}`);
   if (!rows.length || !chips.length) p.push(`/status serves ${rows.length} health rows and ${chips.length} result chips — the check has nothing to read`);
   rows.forEach((row, i) => { const st = /\bdata-status="([^"]*)"/.exec(row)?.[1]; if (/^(PASS|FAIL|DEGRADED)$/.test(st || '')) p.push(`/status: health row ${i + 1} is served data-status="${st}"`); });
-  chips.forEach((c, i) => { if (c.says === 'Not run' && /\bchip-(ok|warn|critical|dn|up)\b/.test(c.cls)) p.push(`/status: chip ${i + 1} says "Not run" and is served as ${c.cls.trim()}`); });
-  judge(p, `/status serves its ${rows.length} in-browser check rows with no PASS, FAIL or DEGRADED status, and none of its ${chips.length} "Not run" chips in a result's colour`,
-    '/status serves a check that ran nowhere as a result');
+  chips.forEach((c, i) => { if (/^(Not run|In browser)$/.test(c.says) && /\bchip-(ok|warn|critical|dn|up)\b/.test(c.cls)) p.push(`/status: chip ${i + 1} says "${c.says}" and is served as ${c.cls.trim()}`); });
+  /* SAID FOR WHAT IT IS (the 10 Oct audit, item 3): each in-browser row's
+     chip says where it runs, "In browser", not a bare "Not run"; its line
+     and the summary under the list say it runs when the page loads. */
+  const rowChips = [...(r.body || '').matchAll(/<li\b[^>]*\bclass="health-row"[^>]*><span\b[^>]*\bclass="[^"]*\bhealth-chip\b[^"]*"[^>]*>([^<]*)<\/span>/g)].map(m => m[1].trim());
+  if (!rowChips.length || rowChips.some(s => s !== 'In browser')) p.push(`/status: the in-browser rows' chips say ${JSON.stringify([...new Set(rowChips)])}, not "In browser"`);
+  const qsum = /<p class="metaline" id="health-quick-sum"[^>]*>([^<]*)<\/p>/.exec(r.body || '')?.[1];
+  if (qsum !== 'Runs in your browser when the page loads.') p.push(`/status: the in-browser summary is served ${JSON.stringify(qsum)}, not "Runs in your browser when the page loads."`);
+  judge(p, `/status serves its ${rows.length} in-browser check rows with no PASS, FAIL or DEGRADED status, each chip "In browser" (where it runs) and none in a result's colour, the summary "Runs in your browser when the page loads."`,
+    '/status serves a check that ran nowhere as a result, or as a bare "Not run"');
 }
 /* ---- end status-served ---- */
 
@@ -1321,6 +1360,85 @@ const HOME_PAGE = read(HOME);
     'the recorded journeys are not served as recorded');
 }
 /* ---- end journeys-served ---- */
+
+/* ---- checks-served ---- */
+/* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3 and
+   7). /status serves, before any script runs:
+   - #health-kinds: Journeys, Numbers, Data, and Layout & served pages, one
+     row each — its status, its counts, the commit and time it ran on, and a
+     link to its Actions run (or the workflow's run history where the record
+     names none) — exactly checksServed(the served records), so the counts
+     are generated from the results, not typed; a CI kind is Pass only when
+     every one of its suites passed on the commit the site serves, and a
+     suite with no result for it reads "Not run for <commit>";
+   - #health-ci, beside the in-browser checks: what CI found on that commit
+     for Numbers and Data — so a reader with no script reads a result, not a
+     bare "Not run";
+   - the calls-to-action journey's count, reconciled with its own steps: "N
+     calls to action pressed (N + 1 steps: the page opened, then each
+     call)", N + 1 the steps it lists. */
+{
+  const p = [];
+  const words = (html) => html.replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
+  const getJson = (f) => fetch(`${BASE}/health/${f}?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(() => null);
+  const [jrec, crec] = [await getJson('journeys.json'), await getJson('checks.json')];
+  const want = checksServed(crec, jrec, CHECK_SUITES);
+  const status = (await getAll(['/status'])).get('/status').body || '';
+  const kinds = /<ul id="health-kinds"[^>]*>([\s\S]*?)<\/ul>/.exec(status)?.[1];
+  const ci = /<p class="metaline" id="health-ci"[^>]*>([\s\S]*?)<\/p>/.exec(status)?.[1];
+  const said = [];
+  if (kinds == null) p.push('/status serves no #health-kinds');
+  else {
+    if (kinds !== want.kinds) p.push(`/status's #health-kinds is not the records': served "${words(kinds).slice(0, 120)}", the records "${words(want.kinds).slice(0, 120)}"`);
+    const rows = [...kinds.matchAll(/<li class="kind-row" id="kind-([a-z]+)" data-status="(PASS|FAIL|DEGRADED|NOT-RUN)"><span class="chip health-chip[^"]*">([^<]*)<\/span><p class="kind-name">([^<]*)<span[^>]*>[^<]*<\/span><\/p><div class="kind-body"><p class="caption">([\s\S]*?)<\/p>([\s\S]*?)<\/div><\/li>/g)];
+    const ids = rows.map(m => m[1]);
+    if (ids.join() !== 'journeys,numbers,data,layout') p.push(`/status serves the kinds ${JSON.stringify(ids)}, not Journeys, Numbers, Data, Layout & served pages in that order`);
+    const SHA = want.commit;
+    for (const [, id, st, chip, name, line, items] of rows) {
+      const text = words(line);
+      const runLink = /<a class="journeys-log" href="([^"]*)">/.exec(line)?.[1] || '';
+      if (!/^https:\/\/github\.com\/georgewong1014-pixel\/quantum-tradeworks\/actions\/(runs\/\d+|workflows\/(journeys|checks)\.yml)$/.test(runLink)) p.push(`${name}: links ${runLink || 'nothing'}, not its Actions run or run history`);
+      if (st === 'PASS' && chip !== 'Pass') p.push(`${name}: data-status PASS with the chip "${chip}"`);
+      if (st === 'NOT-RUN' && (chip !== 'Not run' || /chip-(ok|warn|critical)/.test(kinds.slice(kinds.indexOf(`id="kind-${id}"`), kinds.indexOf(`id="kind-${id}"`) + 120)))) p.push(`${name}: not run, and its chip says "${chip}" or carries a result's colour`);
+      if (id === 'journeys') {
+        if (st !== 'NOT-RUN' && !/^\d+ of \d+ journeys pass\b.* · the live site, \d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC · [0-9a-f]{7} · run log$/.test(text)) p.push(`Journeys: "${text.slice(0, 120)}" states no count, UTC time and 7-character commit`);
+        said.push(`Journeys ${st}`);
+        continue;
+      }
+      const suites = [...items.matchAll(/<li data-mark="(ok|fail|notrun)"><span class="kind-mark">(PASS|FAIL|Not run)<\/span> ([^<]*)/g)];
+      const mine = CHECK_SUITES.filter(s => s.kind === id);
+      if (suites.length !== mine.length) p.push(`${name}: ${suites.length} suites listed, of its ${mine.length}`);
+      const pass = suites.filter(s => s[2] === 'PASS').length;
+      if (st === 'PASS' && pass !== mine.length) p.push(`${name}: Pass with ${pass} of ${mine.length} suites passing — a suite not run or failed is never a pass`);
+      if (st === 'PASS' && !new RegExp(`^${mine.length} of ${mine.length} suites pass( · [\\d,]+ of [\\d,]+ checks)? · CI on ${SHA}, \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{2}:\\d{2} UTC · run log$`).test(text)) p.push(`${name}: "${text.slice(0, 120)}" — not its counts, CI's commit ${SHA} and its time`);
+      if (st === 'NOT-RUN' && !(SHA ? text.startsWith(`Not run for ${SHA}: `) : text.startsWith('Not run'))) p.push(`${name}: not run, and it does not say "Not run for ${SHA}": "${text.slice(0, 100)}"`);
+      if (suites.some(s => s[2] === 'Not run') && st === 'PASS') p.push(`${name}: a suite not run, under Pass`);
+      said.push(`${words(name)} ${st === 'NOT-RUN' ? `not run for ${SHA}` : `${st} (${pass}/${mine.length} suites)`}`);
+    }
+    if (status.indexOf('id="health-kinds"') > status.indexOf('>Complete journeys on the live site</h3>')) p.push('/status: the four kinds are not served above the journeys');
+  }
+  if (ci == null) p.push('/status serves no #health-ci beside the in-browser checks');
+  else {
+    if (ci !== want.ci) p.push(`/status's #health-ci is not the records': "${words(ci).slice(0, 120)}"`);
+    if (!/^Runs in your browser when the page loads — results for this commit from CI: Numbers (PASS|FAIL|not run for [0-9a-f]{7})\b.* · Data (PASS|FAIL|not run for [0-9a-f]{7})\b/.test(words(ci))) p.push(`#health-ci does not read "Runs in your browser when the page loads — results for this commit from CI: Numbers … · Data …": "${words(ci).slice(0, 140)}"`);
+    const at = status.indexOf('id="health-ci"'), b = status.indexOf('>Checked in your browser now</h3>'), q = status.indexOf('id="health-quick"');
+    if (!(b > -1 && b < at && at < q)) p.push('/status: #health-ci is not served under "Checked in your browser now", above the in-browser checks');
+    if (want.status.numbers !== 'PASS' && /Numbers PASS/.test(words(ci))) p.push(`#health-ci says Numbers PASS where the record does not: "${words(ci).slice(0, 120)}"`);
+  }
+  /* The calls to action: the count is its steps'. */
+  const cta = /<li class="journey-row" id="journey-ctas" data-status="(PASS|DEGRADED|FAIL)">([\s\S]*?)<\/div><\/li>/.exec(status);
+  if (!cta) p.push('/status lists no calls-to-action journey');
+  else if (cta[1] !== 'FAIL') {
+    const steps = (cta[2].match(/<li data-mark="/g) || []).length;
+    const m = /(\d+) calls to action pressed \((\d+) steps: the page opened, then each call\)/.exec(words(cta[2]));
+    if (!m) p.push(`the calls-to-action journey does not say "N calls to action pressed (N + 1 steps: the page opened, then each call)": "${words(cta[2]).slice(0, 120)}"`);
+    else if (+m[2] !== steps || +m[1] !== steps - 1) p.push(`the calls-to-action journey says ${m[1]} calls and ${m[2]} steps, and lists ${steps} steps`);
+    else said.push(`calls to action ${m[1]} of ${m[2]} steps`);
+  }
+  judge(p, `/status serves each kind of check on its own, as the records say and counted from them: ${said.join(' · ')}; CI's results beside the in-browser checks; the calls-to-action count reconciled with its steps`,
+    '/status does not serve the four kinds, CI\'s line or the calls to action as the records say');
+}
+/* ---- end checks-served ---- */
 
 /* ---- live-proof ---- */
 /* EACH LIVE BADGE BESIDE ITS JOURNEY'S LAST RESULT, SERVED (D15, the
@@ -2704,5 +2822,6 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end deep-links ---- */
 
+console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

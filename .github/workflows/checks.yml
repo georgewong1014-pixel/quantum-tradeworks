@@ -64,7 +64,8 @@ jobs:
       # and weigh a page's weight, not the app's. It also holds sitemap.xml to
       # the canonical addresses the router sets.
       - name: index.html, 404.html, pages/, assets/ and vercel.json match src/
-        run: node build.mjs --check
+        if: ${{ !cancelled() }}
+        run: node checks-record.mjs run build-check -- node build.mjs --check
 
       # Every address is served what Vercel will serve it, before any script
       # runs — which is all a link preview or a crawler ever reads. A route's
@@ -75,20 +76,22 @@ jobs:
       # serve.mjs answers from vercel.json by Vercel's rules, so this needs no
       # browser. `node served-check.mjs --url <site>` asks the deployed site.
       - name: every address is served its own head, and an unknown one a 404
+        if: ${{ !cancelled() }}
         run: |
           nohup node serve.mjs --port 8124 > /tmp/serve-static.log 2>&1 &
           for i in $(seq 1 40); do
             curl -sf -o /dev/null http://localhost:8124/ && break
             sleep 0.25
           done
-          node served-check.mjs http://localhost:8124
+          node checks-record.mjs run served-check -- node served-check.mjs http://localhost:8124
 
       # The SEC ingest's selection rule — which of a concept's many reported
       # facts becomes the year's figure — on a fixture, with no network. It
       # chose a quarter-end over the year-end for balance-sheet lines for as
       # long as the file existed, and "the file parses" was the only check.
       - name: the ingest picks the year-end balance
-        run: node ingest-test.mjs
+        if: ${{ !cancelled() }}
+        run: node checks-record.mjs run ingest-test -- node ingest-test.mjs
 
       # The price-history store: the one writer of data/price-history.json.
       # The engine's validation on every row, the source-rank conflict policy
@@ -100,7 +103,8 @@ jobs:
       # (ingest/history-check.mjs: shifted series, sessions held twice, price
       # breaks and the adjustments that explain them) and --adjusted imports.
       - name: the price-history store validates, ranks, trims and dates bars
-        run: node history-store-test.mjs
+        if: ${{ !cancelled() }}
+        run: node checks-record.mjs run history-store-test -- node history-store-test.mjs
 
       # The same rules, over the file that ships. Every plausibility check used
       # to live in the browser, so data/us.json could hold a share count of
@@ -110,14 +114,16 @@ jobs:
       # loader's function, and fails on any hard finding not already recorded
       # — or on a recorded one that has gone, so the record stays true.
       - name: the shipped dataset passes the ingest's own validation
-        run: node data-check.mjs
+        if: ${{ !cancelled() }}
+        run: node checks-record.mjs run data-check -- node data-check.mjs
 
       # The scanner worker slices its engine out of index.html by marker and the
       # page runs the same region, so one test covers both: indicator arithmetic
       # on hand-computed series, the fixture, dedupe, cooldown, expiry, and the
       # worker's own exit codes.
       - name: the scanner engine evaluates its fixture
-        run: node scanner-test.mjs
+        if: ${{ !cancelled() }}
+        run: node checks-record.mjs run scanner-test -- node scanner-test.mjs
 
       # /status is the public statement of what works, typed by hand. This
       # holds each row to its route (an operational row must open a real
@@ -126,7 +132,8 @@ jobs:
       # brief item has a row, a partial P1 surface is feature-flagged). No
       # browser: the register and the route table are read from src/.
       - name: the capability register claims only what its routes and checks support
-        run: node register-check.mjs
+        if: ${{ !cancelled() }}
+        run: node checks-record.mjs run register-check -- node register-check.mjs
 
       # The journeys workflow commits health/journeys.json, with the island
       # pages rebuilt from it, after every production deployment that changes
@@ -137,6 +144,16 @@ jobs:
       # here, the wait, the schedule, no [skip ci]. Offline.
       - name: the journeys' commit rule, result shape and table
         run: node journeys.mjs --self-test
+
+      # The record of what CI found (health/checks.json, checks-record.mjs):
+      # each suite's counts read from what it printed, a suite that did not
+      # run for the commit served "Not run for <commit>" and never PASS, the
+      # four kinds /status publishes, and this workflow's and the journeys
+      # workflow's shape — every recorded suite run through the recorder, a
+      # last step in each job that records them, the collection into the
+      # bot's one commit. Offline.
+      - name: the CI results' record — a suite that did not run never reads PASS
+        run: node checks-record.mjs --self-test
 
       # The CSP names a hash of each inline script it allows. If one ever
       # disagrees with the script that shipped, the site is blank in
@@ -229,6 +246,23 @@ jobs:
             console.log('no licensed data tracked.');
           "
 
+      # WHAT EACH SUITE FOUND, RECORDED (the daily audit of 10 Oct 2026, items
+      # 3 and 7). /status publishes Journeys, Numbers, Data, and Layout &
+      # served pages separately, each with its counts as its suites printed
+      # them and the commit they ran on. Each recorded suite above ran through
+      # checks-record.mjs run, which keeps its output and exit code; this step
+      # reads them and writes one annotation a suite (::notice title=qt-check
+      # <id>::…), which the GitHub API serves to anyone, and a table to the
+      # job summary. The recorded suites run whatever failed before them (if:
+      # !cancelled()), so one failure does not hide the others' results.
+      # A suite whose step did not run left nothing, and reads NOT RUN —
+      # never PASS. The journeys workflow reads the annotations of the commit
+      # the site serves into health/checks.json (checks-record.mjs collect).
+      # This step decides nothing and never fails.
+      - name: record each suite's result
+        if: always()
+        run: node checks-record.mjs summarize --job static
+
   runtime:
     name: every route renders
     needs: static
@@ -258,6 +292,7 @@ jobs:
       # serve.mjs applies the generated headers, so the sweep runs under the
       # real Content-Security-Policy rather than a permissive local one.
       - name: serve
+        id: serve
         run: |
           nohup node serve.mjs --port 8123 > /tmp/serve.log 2>&1 &
           for i in $(seq 1 40); do
@@ -269,13 +304,15 @@ jobs:
       # Console errors, page exceptions, failed requests, CSP violations,
       # NaN/undefined rendered as values, and horizontal overflow — per route.
       - name: route sweep
-        run: node sweep.mjs http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run sweep -- node sweep.mjs http://localhost:8123
 
       # A route may state one answer to a question, or none. This catches the
       # class of bug where a page is briefly wrong before settling — invisible
       # to any check that waits for the page to settle.
       - name: no route contradicts itself
-        run: node coverage-frames.mjs http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run coverage-frames -- node coverage-frames.mjs http://localhost:8123
 
       # Every static route is served the app's own render of its page in
       # #views (prerender/, written by prerender.mjs, put into each page by
@@ -292,7 +329,8 @@ jobs:
       # production. On CI a failure prints only what the app draws now, never
       # the committed render's side.
       - name: every served page is the app's own render of it
-        run: node prerender.mjs --check http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run prerender-check -- node prerender.mjs --check http://localhost:8123
 
       # Record, edit, undo and replay across every logged entity. The other
       # checks all look at a PAGE; this looks at a SEQUENCE, which is where one
@@ -310,7 +348,8 @@ jobs:
       # least afford: a number that is plausible, sits in the right place and
       # moves the right way, and is not what it says it is.
       - name: every published figure is the quantity its label claims
-        run: node model-test.mjs http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run model-test -- node model-test.mjs http://localhost:8123
 
       # The equities side had no arithmetic check at all, and 119 filed
       # companies shipped for two months with ten of them labelled a year
@@ -324,14 +363,35 @@ jobs:
       # the 10-Ks, persistence across a reload, exports against the table,
       # the watchlist contract, and the loading and failed-load states.
       - name: the filed statements are labelled and derived as they claim
-        run: node equity-test.mjs http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run equity-test -- node equity-test.mjs http://localhost:8123
 
       # 360 · 390 · 430 · 768 · 1024 · 1440. The sweep only ever looks at the
       # default width, so a table that gained a column pushes the page sideways
       # on a phone and every other check still passes — which is exactly how the
       # decision record shipped 186px of overflow at 390.
       - name: no horizontal overflow at any width
-        run: node mobile.mjs http://localhost:8123
+        if: ${{ !cancelled() && steps.serve.outcome == 'success' }}
+        run: node checks-record.mjs run mobile -- node mobile.mjs http://localhost:8123
+
+      # WHAT EACH SUITE FOUND, RECORDED (the daily audit of 10 Oct 2026, items
+      # 3 and 7). /status publishes Journeys, Numbers, Data, and Layout &
+      # served pages separately, each with its counts as its suites printed
+      # them and the commit they ran on. Each recorded suite above ran through
+      # checks-record.mjs run, which keeps its output and exit code; this step
+      # reads them and writes one annotation a suite (::notice title=qt-check
+      # <id>::…), which the GitHub API serves to anyone, and a table to the
+      # job summary. The recorded suites run whenever the server is up (if:
+      # !cancelled() and the serve step passed), so a sweep or a frames
+      # failure no longer hides the numbers' results; the job still fails on
+      # any of them.
+      # A suite whose step did not run left nothing, and reads NOT RUN —
+      # never PASS. The journeys workflow reads the annotations of the commit
+      # the site serves into health/checks.json (checks-record.mjs collect).
+      # This step decides nothing and never fails.
+      - name: record each suite's result
+        if: always()
+        run: node checks-record.mjs summarize --job runtime
 
   # THE JOURNEYS, A JOB OF THEIR OWN (plan item 2.3, 6 Oct 2026). They were
   # the last step of "every route renders", so a sweep, a frames check or a

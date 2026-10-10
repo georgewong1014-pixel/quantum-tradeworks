@@ -96,6 +96,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { CHECKS_FILE } from './checks-record.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 /* Imported (build.mjs reads journeysServed and ISLAND_PAGES), nothing below
@@ -234,7 +235,9 @@ export function decide(recorded, fresh, now = Date.now(), { deployedFiles = null
    are git's (status --porcelain), one a line; returns what may not be
    committed. */
 export function guardProblems(changed) {
-  const allowed = new Set([RECORD_FILE, ...ISLAND_PAGES]);
+  /* And CI's results on the served commit (health/checks.json,
+     checks-record.mjs), which the workflow copies in with the record. */
+  const allowed = new Set([RECORD_FILE, CHECKS_FILE, ...ISLAND_PAGES]);
   return changed.filter(f => !allowed.has(f));
 }
 
@@ -297,9 +300,16 @@ export function journeysServed(doc) {
      no price history, because none ships — is "gated", with its reason. */
   const mark = (s) => (s.status === 'FAIL' ? 'FAIL' : s.gated ? 'gated' : 'OK');
   const steps = (j) => (Array.isArray(j.steps) ? j.steps : []).filter(s => s && typeof s.name === 'string' && ['OK', 'SLOW', 'FAIL'].includes(s.status));
+  /* THE CALLS TO ACTION, COUNTED FROM THE STEPS (the daily audit of 10 Oct
+     2026): the note said "30 calls to action pressed" over 31 listed steps.
+     The first step opens the dashboard and is not a call to action; every
+     step after it is one. A record written before the note said so is said
+     the same way here, from its own steps. */
+  const ctaCount = (j) => { const n = steps(j).length - 1; return n + ' calls to action pressed (' + (n + 1) + ' steps: the page opened, then each call)'; };
   const items = list.map(j => {
-    const detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
+    let detail = j.status === 'FAIL' ? 'Failed at “' + j.failedStep + '”' + (j.route ? ' on ' + j.route : '') + '.' + (j.note ? ' ' + j.note : '')
       : j.note || (j.status === 'PASS' ? 'Completed, each step within its time budget.' : 'Completed, but degraded; the recorded run gives no reason.');
+    if (j.id === 'ctas' && j.status !== 'FAIL' && steps(j).length > 1) detail = detail.replace(/\b\d+ calls to action pressed(?: \(\d+ steps: the page opened, then each call\))?/, () => ctaCount(j));
     const st = steps(j);
     return '<li class="journey-row" id="' + idOf(j) + '" data-status="' + j.status + '">'
       + '<span class="chip health-chip ' + STATE[j.status][0] + '">' + STATE[j.status][1] + '</span>'
@@ -349,6 +359,10 @@ export function journeysServed(doc) {
     : 'no property journey in the last recorded run';
   return { recorded: true, sum, list: items, lines, proof, model };
 }
+
+/* The calls-to-action journey's count, from its steps: n calls, n + 1 steps
+   (journeysServed has its own copy: it is self-contained). */
+export const ctaSaid = (n) => `${n} calls to action pressed (${n + 1} steps: the page opened, then each call)`;
 
 const fmtS = (ms) => (ms == null ? '—' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
 const cell = (s) => String(s ?? '—').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
@@ -427,7 +441,13 @@ function selfTest() {
   t(resultProblem({ ...gatedDoc, journeys: [{ ...gatedDoc.journeys[0], steps: [{ name: 'Evaluate', ms: 1, status: 'OK', gated: '' }] }] }) !== null, 'the record: a gated step with no reason is not valid');
   t(triggerOf('deployment_status') === 'deployment' && triggerOf('schedule') === 'schedule' && triggerOf('workflow_dispatch') === 'dispatch' && triggerOf('push') === null, 'the trigger: deployment_status, schedule and workflow_dispatch, and nothing else');
   /* The guard on the bot's commit (N1d). */
-  t(!guardProblems(BOT_FILES).length && guardProblems(['health/journeys.json', 'pages/about.html', 'index.html']).join() === 'pages/about.html,index.html', 'the guard: the record and the island pages may be committed by the bot, and nothing else');
+  t(!guardProblems(BOT_FILES).length && !guardProblems([...BOT_FILES, 'health/checks.json']).length && guardProblems(['health/journeys.json', 'pages/about.html', 'index.html']).join() === 'pages/about.html,index.html'
+    && guardProblems(['health/other.json']).join() === 'health/other.json', 'the guard: the record, CI\'s results on the served commit (health/checks.json) and the island pages may be committed by the bot, and nothing else');
+  /* The audit of 10 Oct 2026 (items 3 and 7): the bot's commit carries CI's
+     results too, and its deployment still records nothing — no second loop. */
+  t(decide(pass, flap, now, { trigger: 'deployment', deployedFiles: [...BOT_FILES, 'health/checks.json'], deployedAuthor: BOT }).commit === false
+    && decide(pass, flap, now, { trigger: 'deployment', deployedFiles: ['health/checks.json'], deployedAuthor: 'MCD' }).commit === false,
+    'the loop guard: a bot commit of the journeys record, the checks record and the island pages records nothing on its deployment, nor does a commit of the checks record alone');
   /* The served build is matched by the page its commit serves at / (plan
      item 1.2): the rewrite of "/" in that commit's vercel.json, or
      index.html before there was one; this checkout's own is the home page,
@@ -471,6 +491,18 @@ function selfTest() {
       'journeysServed: the model line adds the Scenario Lab journey, a failure with its step, escaped');
     t(journeysServed({ ...full, journeys: full.journeys.filter(x => x.id !== 'property') }).model === 'no property journey in the last recorded run' && none.model === 'no recorded run to show',
       'journeysServed: the model line says when the run has no property journey, and when there is no run');
+    /* The 10 Oct audit: "30 destinations" over 31 steps. The count is the
+       steps' — the first opens the page, each after it is a call. */
+    {
+      const ctaSteps = (k) => Array.from({ length: k }, (_, i) => ({ name: i ? `Call ${i}` : 'Open My Dashboard', ms: 100, status: 'OK' }));
+      const ctaRow = (rec) => /<li class="journey-row" id="journey-ctas"[\s\S]*?<p class="caption">([^<]*)<\/p>/.exec(journeysServed(rec).list)?.[1] || '';
+      const ctaRec = (k, note) => ({ ...full, journeys: [{ ...j('ctas', 'PASS'), name: 'Primary calls to action land on working pages', note, steps: ctaSteps(k) }] });
+      const said = ctaRow(ctaRec(31, '30 calls to action pressed, each landing on a working page'));
+      const odd = ctaRow(ctaRec(5, '30 calls to action pressed, each landing on a working page'));
+      const now2 = ctaRow(ctaRec(31, `${ctaSaid(30)}, each landing on a working page`));
+      t(said === '30 calls to action pressed (31 steps: the page opened, then each call), each landing on a working page' && now2 === said && /^4 calls to action pressed \(5 steps: /.test(odd),
+        `journeysServed: the calls-to-action count is its steps' — the page opened, then each call — whatever an older note says (${said.slice(0, 80)}…; 5 steps: ${odd.slice(0, 30)}…)`);
+    }
     /* build.mjs imports this module, and this module imports build.mjs for
        --url production: a top-level await of it would wait on itself. */
     const own = readFileSync(join(ROOT, 'journeys.mjs'), 'utf8').split(/\r?\n/).filter(l => /^\S/.test(l) && /\bawait\b/.test(l) && !/^\s*(\/\/|\/\*|\*)/.test(l));
@@ -563,7 +595,7 @@ function selfTest() {
     t(!/^concurrency:/m.test(y) && /^ {4}concurrency:\n {6}group: journeys\n {6}cancel-in-progress: false$/m.test(y), 'the workflow: one concurrency group, the job\'s — a skipped preview event cannot cancel a pending production run');
     t(/--decide [^\n]*--deployed-files/.test(y) && /git diff --name-only "\$DEPLOY_SHA\^" "\$DEPLOY_SHA"/.test(y), 'the workflow: the deployed commit\'s files reach the commit rule');
     const perms = /^permissions:\n((?: {2}[^\n]*\n)+)/m.exec(y);
-    t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'actions: write,contents: write,issues: write', 'the workflow: permissions actions, contents and issues write, nothing else');
+    t(!!perms && perms[1].trim().split('\n').map(s => s.trim()).sort().join(',') === 'actions: write,checks: read,contents: write,issues: write', 'the workflow: permissions actions, contents and issues write, and checks read (CI\'s annotations on the served commit), nothing else');
     const wait = Number((/--commit "\$DEPLOY_SHA" --wait (\d+)/.exec(y) || [])[1]);
     const limit = Number((/^ {4}timeout-minutes: (\d+)$/m.exec(y) || [])[1]);
     /* 2.3: the checks take 39–52 minutes, so a deployment held for them
@@ -616,7 +648,7 @@ if (MAIN && has('guard')) {
   const changed = changedPaths();
   const bad = guardProblems(changed);
   if (bad.length) {
-    console.error(`the bot may commit only ${RECORD_FILE} and the island pages (${ISLAND_PAGES.join(', ')}); this tree also changes:`);
+    console.error(`the bot may commit only ${RECORD_FILE}, ${CHECKS_FILE} and the island pages (${ISLAND_PAGES.join(', ')}); this tree also changes:`);
     bad.slice(0, 20).forEach(f => console.error(`  ${f}`));
     if (bad.length > 20) console.error(`  and ${bad.length - 20} more`);
     console.error('main was not built from its own source, or the build changed what the record does not decide — nothing is committed');
@@ -802,7 +834,7 @@ const PERSONAL = /\/data\/(prices|personal-[a-z-]+|price-history|price-adjustmen
 /* Absences the product expects (README-bughunt: "Expected, not defects"):
    the personal lane, which is answered 404 here; the analytics script, absent
    locally; and the journeys file itself before its first run. */
-const EXPECTED_ABSENT = [PERSONAL, /\/_vercel\/insights\/script\.js/, /\/health\/journeys\.json/];
+const EXPECTED_ABSENT = [PERSONAL, /\/_vercel\/insights\/script\.js/, /\/health\/(journeys|checks)\.json/];
 const expected = (e) => !!e.url && EXPECTED_ABSENT.some(re => re.test(e.url));
 
 class StepError extends Error {}
@@ -942,7 +974,18 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
   tab.fill = async (find, value, what, { commit = false } = {}) => {
     await tab.eval(`(window.__fillBox = ${find}, true)`).catch(() => null);
     await tab.click(find, what);
-    const afterClick = await tab.eval(`(() => { const b = window.__fillBox; return { focused: !!b && document.activeElement === b, connected: !!b && b.isConnected }; })()`).catch(() => null);
+    const focusOf = () => tab.eval(`(() => { const b = window.__fillBox; return { focused: !!b && document.activeElement === b, connected: !!b && b.isConnected }; })()`).catch(() => null);
+    let afterClick = await focusOf();
+    /* A click that did not take, clicked again, as a reader would: on CI's
+       runner the Rent box, still the page's and under the pointer, did not
+       take focus from a click just after the Lab drew for a changed field
+       (10 Oct 2026). A second miss is reported, with what was found. */
+    if (afterClick && afterClick.connected && !afterClick.focused) {
+      await sleep(400);
+      await tab.eval(`(window.__fillBox = ${find}, true)`).catch(() => null);
+      await tab.click(find, `${what} (again)`);
+      afterClick = await focusOf();
+    }
     await S('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2, commands: ['selectAll'] });
     await S('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
     await S('Input.insertText', { text: String(value) });
@@ -2869,7 +2912,11 @@ const JOURNEYS = [
         sourceErrs.forEach(why => j.notes.push(why));
       } else {
         sourceErrs.forEach((why, path) => j.degrade(why, path));
-        j.notes.push(`${checked} calls to action pressed, each landing on a working page`);
+        /* COUNTED FROM THE STEPS (the daily audit of 10 Oct 2026): "30
+           destinations" sat over 31 steps. The first step opens the
+           dashboard and is not a call to action; every step after it is
+           one — journeysServed says it the same way, from the steps. */
+        j.notes.push(`${ctaSaid(j.steps.length - 1)}, each landing on a working page`);
       }
     },
     /* A console error on a page a call to action lands on is that call

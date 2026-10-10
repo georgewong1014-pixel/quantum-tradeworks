@@ -1379,11 +1379,13 @@ try {
       const BLOCK = `(() => { const box = (n) => { if (!n) return null; const r = n.getBoundingClientRect(); return [Math.round(r.top + scrollY), Math.round(r.height)]; };
         const s = document.getElementById('health-journeys-sum'), l = document.getElementById('health-journeys'), lines = [...document.querySelectorAll('#views .journey-line')];
         const pr = document.getElementById('health-proofs'), md = document.querySelector('#views .status-model-result');
+        const kd = document.getElementById('health-kinds'), ci = document.getElementById('health-ci');
         const html = (n) => (n ? n.innerHTML.replace(/<span class="journeys-age">[\\s\\S]*?<\\/span>/, '') : null);
         return { sum: html(s), list: html(l), line: html(lines[0]), lines: lines.length, sumBox: box(s), listBox: box(l), lineBox: box(lines[0]),
           proofs: html(pr), proofsBox: box(pr), model: html(md), modelBox: box(md && md.closest('.status-split-row')),
+          kinds: html(kd), kindsBox: box(kd), ci: html(ci), ciBox: box(ci),
           next: box(document.querySelector('#views h1')), served: document.getElementById('views').hasAttribute('data-served'),
-          read: typeof HEALTH !== 'undefined' && !!HEALTH.journeys }; })()`;
+          read: typeof HEALTH !== 'undefined' && !!HEALTH.journeys && !!HEALTH.checks }; })()`;
       const near = (a, b) => (a === null && b === null) || (!!a && !!b && Math.abs(a[0] - b[0]) <= 2 && Math.abs(a[1] - b[1]) <= 2);
       try {
         for (const [path, metrics] of [['/status', W1280], ['/status', W390], ['/property', W1280], ['/property', W390], ['/research', W1280], ['/app/scanner', W390]]) {
@@ -1402,6 +1404,9 @@ try {
             if (!/<span class="proof-result"[^>]*>[^<]*<span class="proof-status"/.test(served.proofs || '')) { said.push(`${at}: served with no Live badge's last result: ${JSON.stringify((served.proofs || '').replace(/<[^>]*>/g, ' ').slice(0, 90))}`); continue; }
             /* Property's model line (N2d), served from the record too. */
             if (!/^property journey /.test((served.model || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served with no property journey on Property's model line: ${JSON.stringify((served.model || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
+            /* The four kinds and CI's line beside the in-browser checks (the
+               10 Oct audit), served from the records like the rest. */
+            if (!/<li class="kind-row" id="kind-layout"/.test(served.kinds || '') || !/^Runs in your browser when the page loads — results for this commit from CI: /.test((served.ci || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served without the four kinds or CI's line: ${JSON.stringify((served.ci || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
           } else if (served.lines !== 1 || !/^<span class="journey-line-label">Journey:<\/span> /.test(served.line || '')) { said.push(`${at}: served with no journey line (${served.lines} lines: ${JSON.stringify((served.line || '').slice(0, 80))})`); continue; }
           await releaseScript();
           await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete'`);
@@ -1410,12 +1415,12 @@ try {
           holding = false;
           for (const requestId of held) await send('Fetch.continueRequest', { requestId }, sid);
           held = [];
-          if (!await quiet(`typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served') && typeof HEALTH !== 'undefined' && !!HEALTH.journeys`)) said.push(`${at}: the page never settled with the record read`);
+          if (!await quiet(`typeof realPending !== 'undefined' && !realPending && !document.getElementById('views').hasAttribute('data-served') && typeof HEALTH !== 'undefined' && !!HEALTH.journeys && !!HEALTH.checks`)) said.push(`${at}: the page never settled with the record read`);
           await painted();
           const settled = await value(BLOCK);
           for (const [when, x] of [['when the script drew it, the record still on its way', drawn], ['once the record was read and the page settled', settled]]) {
-            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
-            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
+            for (const k of path === '/status' ? ['sum', 'list', 'proofs', 'model', 'kinds', 'ci'] : ['line']) if (x[k] !== served[k]) said.push(`${at}, ${when}: the ${k === 'sum' ? 'summary' : k === 'list' ? 'list of journeys' : k === 'proofs' ? 'list of Live badges and their results' : k === 'model' ? 'Property model line' : k === 'kinds' ? 'four kinds' : k === 'ci' ? 'line of CI\'s results' : 'journey line'} is not what was served: ${JSON.stringify((x[k] || '').replace(/<[^>]*>/g, '').slice(0, 80))}`);
+            for (const k of path === '/status' ? ['sumBox', 'listBox', 'proofsBox', 'modelBox', 'kindsBox', 'ciBox'] : ['lineBox', 'next']) if (!near(x[k], served[k])) said.push(`${at}, ${when}: ${k.replace('Box', '')} moved from ${JSON.stringify(served[k])} to ${JSON.stringify(x[k])} (top, height)`);
           }
           if (!settled.read) said.push(`${at}: the page never read the record`);
         }
@@ -1425,7 +1430,7 @@ try {
         await releaseAll();
         await send('Emulation.setDeviceMetricsOverride', W1280, sid);
       }
-      const what = 'the recorded journeys stand as served — /status\'s summary, its list, each Live badge\'s last result and Property\'s model line (N2d), and the journey line on /property, /research and /app/scanner — from the first frame, through the script\'s first draw with the record\'s read on its way, to the page settled: the same markup, where it stood, at 1280 and 390';
+      const what = 'the recorded journeys stand as served — /status\'s summary, its list, each Live badge\'s last result, Property\'s model line (N2d), the four kinds and CI\'s line beside the in-browser checks (10 Oct audit), and the journey line on /property, /research and /app/scanner — from the first frame, through the script\'s first draw with the records\' reads on their way, to the page settled: the same markup, where it stood, at 1280 and 390';
       if (said.length) { bad.push('journeys-served'); console.log(`FAIL ${what}`); said.slice(0, 30).forEach(x => console.log(`     ${x}`)); }
       else console.log(`ok   ${what}`);
     }

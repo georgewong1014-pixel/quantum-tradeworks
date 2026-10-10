@@ -42,13 +42,20 @@ name: journeys
 #     of 5 Oct 2026; journeys.mjs --decide holds the rule, its --self-test
 #     the cases). Until 6 Oct 2026 it was recorded only when a status changed
 #     or the record was a day old, and three code deployments in a row went
-#     unrecorded.
+#     unrecorded;
+#   - health/checks.json, in the same commit: checks.yml's suites on the
+#     commit the site serves — Numbers, Data, and Layout & served pages,
+#     each suite's counts as it printed them — read from the annotations its
+#     jobs leave (checks-record.mjs collect). /status publishes the four
+#     kinds separately; a suite with no result for that commit reads "Not
+#     run for <commit>", never PASS.
 #
 # LOOP SAFETY. That commit is deployed like any other (the file and the pages
 # have to be on the site), and its deployment runs this workflow again. That
 # run still writes its summary and keeps the issue, but it records nothing:
-# the deployed commit changed only the record and — written by
-# github-actions[bot] — the island pages, so it serves the same app as the
+# the deployed commit changed only the records (health/journeys.json and
+# health/checks.json) and — written by github-actions[bot] — the island
+# pages, so it serves the same app as the
 # deployment before it (decide's ownRecord rule, held by journeys.mjs
 # --self-test). A status that flaps — a step a second over budget is
 # DEGRADED on one run and PASS on the next — therefore makes at most one
@@ -85,8 +92,12 @@ on:
 #     it, and its deployment would wait for checks that never come. It starts
 #     them itself (actions: write). The commit no longer says [skip ci]: its
 #     checks are what Deployment Checks promotes it on.
+#
+# checks: read (10 Oct 2026) reads the annotations checks.yml leaves on the
+# served commit — each suite's result — into health/checks.json.
 permissions:
   actions: write
+  checks: read
   contents: write
   issues: write
 
@@ -110,8 +121,10 @@ jobs:
       group: journeys
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    # Up to an hour waiting for a held deployment to go live, then the run.
-    timeout-minutes: 75
+    # Up to an hour waiting for a held deployment to go live, then the run,
+    # then up to 50 minutes for checks.yml to finish on the served commit
+    # where Deployment Checks did not already hold the deployment for it.
+    timeout-minutes: 140
     env:
       # What started the run, and its public log: both are recorded.
       TRIGGER: ${{ github.event_name == 'deployment_status' && 'deployment' || github.event_name == 'schedule' && 'schedule' || 'dispatch' }}
@@ -220,9 +233,29 @@ jobs:
             echo "no issue to open or close (fails=${FAILS:-0}, all_pass=${ALL_PASS:-false}, open issue: ${num:-none})"
           fi
 
+      # WHAT CI FOUND ON THE SERVED COMMIT (the daily audit of 10 Oct 2026,
+      # items 3 and 7). /status publishes Journeys, Numbers, Data, and Layout
+      # & served pages separately. The journeys are this run's; the other
+      # three are checks.yml's suites on the commit the site serves (the
+      # record's commit_served), read from the annotations each of its jobs
+      # leaves (checks-record.mjs summarize) — public, so nothing is
+      # downloaded. A run still going on that commit is waited for, up to 50
+      # minutes (a deployment Deployment Checks did not hold goes live before
+      # its checks end); a suite with no result reads NOT RUN, never PASS.
+      # Only when the journeys are recorded, and into the same commit: no
+      # second record, no second deployment, the same loop guard. The step
+      # never fails the run — a record it cannot read says so.
+      - name: collect the checks of the served commit
+        if: always() && steps.decide.outputs.commit == 'true'
+        env:
+          SERVED: ${{ steps.decide.outputs.commit_served }}
+          GH_TOKEN: ${{ github.token }}
+        run: node checks-record.mjs collect --commit "$SERVED" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/checks.json" --wait 3000
+
       # The record and the island pages rebuilt from it, in one commit by
       # github-actions[bot], on top of main as it is now:
-      #   1. copy the record over health/journeys.json;
+      #   1. copy the record over health/journeys.json, and CI's results on
+      #      the served commit over health/checks.json;
       #   2. node build.mjs, which writes it into /status and the three
       #      product landing pages (no browser: the renders are committed);
       #   3. node journeys.mjs --guard: the tree changes the record and those
@@ -245,10 +278,14 @@ jobs:
           record() {
             mkdir -p health || return 2
             cp "$RUNNER_TEMP/journeys.json" health/journeys.json || return 2
+            # With no checks record (the collect step could not write one),
+            # health/checks.json stays as it was: for another commit, so
+            # /status reads "Not run for" the served one.
+            if [ -f "$RUNNER_TEMP/checks.json" ]; then cp "$RUNNER_TEMP/checks.json" health/checks.json || return 2; fi
             node build.mjs > "$RUNNER_TEMP/build.log" 2>&1 || { cat "$RUNNER_TEMP/build.log"; return 2; }
             node journeys.mjs --guard || return 2
             git add -A || return 2
-            git commit -q -m "chore(health): production journeys — $SUMMARY" -m "$WHY" -m "Written by .github/workflows/journeys.yml from journeys.mjs --url production, with the island pages node build.mjs rebuilt from it."
+            git commit -q -m "chore(health): production journeys — $SUMMARY" -m "$WHY" -m "Written by .github/workflows/journeys.yml from journeys.mjs --url production, with checks.yml's results on the served commit (checks-record.mjs collect, health/checks.json) and the island pages node build.mjs rebuilt from both."
           }
           record || exit 1
           for i in 1 2 3 4 5; do

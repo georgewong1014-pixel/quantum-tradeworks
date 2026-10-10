@@ -151,6 +151,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { journeysServed, ISLAND_PAGES, RECORD_FILE, ROOT_PAGES, JOURNEY_NAMES } from './journeys.mjs';
+import { checksServed, checksProblem, CHECKS_FILE, SUITES as CHECK_SUITES } from './checks-record.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const src = (...p) => join(ROOT, 'src', ...p);
@@ -177,6 +178,10 @@ const JOURNEYS_MARKER = '/*@INJECT:journeysServed*/ null';
 /* And the journeys' names, by id (91-health.js; JOURNEY_NAMES in
    journeys.mjs): /status names the journey that proves each Live badge. */
 const JOURNEY_NAMES_MARKER = '/*@INJECT:journeyNames*/ null';
+/* And CI's results' one renderer and the suites it counts (91-health.js;
+   checksServed and SUITES in checks-record.mjs): /status's four kinds. */
+const CHECKS_MARKER = '/*@INJECT:checksServed*/ null';
+const CHECK_SUITES_MARKER = '/*@INJECT:checkSuites*/ null';
 /* Where the homepage's filed example goes into the app (55-views-public.js;
    homeFiled, below). */
 const HOME_FILED_MARKER = '/*@INJECT:homeFiled*/ null';
@@ -1075,6 +1080,30 @@ export function readRecord(root = ROOT) {
   try { return JSON.parse(lf(readFileSync(f, 'utf8'))); }
   catch { throw new Error(`${RECORD_FILE} is not JSON — the served /status and product pages cannot carry it`); }
 }
+/* CI'S RESULTS ON THE SERVED COMMIT (the daily audit of 10 Oct 2026, items 3
+   and 7). health/checks.json, which the journeys workflow writes with the
+   journeys' record (checks-record.mjs collect): /status publishes Journeys,
+   Numbers, Data, and Layout & served pages separately — its #health-kinds —
+   and, beside the checks the reader's tab runs, CI's results for the same
+   commit (#health-ci), through checks-record.mjs's one renderer
+   (checksServed). A record that is not one fails the build, as the
+   journeys' does. */
+export function readChecks(root = ROOT) {
+  const f = join(root, CHECKS_FILE);
+  if (!existsSync(f)) return null;
+  let doc;
+  try { doc = JSON.parse(lf(readFileSync(f, 'utf8'))); }
+  catch { throw new Error(`${CHECKS_FILE} is not JSON — the served /status cannot carry it`); }
+  const p = checksProblem(doc);
+  if (p) throw new Error(`${CHECKS_FILE} is not a record of CI's results (${p})`);
+  return doc;
+}
+/* Both records, as the island pages serve them: journeysServed's output, and
+   checksServed's as its checks. */
+export function servedRecords(root = ROOT) {
+  const journeys = readRecord(root);
+  return Object.assign(journeysServed(journeys), { checks: checksServed(readChecks(root), journeys, CHECK_SUITES) });
+}
 /* A Live badge's result slot on /status, as the render serves it, and the
    journey and step its attributes name (unescaped as the serializer escaped
    them). */
@@ -1100,6 +1129,11 @@ export function withServedRecord(r, served) {
     /* Property's "Model:" line (N2d; statusPropertySection, 91-health.js):
        the property journeys' last recorded results, time and commit. */
     put(/(<span class="status-model-result"[^>]*\bdata-now=""[^>]*>)(<\/span>)/, served.model, 'an empty .status-model-result marked data-now');
+    /* The four kinds, each its own result (the 10 Oct audit; kindsNode,
+       91-health.js), and CI's results beside the in-browser checks. */
+    if (!served.checks) throw new Error('withServedRecord: /status needs the CI results\' record too (servedRecords)');
+    put(/(<ul id="health-kinds" [^>]*\bdata-now=""[^>]*>)(<\/ul>)/, served.checks.kinds, 'an empty #health-kinds marked data-now');
+    put(/(<p class="metaline" id="health-ci"[^>]*\bdata-now=""[^>]*>)(<\/p>)/, served.checks.ci, 'an empty #health-ci marked data-now');
     /* Each Live badge's last result (D15, plan item 2.6; proofSection,
        91-health.js): every .proof-result slot, drawn empty and marked
        data-now, gets journeysServed's proof for the journey and the step
@@ -1422,6 +1456,10 @@ export function build({ bare = false } = {}) {
   js = js.replace(JOURNEYS_MARKER, () => `(${journeysServed.toString()})`);
   if (js.split(JOURNEY_NAMES_MARKER).length !== 2) throw new Error('src/js must carry the journeys\' names marker exactly once (91-health.js)');
   js = js.replace(JOURNEY_NAMES_MARKER, () => JSON.stringify(JOURNEY_NAMES));
+  if (js.split(CHECKS_MARKER).length !== 2) throw new Error('src/js must carry the CI results\' renderer marker exactly once (91-health.js)');
+  js = js.replace(CHECKS_MARKER, () => `(${checksServed.toString()})`);
+  if (js.split(CHECK_SUITES_MARKER).length !== 2) throw new Error('src/js must carry the CI suites\' marker exactly once (91-health.js)');
+  js = js.replace(CHECK_SUITES_MARKER, () => JSON.stringify(CHECK_SUITES.map(s => ({ id: s.id, name: s.name, kind: s.kind }))));
   if (js.split(HOME_FILED_MARKER).length !== 2) throw new Error('src/js must carry the homepage\'s filed-example marker exactly once (55-views-public.js)');
   js = js.replace(HOME_FILED_MARKER, () => JSON.stringify(homeFiled(plan)));
 
@@ -1456,7 +1494,7 @@ export function build({ bare = false } = {}) {
   const rendered = bare ? { manifest: null, renders: new Map(), missing: [], edited: [], extra: [], unknown: [] } : readRenders(scope);
   /* Every page carries the first-paint script (BEFORE THE FIRST PAINT); an
      island page's render, the recorded journeys (THE RESULT, SERVED). */
-  const served = journeysServed(readRecord());
+  const served = servedRecords();
   /* And each in its own chrome first, the other after its page (PAGE
      CONTENT FIRST): a page with no render is the public header's, as a
      first frame draws it. */
@@ -1485,7 +1523,7 @@ export function build({ bare = false } = {}) {
      root's render has none of their slots: were it to grow one, / would
      serve the record without the journeys workflow rebuilding it. */
   const rootRender = rendered.renders.get('index.html');
-  if (rootRender && /\bid="health-journeys|\bclass="journey-line"/.test(rootRender.views))
+  if (rootRender && /\bid="health-(journeys|kinds|ci)|\bclass="journey-line"/.test(rootRender.views))
     throw new Error(`${rootRender.render} carries a slot for the recorded journeys — add ${HOME} to ISLAND_PAGES (journeys.mjs), so the journeys workflow rebuilds it with the record`);
   /* journeys.mjs matches the served build by this page (ROOT_PAGES). */
   if (!ROOT_PAGES.includes(HOME)) throw new Error(`journeys.mjs's ROOT_PAGES does not name ${HOME}, so the journeys could not tell which build / serves`);
