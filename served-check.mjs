@@ -2851,7 +2851,9 @@ const HOME_PAGE = read(HOME);
     const html = all(tree).find(n => n.tag === 'html');
     const lines = views ? all(views).filter(n => attr(n, 'data-backup-line') !== null) : [];
     if (lines.length !== 1) { p.push(`${path}: ${lines.length} backup lines in the served page, not one`); continue; }
-    const text = sight(lines[0]).replace(/\s+/g, ' ').trim();
+    /* sightText joins a node's pieces with a space; a full stop after an
+       element is the page's own "exported." */
+    const text = sight(lines[0]).replace(/\s+/g, ' ').replace(/ ([.,])/g, '$1').trim();
     if (attr(lines[0], 'data-backup-state') !== 'never') p.push(`${path}: the backup line's state is "${attr(lines[0], 'data-backup-state')}", not "never"`);
     if (text !== want) p.push(`${path}: the backup line reads "${text}", not "${want}"`);
     if (/\d/.test(text)) p.push(`${path}: the backup line carries a figure ("${text}") — a fresh visitor has nothing of theirs to count`);
