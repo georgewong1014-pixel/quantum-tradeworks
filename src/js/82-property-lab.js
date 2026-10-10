@@ -790,7 +790,33 @@ function labTileKind(d, rests) {
   const weakest = keys.filter(k => evidenceDriversFor(d).includes(k)).map(k => evidenceOf(shownEvidence(d, k))).sort((a, b) => a.rank - b.rank)[0];
   return weakest ? { kind: weakest.id, words: weakest.label } : { kind: 'user', words: evidenceOf('user').label };
 }
-const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
+/* A result's kind (D6): the badge of its weakest input on the EVIDENCE
+   ladder (KIND_OF_EVIDENCE), linking to /data-sources#kinds, with the
+   ladder's own word kept beside it ("Illustrative default", "Yours · you
+   supplied") — the evidence id stays the tag's data-kind. `fees`: the
+   figure carries fee lines nobody has checked (the cash required's
+   unverified lines), so a Placeholder outranks a weaker kind (N6). */
+const labTag = (kind, { fees = false } = {}) => {
+  const base = kind.kind === 'unavailable' ? 'unavailable' : KIND_OF_EVIDENCE[kind.kind] || 'unavailable';
+  const k = fees ? kindFirst([base, 'placeholder']) : base;
+  return kindWithFine(k, k === base ? kind.words : 'fee lines unchecked',
+    /* No link: on a phone the Lab's every target is 44px, and a 20px pill
+       is not one (the definitions are in its title, and on /data-sources). */
+    { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind }, link: false });
+};
+/* A deal's result, as cardHead's badge: { kind, fine } — the weakest input
+   it rests on (all of the deal's, or `rests`), Placeholder where `fees`
+   and the cash carries fee lines nobody has checked, and `also` (the
+   model's own step, Modelled; a rulebook figure, Placeholder) in the
+   precedence (KIND_ORDER). */
+function dealKind(d, m = null, { rests = null, fees = false, also = [] } = {}) {
+  if (!d || !(num0(d.price) > 0)) return { kind: 'unavailable', fine: 'Needs a purchase price' };
+  const ev = labTileKind(d, rests || evidenceDriversFor(d));
+  const base = KIND_OF_EVIDENCE[ev.kind] || 'unavailable';
+  const kinds = [base, ...(fees && m?.unconfirmedCost > 0 ? ['placeholder'] : []), ...also];
+  const kind = kindFirst(kinds);
+  return { kind, fine: kind === base ? ev.words : kind === 'placeholder' ? 'Fee lines unchecked' : KIND_BADGES[kind].word };
+}
 function labTiles(P, lab) {
   const d = labSubjectInputs(lab);
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
@@ -803,7 +829,7 @@ function labTiles(P, lab) {
     /* THE SYSTEM'S METRIC CARD (37-layout-system.js): the cash and the
        month are the decision (L1, the card-metric size); the yield
        qualifies them (L2, medium). */
-    const card = lsMetricCard({ label: (LAB_TILE_LABEL[t.key] || f.label)(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
+    const card = lsMetricCard({ label: (LAB_TILE_LABEL[t.key] || f.label)(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind, { fees: t.key === 'safeCashRequired' && run?.m?.unconfirmedCost > 0 }), level: t.level,
       sub: run ? ((LAB_TILE_NOTE[t.key] || f.note)(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
       cls: 'lab-tile', attrs: { role: 'listitem', 'data-tile': t.key }, valueAttrs: { class: 'lab-tile-val', 'data-value': isNum(v) ? String(v) : '' } });
     card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
@@ -849,7 +875,11 @@ function labNextTile(P, lab, d) {
     sub = 'A, B and C side by side, below';
   }
   /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
-  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: labTag(kind), cls: 'lab-tile lab-tile-next',
+  /* "Not saved" and "Saved" are the property's state, not a figure's kind:
+     they keep the plain tag. */
+  const tag = EVIDENCE.some(e => e.id === kind.kind) ? labTag(kind)
+    : el('span', { class: 'lab-tag lab-tile-kind ls-badge', 'data-kind': kind.kind }, kind.words);
+  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: tag, cls: 'lab-tile lab-tile-next',
     attrs: { role: 'listitem', 'data-tile': 'next', 'data-kind': kind.kind } });
   card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
   card.querySelector('.ls-card-label').classList.add('lab-tile-label');

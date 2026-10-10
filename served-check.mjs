@@ -68,7 +68,7 @@ import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { clientRouter, companyPlan, siteOrigin, appFiles, linked, PAGE_LIMIT, GENERIC, HOME, HOME_HEAD_BYTES, HOME_TEXT_BYTES, pageText, routePlan, prerenderScope, readRenders, navMarkup, NAV_SLOTS, myWorkspace,
-  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome, filedSeries } from './build.mjs';
+  servedHtmlTag, servedReadsOf, FIRST_SCRIPT, FIRST_TAG, firstHash, readRecord, withServedRecord, unservedChrome, filedSeries, metricBadgeProblems } from './build.mjs';
 import { journeysServed, ISLAND_PAGES, resultProblem, RUN_URL } from './journeys.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -1869,6 +1869,63 @@ const HOME_PAGE = read(HOME);
     'a page on the layout system serves a card that is none of the four types, a size off the scale, or a text block let wider than 70ch');
 }
 /* ---- end layout-system ---- */
+
+/* ---- d6-kind-badges ---- */
+/* THE EIGHT KIND BADGES SITE-WIDE, AS SERVED (the owner's decision D6;
+   Track B, 10 Oct 2026; the inventory in the handoff's results/d6-
+   inventory.md). Read as a fetch reads them:
+   - every page in the prerender's scope — each static route and each filed
+     company's page — serves no metric card (data-card="metric") without a
+     kind badge inside it, and every badge names one of the eight;
+   - a sample of the inventory's surfaces serves the badges its figures
+     call for, each a link to /data-sources#kinds unless it says why not.
+   Fails on f11163b0: /property's and the Lab's tiles and the calculator's
+   answer cards carried no badge, and the sample's surfaces (the
+   screener's columns, the company page's cards, /status's checks, the
+   area screen, the calculator's total) carried none of theirs. */
+{
+  const p = [], said = { pages: 0, cards: 0, surfaces: 0 };
+  const scope = prerenderScope(RENDER_PLAN).map(s => s.path);
+  const got = await getAll(scope);
+  for (const [path, r] of got) {
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    said.pages++;
+    const m = metricBadgeProblems([[path, r.body]]);
+    said.cards += m.cards;
+    p.push(...m.problems);
+  }
+  /* path → the kinds its served page must carry as badges, and why. */
+  const SAMPLE = [
+    ['/property', ['illustrative'], 'the sample deal’s tiles and seeded inputs'],
+    ['/property/calculator', ['illustrative', 'placeholder', 'derived'], 'the answer cards, the fee lines (Placeholder, Derived) and the total'],
+    ['/property/lab', ['illustrative'], 'the Lab’s tiles'],
+    ['/', ['filed', 'unavailable', 'illustrative'], 'the homepage’s three product pictures'],
+    ['/research', ['filed', 'illustrative'], 'Research’s filed examples and illustrative lenses'],
+    ['/app/scanner', ['illustrative'], 'the Scanner’s generated-series example'],
+    ['/company/aapl-apple-inc', ['filed', 'modelled', 'unavailable'], 'a filer’s tiles, the model’s cards and the price it does not hold'],
+    ['/discover/screener', ['modelled', 'derived'], 'the screener’s column headers'],
+    ['/status', ['filed', 'illustrative'], 'the checks that report a filing’s and a fixture’s figures'],
+    ['/property/areas', ['unavailable'], 'the area screen, before anything is recorded'],
+    ['/data-sources', ['filed', 'derived', 'modelled', 'yours', 'quoted', 'illustrative', 'placeholder', 'unavailable'], 'the eight, defined'],
+  ];
+  const sampled = await getAll(SAMPLE.map(s => s[0]));
+  for (const [path, kinds, what] of SAMPLE) {
+    const r = sampled.get(path);
+    if (!r || r.status !== 200) { p.push(`${path}: ${r ? described(r) : 'not fetched'}`); continue; }
+    const from = r.body.indexOf('<div id="views"'), to = r.body.indexOf('</main>', from);
+    const views = from < 0 ? '' : r.body.slice(from, to < 0 ? undefined : to);
+    const badges = [...views.matchAll(/<(a|span)\b([^>]*\bdata-kind-badge="([a-z]+)"[^>]*)>/g)].map(x => ({ tag: x[1], attrs: x[2], kind: x[3] }));
+    const missing = kinds.filter(k => !badges.some(b => b.kind === k));
+    if (missing.length) p.push(`${path}: serves no ${missing.join(', ')} badge for ${what} (${badges.length} badges served)`);
+    /* A badge that is a link goes to the eight's definitions. */
+    const astray = badges.filter(b => b.tag === 'a' && !/\bhref="\/data-sources#kinds"/.test(b.attrs));
+    if (astray.length) p.push(`${path}: ${astray.length} badge link(s) lead somewhere other than /data-sources#kinds`);
+    said.surfaces++;
+  }
+  judge(p, `D6 kind badges: ${said.cards} metric cards on ${said.pages} served pages, each with its kind badge; ${said.surfaces} inventory surfaces serve the badges their figures call for, each link to /data-sources#kinds`,
+    'a served metric card has no kind badge, or an inventory surface does not serve its figures’ badges');
+}
+/* ---- end d6-kind-badges ---- */
 
 /* ---- home-3a ---- */
 /* THE HOMEPAGE CLEANUP, AS SERVED (plan Phase 3A and 3B; the owner's

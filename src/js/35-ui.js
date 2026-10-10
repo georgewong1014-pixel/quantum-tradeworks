@@ -168,7 +168,9 @@ function scoreBar(label, value, pct, tone = '--brand') {
   return wrap;
 }
 
-function statTile(label, value, { delta, sub, spark, tone } = {}) {
+/* kind: the figure's D6 badge (kindBadge, 37-layout-system.js), drawn as
+   the tile's last line so the label's own words are unchanged. */
+function statTile(label, value, { delta, sub, spark, tone, kind = null, fine = null } = {}) {
   const t = el('div', { class: 'stat' });
   t.append(el('div', { class: 'stat-label' }, label));
   const vr = el('div', { class: 'row', style: 'gap:10px;align-items:baseline' });
@@ -177,16 +179,20 @@ function statTile(label, value, { delta, sub, spark, tone } = {}) {
   t.append(vr);
   if (delta != null) t.append(el('div', { class: 'stat-delta ' + signClass(delta.v), html: `${withSign(delta.v, delta.dp ?? 1, delta.suffix ?? '%')} <span style="color:var(--ink-3);font-weight:500">${esc(delta.label)}</span>` }));
   if (sub) t.append(el('div', { class: 'stat-sub' }, sub));
+  if (kind) t.append(el('div', { class: 'stat-kind' }, kindBadge(kind, { fine })));
   return t;
 }
 
 /* heading: false draws the title as text, for a toolbar above a page's own
    h1 — the report's and the decision record's — which as an h3 was the
    first heading in main, ahead of the h1. */
-function cardHead(title, subtitle, right, { heading = true } = {}) {
+/* kind: the D6 badge of every figure the card holds (kindBadge), once,
+   beside its title — never a badge a figure. */
+function cardHead(title, subtitle, right, { heading = true, kind = null, fine = null } = {}) {
   const h = el('div', { class: 'card-hd' });
   const l = el('div');
-  l.append(el(heading ? 'h3' : 'p', { class: 'h-card' }, title));
+  const t = el(heading ? 'h3' : 'p', { class: 'h-card' }, title);
+  l.append(kind ? el('div', { class: 'card-hd-t' }, [t, kindBadge(kind, { fine })]) : t);
   if (subtitle) l.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, subtitle));
   h.append(l);
   if (right) h.append(right);

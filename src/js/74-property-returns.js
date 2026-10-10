@@ -238,7 +238,7 @@ function returnsAndTaxPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Return, and tax on the rent',
     'The internal rate of return discounts every year’s cash flow at the time it actually arrives. '
-    + 'The annualised multiple beside it does not, and the gap between them is what the timing costs.'));
+    + 'The annualised multiple beside it does not, and the gap between them is what the timing costs.', null, dealKind(d, m)));
 
   /* ---- the rate ---- */
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });

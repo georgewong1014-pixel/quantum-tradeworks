@@ -2074,7 +2074,76 @@ export function kindProblems() {
     for (const k of from) if (!keys.includes(map[k])) out.push(`the ${name} "${k}" maps to ${map[k] === undefined ? 'no badge' : `"${map[k]}", which is not a badge`}`);
     for (const k of Object.keys(map)) if (!from.includes(k)) out.push(`the ${name} map names "${k}", which is not a ${name}`);
   }
+  /* EVERY FEE_TABLE STATUS (D6, Track B 10 Oct 2026): the statuses a
+     resolved fee line can carry — every one resolveFee writes, and every
+     one a ledger line is drawn with beside its provenance (75-property-
+     grade.js) — each to exactly one badge (KIND_OF_FEE_STATUS); and on
+     every line of the table, the badge its status gives is the badge its
+     provenance gives, whatever the line resolves to, so a line never reads
+     as two kinds. */
+  const GRADE = js('75-property-grade.js');
+  let statusMap = {};
+  try { statusMap = vm.runInContext(`(${cut(LS, '37-layout-system.js', 'const KIND_OF_FEE_STATUS = ', ';\n').replace(/^const KIND_OF_FEE_STATUS = /, '').replace(/;\s*$/, '')})`, vm.createContext({})); }
+  catch { out.push('37-layout-system.js declares no KIND_OF_FEE_STATUS: the fee statuses map to no badge'); }
+  const resolver = cut(PROP, '70-property.js', 'function resolveFee(', '\n}\n');
+  const statuses = new Set();
+  for (const [, rhs] of resolver.matchAll(/\bstatus\s*[:=]\s*([^;,}]+)/g)) for (const [, s] of rhs.matchAll(/'([a-z-]+)'/g)) statuses.add(s);
+  for (const m of GRADE.matchAll(/\{[^{}]*\bstatus\s*:\s*'([a-z-]+)'[^{}]*\bprovenance\s*:|\{[^{}]*\bprovenance\s*:[^{}]*\bstatus\s*:\s*'([a-z-]+)'/g)) statuses.add(m[1] || m[2]);
+  for (const s of statuses) if (!keys.includes(statusMap[s])) out.push(`the fee status "${s}" maps to ${statusMap[s] === undefined ? 'no badge' : `"${statusMap[s]}", which is not a badge`}`);
+  for (const s of Object.keys(statusMap)) if (!statuses.has(s)) out.push(`the fee status map names "${s}", which no fee line is resolved to`);
+  const table = vm.runInContext(`(${cut(PROP, '70-property.js', 'const FEE_TABLE = {', '\n};').replace(/^const FEE_TABLE = /, '').replace(/;$/, '')})`, vm.createContext({}));
+  /* What resolveFee gives a line with an amount, by its provenance. */
+  const statusOf = (prov) => (prov === 'verified' ? 'verified' : prov === 'quote' ? 'quote' : 'placeholder');
+  let lines = 0;
+  for (const [id, line] of Object.entries(table.lines || {})) {
+    lines++;
+    for (const prov of [line.provenance, 'quote']) {
+      const a = api.KIND_OF_FEE[prov], b = statusMap[statusOf(prov)];
+      if (!keys.includes(a) || a !== b) out.push(`the fee line "${id}" ${prov === line.provenance ? `(${prov})` : 'with a quotation entered'} reads "${a}" by its provenance and "${b}" by its status — not exactly one badge`);
+    }
+    if (line.quoteKind && line.quoteKind !== api.KIND_OF_FEE.quote) out.push(`the fee line "${id}" names its quotation "${line.quoteKind}", not "${api.KIND_OF_FEE.quote}", the badge of every quotation entered`);
+  }
+  out.said = { provenance: Object.keys(api.PROVENANCE).length, evidence: api.EVIDENCE.length, feeProvenance: FEE.length, feeStatus: statuses.size, feeLines: lines };
   return out;
+}
+
+/* NO METRIC CARD WITHOUT ITS KIND (the layout system's metric card: "a
+   value and its label, plus its data badge (D6)"; Track B, 10 Oct 2026).
+   Every element served as data-card="metric" holds a kind badge — an
+   element with data-kind-badge naming one of the eight — inside it. Read
+   on every page the build writes (build --check) and on every page as
+   served (served-check). It failed on f11163b0: /property's and the Lab's
+   three tiles and the calculator's four answer cards wore the evidence
+   ladder's own word (lab-tag), and no kind badge. */
+export const KIND_KEYS = ['filed', 'derived', 'modelled', 'yours', 'quoted', 'illustrative', 'placeholder', 'unavailable'];
+export function metricCardElements(html) {
+  const out = [];
+  const open = /<([a-zA-Z][\w-]*)\b[^>]*\sdata-card="metric"[^>]*>/g;
+  let m;
+  while ((m = open.exec(html))) {
+    const tag = m[1].toLowerCase();
+    const re = new RegExp(`<(/?)${tag}\\b[^>]*>`, 'gi');
+    re.lastIndex = m.index + m[0].length;
+    let depth = 1, end = html.length, t;
+    while ((t = re.exec(html))) { depth += t[1] ? -1 : 1; if (!depth) { end = t.index; break; } }
+    const inner = html.slice(m.index + m[0].length, end);
+    const label = ((/class="[^"]*\bls-card-label\b[^"]*"[^>]*>([\s\S]*?)<\//.exec(inner) || [])[1] || inner.replace(/<[^>]+>/g, ' ')).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 48);
+    const kinds = [...inner.matchAll(/\sdata-kind-badge="([^"]*)"/g)].map(x => x[1]);
+    out.push({ label, kinds });
+  }
+  return out;
+}
+export function metricBadgeProblems(pages) {
+  const out = [];
+  let cards = 0;
+  for (const [file, html] of pages) {
+    for (const c of metricCardElements(html)) {
+      cards++;
+      if (!c.kinds.length) out.push(`${file}: the metric card "${c.label}" is served without a kind badge (data-kind-badge)`);
+      else if (c.kinds.some(k => !KIND_KEYS.includes(k))) out.push(`${file}: the metric card "${c.label}" carries a kind badge of no kind of the eight (${c.kinds.join(', ')})`);
+    }
+  }
+  return { problems: out, cards };
 }
 
 /* THE FEE RULEBOOK'S SHAPE (the owner's property track, 8 Oct 2026). The
@@ -2337,8 +2406,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const RESEARCH_PAGE = `${PAGES}/research.html`;
   const researchCheck = !bare && rendered.renders.has('research.html') && pages.has(RESEARCH_PAGE)
     ? researchFront(pages.get(RESEARCH_PAGE), { usFile: JSON.parse(readFileSync(join(ROOT, 'data', 'us.json'), 'utf8')), companies: plan.companies }) : null;
+  /* D6: the kind badges' mapping, and no metric card without its badge. */
+  const kindMapped = kindProblems(), metricCards = bare ? { problems: [], cards: 0 } : metricBadgeProblems([['index.html', html], ...pages]);
   const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
-    ...kindProblems(), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : []),
+    ...kindMapped, ...(bare ? [] : metricCards.problems), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : []),
     ...(researchCheck ? researchCheck.problems.map(x => `/research (${RESEARCH_PAGE}), its front page (N7): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
@@ -2372,6 +2443,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
       console.log(`every page carries the navigation NAV_MARKUP draws; ${rendered.renders.size} of them (${scope.length} in scope) carry their committed render of the page in #views exactly, under prerender/.`);
       console.log(`every page but index.html loads /${files.script.file} (deferred, from its head) and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}). / is ${HOME}, ${kb(Buffer.byteLength(pages.get(HOME)))}, the app's script tag and #views in its first ${HOME_HEAD_BYTES / 1024}kB and its h1 in its first ${HOME_TEXT_BYTES / 1024}kB; .vercelignore keeps index.html off the host and /index.html is a 308 to /.`);
       console.log(`every page, index.html too, carries the first-paint script once in its head before what it loads, named in the CSP (${firstHash().slice(0, 19)}…); ${[...rendered.renders.values()].filter(r => servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render })).length} pages with a render say on <html> what it read.`);
+      { const k = kindMapped.said || {}; console.log(`the kind badges (D6): each of ${k.provenance} PROVENANCE kinds, ${k.evidence} EVIDENCE ids, ${k.feeProvenance} fee provenances and ${k.feeStatus} fee statuses maps to exactly one of the eight words, and each of the ${k.feeLines} FEE_TABLE lines reads one badge by its provenance and its status; ${metricCards.cards} metric cards on the pages written, each with its kind badge.`); }
       console.log(`sitemap.xml lists only canonical addresses that are served their own page, each with the day its render last changed as <lastmod>.`);
       console.log(`${NAPIC_DIR}/ holds ${napic.size} division files made from ${NAPIC_SOURCE}, one division each, ${kb([...napic.values()].reduce((n, b) => n + Buffer.byteLength(b), 0))} in all; .vercelignore keeps ${NAPIC_SOURCE} off the host.`);
     } else {

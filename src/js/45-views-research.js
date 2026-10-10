@@ -1065,7 +1065,11 @@ VIEWS.research = () => {
      company with no price showed a large dash where the price stands, and a
      dash reads as a figure. It wears the Unavailable badge (D6) and says
      why, in the words the page uses for every price-based measure. */
-  if (isNum(c.px.p)) pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
+  /* With a price, its kind beside it (D6): the reader's own, or a synthetic
+     company's sample. */
+  if (isNum(c.px.p)) pxBlock.append(el('div', { class: 'row', style: 'gap:8px;justify-content:flex-end;align-items:center' }, [
+    kindBadge(priceKindOf(c), { fine: c.real ? (c.px?.eod ? 'An end-of-day close you supplied' : 'A price you entered') : 'The sample price' }),
+    el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy))]));
   else pxBlock.append(el('p', { class: 'px-na' }, [kindBadge('unavailable', { fine: 'Price' }), el('span', { class: 'px-na-why' }, ' · no licensed price')]));
   /* The change and its date render only when there is a price to have changed.
      Previously this printed "— today" on every filed company, which dates a
@@ -1613,7 +1617,7 @@ function tabSnapshot(r) {
   const rc = researchComposite(r);
   const rcCard = el('div', { class: 'card' });
   rcCard.append(cardHead('Research case',
-    'Five weighted pillars from the framework. Technical context is weighted zero here and is not consulted — price evidence lives on its own card.'));
+    'Five weighted pillars from the framework. Technical context is weighted zero here and is not consulted — price evidence lives on its own card.', null, { kind: kindFor(c, 'modelled'), fine: 'The research case score' }));
 
   const head = el('div', { class: 'row', style: 'gap:var(--lg);align-items:baseline;flex-wrap:wrap' });
   head.append(el('div', {}, [
@@ -1690,6 +1694,9 @@ function tabSnapshot(r) {
     ].map(label => el('li', {}, [el('span', { class: 'mm-na-label' }, label), kindBadge('unavailable', { fine: label }), el('span', { class: 'mm-na-why' }, ` · ${why}`)]))));
     main.append(tiles);
   } else {
+    /* D6, once for the four: each rests on the price — the reader's own, or
+       a synthetic company's sample. */
+    tiles.append(cardHead('Market measures', null, null, { kind: kindFor(c, 'yours'), fine: c.real ? 'On the price you supplied' : 'On the sample price' }));
     const tg = el('div', { class: 'grid g-4' });
     const tileFor = (k, node) => { const f = FIELD_BY_K[k]; return f ? tileButton(node, `${f.label} — show source`, () => openSourceDrawer(r, f)) : node; };
     tg.append(tileFor('mcap', statTile('Market capitalisation', fmtCap(toBase(m.mcap, c.ccy), State.baseCcy), { sub: `${fmtNum(last(r.d.sh), 2)}bn shares` })));
@@ -1714,7 +1721,7 @@ function tabSnapshot(r) {
   /* valuation range */
   const vr = el('div', { class: 'card' });
   vr.append(cardHead('Valuation range', `${val.pack.name}. ${val.pack.why}`,
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions')));
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions'), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
   if (val.err) vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(val.err)}</span>` }));
   else {
     /* A bear or bull case its published shift took out of bounds; the base stands. */
@@ -1770,7 +1777,7 @@ function tabSnapshot(r) {
   const real = realSeriesFor(c);
   const tc = el('div', { class: 'card' });
   tc.append(cardHead('Trend context',
-    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.'));
+    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.', null, real ? { kind: kindFor(c, 'yours'), fine: 'From the closes you supplied' } : { kind: 'unavailable', fine: 'No closes held for this company' }));
   if (!real) {
     tc.append(el('p', { class: 'body', style: 'font-size:13px' },
       priceHistory(c)
@@ -1821,7 +1828,7 @@ function tabSnapshot(r) {
        them ("Observed closes 260") while this card, directly beneath, said a
        price series "needs a licensed feed". It draws the series both read. */
     const days = obsDays;
-    pc.append(cardHead('Price history', `Observed closes from the price history you supplied — the ${days.length} latest held, ${days[0]} to ${days[days.length - 1]}, the series Trend context above reads. Not a licensed feed.`));
+    pc.append(cardHead('Price history', `Observed closes from the price history you supplied — the ${days.length} latest held, ${days[0]} to ${days[days.length - 1]}, the series Trend context above reads. Not a licensed feed.`, null, { kind: kindFor(c, 'yours'), fine: 'Closes you supplied' }));
     const ph = el('div', { style: 'width:100%' });
     pc.append(ph);
     lineChart(ph, { values: days.map(d => real.series[d]), labels: days, fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1',
@@ -1840,7 +1847,7 @@ function tabSnapshot(r) {
        sample price and high the range line prints: m.from52 is measured on
        observed closes where any were imported, and set beside the sample range
        it read −12.8% for a price 3.4% below the high it sat next to. */
-    pc.append(cardHead('Price, last 52 weeks', 'A generated illustration consistent with the sample price, 52-week range and 12-month return. Not observed closes.'));
+    pc.append(cardHead('Price, last 52 weeks', 'A generated illustration consistent with the sample price, 52-week range and 12-month return. Not observed closes.', null, { kind: 'illustrative', fine: 'A generated series' }));
     const ph = el('div', { style: 'width:100%' });
     pc.append(ph);
     lineChart(ph, { values: hist, labels: hist.map((_, i) => i === hist.length - 1 ? AS_OF : `Week ${i + 1}`), fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1' });
@@ -1895,7 +1902,7 @@ function tabSnapshot(r) {
 
   const sc = el('div', { class: 'card' });
   sc.append(cardHead('Scorecard', 'Pillars stay separate — trade-offs are not hidden inside one number.',
-    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'quality') }, 'Detail')));
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'quality') }, 'Detail'), { kind: kindFor(c, 'modelled'), fine: 'Scores of the model' }));
   [['quality', 'Business Quality'], ['growth', 'Growth Quality'], ['strength', 'Financial Strength'], ['capital', 'Capital Allocation'], ['value', 'Valuation']]
     .forEach(([k, label]) => sc.append(scoreBar(label, r.scores[k].score, r.pct[k])));
   const riskRow = el('div', { class: 'row', style: 'padding-top:10px;margin-top:6px;border-top:1px solid var(--grid)' });
@@ -1922,7 +1929,7 @@ function tabSnapshot(r) {
   rail.append(sc);
 
   const chg = el('div', { class: 'card' });
-  chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`));
+  chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`, null, { kind: kindFor(c, 'derived'), fine: 'Changes between reported years' }));
   const ch = changeSummary(c) || [];
   const kv = el('dl', { class: 'kv' });
   ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v), title: x.withheld || null }, changeCell(x))); });
@@ -1930,7 +1937,7 @@ function tabSnapshot(r) {
   rail.append(chg);
 
   const rk = el('div', { class: 'card' });
-  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'risks') }, 'All')));
+  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'risks') }, 'All'), { kind: kindFor(c, 'modelled'), fine: 'Flags set by the model’s thresholds' }));
   const notable = r.flags.filter(f => f.sev !== 'good').slice(0, 3);
   if (!notable.length) rk.append(el('p', { class: 'caption' }, 'No flag triggered by the current thresholds.'));
   notable.forEach(f => {
@@ -1952,7 +1959,7 @@ function tabBusiness(r) {
   const seg = el('div', { class: 'card' });
   seg.append(cardHead('Revenue mix', c.seg?.length
     ? 'Share of the latest reported year. This split is illustrative — it is authored, not filed.'
-    : 'No segment split is carried for a company loaded from filings; the XBRL facts read here are consolidated lines.'));
+    : 'No segment split is carried for a company loaded from filings; the XBRL facts read here are consolidated lines.', null, (c.seg?.length ? { kind: 'illustrative', fine: 'An authored split, not filed' } : {})));
   const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
   (c.seg || []).forEach((s, i) => bar.append(el('i', { style: `width:${s[1]}%;background:var(${SERIES[i % 8]})`, title: `${s[0]} ${s[1]}%` })));
   seg.append(bar);
@@ -1999,7 +2006,7 @@ function tabBusiness(r) {
   const comp = el('div', { class: 'card', style: 'grid-column:1/-1' });
   comp.append(cardHead('Competitive position', rivals.length
     ? `Ranked against ${rivals.length} ${rivals.length === 1 ? 'company' : 'companies'}. ${rivalPick.rule} Rank is computed from the universe carried here, so it says where this company sits among these peers — not among every listed competitor.`
-    : 'Where this company sits among companies of the same business model and the same kind of data.'));
+    : 'Where this company sits among companies of the same business model and the same kind of data.', null, (rivals.length ? { kind: kindFor(c, 'derived'), fine: 'Ratios against peers' } : {})));
   if (!rivals.length) {
     comp.append(el('p', { class: 'caption' }, rivalPick.rule));
   } else {
@@ -2179,7 +2186,10 @@ function statementTable(r) {
   const stmt = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
   const sh = el('div', { class: 'stmt-hd' });
   const titles = el('div', { style: 'min-width:0;flex:1 1 420px' });
-  titles.append(el('h3', { class: 'h-card' }, 'Financial statements'));
+  /* D6, once for the table: the lines as filed (or loaded, or illustrative);
+     the derived lines keep their own mark, the CAGR column its badge. */
+  titles.append(el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card' }, 'Financial statements'),
+    kindBadge(rowKind(c), { fine: c.personal ? 'The statements you loaded' : c.real ? 'As filed with the SEC' : 'The illustrative set' })]));
   titles.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
     `${c.ccy} billions unless stated, FY${yrs[0]}–FY${last(yrs)}. Derived lines are marked and computed from the reported lines — not stored separately. Select any figure for its source.`));
   sh.append(titles);
@@ -2210,7 +2220,7 @@ function statementTable(r) {
       hr.append(el('th', { class: 'chg', scope: 'col', title: `Percentage change from FY${yrs[i - 1]} to FY${y}` }, 'Δ%'));
     }
   });
-  hr.append(el('th', { scope: 'col' }, `${yrs.length - 1}y CAGR`));
+  hr.append(el('th', { scope: 'col' }, [`${yrs.length - 1}y CAGR`, kindTh(kindFor(c, 'derived'), 'Growth rate computed from the first and last years')]));
   t.append(el('thead', {}, hr));
   const ncol = 1 + yrs.length + (showChg ? 2 * (yrs.length - 1) : 0) + 1;
   const tb = el('tbody');
@@ -2289,7 +2299,7 @@ function tabFinancials(r) {
   chartCard.append(cardHead(`${isBank ? 'Total income' : 'Revenue'}, ${ebitLabel(c).toLowerCase()}${isBank ? '' : ' and free cash flow'}`,
     `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}${fyEnd ? ` — the latest fiscal year ended ${fyEnd}` : ''}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
-      el('button', { 'aria-pressed': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
+      el('button', { 'aria-pressed': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l))), { kind: kindFor(c, isBank ? 'filed' : 'derived'), fine: isBank ? 'As filed' : 'Revenue and operating profit as filed; free cash flow derived from filed lines' }));
   const host = el('div', { style: 'width:100%' });
   chartCard.append(host);
 
@@ -2337,7 +2347,7 @@ function tabFinancials(r) {
   const q = quarters(c, d);
   const qc = el('div', { class: 'card' });
   qc.append(cardHead('Quarterly shape (derived, illustrative)',
-    'These quarters are apportioned from the two most recent years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported anywhere — this company’s figures are illustrative and so are these.'));
+    'These quarters are apportioned from the two most recent years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported anywhere — this company’s figures are illustrative and so are these.', null, { kind: 'illustrative', fine: 'The illustrative set' }));
   const qh = el('div', { style: 'width:100%' });
   qc.append(qh);
   qc.append(tableTwin('Show the table view', ['Quarter', 'Revenue', 'Net profit'], q.map(x => [x.label, fmtNum(x.rev, 2), fmtNum(x.ni, 2)])));
@@ -2409,7 +2419,8 @@ function tabQuality(r) {
     const card = el('div', { class: 'card' });
     const hd = el('div', { class: 'card-hd' });
     hd.append(el('div', {}, [
-      el('h3', { class: 'h-card' }, label),
+      /* D6, once a pillar: its score and percentile are the model's. */
+      el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card' }, label), kindBadge(kindFor(r.c, 'modelled'), { fine: `${label} score` })]),
       el('p', { class: 'metaline', style: 'margin-top:2px' }, `Weighted from ${p.parts.filter(x => isNum(x.score)).length} of ${p.parts.length} inputs · input coverage ${p.coverage}%`),
     ]));
     hd.append(el('div', { style: 'text-align:right' }, [
@@ -2537,7 +2548,7 @@ function tabMoat(r) {
   wrap.append(card);
 
   const corr = el('div', { class: 'card' });
-  corr.append(cardHead('Quantitative corroboration', 'The numbers that would have to hold for the moat claim to be true. If these deteriorate, the claim weakens regardless of the narrative.'));
+  corr.append(cardHead('Quantitative corroboration', 'The numbers that would have to hold for the moat claim to be true. If these deteriorate, the claim weakens regardless of the narrative.', null, { kind: kindFor(c, 'modelled'), fine: 'Latest values against peer percentiles' }));
   /* Each row carries the metric its percentile is taken from. The column
      used to read the percentile by ROW POSITION from a fixed list of the
      general metrics, so a bank's cost-to-income row showed the percentile of
@@ -2581,7 +2592,7 @@ function tabRisks(r) {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   const hd = el('div', { class: 'card' });
   hd.append(cardHead(`Risk grade — ${r.risk.band}`,
-    'Flags are computed from the reported statements against published thresholds, then a qualitative analyst note is added. A grade is not a probability.'));
+    'Flags are computed from the reported statements against published thresholds, then a qualitative analyst note is added. A grade is not a probability.', null, { kind: kindFor(r.c, 'modelled'), fine: 'The risk grade' }));
   const meter = el('div', { class: 'meter', style: 'height:8px' });
   meter.append(el('i', { style: `width:${r.risk.raw}%;background:var(${r.risk.band === 'High' ? '--critical' : r.risk.band === 'Medium' ? '--warn' : '--ok'})` }));
   hd.append(meter);
@@ -2618,7 +2629,7 @@ function tabOwnership(r) {
   const own = el('div', { class: 'card' });
   own.append(cardHead('Ownership', c.real
     ? 'Not held for a company loaded from filings — ownership is not among the XBRL facts read here.'
-    : 'Substantial holders as recorded in the illustrative set.'));
+    : 'Substantial holders as recorded in the illustrative set.', null, (c.real ? {} : { kind: 'illustrative', fine: 'The illustrative set' })));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   /* `100 - null - null` is 100: a free float of exactly 100.0% was stated for
      every filed company from two inputs shown as dashes on the same rows.
@@ -2640,7 +2651,7 @@ function tabOwnership(r) {
 
   const act = el('div', { class: 'card' });
   act.append(cardHead('Corporate actions and share count',
-    'Share count is the cleanest evidence of buybacks and issuance — it cannot be presented selectively.'));
+    'Share count is the cleanest evidence of buybacks and issuance — it cannot be presented selectively.', null, { kind: kindFor(c, 'filed'), fine: 'Shares outstanding as reported' }));
   const host = el('div', { style: 'width:100%' });
   act.append(host);
   act.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' },
@@ -2747,7 +2758,7 @@ function tabFilings(r) {
     const ch = changeSummary(c) || [];
     if (ch.length) {
       const card = el('div', { class: 'card' });
-      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'From the statement lines you loaded.'));
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'From the statement lines you loaded.', null, { kind: kindFor(c, 'derived'), fine: 'Changes between the years you loaded' }));
       card.append(changedTable(ch));
       wrap.append(card);
     }
@@ -2771,7 +2782,7 @@ function tabFilings(r) {
     const ch = changeSummary(c) || [];
     if (ch.length) {
       const card = el('div', { class: 'card' });
-      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'As reported, from the statement lines held for this company.'));
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'As reported, from the statement lines held for this company.', null, { kind: kindFor(c, 'derived'), fine: 'Changes between filed years' }));
       card.append(changedTable(ch));
       const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
       if (drivers.length) {

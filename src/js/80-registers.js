@@ -633,10 +633,14 @@ VIEWS.wheel = () => {
 
   /* Fit and phase, then the two numbers 41A.15 requires above any yield. */
   const tone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[fit.grade];
+  /* D6, once a card: the worked example's figures are Illustrative, any
+     other the reader's own contract and arithmetic on it (Yours). */
+  const WK = p.isWorkedExample ? { kind: 'illustrative', fine: 'The worked example' }
+    : num0(p.putStrike) > 0 ? { kind: 'yours', fine: 'From the contract you entered' } : { kind: 'unavailable', fine: 'No contract entered' };
   const head = el('div', { class: 'card', style: `border-left:3px solid var(${tone})` });
   head.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline' }, [
     el('div', {}, [
-      el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Wheel fit'),
+      el('div', { class: 'card-hd-t' }, [el('p', { class: 'eyebrow', style: 'margin:0' }, 'Wheel fit'), kindBadge(WK.kind, { fine: WK.fine })]),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${tone})` }, fit.grade),
         el('span', { style: 'font-size:14px;font-weight:500' },
@@ -721,7 +725,7 @@ VIEWS.wheel = () => {
   if (num0(p.putStrike) > 0 && m.deliverableShares > 0) {
     const pay = el('div', { class: 'card', style: 'margin-top:var(--md)' });
     pay.append(cardHead('What this pays, at expiry',
-      'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.'));
+      'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.', null, WK));
     const host = el('div', { style: 'margin-top:var(--md)' });
     pay.append(host);
     /* payoffChart appends its own table view — the rows are derived beside the
@@ -822,7 +826,7 @@ VIEWS.wheel = () => {
   /* Cover checks — pass or refuse, never a partial score. */
   if (m.valid) {
     const cov = el('div', { class: 'card' });
-    cov.append(cardHead('Collateral checks', 'Binary by design. Below 100% is a refusal, not a lower grade.'));
+    cov.append(cardHead('Collateral checks', 'Binary by design. Below 100% is a refusal, not a lower grade.', null, WK));
     const ct = el('table', { class: 'dt' });
     ct.append(el('thead', {}, el('tr', {}, ['Check', 'Required', 'You have', 'Coverage', 'Result'].map((h, i) =>
       el('th', { style: i === 0 ? 'text-align:left' : null }, h)))));
@@ -859,7 +863,7 @@ VIEWS.wheel = () => {
       : null;
     const prem = el('div', { class: 'card' });
     prem.append(cardHead('Premium, and what is still owed',
-      'Cash received is not realised profit while the option is open.'));
+      'Cash received is not realised profit while the option is open.', null, WK));
     const pk = el('dl', { class: 'kv' });
     [['Premium cash received', fmtMoney(m.putPremiumCashReceived, 'USD')],
      ['Still open against it', putOutcome || `an obligation to buy ${m.deliverableShares} shares at ${fmtMoney(num0(p.putStrike), 'USD')}`],
@@ -875,7 +879,7 @@ VIEWS.wheel = () => {
 
     /* Downside scenarios. */
     const sc = el('div', { class: 'card' });
-    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.'));
+    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.', null, WK));
     const st = el('table', { class: 'dt' });
     st.append(el('thead', {}, el('tr', {}, ['Underlying move', 'Price at expiry', 'Put result'].map(h => el('th', {}, h)))));
     const stb = el('tbody');
@@ -894,7 +898,7 @@ VIEWS.wheel = () => {
     /* Covered call, including the case the premium hides. */
     if (num0(p.callStrike) > 0) {
       const cc = el('div', { class: 'card' });
-      cc.append(cardHead('Covered call', 'What you receive, and what you give up.'));
+      cc.append(cardHead('Covered call', 'What you receive, and what you give up.', null, WK));
       const ck = el('dl', { class: 'kv' });
       [['Premium cash received', fmtMoney(m.callPremiumCashReceived, 'USD')],
        ['Called-away value', fmtMoney(m.calledAwayGrossValue, 'USD')],

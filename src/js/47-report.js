@@ -190,12 +190,13 @@ VIEWS.researchReport = () => {
   }
 
   /* ---------- 3. financial summary ---------- */
-  out.append(el('h2', {}, `Financial summary — FY${fy}`));
+  /* D6, once a section, beside its heading (a document: no link). */
+  out.append(el('h2', {}, [`Financial summary — FY${fy}`, ' ', kindBadge(rowKind(c), { link: false, fine: 'Each figure names its line below' })]));
   /* The kind of each line; the long form names the XBRL concept, for the
      statements table, and the short form fits under a headline figure. */
   const kindOfLine = (k, short = false) => {
     if (!c.real) return 'Illustrative';
-    if (k === 'fcf') return short ? 'Calculated' : 'Calculated — operating cash flow less capex';
+    if (k === 'fcf') return short ? 'Derived' : 'Derived — operating cash flow less capex';
     if (c.personal) return 'Reported — statements you supplied';
     /* A summed line names every concept in its sum. Total debt is the
        non-current line plus the current portion (LINE_PROV mode 'sum'), and
@@ -269,7 +270,7 @@ VIEWS.researchReport = () => {
     'An absent figure is printed with its reason, never left blank and never filled in. The prior-year column re-derives each measure on the statements one year earlier; a measure that needs a price has no prior value, because the price has no prior date here.'));
 
   /* ---------- 5. historical statements ---------- */
-  out.append(el('h2', {}, 'Historical statements'));
+  out.append(el('h2', {}, ['Historical statements', ' ', kindBadge(rowKind(c), { link: false, fine: 'The growth rates are derived from the lines' })]));
   const span = Math.min(6, ys.length);
   const hy = ys.slice(-span);
   const colOf = { rev: d.rev, ebit: d.ebit, ni: d.ni, ocf: d.ocf, capex: d.capex, fcf: d.fcf, eq: d.eq, debt: d.debt, cash: d.cash, sh: d.sh, dps: d.dps };
@@ -325,7 +326,7 @@ VIEWS.researchReport = () => {
     + (c.type === 'bank' ? ' Operating cash flow, capital expenditure, free cash flow and cash are not shown for a bank, as on the company page: they are not meaningful measures for a deposit-taking balance sheet.' : '')));
 
   /* ---------- 6. valuation and the reader's assumptions ---------- */
-  out.append(el('h2', {}, 'Valuation — the assumptions and what they produce'));
+  out.append(el('h2', {}, ['Valuation — the assumptions and what they produce', ' ', kindBadge(kindFor(c, 'modelled'), { link: false, fine: 'The model, on your assumptions' })]));
   if (defaults.model === 'unavailable' || val.err) {
     out.append(el('p', { class: 'body' }, `No valuation is available: ${val.err || defaults.reason}`));
   } else {

@@ -702,7 +702,7 @@ VIEWS.scannerDashboard = () => {
     const mc = el('section', { class: 'card' });
     mc.append(cardHead(current ? `Matched on the last scan — bars of ${bars}` : `Matches as of ${ls.asOf || '—'} — not current`,
       current ? 'In the order your setups are written, then the instruments. Nothing is ranked.'
-              : `The last successful scan evaluated bars of ${bars}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`));
+              : `The last successful scan evaluated bars of ${bars}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`, null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
     mc.append(lm.length ? matchRows(lm) : el('p', { class: 'body', style: 'font-size:13px' }, 'No match was recorded on that scan’s bars.'));
     wrap.append(mc);
   }
@@ -717,7 +717,7 @@ VIEWS.scannerDashboard = () => {
     const nBars = new Set(list.map(x => x.candleDate || x.bar || '')).size;
     rc.append(cardHead(ls ? `Earlier matches — the last ${nBars === 1 ? 'bar' : `${nBars} bars`} with one`
       : `Recorded matches — ${la ? 'no scan has succeeded' : 'no run recorded'}, so none is current`,
-      'Newest bar first; within a bar, in the order of your setups.'));
+      'Newest bar first; within a bar, in the order of your setups.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
     rc.append(scanOpsPaged(list, matchRows, { step: 25, noun: 'matches' }));
     wrap.append(rc);
   }
@@ -726,7 +726,7 @@ VIEWS.scannerDashboard = () => {
   const h = scanOpsHistory();
   const hm = scanOpsHistoryMeta(h);
   const mon = el('section', { class: first ? 'scan-run-part' : 'card' });
-  mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.'));
+  mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.', null, hm ? { kind: 'yours', fine: 'From your own closes and the worker’s records' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const m = st.monitored;
   mon.append(el('dl', { class: 'kv scan-kv' }, [
     el('dt', {}, 'Monitored'), el('dd', {}, m ? scanOpsPlural(m.instruments, 'instrument') : hm ? 'no enabled setup' : 'no price history loaded'),
@@ -1015,7 +1015,9 @@ function scanScreenResult(R) {
   const n = R.rows.length;
   const where = R.market === '__all' ? 'every instrument with a series in your own history' : `the ${R.market} instruments with a series in your own history`;
   box.append(el('div', { class: 'card-hd' }, el('div', {}, [
-    el('h3', { class: 'h-card', id: 'scan-screen-hd' }, `${R.setup.name || R.setup.id} on ${R.market === '__all' ? 'everything with a series' : R.market}`),
+    /* D6: a screen of the reader's own closes. */
+    el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card', id: 'scan-screen-hd' }, `${R.setup.name || R.setup.id} on ${R.market === '__all' ? 'everything with a series' : R.market}`),
+      kindBadge('yours', { fine: 'Your own closes' })]),
     /* THE COVERAGE STATEMENT COMES FIRST: what was screened, and what was not. */
     el('p', { class: 'body scan-coverage', style: 'font-size:13px;margin-top:4px;max-width:75ch' },
       `Screened ${scanOpsPlural(n, 'instrument')} — ${where}. The registry lists ${R.registry} instruments ${R.market === '__all' ? 'across all markets' : 'in this market'}; the market itself has many more, and none of those is screened.${R.capped ? ` The screen is bounded at ${SCAN_OPS_MAX_SCREEN}; ${R.capped - n} more were not evaluated.` : ''}`),
@@ -1191,7 +1193,7 @@ function scanBacktestResult(R) {
 
   /* Coverage: what each instrument could and could not be tested on. */
   const cov = el('section', { class: 'card' });
-  cov.append(cardHead('Coverage', 'Per instrument, in symbol order: the bars held, the window evaluated, the first bar every condition could be read on, and the sessions missing from the series.'));
+  cov.append(cardHead('Coverage', 'Per instrument, in symbol order: the bars held, the window evaluated, the first bar every condition could be read on, and the sessions missing from the series.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   cov.append(scanOpsTable(['Instrument', 'Calendar', 'Bars held', 'Window', 'Testable from', 'Untested bars', 'Invalid bars', 'Missing sessions'],
     o.coverage.map(v => {
       const counted = v.missingSessions.filter(m => !m.tolerated).length, tolerated = v.missingSessions.length - counted;
@@ -1211,7 +1213,7 @@ function scanBacktestResult(R) {
   const dates = el('section', { class: 'card' });
   const views = [['events', 'Where a match began', o.events], ['recorded', 'What the worker would have recorded', o.recorded], ['every', 'Every bar that held', o.matches]];
   const cur = views.find(v => v[0] === S.view) || views[0];
-  dates.append(cardHead('Matching dates', 'Symbol order, then date order. Each row opens the conditions and the values they compared on that bar.'));
+  dates.append(cardHead('Matching dates', 'Symbol order, then date order. Each row opens the conditions and the values they compared on that bar.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Which dates', style: 'margin-bottom:var(--sm)' });
   views.forEach(([id, label, list]) => seg.append(el('button', { 'aria-pressed': id === cur[0] ? 'true' : 'false', 
     onclick: () => { S.view = id; const fresh = scanBacktestResult(R); box.replaceWith(fresh); fresh.querySelector(`.segmented button[aria-pressed="true"]`)?.focus(); } }, `${label} (${list.length})`)));
@@ -1471,7 +1473,7 @@ VIEWS.scannerAdminData = () => {
   const H = scanDataHealth(history, scanOpsRegistry(), now);
   const t = H.totals;
   const sum = el('section', { class: 'card' });
-  sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`));
+  sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`, null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const g = el('div', { class: 'grid scan-counts' });
   /* Bars are the daily bars; the imported weeks and months are counted
      beside them (scanDataHealth's frames), with the frames not read. */
@@ -1493,7 +1495,7 @@ VIEWS.scannerAdminData = () => {
   wrap.append(sum);
 
   const mk = el('section', { class: 'card' });
-  mk.append(cardHead('Markets', 'In market order. The calendar is inferred from your own series — marked so — or, where fewer than five of your series share a market, weekdays with holidays unknown.'));
+  mk.append(cardHead('Markets', 'In market order. The calendar is inferred from your own series — marked so — or, where fewer than five of your series share a market, weekdays with holidays unknown.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   mk.append(scanOpsTable(['Market', 'Series', 'Session', 'Calendar', 'Inferred holidays', 'Ambiguous days', 'Expected by now', 'Newest bar', 'Stale'],
     H.markets.map(m => [m.market ? `${m.market}${m.label && m.label !== m.market ? ` — ${m.label}` : ''}` : 'no market row', fmtNum(m.symbols, 0), `${m.session} (${m.tz})`,
       el('span', {}, [el('span', { class: 'chip' + (m.calendar.basis === 'inferred' ? ' chip-bronze' : '') }, m.calendar.basis === 'inferred' ? 'inferred' : scanMarket(m.market).days.length === 7 ? 'every day' : 'weekdays'), ' ', el('span', { class: 'caption' }, m.calendar.basis === 'inferred' ? `from ${m.calendar.series} series — not an exchange calendar` : 'holidays not held')]),
@@ -1632,7 +1634,7 @@ VIEWS.scannerAdminData = () => {
     || framesOf(s).some(f => f.refused || f.invalid.length);
   const ser = el('section', { class: 'card' });
   const only = el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': 'true' }, 'Only series with something to look at');
-  ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.'));
+  ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const host = el('div');
   const draw = (all) => {
     const rows = H.series.filter(s => all || flagged(s));

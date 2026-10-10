@@ -471,6 +471,9 @@ VIEWS.tracked = () => {
     el('span', { class: depth >= 2 ? 'chip' : 'chip chip-bronze' },
       depth >= 2 ? `${depth} day series` : depth === 1 ? '1 day — a trend needs a second run' : 'no series yet'),
     priceBook?.personal ? el('span', { class: 'chip chip-bronze' }, 'read from your screen') : null,
+    /* D6, once for the table below: every close and trend figure is the
+       reader's own import. */
+    kindBadge(rows.length ? 'yours' : 'unavailable', { fine: rows.length ? 'Closes you imported' : 'No closes imported' }),
   ]));
   if (myEquities) head.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `${myEquities} Bursa Malaysia listing${myEquities === 1 ? '' : 's'}. ${instruments?.fundamentals?.MY || 'No fundamentals are available for these.'}`));
@@ -855,6 +858,10 @@ VIEWS.alerts = () => {
       b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
         el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
+        /* D6: the figure the alert reads, on its company's own kind — a
+           threshold on the lines Derived, a screen's scores Modelled, a price
+           the reader's own. */
+        (() => { const ck = BY_ID.get(a.id)?.c; return ck ? kindBadge(kindFor(ck, { thesis: 'derived', screen: 'modelled', price: 'yours', feed: 'derived' }[a.kind] || 'derived'), { fine: a.kind }) : null; })(),
       ]));
       b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
       b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));

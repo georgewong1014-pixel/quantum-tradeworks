@@ -245,11 +245,11 @@ function lsChipsInView(row) {
    "Not a valuation" are unchanged by them.
    The words' meanings are KIND_BADGES' notes, read by /data-sources too. */
 const KIND_BADGES = {
-  filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed. Not adjusted.' },
+  filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed, or from NAPIC’s published property market data, as published. Not adjusted.' },
   derived:      { word: 'Derived',      note: 'Arithmetic on figures of another kind, and exactly as reliable as they are. No assumption is involved.' },
   modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see and change. Other assumptions give another figure.' },
   yours:        { word: 'Yours',        note: 'A figure you entered or imported, or evidence you recorded: a price, a close, a rent, a transaction you have seen.' },
-  quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, and not checked against a transaction.' },
+  quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, or a quotation you were given and entered — a solicitor’s, a lender’s, an insurer’s — and not checked against a transaction.' },
   illustrative: { word: 'Illustrative', note: 'A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal.' },
   placeholder:  { word: 'Placeholder',  note: 'A stand-in the tool carries so the sum runs — not a quote, not checked against its source; replace it before relying on the total.' },
   unavailable:  { word: 'Unavailable',  note: 'No figure is shown, and the reason is stated beside it. Nothing is imputed.' },
@@ -263,10 +263,14 @@ const KIND_OF_PROVENANCE = { reported: 'filed', calculated: 'derived', modelled:
 const KIND_OF_EVIDENCE = { verified: 'yours', public: 'yours', user: 'yours', developer: 'quoted', estimated: 'derived', assumed: 'illustrative', illustrative_default: 'illustrative' };
 /* A fee line by its provenance in the fee rulebook (70-property.js): a
    verified scale computed is Derived; an estimate, or an amount resting on
-   a rule unknown for its jurisdiction, is a Placeholder; the reader's own
-   quotation is Yours; a line with no amount at all ('unset') is
-   Unavailable. */
-const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'placeholder', quote: 'yours', unset: 'unavailable' };
+   a rule unknown for its jurisdiction, is a Placeholder; a quotation the
+   reader was given and entered — a solicitor's, a lender's, an insurer's —
+   is Quoted; a line with no amount at all ('unset') is Unavailable. */
+const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'placeholder', quote: 'quoted', unset: 'unavailable' };
+/* The same, by the status a resolved line carries (resolveFee: 'verified',
+   'placeholder', 'quote', 'unset'). A line's status and its provenance
+   give it the same badge, whatever it resolves to (build --check). */
+const KIND_OF_FEE_STATUS = { verified: 'derived', placeholder: 'placeholder', quote: 'quoted', unset: 'unavailable' };
 /* The badge. `fine`: the figure's own label, in the title before the
    word's meaning. `link`: false where the badge stands inside a link of
    its own, or on /data-sources itself. */
@@ -277,3 +281,34 @@ function kindBadge(kind, { fine = null, link = true } = {}) {
   const attrs = { class: `kind-badge kind-${k}`, 'data-kind-badge': k, title: fine ? `${fine} — ${b.note}` : b.note };
   return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', attrs, kids);
 }
+/* The badge with a figure's own finer word kept in sight beside it: the
+   evidence ladder's "Illustrative default" reads as the badge Illustrative
+   and "default"; any other word follows a point ("Yours · you supplied").
+   The words read as one ("Illustrative default"), so nothing a reader saw
+   before is lost. */
+function kindWithFine(kind, words, { cls = '', attrs = {}, link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const word = KIND_BADGES[k].word;
+  const w = String(words || '').trim();
+  const rest = !w || w === word ? '' : w.startsWith(`${word} `) ? w.slice(word.length) : ` · ${w.charAt(0).toLowerCase()}${w.slice(1)}`;
+  return el('span', { ...attrs, class: `kind-with${cls ? ` ${cls}` : ''}` }, [kindBadge(k, { fine: w || null, link }), rest ? el('span', { class: 'kind-fine' }, rest) : null]);
+}
+/* A table's badge, once in its header: the kind of every figure in the
+   column (or the table) it heads. Never a badge a cell. Its word is drawn
+   by the stylesheet from data-word and named by aria-label, so the
+   header's own text stays the column's name — what sorting, the phone
+   cards' data-label and every reader of a column by its name read. */
+function kindTh(kind, fine = null, { link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const b = KIND_BADGES[k];
+  const attrs = { class: `kind-badge kind-${k} kind-th`, 'data-kind-badge': k, 'data-word': b.word, 'aria-label': b.word, title: fine ? `${fine} — ${b.note}` : b.note };
+  const kids = [el('span', { class: 'kind-shape', 'aria-hidden': 'true' })];
+  return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', { ...attrs, role: 'img' }, kids);
+}
+/* A company's figure of kind `k`: a synthetic company's is Illustrative,
+   the reader's own statements' Yours, a filer's `k` (rowKind, 40-views-
+   discover.js) — the first that applies, in KIND_ORDER. */
+const kindFor = (c, k) => kindFirst([c ? rowKind(c) : null, k].filter(Boolean));
+/* A company's price: Illustrative on a synthetic company, Yours where the
+   reader entered or imported it, Unavailable where none is held. */
+const priceKindOf = (c) => (!c ? 'unavailable' : !c.real ? 'illustrative' : isNum(c.px?.p) && c.px.p > 0 ? 'yours' : 'unavailable');

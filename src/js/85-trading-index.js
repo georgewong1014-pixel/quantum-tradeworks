@@ -569,9 +569,20 @@ function qttiClearedPlan(prev, { keepRules, as = null }) {
   return next;
 }
 
+/* D6: the outputs' kind — §14's worked example as loaded (its panels and
+   confidence unchanged) is Illustrative; any other run rests on readings the
+   reader recorded, Yours (the model's outputs on them, KIND_ORDER). */
+function qttiKind(p) {
+  const ex = qttiWorkedExample();
+  const same = JSON.stringify(p?.timeframes) === JSON.stringify(ex.timeframes) && JSON.stringify(p?.confidence) === JSON.stringify(ex.confidence);
+  return same ? { kind: 'illustrative', fine: 'The specification’s worked example (§14)' } : { kind: 'yours', fine: 'Computed by the model from readings you recorded' };
+}
 VIEWS.tradingIndex = () => {
   const p = State.qtti;
   const r = qttiRun(p);
+  const QK = qttiKind(p);
+  /* The three outputs: none until the run is assessable. */
+  const QKO = r.assessable ? QK : { kind: 'unavailable', fine: 'Not assessable yet' };
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* Every control on this form redraws the page, and render() replaced the
      control under the keyboard: focus fell to <body> on each select, tick and
@@ -640,7 +651,7 @@ VIEWS.tradingIndex = () => {
   /* ---------- the three numbers, §4 hierarchy ---------- */
   const card = el('div', { class: 'card' });
   card.append(cardHead('Three outputs, kept apart',
-    `Model ${QTTI_VERSION}. A single blended number would let a legible screenshot of a poor setup outscore a blurry screenshot of a good one.`));
+    `Model ${QTTI_VERSION}. A single blended number would let a legible screenshot of a poor setup outscore a blurry screenshot of a good one.`, null, QKO));
 
   /* A null reads in the neutral ink whatever the measure. Colouring an absent
      value by the tone its band would have had implies a reading that was never
@@ -879,7 +890,7 @@ VIEWS.tradingIndex = () => {
          this card can see whether it is worth opening. */
       el('span', { class: done === QTTI_GROUPS.length ? 'chip chip-ok' : 'chip',
         title: `${done} of the ${QTTI_GROUPS.length} evidence groups are recorded. Unknown ones contribute a neutral 50 and reduce coverage.` },
-        `${done}/${QTTI_GROUPS.length} recorded`)));
+        `${done}/${QTTI_GROUPS.length} recorded`), QK));
     c.append(cb(`The ${tf.label.toLowerCase()} panel is present and readable`, p.timeframes[tf.k].present,
       v => { p.timeframes[tf.k].present = v; }));
     QTTI_GROUPS.forEach(g => {
@@ -906,7 +917,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- screenshot confidence ---------- */
   const cc = el('div', { class: 'card' });
-  cc.append(cardHead('Screenshot confidence', 'How much of the result the image can support. This describes extraction reliability, not market predictability.'));
+  cc.append(cardHead('Screenshot confidence', 'How much of the result the image can support. This describes extraction reliability, not market predictability.', null, QK));
   QTTI_CONF_PARTS.forEach(c => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', { for: `qc-${c.k}` }, `${c.label} · ${fmtPct(c.w * 100, 0)}`));
@@ -926,7 +937,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- template and Stage 1 plan ---------- */
   const pl = el('div', { class: 'card' });
-  pl.append(cardHead('Your first-tranche rules', 'You select the template, the capital and the fraction. The platform calculates against them and does not set any of them.'));
+  pl.append(cardHead('Your first-tranche rules', 'You select the template, the capital and the fraction. The platform calculates against them and does not set any of them.', null, QK));
   pl.append(sel('Entry template', p.template, QTTI_TEMPLATES, v => { p.template = v; }));
   pl.append(el('p', { class: 'metaline', style: 'margin:2px 0 8px' }, r.tpl.note));
   if (r.tpl.explicitOptIn) pl.append(cb('I am deliberately selecting the higher-risk early-reversal scout', p.reversalOptIn, v => { p.reversalOptIn = v; }));
@@ -1068,6 +1079,14 @@ const OPP_EDIT_OPEN = new Set();
 let OPP_SEQ = 0;
 /* What "Record a property" holds before Add — see the form. */
 let oppDraft = null;
+/* A candidate's figures' kind (D6): its weakest input, the cash's fee
+   lines, and a seller's asking price where one is recorded (Quoted). */
+function oppKind(x) {
+  const k = dealKind(x.d, x.m, { fees: true });
+  const asked = isNum(x.o.deal?.price) && x.o.deal.price > 0;
+  const kind = kindFirst([k.kind, asked ? 'quoted' : null].filter(Boolean));
+  return { kind, fine: kind === k.kind ? k.fine : 'The asking price, as quoted' };
+}
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
@@ -1198,7 +1217,8 @@ VIEWS.opportunities = () => {
     cmp.append(cardHead('Side by side',
       `${modelled.length} candidates under one set of assumptions. Where a record states a figure the model uses it; where it does not, the calculator’s current inputs stand in — so a difference between two columns can be a difference between two properties or between what is known about them.`));
     const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, x.o.name))])));
+    /* Each candidate's kind once, in its column's header (D6). */
+    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => { const k = oppKind(x); return el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, [x.o.name, ' ', kindTh(k.kind, k.fine)]); })])));
     const rows = [
       ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
       ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
@@ -1255,6 +1275,8 @@ VIEWS.opportunities = () => {
           ? el('span', { class: 'chip chip-bronze' }, `Availability last checked ${age}d ago — treat as unknown`)
           : el('span', { class: 'chip chip-bronze' }, 'Availability never checked'),
       el('span', { class: 'chip' }, `Recorded ${o.capturedAt}`),
+      /* The card's figures' kind (D6). */
+      (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
     ]));
 
     /* Four prices, kept apart. */

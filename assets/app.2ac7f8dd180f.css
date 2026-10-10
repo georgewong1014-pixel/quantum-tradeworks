@@ -3254,6 +3254,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
   border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2);
   font-size: var(--ls-meta); font-weight: var(--weight-semibold); line-height: 1; color: var(--ink-2);
   text-decoration: none; white-space: nowrap; vertical-align: middle;
+  text-transform: none; letter-spacing: 0;
 }
 a.kind-badge { transition: border-color 160ms ease, color 160ms ease; }
 a.kind-badge:hover { border-color: var(--line-2); color: var(--ink); }
@@ -3273,6 +3274,29 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 @media (pointer: coarse), (max-width: 768px) {
   a.kind-badge::after { content: ""; position: absolute; inset: -12px -2px; }
 }
+/* A badge with the figure's finer word beside it (kindWithFine), and a
+   table's badge in its header (kindTh). */
+.kind-with { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; min-width: 0; }
+.kind-with.ls-badge { padding: 0; }
+.kind-fine { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); line-height: 16px; white-space: nowrap; }
+.kind-th { margin-left: 6px; text-transform: none; letter-spacing: 0; font-weight: var(--weight-semibold); }
+th .kind-th { vertical-align: middle; }
+.kind-th[data-word]::after { content: attr(data-word); }
+/* The screener's kinds, once above its header: a column is no wider for
+   its badge (the company and three figures fit their window). The phone
+   cards say theirs in the measures picker (.scr-pick-kinds). */
+.scr-col-kinds { margin: 0; padding: var(--sm) var(--md); font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; border-bottom: 1px solid var(--line); }
+@media (max-width: 768px) { .scr-col-kinds { display: none; } }
+/* A tile's badge and its finer word on one line, the word giving way. */
+.lab-tile .kind-with, .pc-page .ls-card .kind-with { flex-wrap: nowrap; max-width: 100%; }
+.lab-tile .kind-fine, .pc-page .ls-card .kind-fine { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A card's badge beside its title (cardHead's kind), and a stat tile's
+   (statTile's kind) under its figure. */
+.card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.card-hd-t > .h-card { margin: 0; }
+.stat-kind { margin-top: 2px; }
+.dr-kind { margin: 0 0 6px; }
+.scr-pick-kinds { margin: 6px 0 0; font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; }
 /* /data-sources#kinds: the eight, each beside its meaning. */
 .kinds-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 10px var(--md); margin: var(--md) 0; align-items: baseline; }
 .kinds-list dt { margin: 0; }

@@ -12149,7 +12149,9 @@ function scoreBar(label, value, pct, tone = '--brand') {
   return wrap;
 }
 
-function statTile(label, value, { delta, sub, spark, tone } = {}) {
+/* kind: the figure's D6 badge (kindBadge, 37-layout-system.js), drawn as
+   the tile's last line so the label's own words are unchanged. */
+function statTile(label, value, { delta, sub, spark, tone, kind = null, fine = null } = {}) {
   const t = el('div', { class: 'stat' });
   t.append(el('div', { class: 'stat-label' }, label));
   const vr = el('div', { class: 'row', style: 'gap:10px;align-items:baseline' });
@@ -12158,16 +12160,20 @@ function statTile(label, value, { delta, sub, spark, tone } = {}) {
   t.append(vr);
   if (delta != null) t.append(el('div', { class: 'stat-delta ' + signClass(delta.v), html: `${withSign(delta.v, delta.dp ?? 1, delta.suffix ?? '%')} <span style="color:var(--ink-3);font-weight:500">${esc(delta.label)}</span>` }));
   if (sub) t.append(el('div', { class: 'stat-sub' }, sub));
+  if (kind) t.append(el('div', { class: 'stat-kind' }, kindBadge(kind, { fine })));
   return t;
 }
 
 /* heading: false draws the title as text, for a toolbar above a page's own
    h1 — the report's and the decision record's — which as an h3 was the
    first heading in main, ahead of the h1. */
-function cardHead(title, subtitle, right, { heading = true } = {}) {
+/* kind: the D6 badge of every figure the card holds (kindBadge), once,
+   beside its title — never a badge a figure. */
+function cardHead(title, subtitle, right, { heading = true, kind = null, fine = null } = {}) {
   const h = el('div', { class: 'card-hd' });
   const l = el('div');
-  l.append(el(heading ? 'h3' : 'p', { class: 'h-card' }, title));
+  const t = el(heading ? 'h3' : 'p', { class: 'h-card' }, title);
+  l.append(kind ? el('div', { class: 'card-hd-t' }, [t, kindBadge(kind, { fine })]) : t);
   if (subtitle) l.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, subtitle));
   h.append(l);
   if (right) h.append(right);
@@ -16369,11 +16375,11 @@ function lsChipsInView(row) {
    "Not a valuation" are unchanged by them.
    The words' meanings are KIND_BADGES' notes, read by /data-sources too. */
 const KIND_BADGES = {
-  filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed. Not adjusted.' },
+  filed:        { word: 'Filed',        note: 'Taken from a statement filed with the US SEC, as filed, or from NAPIC’s published property market data, as published. Not adjusted.' },
   derived:      { word: 'Derived',      note: 'Arithmetic on figures of another kind, and exactly as reliable as they are. No assumption is involved.' },
   modelled:     { word: 'Modelled',     note: 'An output of assumptions you can see and change. Other assumptions give another figure.' },
   yours:        { word: 'Yours',        note: 'A figure you entered or imported, or evidence you recorded: a price, a close, a rent, a transaction you have seen.' },
-  quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, and not checked against a transaction.' },
+  quoted:       { word: 'Quoted',       note: 'Quoted by a seller, a developer or their agent, or a quotation you were given and entered — a solicitor’s, a lender’s, an insurer’s — and not checked against a transaction.' },
   illustrative: { word: 'Illustrative', note: 'A synthetic or sample figure that describes no real company or property: an illustrative company, or the tool’s starting deal.' },
   placeholder:  { word: 'Placeholder',  note: 'A stand-in the tool carries so the sum runs — not a quote, not checked against its source; replace it before relying on the total.' },
   unavailable:  { word: 'Unavailable',  note: 'No figure is shown, and the reason is stated beside it. Nothing is imputed.' },
@@ -16387,10 +16393,14 @@ const KIND_OF_PROVENANCE = { reported: 'filed', calculated: 'derived', modelled:
 const KIND_OF_EVIDENCE = { verified: 'yours', public: 'yours', user: 'yours', developer: 'quoted', estimated: 'derived', assumed: 'illustrative', illustrative_default: 'illustrative' };
 /* A fee line by its provenance in the fee rulebook (70-property.js): a
    verified scale computed is Derived; an estimate, or an amount resting on
-   a rule unknown for its jurisdiction, is a Placeholder; the reader's own
-   quotation is Yours; a line with no amount at all ('unset') is
-   Unavailable. */
-const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'placeholder', quote: 'yours', unset: 'unavailable' };
+   a rule unknown for its jurisdiction, is a Placeholder; a quotation the
+   reader was given and entered — a solicitor's, a lender's, an insurer's —
+   is Quoted; a line with no amount at all ('unset') is Unavailable. */
+const KIND_OF_FEE = { verified: 'derived', estimated: 'placeholder', unknown: 'placeholder', quote: 'quoted', unset: 'unavailable' };
+/* The same, by the status a resolved line carries (resolveFee: 'verified',
+   'placeholder', 'quote', 'unset'). A line's status and its provenance
+   give it the same badge, whatever it resolves to (build --check). */
+const KIND_OF_FEE_STATUS = { verified: 'derived', placeholder: 'placeholder', quote: 'quoted', unset: 'unavailable' };
 /* The badge. `fine`: the figure's own label, in the title before the
    word's meaning. `link`: false where the badge stands inside a link of
    its own, or on /data-sources itself. */
@@ -16401,6 +16411,37 @@ function kindBadge(kind, { fine = null, link = true } = {}) {
   const attrs = { class: `kind-badge kind-${k}`, 'data-kind-badge': k, title: fine ? `${fine} — ${b.note}` : b.note };
   return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', attrs, kids);
 }
+/* The badge with a figure's own finer word kept in sight beside it: the
+   evidence ladder's "Illustrative default" reads as the badge Illustrative
+   and "default"; any other word follows a point ("Yours · you supplied").
+   The words read as one ("Illustrative default"), so nothing a reader saw
+   before is lost. */
+function kindWithFine(kind, words, { cls = '', attrs = {}, link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const word = KIND_BADGES[k].word;
+  const w = String(words || '').trim();
+  const rest = !w || w === word ? '' : w.startsWith(`${word} `) ? w.slice(word.length) : ` · ${w.charAt(0).toLowerCase()}${w.slice(1)}`;
+  return el('span', { ...attrs, class: `kind-with${cls ? ` ${cls}` : ''}` }, [kindBadge(k, { fine: w || null, link }), rest ? el('span', { class: 'kind-fine' }, rest) : null]);
+}
+/* A table's badge, once in its header: the kind of every figure in the
+   column (or the table) it heads. Never a badge a cell. Its word is drawn
+   by the stylesheet from data-word and named by aria-label, so the
+   header's own text stays the column's name — what sorting, the phone
+   cards' data-label and every reader of a column by its name read. */
+function kindTh(kind, fine = null, { link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const b = KIND_BADGES[k];
+  const attrs = { class: `kind-badge kind-${k} kind-th`, 'data-kind-badge': k, 'data-word': b.word, 'aria-label': b.word, title: fine ? `${fine} — ${b.note}` : b.note };
+  const kids = [el('span', { class: 'kind-shape', 'aria-hidden': 'true' })];
+  return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', { ...attrs, role: 'img' }, kids);
+}
+/* A company's figure of kind `k`: a synthetic company's is Illustrative,
+   the reader's own statements' Yours, a filer's `k` (rowKind, 40-views-
+   discover.js) — the first that applies, in KIND_ORDER. */
+const kindFor = (c, k) => kindFirst([c ? rowKind(c) : null, k].filter(Boolean));
+/* A company's price: Illustrative on a synthetic company, Yours where the
+   reader entered or imported it, Unavailable where none is held. */
+const priceKindOf = (c) => (!c ? 'unavailable' : !c.real ? 'illustrative' : isNum(c.px?.p) && c.px.p > 0 ? 'yours' : 'unavailable');
 /* ==========================================================================
    VIEW — RESEARCH QUEUE (Equities Research)
 
@@ -16468,6 +16509,8 @@ VIEWS.researchQueue = () => {
     card.append(statTile('Cap-weighted move vs previous close', withSign(s.wChg, 2), {
       sub: `${s.advancers} of ${s.total} ${s.filed ? 'filed companies with a supplied close' : 'illustrative companies on sample prices'} advancing${s.asOf.length ? ` · ${s.asOf.join('; ')}` : ''}`,
       tone: !isNum(s.wChg) ? null : s.wChg >= 0 ? '--ok-text' : '--dn-text',
+      /* D6: on the reader's supplied closes, or the sample prices. */
+      kind: !s.filed ? 'illustrative' : isNum(s.wChg) ? 'yours' : 'unavailable', fine: !s.filed ? 'Sample prices' : isNum(s.wChg) ? 'Closes you supplied' : 'No close supplied',
     }));
     if (s.leftOut) card.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
       `${s.leftOut} illustrative ${s.leftOut === 1 ? 'company is' : 'companies are'} left out, so supplied closes and sample prices are not averaged together.`));
@@ -16489,7 +16532,8 @@ VIEWS.researchQueue = () => {
         ? `Indicative sample rate · ${FX.asOf || 'no observation date — nobody observed it'}`
         : FX.named
         ? `${FX.named} · ${FX.asOf || 'date not stated'}`
-        : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}` }));
+        : `${FX.personal ? 'Read from your screen' : 'From your price file'} · ${FX.asOf || 'date not stated'}`,
+      kind: FX.source === 'sample' ? 'illustrative' : 'yours', fine: FX.source === 'sample' ? 'An indicative sample rate' : 'A rate you supplied' }));
   if (FX.crossChecked) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
     `Cross-checked against an independent source: ${FX.crossChecked}.`));
   if (fxRejected) fxCard.append(el('p', { class: 'metaline', style: 'margin-top:6px;color:var(--dn-text)' },
@@ -16584,6 +16628,10 @@ VIEWS.researchQueue = () => {
        synthetic event, and the page's META says each company is labelled. */
     const fr = BY_ID.get(f.id);
     if (fr) { const ic = dataChip(fr.c); if (ic) t.append(ic); }
+    /* D6, the event's own kind: a gap to the model or a move needs the
+       price (the reader's own), a payout or a drawdown is arithmetic on the
+       lines, a risk grade the model's — on the company's own kind. */
+    if (fr) t.append(kindBadge(kindFor(fr.c, { valuation: 'yours', price: 'yours', dividend: 'derived', fundamental: 'derived', risk: 'modelled' }[f.kind] || 'derived'), { fine: f.kind }));
     if (State.watchlist.includes(f.id)) t.append(el('span', { class: 'chip chip-brand' }, activeWLIsSample() ? 'Sample watchlist' : 'Watchlist'));
     body.append(t);
     body.append(el('p', { class: 'caption', style: 'margin-top:2px' }, f.detail));
@@ -16624,7 +16672,7 @@ VIEWS.researchQueue = () => {
       const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
         onclick: () => openResearch(r.c.id) });
       const nm = el('div', { style: 'min-width:0;flex:1' });
-      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, dataChip(r.c)]));
+      nm.append(el('div', { class: 'row', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, dataChip(r.c), kindBadge(priceKindOf(r.c), { link: false, fine: 'The price and its move' })]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
       row.append(sparkline(priceHistory(r.c)));
@@ -16655,7 +16703,7 @@ VIEWS.researchQueue = () => {
     const row = el('button', { class: 'row', style: `width:100%;text-align:left;background:none;border:0;cursor:pointer;padding:9px 0;gap:10px;${i ? 'border-top:1px solid var(--grid)' : ''}`,
       onclick: () => openResearch(r.c.id, 'valuation') });
     const nm = el('div', { style: 'min-width:0;flex:1' });
-    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt)]));
+    nm.append(el('div', { class: 'row', style: 'gap:6px' }, [el('span', { style: 'font-size:13px;font-weight:600' }, r.c.tk), dataChip(r.c), marketChip(r.c.mkt), kindBadge(kindFor(r.c, 'yours'), { link: false, fine: 'The price against the model estimate' })]));
     nm.append(el('div', { class: 'metaline' }, `${r.val.pack.name} · ${r.val.confBand} confidence`));
     row.append(nm);
     /* diffClass, not `pos`. A gap to a model estimate is not a gain, and the
@@ -18406,7 +18454,17 @@ function renderScreener() {
        body, the median rows and the header all exist. */
     gridKeyboard(table, `Screener results, ${sorted.length} companies by ${cols.length} measures. `
       + 'Use the arrow keys to move between cells and Enter on a measure to see where it came from.');
-    tw.append(table);
+    /* D6, once for the table, in its head: each kind and the columns it
+       covers (the rows keep their company's kind) — a line above the
+       header rather than a badge in each, which widened the screener's
+       company and three figures past their window beside the rail. */
+    const colKinds = (() => {
+      const by = new Map();
+      cols.filter(c2 => c2.k !== 'ident').forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
+      return el('p', { class: 'scr-col-kinds' }, [...by].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0]))
+        .flatMap(([k, labels], i, all) => [kindBadge(k, { fine: labels.join(', ') }), ` ${labels.join(', ')}${i < all.length - 1 ? ' · ' : ''}`]));
+    })();
+    tw.append(colKinds, table);
 
     /* What was converted and what was not, stated where the mixed table is
        rather than on a methodology page. Only shown when the screen actually
@@ -18464,6 +18522,13 @@ function renderScreener() {
     tw.append(el('div', { class: 'scr-pick' }, [
       el('p', { class: 'scr-pick-hd', id: 'scr-pick-hd' }, `Measures on each card · up to ${CARD_MAX}`),
       pickRow,
+      /* D6, once a kind for the measures on the cards (the table's column
+         badges, which a phone does not show): the kind, then its measures. */
+      (() => {
+        const by = new Map();
+        pickable.filter(c2 => picked.includes(c2.k)).forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
+        return by.size ? el('p', { class: 'scr-pick-kinds' }, [...by].flatMap(([k, labels], i, all) => [kindBadge(k, { fine: labels.join(', ') }), ` ${labels.join(', ')}${i < all.length - 1 ? ' · ' : ''}`])) : null;
+      })(),
     ]));
     const pickedCols = pickable.filter(c2 => picked.includes(c2.k));
     /* A measure on a card reads as the table's cell does — its figure, or
@@ -18651,7 +18716,7 @@ function riskPill(band) {
    ========================================================================== */
 const PROVENANCE = {
   reported:   { label: 'Reported',   cls: 'chip chip-ok',     note: 'Taken directly from a filed statement line. Not adjusted.' },
-  calculated: { label: 'Calculated', cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
+  calculated: { label: 'Derived',    cls: 'chip',             note: 'Arithmetic on reported lines. No assumption is involved, so it is exactly as reliable as the figures underneath it.' },
   modelled:   { label: 'Modelled',   cls: 'chip chip-bronze', note: 'An output of assumptions you can see and change. A different set of assumptions gives a different number.' },
   market:     { label: 'Market',     cls: 'chip',             note: 'Needs a price. The price comes from the source stated on the company page — an end-of-day close you supplied or a figure you entered — never from a licensed feed, because none is connected.' },
   /* Two more kinds the four above could not say. A figure on a synthetic
@@ -18690,6 +18755,16 @@ function statusChip(st) {
    price is market; anything that is an output of assumptions is modelled. */
 const FIELD_PROVENANCE = Object.fromEntries(METRICS.filter(x => x.kind !== 'calculated').map(x => [x.k, x.kind]));
 const provenanceOf = (k) => FIELD_PROVENANCE[k] || 'calculated';
+/* A screener column's kind (D6): the scores and the model's estimate are
+   Modelled; a measure by its provenance (KIND_OF_PROVENANCE) — one needing
+   a price is the reader's own, Unavailable where no row holds one; and on
+   the illustrative set every column is Illustrative. */
+function screenerColKind(k, rows, sc) {
+  const own = ['quality', 'value', 'mos', 'risk'].includes(k) ? 'modelled' : KIND_OF_PROVENANCE[provenanceOf(k)] || 'derived';
+  const comp = own === 'yours' && !rows.some(r => isNum(r.m?.[k])) ? 'unavailable' : own;
+  const kind = kindFirst([comp, screenClassOf(sc) === 'illustrative' ? 'illustrative' : null].filter(Boolean));
+  return { kind, fine: kind === 'unavailable' ? 'Needs a price' : kind === 'illustrative' ? 'The illustrative set' : KIND_BADGES[kind].word };
+}
 
 /* Which stored lines each measure is arithmetic on. `price` is the quoted
    price and `history` the reader's own closes; everything else is a column
@@ -19678,6 +19753,13 @@ function renderRadar() {
     [['--seq-6', 'Low risk'], ['--seq-4', 'Medium risk'], ['--seq-2', 'High risk']].forEach(([v, l]) =>
       leg.append(el('span', { class: 'legend-item', html: `<span class="legend-key" style="background:var(${v})"></span>${l}` })));
   }
+  /* D6: the kinds of the marks plotted — each a gap between a price and the
+     model, so the reader's own price (Yours) or a synthetic company's sample
+     (Illustrative) — counted, in the legend. */
+  const plottedKinds = new Map();
+  rows.forEach(r => { const k = kindFor(r.c, 'yours'); plottedKinds.set(k, (plottedKinds.get(k) || 0) + 1); });
+  [...plottedKinds].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0])).forEach(([k, n]) =>
+    leg.append(el('span', { class: 'legend-item' }, [kindBadge(k, { fine: `${n} plotted` }), ` ${n} ${k === 'illustrative' ? 'illustrative' : 'on your price'}`])));
   leg.append(el('span', { class: 'legend-item', style: 'margin-left:auto' , html: `<span class="legend-key" style="background:var(--ink-3);width:6px;height:6px;border-radius:50%"></span>Mark area = market capitalisation in ${State.baseCcy}` }));
   if (!nothing) card.append(leg);
   card.append(el('div', { style: 'margin-top:var(--sm)' },
@@ -21335,7 +21417,11 @@ VIEWS.research = () => {
      company with no price showed a large dash where the price stands, and a
      dash reads as a figure. It wears the Unavailable badge (D6) and says
      why, in the words the page uses for every price-based measure. */
-  if (isNum(c.px.p)) pxBlock.append(el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy)));
+  /* With a price, its kind beside it (D6): the reader's own, or a synthetic
+     company's sample. */
+  if (isNum(c.px.p)) pxBlock.append(el('div', { class: 'row', style: 'gap:8px;justify-content:flex-end;align-items:center' }, [
+    kindBadge(priceKindOf(c), { fine: c.real ? (c.px?.eod ? 'An end-of-day close you supplied' : 'A price you entered') : 'The sample price' }),
+    el('div', { class: 'num', style: 'font-size:28px;font-weight:700;letter-spacing:-.02em' }, fmtMoney(c.px.p, c.ccy))]));
   else pxBlock.append(el('p', { class: 'px-na' }, [kindBadge('unavailable', { fine: 'Price' }), el('span', { class: 'px-na-why' }, ' · no licensed price')]));
   /* The change and its date render only when there is a price to have changed.
      Previously this printed "— today" on every filed company, which dates a
@@ -21883,7 +21969,7 @@ function tabSnapshot(r) {
   const rc = researchComposite(r);
   const rcCard = el('div', { class: 'card' });
   rcCard.append(cardHead('Research case',
-    'Five weighted pillars from the framework. Technical context is weighted zero here and is not consulted — price evidence lives on its own card.'));
+    'Five weighted pillars from the framework. Technical context is weighted zero here and is not consulted — price evidence lives on its own card.', null, { kind: kindFor(c, 'modelled'), fine: 'The research case score' }));
 
   const head = el('div', { class: 'row', style: 'gap:var(--lg);align-items:baseline;flex-wrap:wrap' });
   head.append(el('div', {}, [
@@ -21960,6 +22046,9 @@ function tabSnapshot(r) {
     ].map(label => el('li', {}, [el('span', { class: 'mm-na-label' }, label), kindBadge('unavailable', { fine: label }), el('span', { class: 'mm-na-why' }, ` · ${why}`)]))));
     main.append(tiles);
   } else {
+    /* D6, once for the four: each rests on the price — the reader's own, or
+       a synthetic company's sample. */
+    tiles.append(cardHead('Market measures', null, null, { kind: kindFor(c, 'yours'), fine: c.real ? 'On the price you supplied' : 'On the sample price' }));
     const tg = el('div', { class: 'grid g-4' });
     const tileFor = (k, node) => { const f = FIELD_BY_K[k]; return f ? tileButton(node, `${f.label} — show source`, () => openSourceDrawer(r, f)) : node; };
     tg.append(tileFor('mcap', statTile('Market capitalisation', fmtCap(toBase(m.mcap, c.ccy), State.baseCcy), { sub: `${fmtNum(last(r.d.sh), 2)}bn shares` })));
@@ -21984,7 +22073,7 @@ function tabSnapshot(r) {
   /* valuation range */
   const vr = el('div', { class: 'card' });
   vr.append(cardHead('Valuation range', `${val.pack.name}. ${val.pack.why}`,
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions')));
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(State.ticker, 'valuation') }, 'Adjust assumptions'), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
   if (val.err) vr.append(el('div', { class: 'guardrail', html: `${icon('alert')}<span>${esc(val.err)}</span>` }));
   else {
     /* A bear or bull case its published shift took out of bounds; the base stands. */
@@ -22040,7 +22129,7 @@ function tabSnapshot(r) {
   const real = realSeriesFor(c);
   const tc = el('div', { class: 'card' });
   tc.append(cardHead('Trend context',
-    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.'));
+    'Price evidence, kept separate from the scores. Nothing here raises or lowers business quality or valuation — a chart is not a business.', null, real ? { kind: kindFor(c, 'yours'), fine: 'From the closes you supplied' } : { kind: 'unavailable', fine: 'No closes held for this company' }));
   if (!real) {
     tc.append(el('p', { class: 'body', style: 'font-size:13px' },
       priceHistory(c)
@@ -22091,7 +22180,7 @@ function tabSnapshot(r) {
        them ("Observed closes 260") while this card, directly beneath, said a
        price series "needs a licensed feed". It draws the series both read. */
     const days = obsDays;
-    pc.append(cardHead('Price history', `Observed closes from the price history you supplied — the ${days.length} latest held, ${days[0]} to ${days[days.length - 1]}, the series Trend context above reads. Not a licensed feed.`));
+    pc.append(cardHead('Price history', `Observed closes from the price history you supplied — the ${days.length} latest held, ${days[0]} to ${days[days.length - 1]}, the series Trend context above reads. Not a licensed feed.`, null, { kind: kindFor(c, 'yours'), fine: 'Closes you supplied' }));
     const ph = el('div', { style: 'width:100%' });
     pc.append(ph);
     lineChart(ph, { values: days.map(d => real.series[d]), labels: days, fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1',
@@ -22110,7 +22199,7 @@ function tabSnapshot(r) {
        sample price and high the range line prints: m.from52 is measured on
        observed closes where any were imported, and set beside the sample range
        it read −12.8% for a price 3.4% below the high it sat next to. */
-    pc.append(cardHead('Price, last 52 weeks', 'A generated illustration consistent with the sample price, 52-week range and 12-month return. Not observed closes.'));
+    pc.append(cardHead('Price, last 52 weeks', 'A generated illustration consistent with the sample price, 52-week range and 12-month return. Not observed closes.', null, { kind: 'illustrative', fine: 'A generated series' }));
     const ph = el('div', { style: 'width:100%' });
     pc.append(ph);
     lineChart(ph, { values: hist, labels: hist.map((_, i) => i === hist.length - 1 ? AS_OF : `Week ${i + 1}`), fmt: v => fmtMoney(v, c.ccy, 2), varName: '--s1' });
@@ -22165,7 +22254,7 @@ function tabSnapshot(r) {
 
   const sc = el('div', { class: 'card' });
   sc.append(cardHead('Scorecard', 'Pillars stay separate — trade-offs are not hidden inside one number.',
-    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'quality') }, 'Detail')));
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'quality') }, 'Detail'), { kind: kindFor(c, 'modelled'), fine: 'Scores of the model' }));
   [['quality', 'Business Quality'], ['growth', 'Growth Quality'], ['strength', 'Financial Strength'], ['capital', 'Capital Allocation'], ['value', 'Valuation']]
     .forEach(([k, label]) => sc.append(scoreBar(label, r.scores[k].score, r.pct[k])));
   const riskRow = el('div', { class: 'row', style: 'padding-top:10px;margin-top:6px;border-top:1px solid var(--grid)' });
@@ -22192,7 +22281,7 @@ function tabSnapshot(r) {
   rail.append(sc);
 
   const chg = el('div', { class: 'card' });
-  chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`));
+  chg.append(cardHead('What changed', `FY${yearsOf(c)[yearsOf(c).length - 2]} to FY${latestFy(c)}, as reported.`, null, { kind: kindFor(c, 'derived'), fine: 'Changes between reported years' }));
   const ch = changeSummary(c) || [];
   const kv = el('dl', { class: 'kv' });
   ch.forEach(x => { kv.append(el('dt', {}, x.label)); kv.append(el('dd', { class: signClass(x.v), title: x.withheld || null }, changeCell(x))); });
@@ -22200,7 +22289,7 @@ function tabSnapshot(r) {
   rail.append(chg);
 
   const rk = el('div', { class: 'card' });
-  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'risks') }, 'All')));
+  rk.append(cardHead('Open risk flags', null, el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(State.ticker, 'risks') }, 'All'), { kind: kindFor(c, 'modelled'), fine: 'Flags set by the model’s thresholds' }));
   const notable = r.flags.filter(f => f.sev !== 'good').slice(0, 3);
   if (!notable.length) rk.append(el('p', { class: 'caption' }, 'No flag triggered by the current thresholds.'));
   notable.forEach(f => {
@@ -22222,7 +22311,7 @@ function tabBusiness(r) {
   const seg = el('div', { class: 'card' });
   seg.append(cardHead('Revenue mix', c.seg?.length
     ? 'Share of the latest reported year. This split is illustrative — it is authored, not filed.'
-    : 'No segment split is carried for a company loaded from filings; the XBRL facts read here are consolidated lines.'));
+    : 'No segment split is carried for a company loaded from filings; the XBRL facts read here are consolidated lines.', null, (c.seg?.length ? { kind: 'illustrative', fine: 'An authored split, not filed' } : {})));
   const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
   (c.seg || []).forEach((s, i) => bar.append(el('i', { style: `width:${s[1]}%;background:var(${SERIES[i % 8]})`, title: `${s[0]} ${s[1]}%` })));
   seg.append(bar);
@@ -22269,7 +22358,7 @@ function tabBusiness(r) {
   const comp = el('div', { class: 'card', style: 'grid-column:1/-1' });
   comp.append(cardHead('Competitive position', rivals.length
     ? `Ranked against ${rivals.length} ${rivals.length === 1 ? 'company' : 'companies'}. ${rivalPick.rule} Rank is computed from the universe carried here, so it says where this company sits among these peers — not among every listed competitor.`
-    : 'Where this company sits among companies of the same business model and the same kind of data.'));
+    : 'Where this company sits among companies of the same business model and the same kind of data.', null, (rivals.length ? { kind: kindFor(c, 'derived'), fine: 'Ratios against peers' } : {})));
   if (!rivals.length) {
     comp.append(el('p', { class: 'caption' }, rivalPick.rule));
   } else {
@@ -22449,7 +22538,10 @@ function statementTable(r) {
   const stmt = el('div', { class: 'card', style: 'padding:0;overflow:hidden' });
   const sh = el('div', { class: 'stmt-hd' });
   const titles = el('div', { style: 'min-width:0;flex:1 1 420px' });
-  titles.append(el('h3', { class: 'h-card' }, 'Financial statements'));
+  /* D6, once for the table: the lines as filed (or loaded, or illustrative);
+     the derived lines keep their own mark, the CAGR column its badge. */
+  titles.append(el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card' }, 'Financial statements'),
+    kindBadge(rowKind(c), { fine: c.personal ? 'The statements you loaded' : c.real ? 'As filed with the SEC' : 'The illustrative set' })]));
   titles.append(el('p', { class: 'caption', style: 'margin-top:2px;max-width:66ch' },
     `${c.ccy} billions unless stated, FY${yrs[0]}–FY${last(yrs)}. Derived lines are marked and computed from the reported lines — not stored separately. Select any figure for its source.`));
   sh.append(titles);
@@ -22480,7 +22572,7 @@ function statementTable(r) {
       hr.append(el('th', { class: 'chg', scope: 'col', title: `Percentage change from FY${yrs[i - 1]} to FY${y}` }, 'Δ%'));
     }
   });
-  hr.append(el('th', { scope: 'col' }, `${yrs.length - 1}y CAGR`));
+  hr.append(el('th', { scope: 'col' }, [`${yrs.length - 1}y CAGR`, kindTh(kindFor(c, 'derived'), 'Growth rate computed from the first and last years')]));
   t.append(el('thead', {}, hr));
   const ncol = 1 + yrs.length + (showChg ? 2 * (yrs.length - 1) : 0) + 1;
   const tb = el('tbody');
@@ -22559,7 +22651,7 @@ function tabFinancials(r) {
   chartCard.append(cardHead(`${isBank ? 'Total income' : 'Revenue'}, ${ebitLabel(c).toLowerCase()}${isBank ? '' : ' and free cash flow'}`,
     `Reported ${c.ccy} billions, FY${yrs[0]}–FY${last(yrs)}${fyEnd ? ` — the latest fiscal year ended ${fyEnd}` : ''}.` + (isBank ? ' Free cash flow is not shown for a bank — it is not a meaningful measure for a deposit-taking balance sheet.' : ''),
     el('div', { class: 'segmented' }, [['abs', 'Reported'], ['idx', 'Indexed to 100']].map(([v, l]) =>
-      el('button', { 'aria-pressed': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l)))));
+      el('button', { 'aria-pressed': State.finMode === v ? 'true' : 'false', onclick: () => { State.finMode = v; render(); } }, l))), { kind: kindFor(c, isBank ? 'filed' : 'derived'), fine: isBank ? 'As filed' : 'Revenue and operating profit as filed; free cash flow derived from filed lines' }));
   const host = el('div', { style: 'width:100%' });
   chartCard.append(host);
 
@@ -22607,7 +22699,7 @@ function tabFinancials(r) {
   const q = quarters(c, d);
   const qc = el('div', { class: 'card' });
   qc.append(cardHead('Quarterly shape (derived, illustrative)',
-    'These quarters are apportioned from the two most recent years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported anywhere — this company’s figures are illustrative and so are these.'));
+    'These quarters are apportioned from the two most recent years using a fixed company-specific seasonal profile. They are labelled derived because they are not separately reported anywhere — this company’s figures are illustrative and so are these.', null, { kind: 'illustrative', fine: 'The illustrative set' }));
   const qh = el('div', { style: 'width:100%' });
   qc.append(qh);
   qc.append(tableTwin('Show the table view', ['Quarter', 'Revenue', 'Net profit'], q.map(x => [x.label, fmtNum(x.rev, 2), fmtNum(x.ni, 2)])));
@@ -22679,7 +22771,8 @@ function tabQuality(r) {
     const card = el('div', { class: 'card' });
     const hd = el('div', { class: 'card-hd' });
     hd.append(el('div', {}, [
-      el('h3', { class: 'h-card' }, label),
+      /* D6, once a pillar: its score and percentile are the model's. */
+      el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card' }, label), kindBadge(kindFor(r.c, 'modelled'), { fine: `${label} score` })]),
       el('p', { class: 'metaline', style: 'margin-top:2px' }, `Weighted from ${p.parts.filter(x => isNum(x.score)).length} of ${p.parts.length} inputs · input coverage ${p.coverage}%`),
     ]));
     hd.append(el('div', { style: 'text-align:right' }, [
@@ -22807,7 +22900,7 @@ function tabMoat(r) {
   wrap.append(card);
 
   const corr = el('div', { class: 'card' });
-  corr.append(cardHead('Quantitative corroboration', 'The numbers that would have to hold for the moat claim to be true. If these deteriorate, the claim weakens regardless of the narrative.'));
+  corr.append(cardHead('Quantitative corroboration', 'The numbers that would have to hold for the moat claim to be true. If these deteriorate, the claim weakens regardless of the narrative.', null, { kind: kindFor(c, 'modelled'), fine: 'Latest values against peer percentiles' }));
   /* Each row carries the metric its percentile is taken from. The column
      used to read the percentile by ROW POSITION from a fixed list of the
      general metrics, so a bank's cost-to-income row showed the percentile of
@@ -22851,7 +22944,7 @@ function tabRisks(r) {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   const hd = el('div', { class: 'card' });
   hd.append(cardHead(`Risk grade — ${r.risk.band}`,
-    'Flags are computed from the reported statements against published thresholds, then a qualitative analyst note is added. A grade is not a probability.'));
+    'Flags are computed from the reported statements against published thresholds, then a qualitative analyst note is added. A grade is not a probability.', null, { kind: kindFor(r.c, 'modelled'), fine: 'The risk grade' }));
   const meter = el('div', { class: 'meter', style: 'height:8px' });
   meter.append(el('i', { style: `width:${r.risk.raw}%;background:var(${r.risk.band === 'High' ? '--critical' : r.risk.band === 'Medium' ? '--warn' : '--ok'})` }));
   hd.append(meter);
@@ -22888,7 +22981,7 @@ function tabOwnership(r) {
   const own = el('div', { class: 'card' });
   own.append(cardHead('Ownership', c.real
     ? 'Not held for a company loaded from filings — ownership is not among the XBRL facts read here.'
-    : 'Substantial holders as recorded in the illustrative set.'));
+    : 'Substantial holders as recorded in the illustrative set.', null, (c.real ? {} : { kind: 'illustrative', fine: 'The illustrative set' })));
   const kv = el('dl', { class: 'kv', style: 'margin-bottom:var(--md)' });
   /* `100 - null - null` is 100: a free float of exactly 100.0% was stated for
      every filed company from two inputs shown as dashes on the same rows.
@@ -22910,7 +23003,7 @@ function tabOwnership(r) {
 
   const act = el('div', { class: 'card' });
   act.append(cardHead('Corporate actions and share count',
-    'Share count is the cleanest evidence of buybacks and issuance — it cannot be presented selectively.'));
+    'Share count is the cleanest evidence of buybacks and issuance — it cannot be presented selectively.', null, { kind: kindFor(c, 'filed'), fine: 'Shares outstanding as reported' }));
   const host = el('div', { style: 'width:100%' });
   act.append(host);
   act.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' },
@@ -23017,7 +23110,7 @@ function tabFilings(r) {
     const ch = changeSummary(c) || [];
     if (ch.length) {
       const card = el('div', { class: 'card' });
-      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'From the statement lines you loaded.'));
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'From the statement lines you loaded.', null, { kind: kindFor(c, 'derived'), fine: 'Changes between the years you loaded' }));
       card.append(changedTable(ch));
       wrap.append(card);
     }
@@ -23041,7 +23134,7 @@ function tabFilings(r) {
     const ch = changeSummary(c) || [];
     if (ch.length) {
       const card = el('div', { class: 'card' });
-      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'As reported, from the statement lines held for this company.'));
+      card.append(cardHead(`What changed, FY${yrs[li - 1]} to FY${yrs[li]}`, 'As reported, from the statement lines held for this company.', null, { kind: kindFor(c, 'derived'), fine: 'Changes between filed years' }));
       card.append(changedTable(ch));
       const drivers = driverImpact(c, r.d, r.inputs).slice(0, 3);
       if (drivers.length) {
@@ -23303,12 +23396,13 @@ VIEWS.researchReport = () => {
   }
 
   /* ---------- 3. financial summary ---------- */
-  out.append(el('h2', {}, `Financial summary — FY${fy}`));
+  /* D6, once a section, beside its heading (a document: no link). */
+  out.append(el('h2', {}, [`Financial summary — FY${fy}`, ' ', kindBadge(rowKind(c), { link: false, fine: 'Each figure names its line below' })]));
   /* The kind of each line; the long form names the XBRL concept, for the
      statements table, and the short form fits under a headline figure. */
   const kindOfLine = (k, short = false) => {
     if (!c.real) return 'Illustrative';
-    if (k === 'fcf') return short ? 'Calculated' : 'Calculated — operating cash flow less capex';
+    if (k === 'fcf') return short ? 'Derived' : 'Derived — operating cash flow less capex';
     if (c.personal) return 'Reported — statements you supplied';
     /* A summed line names every concept in its sum. Total debt is the
        non-current line plus the current portion (LINE_PROV mode 'sum'), and
@@ -23382,7 +23476,7 @@ VIEWS.researchReport = () => {
     'An absent figure is printed with its reason, never left blank and never filled in. The prior-year column re-derives each measure on the statements one year earlier; a measure that needs a price has no prior value, because the price has no prior date here.'));
 
   /* ---------- 5. historical statements ---------- */
-  out.append(el('h2', {}, 'Historical statements'));
+  out.append(el('h2', {}, ['Historical statements', ' ', kindBadge(rowKind(c), { link: false, fine: 'The growth rates are derived from the lines' })]));
   const span = Math.min(6, ys.length);
   const hy = ys.slice(-span);
   const colOf = { rev: d.rev, ebit: d.ebit, ni: d.ni, ocf: d.ocf, capex: d.capex, fcf: d.fcf, eq: d.eq, debt: d.debt, cash: d.cash, sh: d.sh, dps: d.dps };
@@ -23438,7 +23532,7 @@ VIEWS.researchReport = () => {
     + (c.type === 'bank' ? ' Operating cash flow, capital expenditure, free cash flow and cash are not shown for a bank, as on the company page: they are not meaningful measures for a deposit-taking balance sheet.' : '')));
 
   /* ---------- 6. valuation and the reader's assumptions ---------- */
-  out.append(el('h2', {}, 'Valuation — the assumptions and what they produce'));
+  out.append(el('h2', {}, ['Valuation — the assumptions and what they produce', ' ', kindBadge(kindFor(c, 'modelled'), { link: false, fine: 'The model, on your assumptions' })]));
   if (defaults.model === 'unavailable' || val.err) {
     out.append(el('p', { class: 'body' }, `No valuation is available: ${val.err || defaults.reason}`));
   } else {
@@ -23750,7 +23844,7 @@ function tabValuation(r) {
     editable ? 'Every input is yours to change. Nothing is silently substituted if you clear a value.'
              : 'Every assumption behind the range is shown. Editing them is part of Equities Research — the numbers are not hidden, only the controls.',
     editable ? el('button', { class: 'btn btn-quiet btn-sm', id: 'studio-reset', onclick: () => { State.valuation[c.id] = { ...r.inputs }; persistValuation(r, true); renderKeepFocus(); toast('Reset to derived defaults'); } }, 'Reset')
-             : el('span', { class: 'chip chip-bronze' }, 'Read-only')));
+             : el('span', { class: 'chip chip-bronze' }, 'Read-only'), { kind: kindFor(c, 'modelled'), fine: 'Assumptions you can change' }));
 
   /* Whose assumptions these are, said above them: how many differ from the
      derived defaults, when they were last edited, and — where the model or
@@ -23991,7 +24085,7 @@ function studioOutputs(r, inputs, redraw) {
         el('span', { class: 'chip' }, `${run.confBand} confidence`),
         el('span', { class: 'chip' }, `${run.conf}/100`),
       ]),
-    ])));
+    ]), { kind: kindFor(c, 'modelled'), fine: 'The model estimate' }));
   head.append(rangeStrip(run.vals.bear, run.vals.base, run.vals.bull, c.px.p, c.ccy));
   const grid = el('div', { class: 'grid g-4', style: 'margin-top:var(--lg)' });
   [['Bear', run.vals.bear, run.mos?.bear], ['Base', run.vals.base, run.mos?.base], ['Bull', run.vals.bull, run.mos?.bull]].forEach(([label, v, mos]) => {
@@ -24004,6 +24098,7 @@ function studioOutputs(r, inputs, redraw) {
   });
   const pp = el('div', { class: 'panel', style: 'border-color:color-mix(in srgb, var(--s2) 40%, transparent)' });
   pp.append(el('div', { class: 'stat-label' }, c.pricePersonal ? 'Price (your note)' : c.px?.manual ? 'Price (entered by you)' : c.real ? 'Market price' : 'Sample price'));
+  pp.append(kindBadge(priceKindOf(c), { fine: c.real ? 'A price you supplied' : 'The sample price' }));
   pp.append(el('div', { class: 'num', style: 'font-size:20px;font-weight:700;margin:2px 0;color:var(--s2-text)' }, fmtMoney(c.px.p, c.ccy)));
   /* The same stamp the provenance strip uses, so one page cannot date a
      price two ways — and a filed company with no price no longer gets a
@@ -24027,7 +24122,7 @@ function studioOutputs(r, inputs, redraw) {
   const drivers = driverImpact(c, d, inputs);
   const dr = el('div', { class: 'card' });
   dr.append(cardHead('Which assumptions actually move the answer',
-    'Each bar is the change in the base-case model estimate per share when that one assumption is stepped up and down, holding the others fixed. Ranked by the size of the effect.'));
+    'Each bar is the change in the base-case model estimate per share when that one assumption is stepped up and down, holding the others fixed. Ranked by the size of the effect.', null, { kind: kindFor(c, 'modelled'), fine: 'The model' }));
   const dh = el('div', { style: 'width:100%' });
   dr.append(dh);
   dr.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -24045,7 +24140,7 @@ function studioOutputs(r, inputs, redraw) {
   const grid2 = sensitivityGrid(inputs, ax);
   const sens = el('div', { class: 'card' });
   sens.append(cardHead('Sensitivity',
-    `Value per share across ${ax.x.label.toLowerCase()} and ${ax.y.label.toLowerCase()}. The outlined cell is the current base case; the fill shows the implied premium or discount to the market price.`));
+    `Value per share across ${ax.x.label.toLowerCase()} and ${ax.y.label.toLowerCase()}. The outlined cell is the current base case; the fill shows the implied premium or discount to the market price.`, null, { kind: kindFor(c, 'modelled'), fine: 'The model' }));
   sens.append(sensitivityControls(r, inputs, chosen, redraw));
   const sh2 = el('div', { style: 'width:100%;overflow-x:auto' });
   sens.append(sh2);
@@ -24062,7 +24157,7 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- value bridge ---------- */
   const bridge = el('div', { class: 'card' });
   bridge.append(cardHead('What makes up the base-case model estimate',
-    'The composition of the value per share. It shows where the answer comes from — which is usually more useful than the answer.'));
+    'The composition of the value per share. It shows where the answer comes from — which is usually more useful than the answer.', null, { kind: kindFor(c, 'modelled'), fine: 'The model' }));
   const bh = el('div', { style: 'width:100%' });
   bridge.append(bh);
   let steps;
@@ -24118,7 +24213,7 @@ function studioOutputs(r, inputs, redraw) {
   /* ---------- forecast table & model notes ---------- */
   if (inputs.model === 'scenario') {
     const ft = el('div', { class: 'card' });
-    ft.append(cardHead('Explicit forecast', 'Revenue, the margin applied to it, and the cash flow the model is actually discounting.'));
+    ft.append(cardHead('Explicit forecast', 'Revenue, the margin applied to it, and the cash flow the model is actually discounting.', null, { kind: kindFor(c, 'modelled'), fine: 'The model’s forecast' }));
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, ['Year', 'Revenue growth', `Revenue (${c.ccy}bn)`, 'Operating margin', `Free cash flow (${c.ccy}bn)`, 'Discount factor', `Present value (${c.ccy}bn)`].map(h => el('th', {}, h)))));
@@ -24135,7 +24230,7 @@ function studioOutputs(r, inputs, redraw) {
 
   if (inputs.model === 'dcf') {
     const ft = el('div', { class: 'card' });
-    ft.append(cardHead('Explicit forecast', 'The cash flows the model is actually discounting.'));
+    ft.append(cardHead('Explicit forecast', 'The cash flows the model is actually discounting.', null, { kind: kindFor(c, 'modelled'), fine: 'The model’s forecast' }));
     const tw = el('div', { class: 'tablewrap' });
     const t = el('table', { class: 'dt' });
     t.append(el('thead', {}, el('tr', {}, ['Year', 'Growth applied', `Free cash flow (${c.ccy}bn)`, 'Discount factor', `Present value (${c.ccy}bn)`].map(h => el('th', {}, h)))));
@@ -24152,7 +24247,7 @@ function studioOutputs(r, inputs, redraw) {
   const applicable = nm.filter(x => isNum(x.value));
   const nineCard = el('div', { class: 'card' });
   nineCard.append(cardHead(`All nine methods — ${applicable.length} applicable to ${c.tk}`,
-    'The router selects one primary model, but every method is computed. Where a method does not fit this business it says so rather than producing a number. Wide disagreement between methods is information, not an error.'));
+    'The router selects one primary model, but every method is computed. Where a method does not fit this business it says so rather than producing a number. Wide disagreement between methods is information, not an error.', null, { kind: kindFor(c, 'modelled'), fine: 'The models' }));
   const ntw = el('div', { class: 'tablewrap' });
   const nt = el('table', { class: 'dt' });
   nt.append(el('thead', {}, el('tr', {}, ['#', 'Method', 'Value per share', 'vs price', 'Basis'].map(h => el('th', {}, h)))));
@@ -25668,7 +25763,9 @@ VIEWS.compare = () => {
   thr.append(el('th', { class: 'pin' }, 'Measure'));
   /* Each column says SEC-filed or illustrative (dataChip, Release B E2): the
      filed column was the one with no word. */
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  /* D6: each column's company kind once, in its header (kindBadge after the
+     chip); each section's computation kind once, in its divider row. */
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindTh(rowKind(r.c), r.c.tk, { link: false }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
@@ -25694,7 +25791,7 @@ VIEWS.compare = () => {
       const tr = el('tr');
       tr.append(el('td', { class: 'pin ident', colspan: rows.length + 1,
         style: 'background:var(--surface-sunk);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700' },
-        label.replace(/—/g, '').trim()));
+        [label.replace(/—/g, '').trim(), ' ', kindBadge(/Valuation|Scores/.test(label) ? 'modelled' : 'derived', { fine: /Valuation|Scores/.test(label) ? 'The model, on each company’s own figures' : 'Filed lines and arithmetic on them, on each company’s own figures' })]));
       tb.append(tr); return;
     }
     const tr = el('tr');
@@ -25713,7 +25810,7 @@ VIEWS.compare = () => {
 
   /* quality / valuation matrix */
   const mx = el('div', { class: 'card' });
-  mx.append(cardHead('Quality against valuation', 'Same axes as the Value Radar, restricted to the selected companies.'));
+  mx.append(cardHead('Quality against valuation', 'Same axes as the Value Radar, restricted to the selected companies.', null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
   const host = el('div', { style: 'width:100%' });
   mx.append(host);
   mx.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -25990,24 +26087,28 @@ VIEWS.portfolio = () => {
   const fxContribution = totalCost ? sum(priced.map(p => p.fxRet * p.costBase)) / totalCost : 0;
   const feeTotal = sum(pos.map(p => toBase((p.h.fee || 0) - (p.h.rebate || 0), p.r.c.ccy)));
   const unpricedNote = unpricedN ? `${unpricedN} without a price excluded` : '';
+  /* D6: a seeded portfolio, or one holding a synthetic company on its
+     sample price, is Illustrative; any other the reader's own (Yours). */
+  const PK = SEEDED_PF_IDS.includes(pf.id) ? { kind: 'illustrative', fine: 'A sample portfolio' }
+    : pos.some(p => !p.r.c.real) ? { kind: 'illustrative', fine: 'Holds illustrative companies on sample prices' } : { kind: 'yours', fine: 'Your holdings and prices' };
   const tiles = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--lg)' });
   tiles.append(el('div', { class: 'card' }, statTile('Portfolio value', fmtAmount(totalVal, State.baseCcy),
-    { sub: `${pos.length} position${pos.length === 1 ? '' : 's'}${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash` })));
+    { sub: `${pos.length} position${pos.length === 1 ? '' : 's'}${unpricedN ? ` (${unpricedN} without a price)` : ''} + ${fmtAmount(cashBase, State.baseCcy)} cash`, ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Unrealised change', totalCost ? withSign((securities - totalCost) / totalCost * 100, 1) : '—',
     { sub: totalCost ? `of which ${withSign(fxContribution, 1)} is currency${unpricedNote ? ` · ${unpricedNote}` : ''}`
                      : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
-      tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text' })));
+      tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text', ...(totalCost ? PK : { kind: 'unavailable', fine: 'No priced holding' }) })));
   const withThesis = pos.filter(p => p.thesis);
   tiles.append(el('div', { class: 'card' }, statTile('Covered by a thesis', `${withThesis.length}/${pos.length}`,
-    { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—' })));
+    { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—', ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Transaction costs paid', fmtAmount(feeTotal, State.baseCcy),
-    { sub: 'Fees net of rebates, included in the cost base' })));
+    { sub: 'Fees net of rebates, included in the cost base', ...PK })));
   wrap.append(tiles);
 
   /* holdings table */
   const hc = el('div', { class: 'card', style: 'padding:0;overflow:hidden;margin-bottom:var(--md)' });
   const hh = el('div', { style: 'padding:var(--md) var(--lg);border-bottom:1px solid var(--line)' });
-  hh.append(el('h3', { class: 'h-card' }, 'Holdings'));
+  hh.append(el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card' }, 'Holdings'), kindBadge(PK.kind, { fine: PK.fine })]));
   /* "Sample positions." only on a seeded portfolio: it ended the caption of
      every portfolio, the reader's own included. */
   hh.append(el('p', { class: 'caption', style: 'margin-top:2px' },
@@ -26071,7 +26172,7 @@ VIEWS.portfolio = () => {
     : `Left out: ${unpricedTks.join(', ')}. No price is carried for ${oneLeft ? 'it' : 'them'} here, so ${oneLeft ? 'it has' : 'they have'} no value to share — not a share of nought.`;
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
-    card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.'));
+    card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
@@ -26112,7 +26213,7 @@ VIEWS.portfolio = () => {
   const inc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   inc.append(cardHead('Income',
     'Received, declared, projected and after-withholding are four separate figures. They are never added together.'
-    + (noDpsCount ? ` ${noDpsCount} holding${noDpsCount === 1 ? '' : 's'} carr${noDpsCount === 1 ? 'ies' : 'y'} no dividend line and ${noDpsCount === 1 ? 'is' : 'are'} excluded from the projection — not counted as paying nothing.` : '')));
+    + (noDpsCount ? ` ${noDpsCount} holding${noDpsCount === 1 ? '' : 's'} carr${noDpsCount === 1 ? 'ies' : 'y'} no dividend line and ${noDpsCount === 1 ? 'is' : 'are'} excluded from the projection — not counted as paying nothing.` : ''), null, PK));
   const ig2 = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
   ig2.append(el('div', { class: 'panel' }, statTile('Dividends received', fmtAmount(recTotal, State.baseCcy),
     { sub: received.length
@@ -26197,7 +26298,7 @@ VIEWS.portfolio = () => {
   /* ---------- dividend projection ---------- */
   const dc = el('div', { class: 'card', style: 'margin-top:var(--md)' });
   dc.append(cardHead('How the projection is built',
-    'Projected income from the current holdings at the latest declared dividend per share. It assumes the distribution is repeated — it is a projection from reported history, not a forecast, and a cut or a special dividend would change it.'));
+    'Projected income from the current holdings at the latest declared dividend per share. It assumes the distribution is repeated — it is a projection from reported history, not a forecast, and a cut or a special dividend would change it.', null, PK));
   /* Each yield divides income by the value or cost of the SAME holdings. The
      income of an unpriced holding over the value of the priced ones overstated
      yield on value, and every holding's cost under the income of the ones with
@@ -26264,7 +26365,7 @@ VIEWS.portfolio = () => {
     const equityIncome = grossIncome;
 
     xa.append(cardHead('Cross-asset net worth',
-      'Equity holdings and the modelled property in one place. Property is carried at the purchase price less the outstanding loan — an entry cost, not a valuation.'));
+      'Equity holdings and the modelled property in one place. Property is carried at the purchase price less the outstanding loan — an entry cost, not a valuation.', null, { kind: kindFirst([PK.kind, dealKind(State.deal).kind, 'modelled']), fine: 'Your holdings and the modelled property' }));
     const xg = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
     xg.append(el('div', { class: 'panel' }, statTile('Net worth', fmtAmount(netWorth, State.baseCcy), { sub: 'Securities, cash and property equity' })));
     xg.append(el('div', { class: 'panel' }, statTile('Property equity', fmtAmount(propEquity, State.baseCcy),
@@ -29186,6 +29287,8 @@ VIEWS.reports = () => {
           !c.real ? el('span', { class: 'chip chip-bronze', title: ILLUS_TITLE }, 'illustrative figures')
             : c.personal ? el('span', { class: 'chip chip-bronze' }, 'annual statements — personal research')
             : el('span', { class: 'chip' }, 'SEC-filed statements'),
+          /* D6: the report's figures' kind. */
+          kindBadge(rowKind(c), { fine: 'The report’s figures', link: false }),
         ]),
         el('strong', { class: 'rp-name' }, c.name),
         el('span', { class: 'metaline' }, [c.tk, why].filter(Boolean).join(' · ')),
@@ -29214,6 +29317,8 @@ VIEWS.reports = () => {
         el('div', { class: 'rp-chips' }, [
           onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
           workIsSample(rec) ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
+          /* D6: the property's figures' kind, its weakest input. */
+          (() => { const k = workIsSample(rec) ? { kind: 'illustrative', fine: 'The sample deal' } : dealKind(d); return kindBadge(k.kind, { fine: k.fine, link: false }); })(),
           nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
           full ? el('span', { class: 'chip', title: 'The full investor report is previewed in this browser for this property’s project — nothing is on sale, and nothing was charged.' }, 'full report previewed') : null,
         ]),
@@ -29979,6 +30084,9 @@ VIEWS.tracked = () => {
     el('span', { class: depth >= 2 ? 'chip' : 'chip chip-bronze' },
       depth >= 2 ? `${depth} day series` : depth === 1 ? '1 day — a trend needs a second run' : 'no series yet'),
     priceBook?.personal ? el('span', { class: 'chip chip-bronze' }, 'read from your screen') : null,
+    /* D6, once for the table below: every close and trend figure is the
+       reader's own import. */
+    kindBadge(rows.length ? 'yours' : 'unavailable', { fine: rows.length ? 'Closes you imported' : 'No closes imported' }),
   ]));
   if (myEquities) head.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `${myEquities} Bursa Malaysia listing${myEquities === 1 ? '' : 's'}. ${instruments?.fundamentals?.MY || 'No fundamentals are available for these.'}`));
@@ -30363,6 +30471,10 @@ VIEWS.alerts = () => {
       b.append(el('div', { class: 'row row-wrap', style: 'gap:6px' }, [
         el('span', { style: 'font-size:13px;font-weight:600' }, a.title),
         el('span', { class: 'chip' }, ALERT_KINDS.find(k => k.id === a.kind)?.label || a.kind),
+        /* D6: the figure the alert reads, on its company's own kind — a
+           threshold on the lines Derived, a screen's scores Modelled, a price
+           the reader's own. */
+        (() => { const ck = BY_ID.get(a.id)?.c; return ck ? kindBadge(kindFor(ck, { thesis: 'derived', screen: 'modelled', price: 'yours', feed: 'derived' }[a.kind] || 'derived'), { fine: a.kind }) : null; })(),
       ]));
       b.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:2px' }, a.what));
       b.append(el('p', { class: 'caption', style: 'margin-top:2px' }, a.detail));
@@ -30562,7 +30674,7 @@ function learnDictionary() {
       tb.append(el('tr', { class: x.blocked ? 'dict-row-blocked' : null }, [
         el('td', { class: 'ident' }, [metricLabel(x.k, x.label), el('div', { class: 'dict-kind' }, x.blocked
           ? el('span', { class: 'chip chip-bronze' }, 'Blocked')
-          : provChip(x.kind))]),
+          : [provChip(x.kind), ' ', kindBadge(KIND_OF_PROVENANCE[x.kind] || 'derived')])]),
         el('td', { class: 'dict-text' }, x.help?.simple || ''),
         el('td', { class: 'dict-text' }, [el('div', {}, x.formula),
           inputs.length || x.needs ? el('div', { class: 'caption' }, [
@@ -30738,7 +30850,7 @@ function learnData() {
     t.append(el('tbody', {}, rows.map(r => el('tr', {}, r.map((x, i) => el('td', { style: i ? 'text-align:left;white-space:normal' : '' }, x))))));
     tw.append(t); return tw;
   };
-  lg.append(legendTable(['Kind', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [provChip(k), PROVENANCE[k].note])));
+  lg.append(legendTable(['Kind', 'Meaning'], ['reported', 'calculated', 'modelled', 'market', 'illustrative'].map(k => [[provChip(k), ' ', kindBadge(KIND_OF_PROVENANCE[k], { link: false })], PROVENANCE[k].note])));
   lg.append(legendTable(['Absence', 'Meaning'], Object.entries(ABSENCE).map(([k, a]) => [el('span', { class: 'chip chip-bronze' }, `Unavailable — ${k}`), a.legend])));
   lg.append(el('p', { class: 'metaline' }, 'Every empty cell on the screener prints the short form of its reason and opens the drawer that names the line, the flag or the price behind it.'));
   wrap.append(lg);
@@ -33531,7 +33643,7 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   const base = line.appliesTo ? bases[line.appliesTo] : null;
   /* A line that documents its base (the loan's legal fees) has nothing to
      charge without one: no loan is no fee, not the scale's minimum. */
-  if (line.needsBase && isNum(base) && !(base > 0)) { out.amount = 0; out.status = provenance === 'verified' ? 'verified' : 'placeholder'; out.why = 'Nothing to charge it on.'; return out; }
+  if (line.needsBase && isNum(base) && !(base > 0)) { out.amount = 0; out.status = provenance === 'verified' ? 'verified' : provenance === 'quote' ? 'quote' : 'placeholder'; out.why = 'Nothing to charge it on.'; return out; }
   if (line.basis === 'percent') {
     if (!isNum(base) || !isNum(line.percent)) { out.why = 'Rate or base is missing.'; return out; }
     out.amount = base * line.percent / 100;
@@ -36324,7 +36436,8 @@ function propertyScenariosPanel(d = State.deal) {
   const t = el('table', { class: 'dt pm-sc-table' });
   t.append(el('caption', { class: 'sr-only' }, `${shown.map(c => c.short).join(', ')}, side by side`));
   t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', style: 'text-align:left' }, el('span', { class: 'sr-only' }, 'Figure')),
-    ...shown.map(c => el('th', { scope: 'col', class: 'num' }, c.short))])));
+    /* Each column's kind once, in its header (D6): its weakest input. */
+    ...shown.map(c => { const k = dealKind(c.inputs); return el('th', { scope: 'col', class: 'num' }, [c.short, kindTh(k.kind, k.fine)]); })])));
   const tb = el('tbody');
   figs[0].forEach(([label], r) => tb.append(el('tr', {}, [el('th', { scope: 'row', style: 'text-align:left' }, label),
     ...figs.map(f => el('td', { class: `num ${f[r][2]}`.trim() }, f[r][1]))])));
@@ -36465,6 +36578,8 @@ VIEWS.propertyModels = () => {
         el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [
           onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
           sample ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
+          /* The row's figures' kind (D6): its weakest input. */
+          (() => { const k = dealKind(d); return kindBadge(k.kind, { fine: k.fine }); })(),
           rec.source?.kind === 'opportunity' ? el('span', { class: 'chip' }, 'From the opportunity register') : null,
           nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
         ]),
@@ -36482,7 +36597,7 @@ VIEWS.propertyModels = () => {
   const proj = PROJECTS.find(p => p.id === sd.projectId);
   ul.append(el('li', { class: 'pm-row pm-sample' }, [
     el('div', { class: 'pm-row-main' }, [
-      el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample — not a real listing')]),
+      el('div', { class: 'row row-wrap', style: 'gap:6px;margin-bottom:4px' }, [el('span', { class: 'chip chip-bronze' }, 'Sample — not a real listing'), kindBadge('illustrative', { fine: 'The sample deal' })]),
       el('strong', {}, `Sample deal${proj ? ` — ${proj.name}` : ''}`),
       el('span', { class: 'metaline' }, `${pmPlace(sd)} · ${sd.propertyType} · illustrative figures this tool carries, chosen by nobody for any property`),
     ]),
@@ -37116,8 +37231,11 @@ function cpHead(rec, d, details, forWhom) {
 function cpKeyFigures(d, m, cash) {
   const short = (m.missingCostLines || []).length;
   const shortComplete = (m.missingCostLines || []).filter(x => x.groupId === 'acquisition' || x.groupId === 'financing').length;
+  /* Each figure's kind (D6), as a document carries it: no link. The cash
+     with its fee lines (dealKind, 82-property-lab.js). */
+  const K = dealKind(d, m), KF = dealKind(d, m, { fees: true });
   const fig = (label, key, value, sub) => el('div', { class: 'cp-fig' }, [
-    el('p', { class: 'cp-fig-k' }, label), el('p', { class: 'cp-fig-v' }, cpFig(key, cpMoney(value))), el('p', { class: 'cp-fig-s' }, sub)]);
+    el('p', { class: 'cp-fig-k' }, [label, ' ', (() => { const k = key === 'cashStillRequiredToComplete' || key === 'safeCashRequired' ? KF : K; return kindBadge(isNum(value) ? k.kind : 'unavailable', { link: false, fine: isNum(value) ? k.fine : 'Not computed' }); })()]), el('p', { class: 'cp-fig-v' }, cpFig(key, cpMoney(value))), el('p', { class: 'cp-fig-s' }, sub)]);
   return el('div', { class: 'cp-figs' }, [
     fig('Cash to complete', 'cashStillRequiredToComplete', cash.complete,
       shortComplete ? 'So far — a cost line is not priced' : cash.paid > 0 ? ['On completion day, after ', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), ' paid at offer'] : 'Paid out on completion day'),
@@ -37206,7 +37324,7 @@ function cpAcquisitionSection(d, m, cash) {
     rows.push(el('tr', { class: 'cp-grp' }, el('th', { scope: 'rowgroup', colspan: 2 }, g.label)));
     g.items.forEach((it, j) => {
       rows.push(el('tr', {}, [
-        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2])]),
+        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2]), ...(it[2]?.line ? [' ', kindBadge(feeKindBadge(it[2], g.lines[j]), { link: false, fine: FEE_PROVENANCE[it[2].provenance]?.word || null })] : [])]),
         el('td', { class: 'num' }, isNum(g.lines[j]) ? cpFig('line', cpMoney(g.lines[j]), { 'data-cp-line': it[0], 'data-cp-group': g.id })
           : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, 'not priced')),
       ]));
@@ -37216,7 +37334,7 @@ function cpAcquisitionSection(d, m, cash) {
   });
   const missing = m.missingCostLines || [];
   rows.push(el('tr', { class: 'cp-total' }, [el('th', { scope: 'row' }, missing.length ? 'Total so far' : 'Total'),
-    el('td', { class: 'num' }, cpFig('totalInitialCash', cpMoney(cash.total)))]));
+    el('td', { class: 'num' }, [cpFig('totalInitialCash', cpMoney(cash.total)), ' ', (() => { const k = dealKind(d, m, { fees: true }); return kindBadge(k.kind, { link: false, fine: k.fine }); })()])]));
   s.append(cpTable('What buying it takes, line by line', ['Cost', 'Amount'], rows, { cls: 'cp-ledger' }));
   s.append(cpNote('Each amount is in whole ringgit, rounded so that the lines add up to the totals printed: a line can be a ringgit under or over its own rounding.'));
   if (missing.length) s.append(cpNote(`Not the full amount: ${missing.map(x => x.label.toLowerCase()).join(', ')} could not be priced, so the total is short by whatever ${missing.length === 1 ? 'it comes' : 'they come'} to. ${missing.length === 1 ? 'It is' : 'They are'} left unpriced rather than counted as nothing.`, { warn: true }));
@@ -38078,7 +38196,7 @@ function returnsAndTaxPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Return, and tax on the rent',
     'The internal rate of return discounts every year’s cash flow at the time it actually arrives. '
-    + 'The annualised multiple beside it does not, and the gap between them is what the timing costs.'));
+    + 'The annualised multiple beside it does not, and the gap between them is what the timing costs.', null, dealKind(d, m)));
 
   /* ---- the rate ---- */
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
@@ -40137,7 +40255,11 @@ VIEWS.sarawak = () => {
     const rt = el('table', { class: 'dt' });
     rt.append(el('thead', {}, el('tr', {}, ['Code', 'Company', 'Suggested theme', 'Closes held',
       'vs 200-day', 'Financial statements', 'Exposure recorded'].map((h, i) =>
-      el('th', { style: i === 1 || i === 2 ? 'text-align:left' : null }, h)))));
+      /* D6, once a column: closes and the 200-day gap are the reader's own
+         (Unavailable while none is held); no statements are held. */
+      el('th', { style: i === 1 || i === 2 ? 'text-align:left' : null }, i === 3 || i === 4
+        ? [h, kindTh(flagged.some(x => trackedHistory?.series?.[x.symbol]) ? 'yours' : 'unavailable', 'Closes you supplied')]
+        : i === 5 ? [h, kindTh('unavailable', 'No statements held for these companies')] : h)))));
     const rb = el('tbody');
     [...flagged].sort((a, b) => String(a.symbol).localeCompare(String(b.symbol))).forEach(i => {
       const series = trackedHistory?.series?.[i.symbol] || null;
@@ -40475,6 +40597,9 @@ VIEWS.property = () => {
   if (arrival.replaced) { const note = propertyArrivalNote(arrival); setTimeout(() => toast(note), 0); }
   const d = State.deal;
   const m = dealModel(d);
+  /* The kind of the page's results (D6), once: the weakest input they rest
+     on (dealKind, 82-property-lab.js); the cash's, with the fee lines. */
+  const DK = dealKind(d, m), DKF = dealKind(d, m, { fees: true });
   const paid = propertyReportUnlocked(d.projectId);
   const wrap = el('div', { class: 'ls-page pc-page' });
 
@@ -40584,7 +40709,7 @@ VIEWS.property = () => {
     const [l, v, s, tone] = answerFigs[t.key];
     const card = el('div', { class: `panel ls-card ls-l${t.level}`, 'data-card': 'metric', 'data-level': String(t.level), 'data-answer': t.key },
       statTile(l, v, { sub: s, tone }));
-    card.append(labTag(labTileKind(d, t.rests)));
+    card.append(labTag(labTileKind(d, t.rests), { fees: (t.key === 'safe' || t.key === 'complete') && m.unconfirmedCost > 0 }));
     answers.append(card);
   }
   onePage.append(answers);
@@ -40598,6 +40723,7 @@ VIEWS.property = () => {
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:var(--ls-metric);font-weight:700;color:var(${gradeTone})` }, g.grade),
         el('span', { style: 'font-size:var(--ls-body);font-weight:600' }, g.verdict),
+        kindBadge(kindFirst([DK.kind, 'modelled']), { fine: `The grade, on ${DK.fine.toLowerCase()} figures` }),
       ]),
     ]),
     el('div', { style: 'margin-left:auto;text-align:right' }, [
@@ -40754,7 +40880,7 @@ VIEWS.property = () => {
   const pf = propertyFinanceability(d, m);
   const finCard = el('div', { class: 'card ls-section' });
   finCard.append(cardHead('Can this be financed?',
-    'Three separate questions. Collapsing them into one percentage would hide the one that is actually blocking.'));
+    'Three separate questions. Collapsing them into one percentage would hide the one that is actually blocking.', null, DK));
 
   const trio = el('div', { class: 'grid g-3' });
   trio.append(el('div', { class: 'panel ls-fig' }, statTile('Borrower Loan Readiness',
@@ -41600,7 +41726,7 @@ VIEWS.property = () => {
 
   /* The four headline numbers, in the section whose inputs make them. */
   const headline = el('div', { class: 'card ls-section' });
-  headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.'));
+  headline.append(cardHead('Free calculator', 'The four numbers that decide whether a rental property is worth analysing further.', null, DK));
   const fg = el('div', { class: 'grid g-4' });
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
@@ -41634,7 +41760,7 @@ VIEWS.property = () => {
      ledger, and the cash to hold back. */
   const buyCard = el('div', { class: 'card ls-section' });
   buyCard.append(cardHead('What buying it takes',
-    'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.'));
+    'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.', null, DKF));
 
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
   unitCard.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
@@ -41790,8 +41916,10 @@ VIEWS.property = () => {
   cashB = el('tbody', { class: 'ls-tgroup ls-tgroup-total' });
   cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
-    el('td', { style: 'font-weight:700' },
-      nMissing ? 'Total initial cash so far' : 'Total initial cash'),
+    el('td', { style: 'font-weight:700' }, [
+      nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
+      /* Its weakest input's kind, the fee lines' included (N6). */
+      kindBadge(DKF.kind, { fine: DKF.fine })]),
     el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
   /* The total names its own incompleteness in the row beneath it, because a
      bold figure at the foot of a ledger is read as the answer. */
@@ -41873,7 +42001,7 @@ VIEWS.property = () => {
   fin.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'Scenarios, not offers. No lender has seen this property or this borrower, and the margin a lender will actually extend depends on its own valuation, its credit policy and the applicant. Cash equity is the purchase price less the loan, so it carries any valuation gap with it.'));
   const loanCard = el('div', { class: 'card ls-section' });
-  loanCard.append(cardHead('The loan', 'What the loan is lent against, what it funds, and what it would be at other margins of finance.'));
+  loanCard.append(cardHead('The loan', 'What the loan is lent against, what it funds, and what it would be at other margins of finance.', null, DK));
   fin.style.cssText = '';
   loanCard.append(fin);
   /* The three figures, before the ledger's own total. One number answered three
@@ -42015,7 +42143,7 @@ VIEWS.property = () => {
   /* ---------- stress tests ---------- */
   const stressCard = el('div', { class: 'card ls-section' });
   stressCard.append(cardHead('What breaks it',
-    'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.'));
+    'The useful question is not what this returns but at what point it stops working. Each row moves one assumption and leaves the rest as entered.', null, DK));
 
   /* A class with no tenancy has no rent for the price to stand against: the
      page withholds rent for it, and this said the shortfall lay "in the price
@@ -42103,7 +42231,7 @@ VIEWS.property = () => {
   ops.append(cardHead(m.managed ? 'Management operations' : 'Management operations — self-managed',
     m.managed
       ? 'What the service costs, and what it has to do for it. A percentage alone is not comparable between two agents; cost per occupied month and cost per tenancy are.'
-      : 'You have said you will manage this property yourself, so no management cost is charged below. The work does not disappear with the fee — it is listed here so it is a decision rather than an omission.'));
+      : 'You have said you will manage this property yourself, so no management cost is charged below. The work does not disappear with the fee — it is listed here so it is a decision rather than an omission.', null, DK));
 
   if (m.managed) {
     ops.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' }, [
@@ -42254,7 +42382,7 @@ VIEWS.property = () => {
     /* ---------- exits and the alternative ---------- */
     const exitCard = el('div', { class: 'card ls-section', id: 'property-report-full' });
     exitCard.append(cardHead('Selling in year 5 and year 10',
-      'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.'));
+      'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.', null, DK));
     const exTable = el('table', { class: 'dt' });
     exTable.append(el('thead', {}, el('tr', {}, ['', 'Sell in year 5', 'Sell in year 10'].map((h, i) =>
       el('th', { class: i ? 'num' : '' }, h)))));
@@ -42295,7 +42423,7 @@ VIEWS.property = () => {
       const hs = m.holdVsSell || [];
       const card = el('div', { class: 'card ls-section' });
       card.append(cardHead('If you sold in year…',
-        'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.'));
+        'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.', null, DK));
       const rated = hs.filter(e => isNum(e.irrPct));
       const host = el('div', { style: 'width:100%' });
       card.append(host);
@@ -42330,7 +42458,7 @@ VIEWS.property = () => {
       const rr = renovationReturn(d, m);
       const card = el('div', { class: 'card ls-section' });
       card.append(cardHead('What the renovation returns',
-        'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.'));
+        'The deal as entered against the same deal with no renovation — the rent reduced by the share that depends on it, nothing recovered at the sale.', null, DK));
       if (!rr.applicable) card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' }, rr.why));
       else {
         const g = el('div', { class: 'grid g-3' });
@@ -42360,7 +42488,7 @@ VIEWS.property = () => {
          market with no transactions rather than as a tool with no data. The card
          says which of the two it is. */
       comps.append(cardHead(`Comparable transactions — ${m.proj.area}`,
-        'None held for this location.'));
+        'None held for this location.', null, { kind: 'unavailable', fine: 'None held for this location' }));
       comps.append(el('p', { class: 'body', style: 'font-size:var(--ls-support)' },
         `Quantum Tradeworks holds no transacted price, rental band or vacancy observation for ${m.proj.area}. That is a gap in this tool, not evidence of a quiet market — the transactions exist, and none of them has been licensed into this build.`));
       comps.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -42384,7 +42512,7 @@ VIEWS.property = () => {
       ]));
     } else {
       comps.append(cardHead(`Comparable transactions — ${m.proj.name}`,
-        `${m.proj.type}, ${m.proj.tenure}, ${m.proj.area}. Sample transaction data for demonstration.`));
+        `${m.proj.type}, ${m.proj.tenure}, ${m.proj.area}. Sample transaction data for demonstration.`, null, { kind: 'illustrative', fine: 'Sample transaction data' }));
       const ctw = el('div', { class: 'tablewrap' });
       const ct = el('table', { class: 'dt' });
       ct.append(el('thead', {}, el('tr', {}, ['Quarter', 'Median psf', 'Transactions', 'vs your price'].map(h => el('th', {}, h)))));
@@ -42405,7 +42533,7 @@ VIEWS.property = () => {
     reportCards.push(comps);
 
     const inv = el('div', { class: 'card ls-section' });
-    inv.append(cardHead('Investment measures', 'Computed from your inputs. Every figure below traces to the assumptions on the left.'));
+    inv.append(cardHead('Investment measures', 'Computed from your inputs. Every figure below traces to the assumptions on the left.', null, DK));
     const ig = el('div', { class: 'grid g-4', style: 'margin-bottom:var(--md)' });
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
@@ -42427,7 +42555,7 @@ VIEWS.property = () => {
     /* scenario path */
     const sc2 = el('div', { class: 'card ls-section' });
     sc2.append(cardHead(`${d.holdYears}-year scenario`,
-      `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`));
+      `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`, null, DK));
     const stw = el('div', { class: 'tablewrap' });
     const st = el('table', { class: 'dt' });
     st.append(el('thead', {}, el('tr', {}, ['Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
@@ -42446,7 +42574,7 @@ VIEWS.property = () => {
     /* equity comparison — the cross-asset point of the whole product */
     const eq2 = el('div', { class: 'card ls-section' });
     eq2.append(cardHead('The same cash in equities',
-      `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`));
+      `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`, null, DK));
     /* The real rate, not the annualised multiple. Comparing a property against
        a compounding alternative on a figure that ignores timing was the least
        defensible place the old approximation appeared. */
@@ -42707,15 +42835,17 @@ function financingChoicesPanel(d, m) {
     const reducingPmt = monthlyInstalment(flatAmount, num0(d.ratePct), flatYrs);
     const reducingInterest = isNum(reducingPmt) ? reducingPmt * flatYrs * 12 - flatAmount : null;
 
+    /* D6: a lender's quotation, on the amount you entered, the renovation, or the 50,000 stand-in. */
+    const FQ = kindFirst(['quoted', num0(d.flatQuoteAmount) > 0 ? 'yours' : num0(d.renovation) > 0 ? dealKind(d, m, { rests: ['renovation'] }).kind : 'illustrative']);
     const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
     g.append(el('div', { class: 'panel ls-fig' }, statTile('Quoted as flat',
-      fmtPct(d.flatQuotePct, 2), { sub: `On ${fmtMoney(flatAmount, 'MYR', 0)} over ${flatYrs} years` })));
+      fmtPct(d.flatQuotePct, 2), { sub: `On ${fmtMoney(flatAmount, 'MYR', 0)} over ${flatYrs} years`, kind: FQ })));
     g.append(el('div', { class: 'panel ls-fig' }, statTile('What that really costs',
       isNum(realRate) ? fmtPct(realRate, 2) : '—',
-      { sub: isNum(realRate) ? 'The same monthly payment, charged the normal way' : (eq.why || 'Not computable'), tone: '--bronze' })));
+      { sub: isNum(realRate) ? 'The same monthly payment, charged the normal way' : (eq.why || 'Not computable'), tone: '--bronze', kind: isNum(realRate) ? FQ : 'unavailable' })));
     g.append(el('div', { class: 'panel ls-fig' }, statTile('Every month',
       isNum(eq.flat.monthly) ? fmtMoney(eq.flat.monthly, 'MYR', 0) : '—',
-      { sub: isNum(reducingPmt) ? `Against ${fmtMoney(reducingPmt, 'MYR', 0)} at your ${fmtPct(num0(d.ratePct), 2)}` : 'Per month' })));
+      { sub: isNum(reducingPmt) ? `Against ${fmtMoney(reducingPmt, 'MYR', 0)} at your ${fmtPct(num0(d.ratePct), 2)}` : 'Per month', kind: isNum(eq.flat.monthly) ? FQ : 'unavailable' })));
     card.append(g);
 
     if (isNum(realRate)) {
@@ -42826,9 +42956,9 @@ function financingChoicesPanel(d, m) {
     const g2 = el('div', { class: 'grid g-2', style: 'margin-top:var(--md)' });
     g2.append(el('div', { class: 'panel ls-fig' }, statTile('Reducing cover, all in',
       fmtMoney(fin ? fin.totalPaid : d.mrtaPremium, 'MYR', 0),
-      { sub: fin ? 'Premium plus the interest, if added to the loan' : 'Premium' })));
+      { sub: fin ? 'Premium plus the interest, if added to the loan' : 'Premium', kind: 'quoted', fine: 'The premium you were quoted' })));
     g2.append(el('div', { class: 'panel ls-fig' }, statTile('Level cover, all in',
-      fmtMoney(mltaTotal, 'MYR', 0), { sub: `${fmtMoney(d.mltaPremiumAnnual, 'MYR', 0)} a year for ${mortgageYrs} years` })));
+      fmtMoney(mltaTotal, 'MYR', 0), { sub: `${fmtMoney(d.mltaPremiumAnnual, 'MYR', 0)} a year for ${mortgageYrs} years`, kind: 'quoted', fine: 'The premium you were quoted' })));
     card.append(g2);
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'A total is not the whole comparison. The level cover leaves money behind if you claim, can be cashed in if you '
@@ -43455,7 +43585,7 @@ function propertySensitivityPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('What actually decides this',
     'Every assumption moved one realistic step in each direction, ranked by how far it moves the rate of return. '
-    + 'The ones at the top are where a valuer or a rental appraisal is worth paying for. The ones at the bottom are not.'));
+    + 'The ones at the top are where a valuer or a rental appraisal is worth paying for. The ones at the bottom are not.', null, dealKind(d, m)));
 
   if (!s.ok) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, s.why));
@@ -43761,8 +43891,10 @@ function environmentalPanel(d) {
   }
 
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
+  /* D6: the percentages are the tool's planning figures, to be replaced
+     (Placeholder) — badged once on their two columns. */
   t.append(el('thead', {}, el('tr', {}, ['Allowance', 'Triggered by', '% of value a year', 'Per year', 'What it covers']
-    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+    .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, i === 2 || i === 3 ? [h, kindTh('placeholder', 'Planning figures, not survey results')] : h)))));
   const tb = el('tbody');
   env.items.forEach(i => {
     tb.append(el('tr', {}, [
@@ -43800,7 +43932,7 @@ function rentVersusBuyPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('Rent, or buy',
     'IPS §6.8. For a property you would use yourself rather than let, the comparison is between owning it all year '
-    + 'and renting it for the weeks you actually want it.'));
+    + 'and renting it for the weeks you actually want it.', null, dealKind(d, m)));
 
   const weeks = num0(State.deal.ownUseWeeks);
   const f = el('div', { class: 'assumption', style: 'margin-top:var(--md)' });
@@ -44619,10 +44751,14 @@ VIEWS.wheel = () => {
 
   /* Fit and phase, then the two numbers 41A.15 requires above any yield. */
   const tone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[fit.grade];
+  /* D6, once a card: the worked example's figures are Illustrative, any
+     other the reader's own contract and arithmetic on it (Yours). */
+  const WK = p.isWorkedExample ? { kind: 'illustrative', fine: 'The worked example' }
+    : num0(p.putStrike) > 0 ? { kind: 'yours', fine: 'From the contract you entered' } : { kind: 'unavailable', fine: 'No contract entered' };
   const head = el('div', { class: 'card', style: `border-left:3px solid var(${tone})` });
   head.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline' }, [
     el('div', {}, [
-      el('p', { class: 'eyebrow', style: 'margin-bottom:2px' }, 'Wheel fit'),
+      el('div', { class: 'card-hd-t' }, [el('p', { class: 'eyebrow', style: 'margin:0' }, 'Wheel fit'), kindBadge(WK.kind, { fine: WK.fine })]),
       el('div', { class: 'row', style: 'gap:10px;align-items:baseline' }, [
         el('span', { class: 'num', style: `font-size:32px;font-weight:700;color:var(${tone})` }, fit.grade),
         el('span', { style: 'font-size:14px;font-weight:500' },
@@ -44707,7 +44843,7 @@ VIEWS.wheel = () => {
   if (num0(p.putStrike) > 0 && m.deliverableShares > 0) {
     const pay = el('div', { class: 'card', style: 'margin-top:var(--md)' });
     pay.append(cardHead('What this pays, at expiry',
-      'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.'));
+      'Arithmetic on the strike, premium and multiplier you entered. Not a forecast, and no probability is implied — the horizontal axis is the underlying price, not time.', null, WK));
     const host = el('div', { style: 'margin-top:var(--md)' });
     pay.append(host);
     /* payoffChart appends its own table view — the rows are derived beside the
@@ -44808,7 +44944,7 @@ VIEWS.wheel = () => {
   /* Cover checks — pass or refuse, never a partial score. */
   if (m.valid) {
     const cov = el('div', { class: 'card' });
-    cov.append(cardHead('Collateral checks', 'Binary by design. Below 100% is a refusal, not a lower grade.'));
+    cov.append(cardHead('Collateral checks', 'Binary by design. Below 100% is a refusal, not a lower grade.', null, WK));
     const ct = el('table', { class: 'dt' });
     ct.append(el('thead', {}, el('tr', {}, ['Check', 'Required', 'You have', 'Coverage', 'Result'].map((h, i) =>
       el('th', { style: i === 0 ? 'text-align:left' : null }, h)))));
@@ -44845,7 +44981,7 @@ VIEWS.wheel = () => {
       : null;
     const prem = el('div', { class: 'card' });
     prem.append(cardHead('Premium, and what is still owed',
-      'Cash received is not realised profit while the option is open.'));
+      'Cash received is not realised profit while the option is open.', null, WK));
     const pk = el('dl', { class: 'kv' });
     [['Premium cash received', fmtMoney(m.putPremiumCashReceived, 'USD')],
      ['Still open against it', putOutcome || `an obligation to buy ${m.deliverableShares} shares at ${fmtMoney(num0(p.putStrike), 'USD')}`],
@@ -44861,7 +44997,7 @@ VIEWS.wheel = () => {
 
     /* Downside scenarios. */
     const sc = el('div', { class: 'card' });
-    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.'));
+    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.', null, WK));
     const st = el('table', { class: 'dt' });
     st.append(el('thead', {}, el('tr', {}, ['Underlying move', 'Price at expiry', 'Put result'].map(h => el('th', {}, h)))));
     const stb = el('tbody');
@@ -44880,7 +45016,7 @@ VIEWS.wheel = () => {
     /* Covered call, including the case the premium hides. */
     if (num0(p.callStrike) > 0) {
       const cc = el('div', { class: 'card' });
-      cc.append(cardHead('Covered call', 'What you receive, and what you give up.'));
+      cc.append(cardHead('Covered call', 'What you receive, and what you give up.', null, WK));
       const ck = el('dl', { class: 'kv' });
       [['Premium cash received', fmtMoney(m.callPremiumCashReceived, 'USD')],
        ['Called-away value', fmtMoney(m.calledAwayGrossValue, 'USD')],
@@ -45359,8 +45495,10 @@ function officialBenchmarkPanel(city, area) {
     card.append(el('p', { class: 'metaline' }, `No H1 2025 activity published for the ${division} Division.`));
   } else {
     const t = el('table', { class: 'dt' });
+    /* D6, once a column: NAPIC's counts and values as published (Filed);
+       the implied average is arithmetic on them (Derived). */
     t.append(el('thead', {}, el('tr', {}, ['Sub-sector', 'Transactions', 'Total value', 'Implied aggregate average']
-      .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+      .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, i === 1 || i === 2 ? [h, kindTh('filed', `NAPIC ${napic.period.code}`)] : i === 3 ? [h, kindTh('derived', 'Total value over transactions')] : h)))));
     t.append(el('tbody', {}, act.map(r => el('tr', {}, [
       el('th', { scope: 'row', style: 'text-align:left' }, r.subsector.replace('_', ' ').toLowerCase()
         .replace(/^./, c => c.toUpperCase())),
@@ -45393,8 +45531,9 @@ function officialBenchmarkPanel(city, area) {
         : `No NAPIC scheme name contains “${area}”, so these are schemes from across the ${division} Division, not from ${area}`)
       + (bm.length < bmr.total ? ` — showing the first ${bm.length} of ${bmr.total}.` : '.')));
     const t2 = el('table', { class: 'dt' });
+    /* D6, once a column: the ranges and NAPIC's reported yield as published. */
     t2.append(el('thead', {}, el('tr', {}, ['Scheme or location', 'Type', 'Sample', 'Observed range', 'Basis', 'Change', 'Reported gross yield']
-      .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
+      .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, i === 3 || i === 6 ? [h, kindTh('filed', `NAPIC ${napic.period.code}`)] : h)))));
     t2.append(el('tbody', {}, bm.map(b => el('tr', {}, [
       el('th', { class: 'pin ident', scope: 'row', style: 'text-align:left' }, b.scheme),
       /* Wrapped between words, never inside one. .caption breaks anywhere,
@@ -46245,7 +46384,33 @@ function labTileKind(d, rests) {
   const weakest = keys.filter(k => evidenceDriversFor(d).includes(k)).map(k => evidenceOf(shownEvidence(d, k))).sort((a, b) => a.rank - b.rank)[0];
   return weakest ? { kind: weakest.id, words: weakest.label } : { kind: 'user', words: evidenceOf('user').label };
 }
-const labTag = (kind) => el('span', { class: `lab-tag lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, 'data-kind': kind.kind }, kind.words);
+/* A result's kind (D6): the badge of its weakest input on the EVIDENCE
+   ladder (KIND_OF_EVIDENCE), linking to /data-sources#kinds, with the
+   ladder's own word kept beside it ("Illustrative default", "Yours · you
+   supplied") — the evidence id stays the tag's data-kind. `fees`: the
+   figure carries fee lines nobody has checked (the cash required's
+   unverified lines), so a Placeholder outranks a weaker kind (N6). */
+const labTag = (kind, { fees = false } = {}) => {
+  const base = kind.kind === 'unavailable' ? 'unavailable' : KIND_OF_EVIDENCE[kind.kind] || 'unavailable';
+  const k = fees ? kindFirst([base, 'placeholder']) : base;
+  return kindWithFine(k, k === base ? kind.words : 'fee lines unchecked',
+    /* No link: on a phone the Lab's every target is 44px, and a 20px pill
+       is not one (the definitions are in its title, and on /data-sources). */
+    { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind }, link: false });
+};
+/* A deal's result, as cardHead's badge: { kind, fine } — the weakest input
+   it rests on (all of the deal's, or `rests`), Placeholder where `fees`
+   and the cash carries fee lines nobody has checked, and `also` (the
+   model's own step, Modelled; a rulebook figure, Placeholder) in the
+   precedence (KIND_ORDER). */
+function dealKind(d, m = null, { rests = null, fees = false, also = [] } = {}) {
+  if (!d || !(num0(d.price) > 0)) return { kind: 'unavailable', fine: 'Needs a purchase price' };
+  const ev = labTileKind(d, rests || evidenceDriversFor(d));
+  const base = KIND_OF_EVIDENCE[ev.kind] || 'unavailable';
+  const kinds = [base, ...(fees && m?.unconfirmedCost > 0 ? ['placeholder'] : []), ...also];
+  const kind = kindFirst(kinds);
+  return { kind, fine: kind === base ? ev.words : kind === 'placeholder' ? 'Fee lines unchecked' : KIND_BADGES[kind].word };
+}
 function labTiles(P, lab) {
   const d = labSubjectInputs(lab);
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
@@ -46258,7 +46423,7 @@ function labTiles(P, lab) {
     /* THE SYSTEM'S METRIC CARD (37-layout-system.js): the cash and the
        month are the decision (L1, the card-metric size); the yield
        qualifies them (L2, medium). */
-    const card = lsMetricCard({ label: (LAB_TILE_LABEL[t.key] || f.label)(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind), level: t.level,
+    const card = lsMetricCard({ label: (LAB_TILE_LABEL[t.key] || f.label)(d), value: LAB_FORMATS[f.fmt](v), badge: labTag(kind, { fees: t.key === 'safeCashRequired' && run?.m?.unconfirmedCost > 0 }), level: t.level,
       sub: run ? ((LAB_TILE_NOTE[t.key] || f.note)(run.m, d) || '') : 'Needs a purchase price', tone: f.neg && isNum(v) && v < 0 ? 'neg' : null,
       cls: 'lab-tile', attrs: { role: 'listitem', 'data-tile': t.key }, valueAttrs: { class: 'lab-tile-val', 'data-value': isNum(v) ? String(v) : '' } });
     card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
@@ -46304,7 +46469,11 @@ function labNextTile(P, lab, d) {
     sub = 'A, B and C side by side, below';
   }
   /* THE SYSTEM'S ACTION CARD: a title, one line, one call to action. */
-  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: labTag(kind), cls: 'lab-tile lab-tile-next',
+  /* "Not saved" and "Saved" are the property's state, not a figure's kind:
+     they keep the plain tag. */
+  const tag = EVIDENCE.some(e => e.id === kind.kind) ? labTag(kind)
+    : el('span', { class: 'lab-tag lab-tile-kind ls-badge', 'data-kind': kind.kind }, kind.words);
+  const card = lsActionCard({ title: 'Next step', line: sub, cta: act, badge: tag, cls: 'lab-tile lab-tile-next',
     attrs: { role: 'listitem', 'data-tile': 'next', 'data-kind': kind.kind } });
   card.querySelector('.ls-card-hd').classList.add('lab-tile-hd');
   card.querySelector('.ls-card-label').classList.add('lab-tile-label');
@@ -49598,9 +49767,20 @@ function qttiClearedPlan(prev, { keepRules, as = null }) {
   return next;
 }
 
+/* D6: the outputs' kind — §14's worked example as loaded (its panels and
+   confidence unchanged) is Illustrative; any other run rests on readings the
+   reader recorded, Yours (the model's outputs on them, KIND_ORDER). */
+function qttiKind(p) {
+  const ex = qttiWorkedExample();
+  const same = JSON.stringify(p?.timeframes) === JSON.stringify(ex.timeframes) && JSON.stringify(p?.confidence) === JSON.stringify(ex.confidence);
+  return same ? { kind: 'illustrative', fine: 'The specification’s worked example (§14)' } : { kind: 'yours', fine: 'Computed by the model from readings you recorded' };
+}
 VIEWS.tradingIndex = () => {
   const p = State.qtti;
   const r = qttiRun(p);
+  const QK = qttiKind(p);
+  /* The three outputs: none until the run is assessable. */
+  const QKO = r.assessable ? QK : { kind: 'unavailable', fine: 'Not assessable yet' };
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* Every control on this form redraws the page, and render() replaced the
      control under the keyboard: focus fell to <body> on each select, tick and
@@ -49669,7 +49849,7 @@ VIEWS.tradingIndex = () => {
   /* ---------- the three numbers, §4 hierarchy ---------- */
   const card = el('div', { class: 'card' });
   card.append(cardHead('Three outputs, kept apart',
-    `Model ${QTTI_VERSION}. A single blended number would let a legible screenshot of a poor setup outscore a blurry screenshot of a good one.`));
+    `Model ${QTTI_VERSION}. A single blended number would let a legible screenshot of a poor setup outscore a blurry screenshot of a good one.`, null, QKO));
 
   /* A null reads in the neutral ink whatever the measure. Colouring an absent
      value by the tone its band would have had implies a reading that was never
@@ -49908,7 +50088,7 @@ VIEWS.tradingIndex = () => {
          this card can see whether it is worth opening. */
       el('span', { class: done === QTTI_GROUPS.length ? 'chip chip-ok' : 'chip',
         title: `${done} of the ${QTTI_GROUPS.length} evidence groups are recorded. Unknown ones contribute a neutral 50 and reduce coverage.` },
-        `${done}/${QTTI_GROUPS.length} recorded`)));
+        `${done}/${QTTI_GROUPS.length} recorded`), QK));
     c.append(cb(`The ${tf.label.toLowerCase()} panel is present and readable`, p.timeframes[tf.k].present,
       v => { p.timeframes[tf.k].present = v; }));
     QTTI_GROUPS.forEach(g => {
@@ -49935,7 +50115,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- screenshot confidence ---------- */
   const cc = el('div', { class: 'card' });
-  cc.append(cardHead('Screenshot confidence', 'How much of the result the image can support. This describes extraction reliability, not market predictability.'));
+  cc.append(cardHead('Screenshot confidence', 'How much of the result the image can support. This describes extraction reliability, not market predictability.', null, QK));
   QTTI_CONF_PARTS.forEach(c => {
     const f = el('div', { class: 'assumption' });
     f.append(el('label', { for: `qc-${c.k}` }, `${c.label} · ${fmtPct(c.w * 100, 0)}`));
@@ -49955,7 +50135,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- template and Stage 1 plan ---------- */
   const pl = el('div', { class: 'card' });
-  pl.append(cardHead('Your first-tranche rules', 'You select the template, the capital and the fraction. The platform calculates against them and does not set any of them.'));
+  pl.append(cardHead('Your first-tranche rules', 'You select the template, the capital and the fraction. The platform calculates against them and does not set any of them.', null, QK));
   pl.append(sel('Entry template', p.template, QTTI_TEMPLATES, v => { p.template = v; }));
   pl.append(el('p', { class: 'metaline', style: 'margin:2px 0 8px' }, r.tpl.note));
   if (r.tpl.explicitOptIn) pl.append(cb('I am deliberately selecting the higher-risk early-reversal scout', p.reversalOptIn, v => { p.reversalOptIn = v; }));
@@ -50097,6 +50277,14 @@ const OPP_EDIT_OPEN = new Set();
 let OPP_SEQ = 0;
 /* What "Record a property" holds before Add — see the form. */
 let oppDraft = null;
+/* A candidate's figures' kind (D6): its weakest input, the cash's fee
+   lines, and a seller's asking price where one is recorded (Quoted). */
+function oppKind(x) {
+  const k = dealKind(x.d, x.m, { fees: true });
+  const asked = isNum(x.o.deal?.price) && x.o.deal.price > 0;
+  const kind = kindFirst([k.kind, asked ? 'quoted' : null].filter(Boolean));
+  return { kind, fine: kind === k.kind ? k.fine : 'The asking price, as quoted' };
+}
 VIEWS.opportunities = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js). */
@@ -50227,7 +50415,8 @@ VIEWS.opportunities = () => {
     cmp.append(cardHead('Side by side',
       `${modelled.length} candidates under one set of assumptions. Where a record states a figure the model uses it; where it does not, the calculator’s current inputs stand in — so a difference between two columns can be a difference between two properties or between what is known about them.`));
     const t = el('table', { class: 'dt' });
-    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, x.o.name))])));
+    /* Each candidate's kind once, in its column's header (D6). */
+    t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => { const k = oppKind(x); return el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, [x.o.name, ' ', kindTh(k.kind, k.fine)]); })])));
     const rows = [
       ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
       ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
@@ -50284,6 +50473,8 @@ VIEWS.opportunities = () => {
           ? el('span', { class: 'chip chip-bronze' }, `Availability last checked ${age}d ago — treat as unknown`)
           : el('span', { class: 'chip chip-bronze' }, 'Availability never checked'),
       el('span', { class: 'chip' }, `Recorded ${o.capturedAt}`),
+      /* The card's figures' kind (D6). */
+      (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
     ]));
 
     /* Four prices, kept apart. */
@@ -51948,7 +52139,7 @@ VIEWS.scannerSetups = () => {
   const ev = el('div', { class: 'card' });
   ev.append(cardHead('Evaluate now — nothing recorded', haveHistory
     ? 'Runs the engine the worker runs, here, on data/price-history.json as the worker reads it. The worker writes the record; this writes nothing.'
-    : 'No price history is loaded, so there is nothing to evaluate. On the deployed site there never is: none of the prices this product could ship are licensed for it to redistribute.'));
+    : 'No price history is loaded, so there is nothing to evaluate. On the deployed site there never is: none of the prices this product could ship are licensed for it to redistribute.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const host = el('div', { style: 'margin-top:var(--sm)' });
   const fileSetups = fileCheck?.setups || [];
   const run = (list, which) => {
@@ -53191,7 +53382,7 @@ VIEWS.scannerAlerts = () => {
      alone was 22px, half the 44px a finger needs, and nothing around it
      was a target. */
   const hit = (box) => el('label', { class: 'scan-tick-hit' }, box);
-  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', class: 'scan-tick' }, hit(allBox)), ...['Status', 'Bar', 'Setup', 'Instrument', 'Event', 'Close', ''].map(h => el('th', { scope: 'col', class: h === 'Close' ? 'num' : null }, h || el('span', { class: 'sr-only' }, 'Detail')))])));
+  t.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', class: 'scan-tick' }, hit(allBox)), ...['Status', 'Bar', 'Setup', 'Instrument', 'Event', 'Close', ''].map(h => el('th', { scope: 'col', class: h === 'Close' ? 'num' : null }, h === 'Close' ? [h, kindTh('yours', 'Your own close on the bar')] : h || el('span', { class: 'sr-only' }, 'Detail')))])));
   t.append(el('tbody', {}, slice.map(a => {
     const id = scanAlertIdOf(a);
     const s = scanAlertStatus(a, st);
@@ -53442,7 +53633,7 @@ VIEWS.scannerAlert = () => {
   /* ---- the bar ---- */
   const mk = a.market ? scanMarket(a.market) : null;
   const c1 = el('div', { class: 'card' });
-  c1.append(cardHead('The bar', 'What was evaluated, and when.'));
+  c1.append(cardHead('The bar', 'What was evaluated, and when.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const f1 = el('div', { class: 'scan-facts' });
   f1.append(scanFact('Candle date', bar, `${SCAN_TIMEFRAMES[scanTimeframe(a.timeframe)]?.label || a.timeframe || 'Daily'} bar${a.market ? ` · the ${a.market} session, in ${mk?.tz || 'its time zone'}` : ''}`));
   f1.append(scanFact('Bar status', a.barStatus || nr, a.barStatus ? SCAN_BAR_STATUS_TEXT[a.barStatus] : null));
@@ -53504,7 +53695,7 @@ VIEWS.scannerAlert = () => {
   /* ---- every condition, with its values ---- */
   const c3 = el('div', { class: 'card' });
   const mc = Array.isArray(a.matchedConditions) ? a.matchedConditions : null;
-  c3.append(cardHead('Every condition, with its values', mc ? `${prefs.precision === 'full' ? 'Values as the engine computed them, to twelve significant digits' : 'Values rounded as the tables round them'} — the display is set in the scanner settings.` : 'This record carries each condition’s text and whether it held, but not its values: it predates engine 0.3.0.'));
+  c3.append(cardHead('Every condition, with its values', mc ? `${prefs.precision === 'full' ? 'Values as the engine computed them, to twelve significant digits' : 'Values rounded as the tables round them'} — the display is set in the scanner settings.` : 'This record carries each condition’s text and whether it held, but not its values: it predates engine 0.3.0.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const t = el('table', { class: 'dt' });
   t.append(el('caption', { class: 'sr-only' }, 'Conditions evaluated on this bar'));
   if (mc) {
@@ -53533,7 +53724,7 @@ VIEWS.scannerAlert = () => {
 
   /* ---- the closes up to it, and the bar evaluated again ---- */
   const c5 = el('div', { class: 'card' });
-  c5.append(cardHead('Evaluated again', 'The closes up to this bar and no further, and the same conditions on the history as it is loaded now, cut at the bar.'));
+  c5.append(cardHead('Evaluated again', 'The closes up to this bar and no further, and the same conditions on the history as it is loaded now, cut at the bar.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   /* The sparkline draws the cut series only, so no close after the bar is
      on it; the text beside it says what it shows, for anyone who cannot
      see the line. */
@@ -54414,7 +54605,7 @@ VIEWS.scannerDashboard = () => {
     const mc = el('section', { class: 'card' });
     mc.append(cardHead(current ? `Matched on the last scan — bars of ${bars}` : `Matches as of ${ls.asOf || '—'} — not current`,
       current ? 'In the order your setups are written, then the instruments. Nothing is ranked.'
-              : `The last successful scan evaluated bars of ${bars}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`));
+              : `The last successful scan evaluated bars of ${bars}. It is ${S.label.toLowerCase()}, so these are a record of that scan, not a statement about today.`, null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
     mc.append(lm.length ? matchRows(lm) : el('p', { class: 'body', style: 'font-size:13px' }, 'No match was recorded on that scan’s bars.'));
     wrap.append(mc);
   }
@@ -54429,7 +54620,7 @@ VIEWS.scannerDashboard = () => {
     const nBars = new Set(list.map(x => x.candleDate || x.bar || '')).size;
     rc.append(cardHead(ls ? `Earlier matches — the last ${nBars === 1 ? 'bar' : `${nBars} bars`} with one`
       : `Recorded matches — ${la ? 'no scan has succeeded' : 'no run recorded'}, so none is current`,
-      'Newest bar first; within a bar, in the order of your setups.'));
+      'Newest bar first; within a bar, in the order of your setups.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
     rc.append(scanOpsPaged(list, matchRows, { step: 25, noun: 'matches' }));
     wrap.append(rc);
   }
@@ -54438,7 +54629,7 @@ VIEWS.scannerDashboard = () => {
   const h = scanOpsHistory();
   const hm = scanOpsHistoryMeta(h);
   const mon = el('section', { class: first ? 'scan-run-part' : 'card' });
-  mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.'));
+  mon.append(cardHead('Monitored instruments', 'The instruments in the universes of your enabled setups that hold a series in your price history — the only ones the worker can evaluate.', null, hm ? { kind: 'yours', fine: 'From your own closes and the worker’s records' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const m = st.monitored;
   mon.append(el('dl', { class: 'kv scan-kv' }, [
     el('dt', {}, 'Monitored'), el('dd', {}, m ? scanOpsPlural(m.instruments, 'instrument') : hm ? 'no enabled setup' : 'no price history loaded'),
@@ -54727,7 +54918,9 @@ function scanScreenResult(R) {
   const n = R.rows.length;
   const where = R.market === '__all' ? 'every instrument with a series in your own history' : `the ${R.market} instruments with a series in your own history`;
   box.append(el('div', { class: 'card-hd' }, el('div', {}, [
-    el('h3', { class: 'h-card', id: 'scan-screen-hd' }, `${R.setup.name || R.setup.id} on ${R.market === '__all' ? 'everything with a series' : R.market}`),
+    /* D6: a screen of the reader's own closes. */
+    el('div', { class: 'card-hd-t' }, [el('h3', { class: 'h-card', id: 'scan-screen-hd' }, `${R.setup.name || R.setup.id} on ${R.market === '__all' ? 'everything with a series' : R.market}`),
+      kindBadge('yours', { fine: 'Your own closes' })]),
     /* THE COVERAGE STATEMENT COMES FIRST: what was screened, and what was not. */
     el('p', { class: 'body scan-coverage', style: 'font-size:13px;margin-top:4px;max-width:75ch' },
       `Screened ${scanOpsPlural(n, 'instrument')} — ${where}. The registry lists ${R.registry} instruments ${R.market === '__all' ? 'across all markets' : 'in this market'}; the market itself has many more, and none of those is screened.${R.capped ? ` The screen is bounded at ${SCAN_OPS_MAX_SCREEN}; ${R.capped - n} more were not evaluated.` : ''}`),
@@ -54903,7 +55096,7 @@ function scanBacktestResult(R) {
 
   /* Coverage: what each instrument could and could not be tested on. */
   const cov = el('section', { class: 'card' });
-  cov.append(cardHead('Coverage', 'Per instrument, in symbol order: the bars held, the window evaluated, the first bar every condition could be read on, and the sessions missing from the series.'));
+  cov.append(cardHead('Coverage', 'Per instrument, in symbol order: the bars held, the window evaluated, the first bar every condition could be read on, and the sessions missing from the series.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   cov.append(scanOpsTable(['Instrument', 'Calendar', 'Bars held', 'Window', 'Testable from', 'Untested bars', 'Invalid bars', 'Missing sessions'],
     o.coverage.map(v => {
       const counted = v.missingSessions.filter(m => !m.tolerated).length, tolerated = v.missingSessions.length - counted;
@@ -54923,7 +55116,7 @@ function scanBacktestResult(R) {
   const dates = el('section', { class: 'card' });
   const views = [['events', 'Where a match began', o.events], ['recorded', 'What the worker would have recorded', o.recorded], ['every', 'Every bar that held', o.matches]];
   const cur = views.find(v => v[0] === S.view) || views[0];
-  dates.append(cardHead('Matching dates', 'Symbol order, then date order. Each row opens the conditions and the values they compared on that bar.'));
+  dates.append(cardHead('Matching dates', 'Symbol order, then date order. Each row opens the conditions and the values they compared on that bar.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Which dates', style: 'margin-bottom:var(--sm)' });
   views.forEach(([id, label, list]) => seg.append(el('button', { 'aria-pressed': id === cur[0] ? 'true' : 'false', 
     onclick: () => { S.view = id; const fresh = scanBacktestResult(R); box.replaceWith(fresh); fresh.querySelector(`.segmented button[aria-pressed="true"]`)?.focus(); } }, `${label} (${list.length})`)));
@@ -55183,7 +55376,7 @@ VIEWS.scannerAdminData = () => {
   const H = scanDataHealth(history, scanOpsRegistry(), now);
   const t = H.totals;
   const sum = el('section', { class: 'card' });
-  sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`));
+  sum.append(cardHead('The file', `data/price-history.json · schema ${H.file.schema} · written ${scanOpsWhen(H.file.generated)} · judged at ${scanOpsWhen(H.at)} · engine ${H.engine}`, null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const g = el('div', { class: 'grid scan-counts' });
   /* Bars are the daily bars; the imported weeks and months are counted
      beside them (scanDataHealth's frames), with the frames not read. */
@@ -55205,7 +55398,7 @@ VIEWS.scannerAdminData = () => {
   wrap.append(sum);
 
   const mk = el('section', { class: 'card' });
-  mk.append(cardHead('Markets', 'In market order. The calendar is inferred from your own series — marked so — or, where fewer than five of your series share a market, weekdays with holidays unknown.'));
+  mk.append(cardHead('Markets', 'In market order. The calendar is inferred from your own series — marked so — or, where fewer than five of your series share a market, weekdays with holidays unknown.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   mk.append(scanOpsTable(['Market', 'Series', 'Session', 'Calendar', 'Inferred holidays', 'Ambiguous days', 'Expected by now', 'Newest bar', 'Stale'],
     H.markets.map(m => [m.market ? `${m.market}${m.label && m.label !== m.market ? ` — ${m.label}` : ''}` : 'no market row', fmtNum(m.symbols, 0), `${m.session} (${m.tz})`,
       el('span', {}, [el('span', { class: 'chip' + (m.calendar.basis === 'inferred' ? ' chip-bronze' : '') }, m.calendar.basis === 'inferred' ? 'inferred' : scanMarket(m.market).days.length === 7 ? 'every day' : 'weekdays'), ' ', el('span', { class: 'caption' }, m.calendar.basis === 'inferred' ? `from ${m.calendar.series} series — not an exchange calendar` : 'holidays not held')]),
@@ -55344,7 +55537,7 @@ VIEWS.scannerAdminData = () => {
     || framesOf(s).some(f => f.refused || f.invalid.length);
   const ser = el('section', { class: 'card' });
   const only = el('button', { class: 'btn btn-ghost btn-sm', 'aria-pressed': 'true' }, 'Only series with something to look at');
-  ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.'));
+  ser.append(cardHead('Series', 'In market order, then symbol order — the order of the file’s keys, not of anything about the series.', null, { kind: 'yours', fine: 'From your own closes and the worker’s records' }));
   const host = el('div');
   const draw = (all) => {
     const rows = H.series.filter(s => all || flagged(s));
@@ -55760,10 +55953,18 @@ VIEWS.areas = () => {
   };
   const shown = names.filter(passes);
   const bands = layerBands(layer, S.city, shown);
+  /* The screen's figures' kind (D6), once for the map and once for the
+     table: medians of the reader's own records, Illustrative where any is
+     a worked example's, Unavailable while nothing is recorded. */
+  const AK = (() => {
+    const ms = shown.map(n => areaMetrics(S.city, n)).filter(x => x.total > 0);
+    if (!ms.length) return { kind: 'unavailable', fine: 'Nothing recorded yet' };
+    return ms.some(x => x.sampleN) ? { kind: 'illustrative', fine: 'Includes worked-example records' } : { kind: 'yours', fine: 'Medians of your own records' };
+  })();
 
   /* ---- the map ---- */
   const mapCard = el('div', { class: 'card' });
-  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why));
+  mapCard.append(cardHead(`${city.name} — ${layer.label.toLowerCase()}`, layer.why, null, AK));
 
   const paint = (n) => {
     if (!shown.includes(n)) return null;
@@ -55951,7 +56152,7 @@ VIEWS.areas = () => {
   tCard.append(cardHead(`${shown.length} of ${names.length} localit${names.length === 1 ? 'y' : 'ies'}`,
     shown.length === names.length
       ? 'Every mapped locality in this town. Rent, vacancy and price columns are medians of your own records.'
-      : 'Filtered. The map shades the same set.'));
+      : 'Filtered. The map shades the same set.', null, AK));
   /* NOTHING RECORDED IN THE TOWN YET: the way to record the first figure,
      said where its absence is seen (the daily audit's item #6). */
   if (!(State.observations || []).some(o => o.city === S.city)) tCard.append(el('p', { class: 'body ef-empty', style: 'margin-top:var(--sm);font-size:var(--ls-support)' }, [
@@ -56390,7 +56591,12 @@ VIEWS.comparables = () => {
         : '—';
       const title = TITLE_TYPES.find(x => x.id === o.titleType);
       tb.append(el('tr', {}, [
-        el('td', { style: 'text-align:left' }, el('span', { class: s.tone, title: s.why }, s.label)),
+        /* The record's kind beside its standing (D6): a worked example's is
+           Illustrative, an asking price Quoted, any other the reader's own. */
+        /* Its word from the stylesheet (kindTh), so the cell reads as its
+           standing, as the journeys and the register's readers read it. */
+        el('td', { style: 'text-align:left' }, [el('span', { class: s.tone, title: s.why }, s.label),
+          kindTh(s.id === 'sample' ? 'illustrative' : kind && kind.asking ? 'quoted' : 'yours', s.id === 'sample' ? 'Worked example' : kind && kind.asking ? 'Quoted, not achieved' : 'Your own record')]),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
           `${kind ? kind.label : o.kind}${kind && kind.asking ? ' · quoted, not achieved' : ''}`),
         el('td', { class: 'num', style: 'text-align:left' },
@@ -57167,11 +57373,13 @@ function localityTransactions(city, area, { splitBand = true } = {}) {
 function localityTransactionPanel(city, area) {
   const cohorts = localityTransactions(city, area);
   const card = el('div', { class: 'card' });
+  /* D6, once: the reader's own records, Illustrative where any is the worked example's. */
+  const TK = !cohorts.length ? null : cohorts.some(c => c.sampleN) ? { kind: 'illustrative', fine: 'Includes worked-example records' } : { kind: 'yours', fine: 'Transactions you recorded' };
   card.append(cardHead(`Your own recorded transactions — ${area}`,
     'Transactions you recorded, by category, subtype, tenure and area band. These are the only dated transactions this '
     + 'product holds — NAPIC publishes no transaction dates, so nothing above this panel can contribute to a latest sale. '
     + 'A single "last price" for a locality would not be useful anyway: the most recent sale in a district is as likely to '
-    + 'be agricultural land as the property you are asking about.'));
+    + 'be agricultural land as the property you are asking about.', null, (TK || {})));
 
   if (!cohorts.length) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
@@ -57403,7 +57611,7 @@ async function healthFilings() {
 /* ---- the quick checks: run when the page opens ---- */
 const HEALTH_QUICK = [
   {
-    id: 'property-model', product: 'property', title: 'Property Intelligence — the deal model',
+    id: 'property-model', product: 'property', title: 'Property Intelligence — the deal model', kind: 'illustrative', fine: 'A fixed test deal, not a property',
     run() {
       const E = HEALTH_DEAL_EXPECT;
       const m = dealModel(healthDeal());
@@ -57426,7 +57634,7 @@ const HEALTH_QUICK = [
     },
   },
   {
-    id: 'equities-pipeline', product: 'equities', title: 'Equities Research — filed statements through the pipeline', waits: true,
+    id: 'equities-pipeline', product: 'equities', title: 'Equities Research — filed statements through the pipeline', waits: true, kind: 'filed', fine: 'A filer’s statements as filed',
     async run() {
       const f = await healthFilings();
       if (f.why) return f.why;
@@ -57508,7 +57716,7 @@ const HEALTH_QUICK = [
 /* ---- the full checks: on request ---- */
 const HEALTH_FULL = [
   {
-    id: 'equities-all', title: 'Equities Research — every filed company through the pipeline',
+    id: 'equities-all', title: 'Equities Research — every filed company through the pipeline', kind: 'filed', fine: 'The filers’ statements as filed',
     async run() {
       const f = await healthFilings();
       if (f.why) return f.why;
@@ -57531,7 +57739,7 @@ const HEALTH_FULL = [
     },
   },
   {
-    id: 'property-breakeven', title: 'Property Intelligence — break-even and yields by definition',
+    id: 'property-breakeven', title: 'Property Intelligence — break-even and yields by definition', kind: 'illustrative', fine: 'Fixed test deals, not properties',
     run() {
       const m = dealModel(healthDeal());
       if (!isNum(m.breakEvenRent)) return healthFail('The fixed deal has no break-even rent.');
@@ -57681,13 +57889,15 @@ const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.ro
    indent is the chip's width above 640px and nothing below (clamp() over the
    viewport — an inline style cannot hold a media query). */
 const HEALTH_INDENT = 'clamp(0px, calc((100vw - 640px) * 1000), calc(4.75rem + 12px))';
-function healthRow({ status, title, detail, meta }) {
+/* kind: the D6 badge of the figures a check's line reports (its fixture's,
+   or the filings'), the same before and after it runs. */
+function healthRow({ status, title, detail, meta, kind = null, fine = null }) {
   /* The whole line's width, so it always starts a line of its own; the
      measure is the text's, inside it. */
   const text = 'margin:0;max-width:72ch;overflow-wrap:anywhere';
   return el('li', { class: 'health-row', data: { status: status || HEALTH_NOT_RUN_STATUS }, 'data-now-status': HEALTH_NOT_RUN_STATUS, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
     healthChip(status),
-    el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, title),
+    el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, kind ? [title, ' ', kindBadge(kind, { fine })] : title),
     meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums', 'data-now': '' }, meta) : null,
     detail ? el('div', { style: `flex:0 0 100%;box-sizing:border-box;padding-left:${HEALTH_INDENT}` },
       Array.isArray(detail)
@@ -57716,7 +57926,7 @@ function healthPaint() {
 function healthPaintNow() {
   const q = document.getElementById('health-quick');
   if (q) {
-    q.replaceChildren(...HEALTH_QUICK.map(c => { const r = HEALTH.quick.get(c.id); return healthRow({ status: r?.status, title: c.title, detail: r ? r.detail : (c.waits ? 'Waiting for the files this check reads…' : 'Running…'), meta: r ? healthMs(r.ms) : null }); }));
+    q.replaceChildren(...HEALTH_QUICK.map(c => { const r = HEALTH.quick.get(c.id); return healthRow({ status: r?.status, title: c.title, kind: c.kind, fine: c.fine, detail: r ? r.detail : (c.waits ? 'Waiting for the files this check reads…' : 'Running…'), meta: r ? healthMs(r.ms) : null }); }));
     const k = healthCount(HEALTH.quick);
     const s = document.getElementById('health-quick-sum');
     if (s) s.textContent = k.n < HEALTH_QUICK.length ? `Checking — ${k.n} of ${HEALTH_QUICK.length} done.`
@@ -57724,7 +57934,7 @@ function healthPaintNow() {
   }
   const f = document.getElementById('health-full');
   if (f) {
-    f.replaceChildren(...(HEALTH.full.size || HEALTH.fullRunning ? HEALTH_FULL.map(c => { const r = HEALTH.full.get(c.id); return healthRow({ status: r?.status, title: c.title, detail: r ? r.detail : 'Running…', meta: r ? healthMs(r.ms) : null }); }) : []));
+    f.replaceChildren(...(HEALTH.full.size || HEALTH.fullRunning ? HEALTH_FULL.map(c => { const r = HEALTH.full.get(c.id); return healthRow({ status: r?.status, title: c.title, kind: c.kind, fine: c.fine, detail: r ? r.detail : 'Running…', meta: r ? healthMs(r.ms) : null }); }) : []));
     const s = document.getElementById('health-full-sum');
     const k = healthCount(HEALTH.full);
     if (s) s.textContent = HEALTH.fullRunning ? 'Running the full checks…' : HEALTH.full.size ? `Full checks: ${healthTally(k, HEALTH_FULL.length)}.` : '';
@@ -59153,6 +59363,9 @@ function decisionRecordProperty() {
      is every line. */
   const unpriced = m.missingCostLines || [];
   const shortOf = (groups) => unpriced.filter(x => !groups || groups.includes(x.groupId));
+  /* D6, once for the strip: the weakest input the figures rest on, the
+     cash's fee lines included (dealKind, 82-property-lab.js). */
+  { const k = dealKind(d, m, { fees: true }); out.append(el('p', { class: 'dr-kind' }, kindWithFine(k.kind, k.fine, { link: false }))); }
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null,
      shortOf(['acquisition', 'financing'])],
@@ -59323,6 +59536,8 @@ function decisionRecordWheel() {
     'This is the worked contract this tool carries as an illustration. The strike, premium and expiry were not '
     + 'quoted by any broker and no chain data is connected.'));
 
+  /* D6, once for the strip: the worked contract's, or the reader's own. */
+  out.append(el('p', { class: 'dr-kind' }, kindWithFine(p.isWorkedExample ? 'illustrative' : num0(p.putStrike) > 0 ? 'yours' : 'unavailable', p.isWorkedExample ? 'Illustrative · the worked contract' : num0(p.putStrike) > 0 ? 'Yours · the contract you entered' : 'Unavailable · no contract entered', { link: false })));
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to secure', isNum(m.requiredAssignmentCash) ? fmtMoney(m.requiredAssignmentCash, 'USD') : null],
    ['Premium received', isNum(m.putPremiumCashReceived) ? fmtMoney(m.putPremiumCashReceived, 'USD') : null],
@@ -59418,6 +59633,8 @@ VIEWS.decisionRecord = () => {
       el('p', { class: 'metaline' },
         [preparedNow(), 'research only, not advice']),
     ]));
+    /* D6, once for the strip (qttiKind, 85-trading-index.js). */
+    { const k = r.assessable ? qttiKind(State.qtti) : { kind: 'unavailable', fine: 'Unavailable · not assessable yet' }; out.append(el('p', { class: 'dr-kind' }, kindWithFine(k.kind, k.fine, { link: false }))); }
     const figs = el('div', { class: 'dr-figs' });
     /* Confidence is its own measure: a run is assessable before its five
        components are scored, and String(null) printed "null" in the record

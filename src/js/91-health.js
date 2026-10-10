@@ -107,7 +107,7 @@ async function healthFilings() {
 /* ---- the quick checks: run when the page opens ---- */
 const HEALTH_QUICK = [
   {
-    id: 'property-model', product: 'property', title: 'Property Intelligence — the deal model',
+    id: 'property-model', product: 'property', title: 'Property Intelligence — the deal model', kind: 'illustrative', fine: 'A fixed test deal, not a property',
     run() {
       const E = HEALTH_DEAL_EXPECT;
       const m = dealModel(healthDeal());
@@ -130,7 +130,7 @@ const HEALTH_QUICK = [
     },
   },
   {
-    id: 'equities-pipeline', product: 'equities', title: 'Equities Research — filed statements through the pipeline', waits: true,
+    id: 'equities-pipeline', product: 'equities', title: 'Equities Research — filed statements through the pipeline', waits: true, kind: 'filed', fine: 'A filer’s statements as filed',
     async run() {
       const f = await healthFilings();
       if (f.why) return f.why;
@@ -212,7 +212,7 @@ const HEALTH_QUICK = [
 /* ---- the full checks: on request ---- */
 const HEALTH_FULL = [
   {
-    id: 'equities-all', title: 'Equities Research — every filed company through the pipeline',
+    id: 'equities-all', title: 'Equities Research — every filed company through the pipeline', kind: 'filed', fine: 'The filers’ statements as filed',
     async run() {
       const f = await healthFilings();
       if (f.why) return f.why;
@@ -235,7 +235,7 @@ const HEALTH_FULL = [
     },
   },
   {
-    id: 'property-breakeven', title: 'Property Intelligence — break-even and yields by definition',
+    id: 'property-breakeven', title: 'Property Intelligence — break-even and yields by definition', kind: 'illustrative', fine: 'Fixed test deals, not properties',
     run() {
       const m = dealModel(healthDeal());
       if (!isNum(m.breakEvenRent)) return healthFail('The fixed deal has no break-even rent.');
@@ -385,13 +385,15 @@ const healthMs = (ms) => (isNum(ms) ? (ms < 1 ? '<1 ms' : ms < 1000 ? `${Math.ro
    indent is the chip's width above 640px and nothing below (clamp() over the
    viewport — an inline style cannot hold a media query). */
 const HEALTH_INDENT = 'clamp(0px, calc((100vw - 640px) * 1000), calc(4.75rem + 12px))';
-function healthRow({ status, title, detail, meta }) {
+/* kind: the D6 badge of the figures a check's line reports (its fixture's,
+   or the filings'), the same before and after it runs. */
+function healthRow({ status, title, detail, meta, kind = null, fine = null }) {
   /* The whole line's width, so it always starts a line of its own; the
      measure is the text's, inside it. */
   const text = 'margin:0;max-width:72ch;overflow-wrap:anywhere';
   return el('li', { class: 'health-row', data: { status: status || HEALTH_NOT_RUN_STATUS }, 'data-now-status': HEALTH_NOT_RUN_STATUS, style: 'display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:12px 0;border-top:1px solid var(--line)' }, [
     healthChip(status),
-    el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, title),
+    el('p', { style: 'flex:1 1 0;min-width:0;margin:0;font-size:14px;font-weight:600;color:var(--ink)' }, kind ? [title, ' ', kindBadge(kind, { fine })] : title),
     meta ? el('span', { class: 'metaline', style: 'flex:none;white-space:nowrap;font-variant-numeric:tabular-nums', 'data-now': '' }, meta) : null,
     detail ? el('div', { style: `flex:0 0 100%;box-sizing:border-box;padding-left:${HEALTH_INDENT}` },
       Array.isArray(detail)
@@ -420,7 +422,7 @@ function healthPaint() {
 function healthPaintNow() {
   const q = document.getElementById('health-quick');
   if (q) {
-    q.replaceChildren(...HEALTH_QUICK.map(c => { const r = HEALTH.quick.get(c.id); return healthRow({ status: r?.status, title: c.title, detail: r ? r.detail : (c.waits ? 'Waiting for the files this check reads…' : 'Running…'), meta: r ? healthMs(r.ms) : null }); }));
+    q.replaceChildren(...HEALTH_QUICK.map(c => { const r = HEALTH.quick.get(c.id); return healthRow({ status: r?.status, title: c.title, kind: c.kind, fine: c.fine, detail: r ? r.detail : (c.waits ? 'Waiting for the files this check reads…' : 'Running…'), meta: r ? healthMs(r.ms) : null }); }));
     const k = healthCount(HEALTH.quick);
     const s = document.getElementById('health-quick-sum');
     if (s) s.textContent = k.n < HEALTH_QUICK.length ? `Checking — ${k.n} of ${HEALTH_QUICK.length} done.`
@@ -428,7 +430,7 @@ function healthPaintNow() {
   }
   const f = document.getElementById('health-full');
   if (f) {
-    f.replaceChildren(...(HEALTH.full.size || HEALTH.fullRunning ? HEALTH_FULL.map(c => { const r = HEALTH.full.get(c.id); return healthRow({ status: r?.status, title: c.title, detail: r ? r.detail : 'Running…', meta: r ? healthMs(r.ms) : null }); }) : []));
+    f.replaceChildren(...(HEALTH.full.size || HEALTH.fullRunning ? HEALTH_FULL.map(c => { const r = HEALTH.full.get(c.id); return healthRow({ status: r?.status, title: c.title, kind: c.kind, fine: c.fine, detail: r ? r.detail : 'Running…', meta: r ? healthMs(r.ms) : null }); }) : []));
     const s = document.getElementById('health-full-sum');
     const k = healthCount(HEALTH.full);
     if (s) s.textContent = HEALTH.fullRunning ? 'Running the full checks…' : HEALTH.full.size ? `Full checks: ${healthTally(k, HEALTH_FULL.length)}.` : '';

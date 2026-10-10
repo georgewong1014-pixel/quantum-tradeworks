@@ -619,8 +619,11 @@ function cpHead(rec, d, details, forWhom) {
 function cpKeyFigures(d, m, cash) {
   const short = (m.missingCostLines || []).length;
   const shortComplete = (m.missingCostLines || []).filter(x => x.groupId === 'acquisition' || x.groupId === 'financing').length;
+  /* Each figure's kind (D6), as a document carries it: no link. The cash
+     with its fee lines (dealKind, 82-property-lab.js). */
+  const K = dealKind(d, m), KF = dealKind(d, m, { fees: true });
   const fig = (label, key, value, sub) => el('div', { class: 'cp-fig' }, [
-    el('p', { class: 'cp-fig-k' }, label), el('p', { class: 'cp-fig-v' }, cpFig(key, cpMoney(value))), el('p', { class: 'cp-fig-s' }, sub)]);
+    el('p', { class: 'cp-fig-k' }, [label, ' ', (() => { const k = key === 'cashStillRequiredToComplete' || key === 'safeCashRequired' ? KF : K; return kindBadge(isNum(value) ? k.kind : 'unavailable', { link: false, fine: isNum(value) ? k.fine : 'Not computed' }); })()]), el('p', { class: 'cp-fig-v' }, cpFig(key, cpMoney(value))), el('p', { class: 'cp-fig-s' }, sub)]);
   return el('div', { class: 'cp-figs' }, [
     fig('Cash to complete', 'cashStillRequiredToComplete', cash.complete,
       shortComplete ? 'So far — a cost line is not priced' : cash.paid > 0 ? ['On completion day, after ', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), ' paid at offer'] : 'Paid out on completion day'),
@@ -709,7 +712,7 @@ function cpAcquisitionSection(d, m, cash) {
     rows.push(el('tr', { class: 'cp-grp' }, el('th', { scope: 'rowgroup', colspan: 2 }, g.label)));
     g.items.forEach((it, j) => {
       rows.push(el('tr', {}, [
-        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2])]),
+        el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2]), ...(it[2]?.line ? [' ', kindBadge(feeKindBadge(it[2], g.lines[j]), { link: false, fine: FEE_PROVENANCE[it[2].provenance]?.word || null })] : [])]),
         el('td', { class: 'num' }, isNum(g.lines[j]) ? cpFig('line', cpMoney(g.lines[j]), { 'data-cp-line': it[0], 'data-cp-group': g.id })
           : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, 'not priced')),
       ]));
@@ -719,7 +722,7 @@ function cpAcquisitionSection(d, m, cash) {
   });
   const missing = m.missingCostLines || [];
   rows.push(el('tr', { class: 'cp-total' }, [el('th', { scope: 'row' }, missing.length ? 'Total so far' : 'Total'),
-    el('td', { class: 'num' }, cpFig('totalInitialCash', cpMoney(cash.total)))]));
+    el('td', { class: 'num' }, [cpFig('totalInitialCash', cpMoney(cash.total)), ' ', (() => { const k = dealKind(d, m, { fees: true }); return kindBadge(k.kind, { link: false, fine: k.fine }); })()])]));
   s.append(cpTable('What buying it takes, line by line', ['Cost', 'Amount'], rows, { cls: 'cp-ledger' }));
   s.append(cpNote('Each amount is in whole ringgit, rounded so that the lines add up to the totals printed: a line can be a ringgit under or over its own rounding.'));
   if (missing.length) s.append(cpNote(`Not the full amount: ${missing.map(x => x.label.toLowerCase()).join(', ')} could not be priced, so the total is short by whatever ${missing.length === 1 ? 'it comes' : 'they come'} to. ${missing.length === 1 ? 'It is' : 'They are'} left unpriced rather than counted as nothing.`, { warn: true }));

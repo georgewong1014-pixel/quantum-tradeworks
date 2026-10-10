@@ -156,8 +156,10 @@ function officialBenchmarkPanel(city, area) {
     card.append(el('p', { class: 'metaline' }, `No H1 2025 activity published for the ${division} Division.`));
   } else {
     const t = el('table', { class: 'dt' });
+    /* D6, once a column: NAPIC's counts and values as published (Filed);
+       the implied average is arithmetic on them (Derived). */
     t.append(el('thead', {}, el('tr', {}, ['Sub-sector', 'Transactions', 'Total value', 'Implied aggregate average']
-      .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
+      .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, i === 1 || i === 2 ? [h, kindTh('filed', `NAPIC ${napic.period.code}`)] : i === 3 ? [h, kindTh('derived', 'Total value over transactions')] : h)))));
     t.append(el('tbody', {}, act.map(r => el('tr', {}, [
       el('th', { scope: 'row', style: 'text-align:left' }, r.subsector.replace('_', ' ').toLowerCase()
         .replace(/^./, c => c.toUpperCase())),
@@ -190,8 +192,9 @@ function officialBenchmarkPanel(city, area) {
         : `No NAPIC scheme name contains “${area}”, so these are schemes from across the ${division} Division, not from ${area}`)
       + (bm.length < bmr.total ? ` — showing the first ${bm.length} of ${bmr.total}.` : '.')));
     const t2 = el('table', { class: 'dt' });
+    /* D6, once a column: the ranges and NAPIC's reported yield as published. */
     t2.append(el('thead', {}, el('tr', {}, ['Scheme or location', 'Type', 'Sample', 'Observed range', 'Basis', 'Change', 'Reported gross yield']
-      .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, h)))));
+      .map((h, i) => el('th', { class: i ? null : 'pin', style: i ? null : 'text-align:left' }, i === 3 || i === 6 ? [h, kindTh('filed', `NAPIC ${napic.period.code}`)] : h)))));
     t2.append(el('tbody', {}, bm.map(b => el('tr', {}, [
       el('th', { class: 'pin ident', scope: 'row', style: 'text-align:left' }, b.scheme),
       /* Wrapped between words, never inside one. .caption breaks anywhere,
