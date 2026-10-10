@@ -3349,6 +3349,15 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 .kind-fine { font-size: var(--ls-meta); font-weight: var(--weight-semibold); color: var(--ink-2); line-height: 16px; white-space: nowrap; }
 .kind-th { margin-left: 6px; text-transform: none; letter-spacing: 0; font-weight: var(--weight-semibold); }
 th .kind-th { vertical-align: middle; }
+.kind-th[data-word]::after { content: attr(data-word); }
+/* The screener's kinds, once above its header: a column is no wider for
+   its badge (the company and three figures fit their window). The phone
+   cards say theirs in the measures picker (.scr-pick-kinds). */
+.scr-col-kinds { margin: 0; padding: var(--sm) var(--md); font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; border-bottom: 1px solid var(--line); }
+@media (max-width: 768px) { .scr-col-kinds { display: none; } }
+/* A tile's badge and its finer word on one line, the word giving way. */
+.lab-tile .kind-with, .pc-page .ls-card .kind-with { flex-wrap: nowrap; max-width: 100%; }
+.lab-tile .kind-fine, .pc-page .ls-card .kind-fine { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A card's badge beside its title (cardHead's kind), and a stat tile's
    (statTile's kind) under its figure. */
 .card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
@@ -23129,11 +23138,16 @@ function kindWithFine(kind, words, { cls = '', attrs = {}, link = true } = {}) {
   return el('span', { ...attrs, class: `kind-with${cls ? ` ${cls}` : ''}` }, [kindBadge(k, { fine: w || null, link }), rest ? el('span', { class: 'kind-fine' }, rest) : null]);
 }
 /* A table's badge, once in its header: the kind of every figure in the
-   column (or the table) it heads. Never a badge a cell. */
-function kindTh(kind, fine = null) {
-  const b = kindBadge(kind, { fine });
-  b.classList.add('kind-th');
-  return b;
+   column (or the table) it heads. Never a badge a cell. Its word is drawn
+   by the stylesheet from data-word and named by aria-label, so the
+   header's own text stays the column's name — what sorting, the phone
+   cards' data-label and every reader of a column by its name read. */
+function kindTh(kind, fine = null, { link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const b = KIND_BADGES[k];
+  const attrs = { class: `kind-badge kind-${k} kind-th`, 'data-kind-badge': k, 'data-word': b.word, 'aria-label': b.word, title: fine ? `${fine} — ${b.note}` : b.note };
+  const kids = [el('span', { class: 'kind-shape', 'aria-hidden': 'true' })];
+  return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', { ...attrs, role: 'img' }, kids);
 }
 /* A company's figure of kind `k`: a synthetic company's is Illustrative,
    the reader's own statements' Yours, a filer's `k` (rowKind, 40-views-
@@ -25065,9 +25079,6 @@ function renderScreener() {
            triangle", "Value, up down arrow". */
         html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
-      /* D6, once a column (the rows keep their company's kind): no link —
-         the header is the sort control. */
-      if (c2.k !== 'ident') { const k = screenerColKind(c2.k, sorted, sc); const b = kindBadge(k.kind, { link: false, fine: k.fine }); b.classList.add('kind-th'); th.append(b); }
       htr.append(th);
     });
     thead.append(htr); table.append(thead);
@@ -25151,7 +25162,17 @@ function renderScreener() {
        body, the median rows and the header all exist. */
     gridKeyboard(table, `Screener results, ${sorted.length} companies by ${cols.length} measures. `
       + 'Use the arrow keys to move between cells and Enter on a measure to see where it came from.');
-    tw.append(table);
+    /* D6, once for the table, in its head: each kind and the columns it
+       covers (the rows keep their company's kind) — a line above the
+       header rather than a badge in each, which widened the screener's
+       company and three figures past their window beside the rail. */
+    const colKinds = (() => {
+      const by = new Map();
+      cols.filter(c2 => c2.k !== 'ident').forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
+      return el('p', { class: 'scr-col-kinds' }, [...by].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0]))
+        .flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null));
+    })();
+    tw.append(colKinds, table);
 
     /* What was converted and what was not, stated where the mixed table is
        rather than on a methodology page. Only shown when the screen actually
@@ -32452,7 +32473,7 @@ VIEWS.compare = () => {
      filed column was the one with no word. */
   /* D6: each column's company kind once, in its header (kindBadge after the
      chip); each section's computation kind once, in its divider row. */
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindBadge(rowKind(r.c), { fine: r.c.tk }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindTh(rowKind(r.c), r.c.tk, { link: false }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
@@ -35975,7 +35996,7 @@ VIEWS.reports = () => {
             : c.personal ? el('span', { class: 'chip chip-bronze' }, 'annual statements — personal research')
             : el('span', { class: 'chip' }, 'SEC-filed statements'),
           /* D6: the report's figures' kind. */
-          kindBadge(rowKind(c), { fine: 'The report’s figures' }),
+          kindBadge(rowKind(c), { fine: 'The report’s figures', link: false }),
         ]),
         el('strong', { class: 'rp-name' }, c.name),
         el('span', { class: 'metaline' }, [c.tk, why].filter(Boolean).join(' · ')),
@@ -36005,7 +36026,7 @@ VIEWS.reports = () => {
           onCalc ? el('span', { class: 'chip chip-brand' }, st.dirty ? 'On the calculator · unsaved changes' : 'On the calculator') : null,
           workIsSample(rec) ? el('span', { class: 'chip chip-bronze', title: 'Every figure in it is the calculator’s sample input. Not your figures.' }, 'sample') : null,
           /* D6: the property's figures' kind, its weakest input. */
-          (() => { const k = workIsSample(rec) ? { kind: 'illustrative', fine: 'The sample deal' } : dealKind(d); return kindBadge(k.kind, { fine: k.fine }); })(),
+          (() => { const k = workIsSample(rec) ? { kind: 'illustrative', fine: 'The sample deal' } : dealKind(d); return kindBadge(k.kind, { fine: k.fine, link: false }); })(),
           nSc ? el('span', { class: 'chip' }, `${nSc} scenario${nSc === 1 ? '' : 's'}`) : null,
           full ? el('span', { class: 'chip', title: 'The full investor report is previewed in this browser for this property’s project — nothing is on sale, and nothing was charged.' }, 'full report previewed') : null,
         ]),
@@ -52815,7 +52836,9 @@ const labTag = (kind, { fees = false } = {}) => {
   const base = kind.kind === 'unavailable' ? 'unavailable' : KIND_OF_EVIDENCE[kind.kind] || 'unavailable';
   const k = fees ? kindFirst([base, 'placeholder']) : base;
   return kindWithFine(k, k === base ? kind.words : 'fee lines unchecked',
-    { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind } });
+    /* No link: on a phone the Lab's every target is 44px, and a 20px pill
+       is not one (the definitions are in its title, and on /data-sources). */
+    { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind }, link: false });
 };
 /* A deal's result, as cardHead's badge: { kind, fine } — the weakest input
    it rests on (all of the deal's, or `rests`), Placeholder where `fees`
