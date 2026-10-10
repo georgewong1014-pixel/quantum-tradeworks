@@ -5252,7 +5252,10 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 /* Quiet until wanted: the words a step down from the label, the target a
    full 44px, its text flush with the knob's right edge (the margin gives
    back the padding), and its chevron turned while the panel is open. */
-.lab-about-btn { flex: none; min-height: 44px; gap: 5px; padding: 0 8px; margin-right: -8px; font-size: var(--ls-meta); font-weight: 600; color: var(--ink-2); }
+/* Its words end on the column's edge with no right padding, not a -8px
+   margin: the margin put the button's box 8px past the knob column, which
+   then scrolled sideways at 1440 (11 Oct 2026). */
+.lab-about-btn { flex: none; min-height: 44px; gap: 5px; padding: 0 0 0 8px; font-size: var(--ls-meta); font-weight: 600; color: var(--ink-2); }
 .lab-about-btn:hover { color: var(--ink); }
 .lab-about-btn[aria-expanded="true"] { color: var(--ink); }
 .lab-about-i, .lab-about-chev { display: inline-flex; color: var(--ink-3); }
