@@ -1191,13 +1191,34 @@ function labAuctionPaint(P, lab) {
   if (!au) return;
   const col = labActive(lab), d = col.work;
   const a = auctionModel(d, col.cur?.m || dealModel(d));
-  const sig = JSON.stringify([col.key, a.steps.map(s => [s.id, s.amount, s.kind]), a.forfeiture, a.checksOpen, a.trueDiscount]);
+  /* THE BID CEILING (auctionBidCeiling): twenty-odd runs of the model, so
+     a drag waits for the slider to rest, as the solved price does
+     (LAB_PE_WAIT); with no ceiling set there is nothing to run. */
+  const key = pmRunKey(d);
+  const set = d.auctionCapKind != null && d.auctionCapValue != null;
+  if (!set) P.auCeil = { key, c: { status: 'no-target' } };
+  else if (!P.auCeil || P.auCeil.key !== key) {
+    if (!P.auCeil || P.auCeil.c?.status === 'no-target') P.auCeil = { key, c: auctionBidCeiling(d, a) };
+    else {
+      clearTimeout(P.auTimer);
+      P.auTimer = setTimeout(() => {
+        const L = LAB[P.key];
+        if (!L || !P.node.isConnected) return;
+        const c = labActive(L);
+        P.auCeil = { key: pmRunKey(c.work), c: auctionBidCeiling(c.work) };
+        labAuctionPaint(P, L);
+      }, LAB_PE_WAIT);
+    }
+  }
+  a.ceiling = P.auCeil.c;
+  const sig = JSON.stringify([col.key, a.steps.map(s => [s.id, s.amount, s.kind]), a.forfeiture, a.checksOpen, a.trueDiscount, a.ceiling]);
   if (au.sig === sig) return;
   au.sig = sig;
   au.figs.replaceChildren(auctionResults({ a, prefix: P.idPrefix, why: { wf: () => lsOpenEvidence(au.wfEv), fx: () => lsOpenEvidence(au.fxEv) },
     toChecklist: () => lsGoTo(document.getElementById(labId(P, 'au-checks')), document.querySelector(`#${labId(P, 'au-checks')} input:not(:checked)`)) }));
   if (au.wfText) labText(au.wfText, auctionWaterfallFormula(a));
   if (au.fxText) labText(au.fxText, auctionForfeitureFormula(a));
+  if (au.ceText) labText(au.ceText, auctionCeilingFormula(a.ceiling, a));
 }
 
 /* THE DEVELOPER PREMIUM MODEL (the decision layer, P4; 83-property-
@@ -1217,7 +1238,8 @@ function labNewDevSection(P, lab) {
   card.append(el('p', { class: 'metaline au-route' }, `${ND_LEAD} A what-if of every column until you save it.`));
   const figs = el('div', { class: 'au-figs', id: labId(P, 'nd-figs') });
   card.append(figs);
-  if (d) {
+  /* Not for land (ROUTE_ASSET_GATES): its gate is said in the figures, and nothing is asked. */
+  if (d && routeAssetGate(d)?.scope !== 'route') {
     const answer = (k, v) => labAnswer(P, lab, k, v);
     card.append(ndInputs({ d, prefix: P.idPrefix, answer,
       extra: { comp: comparablesPick({ d, prefix: P.idPrefix, legend: 'Completed comparables from your register', toggle: (ids) => answer('comparableIds', ids) }) },
@@ -1249,7 +1271,7 @@ function labNewDevPaint(P, lab, { initial = false } = {}) {
      for the figures it names, until the drag rests. */
   const n = ndModelOf(d, m, { solve: false });
   if (P.ndSolve.key === key) n.rentNeeded = P.ndSolve.n.rentNeeded;
-  const sig = JSON.stringify([col.key, n.premium, n.paid, n.comp, n.cash, n.build.status, n.build.idc, n.build.missing, n.vpMonthly, n.exits.map(e => e.value), n.rentNeeded, n.growthNeeded, n.premiumKind, n.rentKind]);
+  const sig = JSON.stringify([col.key, n.premium, n.paid, n.comp, n.cash, n.build.status, n.build.idc, n.build.missing, n.vpMonthly, n.exits.map(e => e.value), n.rentNeeded, n.growthNeeded, n.premiumKind, n.rentKind, n.gated, n.templates, n.delay, n.delayIdc, n.rentFrom]);
   if (nd.sig === sig) return;
   nd.sig = sig;
   nd.figs.replaceChildren(ndResults({ n, d, prefix: P.idPrefix,
@@ -1289,7 +1311,7 @@ function labCommercialPaint(P, lab) {
   if (!cm) return;
   const col = labActive(lab), d = col.work;
   const c = commercialModel(d, col.cur?.m || dealModel(d));
-  const sig = JSON.stringify([col.key, c.rents.map(r => [r.value, r.kind]), c.observed, c.sustain, c.yields, c.lease.scenarios, c.lease.missing, c.lease.reserveKind, c.lease.start, c.lease.burn, c.lease.fitOut]);
+  const sig = JSON.stringify([col.key, c.rents.map(r => [r.value, r.kind]), c.observed, c.sustain, c.yields, c.lease.scenarios, c.lease.missing, c.lease.reserveKind, c.lease.start, c.lease.burn, c.lease.fitOut, c.term]);
   if (cm.sig === sig) return;
   cm.sig = sig;
   cm.figs.replaceChildren(cmResults({ c, d, prefix: P.idPrefix,
@@ -1775,8 +1797,10 @@ function labEvidence(P, lab) {
     P.els.au.wfEv = lsEvidenceSection({ id: labId(P, 'ev-au-wf'), summary: 'How the waterfall is worked out', body: [wfText] });
     P.els.au.fxEv = lsEvidenceSection({ id: labId(P, 'ev-au-fx'), summary: 'How the forfeiture exposure is worked out', body: [fxText] });
     P.els.au.srcEv = lsEvidenceSection({ id: labId(P, 'ev-au-src'), summary: 'Where the checklist comes from', body: [auctionGuidanceList()] });
-    P.els.au.wfText = wfText; P.els.au.fxText = fxText;
-    pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
+    const ceText = el('p', { class: 'lab-formula', id: labId(P, 'ev-au-ce-text') }, '');
+    P.els.au.ceEv = lsEvidenceSection({ id: labId(P, 'ev-au-ce'), summary: 'How the bid ceiling is found', body: [ceText] });
+    P.els.au.wfText = wfText; P.els.au.fxText = fxText; P.els.au.ceText = ceText;
+    pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.ceEv, P.els.au.srcEv);
   }
   /* The new development's working and its sources (P4), there too. */
   if (P.els.nd) {
@@ -2633,6 +2657,9 @@ const labXrApplies = (r, f) => (r.only === 'commercial' ? f.cls === 'commercial'
 function labXrCell(r, f) {
   if (!f) return { plain: true, value: null, text: 'Needs a purchase price' };
   if (!labXrApplies(r, f)) return { na: true, value: null, text: r.only === 'commercial' || r.asset ? 'Not for this asset' : 'Not for this route' };
+  /* A route's model not written for this asset (ROUTE_ASSET_GATES): the
+     new development's figures on a bare parcel. */
+  if (r.only === 'newdev' && f.nd?.gated) return { na: true, value: null, text: 'Not for this asset' };
   return r.cell(f);
 }
 /* THE LENS'S CHART: one figure every column has, its form and its scale

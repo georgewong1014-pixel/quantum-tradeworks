@@ -830,6 +830,49 @@ const AUCTION_ARREARS = [
 /* The reader's own comparable prices, typed — beside any named from the
    register (priceGap) — up to three. */
 const AUCTION_COMP_KEYS = ['auctionComp1', 'auctionComp2', 'auctionComp3'];
+/* THE BID CEILING (the validation pass, audit #4, 10 Oct 2026): the
+   highest winning bid at which the effective acquisition cost stays at or
+   under a ceiling the reader sets — a cost of their own, all in, or the
+   market value their comparables imply less a margin they choose. Neither
+   is assumed: with no ceiling entered there is no solve, and a margin
+   without a market value is Unavailable (auctionBidCeiling,
+   75-property-grade.js). */
+const AUCTION_CAP_KINDS = {
+  cost:   { id:'cost',   label:'A cost, all in', unit:'RM', words:'an effective acquisition cost of at most' },
+  margin: { id:'margin', label:'Under the market value by', unit:'%', words:'the market value your comparables imply less' },
+};
+
+/* WHICH ROUTE × ASSET COMBINATIONS A MODEL IS WRITTEN FOR (the validation
+   pass, audit #4: "unsupported combinations are gated, never silently run
+   on residential logic"). Each entry names what is NOT run for the
+   combination and why; the rest of the route's model runs as it does for
+   any class. Written out in the handoff's results/mode-contracts.md.
+   - New development × land: the developer premium model prices a
+     building bought off plan — a drawdown by building stages, vacant
+     possession, a completed unit to set the premium against. A bare
+     parcel has none of these, so the route's figures are not run for it
+     (no construction interest enters the cash required, whatever is
+     entered); the calculator's own figures stand, as a subsale's.
+   - New development × commercial: the model runs on the reader's own
+     schedule and comparable, but Sarawak's prescribed stage percentages
+     and the 18-month defect liability are those of the forms for housing
+     accommodation (the Housing Development (Control and Licensing)
+     Regulations, 2014): they are not offered or stated for a commercial
+     unit, whose SPA sets its own.
+   - Auction × land: a bare parcel has no strata body, so there are no
+     maintenance or sinking-fund arrears to pass on — that input is not
+     asked and not counted. */
+const ROUTE_ASSET_GATES = {
+  'newdev|land': { scope: 'route', what: 'the developer premium model',
+    why: 'The developer premium model prices a building bought off plan — stages of construction, vacant possession, a completed unit to set the premium against. A bare parcel has none of these, so it is not run for land: the figures below are the calculator’s own, as for a subsale.' },
+  'newdev|commercial': { scope: 'template', what: 'Sarawak’s prescribed stage percentages and the defect liability period',
+    why: 'Sarawak’s prescribed stages and its 18-month defect liability are those of the sale and purchase forms for housing accommodation (the 2014 Regulations). They are not offered or stated for a commercial unit: its SPA sets its own stages and terms — enter yours.' },
+  'auction|land': { scope: 'input', what: 'maintenance and sinking-fund arrears',
+    why: 'A bare parcel has no strata body, so there are no maintenance or sinking-fund arrears to pass on.' },
+};
+const routeAssetGate = (d) => ROUTE_ASSET_GATES[`${dealRoute(d)}|${propertyClassOf(d)}`] || null;
+/* The arrears a Proclamation may pass on, for this deal's class. */
+const auctionArrearsFor = (d) => (propertyClassOf(d) === 'land' ? AUCTION_ARREARS.filter(([k]) => k !== 'arrearsMaintenance') : AUCTION_ARREARS);
 
 /* THE DEVELOPER PREMIUM MODEL'S SOURCES (P4). This tool's places are in
    Sarawak, where a licensed developer's sale is made on the forms Sarawak
@@ -956,6 +999,9 @@ const DEAL_ANSWER_FIELDS = {
   auctionDepositPct: ansPct, auctionDepositOf: ansEnum(Object.keys(AUCTION_DEPOSIT_OF)), auctionBalanceDays: ansDays,
   auctionBuffer: ansSum, auctionHoldMonths: ansSum,
   auctionChecks: ansChecks,
+  /* The bid ceiling (the validation pass, audit #4): what the ceiling is,
+     and its figure — ringgit for a cost, per cent for a margin. */
+  auctionCapKind: ansEnum(Object.keys(AUCTION_CAP_KINDS)), auctionCapValue: ansSum,
   /* The developer premium model (P4): a completed comparable typed, with
      where it came from and its date; the SPA month and the month of vacant
      possession; the reader's schedule of progressive drawdown; and what
@@ -964,6 +1010,10 @@ const DEAL_ANSWER_FIELDS = {
   ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
   ndSchedule: ansSchedule,
   ndRebates: ansSum,
+  /* Completion delay (the validation pass, audit #4): whole months past
+     the expected vacant possession — it extends the construction interest
+     and moves the first month of rent. Not entered, no delay. */
+  ndDelayMonths: ansDays,
   /* The commercial models (P5): the asking rent for this unit; the lease —
      its expiry month, the escalation and the deposit as the tenancy states
      them, the fit-out a re-let would need; and the unit as the reader
@@ -973,6 +1023,11 @@ const DEAL_ANSWER_FIELDS = {
   cmLeaseExpiry: ansMonth, cmEscalation: ansSource, cmDeposit: ansSum, cmFitOut: ansSum,
   cmTenant: ansSource, cmBusiness: ansSource,
   cmFrontage: ansSum, cmPosition: ansEnum(Object.keys(CM_POSITIONS)), cmFloor: ansSource, cmParking: ansSource,
+  /* The tenancy's rent-free months still to run, from now, and the service
+     charge it has the tenant pay the owner, a month (the validation pass,
+     audit #4): the reader's, from the tenancy; each changes the contract
+     rent's cash flow and the effective yield. Not entered, none. */
+  cmRentFreeMonths: ansDays, cmServiceCharge: ansSum,
   /* Mortgage protection, optional and off by default (the fee rulebook
      1.1.0): 'included' carries it in the cash required at the rulebook's
      estimate until a quote replaces it. Absent is out. */

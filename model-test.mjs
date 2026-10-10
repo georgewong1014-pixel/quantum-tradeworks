@@ -6941,6 +6941,224 @@ try {
   }
   /* ---- end p6-compare ---- */
 
+  /* ---- val-contracts ---- */
+  /* THE VALIDATION PASS (daily audit #4, the owner's decisions of 10 Oct
+     2026): every route × asset has a written input → output contract
+     (the handoff's results/mode-contracts.md), and each contract row is
+     held here to KNOWN ANSWERS — worked by hand from the contract, never
+     read back from the model. The fixtures keep the arithmetic checkable
+     on paper: a 0% rate over 30 years makes the instalment the loan ÷ 360
+     (RM360,000 → RM1,000 a month), and every running cost is nought
+     unless the row needs one.
+     V1 — subsale × residential: the ledger line by line, the monthly
+          position, the net yield, the price that makes it work.
+     V2 — subsale × commercial: the contract rent over the rest of the
+          lease with rent-free months and a service charge received (new
+          inputs), and the 12-month lease-down with both.
+     V3 — auction × residential: the effective acquisition cost, the true
+          discount, the forfeiture exposure, and the bid ceiling (new) —
+          a margin under the market value, a cost of the reader's own,
+          and Unavailable without a market value.
+     V4 — new development × residential and × commercial: construction
+          interest, the completion delay (new) extending it and moving VP,
+          the premium, the exit values; Sarawak's templates and the
+          defect liability not offered or stated for a commercial unit.
+     V5 — land: subsale (no yield, no yield target), auction (no
+          maintenance arrears asked or counted), new development gated
+          (nothing of the route run — no construction interest in the
+          cash required whatever is entered).
+     V6 — the new inputs in the address in their own words only, and
+          drawn on the calculator with their badges; the gates said. */
+  {
+    const vtry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const V_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const L = (x = {}) => F({ propertyType: 'Land', price: 300000, downPct: 100, landSqft: 4000, sqft: 0, quitRent: 1200, ...x });`;
+    const near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+
+    await vtry('val V1: subsale × residential, known answers', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const m = dealModel(F());
+        return JSON.stringify({ lines: Object.fromEntries(m.costGroups.flatMap(g => g.items.map(it => [it[2]?.id || it[0], it[1]]))), cash: m.safeCashRequired, unconf: m.unconfirmedCost,
+          monthly: m.cashflowMonthly, ny: m.netYield, inst: m.instalment,
+          sm: solveDealPrice(F(), { kind: 'monthly', value: 1200 }), sy: solveDealPrice(F(), { kind: 'yield', value: 7 }) }); })()`));
+      /* By hand (mode-contracts.md, V1): loan RM360,000; transfer duty 1% of 100k + 2% of 300k = 7,000; purchase legal (Sarawak scale on 400k)
+         250 + 400 + 450 + 1,600 + 700 = 3,400; registration 2 × 10; searches 1,170 (estimate); service tax 8% × (3,400 + 3,900) = 584;
+         loan agreement duty 5 × 360 = 1,800; the charge's stamp min(360, 10) = 10; loan legal 1.25 × (250 + 400 + 450 + 1,600 + 420) = 3,900;
+         valuation 250 + 600 = 850, its tax 68; utility deposits 1,500; deposit 40,000; reserve 3 × RM1,000 = 3,000 → 63,302;
+         estimates 1,170 + 850 + 68 + 1,500 = 3,588. Monthly 2,000 − 1,000 = 1,000; net yield 24,000 ÷ 400,000 = 6%.
+         Price for a monthly position of RM1,200: 2,000 − P × 0.9 ÷ 360 ≥ 1,200 → P ≤ 320,000. For 7% net: 24,000 ÷ P ≥ 0.07 → P ≤ 342,857. */
+      const want = { Deposit: 40000, transferStampDuty: 7000, purchaseLegal: 3400, registration: 20, disbursements: 1170, professionalServiceTax: 584,
+        loanStampDuty: 1800, chargeStampDuty: 10, loanLegal: 3900, valuationFee: 850, valuationServiceTax: 68, utilityDeposits: 1500 };
+      const p = [];
+      for (const [k, v] of Object.entries(want)) if (!near(r.lines[k], v)) p.push(`${k} is ${r.lines[k]}, by hand ${v}`);
+      if (!near(r.cash, 63302)) p.push(`cash required ${r.cash}, by hand 63,302`);
+      if (!near(r.unconf, 3588)) p.push(`on unverified lines ${r.unconf}, by hand 3,588`);
+      if (!near(r.inst, 1000) || !near(r.monthly, 1000) || !near(r.ny, 6, 1e-9)) p.push(`instalment ${r.inst}, monthly ${r.monthly}, net yield ${r.ny} — by hand 1,000, 1,000, 6%`);
+      if (r.sm.status !== 'solved' || r.sm.price !== 320000) p.push(`the price for RM1,200 a month: ${JSON.stringify(r.sm)}, by hand 320,000`);
+      if (r.sy.status !== 'solved' || r.sy.price !== 342857) p.push(`the price for 7% net: ${JSON.stringify(r.sy)}, by hand 342,857`);
+      if (p.length) fail('val V1: subsale × residential, known answers', p);
+      else ok('val V1: subsale × residential — every ledger line, the cash required (RM63,302, RM3,588 on estimates), RM1,000 a month, 6.00% net and the solved prices (RM320,000 for RM1,200 a month; RM342,857 for 7%) are the hand-worked figures');
+    });
+
+    await vtry('val V2: subsale × commercial — rent-free months and a service charge', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const asOf = ndMonthIndex('2026-10');
+        const d = F({ propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot', tenancy: 'tenanted', tenancyRent: 2400, cmLeaseExpiry: '2028-10', cmRentFreeMonths: 3, cmServiceCharge: 200, cmFitOut: 10000 });
+        const run = (x) => { const c = commercialModel(x, dealModel(x), { asOf }); return { yc: c.yields.contract, term: c.term, r12: c.lease.scenarios.find(s => s.months === 12), r3: c.lease.scenarios.find(s => s.months === 3) }; };
+        const plain = { ...d }; delete plain.cmRentFreeMonths; delete plain.cmServiceCharge;
+        const vac = { ...d, tenancy: 'vacant' };
+        return JSON.stringify({ with: run(d), plain: run(plain), vac: run(vac).term, noExp: run({ ...d, cmLeaseExpiry: undefined }).term }); })()`));
+      /* By hand (V2): 24 months to the expiry. Rent 2,400 × (24 − 3) = 50,400, kept whole (no management or repair share);
+         service charge 200 × 24 = 4,800; fixed costs 0 → net 55,200; ÷ 2 years ÷ 400,000 = 6.90% a year; 55,200 ÷ 24 − 1,000 = RM1,300 a month.
+         Without them: 2,400 × 24 = 57,600 → 7.20%, RM1,400. Lease-down 12 months over a 10-year hold: reserve 12 × 1,000 + 10,000 = 22,000;
+         rent 2,400 × 21 + 2,000 × 84 = 218,400, + 4,800 − 10,000 = 213,200 ÷ 10 ÷ 400,000 = 5.33%; without them 2,400 × 24 + 168,000 − 10,000 = 215,600 → 5.39%.
+         Net yield at the contract rent (the calculator's, steady state): 28,800 ÷ 400,000 = 7.20%. */
+      const p = [], w = r.with, t = w.term;
+      if (t.status !== 'ok' || t.months !== 24 || !near(t.effYield, 6.9, 1e-9) || !near(t.monthly, 1300) || !near(t.rentIn, 50400) || !near(t.scIn, 4800)) p.push(`over the rest of the lease: ${JSON.stringify(t)} — by hand 24 months, 50,400 + 4,800, 6.90%, RM1,300`);
+      if (!near(r.plain.term.effYield, 7.2, 1e-9) || !near(r.plain.term.monthly, 1400)) p.push(`without them: ${r.plain.term.effYield}%, ${r.plain.term.monthly} — by hand 7.20%, RM1,400`);
+      if (!near(w.r12.reserve, 22000) || !near(w.r12.effYield, 5.33, 1e-9)) p.push(`12-month lease-down: ${JSON.stringify(w.r12)} — by hand 22,000 and 5.33%`);
+      if (!near(r.plain.r12.effYield, 5.39, 1e-9)) p.push(`12-month lease-down without them: ${r.plain.r12.effYield}% — by hand 5.39%`);
+      if (!near(w.yc, 7.2, 1e-9)) p.push(`net yield at the contract rent ${w.yc} — by hand 7.20%`);
+      if (r.vac.status !== 'vacant' || r.noExp.status !== 'unavailable' || JSON.stringify(r.noExp.missing) !== '["the lease expiry"]') p.push(`vacant: ${r.vac.status}; no expiry: ${JSON.stringify(r.noExp)} — not "vacant" and Unavailable naming the expiry`);
+      if (p.length) fail('val V2: subsale × commercial — rent-free months and a service charge', p);
+      else ok('val V2: subsale × commercial — over the 24 months to the expiry, 3 rent-free months and RM200 a month of service charge give 6.90% a year and RM1,300 a month (7.20% and RM1,400 without them); the 12-month lease-down needs RM22,000 and yields 5.33% (5.39% without); a vacant unit has no contract cash flow and a missing expiry is named');
+    });
+
+    await vtry('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const au = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionComp2: 520000, auctionComp3: 480000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90,
+          auctionRepairs: 15000, arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 300, arrearsUtilities: 500, possessionCost: 2000, auctionLegal: 5000, auctionHoldMonths: 4,
+          auctionCapKind: 'margin', auctionCapValue: 15 });
+        const a = auctionModel(au);
+        const c = (x) => { const k = auctionBidCeiling(x); return { status: k.status, bid: k.bid, eff: k.effective, above: k.above, cap: k.cap, why: k.why || null }; };
+        const noMv = { ...au, auctionComp1: null, auctionComp2: null, auctionComp3: null };
+        return JSON.stringify({ eff: a.effective, tx: a.adds.find(s => s.id === 'transaction').amount, hold: a.adds.find(s => s.id === 'holding').amount, td: a.trueDiscount?.pct,
+          fx: a.forfeiture.atRisk, bal: a.forfeiture.balance, cash: a.forfeiture.cashForBalance, final: a.final,
+          margin: c(au), cost: c({ ...au, auctionCapKind: 'cost', auctionCapValue: 430000 }), noMv: c(noMv), costNoMv: c({ ...noMv, auctionCapKind: 'cost', auctionCapValue: 430000 }),
+          none: c({ ...au, auctionCapKind: null, auctionCapValue: null }).status }); })()`));
+      /* By hand (V3): transaction costs at a RM400,000 bid — duty 7,000 + the lawyer's quote 5,000 + registration 20 + searches 1,170
+         + service tax 8% × (5,000 + 3,900) = 712 + loan duty 1,800 + the charge 10 + loan legal 3,900 + valuation 850 + 68 = 20,530;
+         holding 4 × RM1,000 = 4,000; effective = 400,000 + 15,000 + 4,000 + 2,000 + 20,530 + 4,000 = 445,530; market value the median
+         of 480k/500k/520k = 500,000; true discount (500,000 − 445,530) ÷ 500,000 = 10.894%. Deposit 10% of the 380,000 reserve = 38,000;
+         balance 362,000, of which 2,000 beyond the 360,000 loan. Ceiling 500,000 × 85% = 425,000: solved on the contract's own formula
+         (hand.mjs, every fee as a function of the bid) — 380,353 (cost RM424,999.99; at 380,354, RM425,001.02). A cost of 430,000: 385,138. */
+      const p = [];
+      if (!near(r.tx, 20530) || !near(r.hold, 4000) || !near(r.eff, 445530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 4,000, 445,530`);
+      if (!near(r.td, 10.894, 1e-9)) p.push(`true discount ${r.td}% — by hand 10.894%`);
+      if (!near(r.fx, 38000) || !near(r.bal, 362000) || !near(r.cash, 2000)) p.push(`forfeiture ${r.fx}, balance ${r.bal}, cash beyond the loan ${r.cash} — by hand 38,000, 362,000, 2,000`);
+      if (r.final) p.push('with no check ticked the auction reads final');
+      if (r.margin.status !== 'solved' || r.margin.bid !== 380353 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.99) || !near(r.margin.above, 425001.02)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 380,353 (424,999.99; +1 → 425,001.02)`);
+      if (r.cost.status !== 'solved' || r.cost.bid !== 385138) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 385,138`);
+      if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
+      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 385138) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
+      if (r.none !== 'no-target') p.push(`no ceiling entered is ${r.none}, not "no target"`);
+      if (p.length) fail('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', p);
+      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM4,000 of holding make the effective cost RM445,530, a 10.894% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM380,353 at 15% under the market value (RM425,000) and RM385,138 at a cost of RM430,000 — each to the ringgit; a margin with no market value is Unavailable, a cost needs none');
+    });
+
+    await vtry('val V4: new development — construction interest, the completion delay, the templates by asset', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const nd = F({ ratePct: 6, route: 'newdev', ndSpaMonth: '2026-01', ndVpMonth: '2028-01', ndSchedule: '10@0,40@6,50@18', ndCompPrice: 380000, ndRebates: 10000 });
+        const late = { ...nd, ndDelayMonths: 6 };
+        const n0 = newDevModel(nd), n1 = newDevModel(late), nc = newDevModel({ ...nd, propertyType: 'Shophouse' });
+        const idcLine = (x) => dealModel(x).costGroups.flatMap(g => g.items).find(it => it[0] === 'Interest during construction')?.[1] ?? null;
+        return JSON.stringify({ idc: n0.build.idc, idcLate: n1.build.idc, delayIdc: n1.delayIdc, onTime: n1.build.idcOnTime, line: idcLine(nd), lineLate: idcLine(late),
+          cashDiff: dealModel(late).safeCashRequired - dealModel(nd).safeCashRequired,
+          prem: n0.premium, ex: n0.exits.map(e => e.value), exLate: n1.exits.map(e => e.years), rentFrom: [n0.rentFrom, n1.rentFrom], g: [n0.growthNeeded.pct, n1.growthNeeded.pct],
+          tpl: [n0.templates, nc.templates], cIdc: nc.build.idc, cGate: nc.gate?.scope || null }); })()`));
+      /* By hand (V4): own money 40,000 pays the 10% stage; the loan releases 160,000 in month 6 and 200,000 in month 18, each at 6% ÷ 12
+         = 0.5% a month to VP in month 24: 160,000 × 0.005 × 18 + 200,000 × 0.005 × 6 = 14,400 + 6,000 = 20,400. Six months late (VP in month 30):
+         19,200 + 12,000 = 31,200 — the delay adds 10,800, to the cash required too. Paid 400,000 − 10,000 = 390,000 against the 380,000
+         comparable: +10,000, +2.6316%. Exits: 380,000 × 1.03^(2 + 3, + 5, + 10) = 440,524.15, 467,352.07, 541,789.14; late, years 5.5, 7.5, 12.5.
+         Growth that covers the premium by VP: (390/380)^(12/24) − 1 = 1.3072%; late (12/30), 1.0444%. */
+      const p = [];
+      if (r.idc !== 20400 || r.line !== 20400) p.push(`construction interest ${r.idc} (ledger ${r.line}) — by hand 20,400`);
+      if (r.idcLate !== 31200 || r.lineLate !== 31200 || r.delayIdc !== 10800 || r.onTime !== 20400 || !near(r.cashDiff, 10800)) p.push(`six months late: ${r.idcLate} (ledger ${r.lineLate}), the delay ${r.delayIdc}, the cash required +${r.cashDiff} — by hand 31,200, 10,800, +10,800`);
+      if (!near(r.prem?.amount, 10000) || !near(r.prem?.pct, 2.631578947, 1e-6)) p.push(`premium ${JSON.stringify(r.prem)} — by hand +10,000, +2.6316%`);
+      [440524.148234, 467352.068861, 541789.137002].forEach((v, i) => { if (!near(r.ex[i], v, 0.01)) p.push(`exit ${i} ${r.ex[i]} — by hand ${v}`); });
+      if (JSON.stringify(r.exLate) !== '[5.5,7.5,12.5]') p.push(`late, the exits stand at ${JSON.stringify(r.exLate)} years from signing — by hand 5.5, 7.5, 12.5`);
+      if (JSON.stringify(r.rentFrom) !== '[24,30]') p.push(`the first rent: ${JSON.stringify(r.rentFrom)} months after signing — by hand 24 and 30`);
+      if (!near(r.g[0], 1.30724503, 1e-6) || !near(r.g[1], 1.04443601, 1e-6)) p.push(`growth needed ${JSON.stringify(r.g)} — by hand 1.3072% and 1.0444%`);
+      if (JSON.stringify(r.tpl) !== '[true,false]' || r.cGate !== 'template' || r.cIdc !== 20400) p.push(`templates offered: residential ${r.tpl[0]}, commercial ${r.tpl[1]} (gate ${r.cGate}); commercial interest ${r.cIdc}`);
+      if (p.length) fail('val V4: new development — construction interest, the completion delay, the templates by asset', p);
+      else ok('val V4: new development — RM20,400 of construction interest by hand; six months of delay make it RM31,200 (+RM10,800, in the cash required too), the first rent month 30 not 24, the exits 5.5/7.5/12.5 years out and the growth needed 1.0444% not 1.3072%; a +RM10,000 (+2.63%) premium; a commercial unit runs the same arithmetic on its own schedule, with Sarawak’s housing templates and defect liability not offered');
+    });
+
+    await vtry('val V5: land — subsale, auction, and new development gated', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const m = dealModel(L());
+        const nd = L({ route: 'newdev', ratePct: 6, downPct: 10, ndSpaMonth: '2026-01', ndVpMonth: '2028-01', ndSchedule: '10@0,40@6,50@18', ndRebates: 5000, ndCompPrice: 280000 });
+        const asSub = { ...nd }; delete asSub.route;
+        const n = newDevModel(nd);
+        const au = L({ route: 'auction', auctionComp1: 360000, arrearsQuitRent: 500, arrearsMaintenance: 999, auctionLegal: 3000, auctionHoldMonths: 6 });
+        const a = auctionModel(au);
+        return JSON.stringify({ monthly: m.cashflowMonthly, ny: m.netYield, noi: m.noi, sy: solveDealPrice(L(), { kind: 'yield', value: 5 }).status,
+          sm: solveDealPrice(L(), { kind: 'monthly', value: -50 }).status,
+          gated: n.gated, why: n.gate?.why || null, prem: n.premium, idc: n.build.idc, exits: n.exits.map(e => e.status),
+          ndCash: dealModel(nd).safeCashRequired, subCash: dealModel(asSub).safeCashRequired,
+          idcLine: dealModel(nd).costGroups.flatMap(g => g.items).some(it => it[0] === 'Interest during construction' || it[0] === 'Developer rebates and incentives'),
+          parts: a.adds.find(s => s.id === 'arrears').parts.map(x => x.key), arrears: a.adds.find(s => s.id === 'arrears').amount,
+          ledgerArrears: dealModel(au).costGroups.flatMap(g => g.items).find(it => it[0] === 'Arrears the Proclamation passes to you')?.[1] ?? null,
+          market: a.market, hold: a.adds.find(s => s.id === 'holding').amount }); })()`));
+      /* By hand (V5): a cash purchase of a RM300,000 parcel, quit rent RM1,200 a year — no rent, so the monthly position is −1,200 ÷ 12 = −RM100,
+         no net yield and no price gives one; a monthly position of −RM50 is not reached at any price (the quit rent does not follow it).
+         At auction: quit-rent arrears 500 are counted, the 999 typed as maintenance arrears are not (no strata body); holding 6 × RM100 = 600.
+         New development: not run — no premium, no interest, no exit, and the cash required is the subsale's to the sen (no RM5,000 rebate off it). */
+      const p = [];
+      if (!near(r.monthly, -100) || r.ny !== null || r.noi !== null) p.push(`land's monthly position ${r.monthly}, net yield ${r.ny}, NOI ${r.noi} — by hand −100, none, none`);
+      if (r.sy !== 'not-applicable') p.push(`a yield target on land is ${r.sy}, not "not applicable"`);
+      if (r.sm !== 'infeasible') p.push(`a −RM50 monthly target on land is ${r.sm}, not out of reach`);
+      if (!r.gated || !/bare parcel/.test(r.why || '') || r.prem !== null || r.idc !== null || r.exits.some(s => s !== 'gated')) p.push(`new development on land is not gated: ${JSON.stringify({ gated: r.gated, prem: r.prem, idc: r.idc, exits: r.exits })}`);
+      if (r.ndCash !== r.subCash || r.idcLine) p.push(`land answered New development, its cash required ${r.ndCash} vs the subsale's ${r.subCash}${r.idcLine ? ', with a route line in its ledger' : ''}`);
+      if (r.parts.includes('arrearsMaintenance') || !near(r.arrears, 500) || !near(r.ledgerArrears, 500)) p.push(`land at auction: arrears ${JSON.stringify(r.parts)} = ${r.arrears} (ledger ${r.ledgerArrears}) — by hand quit rent 500 only`);
+      if (!near(r.market, 360000) || !near(r.hold, 600)) p.push(`land at auction: market ${r.market}, holding ${r.hold} — by hand 360,000 and 600`);
+      if (p.length) fail('val V5: land — subsale, auction, and new development gated', p);
+      else ok('val V5: land — −RM100 a month, no net yield and no price that gives one; at auction the quit-rent arrears count and maintenance arrears are not asked or counted, RM600 of holding; New development is gated for a bare parcel: no premium, interest or exit, and the cash required is the subsale’s to the sen');
+    });
+
+    await vtry('val V6: the new inputs travel in their own words and are drawn with their badges', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${V_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const d = F({ route: 'auction', auctionCapKind: 'margin', auctionCapValue: 12.5, cmRentFreeMonths: 2, cmServiceCharge: 150, ndDelayMonths: 4 });
+        const s = dealToParam(d);
+        const back = pmCopy(PROPERTY_DEFAULT_DEAL); applyDealParam(back, s);
+        const refused = ['auctionCapKind', 'ndDelayMonths', 'cmRentFreeMonths'].map(k => { const x = {}; return [k, setDealAnswer(x, k, k === 'auctionCapKind' ? 'cheapest' : '-3'), x[k] ?? null]; });
+        const keep = { deal: State.deal };
+        State.deal = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionCapKind: 'margin', auctionCapValue: 15 }); saveDeal();
+        navigate('/property/calculator'); await w(700);
+        const ce = document.querySelector('#pc-au [data-au-fig="ceiling"]');
+        const chips = ['cost', 'margin'].map(k => !!document.getElementById('pc-q-au-auctionCapKind-' + k));
+        State.deal = L({ route: 'newdev' }); saveDeal(); navigate('/property/calculator'); await w(700);
+        const ndGate = document.querySelector('#pc-nd [data-nd-fig="gated"]')?.textContent || null, ndInputs = !!document.getElementById('pc-nd-ndDelayMonths');
+        State.deal = F({ propertyType: 'Shophouse', route: 'newdev' }); saveDeal(); navigate('/property/calculator'); await w(700);
+        const tplGate = document.getElementById('pc-nd-tpl-gate')?.textContent || null, tplBtn = !!document.getElementById('pc-nd-tpl-go'), delay = document.querySelector('[data-nd="ndDelayMonths"]')?.dataset.kind || null;
+        const dlp = document.getElementById('pc-nd-dlp')?.dataset.gate || null;
+        State.deal = F({ propertyType: 'Shophouse', tenancy: 'tenanted', tenancyRent: 2400, cmRentFreeMonths: 3 }); saveDeal(); navigate('/property/calculator'); await w(700);
+        const rf = document.querySelector('[data-cm="cmRentFreeMonths"]')?.dataset.kind || null, sc = document.querySelector('[data-cm="cmServiceCharge"]')?.dataset.kind || null;
+        const term = document.querySelector('#pc-cm [data-cm-fig="term"]')?.dataset.status || null;
+        State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
+        return JSON.stringify({ s, back: ['auctionCapKind', 'auctionCapValue', 'cmRentFreeMonths', 'cmServiceCharge', 'ndDelayMonths'].map(k => back[k]), refused,
+          ce: ce ? { v: ce.querySelector('[data-value]')?.dataset.value, status: ce.dataset.status, final: ce.dataset.final, badge: ce.querySelector('[data-kind-badge]')?.dataset.kindBadge } : null, chips,
+          ndGate, ndInputs, tplGate, tplBtn, delay, dlp, rf, sc, term }); })()`));
+      const p = [];
+      if (JSON.stringify(r.back) !== '["margin",12.5,2,150,4]') p.push(`the address round trip gives ${JSON.stringify(r.back)} from "${r.s}"`);
+      if (r.refused.some(x => x[1] || x[2] !== null)) p.push(`refused answers were written: ${JSON.stringify(r.refused)}`);
+      if (!r.ce || r.ce.status !== 'solved' || r.ce.final !== 'false' || !(Number(r.ce.v) > 0) || !r.ce.badge || r.ce.badge === 'unavailable') p.push(`the calculator's bid ceiling card reads ${JSON.stringify(r.ce)} — not a bid with its badge, Not final while the checks are open`);
+      if (r.chips.some(x => !x)) p.push('the ceiling\'s two kinds are not chips on the calculator');
+      if (!r.ndGate || !/bare parcel/.test(r.ndGate) || r.ndInputs) p.push(`land answered New development: gate "${r.ndGate}", inputs drawn ${r.ndInputs}`);
+      if (!r.tplGate || !/housing accommodation/.test(r.tplGate) || r.tplBtn || r.dlp !== 'template') p.push(`a commercial new development: template gate "${r.tplGate}", Apply drawn ${r.tplBtn}, defect liability ${r.dlp}`);
+      if (r.delay !== 'unavailable') p.push(`the completion delay, not entered, is badged ${r.delay}`);
+      if (r.rf !== 'yours' || r.sc !== 'unavailable' || r.term !== 'unavailable') p.push(`commercial: rent-free ${r.rf}, service charge ${r.sc}, the rest of the lease ${r.term} (no expiry entered)`);
+      if (p.length) fail('val V6: the new inputs travel in their own words and are drawn with their badges', p);
+      else ok(`val V6: the bid ceiling, rent-free months, service charge and completion delay travel in the address ("${r.s.slice(0, 80)}…") and back; "cheapest" and −3 are refused; the calculator draws the bid ceiling (RM${r.ce.v}, Not final) with its two kinds as chips, the commercial unit's new inputs Yours / Unavailable as entered, land's New development as "Not for this asset" with nothing asked, and a commercial new development without Sarawak's housing templates or its defect liability`);
+    });
+  }
+  /* ---- end val-contracts ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
