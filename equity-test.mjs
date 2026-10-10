@@ -108,9 +108,13 @@ const GOLDEN = [
    4s — so 240s left a quarter of the run as headroom, and a runner half as
    fast again would have been killed mid-check with nothing hung. 360s is
    twice the measured run: still minutes short of any runner's own limit,
-   which is the hang this exists to end early. */
+   which is the hang this exists to end early. Measured again on 10 Oct
+   2026, with 286 checks (the Screener's coverage checks among them): 316s
+   on a desktop machine, and one run under load reached the 360s limit with
+   nothing hung — so twice that measure, 660s, still well short of the
+   runner's six-hour job limit. */
 let closing = false;
-const WATCHDOG_S = 360;
+const WATCHDOG_S = 660;
 const watchdog = setTimeout(() => { console.error(`FAIL  timed out after ${WATCHDOG_S}s`); process.exit(1); }, WATCHDOG_S * 1000);
 proc.on('exit', () => { if (!closing) { console.error('FAIL  the browser exited before the checks finished'); process.exit(1); } });
 
