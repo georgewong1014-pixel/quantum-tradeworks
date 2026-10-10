@@ -3295,7 +3295,6 @@ th .kind-th { vertical-align: middle; }
 .card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .card-hd-t > .h-card { margin: 0; }
 .stat-kind { margin-top: 2px; }
-.lab-chain-kind { margin: 0 0 var(--sm); }
 .dr-kind { margin: 0 0 6px; }
 .scr-pick-kinds { margin: 6px 0 0; font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; }
 /* /data-sources#kinds: the eight, each beside its meaning. */

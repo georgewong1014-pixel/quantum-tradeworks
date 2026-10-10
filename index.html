@@ -3363,7 +3363,6 @@ th .kind-th { vertical-align: middle; }
 .card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .card-hd-t > .h-card { margin: 0; }
 .stat-kind { margin-top: 2px; }
-.lab-chain-kind { margin: 0 0 var(--sm); }
 .dr-kind { margin: 0 0 6px; }
 .scr-pick-kinds { margin: 6px 0 0; font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; }
 /* /data-sources#kinds: the eight, each beside its meaning. */
@@ -25170,7 +25169,7 @@ function renderScreener() {
       const by = new Map();
       cols.filter(c2 => c2.k !== 'ident').forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
       return el('p', { class: 'scr-col-kinds' }, [...by].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0]))
-        .flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null));
+        .flatMap(([k, labels], i, all) => [kindBadge(k, { fine: labels.join(', ') }), ` ${labels.join(', ')}${i < all.length - 1 ? ' · ' : ''}`]));
     })();
     tw.append(colKinds, table);
 
@@ -25235,7 +25234,7 @@ function renderScreener() {
       (() => {
         const by = new Map();
         pickable.filter(c2 => picked.includes(c2.k)).forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
-        return by.size ? el('p', { class: 'scr-pick-kinds' }, [...by].flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null)) : null;
+        return by.size ? el('p', { class: 'scr-pick-kinds' }, [...by].flatMap(([k, labels], i, all) => [kindBadge(k, { fine: labels.join(', ') }), ` ${labels.join(', ')}${i < all.length - 1 ? ' · ' : ''}`])) : null;
       })(),
     ]));
     const pickedCols = pickable.filter(c2 => picked.includes(c2.k));
@@ -52853,16 +52852,6 @@ function dealKind(d, m = null, { rests = null, fees = false, also = [] } = {}) {
   const kind = kindFirst(kinds);
   return { kind, fine: kind === base ? ev.words : kind === 'placeholder' ? 'Fee lines unchecked' : KIND_BADGES[kind].word };
 }
-/* A Lab column's kind: the weakest input it rests on, and Placeholder
-   where its cash carries fee lines nobody has checked. */
-function labColTag(col) {
-  const d = col?.work;
-  if (!d || !(num0(d.price) > 0)) return labTag({ kind: 'unavailable', words: 'Unavailable' });
-  const m = col.cur?.m || labRun(d)?.m;
-  const tag = labTag(labTileKind(d, evidenceDriversFor(d)), { fees: m?.unconfirmedCost > 0 });
-  tag.dataset.at = tag.textContent;
-  return tag;
-}
 function labTiles(P, lab) {
   const d = labSubjectInputs(lab);
   const run = d && num0(d.price) > 0 ? pmCompareRun(d) : null;
@@ -53481,11 +53470,6 @@ function labChain(P, lab, col) {
     el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${col.name}`]),
     (P.els.baseline = el('span', { class: 'metaline lab-baseline' }, `Changes ${bl.label}`)),
   ]));
-  /* The rows' kind, once for the column (D6): the weakest of the figures
-     they rest on, the cash's unchecked fee lines included; kept up to date
-     as the column's figures change (labPaintPanel). */
-  P.els.chainKind = el('p', { class: 'lab-chain-kind' }, labColTag(col));
-  card.append(P.els.chainKind);
   const list = el('div', { class: 'lab-chain' });
   const d = col.work;
   for (const f of LAB_FIGURES) {
@@ -54279,10 +54263,6 @@ function labPaintPanel(P, { initial = false } = {}) {
   /* What the changes are against, once a paint: worked out for each row,
      it compared two whole deals seven times a frame. */
   const bl = labBaseline(lab, col);
-  if (P.els.chainKind) {
-    const tag = labColTag(col);
-    if (P.els.chainKind.firstChild?.dataset?.at !== tag.dataset.at) P.els.chainKind.replaceChildren(tag);
-  }
   const focused = document.activeElement;
   /* The knobs. */
   for (const inp of LAB_INPUTS) {
@@ -62667,8 +62647,10 @@ VIEWS.comparables = () => {
       tb.append(el('tr', {}, [
         /* The record's kind beside its standing (D6): a worked example's is
            Illustrative, an asking price Quoted, any other the reader's own. */
-        el('td', { style: 'text-align:left' }, [el('span', { class: s.tone, title: s.why }, s.label), ' ',
-          kindBadge(s.id === 'sample' ? 'illustrative' : kind && kind.asking ? 'quoted' : 'yours', { fine: s.id === 'sample' ? 'Worked example' : kind && kind.asking ? 'Quoted, not achieved' : 'Your own record' })]),
+        /* Its word from the stylesheet (kindTh), so the cell reads as its
+           standing, as the journeys and the register's readers read it. */
+        el('td', { style: 'text-align:left' }, [el('span', { class: s.tone, title: s.why }, s.label),
+          kindTh(s.id === 'sample' ? 'illustrative' : kind && kind.asking ? 'quoted' : 'yours', s.id === 'sample' ? 'Worked example' : kind && kind.asking ? 'Quoted, not achieved' : 'Your own record')]),
         el('td', { class: 'caption', style: 'text-align:left;white-space:normal' },
           `${kind ? kind.label : o.kind}${kind && kind.asking ? ' · quoted, not achieved' : ''}`),
         el('td', { class: 'num', style: 'text-align:left' },
