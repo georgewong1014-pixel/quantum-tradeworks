@@ -5643,8 +5643,8 @@ try {
           base, 3d75b6a8 (recorded there, FNV-1a and length — a deliberate
           change to the model records them again); each is a subsale of the
           class it had; answering New development or Auction gives the same
-          figures, line for line (those models arrive in P3/P4, and no
-          route-specific fee line is applied), and answering Subsale after
+          figures, line for line (each route adds its own lines only once
+          its own inputs are entered: P3, P4), and answering Subsale after
           either leaves the deal the deal it was; a property saved without
           the questions opens unchanged, its run the same.
      R2 — the answers travel in the address in their own words only, and
@@ -5717,7 +5717,7 @@ try {
       return JSON.stringify({ p, n: Object.keys(deals).length, saved });
     })()`));
     if (r.p.length) fail('p1 R1: the questions change no figure of a deal that exists', r.p);
-    else ok(`p1 R1: ${r.n} deals as a browser holds them print the base's figures byte for byte (3d75b6a8's fingerprints), each a subsale of its own class; New development (until its model arrives) and Auction with nothing of its own entered give the same figures, and Subsale after either is the deal it was; a property saved without the questions opens unchanged`);
+    else ok(`p1 R1: ${r.n} deals as a browser holds them print the base's figures byte for byte (3d75b6a8's fingerprints), each a subsale of its own class; New development and Auction, each with nothing of its own entered, give the same figures, and Subsale after either is the deal it was; a property saved without the questions opens unchanged`);
   });
   await p1try("p1 R2: the answers travel in the address in their own words", async () => {
     const r = await evaluate(`(() => {
@@ -6239,6 +6239,250 @@ try {
     else ok('evidence E3: the register’s five steps refuse a record with only its locality (“Still needed: …”), then keep a transaction price — Tabuan, Kuching, a web page dated 15 Sep 2026, not checked — as the reader’s (Yours), at the locality’s level, listed once; “Use it in the Scenario Lab” names it in every column’s comparables (its box ticked), the price gap reads RM60,000 against an RM600,000 asking price and names it with its source and date, the auction’s market value is RM540,000, and the calculator’s deal is unwritten');
   });
   /* ---- end evidence-flow ---- */
+
+  /* ---- p4-newdev ---- */
+  /* NEW DEVELOPMENT: THE DEVELOPER PREMIUM MODEL (the property decision
+     layer, P4; newDevModel and ndConstruction, 75-property-grade.js;
+     83-property-decision.js). Each fails on f11163b0, where New development
+     is modelled as a subsale and none of this exists.
+     N1 — the premium's arithmetic: the price paid (the SPA price less the
+          rebates entered) against the completed comparable typed and the
+          ones named from the register (their median); RM130,000 / +21.0%
+          over a RM620,000 comparable at RM750,000; with no comparable the
+          premium is Unavailable — on the calculator's card too.
+     N2 — the solve: the rent that would cover the premium meets, in the
+          model's own figures, the monthly position the deal gives priced
+          the premium lower, and one ringgit less does not; the growth that
+          would cover it brings the comparable to the price paid by VP.
+     N3 — construction interest from a drawdown schedule, worked out here:
+          own money first, then the loan, interest only from each release
+          until VP — and a line of the cash required, the cash required
+          rising by exactly it.
+     N4 — no drawdown entered, construction interest is Unavailable and no
+          line is added; the template is applied only by the reader's press,
+          visibly named, and with its months not entered it is still
+          Unavailable — never silent; stages that do not add to 100% say so.
+     N5 — the monthly position from VP is the model's own at the rent and
+          the occupancy assumed for completion, badged as an assumption.
+     N6 — exit values at VP+3, VP+5 and VP+10: the comparable grown at the
+          reader's rate from the SPA month, Modelled; Unavailable without a
+          comparable or the two dates.
+     N7 — the answers travel in the address in their own words only.
+     N8 — on the Lab, New development and its inputs are a what-if of every
+          column: the saved property, the calculator's deal and the address
+          unwritten until Save, which writes them. */
+  const p4try = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+  const P4_DEAL = `({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 750000, route: 'newdev',
+    ndCompPrice: 620000, ndCompSource: 'SPA of a completed unit, Tabuan', ndCompDate: '2026-08-01', ndSpaMonth: '2026-10', ndVpMonth: '2029-10' })`;
+  await p4try('p4 N1: the developer premium is the price paid against the completed comparable', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const d = ${P4_DEAL};
+      const a = newDevModel(d), b = newDevModel({ ...d, ndRebates: 10000 });
+      const none = newDevModel({ ...d, ndCompPrice: undefined });
+      const keepObs = State.observations;
+      State.observations = [];
+      const add = (v, dt) => addObservation({ city: d.city, area: d.district, kind: 'sold-price', value: v, date: dt, sourceRef: 'https://example.com/p4-' + v, evidence: 'user', scope: 'area' });
+      const o1 = add(600000, '2026-07-01'), o2 = add(700000, '2026-06-01');
+      const named = newDevModel({ ...d, comparableIds: [o1.id, o2.id] });
+      State.observations = keepObs; saveObservations();
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      const card = () => { const n = document.querySelector('#pc-nd [data-nd-fig="premium"]'); return n ? { value: n.querySelector('.ls-card-value')?.textContent.trim(), data: n.querySelector('[data-value]')?.dataset.value, badge: n.querySelector('[data-kind-badge]')?.dataset.kindBadge, sub: (n.querySelector('.ls-card-sub')?.textContent || '').trim() } : null; };
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const shown = card();
+      State.deal = { ...d, ndCompPrice: undefined }; delete State.deal.ndCompPrice; saveDeal(); render(); await w(400);
+      const unavailable = card();
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ a: { amount: a.premium?.amount, pct: a.premium?.pct, kind: a.premiumKind, paid: a.paid }, b: { amount: b.premium?.amount, paid: b.paid },
+        none: { premium: none.premium, kind: none.premiumKind }, named: { comp: named.comp, amount: named.premium?.amount, n: named.compFrom.named.length }, shown, unavailable });
+    })()`));
+    const p = [];
+    if (r.a.amount !== 130000 || Math.abs(r.a.pct - 130000 / 620000 * 100) > 1e-9 || r.a.paid !== 750000) p.push(`at RM750,000 against RM620,000: ${JSON.stringify(r.a)}`);
+    if (r.b.amount !== 120000 || r.b.paid !== 740000) p.push(`with RM10,000 of rebates: ${JSON.stringify(r.b)}`);
+    if (r.none.premium !== null || r.none.kind !== 'unavailable') p.push(`with no comparable: ${JSON.stringify(r.none)}`);
+    if (r.named.comp !== 620000 || r.named.amount !== 130000 || r.named.n !== 2) p.push(`typed RM620,000 with two named (RM600,000, RM700,000): the comparable ${r.named.comp}, the premium ${r.named.amount} — not their median, RM620,000`);
+    if (!r.shown || r.shown.data !== '130000' || !/^\+RM130,000 · \+21\.0%$/.test(r.shown.value) || !/^You are paying RM130,000 \/ \+21\.0% over the completed comparable you entered/.test(r.shown.sub) || !/SPA of a completed unit, Tabuan/.test(r.shown.sub) || !/Aug 2026/.test(r.shown.sub)) p.push(`the calculator's premium card: ${JSON.stringify(r.shown)}`);
+    if (!r.unavailable || r.unavailable.value !== 'Unavailable' || r.unavailable.badge !== 'unavailable' || r.unavailable.data !== '') p.push(`with no comparable the calculator's card: ${JSON.stringify(r.unavailable)}`);
+    if (p.length) fail('p4 N1: the developer premium is the price paid against the completed comparable', p);
+    else ok(`p4 N1: at an SPA price of RM750,000 against a completed comparable of RM620,000 the premium is RM130,000, +21.0% ("${r.shown.sub.slice(0, 92)}…", its source and date named); RM10,000 of rebates make it RM120,000; typed and named comparables give their median; no comparable, the premium is Unavailable — on the calculator's card too`);
+  });
+  await p4try('p4 N2: the rent and the growth that would cover the premium', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = ${P4_DEAL};
+      const n = newDevModel(d), rn = n.rentNeeded, gn = n.growthNeeded;
+      const target = dealModel({ ...d, price: d.price - n.premium.amount }).cashflowMonthly;
+      const at = dealModel({ ...d, rent: rn.rent }).cashflowMonthly, below = dealModel({ ...d, rent: rn.rent - 1 }).cashflowMonthly;
+      const none = newDevModel({ ...d, price: 600000 });
+      const land = newDevModel({ ...d, propertyType: 'Land', landSqft: 4000, sqft: 0 });
+      return JSON.stringify({ status: rn.status, rent: rn.rent, target, rnTarget: rn.target, at, below, entered: d.rent,
+        growth: gn.status === 'solved' ? { pct: gn.pct, years: gn.years, check: n.comp * Math.pow(1 + gn.pct / 100, gn.years) } : gn, paid: n.paid,
+        none: [none.rentNeeded.status, none.growthNeeded.status], land: land.rentNeeded.status, pending: newDevModel(d, undefined, { solve: false }).rentNeeded.status });
+    })()`));
+    const p = [];
+    if (r.status !== 'solved' || !(r.rent > r.entered)) p.push(`the rent: ${JSON.stringify(r)}`);
+    if (Math.abs(r.target - r.rnTarget) > 1e-9 || !(r.at >= r.target) || !(r.below < r.target)) p.push(`at RM${r.rent} the monthly position is ${r.at}, at one ringgit less ${r.below}, against ${r.target} priced the premium lower`);
+    if (!r.growth.pct || Math.abs(r.growth.years - 3) > 1e-9 || Math.abs(r.growth.check - r.paid) > 1e-6) p.push(`the growth: ${JSON.stringify(r.growth)}`);
+    if (JSON.stringify(r.none) !== '["no-premium","no-premium"]') p.push(`at or under the comparable: ${JSON.stringify(r.none)}`);
+    if (r.land !== 'not-applicable') p.push(`a parcel's rent: ${r.land}`);
+    if (r.pending !== 'pending') p.push(`unsolved on request: ${r.pending}`);
+    if (p.length) fail('p4 N2: the rent and the growth that would cover the premium', p);
+    else ok(`p4 N2: the rent that covers a RM130,000 premium is RM${r.rent} a month (RM${r.entered} assumed): at it the model's monthly position is ${r.at.toFixed(2)}, at least the ${r.target.toFixed(2)} the deal gives priced RM130,000 lower, and at one ringgit less ${r.below.toFixed(2)}; values growing ${r.growth.pct.toFixed(3)}% a year bring RM620,000 to RM750,000 in the 3 years to VP; no premium, nothing to cover; a parcel has no rent to solve`);
+  });
+  await p4try('p4 N3: construction interest from a drawdown schedule', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, price: 500000, downPct: 10, ratePct: 4.8, route: 'newdev', ndSpaMonth: '2026-01', ndVpMonth: '2028-01' };
+      const d = { ...base, ndSchedule: '10@0,40@6,50@12' };
+      const m = dealModel(d), m0 = dealModel(base), b = ndConstruction(d, m.loan);
+      const line = m.costGroups.flatMap(g => g.items).find(it => it[0] === 'Interest during construction');
+      /* The buyer's own money larger than the first stage: 30% down. */
+      const d30 = { ...base, downPct: 30, ndSchedule: '10@0,40@6,50@12' };
+      const b30 = ndConstruction(d30, dealModel(d30).loan);
+      /* A stage billed after VP adds nothing. */
+      const late = ndConstruction({ ...d, ndSchedule: '10@0,40@6,45@12,5@30' }, m.loan);
+      const cash = newDevModel(d);
+      return JSON.stringify({ loan: m.loan, idc: b.idc, status: b.status, draws: b.draws.map(x => [x.fromLoan, x.months, x.interest]), line: line ? line[1] : null,
+        diff: m.safeCashRequired - m0.safeCashRequired, idc30: b30.idc, draws30: b30.draws.map(x => x.fromLoan), late: late.idc, card: cash.cash === m.safeCashRequired });
+    })()`));
+    const p = [];
+    /* Worked here: RM50,000 own money pays stage 1; the loan releases
+       RM200,000 in month 6 and RM250,000 in month 12; at 4.8% a year, 0.4% a
+       month, until month 24: 200,000 × 0.004 × 18 + 250,000 × 0.004 × 12. */
+    const want = 200000 * 0.004 * 18 + 250000 * 0.004 * 12;
+    if (r.loan !== 450000 || r.status !== 'ok' || r.idc !== Math.round(want)) p.push(`a RM450,000 loan on 10/40/50 at months 0/6/12, VP at 24: ${r.idc}, not ${want}`);
+    if (JSON.stringify(r.draws.map(x => [x[0], x[1]])) !== '[[0,24],[200000,18],[250000,12]]') p.push(`the releases: ${JSON.stringify(r.draws)}`);
+    if (r.line !== r.idc || Math.abs(r.diff - r.idc) > 1e-6 || !r.card) p.push(`the cash required: a line of ${r.line}, rising by ${r.diff}, not ${r.idc}`);
+    /* 30% down: own RM150,000 pays stage 1 (RM50,000) and RM100,000 of
+       stage 2; the loan releases RM100,000 in month 6 and RM250,000 in 12. */
+    const want30 = Math.round(100000 * 0.004 * 18 + 250000 * 0.004 * 12);
+    if (r.idc30 !== want30 || JSON.stringify(r.draws30) !== '[0,100000,250000]') p.push(`30% down: ${r.idc30} from ${JSON.stringify(r.draws30)}, not ${want30}`);
+    const wantLate = Math.round(200000 * 0.004 * 18 + 225000 * 0.004 * 12);
+    if (r.late !== wantLate) p.push(`a stage billed after VP: ${r.late}, not ${wantLate}`);
+    if (p.length) fail('p4 N3: construction interest from a drawdown schedule', p);
+    else ok(`p4 N3: on RM500,000 at 10% down and 4.8%, a schedule of 10/40/50% at months 0, 6 and 12 with VP at month 24 — own money RM50,000 first, then the loan's RM200,000 for 18 months and RM250,000 for 12 — is RM${r.idc} of interest during construction, a line of the cash required, which rises by exactly it; 30% down, RM${r.idc30}; a stage billed after VP adds nothing (RM${r.late})`);
+  });
+  await p4try('p4 N4: no drawdown entered, construction interest is Unavailable — the template visibly applied, never silent', async () => {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const d = ${P4_DEAL};
+      const none = ndConstruction(d, dealModel(d).loan);
+      const m = dealModel(d), sub = dealModel({ ...d, route: undefined });
+      const short = ndConstruction({ ...d, ndSchedule: '10@0,40@6' }, m.loan);
+      const keep = { deal: State.deal, stored: store.read('deal', null) };
+      const card = () => { const n = document.querySelector('#pc-nd [data-nd-fig="idc"]'); return n ? { status: n.dataset.status, value: n.querySelector('.ls-card-value')?.textContent.trim(), badge: n.querySelector('[data-kind-badge]')?.dataset.kindBadge, sub: (n.querySelector('.ls-card-sub')?.textContent || '').trim() } : null; };
+      const kindLine = () => (document.querySelector('#pc-nd-drawdown .nd-sched-kind')?.textContent || '').replace(/\\s+/g, ' ').trim();
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      const before = { card: card(), kind: kindLine(), stored: State.deal.ndSchedule ?? null, template: document.getElementById('pc-nd-tpl')?.value || null };
+      document.getElementById('pc-nd-tpl').value = 'swk-c'; document.getElementById('pc-nd-tpl').dispatchEvent(new Event('change', { bubbles: true }));
+      document.getElementById('pc-nd-tpl-go').click(); await w(500);
+      const applied = { card: card(), kind: kindLine(), stored: State.deal.ndSchedule ?? null, stages: document.querySelectorAll('#pc-nd-drawdown .nd-stage').length, what: document.querySelector('#pc-nd-drawdown .nd-stage-what')?.textContent || '' };
+      document.getElementById('pc-nd-even').click(); await w(500);
+      const spaced = { card: card(), stored: State.deal.ndSchedule ?? null };
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ none: { status: none.status, idc: none.idc, missing: none.missing }, lines: m.costGroups.flatMap(g => g.items).filter(it => it[0] === 'Interest during construction').length,
+        same: m.safeCashRequired === sub.safeCashRequired, short: short.missing, before, applied, spaced,
+        tpl: NEWDEV_TEMPLATE_IDS.map(id => [id, NEWDEV_TEMPLATES[id].stages.reduce((t, s) => t + s[0], 0)]) });
+    })()`));
+    const p = [];
+    if (r.none.status !== 'unavailable' || r.none.idc !== null || !/your schedule of progressive drawdown/.test(r.none.missing.join())) p.push(`no schedule: ${JSON.stringify(r.none)}`);
+    if (r.lines !== 0 || !r.same) p.push(`with no schedule the cash required carries ${r.lines} construction line(s) and ${r.same ? 'is' : 'is not'} the subsale's`);
+    if (!/stages that add to 100% \(yours add to 50%\)/.test(r.short.join()) ) p.push(`stages adding to 50%: ${JSON.stringify(r.short)}`);
+    const b = r.before;
+    if (!b.card || b.card.status !== 'unavailable' || b.card.value !== 'Unavailable' || b.card.badge !== 'unavailable' || !/never assumed/.test(b.card.sub) || b.stored !== null || !/No schedule entered/.test(b.kind)) p.push(`before any schedule, the calculator: ${JSON.stringify(b)}`);
+    const a = r.applied;
+    if (a.stored !== '10@,15@,20@,20@,10@,10@,5@,5@,2.5@,2.5@' || a.stages !== 10 || !/Form C/.test(a.kind) || !/applied by you/.test(a.kind) || !/On signing the agreement/.test(a.what)) p.push(`the template applied: ${JSON.stringify(a)}`);
+    if (!a.card || a.card.status !== 'unavailable' || !/the month of each stage/.test(a.card.sub)) p.push(`the template applied with no months: ${JSON.stringify(a.card)}`);
+    if (!r.spaced.card || r.spaced.card.status !== 'ok' || !/Form C template you applied/.test(r.spaced.card.sub) || !/^10@0,15@4,20@8,20@12,10@16,10@20,5@24,5@28,2\.5@32,2\.5@36$/.test(r.spaced.stored || '')) p.push(`spaced evenly to VP: ${JSON.stringify(r.spaced)}`);
+    if (r.tpl.some(([, t]) => Math.abs(t - 100) > 1e-9)) p.push(`a template does not add to 100%: ${JSON.stringify(r.tpl)}`);
+    if (p.length) fail('p4 N4: no drawdown entered, construction interest is Unavailable — the template visibly applied, never silent', p);
+    else ok(`p4 N4: with no schedule, construction interest is Unavailable ("${b.card.sub.slice(0, 70)}…"), no line is added and the cash required is the subsale's; Apply this template writes Sarawak's Form C percentages (10/15/20/20/10/10/5/5/2.5/2.5) only when pressed, named on the schedule ("${a.kind.slice(0, 60)}…") with each stage's words, and still Unavailable until the months are entered; spaced evenly to VP it is worked out "on the Form C template you applied"; stages adding to 50% are said; the four templates each add to 100%`);
+  });
+  await p4try('p4 N5: the monthly position from VP is the model\'s at the rent and occupancy assumed', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = ${P4_DEAL};
+      const a = newDevModel(d), b = newDevModel({ ...d, rent: 2600, vacancyPct: 5, touched: { rent: true } });
+      return JSON.stringify({ a: a.vpMonthly, am: dealModel(d).cashflowMonthly, b: b.vpMonthly, bm: dealModel({ ...d, rent: 2600, vacancyPct: 5 }).cashflowMonthly, occ: b.occupancyPct, kindA: a.rentKind, kindB: b.rentKind });
+    })()`));
+    const p = [];
+    if (r.a !== r.am || r.b !== r.bm || !(r.b > r.a) || r.occ !== 95) p.push(JSON.stringify(r));
+    if (r.kindA !== 'illustrative' || r.kindB !== 'modelled') p.push(`the rent at completion's badge: ${r.kindA} on the sample, ${r.kindB} once the reader's — not an assumption`);
+    if (p.length) fail('p4 N5: the monthly position from VP is the model\'s at the rent and occupancy assumed', p);
+    else ok(`p4 N5: the monthly position from VP is the model's own (${r.a.toFixed(2)} at the sample rent; ${r.b.toFixed(2)} at RM2,600, 95% occupied), badged Illustrative on the sample's rent and Modelled — an assumption — once the reader's`);
+  });
+  await p4try('p4 N6: exit values at VP+3, VP+5 and VP+10, modelled from the comparable', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = { ${P4_DEAL.slice(2, -2)}, apprecPct: 3 };
+      const n = newDevModel(d);
+      return JSON.stringify({ exits: n.exits, none: newDevModel({ ...d, ndCompPrice: undefined }).exits.map(e => e.status), nodates: newDevModel({ ...d, ndVpMonth: undefined }).exitMissing });
+    })()`));
+    const p = [];
+    for (const e of r.exits) { const want = 620000 * Math.pow(1.03, 3 + e.n); if (e.status !== 'ok' || Math.abs(e.value - want) > 1e-6 || Math.abs(e.years - (3 + e.n)) > 1e-9) p.push(`VP+${e.n}: ${JSON.stringify(e)}, not ${want}`); }
+    if (r.exits.map(e => e.n).join() !== '3,5,10') p.push(`horizons ${r.exits.map(e => e.n).join()}`);
+    if (r.none.some(s => s !== 'unavailable')) p.push(`no comparable: ${r.none.join()}`);
+    if (!/the SPA month and the month of vacant possession/.test(r.nodates.join())) p.push(`no VP month: ${JSON.stringify(r.nodates)}`);
+    if (p.length) fail('p4 N6: exit values at VP+3, VP+5 and VP+10, modelled from the comparable', p);
+    else ok(`p4 N6: the RM620,000 comparable grown 3% a year from the SPA month: VP+3 (6 years) RM${Math.round(r.exits[0].value)}, VP+5 RM${Math.round(r.exits[1].value)}, VP+10 RM${Math.round(r.exits[2].value)}; Unavailable without a comparable or the VP month`);
+  });
+  await p4try('p4 N7: the answers travel in the address in their own words', async () => {
+    const r = await evaluate(`(() => {
+      const fresh = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const d = { ...${P4_DEAL}, ndSchedule: '10@0,15@4,75@', ndRebates: 8000 };
+      const s = dealToParam(d);
+      const back = fresh(); applyDealParam(back, s);
+      const junk = fresh();
+      applyDealParam(junk, 'ndSchedule:10@0,150@3~ndSpaMonth:2026-13~ndVpMonth:26-10~ndCompSource:a~b~ndCompDate:2026-02-30x~ndRebates:-5~ndCompPrice:1e5');
+      return { s, back: ['route', 'ndCompPrice', 'ndCompSource', 'ndCompDate', 'ndSpaMonth', 'ndVpMonth', 'ndSchedule', 'ndRebates'].map(k => back[k] ?? null),
+        junk: ['ndSchedule', 'ndSpaMonth', 'ndVpMonth', 'ndCompDate', 'ndRebates', 'ndCompPrice'].filter(k => k in junk), src: junk.ndCompSource ?? null };
+    })()`);
+    const want = ['newdev', 620000, 'SPA of a completed unit, Tabuan', '2026-08-01', '2026-10', '2029-10', '10@0,15@4,75@', 8000];
+    if (JSON.stringify(r.back) !== JSON.stringify(want)) fail('p4 N7: the address does not carry the answers', r);
+    else if (r.junk.length || (r.src !== null && r.src !== 'a')) fail('p4 N7: the address took an answer not in its own words', r);
+    else ok(`p4 N7: the answers travel in the address in their own words ("${r.s.slice(0, 80)}…"), and a stage of 150%, month 13, "26-10", 30 February, a negative rebate and "1e5" are refused`);
+  });
+  await p4try('p4 N8: on the Lab, New development and its inputs are written only on Save', async () => {
+    const one = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const base = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+      State.deal = base(); saveDeal();
+      const rec = saveActiveProperty({ name: 'p4 N8 saved property' });
+      if (!rec) return JSON.stringify({ err: 'not saved' });
+      navigate('/property'); await w(500);
+      const record = JSON.stringify(pmFind(rec.id)), deal = JSON.stringify(store.read('deal', null));
+      document.querySelector('label[for="lab-q-how-newdev"]').click(); await w(300);
+      const drawn = !!document.getElementById('lab-nd') && !document.getElementById('lab-pe'), unavailable = document.querySelector('#lab-nd [data-nd-fig="premium"] .ls-card-value')?.textContent.trim();
+      const fill = async (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250); };
+      await fill('lab-nd-ndCompPrice', String(Math.round(LAB[labSubject].cols[0].work.price - 100000)));
+      await fill('lab-nd-ndSpaMonth', '2026-10'); await fill('lab-nd-ndVpMonth', '2029-10');
+      document.getElementById('lab-nd-tpl-go').click(); await w(300);
+      document.getElementById('lab-nd-even').click(); await w(400);
+      const L = LAB[labSubject];
+      const out = { id: rec.id, drawn, unavailable,
+        premium: document.querySelector('#lab-nd [data-nd-fig="premium"] [data-value]')?.dataset.value,
+        idc: document.querySelector('#lab-nd [data-nd-fig="idc"]')?.dataset.status,
+        cols: L.cols.map(c => [c.key, c.work.route ?? null, c.work.ndCompPrice ?? null, c.work.ndSchedule ?? null]),
+        save: (document.getElementById('lab-id-save')?.textContent || '').trim(),
+        recordSame: JSON.stringify(pmFind(rec.id)) === record, dealSame: JSON.stringify(store.read('deal', null)) === deal, address: location.search };
+      const saved = labSaveAnswers(labPagePanel(), L);
+      const after = pmInputsOf(pmFind(rec.id));
+      out.saved = { ok: saved, route: after.route ?? null, comp: after.ndCompPrice ?? null, sched: after.ndSchedule ?? null, vp: after.ndVpMonth ?? null };
+      deletePropertyModel(rec.id);
+      const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+      navigate('/property/calculator'); await w(300);
+      return JSON.stringify(out);
+    })()`));
+    if (one.err) throw new Error(one.err);
+    const p = [];
+    if (!one.drawn || one.unavailable !== 'Unavailable') p.push(`New development chosen, the section is ${one.drawn ? 'drawn' : 'not drawn'} and the premium reads ${one.unavailable}`);
+    if (one.premium !== '100000') p.push(`a comparable RM100,000 under the price, the premium reads ${one.premium}`);
+    if (one.idc !== 'ok') p.push(`the template applied and spaced, construction interest is ${one.idc}`);
+    if (one.cols.some(c => c[1] !== 'newdev' || !(c[2] > 0) || !c[3])) p.push(`the answers are not a move of every column: ${JSON.stringify(one.cols)}`);
+    if (!/^Save what and how you are buying to/.test(one.save)) p.push(`Save says "${one.save}"`);
+    if (!one.recordSame || !one.dealSame || /newdev|ndComp|ndSchedule/i.test(one.address)) p.push(`written before Save: record ${one.recordSame ? 'unchanged' : 'written'}, deal ${one.dealSame ? 'unchanged' : 'written'}, address "${one.address}"`);
+    if (!one.saved.ok || one.saved.route !== 'newdev' || !(one.saved.comp > 0) || !one.saved.sched || one.saved.vp !== '2029-10') p.push(`Save: ${JSON.stringify(one.saved)}`);
+    if (p.length) fail('p4 N8: on the Lab, New development and its inputs are written only on Save', p);
+    else ok(`p4 N8: on a saved property in the Lab, New development draws the developer premium model in the price section's place, the premium Unavailable; a comparable, the two months and the Form C template spaced to VP are moves of every column (${one.cols.map(c => c[0]).join(', ')}) — the premium RM100,000, construction interest worked out — with the record, the calculator's deal and the address unwritten and Save offered; Save writes them to the property`);
+  });
+  /* ---- end p4-newdev ---- */
 
 } catch (e) {
   fail('harness error', e.message);

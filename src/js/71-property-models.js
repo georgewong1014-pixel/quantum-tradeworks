@@ -817,6 +817,9 @@ const PM_FIELD_WORDS = {
   auctionRepairs: 'Repairs (RM)', possessionCost: 'Possession cost (RM)', possessionMonths: 'Possession time (months)', auctionLegal: 'Legal and search costs (RM)',
   auctionDepositPct: 'Deposit (%)', auctionDepositOf: 'Deposit of', auctionBalanceDays: 'Days to pay the balance', auctionBuffer: 'Financing buffer (RM)',
   auctionHoldMonths: 'Holding period (months)', auctionChecks: 'Auction checks ticked',
+  /* The developer premium model's answers (P4). */
+  ndCompPrice: 'Completed comparable price (RM)', ndCompSource: 'Completed comparable — where it came from', ndCompDate: 'Completed comparable — its date',
+  ndSpaMonth: 'SPA signed (month)', ndVpMonth: 'Vacant possession expected (month)', ndSchedule: 'Progressive drawdown schedule', ndRebates: 'Developer rebates and incentives (RM)',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure

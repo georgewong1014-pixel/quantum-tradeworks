@@ -648,6 +648,18 @@ function dealModel(d) {
     ...(num0(d.auctionRepairs) > 0 ? [['Repairs', num0(d.auctionRepairs)]] : []),
     ...(num0(d.possessionCost) > 0 ? [['Possession cost', num0(d.possessionCost)]] : []),
   ];
+  /* THE NEW-DEVELOPMENT ROUTE (the decision layer, P4): interest during
+     construction — interest only, on what the loan has released, until
+     vacant possession (ndConstruction, below) — is cash the buyer pays
+     before any rent, and a line of the financing costs once the reader's
+     schedule, its months and both dates are entered; never before, never
+     at a schedule assumed. A rebate or incentive the developer gives, as
+     the reader entered it, comes off the acquisition costs. Neither exists
+     until entered, so a deal answered New development with nothing entered
+     is the deal it was. */
+  const newDevRoute = dealRoute(d) === 'newdev';
+  const ndBuild = newDevRoute ? ndConstruction(d, loan) : null;
+  const ndRebate = newDevRoute && isNum(d.ndRebates) && d.ndRebates > 0 ? d.ndRebates : 0;
   const valuationR = resolveFee('valuationFee', { price: d.price });
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
@@ -673,6 +685,8 @@ function dealModel(d) {
         /* On the auction route, the arrears its Proclamation passes to the
            buyer take that line's place (P3). */
         ...auctionLines,
+        /* What the developer gives back (P4), as entered: off the cash. */
+        ...(ndRebate > 0 ? [['Developer rebates and incentives', -ndRebate]] : []),
         feeLine('transferStampDuty', { price: d.price }),
         asLine(purchaseLegalR),
         /* The transfer, and the charge where there is a loan (fee rulebook
@@ -705,6 +719,8 @@ function dealModel(d) {
              { status:'quote', provenance:'quote', quotedLine:true, id:'mortgageProtection', label:'Mortgage protection — your quote', line: FEE_TABLE.lines.mortgageProtection,
                why:null, note:'The one-off premium you entered on the financing panel. A lender’s or insurer’s quotation, not a figure from the fee rulebook.' }]]
           : mrtaIncluded ? [feeLine('mortgageProtection', {})] : []),
+        /* Interest during construction (P4), once it can be worked out. */
+        ...(ndBuild?.status === 'ok' && ndBuild.idc > 0 ? [['Interest during construction', ndBuild.idc]] : []),
       ] },
     { id:'improvement', label:'Initial improvement costs', items:[
         ['Renovation and furnishing', renovation],
@@ -1602,6 +1618,130 @@ function auctionModel(d, m = dealModel(d)) {
     effective, effectiveKind,
     trueDiscount: vs(effective), bidDiscount: vs(bid), reserveDiscount: vs(reserve),
     forfeiture, checksTicked: ticked, checksOpen, final: checksOpen.length === 0,
+  };
+}
+
+/* THE DEVELOPER PREMIUM MODEL (the property decision layer, P4).
+   ---------------------------------------------------------------------------
+   A new development is bought off plan at the SPA price, paid by stages as
+   it is built, and earns nothing until vacant possession (VP). Five
+   figures, each from the reader's own figures:
+   - THE DEVELOPER PREMIUM: the price paid — the SPA price less the
+     developer's rebates and incentives entered — against the value a
+     completed comparable implies: the median of the comparable price the
+     reader typed (with its source and date) and the transacted prices they
+     named from their register (priceGap). Unavailable with none: no market
+     figure stands in for it.
+   - INTEREST DURING CONSTRUCTION, from the reader's schedule of progressive
+     drawdown (ndConstruction): the buyer's own money pays the first stages
+     and the loan the rest, each release charged interest only, at the
+     rate entered, from the month it is drawn until VP.
+   - THE CASH REQUIRED: the calculator's own (dealModel's ledger), which
+     carries that interest and the rebate once entered.
+   - THE MONTHLY POSITION FROM VP: the calculator's monthly position, at the
+     rent and the vacancy the reader assumes for completion — badged
+     Modelled, an assumption.
+   - EXIT VALUES at VP+3, VP+5 and VP+10: the completed comparable's value
+     grown at the reader's appreciation rate from the SPA month — Modelled,
+     never a forecast; Unavailable without a comparable or the two dates.
+   And what would justify the premium: the rent at which the deal at the
+   SPA price gives the monthly position it gives priced at the comparable
+   (a solve on dealModel, to the ringgit), and the yearly growth at which a
+   completed unit's value reaches the price paid by VP.
+   Defect liability is a feature of the route (NEWDEV_DLP), never a figure. */
+const ndMonthsBetween = (a, b) => { const i = ndMonthIndex(a), j = ndMonthIndex(b); return i == null || j == null ? null : j - i; };
+function ndConstruction(d, loan) {
+  const stages = parseNdSchedule(d?.ndSchedule);
+  const template = ndTemplateOf(stages);
+  const vpMonths = ndMonthsBetween(d?.ndSpaMonth, d?.ndVpMonth);
+  const total = stages ? +stages.reduce((t, s) => t + s.pct, 0).toFixed(4) : null;
+  const missing = [
+    !stages ? 'your schedule of progressive drawdown' : null,
+    stages && Math.abs(total - 100) > 1e-6 ? `stages that add to 100% (yours add to ${fmtNum(total, total % 1 ? 2 : 0)}%)` : null,
+    stages && stages.some(s => s.month == null) ? `the month of ${stages.filter(s => s.month == null).length === stages.length ? 'each stage' : `${stages.filter(s => s.month == null).length} of ${stages.length} stages`}` : null,
+    ndMonthIndex(d?.ndSpaMonth) == null ? 'the SPA month' : null,
+    ndMonthIndex(d?.ndVpMonth) == null ? 'the month of vacant possession' : null,
+    vpMonths != null && vpMonths <= 0 ? 'a vacant-possession month after the SPA month' : null,
+  ].filter(Boolean);
+  const base = { stages, template, vpMonths, total, missing, ratePct: num0(d?.ratePct) };
+  if (missing.length) return { ...base, status: 'unavailable', idc: null, draws: null };
+  const price = num0(d.price), lent = Math.max(0, num0(loan));
+  /* Own money first, then the loan: the buyer's share of the price (the
+     price less the loan) pays the stages until it is spent. Billed in the
+     order of their months, in the schedule's order within a month. */
+  const own = Math.max(0, price - lent);
+  const order = stages.map((s, i) => ({ ...s, i })).sort((a, b) => a.month - b.month || a.i - b.i);
+  let paid = 0, idc = 0;
+  const r = num0(d.ratePct) / 100 / 12;
+  const draws = order.map(s => {
+    const amount = price * s.pct / 100;
+    const fromLoan = Math.max(0, Math.min(paid + amount, price) - Math.max(paid, own));
+    paid += amount;
+    const months = Math.max(0, vpMonths - s.month);
+    const interest = fromLoan * r * months;
+    idc += interest;
+    return { i: s.i, pct: s.pct, month: s.month, amount, own: amount - fromLoan, fromLoan, months, interest };
+  });
+  return { ...base, status: lent > 0 ? 'ok' : 'no-loan', idc: Math.round(idc), draws, own, loan: lent };
+}
+/* The rent that justifies the premium: the lowest monthly rent (to the
+   ringgit) at which dealModel at the deal's own price gives at least the
+   monthly position it gives priced the premium lower — every other figure
+   held. The monthly position rises with the rent, so bisection finds it. */
+function ndRentNeeded(d, premium) {
+  if (!PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) return { status: 'not-applicable', why: 'A class with no tenancy earns no rent.' };
+  if (!(premium > 0)) return { status: 'no-premium' };
+  const target = dealModel({ ...d, price: num0(d.price) - premium }).cashflowMonthly;
+  const at = (rent) => dealModel({ ...d, rent }).cashflowMonthly;
+  if (!isNum(target) || !isNum(at(num0(d.rent)))) return { status: 'unknown', why: 'The loan has no schedule of repayments (a tenure of 0).' };
+  let lo = 0, hi = Math.max(1000, num0(d.rent) * 4);
+  let runs = 0;
+  while (at(hi) < target && runs < 20) { hi *= 2; runs++; }
+  if (at(hi) < target) return { status: 'unknown', why: 'No rent the model can reach covers it.' };
+  if (at(lo) >= target) return { status: 'solved', rent: 0, target, extra: -num0(d.rent) };
+  while (hi - lo > 1) { const mid = Math.floor((lo + hi) / 2); if (at(mid) >= target) hi = mid; else lo = mid; }
+  return { status: 'solved', rent: hi, target, achieved: at(hi), below: at(hi - 1), extra: hi - num0(d.rent) };
+}
+function newDevModel(d, m = dealModel(d), { solve = true } = {}) {
+  const has = (k) => isNum(d?.[k]);
+  const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
+  const price = num0(d?.price) > 0 ? num0(d.price) : null;
+  const priceKind = inputIsSeeded(d, 'price') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'price')] || 'yours';
+  const rebates = has('ndRebates') && d.ndRebates > 0 ? d.ndRebates : 0;
+  const paid = price != null ? price - rebates : null;
+  /* The completed comparable: typed, and named from the register. */
+  const g = priceGap(d);
+  const typed = has('ndCompPrice') && d.ndCompPrice > 0
+    ? { price: d.ndCompPrice, source: String(d.ndCompSource || '').trim() || null, date: d.ndCompDate || null, kind: kindOf('ndCompPrice') } : null;
+  const values = [...g.comps.map(c => c.implied), ...(typed ? [typed.price] : [])];
+  const comp = values.length ? medianOf(values) : null;
+  const compKind = values.length ? kindFirst([...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours'), ...(typed ? [typed.kind] : [])]) || 'yours' : 'unavailable';
+  const premium = isNum(paid) && isNum(comp) && comp > 0 ? { amount: paid - comp, pct: (paid - comp) / comp * 100 } : null;
+  const premiumKind = premium ? kindFirst([priceKind, compKind]) || 'derived' : 'unavailable';
+  /* The construction. */
+  const build = ndConstruction(d, m.loan);
+  /* Exit values, from the comparable, at the reader's rate. */
+  const growth = num0(d?.apprecPct);
+  const exitMissing = [!isNum(comp) ? 'a completed comparable' : null, build.vpMonths == null || build.vpMonths <= 0 ? 'the SPA month and the month of vacant possession' : null].filter(Boolean);
+  const exits = [3, 5, 10].map(n => {
+    if (exitMissing.length) return { n, status: 'unavailable', value: null, years: null };
+    const years = build.vpMonths / 12 + n;
+    return { n, status: 'ok', years, value: comp * Math.pow(1 + growth / 100, years) };
+  });
+  /* What would justify the premium. */
+  const rentNeeded = !premium ? { status: 'no-comparable' } : solve ? ndRentNeeded(d, premium.amount) : { status: 'pending' };
+  const growthNeeded = !premium ? { status: 'no-comparable' }
+    : !(build.vpMonths > 0) ? { status: 'no-dates' }
+    : !(premium.amount > 0) ? { status: 'no-premium' }
+    : { status: 'solved', pct: (Math.pow(paid / comp, 12 / build.vpMonths) - 1) * 100, years: build.vpMonths / 12 };
+  const rentKind = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant ? (inputIsSeeded(d, 'rent') ? 'illustrative' : 'modelled') : 'unavailable';
+  return {
+    price, priceKind, rebates, paid, comp, compKind, compFrom: { named: g.comps, typed, notUsed: g.notUsed },
+    premium, premiumKind, build,
+    idcKind: build.status === 'ok' || build.status === 'no-loan' ? 'modelled' : 'unavailable',
+    cash: m.safeCashRequired, cashMissing: m.missingCostLines || [], cashUnverified: m.unconfirmedCost,
+    vpMonthly: m.cashflowMonthly, rent: num0(d?.rent), occupancyPct: 100 - num0(d?.vacancyPct), rentKind,
+    growth, exits, exitMissing, rentNeeded, growthNeeded,
   };
 }
 
@@ -3080,7 +3220,7 @@ VIEWS.property = () => {
      what is known of the unit — its tenancy, condition, age and what the
      sale passes to the buyer — each with where it came from; and the
      comparables from the register this price is set against. */
-  acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : pcSubsaleInputs(d));
+  acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : dealRoute(d) === 'newdev' ? pcNewDevInputs(d) : pcSubsaleInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -4109,7 +4249,7 @@ VIEWS.property = () => {
 
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
-  acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : pcPriceEvidence(d));
+  acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : dealRoute(d) === 'newdev' ? pcNewDev(d) : pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
   rnt.outputs.append(headline, ops, rentBuyCard);
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
