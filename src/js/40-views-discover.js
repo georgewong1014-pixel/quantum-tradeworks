@@ -1851,7 +1851,7 @@ function renderScreener() {
          computed — mfmt is absent and the footer prints a dash. */
       ...sc.cols.map(k => {
         const f = FIELD_BY_K[k];
-        if (!f.money) return { k, label:f.label, get:r => r.m[k], fmt:v => isNum(v) ? f.fmt(v) : NA, mfmt:f.fmt };
+        if (!f.money) return { k, label:f.label, short:f.short, get:r => r.m[k], fmt:v => isNum(v) ? f.fmt(v) : NA, mfmt:f.fmt };
         if (screenCcy() === 'local') return {
           k, label:`${f.label} (local)`,
           get:r => r.m[k],
@@ -1909,10 +1909,16 @@ function renderScreener() {
         id: c2.get ? `scr-sort-${c2.k}` : null,
         'aria-sort': sc.sort.k === c2.k ? (sc.sort.dir === 1 ? 'ascending' : 'descending') : null,
         onclick: c2.get ? sortBy : null,
+        /* A long name has a short header (ROIC, Op. margin, FCF margin;
+           METRICS' short): the filed set's default columns, in full, made the
+           company and its three figures 747px in CI's font, wider than the
+           results window beside the rail at 1024–1366 (mobile.mjs, E3). The
+           full name is the header's accessible name and its title. */
+        'aria-label': c2.short ? c2.label : null,
         /* The arrow is for the eye; aria-sort says the order. Read aloud it
            was part of every header's name: "Quality, black down-pointing
            triangle", "Value, up down arrow". */
-        html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
+        html: `${c2.short ? `<abbr title="${esc(c2.label)}">${esc(c2.short)}</abbr>` : esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
       htr.append(th);
     });

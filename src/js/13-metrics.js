@@ -91,7 +91,7 @@ const TUPLE_BLOCK = 'The stored statements are ten lines wide — revenue, EBIT,
    than one — metricStatus names a gap in any of them. */
 const METRICS = [
   /* ---------------------------------------------------------- Business quality */
-  { k: 'roic', g: 'Business quality', cat: 'returns', label: 'Return on invested capital',
+  { k: 'roic', g: 'Business quality', cat: 'returns', label: 'Return on invested capital', short: 'ROIC',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true, na: ['bank', 'insurer', 'early'],
     formula: 'EBIT × (1 − tax rate) ÷ (equity + debt − cash)', inputs: ['ebit', 'eq', 'debt', 'cash'], period: 'latest',
     miss: 'Not meaningful for banks — excluded rather than imputed.',
@@ -99,7 +99,7 @@ const METRICS = [
     help: { simple: 'How much profit the business earns from all the money in it — both shareholders’ and borrowed.',
       context: 'The cleanest single measure of whether a business is good, because it ignores how the company chose to finance itself. Not meaningful for banks, where borrowing is the raw material rather than the funding.',
       technical: 'Operating profit after tax ÷ (total debt + equity − cash). Excluded for deposit-taking institutions.' } },
-  { k: 'om', g: 'Business quality', cat: 'profitability', label: 'Operating margin',
+  { k: 'om', g: 'Business quality', cat: 'profitability', label: 'Operating margin', short: 'Op. margin',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true,
     formula: 'EBIT ÷ revenue', inputs: ['ebit', 'rev'], period: 'latest',
     miss: 'Withheld where operating profit exceeds revenue — the two lines disagree.',
@@ -115,7 +115,7 @@ const METRICS = [
     help: { simple: 'Out of every dollar or ringgit of sales, how much is left as profit for shareholders after every cost, interest and tax.',
       context: 'Lower than the operating margin by whatever interest, tax and one-off items take. A net margin far above the operating margin usually means a gain outside the business — a disposal, a tax credit — rather than a better business.',
       technical: 'Net income attributable to the company ÷ revenue, latest fiscal year. Withheld when EBIT exceeds revenue or the per-share figures disagree in scale.' } },
-  { k: 'fcfm', g: 'Business quality', cat: 'cashflow', label: 'Free cash flow margin',
+  { k: 'fcfm', g: 'Business quality', cat: 'cashflow', label: 'Free cash flow margin', short: 'FCF margin',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true, na: ['bank'],
     formula: '(operating cash flow − capex) ÷ revenue', inputs: ['ocf', 'capex', 'rev'], period: 'latest',
     miss: 'Not computed for banks.',
@@ -463,6 +463,7 @@ function metricField(x) {
   const f = { g: x.g, k: x.k, label: x.label, fmt: metricFmt(x), formula: x.formula,
               unit: x.unit, period: METRIC_PERIOD[x.period] || x.period, cat: x.cat };
   if (x.miss) f.miss = x.miss;
+  if (x.short) f.short = x.short;
   if (x.note) f.note = x.note;
   if (x.money) f.money = true;
   return f;

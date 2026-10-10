@@ -8493,7 +8493,7 @@ const TUPLE_BLOCK = 'The stored statements are ten lines wide — revenue, EBIT,
    than one — metricStatus names a gap in any of them. */
 const METRICS = [
   /* ---------------------------------------------------------- Business quality */
-  { k: 'roic', g: 'Business quality', cat: 'returns', label: 'Return on invested capital',
+  { k: 'roic', g: 'Business quality', cat: 'returns', label: 'Return on invested capital', short: 'ROIC',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true, na: ['bank', 'insurer', 'early'],
     formula: 'EBIT × (1 − tax rate) ÷ (equity + debt − cash)', inputs: ['ebit', 'eq', 'debt', 'cash'], period: 'latest',
     miss: 'Not meaningful for banks — excluded rather than imputed.',
@@ -8501,7 +8501,7 @@ const METRICS = [
     help: { simple: 'How much profit the business earns from all the money in it — both shareholders’ and borrowed.',
       context: 'The cleanest single measure of whether a business is good, because it ignores how the company chose to finance itself. Not meaningful for banks, where borrowing is the raw material rather than the funding.',
       technical: 'Operating profit after tax ÷ (total debt + equity − cash). Excluded for deposit-taking institutions.' } },
-  { k: 'om', g: 'Business quality', cat: 'profitability', label: 'Operating margin',
+  { k: 'om', g: 'Business quality', cat: 'profitability', label: 'Operating margin', short: 'Op. margin',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true,
     formula: 'EBIT ÷ revenue', inputs: ['ebit', 'rev'], period: 'latest',
     miss: 'Withheld where operating profit exceeds revenue — the two lines disagree.',
@@ -8517,7 +8517,7 @@ const METRICS = [
     help: { simple: 'Out of every dollar or ringgit of sales, how much is left as profit for shareholders after every cost, interest and tax.',
       context: 'Lower than the operating margin by whatever interest, tax and one-off items take. A net margin far above the operating margin usually means a gain outside the business — a disposal, a tax credit — rather than a better business.',
       technical: 'Net income attributable to the company ÷ revenue, latest fiscal year. Withheld when EBIT exceeds revenue or the per-share figures disagree in scale.' } },
-  { k: 'fcfm', g: 'Business quality', cat: 'cashflow', label: 'Free cash flow margin',
+  { k: 'fcfm', g: 'Business quality', cat: 'cashflow', label: 'Free cash flow margin', short: 'FCF margin',
     unit: 'pct', dp: 1, kind: 'calculated', counted: true, na: ['bank'],
     formula: '(operating cash flow − capex) ÷ revenue', inputs: ['ocf', 'capex', 'rev'], period: 'latest',
     miss: 'Not computed for banks.',
@@ -8865,6 +8865,7 @@ function metricField(x) {
   const f = { g: x.g, k: x.k, label: x.label, fmt: metricFmt(x), formula: x.formula,
               unit: x.unit, period: METRIC_PERIOD[x.period] || x.period, cat: x.cat };
   if (x.miss) f.miss = x.miss;
+  if (x.short) f.short = x.short;
   if (x.note) f.note = x.note;
   if (x.money) f.money = true;
   return f;
@@ -24943,7 +24944,7 @@ function renderScreener() {
          computed — mfmt is absent and the footer prints a dash. */
       ...sc.cols.map(k => {
         const f = FIELD_BY_K[k];
-        if (!f.money) return { k, label:f.label, get:r => r.m[k], fmt:v => isNum(v) ? f.fmt(v) : NA, mfmt:f.fmt };
+        if (!f.money) return { k, label:f.label, short:f.short, get:r => r.m[k], fmt:v => isNum(v) ? f.fmt(v) : NA, mfmt:f.fmt };
         if (screenCcy() === 'local') return {
           k, label:`${f.label} (local)`,
           get:r => r.m[k],
@@ -25001,10 +25002,16 @@ function renderScreener() {
         id: c2.get ? `scr-sort-${c2.k}` : null,
         'aria-sort': sc.sort.k === c2.k ? (sc.sort.dir === 1 ? 'ascending' : 'descending') : null,
         onclick: c2.get ? sortBy : null,
+        /* A long name has a short header (ROIC, Op. margin, FCF margin;
+           METRICS' short): the filed set's default columns, in full, made the
+           company and its three figures 747px in CI's font, wider than the
+           results window beside the rail at 1024–1366 (mobile.mjs, E3). The
+           full name is the header's accessible name and its title. */
+        'aria-label': c2.short ? c2.label : null,
         /* The arrow is for the eye; aria-sort says the order. Read aloud it
            was part of every header's name: "Quality, black down-pointing
            triangle", "Value, up down arrow". */
-        html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
+        html: `${c2.short ? `<abbr title="${esc(c2.label)}">${esc(c2.short)}</abbr>` : esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
       htr.append(th);
     });

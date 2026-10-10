@@ -1962,6 +1962,17 @@ for (const w of [360, 390]) {
     await sleep(450);
     const back = await ev(MEASURE);
     if (!wideAt?.beside || narrowed?.beside || !back?.beside) fails.push(`the layout does not follow its own width: at 1440 ${wideAt?.beside ? 'beside' : 'stacked'}, its column narrowed to 760px ${narrowed?.beside ? 'beside' : 'stacked'}, widened again ${back?.beside ? 'beside' : 'stacked'}`);
+    /* IN VERDANA TOO (10 Oct 2026). The filed set's default columns, named in
+       full, passed here in Segoe UI and failed on CI's runner in DejaVu Sans
+       (747px against a 681–719px window, 1024–1366); Verdana's widths are
+       DejaVu's kin. */
+    await ev(`(() => { const s = document.createElement('style'); s.id = 'e3-face'; s.textContent = '*{font-family:Verdana, sans-serif !important}'; document.head.append(s); return true; })()`);
+    for (const w of [1024, 1041, 1366]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await sleep(450);
+      judge(`${w}px in Verdana`, await ev(MEASURE));
+    }
+    await ev(`(document.getElementById('e3-face')?.remove(), true)`);
   } catch (e) { fails.push(`the check threw: ${e.message}`); }
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   if (fails.length) { bad++; console.log(`FAIL releaseB small-backlog E3 — the screener beside the sidebar: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
