@@ -1353,9 +1353,9 @@ function labColumnPicker(P, lab) {
     const id = labId(P, `col-${c.key}`);
     const on = c.key === lab.active;
     row.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}`, for: id }, [
-      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'col'), id, value: c.key, checked: on ? '' : null, 'aria-label': `${c.key} — ${c.name}`,
+      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'col'), id, value: c.key, checked: on ? '' : null, 'aria-label': `${c.key} — ${labShownName(lab, c)}`,
         onchange: () => { lab.active = c.key; lab.naming = null; labDraw(P, id); labAfterStructure(P, lab, {}); } }),
-      labLetter(c.key), el('span', { class: 'lab-seg-name' }, c.name),
+      labLetter(c.key), el('span', { class: 'lab-seg-name' }, labShownName(lab, c)),
     ]));
   }
   fs.append(row);
@@ -1649,7 +1649,7 @@ function labChain(P, lab, col) {
   const card = el('section', { class: 'card ls-section lab-chain-card', 'aria-labelledby': labId(P, 'chain-h') });
   const bl = labBaseline(lab, col);
   card.append(el('div', { class: 'lab-chain-hd' }, [
-    el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${col.name}`]),
+    el('h2', { class: 'h-card lab-chain-h', id: labId(P, 'chain-h') }, [labLetter(col.key), ` ${col.key} — ${labShownName(lab, col)}`]),
     (P.els.baseline = el('span', { class: 'metaline lab-baseline' }, `Changes ${bl.label}`)),
   ]));
   const list = el('div', { class: 'lab-chain' });
@@ -1866,8 +1866,7 @@ function labCompare(P, lab) {
    is drawn from, and redrawn from in place while its shape holds. */
 function labMetricView(metric, lab) {
   const cols = lab.cols;
-  const cross = labCrossRoute(lab);
-  const row = (c) => ({ key: c.key, name: cross ? labXrName(lab, c) : c.name, chip: LAB_SOURCE_CHIP[labSourceKind(c)], active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
+  const row = (c) => ({ key: c.key, name: labShownName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], active: c.key === lab.active, m: c.cur?.m || null, g: c.cur?.g || null, d: c.work });
   const rows = cols.map(row);
   const vm = { metric, tables: [], words: [], twin: null, caption: `Compared by ${(LAB_METRICS.find(x => x.id === metric) || {}).say}. Order: ${cols.map(c => c.key).join(', ')}.` };
   const one = (field, fmt, value, extra = {}) => ({ field, fmt, rows: rows.map(r => {
@@ -2525,6 +2524,9 @@ const labXrName = (lab, c) => {
   const rec = !c.prop && lab.model ? pmFind(lab.model) : null;
   return rec && labSourceKind(c) !== 'variant' ? `${rec.name}${c.name === 'As saved' ? '' : ` — ${c.name}`}` : c.name;
 };
+/* A column's name wherever the lab shows it: by its property once the
+   columns are of more than one; as before, where they are one property's. */
+const labShownName = (lab, c) => (lab.cols.some(x => x.prop) ? labXrName(lab, c) : c.name);
 /* Whether the columns differ in property, route or asset: the comparison
    across routes is drawn only then. */
 const labCrossRoute = (lab) => lab.cols.some(c => c.prop) || new Set(lab.cols.map(c => `${dealRoute(c.work)}|${propertyClassOf(c.work)}`)).size > 1;
