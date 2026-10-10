@@ -680,6 +680,15 @@ function evidenceFlowDone(o) {
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
       onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+  } else if (o.kind === 'let-rent') {
+    /* An achieved rent (P5): named in the Scenario Lab's observed
+       comparable rents, which a commercial property's rent is set against —
+       and summarised on the area screen as before. */
+    box.append(el('p', { class: 'metaline' }, 'Use it in a scenario: it is named among the Scenario Lab’s observed comparable rents, which a commercial property’s rent is set against — with its source and date, as a what-if until you save. The area screen summarises it by locality, achieved and asking apart.'));
+    box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [
+      el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use', onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      el('a', { class: 'btn btn-ghost', id: 'ef-area-go', href: href('/property/areas'),
+        onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')]));
   } else {
     box.append(el('p', { class: 'metaline' }, 'A rent is summarised by locality on the area screen, achieved and asking apart, each with its count.'));
     box.append(el('p', { class: 'ef-act' }, el('a', { class: 'btn btn-ghost', id: 'ef-use', href: href('/property/areas'),

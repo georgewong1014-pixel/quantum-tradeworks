@@ -579,7 +579,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null, cm: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -604,8 +604,11 @@ function labDraw(P, focusId = null) {
      answered New development, the developer premium model (P4). */
   const route = dealRoute(labAnswerInputs(lab));
   const price = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : labPriceSection(P, lab);
+  /* Answered Commercial, of any subtype and on any route: the four rents,
+     their sustainability and the lease-down (P5), after the price. */
+  const commercial = !P.compact && propertyClassOf(labAnswerInputs(lab)) === 'commercial' ? labCommercialSection(P, lab) : null;
   const evidence = labEvidence(P, lab);
-  outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  outputs.append(...[chain, alert, price, commercial, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -1117,6 +1120,47 @@ function labNewDevPaint(P, lab, { initial = false } = {}) {
   if (nd.neededText) labText(nd.neededText, ndNeededFormula(n));
 }
 
+/* THE COMMERCIAL MODELS (the decision layer, P5; 83-property-decision.js),
+   after the price section once Commercial is answered. A what-if until
+   Save, as every answer here is: the tenancy, its contract rent, the
+   asking rent, the achieved rents named, the lease and the unit are a move
+   of every column (labAnswer), A, B and C staying one property, written
+   only by Save. The model rent is the Rent slider, and the price the Price
+   slider: the column they move is the one worked through. The inputs are
+   drawn with the page; the figures follow each paint (labCommercialPaint). */
+function labCommercialSection(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-cm au cm', id: labId(P, 'cm'), 'aria-labelledby': labId(P, 'cm-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cm-h') }, 'The commercial rents, worked through'));
+  card.append(el('p', { class: 'metaline au-route' }, `${CM_LEAD} A what-if of every column until you save it.`));
+  const figs = el('div', { class: 'au-figs', id: labId(P, 'cm-figs') });
+  card.append(figs);
+  if (d) {
+    const answer = (k, v) => labAnswer(P, lab, k, v);
+    card.append(cmInputs({ d, prefix: P.idPrefix, answer, fold: true,
+      extra: { rents: cmRentPick({ d, prefix: P.idPrefix, legend: 'Achieved rents from your register', toggle: (ids) => answer('rentComparableIds', ids) }) },
+      where: { model: 'The Rent slider.' } }));
+  }
+  P.els.cm = { card, figs, sig: null };
+  return card;
+}
+function labCommercialPaint(P, lab) {
+  const cm = P.els?.cm;
+  if (!cm) return;
+  const col = labActive(lab), d = col.work;
+  const c = commercialModel(d, col.cur?.m || dealModel(d));
+  const sig = JSON.stringify([col.key, c.rents.map(r => [r.value, r.kind]), c.observed, c.sustain, c.yields, c.lease.scenarios, c.lease.missing, c.lease.reserveKind, c.lease.start, c.lease.burn, c.lease.fitOut]);
+  if (cm.sig === sig) return;
+  cm.sig = sig;
+  cm.figs.replaceChildren(cmResults({ c, d, prefix: P.idPrefix,
+    why: { rents: () => lsOpenEvidence(cm.rentsEv), sustain: () => lsOpenEvidence(cm.sustainEv), yields: () => lsOpenEvidence(cm.yieldsEv), lease: () => lsOpenEvidence(cm.leaseEv) },
+    toRents: () => lsGoTo(document.getElementById(labId(P, 'cm-rent-comps')), document.querySelector(`#${labId(P, 'cm-rent-comps')} input, #${labId(P, 'cm-register')}`)) }));
+  if (cm.rentsText) labText(cm.rentsText, cmRentsFormula(c));
+  if (cm.sustainText) labText(cm.sustainText, cmSustainFormula(c));
+  if (cm.yieldsText) labText(cm.yieldsText, cmYieldFormula(c));
+  if (cm.leaseText) labText(cm.leaseText, cmLeaseDownFormula(c));
+}
+
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
    Analyse — the product's action, the full model in the calculator;
    Compare — A, B and C side by side, below; Save this — the conversion,
@@ -1598,6 +1642,12 @@ function labEvidence(P, lab) {
       sec('needed', 'How the rent and growth needed are found'));
     nd.srcEv = lsEvidenceSection({ id: labId(P, 'ev-nd-src'), summary: 'Where the template comes from', body: [ndSourcesList()] });
     pe.push(nd.srcEv);
+  }
+  /* The commercial working (P5), there too. */
+  if (P.els.cm) {
+    const cm = P.els.cm, sec = (k, summary) => { const t = el('p', { class: 'lab-formula', id: labId(P, `ev-cm-${k}-text`) }, ''); cm[`${k}Text`] = t; cm[`${k}Ev`] = lsEvidenceSection({ id: labId(P, `ev-cm-${k}`), summary, body: [t] }); return cm[`${k}Ev`]; };
+    pe.push(sec('rents', 'How the four rents are kept apart'), sec('sustain', 'How rent sustainability is worked out'), sec('yields', 'How the yields are worked out'),
+      sec('lease', 'How the lease-down is worked out'));
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
@@ -2446,6 +2496,8 @@ function labPaintPanel(P, { initial = false } = {}) {
   labPricePaint(P, lab, { initial });
   labAuctionPaint(P, lab);
   labNewDevPaint(P, lab, { initial });
+  /* And, answered Commercial, the four rents and the lease-down (P5). */
+  labCommercialPaint(P, lab);
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);
@@ -2549,6 +2601,22 @@ function labUseComparable(id) {
   const d = lab && labAnswerInputs(lab);
   const o = (State.observations || []).find(x => x && x.id === id);
   if (!d || !o) return false;
+  /* An achieved rent (P5) is named among the observed comparable rents —
+     an answer of every column, used by the commercial section; on a
+     property answered otherwise it waits there, said so. */
+  if (o.kind === 'let-rent') {
+    if (!dealRentChoices(d).some(x => x.id === id)) {
+      toast(`That record is in ${townName(o.city)}; the property in the Lab is in ${townName(d.city)} — it is set against records of its own town.`);
+      return false;
+    }
+    labAnswer(P, lab, 'rentComparableIds', [...new Set([...(Array.isArray(d.rentComparableIds) ? d.rentComparableIds : []), id])]);
+    const row = document.querySelector(`[data-rent-comp="${CSS.escape(id)}"]`);
+    if (row) { row.scrollIntoView({ block: 'center' }); row.querySelector('input')?.focus({ preventScroll: true }); }
+    toast(propertyClassOf(d) === 'commercial'
+      ? `${comparableName(o)} named among the observed comparable rents — a what-if of every column until you save.`
+      : `${comparableName(o)} named among the observed comparable rents — they are used once you answer Commercial, a what-if until you save.`);
+    return true;
+  }
   const usable = [...dealComparableChoices(d), ...dealAskingChoices(d)].some(x => x.id === id);
   if (!usable) {
     toast(o.city !== d.city

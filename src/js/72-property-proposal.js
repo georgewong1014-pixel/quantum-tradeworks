@@ -455,6 +455,11 @@ const CP_IN = {
   ndCompSource: (v) => (v ? String(v) : 'Not entered'), ndCompDate: (v) => (v ? String(v) : 'Not entered'),
   ndSpaMonth: (v) => ndMonthWords(v), ndVpMonth: (v) => ndMonthWords(v),
   ndSchedule: (v) => { const st = parseNdSchedule(v), t = ndTemplateOf(st); return st ? `${st.length} stage${st.length === 1 ? '' : 's'}${t ? `, Sarawak’s ${t.form} template` : ''}` : 'Not entered'; },
+  /* The commercial models' answers (P5): a figure not entered says so. */
+  cmAskingRent: (v) => (num0(v) > 0 ? cpMoneyMonth(v) : 'Not entered'), cmFitOut: (v) => (v == null ? 'Not entered' : cpMoneyIn(v)),
+  rentComparableIds: (v) => (Array.isArray(v) && v.length ? `${v.length} named from the register` : 'None named'),
+  cmLeaseExpiry: (v) => ndMonthWords(v), cmPosition: (v) => CM_POSITIONS[v]?.label || 'Not recorded',
+  cmDeposit: (v) => (v == null ? 'Not entered' : `${cpN(v)} months of rent`),
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
