@@ -3723,6 +3723,15 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
 /* The backup line (backupLine, 55-views-public.js): one quiet line above the
    foot, the way to the export beside it. */
 .dash-backup { max-width: 70ch; margin: 0; color: var(--ink-2); }
+/* Which twelve months the compared columns are (fyAlignment,
+   50-views-studio.js): a warning where they differ, a plain note where it
+   cannot be told. A measure with no meaning for a column's business model
+   says so in the column, its words kept whole. */
+.cmp-periods { margin: 0 0 var(--md); padding: var(--sm) var(--md); max-width: 70ch; font-size: var(--text-sm); line-height: 1.5;
+  color: var(--ink-2); background: var(--surface-sunk); border-left: 3px solid var(--line); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.cmp-periods-warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--surface-sunk)); }
+.cmp-periods-k { font-weight: var(--weight-semibold); color: var(--ink); }
+.caption.cmp-na { white-space: normal; overflow-wrap: normal; }
 /* What a clear removes (confirmClear): a plain list — a tick would read as done. */
 .clear-list { margin: 0; padding-left: 1.25em; list-style: disc; }
 .clear-list li { margin: 4px 0; }

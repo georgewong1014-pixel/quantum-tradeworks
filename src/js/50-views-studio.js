@@ -1734,10 +1734,12 @@ function accountingBasis(c) {
   return { id: 'unknown', label: 'Not stated', detail: 'The source of these statements does not record an accounting standard.' };
 }
 /* The latest fiscal year each column reads, and the date it ended where the
-   ingest recorded one. The shipped us.json predates the period-end field, so
-   for now the month is said to be missing rather than assumed to be December. */
+   ingest recorded one — the company's period ends (periodEnds), or the end
+   date its filing index records for revenue (lineFiling). The shipped
+   us.json predates both fields, so for now the month is said to be missing
+   rather than assumed to be December. */
 function reportingPeriod(c) {
-  const fy = latestFy(c), end = fyEndOf(c, fy);
+  const fy = latestFy(c), end = fyEndOf(c, fy) || (c?.real ? lineFiling(c, 'rev', fy).end : null);
   return { fy, end, label: `FY${fy}`, detail: end ? `ended ${fmtFyEnd(end)}` : (c.real ? 'year-end date not in this dataset yet' : 'illustrative year') };
 }
 /* An absent cell names its reason, with the sentence on hover — the same five
@@ -1753,11 +1755,52 @@ function disclosureCell(r, v, fmt, what) {
   if (isNum(v)) return fmt(v);
   return absentCell('not reported', `${what} is not in the figures held for ${r.c.tk}.${r.c.real ? ' SEC companyfacts, as this build reads it, carries no such disclosure.' : ''} Nothing is imputed.`);
 }
-/* The months between two ISO dates, ignoring days. */
-const monthsApart = (a, b) => {
-  const x = new Date(a + 'T00:00:00Z'), y = new Date(b + 'T00:00:00Z');
-  return Math.abs((x.getUTCFullYear() - y.getUTCFullYear()) * 12 + x.getUTCMonth() - y.getUTCMonth());
-};
+/* WHICH TWELVE MONTHS EACH COLUMN IS (the 10 Oct 2026 audit, #6). Apple's
+   fiscal year ends in September and Microsoft's in June, so their latest
+   years side by side are not the same twelve months, even under one label.
+   The warning read only the period ends the data holds, and said nothing
+   where it held none — which for the shipped statements is every company,
+   so every comparison was silent — and it waited for ends more than six
+   months apart, so September beside June passed. Now, among the filed
+   columns (a synthetic column has no period to place):
+   - year-ends held in different months: each column's latest year and the
+     month it ends, in the columns' own order, and that they are not the
+     same twelve months;
+   - different fiscal-year labels: said, as before;
+   - a year-end not held: said, by company — never assumed to be December,
+     and never a date this dataset does not hold. */
+const FY_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const andList = (a) => (a.length < 3 ? a.join(' and ') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+function fyAlignment(rows) {
+  const cols = rows.filter(r => r.c.real).map(r => {
+    const p = reportingPeriod(r.c);
+    const d = p.end ? new Date(`${p.end}T00:00:00Z`) : null;
+    return { tk: r.c.tk, fy: p.fy, month: d && !Number.isNaN(d.getTime()) ? d.getUTCMonth() : null };
+  });
+  if (cols.length < 2) return null;
+  const labels = [...new Set(cols.map(x => x.fy))];
+  const known = cols.filter(x => x.month !== null), unknown = cols.filter(x => x.month === null);
+  const months = new Set(known.map(x => x.month));
+  const same = labels.length === 1;
+  const ends = known.map((x, i) => (i && same ? `${x.tk}’s ends ${FY_MONTHS[x.month]}` : `${x.tk}’s FY${x.fy} ends ${FY_MONTHS[x.month]}`));
+  const notHeld = !unknown.length ? ''
+    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the shipped statements predate the ingest that records it — so ${known.length
+      ? `${unknown.length === 1 ? 'that column' : 'those columns'} cannot be placed against the others`
+      : `whether ${same ? `these FY${labels[0]} columns` : 'these columns'} cover the same twelve months cannot be checked here`}.`;
+  if (known.length >= 2 && months.size > 1)
+    return { state: 'misaligned', text: `${ends.join('; ')} — the columns are not the same twelve months, so growth and margin rows are not measured over one period.${notHeld ? ` ${notHeld}` : ''}` };
+  if (!same)
+    return { state: 'labels', text: `The selection compares ${[...labels].sort().map(y => `FY${y}`).join(' statements with ')} statements — growth and margin rows are not measured over the same twelve months.${notHeld ? ` ${notHeld}` : ''}` };
+  if (unknown.length) return { state: 'unknown', text: `${known.length ? `${ends.join('; ')}; ` : ''}${known.length ? notHeld.charAt(0).toLowerCase() + notHeld.slice(1) : notHeld}` };
+  return null;
+}
+/* A measure that has no meaning for a column's business model, said in
+   the column (the 10 Oct 2026 audit, #6): "n/a" stood for it, with the
+   reason only on hover. The plurals are the glossary's (TYPE_PLURAL,
+   65-learn.js). */
+const typePlural = (t) => TYPE_PLURAL[t] || `${t} businesses`;
+const notMeaningfulFor = (c) => `Not meaningful for ${typePlural(c.type)}`;
+const naCell = (r, text) => `<span class="caption cmp-absent cmp-na" data-na="${esc(r.c.type)}" title="${esc(text)}">${esc(notMeaningfulFor(r.c))}</span>`;
 
 /* SAVED COMPARISONS. A comparison was only ever the current selection; a
    named one keeps the companies, the currency mode, the stamp, and the text
@@ -1915,20 +1958,16 @@ VIEWS.compare = () => {
 
   const mixedTypes = new Set(rows.map(r => r.c.type)).size > 1;
   const mixedMkts = new Set(rows.map(r => r.c.mkt)).size > 1;
-  /* Periods: the latest fiscal-year labels, and where both period ends are
-     held, how many months apart they fall. Bases: the accounting standard.
-     Kinds: synthetic beside filed. */
-  const periods = rows.map(r => reportingPeriod(r.c));
-  const fyLabels = [...new Set(periods.map(p => p.label))];
-  const ends = periods.map(p => p.end).filter(Boolean);
-  const endSpread = ends.length > 1 ? Math.max(...ends.flatMap(a => ends.map(b => monthsApart(a, b)))) : 0;
-  const mixedPeriods = fyLabels.length > 1 || endSpread > 6;
+  /* Periods: which twelve months each filed column is, or that it cannot
+     be told (fyAlignment) — said in a line of its own below. Bases: the
+     accounting standard. Kinds: synthetic beside filed. */
+  const periods = fyAlignment(rows);
   /* Among the columns that have a basis at all; synthetic beside filed is
      its own sentence below. */
   const bases = [...new Set(rows.filter(r => r.c.real).map(r => accountingBasis(r.c).id))];
   const mixedBasis = bases.length > 1;
   const mixedIllus = rows.some(r => r.c.real) && rows.some(r => !r.c.real);
-  if (mixedTypes || mixedMkts || mixedPeriods || mixedBasis || mixedIllus) {
+  if (mixedTypes || mixedMkts || mixedBasis || mixedIllus) {
     const warn = el('div', { class: 'guardrail', style: 'background:color-mix(in srgb, var(--warn) 12%, transparent);border-color:color-mix(in srgb, var(--warn) 36%, transparent);margin-bottom:var(--md)' });
     const said = [];
     if (mixedTypes) said.push('This selection mixes business models, so some rows are not comparable — return on invested capital and enterprise value are not meaningful for banks, and free cash flow is not meaningful for a deposit-taking balance sheet.');
@@ -1938,14 +1977,15 @@ VIEWS.compare = () => {
          Local-currency mode, above a row printing $ and RM side by side. */
       ? `${opener()} reporting currencies; per-share figures, market capitalisation and the scale rows are shown in each company’s reporting currency and are not comparable across markets.`
       : `${opener()} reporting currencies; per-share figures are shown in the reporting currency, and market capitalisation and the scale rows are converted to ${State.baseCcy}.`);
-    if (mixedPeriods) said.push(fyLabels.length > 1
-      ? `The selection compares ${fyLabels.sort().join(' statements with ')} statements — growth and margin rows are not measured over the same twelve months.`
-      : `The latest fiscal years end ${endSpread} months apart, so growth and margin rows are not measured over the same twelve months.`);
     if (mixedBasis) said.push('Statements are prepared under different accounting bases, or none; lease, revenue-recognition and impairment treatment can differ line by line, and no adjustment is made here.');
     if (mixedIllus) said.push('This selection places synthetic demonstration figures beside filed statements; the illustrative columns are not evidence about any company.');
     warn.innerHTML = `<span style="color:var(--warn)">${icon('alert')}</span><span>${esc(said.join(' '))}</span>`;
     wrap.append(warn);
   }
+  /* The periods, in a line of their own: a warning where the columns are
+     not the same twelve months, a plain note where it cannot be told. */
+  if (periods) wrap.append(el('p', { class: `cmp-periods cmp-periods-${periods.state === 'unknown' ? 'unknown' : 'warn'}`, 'data-cmp-periods': periods.state, role: 'note' },
+    [el('span', { class: 'cmp-periods-k' }, periods.state === 'unknown' ? 'Fiscal years' : 'Not the same twelve months'), ' ', periods.text]));
 
   /* peer table */
   /* Currency, stated rather than assumed. A table mixing RM share prices with
@@ -2102,15 +2142,15 @@ VIEWS.compare = () => {
        latest stored statements": a missing-data claim about a line that is
        meaningless for a deposit-taking balance sheet. */
     ['Operating cash flow', r => r.c.type === 'bank'
-      ? absentCell('not applicable', 'Operating cash flow is not meaningful for a deposit-taking balance sheet: it moves with deposits and loans, not with what the bank earns.')
+      ? naCell(r, 'Operating cash flow is not meaningful for a deposit-taking balance sheet: it moves with deposits and loans, not with what the bank earns.')
       : lineCell(r, last(r.d.ocf), ['ocf'])],
     /* Not a row at all for an all-bank selection; a bank in a mixed one says
        why its cell is empty. */
     ...(pack.id === 'bank' ? [] : [['Free cash flow', r => r.c.type === 'bank'
-      ? absentCell('not applicable', 'Free cash flow is not meaningful for a deposit-taking balance sheet, whose operating cash flow moves with deposits and loans.')
+      ? naCell(r, 'Free cash flow is not meaningful for a deposit-taking balance sheet, whose operating cash flow moves with deposits and loans.')
       : lineCell(r, r.m.fcf, ['ocf', 'capex'])]]),
     ['Net debt', r => r.c.type === 'bank'
-      ? absentCell('not applicable', 'Net debt is not meaningful for a deposit-taking balance sheet: its borrowings are its raw material, not its financing.')
+      ? naCell(r, 'Net debt is not meaningful for a deposit-taking balance sheet: its borrowings are its raw material, not its financing.')
       : lineCell(r, r.m.netDebt, ['debt', 'cash'])],
   ];
 
@@ -2183,10 +2223,14 @@ VIEWS.compare = () => {
     const fld = FIELD_BY_K[k];
     const present = isNum(r.m[k]);
     const st = present ? null : metricStatus(r, k);
+    /* A measure with no meaning for this column's business model says so in
+       the column — "Not meaningful for banks" — not as "n/a" with the reason
+       only on hover (the 10 Oct 2026 audit, #6). */
+    const na = !present && st.reason === 'not applicable';
     const td = el('td', { class: 'cell-sourced', role: 'button', tabindex: '0',
-      html: present ? get(r) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>` });
+      html: present ? get(r) : na ? naCell(r, st.text) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>` });
     /* Read off the cell, so a converted money figure is announced as shown. */
-    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${present ? td.textContent.trim() : `unavailable, ${st.reason}`} — show source`);
+    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${present ? td.textContent.trim() : na ? notMeaningfulFor(r.c).toLowerCase() : `unavailable, ${st.reason}`} — show source`);
     td.addEventListener('click', () => openSourceDrawer(r, fld));
     td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
     return td;

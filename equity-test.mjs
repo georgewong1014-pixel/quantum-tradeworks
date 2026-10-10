@@ -2039,14 +2039,14 @@ try {
       State.compare = [...ids]; State.plan = 'pro'; navigate('/compare?companies=' + ids.join(','));
       const labels = [...document.querySelectorAll('main table.dt tbody tr')].map(tr => tr.cells[0]?.textContent);
       const rowOf = (l) => [...document.querySelectorAll('main table.dt tbody tr')].find(tr => tr.cells[0]?.textContent === l);
-      const banner = [...document.querySelectorAll('main .guardrail')].map(n => n.textContent).join(' ');
+      const banner = [...document.querySelectorAll('main .guardrail, main [data-cmp-periods]')].map(n => n.textContent).join(' ');
       const bare = [...document.querySelectorAll('main table.dt td')].filter(td => td.innerHTML === NA).length;
       const basis = [...rowOf('Accounting basis').cells].slice(1).map(td => td.textContent);
       const fcfBank = rowOf('Free cash flow')?.cells[3]?.textContent;
       const out = { labels, banner, bare, basis, fcfBank };
       State.compare = [unpriced.c.id, 'AAPL-SEC']; navigate('/compare?companies=' + State.compare.join(','));
       out.price = rowOf('Price')?.cells[1]?.textContent; out.unpriced = unpriced.c.id;
-      out.periodSame = ![...document.querySelectorAll('main .guardrail')].some(n => /twelve months/.test(n.textContent)) || latestFy(unpriced.c) !== latestFy(BY_ID.get('AAPL-SEC').c);
+      out.periodSame = !document.querySelector('main [data-cmp-periods="misaligned"], main [data-cmp-periods="labels"]') || latestFy(unpriced.c) !== latestFy(BY_ID.get('AAPL-SEC').c);
       State.compare = ['MAYBANK', 'PBBANK']; navigate('/compare?companies=MAYBANK,PBBANK');
       out.bankFcfRow = !!rowOf('Free cash flow');
       return out;
@@ -2057,7 +2057,7 @@ try {
     if (!/FY2025 statements with FY2026 statements/.test(r.banner)) p.push('the banner does not name the period gap');
     if (!/synthetic demonstration figures beside filed statements/.test(r.banner)) p.push('the banner does not flag synthetic beside filed');
     if (r.basis.join('|') !== 'US GAAP|US GAAP|None — illustrative') p.push(`basis row ${r.basis.join('|')}`);
-    if (r.fcfBank !== 'n/a') p.push(`a bank's free cash flow cell reads "${r.fcfBank}"`);
+    if (r.fcfBank !== 'Not meaningful for banks') p.push(`a bank's free cash flow cell reads "${r.fcfBank}"`);
     if (r.bare) p.push(`${r.bare} cells print the bare generic n/a`);
     if (r.price !== 'no price') p.push(`${r.unpriced}'s price cell reads "${r.price}"`);
     if (!r.periodSame) p.push('two filers with the same fiscal year were flagged as different periods');
@@ -2065,6 +2065,63 @@ try {
     if (p.length) fail('the comparison states each column\'s period, basis and scale, and every absence\'s reason', p);
     else ok(`the comparison carries period, basis and scale rows, flags FY2025 against FY2026 and synthetic beside filed, prints "no price" for ${r.unpriced}, and no cell is a bare n/a`);
   }
+
+  /* ---- fy-end ---- */
+  /* WHICH TWELVE MONTHS EACH COLUMN IS (the 10 Oct 2026 audit, #6). Two
+     filed companies with year-ends in different months are said to be —
+     each column's year and month, in the columns' order, the order never
+     changed; the same month is not flagged; a year-end not held (as for
+     every company in the shipped us.json, which predates the field) is said
+     to be, never assumed. The year-ends are set on the companies in the
+     page for the check and put back: no date is shipped. And a measure that
+     has no meaning for a column's business model says so in the column. */
+  {
+    const r = await evaluate(`(() => {
+      const heads = () => [...document.querySelectorAll('main table.dt thead th')].slice(1).map(th => th.textContent.trim().split(/\\s/)[0]);
+      const read = (ids) => { State.compare = [...ids]; State.plan = 'pro'; navigate('/compare?companies=' + ids.join(','));
+        const p = document.querySelector('main [data-cmp-periods]');
+        return { state: p?.dataset.cmpPeriods || null, text: (p?.textContent || '').replace(/\\s+/g, ' ').trim(), heads: heads() }; };
+      const A = BY_ID.get('AAPL-SEC').c, G = BY_ID.get('GOOGL-SEC').c;
+      const out = { shippedHeld: !!(A.periodEnds || G.periodEnds) };
+      out.shipped = read(['AAPL-SEC', 'GOOGL-SEC']);
+      const keepA = A.periodEnds, keepG = G.periodEnds;
+      try {
+        A.periodEnds = { 2025: '2025-09-27' }; G.periodEnds = { 2025: '2025-12-31' };
+        out.differ = read(['AAPL-SEC', 'GOOGL-SEC']);
+        out.differRev = read(['GOOGL-SEC', 'AAPL-SEC']);
+        A.periodEnds = { 2025: '2025-12-27' };
+        out.same = read(['AAPL-SEC', 'GOOGL-SEC']);
+        delete G.periodEnds; A.periodEnds = { 2025: '2025-09-27' };
+        out.oneHeld = read(['AAPL-SEC', 'GOOGL-SEC']);
+      } finally {
+        if (keepA === undefined) delete A.periodEnds; else A.periodEnds = keepA;
+        if (keepG === undefined) delete G.periodEnds; else G.periodEnds = keepG;
+      }
+      const rowOf = (l) => [...document.querySelectorAll('main table.dt tbody tr')].find(tr => tr.cells[0]?.textContent === l);
+      const cells = (l) => [...(rowOf(l)?.cells || [])].slice(1).map(td => td.textContent.trim());
+      read(['AAPL-SEC', 'JPM-SEC']);
+      out.bank = { heads: heads(), roic: cells('Return on invested capital'), ocf: cells('Operating cash flow'), fcf: cells('Free cash flow'), evebit: cells('EV / EBIT') };
+      return out;
+    })()`);
+    const p = [];
+    const NOT_SAME = 'Not the same twelve months ';
+    if (r.shippedHeld) p.push('the shipped statements now carry period ends — this check sets its own and should be revisited');
+    if (r.shipped.state !== 'unknown' || !/The year-end month is not held for AAPL and GOOGL in this dataset/.test(r.shipped.text) || !/cannot be checked here/.test(r.shipped.text) || /ends (January|February|March|April|May|June|July|August|September|October|November|December)/.test(r.shipped.text))
+      p.push(`shipped AAPL and GOOGL (no year-end held): ${r.shipped.state} "${r.shipped.text}" — not said that it cannot be told`);
+    if (r.differ.state !== 'misaligned' || !r.differ.text.startsWith(`${NOT_SAME}AAPL’s FY2025 ends September; GOOGL’s ends December — the columns are not the same twelve months`))
+      p.push(`AAPL (September) beside GOOGL (December): ${r.differ.state} "${r.differ.text}"`);
+    if (r.differRev.state !== 'misaligned' || !r.differRev.text.startsWith(`${NOT_SAME}GOOGL’s FY2025 ends December; AAPL’s ends September`) || r.differRev.heads.join() !== 'GOOGL,AAPL' || r.differ.heads.join() !== 'AAPL,GOOGL')
+      p.push(`the other way round: "${r.differRev.text}", columns ${r.differRev.heads.join(', ')} (and ${r.differ.heads.join(', ')}) — the columns' own order, never changed`);
+    if (r.same.state !== null) p.push(`two year-ends in December flagged: ${r.same.state} "${r.same.text}"`);
+    if (r.oneHeld.state !== 'unknown' || !/AAPL’s FY2025 ends September; the year-end month is not held for GOOGL/.test(r.oneHeld.text)) p.push(`one year-end held: ${r.oneHeld.state} "${r.oneHeld.text}"`);
+    const b = r.bank;
+    if (b.heads.join() !== 'AAPL,JPM') p.push(`AAPL and JPM: columns ${b.heads.join(', ')}`);
+    if (!/%$/.test(b.roic[0] || '') || b.roic[1] !== 'Not meaningful for banks') p.push(`ROIC reads ${b.roic.join(' | ')} — not AAPL's figure and "Not meaningful for banks" for JPM`);
+    for (const [l, v] of [['Operating cash flow', b.ocf], ['Free cash flow', b.fcf], ['EV / EBIT', b.evebit]]) if (v[1] !== 'Not meaningful for banks') p.push(`${l} for JPM reads "${v[1]}"`);
+    if (p.length) fail('Compare says which twelve months each column is, or that it cannot tell, and what does not apply to a bank, in its column', p);
+    else ok(`Compare: AAPL (Sep) beside GOOGL (Dec) — "${r.differ.text.slice(NOT_SAME.length, 120)}…", either order, columns as chosen; December beside December not flagged; with no year-end held (the shipped data) "${r.shipped.text.slice(0, 90)}…"; one held, the other named; JPM's ROIC, operating and free cash flow and EV / EBIT read "Not meaningful for banks"`);
+  }
+  /* ---- end fy-end ---- */
 
   /* ONE STAMP, AND WHAT MOVED. A stamp records model and data; a moved
      model and a moved dataset are reported apart; an item from before
@@ -9904,7 +9961,8 @@ try {
             const tr = [...document.querySelectorAll('#views table.dt tbody tr')].find(x => /^Operating cash flow/.test(x.cells[0]?.textContent || ''));
             const ocf = tr ? [...tr.cells].slice(1).map(td => td.textContent.trim() + (td.querySelector('[title]') ? ' [' + td.querySelector('[title]').title + ']' : '')) : null;
             out.seen.push(ids + ' OCF ' + (ocf ? ocf[0].slice(0, 60) : 'none'));
-            if (!ocf || !ocf.every(t => t.startsWith(ABSENCE['not applicable'].short + ' [') && /deposit-taking/.test(t))) out.bad.push(ids + ': a bank\\'s operating cash flow reads ' + JSON.stringify(ocf));
+            /* Said in the column since the 10 Oct 2026 audit (#6): 'Not meaningful for banks', the reason on hover. */
+            if (!ocf || !ocf.every(t => t.startsWith('Not meaningful for banks [') && /deposit-taking/.test(t))) out.bad.push(ids + ': a bank\\'s operating cash flow reads ' + JSON.stringify(ocf));
           }
         } finally {
           State.baseCcy = keep.base; State.compareCcy = keep.ccy; State.compare = keep.compare; store.write('compare', keep.compare);
