@@ -1923,7 +1923,7 @@ function renderScreener() {
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
       /* D6, once a column (the rows keep their company's kind): no link —
          the header is the sort control. */
-      if (c2.k !== 'ident') { const k = screenerColKind(c2.k, sorted, sc); const b = kindBadge(k.kind, { link: false, fine: k.fine }); b.classList.add('kind-th'); th.append(b); }
+      if (c2.k !== 'ident') { const k = screenerColKind(c2.k, sorted, sc); th.append(kindTh(k.kind, k.fine, { link: false })); }
       htr.append(th);
     });
     thead.append(htr); table.append(thead);

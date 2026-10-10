@@ -294,11 +294,16 @@ function kindWithFine(kind, words, { cls = '', attrs = {}, link = true } = {}) {
   return el('span', { ...attrs, class: `kind-with${cls ? ` ${cls}` : ''}` }, [kindBadge(k, { fine: w || null, link }), rest ? el('span', { class: 'kind-fine' }, rest) : null]);
 }
 /* A table's badge, once in its header: the kind of every figure in the
-   column (or the table) it heads. Never a badge a cell. */
-function kindTh(kind, fine = null) {
-  const b = kindBadge(kind, { fine });
-  b.classList.add('kind-th');
-  return b;
+   column (or the table) it heads. Never a badge a cell. Its word is drawn
+   by the stylesheet from data-word and named by aria-label, so the
+   header's own text stays the column's name — what sorting, the phone
+   cards' data-label and every reader of a column by its name read. */
+function kindTh(kind, fine = null, { link = true } = {}) {
+  const k = KIND_BADGES[kind] ? kind : 'unavailable';
+  const b = KIND_BADGES[k];
+  const attrs = { class: `kind-badge kind-${k} kind-th`, 'data-kind-badge': k, 'data-word': b.word, 'aria-label': b.word, title: fine ? `${fine} — ${b.note}` : b.note };
+  const kids = [el('span', { class: 'kind-shape', 'aria-hidden': 'true' })];
+  return link ? el('a', { ...attrs, href: '/data-sources#kinds' }, kids) : el('span', { ...attrs, role: 'img' }, kids);
 }
 /* A company's figure of kind `k`: a synthetic company's is Illustrative,
    the reader's own statements' Yours, a filer's `k` (rowKind, 40-views-
