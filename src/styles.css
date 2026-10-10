@@ -6631,3 +6631,31 @@ input.au-in[type="text"] { text-align: left; }
   .lab-xr .lab-bar-fill, .lab-xr .lab-bar-seg { transition: none !important; }
 }
 /* ---- end p6-compare ---- */
+
+/* ---- refurb ---- */
+/* REFURBISH OR NOT (82-property-lab.js, labRefurbCard): P6's columns for
+   four options of one property. No option has a colour of its own: one
+   neutral rule tops every header, so none is marked. On a phone one option
+   at a time, chosen by Show. */
+.lab-rf .lab-rf-colhd { --lab-c: var(--ink-3); }
+/* Words whole, never broken inside: "Not demonstrated" on two lines, not
+   "demonstr-ated". Under 560px of card, two options a line — still in
+   their order, Do nothing first. */
+.lab-rf .lab-xr-v { overflow-wrap: normal; word-break: normal; }
+@container lab-xr (max-width: 559px) {
+  .lab-rf .lab-rf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.lab-rf .rf-inputs { margin-top: var(--sm); }
+.lab-rf-save { margin-top: var(--sm); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lab-rf-save .metaline { margin: 0; flex: 1 1 16rem; }
+@container lab (max-width: 599px) {
+  .lab-rf .lab-rf-grid { grid-template-columns: minmax(0, 1fr); }
+  .lab-rf-grid[data-show="none"] [data-col]:not([data-col="none"]),
+  .lab-rf-grid[data-show="refurb"] [data-col]:not([data-col="refurb"]),
+  .lab-rf-grid[data-show="upgrade"] [data-col]:not([data-col="upgrade"]),
+  .lab-rf-grid[data-show="sell"] [data-col]:not([data-col="sell"]) { display: none; }
+}
+@media (pointer: coarse), (max-width: 768px) {
+  .lab-rf-save .btn { min-height: 44px; display: inline-flex; align-items: center; }
+}
+/* ---- end refurb ---- */

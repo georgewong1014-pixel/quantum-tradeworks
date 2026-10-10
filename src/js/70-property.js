@@ -876,6 +876,24 @@ const ROUTE_ASSET_GATES = {
     why: 'A bare parcel has no strata body, so there are no maintenance or sinking-fund arrears to pass on.' },
 };
 const routeAssetGate = (d) => ROUTE_ASSET_GATES[`${dealRoute(d)}|${propertyClassOf(d)}`] || null;
+
+/* REFURBISH OR NOT (the owner's approval of 10 Oct 2026): where each of
+   the reader's figures came from, as its D6 badge says it — their own
+   estimate (Yours), a quotation they were given (Quoted, no supplier
+   named), or a figure put in to see the arithmetic (Placeholder). */
+const RF_BASES = {
+  yours:       { id:'yours',       label:'My estimate',      kind:'yours' },
+  quoted:      { id:'quoted',      label:'A quotation',      kind:'quoted' },
+  placeholder: { id:'placeholder', label:'A placeholder',    kind:'placeholder' },
+};
+/* The four options, in this order always: the lens never reorders them,
+   and nothing ranks them. */
+const RF_OPTIONS = [
+  { id:'none',    label:'Do nothing' },
+  { id:'refurb',  label:'Refurbish', keys:{ cost:'rfRefurbCost', uplift:'rfRefurbUplift', void:'rfRefurbVoid', basis:'rfRefurbBasis' } },
+  { id:'upgrade', label:'Upgrade',   keys:{ cost:'rfUpgradeCost', uplift:'rfUpgradeUplift', void:'rfUpgradeVoid', basis:'rfUpgradeBasis' } },
+  { id:'sell',    label:'Sell' },
+];
 /* The arrears a Proclamation may pass on, for this deal's class. */
 const auctionArrearsFor = (d) => (propertyClassOf(d) === 'land' ? AUCTION_ARREARS.filter(([k]) => k !== 'arrearsMaintenance') : AUCTION_ARREARS);
 
@@ -1033,6 +1051,15 @@ const DEAL_ANSWER_FIELDS = {
      audit #4): the reader's, from the tenancy; each changes the contract
      rent's cash flow and the effective yield. Not entered, none. */
   cmRentFreeMonths: ansDays, cmServiceCharge: ansSum,
+  /* Refurbish or not (the owner's approval of 10 Oct 2026; refurbModel,
+     75-property-grade.js): each option's figures are the reader's — the
+     works' cost, the rent it adds a month, the months without rent while
+     they run, and where the cost came from — and the sale's: the price
+     they assume, the settlement figure, where each came from. No supplier
+     is named, asked for or kept. */
+  rfRefurbCost: ansSum, rfRefurbUplift: ansSum, rfRefurbVoid: ansDays, rfRefurbBasis: ansEnum(Object.keys(RF_BASES)),
+  rfUpgradeCost: ansSum, rfUpgradeUplift: ansSum, rfUpgradeVoid: ansDays, rfUpgradeBasis: ansEnum(Object.keys(RF_BASES)),
+  rfSalePrice: ansSum, rfSaleBasis: ansEnum(Object.keys(RF_BASES)), rfSettlement: ansSum, rfSettlementBasis: ansEnum(Object.keys(RF_BASES)),
   /* Mortgage protection, optional and off by default (the fee rulebook
      1.1.0): 'included' carries it in the cash required at the rulebook's
      estimate until a quote replaces it. Absent is out. */

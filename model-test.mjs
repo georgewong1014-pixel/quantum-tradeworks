@@ -7302,6 +7302,139 @@ try {
   }
   /* ---- end val-fee-gates ---- */
 
+  /* ---- refurb ---- */
+  /* REFURBISH OR NOT (the owner's approval of 10 Oct 2026; refurbModel,
+     75-property-grade.js; labRefurbCard, 82-property-lab.js). On a saved
+     property, four options on P6's columns — Do nothing, Refurbish,
+     Upgrade, Sell — each from the reader's figures, held to answers worked
+     by hand from the contract (mode-contracts.md, Part 3), on fixture F
+     (RM400,000, a RM360,000 loan at 0% over 30 years = RM1,000 a month,
+     RM2,000 rent, no running costs).
+     F1 — the figures by hand: the first-twelve-month position, the yield
+          once let, the cash required, improvement payback = capex ÷ the
+          net operating income it adds a year; "Not demonstrated" with no
+          uplift entered or an uplift of nought; Do nothing with the best
+          monthly position, plainly; a sale's net exit, the reader's
+          settlement figure or the loan as modelled, a shortfall as cash;
+          an option with no cost Unavailable; land not run.
+     F2 — the lens never reorders the options; each lens leads with its own
+          rows; no ranking word, no supplier asked for or named.
+     F3 — written only on Save; each figure's badge is where it came from
+          (Yours, Quoted, Placeholder); "the figures you entered imply". */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const R_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const RF = { rfRefurbCost: 30000, rfRefurbUplift: 150, rfRefurbVoid: 2, rfRefurbBasis: 'quoted', rfUpgradeCost: 80000, rfUpgradeVoid: 4, rfUpgradeBasis: 'placeholder', rfSalePrice: 450000 };`;
+    const near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+
+    await ftry('refurb F1: the four options, worked by hand', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${R_SEED}
+        const pick = (x) => { const k = refurbModel(x); return k.gated ? { gated: true, why: k.why } : Object.fromEntries(k.options.map(o => [o.id, o])); };
+        return JSON.stringify({ a: pick(F(RF)), zero: pick(F({ ...RF, rfUpgradeUplift: 0 })), settled: pick(F({ ...RF, rfSettlement: 350000, rfSettlementBasis: 'quoted' })).sell,
+          short: pick(F({ ...RF, rfSalePrice: 300000 })).sell, noCost: pick(F({ ...RF, rfRefurbCost: null })).refurb, noSale: pick(F({ ...RF, rfSalePrice: null })).sell,
+          land: pick(F({ ...RF, propertyType: 'Land', landSqft: 4000, sqft: 0 })) }); })()`));
+      /* By hand (mode-contracts.md, Part 3). With no rent the property costs RM1,000 a month (the instalment).
+         Do nothing: RM1,000 a month, 24,000 ÷ 400,000 = 6.00%, nothing to spend.
+         Refurbish (RM30,000 quoted, +RM150, 2 months void): let at 2,150 → RM1,150 a month and 25,800 a year;
+         first 12 months (2 × −1,000 + 10 × 1,150) ÷ 12 = RM791.67; 25,800 ÷ 430,000 = 6.00%; cash 30,000 + 2 × 1,000 = 32,000;
+         payback 30,000 ÷ (25,800 − 24,000) = 16.667 years.
+         Upgrade (RM80,000, no uplift entered, 4 months void): (4 × −1,000 + 8 × 1,000) ÷ 12 = RM333.33; 24,000 ÷ 480,000 = 5.00%;
+         cash 84,000; payback not demonstrated (none entered; and with RM0 entered, none added).
+         Do nothing has the best monthly position of the three: 1,000 > 791.67 > 333.33.
+         Sell at 450,000: agent 2% 9,000, legal 0.5% 2,250, the loan as modelled 360,000 → 78,750; with a 350,000 settlement → 88,750;
+         at 300,000: 300,000 − 6,000 − 1,500 − 360,000 = −67,500, cash required 67,500. */
+      const p = [], a = r.a;
+      if (a.none.firstYearMonthly !== 1000 || a.none.netYield !== 6 || a.none.cash !== 0) p.push(`Do nothing: ${JSON.stringify([a.none.firstYearMonthly, a.none.netYield, a.none.cash])} — by hand 1,000, 6%, 0`);
+      if (!near(a.refurb.firstYearMonthly, 791.6667, 0.001) || !near(a.refurb.letMonthly, 1150) || !near(a.refurb.netYield, 6, 1e-9) || !near(a.refurb.cash, 32000) || !near(a.refurb.incNoi, 1800)
+        || a.refurb.payback.status !== 'ok' || !near(a.refurb.payback.years, 16.6667, 0.001)) p.push(`Refurbish: ${JSON.stringify([a.refurb.firstYearMonthly, a.refurb.letMonthly, a.refurb.netYield, a.refurb.cash, a.refurb.incNoi, a.refurb.payback])} — by hand 791.67, 1,150, 6%, 32,000, 1,800, 16.67 years`);
+      if (!near(a.upgrade.firstYearMonthly, 333.3333, 0.001) || !near(a.upgrade.netYield, 5, 1e-9) || !near(a.upgrade.cash, 84000) || a.upgrade.payback.status !== 'not-demonstrated') p.push(`Upgrade: ${JSON.stringify([a.upgrade.firstYearMonthly, a.upgrade.netYield, a.upgrade.cash, a.upgrade.payback])} — by hand 333.33, 5%, 84,000, not demonstrated`);
+      if (r.zero.upgrade.payback.status !== 'not-demonstrated' || r.zero.upgrade.incNoi !== 0) p.push(`an uplift of RM0: ${JSON.stringify(r.zero.upgrade.payback)} (${r.zero.upgrade.incNoi}) — not demonstrated`);
+      if (!(a.none.firstYearMonthly > a.refurb.firstYearMonthly && a.none.firstYearMonthly > a.upgrade.firstYearMonthly)) p.push('Do nothing does not have the best monthly position in this case');
+      if (!near(a.sell.netExit, 78750) || a.sell.settledByReader || !near(a.sell.cash, 0)) p.push(`Sell: ${JSON.stringify([a.sell.netExit, a.sell.settledByReader, a.sell.cash])} — by hand 78,750 on the loan as modelled`);
+      if (!near(r.settled.netExit, 88750) || r.settled.settlementKind !== 'quoted') p.push(`Sell with a 350,000 settlement: ${r.settled.netExit} (${r.settled.settlementKind}) — by hand 88,750, Quoted`);
+      if (!near(r.short.netExit, -67500) || !near(r.short.cash, 67500)) p.push(`Sell at 300,000: ${r.short.netExit}, cash ${r.short.cash} — by hand −67,500, 67,500`);
+      if (r.noCost.status !== 'unavailable' || JSON.stringify(r.noCost.missing) !== '["its cost"]' || r.noSale.status !== 'unavailable') p.push(`no cost: ${JSON.stringify(r.noCost)}; no sale price: ${r.noSale.status}`);
+      if (!r.land.gated || !/bare parcel/.test(r.land.why)) p.push(`land is run: ${JSON.stringify(r.land).slice(0, 100)}`);
+      if (p.length) fail('refurb F1: the four options, worked by hand', p);
+      else ok('refurb F1: Do nothing RM1,000 a month at 6.00%; Refurbish (RM30,000, +RM150, 2 months void) RM791.67 over the first twelve months, RM1,150 once let, 6.00% on RM430,000, RM32,000 cash, payback 16.7 years (RM30,000 ÷ RM1,800); Upgrade (RM80,000, no uplift, 4 months void) RM333.33, 5.00%, RM84,000, payback "Not demonstrated" (and with an uplift of RM0) — Do nothing plainly has the best monthly position; Sell RM78,750 net on the loan as modelled, RM88,750 on a RM350,000 settlement, a RM67,500 shortfall at RM300,000; no cost, Unavailable; land not run');
+    });
+
+    await ftry('refurb F2: on the Lab, the lens never reorders the options', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+        State.deal = F(RF); saveDeal();
+        const rec = saveActiveProperty({ name: 'rf F2 property' });
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const read = () => ({ heads: [...document.querySelectorAll('#lab-rf-grid .lab-xr-colhd')].map(n => n.dataset.option).join(','),
+          rows: [...document.querySelectorAll('#lab-rf-grid .lab-xr-row[data-row]')].map(n => n.dataset.row),
+          l1: [...document.querySelectorAll('#lab-rf-grid .lab-xr-row.is-l1')].map(n => n.dataset.row),
+          text: (document.getElementById('lab-rf')?.textContent || '').replace(/\\s+/g, ' ') });
+        const seen = [{ lens: 'open', ...read() }];
+        for (const id of ['growth', 'risk', 'liquidity', 'cashflow']) { document.querySelector('label[for="lab-rf-lens-' + id + '"]').click(); await w(250); seen.push({ lens: id, ...read() }); }
+        const inputs = [...document.querySelectorAll('#lab-rf input, #lab-rf label')].map(n => n.textContent + ' ' + (n.id || '') + ' ' + (n.getAttribute('aria-label') || '')).join(' ');
+        deletePropertyModel(rec.id);
+        const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ seen, order: RF_LENS_ORDER, inputs }); })()`));
+      const p = [];
+      for (const s of r.seen) {
+        if (s.heads !== 'none,refurb,upgrade,sell') p.push(`lens ${s.lens}: the options read ${s.heads}`);
+        const id = s.lens === 'open' ? 'cashflow' : s.lens;
+        if (JSON.stringify(s.rows) !== JSON.stringify(r.order[id]) || JSON.stringify(s.l1) !== JSON.stringify(r.order[id].slice(0, 2))) p.push(`lens ${s.lens}: rows ${s.rows.join(',')}, leading ${s.l1.join(',')}`);
+        const ranked = s.text.match(/\\b(best|better|worse|winner|top pick|recommend\\w*|ranked first|safest|riskiest|preferred|should)\\b/i);
+        if (ranked) p.push(`lens ${s.lens}: the card says "${ranked[0]}"`);
+      }
+      if (!/The figures you entered imply/.test(r.seen[0].text) || !/nothing here is ranked/.test(r.seen[0].text)) p.push('the card does not say "the figures you entered imply" and that nothing is ranked');
+      if (/supplier|contractor|vendor|company name|brand/i.test(r.inputs)) p.push(`a supplier is asked for: "${r.inputs.match(/supplier|contractor|vendor|company name|brand/i)[0]}"`);
+      if (p.length) fail('refurb F2: on the Lab, the lens never reorders the options', p);
+      else ok(`refurb F2: through ${r.seen.length - 1} lens switches the options read Do nothing, Refurbish, Upgrade, Sell every time; each lens leads with its own two rows (cash flow: the monthly position and the net yield; risk: the cash required and the months without rent); "The figures you entered imply", "nothing here is ranked", no ranking word, no supplier asked for`);
+    });
+
+    await ftry('refurb F3: written only on Save, each figure badged by where it came from', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+        State.deal = F(); saveDeal();
+        const rec = saveActiveProperty({ name: 'rf F3 property' });
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const record = JSON.stringify(pmFind(rec.id));
+        const fill = async (id, v) => { const n = document.getElementById(id); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250); };
+        await fill('lab-rf-rfRefurbCost', '30000'); await fill('lab-rf-rfRefurbUplift', '150'); await fill('lab-rf-rfRefurbVoid', '2');
+        document.querySelector('label[for="lab-q-rf-rfRefurbBasis-quoted"]').click(); await w(250);
+        await fill('lab-rf-rfUpgradeCost', '80000');
+        document.querySelector('label[for="lab-q-rf-rfUpgradeBasis-placeholder"]').click(); await w(250);
+        await fill('lab-rf-rfSalePrice', '450000');
+        const cell = (row, col) => document.querySelector('#lab-rf-grid .lab-xr-cell[data-row="' + row + '"][data-col="' + col + '"]');
+        const badge = (row, col) => cell(row, col)?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null;
+        const before = { recordSame: JSON.stringify(pmFind(rec.id)) === record, address: location.search, saveBtn: document.getElementById('lab-rf-save')?.textContent || null,
+          kinds: { cost: [badge('cost', 'refurb'), badge('cost', 'upgrade')], uplift: badge('uplift', 'refurb'), payback: [cell('payback', 'refurb')?.dataset.value, cell('payback', 'upgrade')?.querySelector('.lab-xr-v')?.textContent],
+            sale: badge('netExit', 'sell') } };
+        document.getElementById('lab-rf-save').click(); await w(500);
+        const after = pmInputsOf(pmFind(rec.id));
+        const out = { before, after: ['rfRefurbCost', 'rfRefurbUplift', 'rfRefurbVoid', 'rfRefurbBasis', 'rfUpgradeCost', 'rfUpgradeBasis', 'rfSalePrice'].map(k => after[k] ?? null),
+          pending: !!document.getElementById('lab-rf-save'), payback: cell('payback', 'refurb')?.dataset.value || null };
+        deletePropertyModel(rec.id);
+        const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify(out); })()`));
+      const p = [], b = r.before;
+      if (!b.recordSame || /rfRefurb|rfUpgrade|rfSale/.test(b.address)) p.push(`written before Save: record ${b.recordSame ? 'unchanged' : 'written'}, address "${b.address}"`);
+      if (!/Save the refurbish-or-not figures to “rf F3 property”/.test(b.saveBtn || '')) p.push(`the card's Save reads "${b.saveBtn}"`);
+      if (JSON.stringify(b.kinds.cost) !== '["quoted","placeholder"]' || b.kinds.uplift !== 'yours') p.push(`the badges: cost ${JSON.stringify(b.kinds.cost)}, uplift ${b.kinds.uplift} — not Quoted, Placeholder, Yours`);
+      if (b.kinds.payback[0] !== '16.6667' || b.kinds.payback[1] !== 'Not demonstrated') p.push(`the paybacks read ${JSON.stringify(b.kinds.payback)}`);
+      if (JSON.stringify(r.after) !== '[30000,150,2,"quoted",80000,"placeholder",450000]') p.push(`Save wrote ${JSON.stringify(r.after)}`);
+      if (r.pending || r.payback !== '16.6667') p.push(`after Save: still pending ${r.pending}, payback ${r.payback}`);
+      if (p.length) fail('refurb F3: written only on Save, each figure badged by where it came from', p);
+      else ok('refurb F3: on a saved property the figures entered are a what-if — the record and the address unwritten — until "Save the refurbish-or-not figures to “rf F3 property”" writes them; the quoted cost reads Quoted, the placeholder cost Placeholder, the uplift Yours; Refurbish\'s payback 16.6667 years, Upgrade\'s "Not demonstrated"');
+    });
+  }
+  /* ---- end refurb ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

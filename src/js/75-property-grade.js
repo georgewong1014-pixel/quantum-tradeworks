@@ -1981,6 +1981,86 @@ function commercialModel(d, m = dealModel(d), { asOf = null } = {}) {
     rents, sustain, yields, lease, term: { ...term, kind: termKind } };
 }
 
+/* REFURBISH OR NOT (the owner's approval of 10 Oct 2026).
+   ---------------------------------------------------------------------------
+   Four options for a property already modelled, side by side in this order
+   always — Do nothing, Refurbish, Upgrade, Sell — each from the reader's
+   own figures and the calculator's own model (dealModel), and nothing
+   else: no supplier is attached, named or preferred; nothing is ranked;
+   doing nothing is an option on the same terms as the others, and can
+   plainly come out ahead.
+   - DO NOTHING: the property as modelled — the calculator's figures.
+   - REFURBISH, UPGRADE: the reader's cost of the works, the rent they add a
+     month, and the months with no rent while they run. Once let, the
+     monthly position and the net operating income are dealModel's at the
+     rent plus the uplift (every other figure held); the net yield is that
+     income over the price plus the works. The MONTHLY POSITION shown is
+     the average of the first twelve months: the void months with no rent
+     (each costing what the property costs with no rent coming in —
+     burnWithoutRent, the instalment and the running costs), the rest let
+     at the new rent. The CASH REQUIRED is the cost plus every void month's
+     cost. IMPROVEMENT PAYBACK = the additional capex (the cost) ÷ the
+     incremental annual net operating income (the income with the uplift
+     less the income without) — "Not demonstrated" when that increment is
+     nought, negative or not entered: never a made-up payback.
+   - SELL: the reader's assumed sale price less the selling costs (the
+     calculator's agent's and legal percentages, the legal at least RM500,
+     as its exit) and the loan settlement — the reader's redemption figure,
+     or else the loan as modelled, before any repayment, said so. Before
+     gains tax: what it charges turns on how long the property has been
+     held, which is not asked. A shortfall is cash required to settle.
+   An option with its cost not entered is Unavailable, and names it. A
+   class with no tenancy has no rent to lift: not run for land. */
+const RF_KIND = (d, k, basisKey) => (d?.[k] == null ? 'unavailable' : RF_BASES[d?.[basisKey]]?.kind || 'yours');
+function refurbModel(d, m = dealModel(d)) {
+  if (!PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) return { gated: true, why: 'A bare parcel has no rent to lift, so refurbishing it is not set against doing nothing here.' };
+  const has = (k) => isNum(d?.[k]);
+  const price = num0(d?.price);
+  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  /* The property's own figures' kind: Illustrative while they rest on the
+     sample's (the Lab's rule), else the weakest of the reader's. */
+  const baseKind = dealKind(d, m).kind;
+  const options = RF_OPTIONS.map(o => {
+    if (o.id === 'none') {
+      return { id: o.id, label: o.label, status: 'ok', cost: 0, uplift: 0, voidMonths: 0, costKind: 'derived', kind: baseKind,
+        noi: m.noi, netYield: m.netYield, letMonthly: m.cashflowMonthly, firstYearMonthly: m.cashflowMonthly, cash: 0,
+        incNoi: 0, payback: { status: 'none' } };
+    }
+    if (o.id === 'sell') {
+      const S = has('rfSalePrice') && d.rfSalePrice > 0 ? d.rfSalePrice : null;
+      const saleKind = RF_KIND(d, 'rfSalePrice', 'rfSaleBasis');
+      if (S == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['the sale price you assume'], kind: 'unavailable', saleKind };
+      const agent = S * num0(d.agentPct) / 100, legal = Math.max(500, S * num0(d.exitLegalPct) / 100);
+      const settledByReader = has('rfSettlement');
+      const settlement = settledByReader ? d.rfSettlement : num0(m.loan);
+      const settlementKind = settledByReader ? RF_KIND(d, 'rfSettlement', 'rfSettlementBasis') : baseKind === 'illustrative' ? 'illustrative' : 'derived';
+      const costsKind = ['agentPct', 'exitLegalPct'].every(k => isTouched(d, k)) ? 'yours' : 'illustrative';
+      const net = S - agent - legal - settlement;
+      return { id: o.id, label: o.label, status: 'ok', sale: S, saleKind, agent, legal, settlement, settledByReader, settlementKind, costsKind,
+        netExit: net, cash: Math.max(0, -net), kind: kindFirst([saleKind, settlementKind, costsKind]) || 'derived' };
+    }
+    const k = o.keys;
+    const cost = has(k.cost) ? d[k.cost] : null;
+    const upliftIn = has(k.uplift), uplift = upliftIn ? d[k.uplift] : 0;
+    const voidMonths = has(k.void) ? d[k.void] : 0;
+    const costKind = RF_KIND(d, k.cost, k.basis);
+    if (cost == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['its cost'], kind: 'unavailable', costKind, uplift: upliftIn ? uplift : null, voidMonths: has(k.void) ? voidMonths : null };
+    const mX = uplift > 0 ? dealModel({ ...d, rent: num0(d.rent) + uplift }) : m;
+    const v12 = Math.min(voidMonths, 12);
+    const firstYearMonthly = isNum(mX.cashflowMonthly) && burn != null ? (v12 * -burn + (12 - v12) * mX.cashflowMonthly) / 12 : null;
+    const incNoi = isNum(mX.noi) && isNum(m.noi) ? mX.noi - m.noi : null;
+    const payback = !upliftIn ? { status: 'not-demonstrated', why: 'no rent uplift entered' }
+      : !(incNoi > 0) ? { status: 'not-demonstrated', why: 'the uplift you entered adds no net operating income' }
+        : { status: 'ok', years: cost / incNoi };
+    const kind = kindFirst([baseKind, costKind, upliftIn || has(k.void) ? 'yours' : null].filter(Boolean)) || 'derived';
+    return { id: o.id, label: o.label, status: 'ok', cost, costKind, uplift, upliftIn, voidMonths, voidIn: has(k.void), kind,
+      noi: mX.noi, netYield: isNum(mX.noi) && price + cost > 0 ? mX.noi / (price + cost) * 100 : null,
+      letMonthly: mX.cashflowMonthly, firstYearMonthly, cash: burn != null ? cost + voidMonths * burn : null, burn,
+      incNoi, payback };
+  });
+  return { gated: false, options, burn, price, baseKind };
+}
+
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
 function num0(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
