@@ -871,6 +871,17 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
   await S('Page.addScriptToEvaluateOnNewDocument', { source:
     "document.addEventListener('securitypolicyviolation', e => __cspViolation(e.violatedDirective + ' blocked ' + String(e.blockedURI || e.sourceFile || 'inline').slice(0, 90)));" });
   if (OWNER_MACHINE) await S('Fetch.enable', { patterns: [{ urlPattern: '*/data/*', requestStage: 'Request' }] });
+  /* JOURNEY_FONT=Verdana: every page drawn in another font, as CI's runner
+     draws them in DejaVu Sans — a journey that passed here and failed there
+     (the commercial journey's Rent box, 10 Oct 2026) is reproduced so. */
+  if (process.env.JOURNEY_FONT) await S('Page.addScriptToEvaluateOnNewDocument', { source:
+    `(() => { const add = () => { if (!document.head) return false; const s = document.createElement('style'); s.textContent = '*{font-family:${String(process.env.JOURNEY_FONT).replace(/[^\w ,-]/g, '')}, sans-serif !important}'; document.head.prepend(s); return true; }; if (!add()) new MutationObserver((r, o) => { if (add()) o.disconnect(); }).observe(document, { childList: true, subtree: true }); })();` });
+
+  /* JOURNEY_TZ=UTC, JOURNEY_LOCALE=en-US: CI's runner, here. The reporting
+     currency defaults from the time zone (05-plans.js), so a journey that
+     assumed Malaysia passed here and failed there. */
+  if (process.env.JOURNEY_TZ) await S('Emulation.setTimezoneOverride', { timezoneId: process.env.JOURNEY_TZ });
+  if (process.env.JOURNEY_LOCALE) await S('Emulation.setLocaleOverride', { locale: process.env.JOURNEY_LOCALE });
 
   tab.eval = async (expression) => {
     const r = await S('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
@@ -932,10 +943,16 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
     await tab.click(find, what);
     await S('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2, commands: ['selectAll'] });
     await S('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+    await tab.eval(`(window.__fillBox = ${find}, true)`).catch(() => null);
     await S('Input.insertText', { text: String(value) });
     await sleep(150);
     const got = await tab.eval(`(${find})?.value ?? null`).catch(() => null);
-    if (got !== null && got !== String(value)) throw new StepError(`${what} holds “${got}” after typing “${value}”`);
+    /* Say why, when it fails: a box redrawn under the typing, or the typing
+       gone to another element. */
+    if (got !== null && got !== String(value)) {
+      const why = await tab.eval(`(() => { const a = document.activeElement; return (window.__fillBox && !window.__fillBox.isConnected ? 'the box was drawn again while it was typed into; ' : '') + 'focus is on ' + (a ? a.tagName.toLowerCase() + (a.id ? '#' + a.id : '') : 'nothing'); })()`).catch(() => '');
+      throw new StepError(`${what} holds “${got}” after typing “${value}”${why ? ` (${why})` : ''}`);
+    }
     if (commit) await tab.key('Tab');
   };
   tab.text = (sel = 'main') => tab.eval(`(document.querySelector(${JSON.stringify(sel)})?.innerText || '')`);
@@ -1807,7 +1824,10 @@ const JOURNEYS = [
         await tab.click(`document.querySelector('label[for="lab-q-cm-tenancy-tenanted"]')`, 'Current tenancy — Tenanted');
         await tab.expect(`!!document.getElementById('lab-cm-tenancyRent')`, 'Tenanted chosen, the contract rent is not asked');
         await tab.fill(`document.getElementById('lab-cm-tenancyRent')`, '4600', 'The contract rent', { commit: true });
-        await tab.eval(`(() => { const n = document.getElementById('lab-cm-cmLeaseExpiry'); n.value = '2027-04'; n.dispatchEvent(new Event('change', { bubbles: true })); return n.value; })()`);
+        /* Set, changed, and let go: focus left in the month box after the
+           contract rent's Tab gave it a second change when the click moved to
+           the Rent box, and the Lab drew again under the typing (CI, 10 Oct). */
+        await tab.eval(`(() => { const n = document.getElementById('lab-cm-cmLeaseExpiry'); n.value = '2027-04'; n.dispatchEvent(new Event('change', { bubbles: true })); document.activeElement?.blur?.(); return n.value; })()`);
         /* Wait for the Lab to have taken the lease month and drawn again,
            not a fixed 300ms: on the production run's slower runner the draw
            the month started landed while the Rent box was being typed into,
