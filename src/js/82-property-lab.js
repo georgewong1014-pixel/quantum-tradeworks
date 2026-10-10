@@ -126,7 +126,10 @@ const LAB_FIGURES = [
         + (m.financingBasisConfirmed && m.valuationRule !== 'valuation_only'
           ? ` Under the lower-of rule the loan stops following the price above the valuation of ${labMoney(m.bankValuation)}.` : '');
     } },
-  { key: 'safeCashRequired', label: () => 'Cash required', fmt: 'money0', help: 'propSafeCash',
+  /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+     every such deal carries a line not yet checked for its class (the
+     utility deposits, at least), so the label says it from the class. */
+  { key: 'safeCashRequired', label: (d) => (FEE_CLASS_WORD[propertyClassOf(d)] ? 'Cash required — partial' : 'Cash required'), fmt: 'money0', help: 'propSafeCash',
     read: (m) => m.safeCashRequired,
     /* While any fee line is not Verified, the headline says how much of it
        rests on those lines; the row's calculation names each one (the fee
@@ -136,11 +139,11 @@ const LAB_FIGURES = [
        tile, or the first slider went under the action bar (n3-first-view).
        An unknown rule is unverified too; the row's calculation, the
        calculator and its ledger say which of the two each line is. */
-    note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
-      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · '),
+    note: (m) => (cashPartial(m) ? cashPartial(m).short : [(m.missingCostLines || []).length ? 'so far' : null,
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
-      + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
+      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
@@ -1921,13 +1924,13 @@ function labMetricView(metric, lab) {
       parts: r => [{ part: 'transactionCash', value: r.m.transactionCash, label: 'to complete' },
         { part: 'improvementCash', value: r.m.improvementCash, label: 'renovation and set-up' },
         ...(isNum(r.m.reserveCash) ? [{ part: 'reserveCash', value: r.m.reserveCash, label: 'reserve' }] : [])],
-      note: r => [(r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
+      note: r => [cashPartial(r.m) ? cashPartial(r.m).short : (r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
         `${labMoney(r.m.unconfirmedCost)} on unverified or unknown fee lines`].filter(Boolean).join(' · '),
       table: { form: 'stacked', title: 'Cash required: to complete, renovation and set-up, and the reserve' } }));
     vm.words.push('Each bar, from nought: what completion takes, then renovation and set-up (the stronger shade), then the reserve (outlined).');
     vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified or unknown fee lines'],
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(r.m.transactionCash), labMoney(r.m.improvementCash), isNum(r.m.reserveCash) ? labMoney(r.m.reserveCash) : 'cannot be priced',
-        `${labMoney(r.m.safeCashRequired)}${(r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
+        `${labMoney(r.m.safeCashRequired)}${cashPartial(r.m) ? ' — partial' : (r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
   } else if (metric === 'appreciation') {
     vm.tables.push(one('exitValue', 'money0', r => r.m.exitValue, {
       parts: r => [{ part: 'price', value: num0(r.d.price), label: 'price' }, { part: 'priceGrowthAtExit', value: r.m.priceGrowthAtExit, label: 'growth on the price' },
@@ -2580,7 +2583,7 @@ const labXrUnavailable = (why) => ({ value: null, text: 'Unavailable', kind: 'un
 const LAB_XR_ROWS = [
   { id: 'cash', label: 'Cash required', cell: (f) => ({ value: f.m.safeCashRequired, text: labMoney(f.m.safeCashRequired),
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.safeCashRequired, fees: true }).kind,
-      sub: [(f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
+      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
   { id: 'monthly', label: 'Monthly position', neg: true, cell: (f) => (isNum(f.m.cashflowMonthly)
       ? { value: f.m.cashflowMonthly, text: labMoney(f.m.cashflowMonthly), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.cashflowMonthly }).kind,
           sub: f.m.taxComputed && isNum(f.m.path?.[0]?.cf) ? `after tax on the rent: ${labMoney(f.m.path[0].cf / 12)}` : 'before tax on the rent' }
@@ -3097,7 +3100,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   }
   /* The cash required by kind, written while open (and served whole). */
   if (P.els.fees && (initial || P.els.fees.node.open)) {
-    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
+    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
       + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
       + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
   }

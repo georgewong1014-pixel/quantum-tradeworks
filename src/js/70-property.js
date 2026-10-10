@@ -265,7 +265,7 @@ const PROPERTY_CLASSES = {
   residential: { id:'residential', label:'Residential', letsToTenant:true, strataCharges:true,
     note:'A dwelling let to an occupier. Every default in this tool was written for this class.' },
   commercial:  { id:'commercial',  label:'Commercial',  letsToTenant:true, strataCharges:true,
-    note:'A shop, office, industrial unit or commercial lot let to a tenant. The fee rulebook prices its purchase as it prices any property — its lines are written for any property — and no rate is made up for the class. What the rulebook does not hold, a lender’s commercial terms or a tax charged on a commercial rent, is not priced here: check it with the lender and a tax adviser.' },
+    note:'A shop, office, industrial unit or commercial lot let to a tenant. The fee rulebook charges the lines whose rule is the same for any property; the lines whose rule differs by class and is not yet checked for commercial property read Unavailable, so the cash required is partial and names them — no rate is made up for the class. What the rulebook does not hold, a lender’s commercial terms or a tax charged on a commercial rent, is not priced here: check it with the lender and a tax adviser.' },
   land:        { id:'land',        label:'Land',        letsToTenant:false, strataCharges:false,
     note:'A bare parcel. It carries cost and it may appreciate, but it has no tenancy — so rent, vacancy, yield, debt-service cover and break-even rent are not quantities this asset has.' },
 };
@@ -387,17 +387,22 @@ const dealObjective = (d) => (d && Object.hasOwn(PROPERTY_OBJECTIVES, d.objectiv
    8% residential and 4% other) are held and applied to no class; and what
    a lender offers on a commercial loan is the lender's, entered by the
    reader. Nothing in it is a rate this tool made up. */
+/* The lines gated for a class (FEE_TABLE.classRules, 1.2.0), as the
+   class's rulebook note lists them. */
+const feeGatedFor = (cls) => Object.entries(FEE_TABLE.classRules.lines).filter(([id, r]) => !r.follows && r[cls] === 'gated')
+  .map(([id, r]) => ({ title: FEE_TABLE.lines[id].label, state: feeGateWords(cls), what: r.whyBy?.[cls] || r.why, source: null }));
 function propertyClassRulebook(cls) {
   if (cls === 'commercial') return {
-    line: `Commercial: the fee rulebook (${FEE_TABLE.version}) prices the purchase with the lines it uses for any property — no rate is made up for the class.`,
+    line: `Commercial: the fee rulebook (${FEE_TABLE.version}) charges the lines whose rule is the same for any property; a line whose rule differs by class and is not yet checked for commercial property reads Unavailable, and the cash required is partial and names it — no rate is made up for the class.`,
     /* Each rule that does turn on the class, with its standing in the
        rulebook and its source; then what the rulebook does not hold. */
     differs: [
+      ...feeGatedFor('commercial'),
       ...FEE_TABLE.notApplied.filter(x => x.id === 'firstHome' || x.id === 'nonCitizen').map(x => ({ title: x.title, state: 'Held in the rulebook, not applied', what: x.what, source: x.source || null })),
       { title: 'A lender’s terms for a commercial loan', state: 'Not in the rulebook', what: 'The margin of finance and the tenure are the lender’s policy: enter the ones you are offered.', source: null },
       { title: 'A tax charged on a commercial rent', state: 'Not in the rulebook', what: 'Not priced here: check it with a tax adviser.', source: null },
     ] };
-  if (cls === 'land') return { line: PROPERTY_CLASSES.land.note, differs: [] };
+  if (cls === 'land') return { line: `${PROPERTY_CLASSES.land.note} The fee rulebook (${FEE_TABLE.version}) charges the lines whose rule is the same for any property; a line not yet checked for land reads Unavailable, and the cash required is partial and names it.`, differs: feeGatedFor('land') };
   return null;
 }
 
@@ -1534,8 +1539,8 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.1.0',
-  checkedOn: '2026-10-09',
+  version: '1.2.0',
+  checkedOn: '2026-10-10',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
@@ -1565,6 +1570,8 @@ const FEE_TABLE = {
   /* What changed, version by version: a reader of /data-sources who sees
      the figures move is owed the reason. Newest first. */
   changelog: [
+    { version: '1.2.0', date: '2026-10-10',
+      what: 'Lines whose rule differs by property class, and has not been checked for the class, are no longer charged on a commercial property or on land: they read “Unavailable — not yet checked for commercial property” (or land), and the cash required for those classes is a partial total that names them. Commercial: the loan legal fees (rule 7 prices the charge alone; a commercial financing commonly takes further security priced per instrument), the service tax charged on them, the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. Land: the valuation fee and its service tax (the scale’s item is for a valuation on an improved-value basis), the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. The transfer and loan stamp duties, the charge’s stamp, registration and the purchase legal fees stay for every class: their rules do not turn on the class (each line’s source says why). A quotation you enter stands for any class. No rate is made up for either class; residential figures are unchanged.' },
     { version: '1.1.0', date: '2026-10-09',
       what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
     { version: '1.0.0', date: '2026-10-08',
@@ -1796,6 +1803,54 @@ const FEE_TABLE = {
     },
   },
 
+  /* WHICH LINES TURN ON THE PROPERTY'S CLASS (1.2.0; the owner's decision
+     of 10 Oct 2026 on daily audit #4: "Gate them"). Kept beside the lines,
+     not in them, so a residential deal's ledger is the object it was.
+     For each line and each class other than residential, either:
+       same  — its rule does not turn on the class; `why` says so from the
+               text read, and the line is charged as for any property;
+       gated — its rule (or the estimate's basis) differs by class and was
+               not checked for this one: the line reads "Unavailable — not
+               yet checked for commercial property" (or land), carries no
+               amount, and the cash required is a partial total naming it.
+     `follows`: a line charged on other lines (service tax) is gated with
+     the lines it is charged on. A quotation the reader enters stands for
+     any class. Nothing here is a commercial or a land rate: none is made
+     up. Read on 10 Oct 2026. */
+  classRules: {
+    checkedOn: '2026-10-10',
+    lines: {
+      transferStampDuty: { commercial: 'same', land: 'same',
+        why: 'Item 32(a) charges any conveyance on sale of property at one scale, whatever the property; only a buyer who is not a citizen or permanent resident is charged by class (Items 32(aa)–(ab), held in the rulebook, not applied).' },
+      loanStampDuty: { commercial: 'same', land: 'same',
+        why: 'Item 27(a)(iii) charges a loan agreement on the amount it secures, whatever the property.' },
+      chargeStampDuty: { commercial: 'same', land: 'same',
+        why: 'Item 27(b) charges the collateral security at one-fifth of the principal’s duty, at most RM10, whatever the property.' },
+      registration: { commercial: 'same', land: 'same',
+        why: 'The Land (Registration of Title) Rules charge each instrument by the documents of title it deals with (fees item 3), not by what stands on the land.' },
+      purchaseLegal: { commercial: 'same', land: 'same',
+        why: 'Sarawak’s First Schedule is one scale on the “consideration or amount secured”, and its rules 1–4 turn on the instruments — a sale and purchase agreement, the memorandum of transfer, a deed of assignment — not on the class of property (Swk. L.N. (F) 348 of 2022, read 10 October 2026).' },
+      loanLegal: { commercial: 'gated', land: 'same',
+        why: 'Rule 7 prices the charge as the only security. A loan on a let commercial property commonly takes further security — an assignment of its rental proceeds, and for a company forms registered with the Companies Registry — priced under rules 9 and 11 per instrument (at least RM300 each) and at RM300 a set: which a lender requires was not checked. On land the charge is the security, as rule 7 prices it.' },
+      professionalServiceTax: { follows: ['purchaseLegal', 'loanLegal'],
+        why: 'The rate (8%) is the same for every class; it is charged on the legal fees, so it is no better than they are.' },
+      valuationFee: { commercial: 'same', land: 'gated',
+        why: 'The Seventh Schedule’s item 3 — “other capital valuation … on an Improved Value basis” — does not distinguish residential from commercial property (the Board of Valuers’ fees page, read 10 October 2026). Whether that item or another prices the valuation of a bare parcel was not checked.' },
+      valuationServiceTax: { follows: ['valuationFee'],
+        why: 'The rate (8%) is the same for every class; it is charged on the valuation fee.' },
+      disbursements: { commercial: 'gated', land: 'gated',
+        why: 'The estimate was formed for a residential purchase. A commercial purchase’s searches (a company search on a corporate vendor or tenant, the tenancy) and a land dealing’s consents under the Land Code and their searches were not checked.',
+        whyBy: { commercial: 'The estimate was formed for a residential purchase; a commercial purchase’s searches — a company search on a corporate vendor or tenant, the tenancy — were not checked.',
+          land: 'The estimate was formed for a residential purchase; a land dealing’s consents under the Land Code and their searches were not checked.' } },
+      utilityDeposits: { commercial: 'gated', land: 'gated',
+        why: 'The estimate was formed for a dwelling. A commercial unit’s deposits are set on the providers’ commercial tariffs and by its management body, and a bare parcel’s connections were not checked.',
+        whyBy: { commercial: 'The estimate was formed for a dwelling; a commercial unit’s deposits are set on the providers’ commercial tariffs and by its management body, and were not checked.',
+          land: 'The estimate was formed for a dwelling; a bare parcel’s connections, if any, were not checked.' } },
+      mortgageProtection: { commercial: 'gated', land: 'gated',
+        why: 'The RM8,000 estimate was formed for a housing loan; cover for a commercial or a land loan was not checked. A premium you were quoted stands for any class.' },
+    },
+  },
+
   /* Verified rules held for reference and applied to nothing here: the
      property data is Sarawak's. */
   reference: {
@@ -1840,6 +1895,7 @@ const FEE_TABLE = {
     { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
     { what: 'That the Solicitors’ Remuneration Order 2023 reaches only Peninsular Malaysia', why: 'inferred from the Legal Profession Act 1976, s. 2 and from Sarawak and Sabah having their own scales; no extending order was found, and its absence cannot be proven.' },
     { what: 'Sabah’s advocates’ scale', why: 'a separate Advocates’ Remuneration Rules 1988 (G.N.S. 17 of 1988) exists; its bands were not checked, and no property here is in Sabah.' },
+    { what: 'Lines whose rule differs by property class, for a commercial property or land', why: 'the security a commercial lender takes, a commercial purchase’s searches, commercial and land deposits, and the valuation of a bare parcel were not checked: those lines are not charged for the class (1.2.0) and the cash required is partial, naming them — see “Commercial property and land” above.' },
     { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
   ],
 };
@@ -1916,6 +1972,48 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   return out;
 }
 
+/* THE CLASS GATE (FEE_TABLE.classRules, 1.2.0). The words a gated line
+   reads, and whether a line is gated for a class: its own rule, or —
+   for a line charged on others — any line it follows. Residential is the
+   class every line was checked for: never gated. */
+const FEE_CLASS_WORD = { commercial: 'commercial property', land: 'land' };
+const feeGateWords = (cls) => `Unavailable — not yet checked for ${FEE_CLASS_WORD[cls] || cls}`;
+function feeClassGated(lineId, cls) {
+  if (!FEE_CLASS_WORD[cls]) return false;
+  const r = FEE_TABLE.classRules.lines[lineId];
+  if (!r) return false;
+  return r.follows ? r.follows.some(id => feeClassGated(id, cls)) : r[cls] === 'gated';
+}
+/* A resolved line, gated for the class where its rule is: no amount, the
+   class named, the reason kept. A quotation the reader entered stands,
+   and so does a line with nothing to charge (no loan, no loan fees). A
+   line charged on others is gated when one it is charged on, as resolved
+   here (`on`), is gated. */
+function feeGate(r, cls, { on = null } = {}) {
+  if (!r || !FEE_CLASS_WORD[cls] || r.quotedLine || r.provenance === 'quote' || r.why === 'Nothing to charge it on.') return r;
+  const rule = FEE_TABLE.classRules.lines[r.id];
+  const gated = rule?.follows ? (on || []).some(b => b?.gated) : feeClassGated(r.id, cls);
+  if (!gated) return r;
+  return { ...r, amount: null, status: 'unset', gated: cls, why: feeGateWords(cls), gateWhy: rule?.whyBy?.[cls] || rule?.why || null };
+}
+/* "a, b and c". */
+const feeList = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const feeLower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+/* THE CASH REQUIRED, PARTIAL (1.2.0): the gated lines a total leaves out,
+   or null. `words`: "partial: excludes loan legal fees and … — not yet
+   checked for commercial property". */
+function cashPartial(m) {
+  /* In the rulebook's class-table order: the legal fees and their tax
+     first, then the valuation, then the estimates. */
+  const order = Object.keys(FEE_TABLE.classRules.lines);
+  const g = (m?.missingCostLines || []).filter(x => x.gated).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  if (!g.length) return null;
+  const cls = g[0].gated, labels = g.map(x => feeLower(x.label));
+  return { cls, lines: g, labels, n: g.length,
+    words: `partial: excludes ${feeList(labels)} — not yet checked for ${FEE_CLASS_WORD[cls]}`,
+    short: `partial — ${g.length} line${g.length === 1 ? '' : 's'} not checked for ${cls === 'land' ? 'land' : 'commercial'}` };
+}
+
 /* What the rulebook still needs, so it can be reported rather than discovered. */
 const feeLinesWith = (...provenances) => Object.entries(FEE_TABLE.lines)
   .filter(([, l]) => provenances.includes(l.provenance)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
@@ -1951,6 +2049,8 @@ function feeBadge(r, amount = r?.amount) {
    the reader's own, whatever line it stands in. */
 function feeProvenanceLine(r) {
   const line = r.line || {};
+  /* Gated for the class (1.2.0): what it is, and why. */
+  if (r.gated) return `${r.why}${r.gateWhy ? `: ${feeLower(r.gateWhy)}` : ''}`;
   const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
   if (r.provenance === 'quote') return line.quoteKind === 'quoted' ? `${word} — the lender’s or insurer’s quotation you entered, not the rulebook’s` : `${word} — yours, not the rulebook’s`;
   const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');
@@ -2032,6 +2132,17 @@ function feeRulebookCard() {
   }
   card.append(el('p', { class: 'metaline fee-book-total-rule' },
     'No total is called verified while any line in it is not: wherever the cash required is shown, the amount resting on estimated or unknown lines is stated beside it.'));
+  /* BY PROPERTY CLASS (1.2.0): which lines are charged on a commercial
+     property and on land, which are not yet checked for them, and why. */
+  const cr = FEE_TABLE.classRules;
+  card.append(el('h3', { class: 'fee-book-h3', id: 'fee-rulebook-class' }, 'Commercial property and land'));
+  card.append(el('p', { class: 'metaline' }, `Every line was checked for a residential purchase. On a commercial property or on land, a line whose rule differs by class and has not been checked for it is not charged: it reads “Unavailable — not yet checked”, and the cash required is a partial total that names it. A line whose rule is the same for every class is charged as for any property. A quotation you enter stands for any class. Checked ${feeDay(cr.checkedOn)}.`));
+  const word = (id, cls) => (cr.lines[id].follows ? 'As the lines it is charged on' : cr.lines[id][cls] === 'gated' ? 'Not yet checked — Unavailable' : 'Charged: the same rule');
+  card.append(el('ul', { class: 'fee-book-list fee-book-class' }, Object.keys(cr.lines).map(id => el('li', { class: 'fee-book-line', 'data-fee-class-line': id,
+    'data-commercial': cr.lines[id].follows ? 'follows' : cr.lines[id].commercial, 'data-land': cr.lines[id].follows ? 'follows' : cr.lines[id].land }, [
+    el('p', { class: 'fee-book-name' }, el('strong', {}, FEE_TABLE.lines[id].label)),
+    el('dl', { class: 'fee-book-dl' }, [el('dt', {}, 'Commercial'), el('dd', {}, word(id, 'commercial')), el('dt', {}, 'Land'), el('dd', {}, word(id, 'land'))]),
+    el('p', { class: 'metaline' }, cr.lines[id].why)]))));
   /* Verified, and applied to nothing here: another jurisdiction's rule. */
   const refs = Object.entries(FEE_TABLE.reference || {});
   if (refs.length) {

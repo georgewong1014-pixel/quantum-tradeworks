@@ -528,7 +528,10 @@ try {
     for (const k of Object.keys(want)) if (JSON.stringify(r.got[k]) !== JSON.stringify(want[k])) p.push(`${k}: ${JSON.stringify(r.got[k])}, worked by hand ${JSON.stringify(want[k])}`);
     if (JSON.stringify(r.provenances) !== JSON.stringify(['verified', 'estimated', 'quote', 'unknown'])) p.push(`the provenances are ${JSON.stringify(r.provenances)}`);
     if (!/^\d+\.\d+\.\d+$/.test(r.version) || r.version === '0.1.0') p.push(`the rulebook's version is ${r.version}`);
-    if (r.version !== '1.1.0' || r.changelog[0] !== r.version) p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]} — the owner's 9 Oct decisions are 1.1.0, with a changelog line`);
+    /* 1.2.0: the owner's decision of 10 Oct 2026 (audit #4) gates the lines
+       not checked for commercial property and land; 1.1.0 (9 Oct) stays in
+       the changelog beneath it. */
+    if (r.version !== '1.2.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.1.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]} — the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
     if (JSON.stringify(r.kinds) !== JSON.stringify(['statutory', 'professional', 'quotation', 'optional', 'estimate'])) p.push(`the ledger's kinds are ${JSON.stringify(r.kinds)}, not the owner's five in order`);
     if (r.cats.some(c => !r.kinds.includes(c))) p.push(`a line's category is none of the five: ${JSON.stringify(r.cats)}`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.checkedOn || '')) p.push(`the rulebook's checked date is ${r.checkedOn}`);
@@ -5681,8 +5684,15 @@ try {
          land 5fd071bf:26044, shophouse ec3d5e3d:26325, condoAsCommercial
          199f6813:26491, taxed 5ed2ee3a:26680, cash 992946cf:25261,
          lowValuation cb5c4910:26638, noTenure 31f73f48:24330, managed
-         90a88244:26557. The questions still change none of them (below). */
-      const BASE = { sample: '758435b8:31047', land: 'c4e8950f:30596', shophouse: 'cc6fe798:30883', condoAsCommercial: 'bd2c91e3:31048',
+         90a88244:26557. The questions still change none of them (below).
+         Recorded again for the three of another class only, for the fee
+         rulebook 1.2.0 (the owner's decision of 10 Oct 2026 on audit #4,
+         "Gate them"): a line whose rule differs by class and is not checked
+         for it carries no amount on a commercial property or on land, and
+         is named among the missing lines. Was: land c4e8950f:30596,
+         shophouse cc6fe798:30883, condoAsCommercial bd2c91e3:31048. Every
+         residential deal's fingerprint is unchanged. */
+      const BASE = { sample: '758435b8:31047', land: '70c75a39:30812', shophouse: 'e47bc4b9:31913', condoAsCommercial: 'df62f2a4:32086',
         taxed: '09028703:31235', cash: 'c8ab8454:29826', lowValuation: '8d0782ba:31287', noTenure: '07ff01a8:28765', managed: '3e226266:31113' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
@@ -7158,6 +7168,139 @@ try {
     });
   }
   /* ---- end val-contracts ---- */
+
+  /* ---- val-fee-gates ---- */
+  /* CLASS-DEPENDENT FEE LINES, GATED (the owner's decision of 10 Oct 2026 on
+     audit #4, "Gate them"; the fee rulebook 1.2.0, FEE_TABLE.classRules).
+     G1 — a commercial property: the lines whose rule differs by class and
+          is not checked for it (loan legal fees, the service tax charged on
+          them, the searches and disbursements estimate, the utility
+          deposits estimate; mortgage protection at the estimate) carry no
+          amount and read "Unavailable — not yet checked for commercial
+          property"; every other line is the residential amount; the cash
+          required is the hand-worked partial total and names what it
+          excludes; a quote stands; a cash purchase has no loan fees to gate.
+     G2 — land: the valuation fee and its tax, the searches and the utility
+          deposits gated; the partial total by hand; the auction's
+          effective cost leaves the gated lines out and names them.
+     G3 — residential: no line gated, the figures as they were (P1 R1's
+          fingerprints hold for the residential deals).
+     G4 — drawn: the calculator's "Safe cash required — partial" and its
+          ledger, the Lab's tile, the comparison's cell, the rulebook's
+          version, changelog and class table on /data-sources. */
+  {
+    const gtry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const G_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const L = (x = {}) => F({ propertyType: 'Land', price: 300000, downPct: 100, landSqft: 4000, sqft: 0, quitRent: 1200, ...x });
+      const lines = (m) => Object.fromEntries(m.costGroups.flatMap(g => g.items.map(it => [it[2]?.id || it[0], { v: it[1], gated: it[2]?.gated || null, why: it[2]?.why || null }])));`;
+    const near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+
+    await gtry('val G1: a commercial property — the lines not checked for the class, gated', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${G_SEED}
+        const shop = F({ propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot' });
+        const m = dealModel(shop), p = cashPartial(m);
+        const inc = dealModel({ ...shop, mortgageProtection: 'included' }), quo = dealModel({ ...shop, mrtaPremium: 4200 });
+        const cash = dealModel({ ...shop, downPct: 100 });
+        return JSON.stringify({ lines: lines(m), cash: m.safeCashRequired, unconf: m.unconfirmedCost, words: p?.words || null, n: p?.n,
+          inc: { mp: lines(inc).mortgageProtection, cash: inc.safeCashRequired }, quo: { mp: lines(quo).mortgageProtection, cash: quo.safeCashRequired },
+          cashBuy: { lines: lines(cash), cash: cash.safeCashRequired, words: cashPartial(cash)?.words || null } }); })()`));
+      /* By hand (mode-contracts.md, G1): fixture F as a shophouse. Gated: loan legal 3,900, service tax 584 (charged on it),
+         searches 1,170, utility deposits 1,500 → 63,302 − 7,154 = 56,148. Still estimates: valuation 850 + 68 = 918.
+         Cash purchase: no loan fees (nothing to charge, so nothing gated); service tax 8% × 3,400 = 272 stands;
+         400,000 + 7,000 + 3,400 + 10 + 272 + 850 + 68 = 411,600 (reserve nought: no instalment, no running cost). */
+      const p = [];
+      const gate = 'Unavailable — not yet checked for commercial property';
+      for (const id of ['loanLegal', 'professionalServiceTax', 'disbursements', 'utilityDeposits']) {
+        const x = r.lines[id];
+        if (!x || x.v !== null || x.gated !== 'commercial' || x.why !== gate) p.push(`${id}: ${JSON.stringify(x)} — not "${gate}" with no amount`);
+      }
+      for (const [id, v] of Object.entries({ transferStampDuty: 7000, purchaseLegal: 3400, registration: 20, loanStampDuty: 1800, chargeStampDuty: 10, valuationFee: 850, valuationServiceTax: 68 }))
+        if (!near(r.lines[id]?.v, v) || r.lines[id]?.gated) p.push(`${id} is ${JSON.stringify(r.lines[id])} — its rule is the same for every class, by hand ${v}`);
+      if (!near(r.cash, 56148)) p.push(`the partial cash required is ${r.cash} — by hand 56,148`);
+      if (!near(r.unconf, 918)) p.push(`on unverified lines ${r.unconf} — by hand 918`);
+      if (r.words !== 'partial: excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property') p.push(`the partial total says "${r.words}"`);
+      if (r.inc.mp?.v !== null || r.inc.mp?.gated !== 'commercial' || !near(r.inc.cash, 56148)) p.push(`mortgage protection included at the estimate: ${JSON.stringify(r.inc)} — gated, the total unchanged`);
+      if (!near(r.quo.mp?.v, 4200) || r.quo.mp?.gated || !near(r.quo.cash, 56148 + 4200)) p.push(`a premium quoted: ${JSON.stringify(r.quo)} — it stands, 60,348`);
+      if (r.cashBuy.lines.loanLegal?.gated || !near(r.cashBuy.lines.professionalServiceTax?.v, 272) || !near(r.cashBuy.cash, 411600)
+        || r.cashBuy.words !== 'partial: excludes searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property') p.push(`a cash purchase: ${JSON.stringify({ ll: r.cashBuy.lines.loanLegal, st: r.cashBuy.lines.professionalServiceTax, cash: r.cashBuy.cash, words: r.cashBuy.words })} — by hand 272 of tax, 411,600, two lines excluded`);
+      if (p.length) fail('val G1: a commercial property — the lines not checked for the class, gated', p);
+      else ok('val G1: a commercial property — the loan legal fees, the tax charged on them, the searches and the utility deposits read "Unavailable — not yet checked for commercial property"; the duties, registration, the purchase legal fees and the valuation are the residential amounts; the cash required is RM56,148 by hand, "partial: excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits"; mortgage protection at the estimate is gated, a RM4,200 quote stands; a cash purchase gates no loan fee (RM411,600, two lines out)');
+    });
+
+    await gtry('val G2: land — the valuation, the searches and the deposits gated', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${G_SEED}
+        const m = dealModel(L());
+        const au = L({ route: 'auction', auctionComp1: 360000, arrearsQuitRent: 500, auctionLegal: 3000, auctionHoldMonths: 6 });
+        const a = auctionModel(au), tx = a.adds.find(s => s.id === 'transaction');
+        return JSON.stringify({ lines: lines(m), cash: m.safeCashRequired, words: cashPartial(m)?.words || null,
+          eff: a.effective, td: a.trueDiscount?.pct, tx: tx.amount, unpriced: tx.unpriced, gated: tx.gated }); })()`));
+      /* By hand (G2): a RM300,000 parcel, cash. Charged: duty 1,000 + 4,000 = 5,000; purchase legal 250 + 400 + 450 + 1,600 = 2,700;
+         registration 10; service tax 8% × 2,700 = 216; reserve 3 × 100 = 300; deposit 300,000 → 308,226. Gated: searches, valuation 650
+         and its 52 of tax, utility deposits. At auction (bid 300,000): 5,000 + 3,000 (the quote) + 10 + 8% × 3,000 = 240 → 8,250 priced;
+         + 500 arrears + 6 × 100 holding → 309,350; (360,000 − 309,350) ÷ 360,000 = 14.0694%. */
+      const p = [];
+      for (const id of ['disbursements', 'valuationFee', 'valuationServiceTax', 'utilityDeposits']) {
+        const x = r.lines[id];
+        if (!x || x.v !== null || x.gated !== 'land' || x.why !== 'Unavailable — not yet checked for land') p.push(`${id}: ${JSON.stringify(x)}`);
+      }
+      for (const [id, v] of Object.entries({ transferStampDuty: 5000, purchaseLegal: 2700, registration: 10, professionalServiceTax: 216, loanLegal: 0 }))
+        if (!near(r.lines[id]?.v, v) || r.lines[id]?.gated) p.push(`${id} is ${JSON.stringify(r.lines[id])} — by hand ${v}`);
+      if (!near(r.cash, 308226)) p.push(`land's partial cash required ${r.cash} — by hand 308,226`);
+      if (r.words !== 'partial: excludes valuation fee, service tax on the valuation fee, searches and the firm’s disbursements and utility and management deposits — not yet checked for land') p.push(`it says "${r.words}"`);
+      if (!near(r.tx, 8250) || !near(r.eff, 309350) || !near(r.td, 14.069444444, 1e-6) || r.gated !== 3) p.push(`land at auction: transaction ${r.tx} (${r.gated} gated of ${r.unpriced} unpriced), effective ${r.eff}, discount ${r.td} — by hand 8,250 (3 gated), 309,350, 14.0694%`);
+      if (p.length) fail('val G2: land — the valuation, the searches and the deposits gated', p);
+      else ok('val G2: land — the searches, the valuation fee and its tax and the utility deposits read "Unavailable — not yet checked for land"; the duty, the purchase legal fees, registration and the tax on the legal fees stand; the cash required is RM308,226 by hand, partial and naming the four; at auction the transaction costs are RM8,250 with 3 lines not checked for land, the effective cost RM309,350, a 14.07% true discount');
+    });
+
+    await gtry('val G3: residential — nothing gated, the figures as they were', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${G_SEED}
+        const deals = [F(), { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} }, F({ route: 'auction', auctionLegal: 5000 }), F({ route: 'newdev', downPct: 100 })];
+        return JSON.stringify(deals.map(d => { const m = dealModel(d); return { cash: m.safeCashRequired, gated: Object.values(lines(m)).filter(x => x.gated).length, partial: !!cashPartial(m), label: LAB_FIGURES.find(f => f.key === 'safeCashRequired').label(d) }; })); })()`));
+      const p = [];
+      if (!near(r[0].cash, 63302) || !near(r[1].cash, 118959.7)) p.push(`residential cash: F ${r[0].cash} (by hand 63,302), the sample ${r[1].cash} (1.1.0's RM118,959.70)`);
+      if (r.some(x => x.gated || x.partial || x.label !== 'Cash required')) p.push(`a residential deal shows a gate: ${JSON.stringify(r)}`);
+      if (p.length) fail('val G3: residential — nothing gated, the figures as they were', p);
+      else ok('val G3: residential — no line gated on a subsale, an auction or a new development; fixture F still RM63,302 and the sample still RM118,959.70; "Cash required", never partial');
+    });
+
+    await gtry('val G4: drawn — partial wherever the cash required is shown', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${G_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = { deal: State.deal };
+        State.deal = F({ propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot' }); saveDeal();
+        navigate('/property/calculator'); await w(800);
+        const cards = [...document.querySelectorAll('.pc-answers .ls-card, .pc-answers [class*="card"]')].map(n => n.textContent.replace(/\\s+/g, ' ')).join(' | ');
+        const ledgerGated = [...document.querySelectorAll('.pc-cost-table [data-gated]')].map(n => n.textContent);
+        const total = [...document.querySelectorAll('.pc-cost-table tr')].map(n => n.textContent).find(t => /Total initial cash/.test(t)) || null;
+        const dock = document.querySelector('.ls-dock, .dock')?.textContent?.replace(/\\s+/g, ' ') || '';
+        navigate('/property'); await w(900);
+        const tile = document.querySelector('.lab-tile[data-tile="safeCashRequired"]')?.textContent?.replace(/\\s+/g, ' ') || null;
+        navigate('/data-sources'); await w(900);
+        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.2.0') || false,
+          log: document.querySelector('[data-fee-version="1.2.0"]')?.textContent || null,
+          cls: Object.fromEntries([...document.querySelectorAll('[data-fee-class-line]')].map(n => [n.dataset.feeClassLine, [n.dataset.commercial, n.dataset.land]])) };
+        State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
+        return JSON.stringify({ cards, ledgerGated, total, dock, tile, book }); })()`));
+      const p = [];
+      if (!/Safe cash required — partial/.test(r.cards) || !/Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property/.test(r.cards)) p.push(`the calculator's answer card: "${r.cards.slice(0, 300)}"`);
+      if (r.ledgerGated.length !== 4 || r.ledgerGated.some(t => t !== 'Unavailable')) p.push(`the ledger's gated rows: ${JSON.stringify(r.ledgerGated)}`);
+      if (!/Total initial cash — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
+      if (r.dock && !/Safe cash — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
+      if (!/Cash required — partial/.test(r.tile || '') || !/partial — 4 lines not checked for commercial/.test(r.tile || '')) p.push(`the Lab's tile reads "${r.tile}"`);
+      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.2.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
+      const want = { transferStampDuty: ['same', 'same'], loanStampDuty: ['same', 'same'], chargeStampDuty: ['same', 'same'], registration: ['same', 'same'], purchaseLegal: ['same', 'same'],
+        loanLegal: ['gated', 'same'], professionalServiceTax: ['follows', 'follows'], valuationFee: ['same', 'gated'], valuationServiceTax: ['follows', 'follows'],
+        disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
+      if (JSON.stringify(r.book.cls) !== JSON.stringify(want)) p.push(`the class table: ${JSON.stringify(r.book.cls)}`);
+      if (p.length) fail('val G4: drawn — partial wherever the cash required is shown', p);
+      else ok('val G4: on a shophouse the calculator says "Safe cash required — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Total initial cash — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.2.0, its changelog and the class table line by line');
+    });
+  }
+  /* ---- end val-fee-gates ---- */
 
 } catch (e) {
   fail('harness error', e.message);

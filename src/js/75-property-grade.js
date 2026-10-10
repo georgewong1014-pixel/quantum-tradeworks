@@ -620,7 +620,12 @@ function dealModel(d) {
      and whether it is unset. A line the registry cannot price is listed with a
      null amount rather than omitted — an absent row reads as a cost that does
      not exist, and these all exist. */
-  const feeLine = (id, bases, opts) => { const r = resolveFee(id, bases, opts); return [r.label, r.amount, r]; };
+  /* THE CLASS GATE (the fee rulebook 1.2.0): on a commercial property or on
+     land, a line whose rule differs by class and was not checked for it
+     has no amount, and says why (feeGate, 70-property.js). A residential
+     deal's lines pass through untouched. */
+  const feeClass = propertyClassOf(d);
+  const feeLine = (id, bases, opts, on = null) => { const r = feeGate(resolveFee(id, bases, opts), feeClass, { on }); return [r.label, r.amount, r]; };
   /* The fees service tax is charged on (the rulebook: the purchase and loan
      legal fees; the valuation fee, on its own line), resolved once so the
      tax and the fee cannot disagree. Null, not zero: coercing an unpriced
@@ -637,8 +642,8 @@ function dealModel(d) {
   const purchaseLegalR = legalQuote != null
     ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
-    : resolveFee('purchaseLegal', { price: d.price });
-  const loanLegalR = resolveFee('loanLegal', { loan });
+    : feeGate(resolveFee('purchaseLegal', { price: d.price }), feeClass);
+  const loanLegalR = feeGate(resolveFee('loanLegal', { loan }), feeClass);
   /* What the auction passes to the buyer, as the reader entered it: each a
      line only once entered, so a deal answered Auction with nothing entered
      is the deal it was. */
@@ -664,7 +669,7 @@ function dealModel(d) {
   const newDevRoute = dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land';
   const ndBuild = newDevRoute ? ndConstruction(d, loan) : null;
   const ndRebate = newDevRoute && isNum(d.ndRebates) && d.ndRebates > 0 ? d.ndRebates : 0;
-  const valuationR = resolveFee('valuationFee', { price: d.price });
+  const valuationR = feeGate(resolveFee('valuationFee', { price: d.price }), feeClass);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
@@ -697,7 +702,7 @@ function dealModel(d) {
            1.1.0: verified, out of the disbursements estimate). */
         feeLine('registration', { instruments: loan > 0 ? 2 : 1 }),
         feeLine('disbursements', {}),
-        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
+        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }, [purchaseLegalR, loanLegalR]),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
@@ -706,7 +711,7 @@ function dealModel(d) {
         feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
-        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
+        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR]),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -738,7 +743,9 @@ function dealModel(d) {
   /* The group's id travels with each line, so a total can ask whether a
      missing line is one of its own without matching on label text. */
   const missingCostLines = costGroups.flatMap(g =>
-    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why })));
+    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why,
+      /* Gated for the class (1.2.0): the total is partial, and names it. */
+      ...(it[2]?.gated ? { gated: it[2].gated, id: it[2].id } : {}) })));
 
   /* How much of the completion cash rests on a figure nobody has checked. A
      placeholder total looks exactly like a finished one, so the proportion has
@@ -1578,7 +1585,9 @@ function auctionModel(d, m = dealModel(d)) {
       kindFirst(arrearsIn.map(p => p.kind)) || 'yours', { parts: arrearsParts, partsMissing: arrearsParts.filter(p => p.amount == null).map(p => p.label) }),
     step('possession', 'Possession', has('possessionCost') ? d.possessionCost : null, kindOf('possessionCost'), { key: 'possessionCost', months: has('possessionMonths') ? d.possessionMonths : null }),
     step('transaction', 'Transaction costs', feesPriced.length ? feesPriced.reduce((t, it) => t + it[1], 0) : null, kindFirst(feeKinds) || 'derived',
-      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance })), unpriced: fees.length - feesPriced.length }),
+      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
+        /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
+        gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
     step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
   ];
   const counted = adds.filter(a => a.amount != null);
@@ -2542,8 +2551,12 @@ VIEWS.property = () => {
     /* While any fee line is not Verified, the headline says how much of
        it rests on those lines (the fee rulebook, 70-property.js); the
        ledger below names them. */
-    safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-      (unpricedLines.length
+    /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+       the lines not yet checked for the class are named, never a
+       full-looking figure. */
+    safe: [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+      (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
+        : unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
         : 'Including rent-ready and the reserve')
       + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
@@ -2676,7 +2689,7 @@ VIEWS.property = () => {
     });
     wf.append(bars);
     if (m.missingCostLines?.length) wf.append(el('p', { class: 'metaline', style: 'margin-top:10px;color:var(--bronze)' },
-      `${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
+      `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
     onePage.append(wf);
   }
 
@@ -3746,7 +3759,7 @@ VIEWS.property = () => {
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
           : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
-              title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+              title: it[2]?.why || 'No value has been entered for this line.', 'data-gated': it[2]?.gated || null }, it[2]?.gated ? 'Unavailable' : 'not set')),
       ]));
     });
     /* THE OPTIONAL LINES LEFT OUT (the rulebook 1.1.0): listed, with no
@@ -3775,7 +3788,7 @@ VIEWS.property = () => {
   cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' }, [
-      nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
+      cashPartial(m) ? 'Total initial cash — partial' : nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
       /* Its weakest input's kind, the fee lines' included (N6). */
       kindBadge(DKF.kind, { fine: DKF.fine })]),
     el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
@@ -3783,7 +3796,7 @@ VIEWS.property = () => {
      bold figure at the foot of a ledger is read as the answer. */
   if (nMissing) cashB.append(el('tr', {}, [
     el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
-      `This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
+      `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
   /* The share of the total resting on unchecked figures, stated as a
      proportion. Individual markers tell a reader which lines; only this tells
      them how much of the answer is affected. */
@@ -3881,7 +3894,9 @@ VIEWS.property = () => {
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
      ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
      : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
-   ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
+   [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', m.safeCashRequired, cashPartial(m)
+     ? `Everything priced, including what is already paid — ${cashPartial(m).words}. The real figure is higher by whatever those come to.`
+     : (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
     .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel ls-fig' },

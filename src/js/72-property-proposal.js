@@ -632,8 +632,8 @@ function cpKeyFigures(d, m, cash) {
   return el('div', { class: 'cp-figs' }, [
     fig('Cash to complete', 'cashStillRequiredToComplete', cash.complete,
       shortComplete ? 'So far — a cost line is not priced' : cash.paid > 0 ? ['On completion day, after ', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), ' paid at offer'] : 'Paid out on completion day'),
-    fig('Safe cash required', 'safeCashRequired', cash.safe,
-      short ? 'So far — a cost line is not priced' : 'With the renovation and the reserve'),
+    fig(cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', 'safeCashRequired', cash.safe,
+      cashPartial(m) ? `Partial — ${cashPartial(m).n} line${cashPartial(m).n === 1 ? '' : 's'} not yet checked for ${FEE_CLASS_WORD[cashPartial(m).cls]}` : short ? 'So far — a cost line is not priced' : 'With the renovation and the reserve'),
     fig('Monthly instalment', 'instalment', m.instalment,
       !(m.loan > 0) ? 'No loan: the price is paid without one'
         : isNum(m.instalment) ? `${cpPct(d.ratePct, 2)} over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed — the loan has no repayment schedule'),
@@ -719,18 +719,18 @@ function cpAcquisitionSection(d, m, cash) {
       rows.push(el('tr', {}, [
         el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2]), ...(it[2]?.line ? [' ', kindBadge(feeKindBadge(it[2], g.lines[j]), { link: false, fine: FEE_PROVENANCE[it[2].provenance]?.word || null })] : [])]),
         el('td', { class: 'num' }, isNum(g.lines[j]) ? cpFig('line', cpMoney(g.lines[j]), { 'data-cp-line': it[0], 'data-cp-group': g.id })
-          : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, 'not priced')),
+          : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, it[2]?.gated ? feeGateWords(it[2].gated) : 'not priced')),
       ]));
     });
     if (g.items.length > 1) rows.push(el('tr', { class: 'cp-sub' }, [el('th', { scope: 'row' }, `${g.label}, together`),
       el('td', { class: 'num' }, cpFig('subtotal', cpMoney(g.printed), { 'data-cp-group': g.id }))]));
   });
   const missing = m.missingCostLines || [];
-  rows.push(el('tr', { class: 'cp-total' }, [el('th', { scope: 'row' }, missing.length ? 'Total so far' : 'Total'),
+  rows.push(el('tr', { class: 'cp-total' }, [el('th', { scope: 'row' }, cashPartial(m) ? 'Total — partial' : missing.length ? 'Total so far' : 'Total'),
     el('td', { class: 'num' }, [cpFig('totalInitialCash', cpMoney(cash.total)), ' ', (() => { const k = dealKind(d, m, { fees: true }); return kindBadge(k.kind, { link: false, fine: k.fine }); })()])]));
   s.append(cpTable('What buying it takes, line by line', ['Cost', 'Amount'], rows, { cls: 'cp-ledger' }));
   s.append(cpNote('Each amount is in whole ringgit, rounded so that the lines add up to the totals printed: a line can be a ringgit under or over its own rounding.'));
-  if (missing.length) s.append(cpNote(`Not the full amount: ${missing.map(x => x.label.toLowerCase()).join(', ')} could not be priced, so the total is short by whatever ${missing.length === 1 ? 'it comes' : 'they come'} to. ${missing.length === 1 ? 'It is' : 'They are'} left unpriced rather than counted as nothing.`, { warn: true }));
+  if (missing.length) s.append(cpNote(`${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}Not the full amount: ${missing.map(x => x.label.toLowerCase()).join(', ')} could not be priced, so the total is short by whatever ${missing.length === 1 ? 'it comes' : 'they come'} to. ${missing.length === 1 ? 'It is' : 'They are'} left unpriced rather than counted as nothing.`, { warn: true }));
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && m.totalInitialCash > 0)
     s.append(el('p', { class: 'cp-note cp-warn' }, [cpFig('unconfirmedCost', cpMoney(m.unconfirmedCost)),
       ' of the total — ', cpFig('unconfirmedShare', fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)),

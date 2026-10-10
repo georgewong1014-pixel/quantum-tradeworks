@@ -34231,7 +34231,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Safe cash — partial' : pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
@@ -39248,7 +39248,7 @@ const PROPERTY_CLASSES = {
   residential: { id:'residential', label:'Residential', letsToTenant:true, strataCharges:true,
     note:'A dwelling let to an occupier. Every default in this tool was written for this class.' },
   commercial:  { id:'commercial',  label:'Commercial',  letsToTenant:true, strataCharges:true,
-    note:'A shop, office, industrial unit or commercial lot let to a tenant. The fee rulebook prices its purchase as it prices any property — its lines are written for any property — and no rate is made up for the class. What the rulebook does not hold, a lender’s commercial terms or a tax charged on a commercial rent, is not priced here: check it with the lender and a tax adviser.' },
+    note:'A shop, office, industrial unit or commercial lot let to a tenant. The fee rulebook charges the lines whose rule is the same for any property; the lines whose rule differs by class and is not yet checked for commercial property read Unavailable, so the cash required is partial and names them — no rate is made up for the class. What the rulebook does not hold, a lender’s commercial terms or a tax charged on a commercial rent, is not priced here: check it with the lender and a tax adviser.' },
   land:        { id:'land',        label:'Land',        letsToTenant:false, strataCharges:false,
     note:'A bare parcel. It carries cost and it may appreciate, but it has no tenancy — so rent, vacancy, yield, debt-service cover and break-even rent are not quantities this asset has.' },
 };
@@ -39370,17 +39370,22 @@ const dealObjective = (d) => (d && Object.hasOwn(PROPERTY_OBJECTIVES, d.objectiv
    8% residential and 4% other) are held and applied to no class; and what
    a lender offers on a commercial loan is the lender's, entered by the
    reader. Nothing in it is a rate this tool made up. */
+/* The lines gated for a class (FEE_TABLE.classRules, 1.2.0), as the
+   class's rulebook note lists them. */
+const feeGatedFor = (cls) => Object.entries(FEE_TABLE.classRules.lines).filter(([id, r]) => !r.follows && r[cls] === 'gated')
+  .map(([id, r]) => ({ title: FEE_TABLE.lines[id].label, state: feeGateWords(cls), what: r.whyBy?.[cls] || r.why, source: null }));
 function propertyClassRulebook(cls) {
   if (cls === 'commercial') return {
-    line: `Commercial: the fee rulebook (${FEE_TABLE.version}) prices the purchase with the lines it uses for any property — no rate is made up for the class.`,
+    line: `Commercial: the fee rulebook (${FEE_TABLE.version}) charges the lines whose rule is the same for any property; a line whose rule differs by class and is not yet checked for commercial property reads Unavailable, and the cash required is partial and names it — no rate is made up for the class.`,
     /* Each rule that does turn on the class, with its standing in the
        rulebook and its source; then what the rulebook does not hold. */
     differs: [
+      ...feeGatedFor('commercial'),
       ...FEE_TABLE.notApplied.filter(x => x.id === 'firstHome' || x.id === 'nonCitizen').map(x => ({ title: x.title, state: 'Held in the rulebook, not applied', what: x.what, source: x.source || null })),
       { title: 'A lender’s terms for a commercial loan', state: 'Not in the rulebook', what: 'The margin of finance and the tenure are the lender’s policy: enter the ones you are offered.', source: null },
       { title: 'A tax charged on a commercial rent', state: 'Not in the rulebook', what: 'Not priced here: check it with a tax adviser.', source: null },
     ] };
-  if (cls === 'land') return { line: PROPERTY_CLASSES.land.note, differs: [] };
+  if (cls === 'land') return { line: `${PROPERTY_CLASSES.land.note} The fee rulebook (${FEE_TABLE.version}) charges the lines whose rule is the same for any property; a line not yet checked for land reads Unavailable, and the cash required is partial and names it.`, differs: feeGatedFor('land') };
   return null;
 }
 
@@ -40517,8 +40522,8 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.1.0',
-  checkedOn: '2026-10-09',
+  version: '1.2.0',
+  checkedOn: '2026-10-10',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
@@ -40548,6 +40553,8 @@ const FEE_TABLE = {
   /* What changed, version by version: a reader of /data-sources who sees
      the figures move is owed the reason. Newest first. */
   changelog: [
+    { version: '1.2.0', date: '2026-10-10',
+      what: 'Lines whose rule differs by property class, and has not been checked for the class, are no longer charged on a commercial property or on land: they read “Unavailable — not yet checked for commercial property” (or land), and the cash required for those classes is a partial total that names them. Commercial: the loan legal fees (rule 7 prices the charge alone; a commercial financing commonly takes further security priced per instrument), the service tax charged on them, the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. Land: the valuation fee and its service tax (the scale’s item is for a valuation on an improved-value basis), the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. The transfer and loan stamp duties, the charge’s stamp, registration and the purchase legal fees stay for every class: their rules do not turn on the class (each line’s source says why). A quotation you enter stands for any class. No rate is made up for either class; residential figures are unchanged.' },
     { version: '1.1.0', date: '2026-10-09',
       what: 'Mortgage protection (MRTA/MLTA) is an optional line, off by default: left out of the cash required unless you include it or enter a quote, and listed as “Optional: mortgage protection” so its absence is visible — the sample’s cash required falls by its RM8,000 estimate. The ledger is split into five kinds: statutory charges, professional fees on a published scale, quotations, optional products and estimates. Registration of the transfer and the charge (RM10 an instrument, Land and Survey Department, Sarawak) and the stamp duty on the charge (one-fifth of the loan agreement’s duty, at most RM10: Item 27(b)) are verified and taken out of the disbursements estimate, which keeps the rest. The valuation fee, the searches and the firm’s disbursements, and the utility deposits stay estimates: no primary source fixing them was found.' },
     { version: '1.0.0', date: '2026-10-08',
@@ -40779,6 +40786,54 @@ const FEE_TABLE = {
     },
   },
 
+  /* WHICH LINES TURN ON THE PROPERTY'S CLASS (1.2.0; the owner's decision
+     of 10 Oct 2026 on daily audit #4: "Gate them"). Kept beside the lines,
+     not in them, so a residential deal's ledger is the object it was.
+     For each line and each class other than residential, either:
+       same  — its rule does not turn on the class; `why` says so from the
+               text read, and the line is charged as for any property;
+       gated — its rule (or the estimate's basis) differs by class and was
+               not checked for this one: the line reads "Unavailable — not
+               yet checked for commercial property" (or land), carries no
+               amount, and the cash required is a partial total naming it.
+     `follows`: a line charged on other lines (service tax) is gated with
+     the lines it is charged on. A quotation the reader enters stands for
+     any class. Nothing here is a commercial or a land rate: none is made
+     up. Read on 10 Oct 2026. */
+  classRules: {
+    checkedOn: '2026-10-10',
+    lines: {
+      transferStampDuty: { commercial: 'same', land: 'same',
+        why: 'Item 32(a) charges any conveyance on sale of property at one scale, whatever the property; only a buyer who is not a citizen or permanent resident is charged by class (Items 32(aa)–(ab), held in the rulebook, not applied).' },
+      loanStampDuty: { commercial: 'same', land: 'same',
+        why: 'Item 27(a)(iii) charges a loan agreement on the amount it secures, whatever the property.' },
+      chargeStampDuty: { commercial: 'same', land: 'same',
+        why: 'Item 27(b) charges the collateral security at one-fifth of the principal’s duty, at most RM10, whatever the property.' },
+      registration: { commercial: 'same', land: 'same',
+        why: 'The Land (Registration of Title) Rules charge each instrument by the documents of title it deals with (fees item 3), not by what stands on the land.' },
+      purchaseLegal: { commercial: 'same', land: 'same',
+        why: 'Sarawak’s First Schedule is one scale on the “consideration or amount secured”, and its rules 1–4 turn on the instruments — a sale and purchase agreement, the memorandum of transfer, a deed of assignment — not on the class of property (Swk. L.N. (F) 348 of 2022, read 10 October 2026).' },
+      loanLegal: { commercial: 'gated', land: 'same',
+        why: 'Rule 7 prices the charge as the only security. A loan on a let commercial property commonly takes further security — an assignment of its rental proceeds, and for a company forms registered with the Companies Registry — priced under rules 9 and 11 per instrument (at least RM300 each) and at RM300 a set: which a lender requires was not checked. On land the charge is the security, as rule 7 prices it.' },
+      professionalServiceTax: { follows: ['purchaseLegal', 'loanLegal'],
+        why: 'The rate (8%) is the same for every class; it is charged on the legal fees, so it is no better than they are.' },
+      valuationFee: { commercial: 'same', land: 'gated',
+        why: 'The Seventh Schedule’s item 3 — “other capital valuation … on an Improved Value basis” — does not distinguish residential from commercial property (the Board of Valuers’ fees page, read 10 October 2026). Whether that item or another prices the valuation of a bare parcel was not checked.' },
+      valuationServiceTax: { follows: ['valuationFee'],
+        why: 'The rate (8%) is the same for every class; it is charged on the valuation fee.' },
+      disbursements: { commercial: 'gated', land: 'gated',
+        why: 'The estimate was formed for a residential purchase. A commercial purchase’s searches (a company search on a corporate vendor or tenant, the tenancy) and a land dealing’s consents under the Land Code and their searches were not checked.',
+        whyBy: { commercial: 'The estimate was formed for a residential purchase; a commercial purchase’s searches — a company search on a corporate vendor or tenant, the tenancy — were not checked.',
+          land: 'The estimate was formed for a residential purchase; a land dealing’s consents under the Land Code and their searches were not checked.' } },
+      utilityDeposits: { commercial: 'gated', land: 'gated',
+        why: 'The estimate was formed for a dwelling. A commercial unit’s deposits are set on the providers’ commercial tariffs and by its management body, and a bare parcel’s connections were not checked.',
+        whyBy: { commercial: 'The estimate was formed for a dwelling; a commercial unit’s deposits are set on the providers’ commercial tariffs and by its management body, and were not checked.',
+          land: 'The estimate was formed for a dwelling; a bare parcel’s connections, if any, were not checked.' } },
+      mortgageProtection: { commercial: 'gated', land: 'gated',
+        why: 'The RM8,000 estimate was formed for a housing loan; cover for a commercial or a land loan was not checked. A premium you were quoted stands for any class.' },
+    },
+  },
+
   /* Verified rules held for reference and applied to nothing here: the
      property data is Sarawak's. */
   reference: {
@@ -40823,6 +40878,7 @@ const FEE_TABLE = {
     { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
     { what: 'That the Solicitors’ Remuneration Order 2023 reaches only Peninsular Malaysia', why: 'inferred from the Legal Profession Act 1976, s. 2 and from Sarawak and Sabah having their own scales; no extending order was found, and its absence cannot be proven.' },
     { what: 'Sabah’s advocates’ scale', why: 'a separate Advocates’ Remuneration Rules 1988 (G.N.S. 17 of 1988) exists; its bands were not checked, and no property here is in Sabah.' },
+    { what: 'Lines whose rule differs by property class, for a commercial property or land', why: 'the security a commercial lender takes, a commercial purchase’s searches, commercial and land deposits, and the valuation of a bare parcel were not checked: those lines are not charged for the class (1.2.0) and the cash required is partial, naming them — see “Commercial property and land” above.' },
     { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
   ],
 };
@@ -40899,6 +40955,48 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
   return out;
 }
 
+/* THE CLASS GATE (FEE_TABLE.classRules, 1.2.0). The words a gated line
+   reads, and whether a line is gated for a class: its own rule, or —
+   for a line charged on others — any line it follows. Residential is the
+   class every line was checked for: never gated. */
+const FEE_CLASS_WORD = { commercial: 'commercial property', land: 'land' };
+const feeGateWords = (cls) => `Unavailable — not yet checked for ${FEE_CLASS_WORD[cls] || cls}`;
+function feeClassGated(lineId, cls) {
+  if (!FEE_CLASS_WORD[cls]) return false;
+  const r = FEE_TABLE.classRules.lines[lineId];
+  if (!r) return false;
+  return r.follows ? r.follows.some(id => feeClassGated(id, cls)) : r[cls] === 'gated';
+}
+/* A resolved line, gated for the class where its rule is: no amount, the
+   class named, the reason kept. A quotation the reader entered stands,
+   and so does a line with nothing to charge (no loan, no loan fees). A
+   line charged on others is gated when one it is charged on, as resolved
+   here (`on`), is gated. */
+function feeGate(r, cls, { on = null } = {}) {
+  if (!r || !FEE_CLASS_WORD[cls] || r.quotedLine || r.provenance === 'quote' || r.why === 'Nothing to charge it on.') return r;
+  const rule = FEE_TABLE.classRules.lines[r.id];
+  const gated = rule?.follows ? (on || []).some(b => b?.gated) : feeClassGated(r.id, cls);
+  if (!gated) return r;
+  return { ...r, amount: null, status: 'unset', gated: cls, why: feeGateWords(cls), gateWhy: rule?.whyBy?.[cls] || rule?.why || null };
+}
+/* "a, b and c". */
+const feeList = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const feeLower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+/* THE CASH REQUIRED, PARTIAL (1.2.0): the gated lines a total leaves out,
+   or null. `words`: "partial: excludes loan legal fees and … — not yet
+   checked for commercial property". */
+function cashPartial(m) {
+  /* In the rulebook's class-table order: the legal fees and their tax
+     first, then the valuation, then the estimates. */
+  const order = Object.keys(FEE_TABLE.classRules.lines);
+  const g = (m?.missingCostLines || []).filter(x => x.gated).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  if (!g.length) return null;
+  const cls = g[0].gated, labels = g.map(x => feeLower(x.label));
+  return { cls, lines: g, labels, n: g.length,
+    words: `partial: excludes ${feeList(labels)} — not yet checked for ${FEE_CLASS_WORD[cls]}`,
+    short: `partial — ${g.length} line${g.length === 1 ? '' : 's'} not checked for ${cls === 'land' ? 'land' : 'commercial'}` };
+}
+
 /* What the rulebook still needs, so it can be reported rather than discovered. */
 const feeLinesWith = (...provenances) => Object.entries(FEE_TABLE.lines)
   .filter(([, l]) => provenances.includes(l.provenance)).map(([id, l]) => ({ id, label: l.label, note: l.note }));
@@ -40934,6 +41032,8 @@ function feeBadge(r, amount = r?.amount) {
    the reader's own, whatever line it stands in. */
 function feeProvenanceLine(r) {
   const line = r.line || {};
+  /* Gated for the class (1.2.0): what it is, and why. */
+  if (r.gated) return `${r.why}${r.gateWhy ? `: ${feeLower(r.gateWhy)}` : ''}`;
   const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
   if (r.provenance === 'quote') return line.quoteKind === 'quoted' ? `${word} — the lender’s or insurer’s quotation you entered, not the rulebook’s` : `${word} — yours, not the rulebook’s`;
   const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');
@@ -41015,6 +41115,17 @@ function feeRulebookCard() {
   }
   card.append(el('p', { class: 'metaline fee-book-total-rule' },
     'No total is called verified while any line in it is not: wherever the cash required is shown, the amount resting on estimated or unknown lines is stated beside it.'));
+  /* BY PROPERTY CLASS (1.2.0): which lines are charged on a commercial
+     property and on land, which are not yet checked for them, and why. */
+  const cr = FEE_TABLE.classRules;
+  card.append(el('h3', { class: 'fee-book-h3', id: 'fee-rulebook-class' }, 'Commercial property and land'));
+  card.append(el('p', { class: 'metaline' }, `Every line was checked for a residential purchase. On a commercial property or on land, a line whose rule differs by class and has not been checked for it is not charged: it reads “Unavailable — not yet checked”, and the cash required is a partial total that names it. A line whose rule is the same for every class is charged as for any property. A quotation you enter stands for any class. Checked ${feeDay(cr.checkedOn)}.`));
+  const word = (id, cls) => (cr.lines[id].follows ? 'As the lines it is charged on' : cr.lines[id][cls] === 'gated' ? 'Not yet checked — Unavailable' : 'Charged: the same rule');
+  card.append(el('ul', { class: 'fee-book-list fee-book-class' }, Object.keys(cr.lines).map(id => el('li', { class: 'fee-book-line', 'data-fee-class-line': id,
+    'data-commercial': cr.lines[id].follows ? 'follows' : cr.lines[id].commercial, 'data-land': cr.lines[id].follows ? 'follows' : cr.lines[id].land }, [
+    el('p', { class: 'fee-book-name' }, el('strong', {}, FEE_TABLE.lines[id].label)),
+    el('dl', { class: 'fee-book-dl' }, [el('dt', {}, 'Commercial'), el('dd', {}, word(id, 'commercial')), el('dt', {}, 'Land'), el('dd', {}, word(id, 'land'))]),
+    el('p', { class: 'metaline' }, cr.lines[id].why)]))));
   /* Verified, and applied to nothing here: another jurisdiction's rule. */
   const refs = Object.entries(FEE_TABLE.reference || {});
   if (refs.length) {
@@ -43571,7 +43682,7 @@ function pmCompareFigures(d, run = pmCompareRun(d)) {
   const short = (m.missingCostLines || []).length;
   return [
     ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—', isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? 'neg' : ''],
-    ['Cash required', isNum(m.safeCashRequired) ? `${fmtAmount(m.safeCashRequired, 'MYR')}${short ? ' so far' : ''}` : '—', ''],
+    ['Cash required', isNum(m.safeCashRequired) ? `${fmtAmount(m.safeCashRequired, 'MYR')}${cashPartial(m) ? ' — partial' : short ? ' so far' : ''}` : '—', ''],
     ['Net yield', isNum(m.netYield) ? fmtPct(m.netYield, 2) : '—', ''],
     ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—', ''],
     ['Grade', `${g.grade}${g.verdict ? ` — ${g.verdict}` : ''}`, ''],
@@ -44483,8 +44594,8 @@ function cpKeyFigures(d, m, cash) {
   return el('div', { class: 'cp-figs' }, [
     fig('Cash to complete', 'cashStillRequiredToComplete', cash.complete,
       shortComplete ? 'So far — a cost line is not priced' : cash.paid > 0 ? ['On completion day, after ', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), ' paid at offer'] : 'Paid out on completion day'),
-    fig('Safe cash required', 'safeCashRequired', cash.safe,
-      short ? 'So far — a cost line is not priced' : 'With the renovation and the reserve'),
+    fig(cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', 'safeCashRequired', cash.safe,
+      cashPartial(m) ? `Partial — ${cashPartial(m).n} line${cashPartial(m).n === 1 ? '' : 's'} not yet checked for ${FEE_CLASS_WORD[cashPartial(m).cls]}` : short ? 'So far — a cost line is not priced' : 'With the renovation and the reserve'),
     fig('Monthly instalment', 'instalment', m.instalment,
       !(m.loan > 0) ? 'No loan: the price is paid without one'
         : isNum(m.instalment) ? `${cpPct(d.ratePct, 2)} over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed — the loan has no repayment schedule'),
@@ -44570,18 +44681,18 @@ function cpAcquisitionSection(d, m, cash) {
       rows.push(el('tr', {}, [
         el('th', { scope: 'row' }, [cpLineLabel(it[0]), mark(it[2]), ...(it[2]?.line ? [' ', kindBadge(feeKindBadge(it[2], g.lines[j]), { link: false, fine: FEE_PROVENANCE[it[2].provenance]?.word || null })] : [])]),
         el('td', { class: 'num' }, isNum(g.lines[j]) ? cpFig('line', cpMoney(g.lines[j]), { 'data-cp-line': it[0], 'data-cp-group': g.id })
-          : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, 'not priced')),
+          : el('span', { class: 'cp-unpriced', 'data-cp': 'line', 'data-cp-line': it[0], 'data-cp-group': g.id }, it[2]?.gated ? feeGateWords(it[2].gated) : 'not priced')),
       ]));
     });
     if (g.items.length > 1) rows.push(el('tr', { class: 'cp-sub' }, [el('th', { scope: 'row' }, `${g.label}, together`),
       el('td', { class: 'num' }, cpFig('subtotal', cpMoney(g.printed), { 'data-cp-group': g.id }))]));
   });
   const missing = m.missingCostLines || [];
-  rows.push(el('tr', { class: 'cp-total' }, [el('th', { scope: 'row' }, missing.length ? 'Total so far' : 'Total'),
+  rows.push(el('tr', { class: 'cp-total' }, [el('th', { scope: 'row' }, cashPartial(m) ? 'Total — partial' : missing.length ? 'Total so far' : 'Total'),
     el('td', { class: 'num' }, [cpFig('totalInitialCash', cpMoney(cash.total)), ' ', (() => { const k = dealKind(d, m, { fees: true }); return kindBadge(k.kind, { link: false, fine: k.fine }); })()])]));
   s.append(cpTable('What buying it takes, line by line', ['Cost', 'Amount'], rows, { cls: 'cp-ledger' }));
   s.append(cpNote('Each amount is in whole ringgit, rounded so that the lines add up to the totals printed: a line can be a ringgit under or over its own rounding.'));
-  if (missing.length) s.append(cpNote(`Not the full amount: ${missing.map(x => x.label.toLowerCase()).join(', ')} could not be priced, so the total is short by whatever ${missing.length === 1 ? 'it comes' : 'they come'} to. ${missing.length === 1 ? 'It is' : 'They are'} left unpriced rather than counted as nothing.`, { warn: true }));
+  if (missing.length) s.append(cpNote(`${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}Not the full amount: ${missing.map(x => x.label.toLowerCase()).join(', ')} could not be priced, so the total is short by whatever ${missing.length === 1 ? 'it comes' : 'they come'} to. ${missing.length === 1 ? 'It is' : 'They are'} left unpriced rather than counted as nothing.`, { warn: true }));
   if (isNum(m.unconfirmedCost) && m.unconfirmedCost > 0 && m.totalInitialCash > 0)
     s.append(el('p', { class: 'cp-note cp-warn' }, [cpFig('unconfirmedCost', cpMoney(m.unconfirmedCost)),
       ' of the total — ', cpFig('unconfirmedShare', fmtPct(m.unconfirmedCost / m.totalInitialCash * 100, 0)),
@@ -46238,7 +46349,12 @@ function dealModel(d) {
      and whether it is unset. A line the registry cannot price is listed with a
      null amount rather than omitted — an absent row reads as a cost that does
      not exist, and these all exist. */
-  const feeLine = (id, bases, opts) => { const r = resolveFee(id, bases, opts); return [r.label, r.amount, r]; };
+  /* THE CLASS GATE (the fee rulebook 1.2.0): on a commercial property or on
+     land, a line whose rule differs by class and was not checked for it
+     has no amount, and says why (feeGate, 70-property.js). A residential
+     deal's lines pass through untouched. */
+  const feeClass = propertyClassOf(d);
+  const feeLine = (id, bases, opts, on = null) => { const r = feeGate(resolveFee(id, bases, opts), feeClass, { on }); return [r.label, r.amount, r]; };
   /* The fees service tax is charged on (the rulebook: the purchase and loan
      legal fees; the valuation fee, on its own line), resolved once so the
      tax and the fee cannot disagree. Null, not zero: coercing an unpriced
@@ -46255,8 +46371,8 @@ function dealModel(d) {
   const purchaseLegalR = legalQuote != null
     ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
-    : resolveFee('purchaseLegal', { price: d.price });
-  const loanLegalR = resolveFee('loanLegal', { loan });
+    : feeGate(resolveFee('purchaseLegal', { price: d.price }), feeClass);
+  const loanLegalR = feeGate(resolveFee('loanLegal', { loan }), feeClass);
   /* What the auction passes to the buyer, as the reader entered it: each a
      line only once entered, so a deal answered Auction with nothing entered
      is the deal it was. */
@@ -46282,7 +46398,7 @@ function dealModel(d) {
   const newDevRoute = dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land';
   const ndBuild = newDevRoute ? ndConstruction(d, loan) : null;
   const ndRebate = newDevRoute && isNum(d.ndRebates) && d.ndRebates > 0 ? d.ndRebates : 0;
-  const valuationR = resolveFee('valuationFee', { price: d.price });
+  const valuationR = feeGate(resolveFee('valuationFee', { price: d.price }), feeClass);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
@@ -46315,7 +46431,7 @@ function dealModel(d) {
            1.1.0: verified, out of the disbursements estimate). */
         feeLine('registration', { instruments: loan > 0 ? 2 : 1 }),
         feeLine('disbursements', {}),
-        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
+        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }, [purchaseLegalR, loanLegalR]),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
@@ -46324,7 +46440,7 @@ function dealModel(d) {
         feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
-        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
+        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR]),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -46356,7 +46472,9 @@ function dealModel(d) {
   /* The group's id travels with each line, so a total can ask whether a
      missing line is one of its own without matching on label text. */
   const missingCostLines = costGroups.flatMap(g =>
-    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why })));
+    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why,
+      /* Gated for the class (1.2.0): the total is partial, and names it. */
+      ...(it[2]?.gated ? { gated: it[2].gated, id: it[2].id } : {}) })));
 
   /* How much of the completion cash rests on a figure nobody has checked. A
      placeholder total looks exactly like a finished one, so the proportion has
@@ -47196,7 +47314,9 @@ function auctionModel(d, m = dealModel(d)) {
       kindFirst(arrearsIn.map(p => p.kind)) || 'yours', { parts: arrearsParts, partsMissing: arrearsParts.filter(p => p.amount == null).map(p => p.label) }),
     step('possession', 'Possession', has('possessionCost') ? d.possessionCost : null, kindOf('possessionCost'), { key: 'possessionCost', months: has('possessionMonths') ? d.possessionMonths : null }),
     step('transaction', 'Transaction costs', feesPriced.length ? feesPriced.reduce((t, it) => t + it[1], 0) : null, kindFirst(feeKinds) || 'derived',
-      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance })), unpriced: fees.length - feesPriced.length }),
+      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
+        /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
+        gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
     step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
   ];
   const counted = adds.filter(a => a.amount != null);
@@ -48160,8 +48280,12 @@ VIEWS.property = () => {
     /* While any fee line is not Verified, the headline says how much of
        it rests on those lines (the fee rulebook, 70-property.js); the
        ledger below names them. */
-    safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-      (unpricedLines.length
+    /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+       the lines not yet checked for the class are named, never a
+       full-looking figure. */
+    safe: [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+      (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
+        : unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
         : 'Including rent-ready and the reserve')
       + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
@@ -48294,7 +48418,7 @@ VIEWS.property = () => {
     });
     wf.append(bars);
     if (m.missingCostLines?.length) wf.append(el('p', { class: 'metaline', style: 'margin-top:10px;color:var(--bronze)' },
-      `${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
+      `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
     onePage.append(wf);
   }
 
@@ -49364,7 +49488,7 @@ VIEWS.property = () => {
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
           : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
-              title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+              title: it[2]?.why || 'No value has been entered for this line.', 'data-gated': it[2]?.gated || null }, it[2]?.gated ? 'Unavailable' : 'not set')),
       ]));
     });
     /* THE OPTIONAL LINES LEFT OUT (the rulebook 1.1.0): listed, with no
@@ -49393,7 +49517,7 @@ VIEWS.property = () => {
   cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' }, [
-      nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
+      cashPartial(m) ? 'Total initial cash — partial' : nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
       /* Its weakest input's kind, the fee lines' included (N6). */
       kindBadge(DKF.kind, { fine: DKF.fine })]),
     el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
@@ -49401,7 +49525,7 @@ VIEWS.property = () => {
      bold figure at the foot of a ledger is read as the answer. */
   if (nMissing) cashB.append(el('tr', {}, [
     el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
-      `This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
+      `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
   /* The share of the total resting on unchecked figures, stated as a
      proportion. Individual markers tell a reader which lines; only this tells
      them how much of the answer is affected. */
@@ -49499,7 +49623,9 @@ VIEWS.property = () => {
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
      ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
      : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
-   ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
+   [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', m.safeCashRequired, cashPartial(m)
+     ? `Everything priced, including what is already paid — ${cashPartial(m).words}. The real figure is higher by whatever those come to.`
+     : (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
     .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel ls-fig' },
@@ -53196,7 +53322,10 @@ const LAB_FIGURES = [
         + (m.financingBasisConfirmed && m.valuationRule !== 'valuation_only'
           ? ` Under the lower-of rule the loan stops following the price above the valuation of ${labMoney(m.bankValuation)}.` : '');
     } },
-  { key: 'safeCashRequired', label: () => 'Cash required', fmt: 'money0', help: 'propSafeCash',
+  /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+     every such deal carries a line not yet checked for its class (the
+     utility deposits, at least), so the label says it from the class. */
+  { key: 'safeCashRequired', label: (d) => (FEE_CLASS_WORD[propertyClassOf(d)] ? 'Cash required — partial' : 'Cash required'), fmt: 'money0', help: 'propSafeCash',
     read: (m) => m.safeCashRequired,
     /* While any fee line is not Verified, the headline says how much of it
        rests on those lines; the row's calculation names each one (the fee
@@ -53206,11 +53335,11 @@ const LAB_FIGURES = [
        tile, or the first slider went under the action bar (n3-first-view).
        An unknown rule is unverified too; the row's calculation, the
        calculator and its ledger say which of the two each line is. */
-    note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
-      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · '),
+    note: (m) => (cashPartial(m) ? cashPartial(m).short : [(m.missingCostLines || []).length ? 'so far' : null,
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
-      + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
+      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
@@ -54991,13 +55120,13 @@ function labMetricView(metric, lab) {
       parts: r => [{ part: 'transactionCash', value: r.m.transactionCash, label: 'to complete' },
         { part: 'improvementCash', value: r.m.improvementCash, label: 'renovation and set-up' },
         ...(isNum(r.m.reserveCash) ? [{ part: 'reserveCash', value: r.m.reserveCash, label: 'reserve' }] : [])],
-      note: r => [(r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
+      note: r => [cashPartial(r.m) ? cashPartial(r.m).short : (r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
         `${labMoney(r.m.unconfirmedCost)} on unverified or unknown fee lines`].filter(Boolean).join(' · '),
       table: { form: 'stacked', title: 'Cash required: to complete, renovation and set-up, and the reserve' } }));
     vm.words.push('Each bar, from nought: what completion takes, then renovation and set-up (the stronger shade), then the reserve (outlined).');
     vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified or unknown fee lines'],
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(r.m.transactionCash), labMoney(r.m.improvementCash), isNum(r.m.reserveCash) ? labMoney(r.m.reserveCash) : 'cannot be priced',
-        `${labMoney(r.m.safeCashRequired)}${(r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
+        `${labMoney(r.m.safeCashRequired)}${cashPartial(r.m) ? ' — partial' : (r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
   } else if (metric === 'appreciation') {
     vm.tables.push(one('exitValue', 'money0', r => r.m.exitValue, {
       parts: r => [{ part: 'price', value: num0(r.d.price), label: 'price' }, { part: 'priceGrowthAtExit', value: r.m.priceGrowthAtExit, label: 'growth on the price' },
@@ -55650,7 +55779,7 @@ const labXrUnavailable = (why) => ({ value: null, text: 'Unavailable', kind: 'un
 const LAB_XR_ROWS = [
   { id: 'cash', label: 'Cash required', cell: (f) => ({ value: f.m.safeCashRequired, text: labMoney(f.m.safeCashRequired),
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.safeCashRequired, fees: true }).kind,
-      sub: [(f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
+      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
   { id: 'monthly', label: 'Monthly position', neg: true, cell: (f) => (isNum(f.m.cashflowMonthly)
       ? { value: f.m.cashflowMonthly, text: labMoney(f.m.cashflowMonthly), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.cashflowMonthly }).kind,
           sub: f.m.taxComputed && isNum(f.m.path?.[0]?.cf) ? `after tax on the rent: ${labMoney(f.m.path[0].cf / 12)}` : 'before tax on the rent' }
@@ -56167,7 +56296,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   }
   /* The cash required by kind, written while open (and served whole). */
   if (P.els.fees && (initial || P.els.fees.node.open)) {
-    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
+    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
       + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
       + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
   }
@@ -56948,7 +57077,7 @@ function auctionWaterfall(a, prefix) {
     const label = add ? `+ ${s.label}` : s.label;
     const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
       : s.id === 'holding' && has ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'} × ${auMoney(s.monthly)}`
-      : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced`
+      : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
       : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
     list.append(el('li', { class: `au-wf-row${add ? ' is-add' : ' is-total'}${has ? '' : ' is-na'}${s.id === 'effective' ? ' is-end' : ''}`, 'data-step': s.id, 'data-value': has ? String(s.amount) : '' }, [
@@ -57293,9 +57422,10 @@ function ndResults({ n, d, prefix, why = {} }) {
   const b = n.build;
   const seededCash = ['price', 'downPct', 'ratePct', 'tenureYears'].some(k => inputIsSeeded(d, k));
   const cashKind = kindFirst([seededCash ? 'illustrative' : null, n.cashUnverified > 0 ? 'placeholder' : null, b.status === 'ok' ? 'modelled' : null].filter(Boolean)) || 'derived';
-  cards.append(lsMetricCard({ label: 'Cash required', level: 1, cls: 'au-card nd-card nd-cash', badge: auBadge(cashKind),
+  const part = cashPartial({ missingCostLines: n.cashMissing });
+  cards.append(lsMetricCard({ label: part ? 'Cash required — partial' : 'Cash required', level: 1, cls: 'au-card nd-card nd-cash', badge: auBadge(cashKind),
     value: auMoney(n.cash), attrs: { 'data-nd-fig': 'cash' }, valueAttrs: { 'data-value': isNum(n.cash) ? String(Math.round(n.cash)) : '' },
-    sub: `${b.status === 'ok' ? `With ${pqMoney(b.idc)} of interest during construction.` : b.status === 'no-loan' ? 'No loan, so no interest during construction.' : 'Interest during construction not included: Unavailable until it can be worked out.'}${n.rebates ? ` Less ${pqMoney(n.rebates)} of rebates and incentives.` : ''}${n.cashUnverified > 0 ? ` ${pqMoney(n.cashUnverified)} on unverified lines.` : ''}` }));
+    sub: `${part ? `${part.words.replace(/^partial: e/, 'E')}. ` : ''}${b.status === 'ok' ? `With ${pqMoney(b.idc)} of interest during construction.` : b.status === 'no-loan' ? 'No loan, so no interest during construction.' : 'Interest during construction not included: Unavailable until it can be worked out.'}${n.rebates ? ` Less ${pqMoney(n.rebates)} of rebates and incentives.` : ''}${n.cashUnverified > 0 ? ` ${pqMoney(n.cashUnverified)} on unverified lines.` : ''}` }));
   box.append(cards);
   const ctx = el('div', { class: 'au-cards nd-l2' });
   ctx.append(lsMetricCard({ label: 'Interest during construction', level: 2, cls: 'au-card nd-card nd-idc', badge: auBadge(n.idcKind, b.status === 'unavailable' ? 'not entered' : 'the rate and the months you entered'),
@@ -67855,7 +67985,7 @@ const DOCKS = {
     const short = (m.missingCostLines || []).length > 0;
     return {
       figs: [
-        { label: short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: cashPartial(m) ? 'Safe cash — partial' : short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
           tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
         { label: g.verdict || 'Grade', value: g.grade },
@@ -68074,11 +68204,11 @@ function decisionRecordProperty() {
       /* A withheld figure is printed as a withheld figure. An em dash in a
          document somebody carries into a bank is better than a zero. */
       el('div', { class: 'dr-fig-v' }, v ?? 'Not computed'),
-      v != null && short?.length ? el('div', { class: 'caption', style: 'color:var(--bronze)' }, 'So far — short, see below') : null,
+      v != null && short?.length ? el('div', { class: 'caption', style: 'color:var(--bronze)' }, short.some(x => x.gated) ? 'Partial — see below' : 'So far — short, see below') : null,
     ])));
   out.append(figs);
   if (unpriced.length) out.append(el('p', { class: 'dr-warn' },
-    `Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
+    `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
     + `${unpriced.map(x => x.label.toLowerCase()).join(', ')} — so `
     + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the safe cash are' : 'the safe cash is'} `
     + `short by whatever ${unpriced.length === 1 ? 'it comes' : 'they come'} to. `

@@ -105,11 +105,11 @@ function decisionRecordProperty() {
       /* A withheld figure is printed as a withheld figure. An em dash in a
          document somebody carries into a bank is better than a zero. */
       el('div', { class: 'dr-fig-v' }, v ?? 'Not computed'),
-      v != null && short?.length ? el('div', { class: 'caption', style: 'color:var(--bronze)' }, 'So far — short, see below') : null,
+      v != null && short?.length ? el('div', { class: 'caption', style: 'color:var(--bronze)' }, short.some(x => x.gated) ? 'Partial — see below' : 'So far — short, see below') : null,
     ])));
   out.append(figs);
   if (unpriced.length) out.append(el('p', { class: 'dr-warn' },
-    `Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
+    `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
     + `${unpriced.map(x => x.label.toLowerCase()).join(', ')} — so `
     + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the safe cash are' : 'the safe cash is'} `
     + `short by whatever ${unpriced.length === 1 ? 'it comes' : 'they come'} to. `
