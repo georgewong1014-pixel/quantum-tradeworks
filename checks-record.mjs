@@ -143,7 +143,7 @@ const PARSE = {
     if (m) return { passed: +m[1], failed: +m[2] - +m[1], said: lineOf(log, m).replace(/^every page carries the navigation NAV_MARKUP draws; /, '') };
     return head ? { passed: null, failed: null, said: lineOf(log, head) } : null;
   },
-  'prerender-check': (log) => { const m = last(log, /(\d+) of (\d+) pages are the app’s own render as committed/); return m ? { passed: +m[1], failed: +m[2] - +m[1], said: lineOf(log, m) } : null; },
+  'prerender-check': (log) => { const m = last(log, /(\d+) of (\d+) pages are the app['’]s own render as committed/); return m ? { passed: +m[1], failed: +m[2] - +m[1], said: lineOf(log, m) } : null; },
   sweep: (log) => { const m = last(log, /^(\d+)\/(\d+) routes clean/m); return m ? { passed: +m[1], failed: +m[2] - +m[1], said: lineOf(log, m) } : null; },
   'coverage-frames': (log) => { const t = tallyLines(log); return t.passed + t.failed ? { ...t, said: `${t.passed} passed, ${t.failed} failed` } : null; },
   mobile: (log) => {
@@ -402,7 +402,7 @@ function selfTest() {
     'served-check-data-bad': 'FAIL  the journeys result is not served as it is now\n\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): 3 passed, 1 failed\n\n37 passed, 1 failed\n',
     'served-check-pages-bad': 'FAIL  a served page …\n\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): 4 passed, 0 failed\n\n37 passed, 1 failed\n',
     'build-check': 'every page carries the navigation NAV_MARKUP draws; 181 of them (181 in scope) carry their committed render of the page in #views exactly, under prerender/.\n',
-    'prerender-check': '\n181 of 181 pages are the app’s own render as committed\n',
+    'prerender-check': '\n181 of 181 pages are the app\'s own render as committed\n',
     sweep: 'ok   deep links: …\n\n70/70 routes clean\n',
     'coverage-frames': 'ok   /status …\nok   /property/lab …\nFAIL served pages\n',
     mobile: 'ok   layout-system: …\nok   scenario-lab-verify: …\n\nno horizontal overflow at any width, and no focus stop hidden\n',
