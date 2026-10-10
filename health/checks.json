@@ -1,12 +1,167 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": null,
-  "recordedAt": null,
-  "run": null,
-  "ranAt": null,
-  "event": null,
-  "conclusion": null,
-  "note": "No CI result recorded yet. .github/workflows/journeys.yml replaces this file, with health/journeys.json, with the results of checks.yml on the commit the site serves (checks-record.mjs collect).",
-  "suites": []
+  "commit": "7f40739492b860b9dc26a2b8feae9b95b81d434d",
+  "recordedAt": "2026-10-10T19:18:55.122Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/38073482195",
+  "ranAt": "2026-10-10T19:05:33Z",
+  "event": "push",
+  "conclusion": "success",
+  "note": null,
+  "suites": [
+    {
+      "id": "model-test",
+      "name": "model-test",
+      "kind": "numbers",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 200,
+      "failed": 0,
+      "said": "all 200 model invariants hold",
+      "exit": 0
+    },
+    {
+      "id": "equity-test",
+      "name": "equity-test",
+      "kind": "numbers",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 286,
+      "failed": 0,
+      "said": "286 passed, 0 failed",
+      "exit": 0
+    },
+    {
+      "id": "scanner-test",
+      "name": "scanner-test",
+      "kind": "numbers",
+      "job": "static",
+      "status": "PASS",
+      "passed": 455,
+      "failed": 0,
+      "said": "all 455 scanner checks hold",
+      "exit": 0
+    },
+    {
+      "id": "ingest-test",
+      "name": "ingest-test",
+      "kind": "numbers",
+      "job": "static",
+      "status": "PASS",
+      "passed": 93,
+      "failed": 0,
+      "said": "all 93 ingest rules hold",
+      "exit": 0
+    },
+    {
+      "id": "history-store-test",
+      "name": "history-store-test",
+      "kind": "numbers",
+      "job": "static",
+      "status": "PASS",
+      "passed": 147,
+      "failed": 0,
+      "said": "all 147 history-store checks hold",
+      "exit": 0
+    },
+    {
+      "id": "data-check",
+      "name": "data-check",
+      "kind": "data",
+      "job": "static",
+      "status": "PASS",
+      "passed": 6,
+      "failed": 0,
+      "said": "6 passed, 0 failed",
+      "exit": 0
+    },
+    {
+      "id": "register-check",
+      "name": "register-check",
+      "kind": "data",
+      "job": "static",
+      "status": "PASS",
+      "passed": 12,
+      "failed": 0,
+      "said": "all 12 register rules hold",
+      "exit": 0
+    },
+    {
+      "id": "served-check-data",
+      "name": "served-check, data blocks",
+      "kind": "data",
+      "job": "static",
+      "status": "PASS",
+      "passed": 4,
+      "failed": 0,
+      "said": "data blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): 4 passed, 0 failed",
+      "exit": 0
+    },
+    {
+      "id": "served-check",
+      "name": "served-check, pages",
+      "kind": "layout",
+      "job": "static",
+      "status": "PASS",
+      "passed": 34,
+      "failed": 0,
+      "said": "34 passed, 0 failed (of 38 passed, 0 failed; the data blocks apart)",
+      "exit": 0
+    },
+    {
+      "id": "build-check",
+      "name": "build --check",
+      "kind": "layout",
+      "job": "static",
+      "status": "PASS",
+      "passed": 181,
+      "failed": 0,
+      "said": "181 of them (181 in scope) carry their committed render of the page in #views exactly, under prerender/.",
+      "exit": 0
+    },
+    {
+      "id": "prerender-check",
+      "name": "prerender --check",
+      "kind": "layout",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 181,
+      "failed": 0,
+      "said": "181 of 181 pages are the app's own render as committed",
+      "exit": 0
+    },
+    {
+      "id": "sweep",
+      "name": "sweep",
+      "kind": "layout",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 105,
+      "failed": 0,
+      "said": "105/105 routes clean",
+      "exit": 0
+    },
+    {
+      "id": "coverage-frames",
+      "name": "coverage-frames",
+      "kind": "layout",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 205,
+      "failed": 0,
+      "said": "205 passed, 0 failed",
+      "exit": 0
+    },
+    {
+      "id": "mobile",
+      "name": "mobile",
+      "kind": "layout",
+      "job": "runtime",
+      "status": "PASS",
+      "passed": 27,
+      "failed": 0,
+      "said": "no horizontal overflow at any width, and no focus stop hidden (27 ok, 0 FAIL)",
+      "exit": 0
+    }
+  ]
 }
