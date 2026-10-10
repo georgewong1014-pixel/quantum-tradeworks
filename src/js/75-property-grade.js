@@ -1745,6 +1745,120 @@ function newDevModel(d, m = dealModel(d), { solve = true } = {}) {
   };
 }
 
+/* THE COMMERCIAL MODELS (the property decision layer, P5).
+   ---------------------------------------------------------------------------
+   For a commercial class, of any subtype and on any route. Nothing here
+   changes a figure of the calculator's own (dealModel is untouched: its
+   rent is the model rent, as it always was), so a commercial deal prints
+   what it printed before; these are figures beside it, each from the
+   reader's own figures.
+   - FOUR RENTS, NEVER MIXED: the contract rent (the tenancy's — Yours),
+     the asking rent (Yours), the observed comparable rent (the median of
+     the achieved rents the reader named from their register, with their
+     count and dates — Unavailable with none; never an asking rent, and no
+     NAPIC rent, because NAPIC records transactions, not tenancies) and the
+     model rent (the calculator's expected rent — the reader's assumption,
+     Modelled). Each is its own figure; none is a blend.
+   - RENT SUSTAINABILITY: the contract rent against the observed
+     comparables, as a range — against the highest of them and the lowest,
+     and their median — "10–23% above the observed comparables you
+     recorded". Unavailable without them. The model rent is set against
+     them the same way, since the renewal is modelled at it.
+   - THE YIELD BOTH WAYS: the calculator's own net yield, at the contract
+     rent and at the model rent (the model run with each as its rent).
+   - LEASE-DOWN: 3, 6, 12 and 18 months vacant from the lease expiry (or
+     from now, for a unit the reader says is vacant). The cash reserve each
+     needs is its months of what the property costs with no rent coming in
+     (burnWithoutRent: the instalment and the owner-paid running costs)
+     plus the fit-out the reader enters for a re-let — not entered, not
+     counted, and said so. The effective annual yield over the holding
+     period: the contract rent until the expiry, nothing for the months
+     vacant, the model rent after; less the model's rent-linked costs on
+     the rent received, its fixed running costs for every month and the
+     fit-out; a year's worth of it over the purchase price. Rents held flat.
+   Nothing the reader must supply is assumed: a lease-down without the
+   lease expiry (or a vacant unit) and the contract rent is Unavailable. */
+const CM_LEASE_DOWN_MONTHS = [3, 6, 12, 18];
+/* This month, as a month index (ndMonthIndex's scale). */
+const cmThisMonth = () => { const t = new Date(); return t.getFullYear() * 12 + t.getMonth(); };
+function commercialModel(d, m = dealModel(d), { asOf = null } = {}) {
+  const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
+  const vacant = d?.tenancy === 'vacant';
+  const contract = !vacant && isNum(d?.tenancyRent) && d.tenancyRent > 0 ? d.tenancyRent : null;
+  const asking = isNum(d?.cmAskingRent) && d.cmAskingRent > 0 ? d.cmAskingRent : null;
+  const model = num0(d?.rent) > 0 ? num0(d.rent) : null;
+  const modelKind = !model ? 'unavailable' : inputIsSeeded(d, 'rent') || KIND_OF_EVIDENCE[shownEvidence(d, 'rent')] === 'illustrative' ? 'illustrative' : 'modelled';
+  /* The observed comparables: achieved rents named, and nothing else. */
+  const ids = Array.isArray(d?.rentComparableIds) ? d.rentComparableIds : [];
+  const all = State.observations || [];
+  const named = ids.map(id => all.find(o => o && o.id === id)).filter(Boolean);
+  const used = named.filter(o => o.kind === 'let-rent' && !o.sample && isNum(o.value) && o.value > 0);
+  const comps = used.map(o => ({ id: o.id, name: comparableName(o), rent: o.value, date: o.date || null, source: comparableSource(o),
+    standing: observationStanding(o), evidence: o.evidence || null, type: String(o.propertyType || '').trim() || null }));
+  const vals = comps.map(x => x.rent).sort((a, b) => a - b);
+  const dates = comps.map(x => x.date).filter(Boolean).sort();
+  const observed = comps.length ? { median: medianOf(vals), n: comps.length, lo: vals[0], hi: vals[vals.length - 1], first: dates[0] || null, last: dates[dates.length - 1] || null } : null;
+  const observedKind = observed ? kindFirst(comps.map(x => KIND_OF_EVIDENCE[x.evidence] || 'yours')) || 'yours' : 'unavailable';
+  const rents = [
+    { id: 'contract', label: 'Contract rent', value: contract, kind: contract ? kindOf('tenancyRent') : 'unavailable' },
+    { id: 'asking', label: 'Asking rent', value: asking, kind: asking ? kindOf('cmAskingRent') : 'unavailable' },
+    { id: 'observed', label: 'Observed comparable rent', value: observed ? observed.median : null, kind: observedKind },
+    { id: 'model', label: 'Model rent', value: model, kind: modelKind },
+  ];
+  /* Sustainability: a rent against the highest, the lowest and the median
+     of the observed comparables, in per cent of each. */
+  const against = (r) => (observed && r > 0 ? { rent: r, lo: (r - observed.hi) / observed.hi * 100, hi: (r - observed.lo) / observed.lo * 100, median: (r - observed.median) / observed.median * 100 } : null);
+  const sustain = { status: !observed ? 'no-comparables' : contract ? 'ok' : vacant ? 'vacant' : 'no-contract', contract: against(contract), model: against(model) };
+  /* The yield both ways: the model's own net yield, run at each rent. */
+  const mC = contract ? dealModel({ ...d, rent: contract }) : null;
+  const costsSeeded = ['price', 'maintenance'].some(k => inputIsSeeded(d, k));
+  const yields = {
+    contract: mC && isNum(mC.netYield) ? mC.netYield : null, model: isNum(m.netYield) ? m.netYield : null,
+    grossContract: mC && isNum(mC.grossYield) ? mC.grossYield : null, grossModel: isNum(m.grossYield) ? m.grossYield : null,
+    vacancyPct: num0(d?.vacancyPct),
+    contractKind: !(mC && isNum(mC.netYield)) ? 'unavailable' : costsSeeded ? 'illustrative' : 'modelled',
+    modelKind: !isNum(m.netYield) ? 'unavailable' : costsSeeded || modelKind === 'illustrative' ? 'illustrative' : 'modelled',
+  };
+  /* The lease-down. */
+  const now = asOf ?? cmThisMonth();
+  const expiry = ndMonthIndex(d?.cmLeaseExpiry);
+  const hold = normHoldYears(d?.holdYears) * 12;
+  const fitOut = isNum(d?.cmFitOut) ? d.cmFitOut : null;
+  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  const missing = [
+    !vacant && expiry == null ? 'the lease expiry' : null,
+    !vacant && !contract ? 'the contract rent' : null,
+    !model ? 'the model rent' : null,
+    burn == null ? 'a loan with a schedule of repayments' : null,
+  ].filter(Boolean);
+  const start = vacant ? 0 : expiry == null ? null : Math.max(0, expiry - now);
+  const price = num0(d?.price);
+  const rentKept = 1 - num0(m.variableCostRate);
+  const fixedMonthly = num0(m.fixedOperatingCosts) / 12;
+  const scenarios = CM_LEASE_DOWN_MONTHS.map(n => {
+    if (missing.length) return { months: n, status: 'unavailable', reserve: null, effYield: null };
+    const reserve = Math.round(n * burn + (fitOut || 0));
+    const cMonths = Math.min(start, hold);
+    const vMonths = Math.max(0, Math.min(n, hold - start));
+    const mMonths = Math.max(0, hold - start - n);
+    const rentIn = (contract || 0) * cMonths + model * mMonths;
+    const fit = start < hold ? (fitOut || 0) : 0;
+    const costs = fixedMonthly * hold;
+    const net = rentIn * rentKept - costs - fit;
+    const effYield = price > 0 ? net / (hold / 12) / price * 100 : null;
+    return { months: n, status: start >= hold ? 'beyond' : 'ok', reserve, cMonths, vMonths, mMonths, rentIn, costs, fit, net, effYield };
+  });
+  const seeded = ['price', 'downPct', 'ratePct', 'tenureYears'].some(k => inputIsSeeded(d, k));
+  const lease = {
+    vacant, expiry, expiryText: d?.cmLeaseExpiry || null, expired: !vacant && expiry != null && expiry < now, now, start, hold, fitOut, burn, missing,
+    rentKept, fixedMonthly, price, scenarios,
+    reserveKind: missing.length ? 'unavailable' : seeded ? 'illustrative' : 'modelled',
+    effKind: missing.length ? 'unavailable' : seeded || costsSeeded || modelKind === 'illustrative' ? 'illustrative' : 'modelled',
+  };
+  return { contract, asking, model, modelKind, vacant, tenancy: d?.tenancy || null, observed, observedKind, comps, notUsed: ids.length - used.length,
+    rents, sustain, yields, lease };
+}
+
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
 function num0(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
@@ -3229,6 +3343,11 @@ VIEWS.property = () => {
      sale passes to the buyer — each with where it came from; and the
      comparables from the register this price is set against. */
   acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : dealRoute(d) === 'newdev' ? pcNewDevInputs(d) : pcSubsaleInputs(d));
+  /* THE COMMERCIAL MODELS (the property decision layer, P5), in the
+     Rental section beside the rent they qualify: the four rents, the lease
+     and the unit as the reader recorded them, each with where it came from,
+     and the achieved rents named from the register. */
+  if (propertyClassOf(d) === 'commercial') rnt.inputs.append(pcCommercialInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -4261,7 +4380,7 @@ VIEWS.property = () => {
   wrap.append(summaryCard);
   acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : dealRoute(d) === 'newdev' ? pcNewDev(d) : pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
-  rnt.outputs.append(headline, ops, rentBuyCard);
+  rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
   rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));

@@ -32606,6 +32606,30 @@ const SUBSALE_CONDITION = {
 };
 const PRICE_TARGET_KINDS = ['monthly', 'yield'];
 
+/* THE COMMERCIAL MODELS' ANSWERS (P5: commercialModel, 75-property-grade.js).
+   FOUR RENTS, NEVER MIXED, each in its own field and none written from
+   another: the contract rent is the tenancy's (tenancy and tenancyRent,
+   the subsale's own fields — one tenancy, asked once); the asking rent is
+   what is asked for this unit (cmAskingRent); the observed comparable rent
+   is the median of the achieved rents the reader names from their register
+   (rentComparableIds — this browser's records, so they do not travel in
+   the address, as comparableIds do not); and the model rent is the
+   calculator's expected rent (rent) — the reader's assumption, the one the
+   renewal is modelled at. The unit and location fields are the reader's
+   record, each with where it came from: the frontage, corner or
+   intermediate, the floor, parking and loading, the current tenant and
+   their business, the lease expiry, the escalation and the deposit as the
+   tenancy states them, and the fit-out a re-let would need. No catchment
+   or footfall figure exists here: there is no source for one, and none is
+   made up. Words, not figures, where the tenancy's own words are the
+   record (the escalation, the floor, parking and loading). */
+const CM_POSITIONS = {
+  corner:       { id:'corner',       label:'Corner' },
+  intermediate: { id:'intermediate', label:'Intermediate' },
+};
+/* The tenancy, in the commercial section's words (the same three answers). */
+const CM_TENANCY_WORDS = { tenanted: 'Tenanted', vacant: 'Vacant', unknown: 'Not known yet' };
+
 /* THE AUCTION RISK MODE'S ANSWERS (P3). What the deposit is a share of is
    the Proclamation's to say — some state the reserve price, the Malaysian
    Bar's guidance speaks of the purchase price — so it is asked, never
@@ -32786,6 +32810,15 @@ const DEAL_ANSWER_FIELDS = {
   ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
   ndSchedule: ansSchedule,
   ndRebates: ansSum,
+  /* The commercial models (P5): the asking rent for this unit; the lease —
+     its expiry month, the escalation and the deposit as the tenancy states
+     them, the fit-out a re-let would need; and the unit as the reader
+     recorded it — the current tenant and their business, the frontage,
+     corner or intermediate, the floor, parking and loading. */
+  cmAskingRent: ansSum,
+  cmLeaseExpiry: ansMonth, cmEscalation: ansSource, cmDeposit: ansSum, cmFitOut: ansSum,
+  cmTenant: ansSource, cmBusiness: ansSource,
+  cmFrontage: ansSum, cmPosition: ansEnum(Object.keys(CM_POSITIONS)), cmFloor: ansSource, cmParking: ansSource,
   /* Mortgage protection, optional and off by default (the fee rulebook
      1.1.0): 'included' carries it in the cash required at the rulebook's
      estimate until a quote replaces it. Absent is out. */
@@ -32800,7 +32833,7 @@ const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
 function setDealAnswer(d, k, v) {
   if (!d) return false;
   let next;
-  if (k === 'comparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
+  if (k === 'comparableIds' || k === 'rentComparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
   else if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) next = v == null || v === '' ? undefined : DEAL_ANSWER_FIELDS[k](String(v));
   else return false;
   const had = d[k];
@@ -35358,6 +35391,16 @@ function dealAskingChoices(d) {
   const kind = PRICE_ASK_KINDS[propertyClassOf(d)];
   return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
 }
+/* THE ACHIEVED RENTS THAT CAN BE NAMED (P5, the observed comparable rent):
+   the reader's own records of a rent actually paid, in the deal's town —
+   never an asking rent, which is somebody's hope (the register's rule:
+   asking and achieved are never mixed), and never the worked example's
+   invented rows. Which of them is comparable to this unit is the reader's
+   to say, by naming it; each carries the property type it was recorded
+   with, if any. */
+function dealRentChoices(d) {
+  return (State.observations || []).filter(o => o && o.kind === 'let-rent' && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
 const medianOf = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
 function priceGap(d) {
   const kind = PRICE_GAP_KINDS[propertyClassOf(d)];
@@ -36289,6 +36332,10 @@ const PM_FIELD_WORDS = {
   /* The developer premium model's answers (P4). */
   ndCompPrice: 'Completed comparable price (RM)', ndCompSource: 'Completed comparable — where it came from', ndCompDate: 'Completed comparable — its date',
   ndSpaMonth: 'SPA signed (month)', ndVpMonth: 'Vacant possession expected (month)', ndSchedule: 'Progressive drawdown schedule', ndRebates: 'Developer rebates and incentives (RM)',
+  /* The commercial models' answers (P5). */
+  cmAskingRent: 'Asking rent (RM a month)', rentComparableIds: 'Achieved rents named', cmLeaseExpiry: 'Lease expiry (month)',
+  cmEscalation: 'Escalation', cmDeposit: 'Deposit held (months of rent)', cmFitOut: 'Fit-out for a re-let (RM)', cmTenant: 'Current tenant',
+  cmBusiness: 'Tenant’s business', cmFrontage: 'Frontage (ft)', cmPosition: 'Corner or intermediate', cmFloor: 'Floor', cmParking: 'Parking and loading',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure
@@ -37067,6 +37114,11 @@ const CP_IN = {
   ndCompSource: (v) => (v ? String(v) : 'Not entered'), ndCompDate: (v) => (v ? String(v) : 'Not entered'),
   ndSpaMonth: (v) => ndMonthWords(v), ndVpMonth: (v) => ndMonthWords(v),
   ndSchedule: (v) => { const st = parseNdSchedule(v), t = ndTemplateOf(st); return st ? `${st.length} stage${st.length === 1 ? '' : 's'}${t ? `, Sarawak’s ${t.form} template` : ''}` : 'Not entered'; },
+  /* The commercial models' answers (P5): a figure not entered says so. */
+  cmAskingRent: (v) => (num0(v) > 0 ? cpMoneyMonth(v) : 'Not entered'), cmFitOut: (v) => (v == null ? 'Not entered' : cpMoneyIn(v)),
+  rentComparableIds: (v) => (Array.isArray(v) && v.length ? `${v.length} named from the register` : 'None named'),
+  cmLeaseExpiry: (v) => ndMonthWords(v), cmPosition: (v) => CM_POSITIONS[v]?.label || 'Not recorded',
+  cmDeposit: (v) => (v == null ? 'Not entered' : `${cpN(v)} months of rent`),
 };
 /* Where the calculator's own label does not suit a page for someone else:
    its input box speaks as the reader ("I will manage this property
@@ -40119,6 +40171,120 @@ function newDevModel(d, m = dealModel(d), { solve = true } = {}) {
   };
 }
 
+/* THE COMMERCIAL MODELS (the property decision layer, P5).
+   ---------------------------------------------------------------------------
+   For a commercial class, of any subtype and on any route. Nothing here
+   changes a figure of the calculator's own (dealModel is untouched: its
+   rent is the model rent, as it always was), so a commercial deal prints
+   what it printed before; these are figures beside it, each from the
+   reader's own figures.
+   - FOUR RENTS, NEVER MIXED: the contract rent (the tenancy's — Yours),
+     the asking rent (Yours), the observed comparable rent (the median of
+     the achieved rents the reader named from their register, with their
+     count and dates — Unavailable with none; never an asking rent, and no
+     NAPIC rent, because NAPIC records transactions, not tenancies) and the
+     model rent (the calculator's expected rent — the reader's assumption,
+     Modelled). Each is its own figure; none is a blend.
+   - RENT SUSTAINABILITY: the contract rent against the observed
+     comparables, as a range — against the highest of them and the lowest,
+     and their median — "10–23% above the observed comparables you
+     recorded". Unavailable without them. The model rent is set against
+     them the same way, since the renewal is modelled at it.
+   - THE YIELD BOTH WAYS: the calculator's own net yield, at the contract
+     rent and at the model rent (the model run with each as its rent).
+   - LEASE-DOWN: 3, 6, 12 and 18 months vacant from the lease expiry (or
+     from now, for a unit the reader says is vacant). The cash reserve each
+     needs is its months of what the property costs with no rent coming in
+     (burnWithoutRent: the instalment and the owner-paid running costs)
+     plus the fit-out the reader enters for a re-let — not entered, not
+     counted, and said so. The effective annual yield over the holding
+     period: the contract rent until the expiry, nothing for the months
+     vacant, the model rent after; less the model's rent-linked costs on
+     the rent received, its fixed running costs for every month and the
+     fit-out; a year's worth of it over the purchase price. Rents held flat.
+   Nothing the reader must supply is assumed: a lease-down without the
+   lease expiry (or a vacant unit) and the contract rent is Unavailable. */
+const CM_LEASE_DOWN_MONTHS = [3, 6, 12, 18];
+/* This month, as a month index (ndMonthIndex's scale). */
+const cmThisMonth = () => { const t = new Date(); return t.getFullYear() * 12 + t.getMonth(); };
+function commercialModel(d, m = dealModel(d), { asOf = null } = {}) {
+  const kindOf = (k) => KIND_OF_EVIDENCE[d?.evidence?.[k] || 'user'] || 'yours';
+  const vacant = d?.tenancy === 'vacant';
+  const contract = !vacant && isNum(d?.tenancyRent) && d.tenancyRent > 0 ? d.tenancyRent : null;
+  const asking = isNum(d?.cmAskingRent) && d.cmAskingRent > 0 ? d.cmAskingRent : null;
+  const model = num0(d?.rent) > 0 ? num0(d.rent) : null;
+  const modelKind = !model ? 'unavailable' : inputIsSeeded(d, 'rent') || KIND_OF_EVIDENCE[shownEvidence(d, 'rent')] === 'illustrative' ? 'illustrative' : 'modelled';
+  /* The observed comparables: achieved rents named, and nothing else. */
+  const ids = Array.isArray(d?.rentComparableIds) ? d.rentComparableIds : [];
+  const all = State.observations || [];
+  const named = ids.map(id => all.find(o => o && o.id === id)).filter(Boolean);
+  const used = named.filter(o => o.kind === 'let-rent' && !o.sample && isNum(o.value) && o.value > 0);
+  const comps = used.map(o => ({ id: o.id, name: comparableName(o), rent: o.value, date: o.date || null, source: comparableSource(o),
+    standing: observationStanding(o), evidence: o.evidence || null, type: String(o.propertyType || '').trim() || null }));
+  const vals = comps.map(x => x.rent).sort((a, b) => a - b);
+  const dates = comps.map(x => x.date).filter(Boolean).sort();
+  const observed = comps.length ? { median: medianOf(vals), n: comps.length, lo: vals[0], hi: vals[vals.length - 1], first: dates[0] || null, last: dates[dates.length - 1] || null } : null;
+  const observedKind = observed ? kindFirst(comps.map(x => KIND_OF_EVIDENCE[x.evidence] || 'yours')) || 'yours' : 'unavailable';
+  const rents = [
+    { id: 'contract', label: 'Contract rent', value: contract, kind: contract ? kindOf('tenancyRent') : 'unavailable' },
+    { id: 'asking', label: 'Asking rent', value: asking, kind: asking ? kindOf('cmAskingRent') : 'unavailable' },
+    { id: 'observed', label: 'Observed comparable rent', value: observed ? observed.median : null, kind: observedKind },
+    { id: 'model', label: 'Model rent', value: model, kind: modelKind },
+  ];
+  /* Sustainability: a rent against the highest, the lowest and the median
+     of the observed comparables, in per cent of each. */
+  const against = (r) => (observed && r > 0 ? { rent: r, lo: (r - observed.hi) / observed.hi * 100, hi: (r - observed.lo) / observed.lo * 100, median: (r - observed.median) / observed.median * 100 } : null);
+  const sustain = { status: !observed ? 'no-comparables' : contract ? 'ok' : vacant ? 'vacant' : 'no-contract', contract: against(contract), model: against(model) };
+  /* The yield both ways: the model's own net yield, run at each rent. */
+  const mC = contract ? dealModel({ ...d, rent: contract }) : null;
+  const costsSeeded = ['price', 'maintenance'].some(k => inputIsSeeded(d, k));
+  const yields = {
+    contract: mC && isNum(mC.netYield) ? mC.netYield : null, model: isNum(m.netYield) ? m.netYield : null,
+    grossContract: mC && isNum(mC.grossYield) ? mC.grossYield : null, grossModel: isNum(m.grossYield) ? m.grossYield : null,
+    vacancyPct: num0(d?.vacancyPct),
+    contractKind: !(mC && isNum(mC.netYield)) ? 'unavailable' : costsSeeded ? 'illustrative' : 'modelled',
+    modelKind: !isNum(m.netYield) ? 'unavailable' : costsSeeded || modelKind === 'illustrative' ? 'illustrative' : 'modelled',
+  };
+  /* The lease-down. */
+  const now = asOf ?? cmThisMonth();
+  const expiry = ndMonthIndex(d?.cmLeaseExpiry);
+  const hold = normHoldYears(d?.holdYears) * 12;
+  const fitOut = isNum(d?.cmFitOut) ? d.cmFitOut : null;
+  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  const missing = [
+    !vacant && expiry == null ? 'the lease expiry' : null,
+    !vacant && !contract ? 'the contract rent' : null,
+    !model ? 'the model rent' : null,
+    burn == null ? 'a loan with a schedule of repayments' : null,
+  ].filter(Boolean);
+  const start = vacant ? 0 : expiry == null ? null : Math.max(0, expiry - now);
+  const price = num0(d?.price);
+  const rentKept = 1 - num0(m.variableCostRate);
+  const fixedMonthly = num0(m.fixedOperatingCosts) / 12;
+  const scenarios = CM_LEASE_DOWN_MONTHS.map(n => {
+    if (missing.length) return { months: n, status: 'unavailable', reserve: null, effYield: null };
+    const reserve = Math.round(n * burn + (fitOut || 0));
+    const cMonths = Math.min(start, hold);
+    const vMonths = Math.max(0, Math.min(n, hold - start));
+    const mMonths = Math.max(0, hold - start - n);
+    const rentIn = (contract || 0) * cMonths + model * mMonths;
+    const fit = start < hold ? (fitOut || 0) : 0;
+    const costs = fixedMonthly * hold;
+    const net = rentIn * rentKept - costs - fit;
+    const effYield = price > 0 ? net / (hold / 12) / price * 100 : null;
+    return { months: n, status: start >= hold ? 'beyond' : 'ok', reserve, cMonths, vMonths, mMonths, rentIn, costs, fit, net, effYield };
+  });
+  const seeded = ['price', 'downPct', 'ratePct', 'tenureYears'].some(k => inputIsSeeded(d, k));
+  const lease = {
+    vacant, expiry, expiryText: d?.cmLeaseExpiry || null, expired: !vacant && expiry != null && expiry < now, now, start, hold, fitOut, burn, missing,
+    rentKept, fixedMonthly, price, scenarios,
+    reserveKind: missing.length ? 'unavailable' : seeded ? 'illustrative' : 'modelled',
+    effKind: missing.length ? 'unavailable' : seeded || costsSeeded || modelKind === 'illustrative' ? 'illustrative' : 'modelled',
+  };
+  return { contract, asking, model, modelKind, vacant, tenancy: d?.tenancy || null, observed, observedKind, comps, notUsed: ids.length - used.length,
+    rents, sustain, yields, lease };
+}
+
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
 function num0(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
 
@@ -41603,6 +41769,11 @@ VIEWS.property = () => {
      sale passes to the buyer — each with where it came from; and the
      comparables from the register this price is set against. */
   acq.inputs.append(dealRoute(d) === 'auction' ? pcAuctionInputs(d) : dealRoute(d) === 'newdev' ? pcNewDevInputs(d) : pcSubsaleInputs(d));
+  /* THE COMMERCIAL MODELS (the property decision layer, P5), in the
+     Rental section beside the rent they qualify: the four rents, the lease
+     and the unit as the reader recorded them, each with where it came from,
+     and the achieved rents named from the register. */
+  if (propertyClassOf(d) === 'commercial') rnt.inputs.append(pcCommercialInputs(d));
 
   /* Provenance for the figures that actually move the answer. */
   {
@@ -42635,7 +42806,7 @@ VIEWS.property = () => {
   wrap.append(summaryCard);
   acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : dealRoute(d) === 'newdev' ? pcNewDev(d) : pcPriceEvidence(d));
   fnc.outputs.append(loanCard, finCard, choicesPanel);
-  rnt.outputs.append(headline, ops, rentBuyCard);
+  rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
   scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
   rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
@@ -46173,7 +46344,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null, cm: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -46198,8 +46369,11 @@ function labDraw(P, focusId = null) {
      answered New development, the developer premium model (P4). */
   const route = dealRoute(labAnswerInputs(lab));
   const price = P.compact ? null : route === 'auction' ? labAuctionSection(P, lab) : route === 'newdev' ? labNewDevSection(P, lab) : labPriceSection(P, lab);
+  /* Answered Commercial, of any subtype and on any route: the four rents,
+     their sustainability and the lease-down (P5), after the price. */
+  const commercial = !P.compact && propertyClassOf(labAnswerInputs(lab)) === 'commercial' ? labCommercialSection(P, lab) : null;
   const evidence = labEvidence(P, lab);
-  outputs.append(...[chain, alert, price, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  outputs.append(...[chain, alert, price, commercial, evidence, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -46741,6 +46915,47 @@ function labNewDevPaint(P, lab, { initial = false } = {}) {
   if (nd.neededText) labText(nd.neededText, ndNeededFormula(n));
 }
 
+/* THE COMMERCIAL MODELS (the decision layer, P5; 83-property-decision.js),
+   after the price section once Commercial is answered. A what-if until
+   Save, as every answer here is: the tenancy, its contract rent, the
+   asking rent, the achieved rents named, the lease and the unit are a move
+   of every column (labAnswer), A, B and C staying one property, written
+   only by Save. The model rent is the Rent slider, and the price the Price
+   slider: the column they move is the one worked through. The inputs are
+   drawn with the page; the figures follow each paint (labCommercialPaint). */
+function labCommercialSection(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-cm au cm', id: labId(P, 'cm'), 'aria-labelledby': labId(P, 'cm-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'cm-h') }, 'The commercial rents, worked through'));
+  card.append(el('p', { class: 'metaline au-route' }, `${CM_LEAD} A what-if of every column until you save it.`));
+  const figs = el('div', { class: 'au-figs', id: labId(P, 'cm-figs') });
+  card.append(figs);
+  if (d) {
+    const answer = (k, v) => labAnswer(P, lab, k, v);
+    card.append(cmInputs({ d, prefix: P.idPrefix, answer, fold: true,
+      extra: { rents: cmRentPick({ d, prefix: P.idPrefix, legend: 'Achieved rents from your register', toggle: (ids) => answer('rentComparableIds', ids) }) },
+      where: { model: 'The Rent slider.' } }));
+  }
+  P.els.cm = { card, figs, sig: null };
+  return card;
+}
+function labCommercialPaint(P, lab) {
+  const cm = P.els?.cm;
+  if (!cm) return;
+  const col = labActive(lab), d = col.work;
+  const c = commercialModel(d, col.cur?.m || dealModel(d));
+  const sig = JSON.stringify([col.key, c.rents.map(r => [r.value, r.kind]), c.observed, c.sustain, c.yields, c.lease.scenarios, c.lease.missing, c.lease.reserveKind, c.lease.start, c.lease.burn, c.lease.fitOut]);
+  if (cm.sig === sig) return;
+  cm.sig = sig;
+  cm.figs.replaceChildren(cmResults({ c, d, prefix: P.idPrefix,
+    why: { rents: () => lsOpenEvidence(cm.rentsEv), sustain: () => lsOpenEvidence(cm.sustainEv), yields: () => lsOpenEvidence(cm.yieldsEv), lease: () => lsOpenEvidence(cm.leaseEv) },
+    toRents: () => lsGoTo(document.getElementById(labId(P, 'cm-rent-comps')), document.querySelector(`#${labId(P, 'cm-rent-comps')} input, #${labId(P, 'cm-register')}`)) }));
+  if (cm.rentsText) labText(cm.rentsText, cmRentsFormula(c));
+  if (cm.sustainText) labText(cm.sustainText, cmSustainFormula(c));
+  if (cm.yieldsText) labText(cm.yieldsText, cmYieldFormula(c));
+  if (cm.leaseText) labText(cm.leaseText, cmLeaseDownFormula(c));
+}
+
 /* THE PAGE'S ACTION BAR ON A PHONE (the layout system, under 640px):
    Analyse — the product's action, the full model in the calculator;
    Compare — A, B and C side by side, below; Save this — the conversion,
@@ -47222,6 +47437,12 @@ function labEvidence(P, lab) {
       sec('needed', 'How the rent and growth needed are found'));
     nd.srcEv = lsEvidenceSection({ id: labId(P, 'ev-nd-src'), summary: 'Where the template comes from', body: [ndSourcesList()] });
     pe.push(nd.srcEv);
+  }
+  /* The commercial working (P5), there too. */
+  if (P.els.cm) {
+    const cm = P.els.cm, sec = (k, summary) => { const t = el('p', { class: 'lab-formula', id: labId(P, `ev-cm-${k}-text`) }, ''); cm[`${k}Text`] = t; cm[`${k}Ev`] = lsEvidenceSection({ id: labId(P, `ev-cm-${k}`), summary, body: [t] }); return cm[`${k}Ev`]; };
+    pe.push(sec('rents', 'How the four rents are kept apart'), sec('sustain', 'How rent sustainability is worked out'), sec('yields', 'How the yields are worked out'),
+      sec('lease', 'How the lease-down is worked out'));
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });
 }
@@ -48070,6 +48291,8 @@ function labPaintPanel(P, { initial = false } = {}) {
   labPricePaint(P, lab, { initial });
   labAuctionPaint(P, lab);
   labNewDevPaint(P, lab, { initial });
+  /* And, answered Commercial, the four rents and the lease-down (P5). */
+  labCommercialPaint(P, lab);
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);
@@ -48173,6 +48396,22 @@ function labUseComparable(id) {
   const d = lab && labAnswerInputs(lab);
   const o = (State.observations || []).find(x => x && x.id === id);
   if (!d || !o) return false;
+  /* An achieved rent (P5) is named among the observed comparable rents —
+     an answer of every column, used by the commercial section; on a
+     property answered otherwise it waits there, said so. */
+  if (o.kind === 'let-rent') {
+    if (!dealRentChoices(d).some(x => x.id === id)) {
+      toast(`That record is in ${townName(o.city)}; the property in the Lab is in ${townName(d.city)} — it is set against records of its own town.`);
+      return false;
+    }
+    labAnswer(P, lab, 'rentComparableIds', [...new Set([...(Array.isArray(d.rentComparableIds) ? d.rentComparableIds : []), id])]);
+    const row = document.querySelector(`[data-rent-comp="${CSS.escape(id)}"]`);
+    if (row) { row.scrollIntoView({ block: 'center' }); row.querySelector('input')?.focus({ preventScroll: true }); }
+    toast(propertyClassOf(d) === 'commercial'
+      ? `${comparableName(o)} named among the observed comparable rents — a what-if of every column until you save.`
+      : `${comparableName(o)} named among the observed comparable rents — they are used once you answer Commercial, a what-if until you save.`);
+    return true;
+  }
   const usable = [...dealComparableChoices(d), ...dealAskingChoices(d)].some(x => x.id === id);
   if (!usable) {
     toast(o.city !== d.city
@@ -48224,6 +48463,9 @@ function labUseComparable(id) {
    action card while something it needs is missing), the working in the
    evidence (L3). The wording is the figures': "the figures you entered
    imply…", never a verdict on the deal.
+
+   P3 (auction), P4 (new development) and P5 (commercial: the four rents,
+   rent sustainability and lease-down) follow below, each with its header.
    ========================================================================== */
 
 /* -------------------------------------------------------------- answers */
@@ -48529,8 +48771,13 @@ function pcSubsaleInputs(d) {
     [el('option', { value: '', selected: d[k] == null ? '' : null }, 'Not recorded'),
      ...Object.values(reg).map(o => el('option', { value: o.id, selected: d[k] === o.id ? '' : null }, o.label))]), evLabel);
   box.append(num('askingPrice', 'Asking price (RM)', 1000, 'asking price'));
-  box.append(pick('tenancy', 'Existing tenancy', SUBSALE_TENANCY, 'tenancy'));
-  if (d.tenancy === 'tenanted') box.append(num('tenancyRent', 'Rent under the existing tenancy (RM a month)', 50, 'tenancy’s rent'));
+  /* A commercial unit's tenancy is asked once, with the four rents, under
+     Rental (P5): its contract rent is one of them. */
+  if (propertyClassOf(d) === 'commercial') box.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, 'The tenancy and its contract rent are under Rental, with the four rents.'));
+  else {
+    box.append(pick('tenancy', 'Existing tenancy', SUBSALE_TENANCY, 'tenancy'));
+    if (d.tenancy === 'tenanted') box.append(num('tenancyRent', 'Rent under the existing tenancy (RM a month)', 50, 'tenancy’s rent'));
+  }
   box.append(pick('condition', 'Condition', SUBSALE_CONDITION, 'condition'));
   box.append(num('buildingAge', 'Age of the building (years)', 1, 'age'));
   box.append(num('chargesToBuyer', 'Outstanding charges passed to you (RM)', 100, 'charges'));
@@ -49194,6 +49441,356 @@ function pcNewDev(d) {
   sec.append(ndResults({ n, d, prefix: 'pc', why: { premium: () => lsOpenEvidence(prDet), idc: () => lsOpenEvidence(idcDet), exit: () => lsOpenEvidence(exDet), needed: () => lsOpenEvidence(neDet) } }));
   sec.append(el('p', { class: 'metaline nd-fees' }, newDevFeeNote()));
   sec.append(prDet, idcDet, exDet, neDet, srcDet);
+  return sec;
+}
+
+/* ==========================================================================
+   P5, COMMERCIAL: THE FOUR RENTS, RENT SUSTAINABILITY AND LEASE-DOWN (the
+   brief's "Commercial models"; the model is commercialModel,
+   75-property-grade.js; the answers CM_POSITIONS and DEAL_ANSWER_FIELDS,
+   70-property.js)
+   --------------------------------------------------------------------------
+   Drawn for a commercial class, of any subtype, on any route. Inputs, each
+   with its kind badge (D6) and, on the calculator, where it came from:
+   - THE FOUR RENTS, each its own field and its own figure, never blended:
+     the tenancy (tenanted, vacant, not known) and its contract rent; the
+     asking rent for this unit; the achieved rents the reader names from
+     their register (the observed comparable rent is their median, with the
+     count and the dates — asking rents are never listed there); and the
+     model rent, the calculator's expected rent (on the Lab, the Rent
+     slider), the reader's assumption.
+   - THE LEASE: its expiry (when a lease-down begins), the escalation and
+     the deposit as the tenancy states them, the fit-out a re-let would
+     need, the current tenant and their business.
+   - THE UNIT AND ITS LOCATION: the frontage, corner or intermediate, the
+     floor, parking and loading — the reader's record. No catchment or
+     footfall figure: there is no source for one.
+   Outputs on the layout system: L1 the net yield at the contract rent and
+   at the model rent, and the reserve twelve months vacant needs (metric
+   cards); L2 rent sustainability (an insight card), the four rents on one
+   scale, and the four lease-down scenarios (a table, cards on a phone — in
+   the order of their months, never ranked); L3 how each is worked out.
+   Wording is the figures': "the figures you entered imply…", never a
+   verdict on the deal, the rent or the tenant.
+   ========================================================================== */
+const CM_LEAD = 'The four rents stay apart: the tenancy’s, the asking rent, the achieved rents you recorded and your model rent. No catchment or footfall figure is shown — there is no source for one. Not a valuation.';
+const cmRentWords = (v) => (isNum(v) ? `${pqMoney(v)} a month` : 'Unavailable');
+const cmPct = (v) => (isNum(v) ? fmtPct(v, 2) : 'Unavailable');
+const cmR = (v) => Math.round(Math.abs(v));
+const cmPlural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const cmDates = (o) => (!o?.first ? 'undated' : o.first === o.last ? pqWhen(o.first) : `${pqWhen(o.first)} – ${pqWhen(o.last)}`);
+const cmMonthAt = (i) => new Date(Date.UTC(Math.floor(i / 12), i % 12, 1)).toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/* A rent against the observed comparables, in words and as a figure: the
+   range from the highest of them to the lowest ("10–23% above"), or the
+   one figure where there is one comparable. */
+function cmRangeWords(a, n) {
+  const obj = n === 1 ? 'the observed comparable you recorded' : 'the observed comparables you recorded';
+  if (n === 1 || cmR(a.lo) === cmR(a.hi) && Math.sign(a.lo) === Math.sign(a.hi)) {
+    const v = n === 1 ? a.median : a.lo;
+    return cmR(v) === 0 ? { words: `at ${obj}`, figure: '0%' } : { words: `${cmR(v)}% ${v > 0 ? 'above' : 'below'} ${obj}`, figure: `${v > 0 ? '+' : '−'}${cmR(v)}%` };
+  }
+  if (a.lo >= 0) return { words: `${cmR(a.lo)}–${cmR(a.hi)}% above ${obj}`, figure: `+${cmR(a.lo)}–${cmR(a.hi)}%` };
+  if (a.hi <= 0) return { words: `${cmR(a.hi)}–${cmR(a.lo)}% below ${obj}`, figure: `−${cmR(a.hi)}–${cmR(a.lo)}%` };
+  return { words: `between ${cmR(a.lo)}% below and ${cmR(a.hi)}% above ${obj}`, figure: `−${cmR(a.lo)}% to +${cmR(a.hi)}%` };
+}
+/* The sustainability line, as the card says it. */
+function cmSustainWords(c) {
+  const s = c.sustain, o = c.observed;
+  if (s.status === 'no-comparables') return null;
+  const of = `${cmPlural(o.n, 'achieved rent')} you recorded — ${o.n === 1 ? pqMoney(o.lo) : `${pqMoney(o.lo)} to ${pqMoney(o.hi)}, median ${pqMoney(o.median)}`}, ${cmDates(o)}`;
+  const ref = o.n === 1 ? 'it' : 'their median';
+  const model = s.model ? `At renewal the lease is modelled at your model rent, ${pqMoney(c.model)} — ${cmR(s.model.median) === 0 ? (o.n === 1 ? 'the same' : ref) : `${cmR(s.model.median)}% ${s.model.median > 0 ? 'above' : 'below'} ${ref}`}.` : '';
+  if (s.status === 'ok') {
+    const r = cmRangeWords(s.contract, o.n);
+    return { figure: r.figure, finding: `Current rent is ${r.words}.`, sub: `The contract rent of ${pqMoney(c.contract)} a month against ${of}. ${model}`.trim() };
+  }
+  if (s.model) {
+    const r = cmRangeWords(s.model, o.n);
+    return { figure: r.figure, finding: `Your model rent is ${r.words}.`,
+      sub: `${s.status === 'vacant' ? 'The unit is vacant: there is no current rent to set against them.' : 'No contract rent is entered, so the current rent is not set against them.'} The model rent of ${pqMoney(c.model)} a month against ${of}.` };
+  }
+  return { figure: '—', finding: 'Not computable for these inputs.', sub: null };
+}
+
+/* THE INPUTS. `answer(k, v)` writes one (the page's own writer);
+   `evidence(k, label)` draws where a figure came from, where the page asks
+   it (the calculator); `extra.rents` is the register's pick; `where.model`
+   says where the model rent is set; `fold` puts the unit and its location
+   one tap away (the Lab), open at first on the calculator. */
+const CM_UNIT_OPEN = new Set();
+function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, fold = false }) {
+  const box = el('div', { class: 'au-inputs cm-inputs', id: `${prefix}-cm-inputs` });
+  const field = (k, label, control, fine = null) => {
+    const kind = auKindOfInput(d, k);
+    return el('div', { class: 'au-field', 'data-cm': k, 'data-kind': kind }, [
+      el('label', { for: `${prefix}-cm-${k}`, class: 'au-label' }, label), control,
+      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null])]);
+  };
+  const input = (k, attrs) => el('input', { class: 'input au-in', id: `${prefix}-cm-${k}`, value: d[k] ?? '', placeholder: 'Not entered',
+    onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); }, ...attrs });
+  const money = (k, step) => input(k, { type: 'number', min: '0', step: String(step), inputmode: 'decimal', class: 'input au-in num' });
+  const text = (k, placeholder) => input(k, { type: 'text', maxlength: '120', autocomplete: 'off', placeholder });
+  /* A choice, as the questions' chips — none chosen until the reader chooses. */
+  const chips = (k, label, opts) => {
+    const kind = auKindOfInput(d, k);
+    const fs = pqGroup(prefix, `cm-${k}`, label, opts, d[k] ?? null, (v) => answer(k, v));
+    fs.classList.add('au-pick');
+    return el('div', { class: 'au-field', 'data-cm': k, 'data-kind': kind }, [fs,
+      el('p', { class: 'au-kind' }, [auBadge(kind), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null])]);
+  };
+  const group = (id, legend, kids) => {
+    const fs = el('fieldset', { class: `au-group cm-group cm-group-${id}`, id: `${prefix}-cm-${id}` });
+    fs.append(el('legend', { class: 'au-legend' }, legend));
+    fs.append(...kids.filter(Boolean));
+    return fs;
+  };
+  const vacant = d.tenancy === 'vacant';
+  const modelKind = inputIsSeeded(d, 'rent') || KIND_OF_EVIDENCE[shownEvidence(d, 'rent')] === 'illustrative' ? 'illustrative' : 'modelled';
+  /* The four rents. */
+  box.append(group('rents', 'The four rents — each kept apart', [
+    el('div', { class: 'au-grid' }, [
+      chips('tenancy', 'Current tenancy', Object.keys(CM_TENANCY_WORDS).map(id => [id, CM_TENANCY_WORDS[id]])),
+      vacant ? null : field('tenancyRent', 'Contract rent — from the tenancy (RM a month)', money('tenancyRent', 50), 'the rent the tenancy agreement states'),
+      field('cmAskingRent', 'Asking rent for this unit (RM a month)', money('cmAskingRent', 50), 'what is asked for this unit — somebody’s hope, not a rent paid'),
+      el('div', { class: 'au-field cm-model', 'data-cm': 'rent', 'data-kind': modelKind }, [
+        el('p', { class: 'au-label' }, 'Model rent — your assumption'), el('p', { class: 'nd-at-v num' }, `${pqMoney(num0(d.rent))} a month`),
+        el('p', { class: 'au-kind' }, [auBadge(modelKind, 'your assumption of the rent at renewal — not an observed rent'), where.model ? el('span', { class: 'nd-where' }, where.model) : null])]),
+    ]),
+    extra.rents || null,
+  ]));
+  /* The lease. */
+  box.append(group('lease', 'The lease', [el('div', { class: 'au-grid' }, [
+    vacant ? null : field('cmLeaseExpiry', 'Lease expiry (month)', input('cmLeaseExpiry', { type: 'month', placeholder: 'YYYY-MM' }), 'when a lease-down would begin'),
+    field('cmFitOut', 'Fit-out for a re-let (RM)', money('cmFitOut', 500), 'what letting it again would cost you'),
+    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal')),
+    vacant ? null : field('cmDeposit', 'Deposit held (months of rent)', input('cmDeposit', { type: 'number', min: '0', step: '0.5', inputmode: 'decimal', class: 'input au-in num' })),
+    vacant ? null : field('cmTenant', 'Current tenant', text('cmTenant', 'As you know them')),
+    field('cmBusiness', vacant ? 'Business the unit suits' : 'Tenant’s business', text('cmBusiness', 'e.g. clinic, café, office')),
+  ])]));
+  /* The unit and its location. */
+  const unitKeys = ['cmFrontage', 'cmPosition', 'cmFloor', 'cmParking'];
+  const unit = [el('div', { class: 'au-grid' }, [
+    field('cmFrontage', 'Frontage (ft)', input('cmFrontage', { type: 'number', min: '0', step: '1', inputmode: 'decimal', class: 'input au-in num' })),
+    chips('cmPosition', 'Corner or intermediate', Object.values(CM_POSITIONS).map(o => [o.id, o.label])),
+    field('cmFloor', 'Floor', text('cmFloor', 'e.g. ground, first')),
+    field('cmParking', 'Parking and loading', text('cmParking', 'As you found them')),
+  ]), el('p', { class: 'au-note cm-unit-note' }, 'Your record of the unit, each with where it came from. No catchment or footfall figure: there is no source for one, and none is made up.')];
+  if (fold) {
+    const hid = `${prefix}-cm-unit-more`;
+    const n = unitKeys.filter(k => d[k] != null).length;
+    const det = el('details', { class: 'pc-more ls-l3 au-more cm-unit-more', id: hid, open: CM_UNIT_OPEN.has(hid) ? '' : null }, [
+      el('summary', { class: 'pc-more-sum' }, `The unit and its location — ${n} of ${unitKeys.length} recorded`), group('unit', 'The unit and its location', unit)]);
+    det.addEventListener('toggle', () => { if (det.open) CM_UNIT_OPEN.add(hid); else CM_UNIT_OPEN.delete(hid); });
+    box.append(det);
+  } else box.append(group('unit', 'The unit and its location', unit));
+  return box;
+}
+
+/* THE ACHIEVED RENTS, from the reader's register, named one by one: the
+   observed comparable rent is their median. Each with its amount, the type
+   it was recorded with, its date, its source and its standing, and the
+   Yours badge. Asking rents are not listed: never an observed rent.
+   `toggle(ids)` writes the list named. */
+function cmRentPick({ d, prefix, legend, toggle }) {
+  const choices = dealRentChoices(d);
+  const ids = new Set(Array.isArray(d.rentComparableIds) ? d.rentComparableIds : []);
+  const town = (SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || d.city;
+  const fs = el('fieldset', { class: 'comp-pick cm-rent-pick', id: `${prefix}-cm-rent-comps` });
+  fs.append(el('legend', { class: 'eyebrow comp-pick-legend' }, legend));
+  if (!choices.length) fs.append(el('p', { class: 'metaline' }, `No achieved rent is recorded in ${town} yet.`));
+  for (const o of choices) {
+    const id = `${prefix}-cm-rc-${slugParam(o.id)}`;
+    const st = observationStanding(o);
+    fs.append(el('label', { class: 'comp-pick-row', for: id, 'data-rent-comp': o.id }, [
+      el('input', { type: 'checkbox', id, checked: ids.has(o.id) ? '' : null, onchange: (e) => {
+        const next = new Set(Array.isArray(d.rentComparableIds) ? d.rentComparableIds : []);
+        if (e.target.checked) next.add(o.id); else next.delete(o.id);
+        toggle([...next]);
+      } }),
+      el('span', { class: 'comp-pick-words' }, [
+        `${comparableName(o)} — ${pqMoney(o.value)} a month${String(o.propertyType || '').trim() ? `, ${String(o.propertyType).trim()}` : ''}, ${pqWhen(o.date)}`,
+        ' ', kindBadge('yours', { fine: 'your own record', link: false }),
+        el('span', { class: 'comp-pick-src' }, `Source: ${comparableSource(o)} · ${st.label}`)]),
+    ]));
+  }
+  fs.append(el('p', { class: 'metaline comp-pick-apart' }, 'Asking rents are not listed here: an asking rent is somebody’s hope, never an observed rent.'));
+  fs.append(el('p', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
+    el('a', { class: 'btn btn-ghost btn-sm', href: href('/property/comparables'), id: `${prefix}-cm-register`, onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/property/comparables'); } },
+      choices.length ? 'Open the comparables register' : 'Record one in the comparables register')]));
+  return fs;
+}
+
+/* THE FOUR RENTS ON ONE SCALE (L2): a row a rent — its name, its kind, its
+   figure — and a bar from nought; the observed comparables' range a band
+   on theirs, and their median marked on every bar, so how far each rent
+   stands from it is a length. Each its own figure: nothing is blended.
+   Positions rounded to 1/10000 of a per cent (0c4ba54b). */
+function cmRentsFigure(c, d, prefix) {
+  const fig = el('figure', { class: 'au-wf cm-rents', id: `${prefix}-cm-rents`, 'aria-labelledby': `${prefix}-cm-rents-h` });
+  fig.append(el('figcaption', { class: 'au-wf-h', id: `${prefix}-cm-rents-h` }, 'The four rents — never blended'));
+  const o = c.observed;
+  const top = Math.max(...c.rents.map(r => r.value).filter(isNum), o ? o.hi : 0, 1);
+  const X = (v) => auR4(Math.max(0, Math.min(100, v / top * 100)));
+  const list = el('ol', { class: 'au-wf-rows' });
+  const lease = d.cmLeaseExpiry ? `, to ${ndMonthWords(d.cmLeaseExpiry)}` : ', its expiry not entered';
+  for (const r of c.rents) {
+    const has = isNum(r.value);
+    const svg = sv('svg', { class: 'au-wf-bar', width: '100%', height: '14', 'aria-hidden': 'true', focusable: 'false' });
+    svg.append(sv('rect', { class: 'au-wf-track', x: '0', y: '2', width: '100%', height: '10', rx: '3' }));
+    if (r.id === 'observed' && o) {
+      svg.append(sv('rect', { class: 'au-wf-mark is-add', x: `${X(o.lo)}%`, y: '2', width: `${auR4(Math.max(0.4, X(o.hi) - X(o.lo)))}%`, height: '10', rx: '3' }));
+    } else if (has) svg.append(sv('rect', { class: 'au-wf-mark is-total', x: '0%', y: '2', width: `${X(r.value)}%`, height: '10', rx: '3' }));
+    if (o) svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(o.median)}%`, x2: `${X(o.median)}%`, y1: '0', y2: '14' }));
+    const sub = r.id === 'contract' ? (c.vacant ? 'Vacant — no tenancy in place' : has ? `From the tenancy${lease}` : 'Not entered — from the tenancy agreement')
+      : r.id === 'asking' ? (has ? 'Asked for this unit — somebody’s hope, not a rent paid' : 'Not entered')
+        : r.id === 'observed' ? (o ? `The median of ${cmPlural(o.n, 'achieved rent')} you recorded${o.n > 1 ? `, ${pqMoney(o.lo)} to ${pqMoney(o.hi)}` : ''}, ${cmDates(o)}` : 'None named from your register')
+          : `Your assumption${c.modelKind === 'illustrative' ? ' — still the sample’s' : ''}; the renewal is modelled at it`;
+    list.append(el('li', { class: `au-wf-row is-total${has ? '' : ' is-na'}`, 'data-rent': r.id, 'data-value': has ? String(r.value) : '', 'data-kind': r.kind }, [
+      el('p', { class: 'au-wf-hd' }, [el('span', { class: 'au-wf-label' }, r.label), ' ', auBadge(r.kind, has ? null : 'not entered'), el('span', { class: 'au-wf-amt num' }, cmRentWords(r.value))]),
+      svg, el('p', { class: 'au-wf-sub' }, sub)]));
+  }
+  fig.append(list);
+  if (o) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }),
+    `The upright line on each bar is the median of the achieved rents you recorded, ${pqMoney(o.median)}${o.n > 1 ? '; the lighter band, their range' : ''}.`]));
+  return fig;
+}
+
+/* THE LEASE-DOWN SCENARIOS (L2): a table — cards on a phone — of 3, 6, 12
+   and 18 months vacant, in that order: what each needs held in cash, and
+   the effective yield a year over the holding period. Not a ranking. */
+function cmLeaseDownTable(c, prefix) {
+  const L = c.lease;
+  const box = el('div', { class: 'cm-ld', id: `${prefix}-cm-ld` });
+  box.append(el('p', { class: 'au-wf-h cm-ld-h', id: `${prefix}-cm-ld-h` }, 'Lease-down: months vacant from the lease expiry'));
+  const table = el('table', { class: 'dt cm-ld-table', id: `${prefix}-cm-ld-table`, 'aria-labelledby': `${prefix}-cm-ld-h` });
+  table.append(el('thead', {}, el('tr', {}, [el('th', { scope: 'col', style: 'text-align:left' }, 'Vacant'), el('th', { scope: 'col' }, 'Cash reserve'), el('th', { scope: 'col' }, 'Effective yield')])));
+  const tb = el('tbody');
+  for (const s of L.scenarios) {
+    const ok = s.status !== 'unavailable';
+    tb.append(el('tr', { 'data-months': String(s.months), 'data-reserve': ok ? String(s.reserve) : '', 'data-yield': ok && isNum(s.effYield) ? String(auR4(s.effYield)) : '', 'data-status': s.status }, [
+      el('td', { style: 'text-align:left' }, `${s.months} months`),
+      el('td', { class: 'num' }, ok ? pqMoney(s.reserve) : 'Unavailable'),
+      el('td', { class: 'num' }, ok && isNum(s.effYield) ? `${fmtPct(s.effYield, 2)} a year` : 'Unavailable'),
+    ]));
+  }
+  table.append(tb);
+  lsTableCards(table, { id: `${prefix}-cm-ld-table` });
+  box.append(el('div', { class: 'tablewrap' }, table));
+  box.append(el('p', { class: 'au-kind cm-ld-kind' }, [auBadge(L.reserveKind, L.missing.length ? 'not entered' : 'your figures, and the vacancy months of each scenario'),
+    el('span', { class: 'nd-where' }, L.missing.length ? `Unavailable until you enter ${auList(L.missing)} — never assumed.` : cmLeaseDownWhen(c))]));
+  return box;
+}
+/* When the lease-down begins, and what the figures hold, in one line. */
+function cmLeaseDownWhen(c) {
+  const L = c.lease;
+  const from = L.vacant ? 'From now — the unit is vacant'
+    : L.expired ? `From now — the lease expiry you entered, ${ndMonthWords(L.expiryText)}, has passed`
+      : `From the lease expiry, ${ndMonthWords(L.expiryText)} — ${cmPlural(L.start, 'month')} from ${cmMonthAt(L.now)}`;
+  const beyond = L.start >= L.hold ? ` The lease runs past your ${L.hold / 12}-year hold: no vacancy falls in it, and the yield is the contract rent’s.` : '';
+  return `${from}, over your ${L.hold / 12}-year hold. Each reserve is its months × ${pqMoney(L.burn)} with no rent${isNum(L.fitOut) ? ` + the ${pqMoney(L.fitOut)} fit-out you entered` : ' — fit-out not entered, not counted'}.${beyond}`;
+}
+
+/* THE FIGURES: L1 and L2. `why` holds what each "How … is worked out"
+   opens; `toRents` is where the achieved rents are named. */
+function cmResults({ c, d, prefix, why = {}, toRents = null }) {
+  const box = el('div', { class: 'au-results cm-results', id: `${prefix}-cm-results` });
+  const cards = el('div', { class: 'au-cards cm-l1' });
+  const y = c.yields;
+  cards.append(lsMetricCard({ label: 'Net yield at the contract rent', level: 1, cls: 'au-card cm-card cm-yc', badge: auBadge(y.contractKind, isNum(y.contract) ? 'the calculator’s net yield at the tenancy’s rent' : c.vacant ? 'vacant — no contract rent' : 'no contract rent entered'),
+    value: cmPct(y.contract), attrs: { 'data-cm-fig': 'yield-contract' }, valueAttrs: { 'data-value': isNum(y.contract) ? String(auR4(y.contract)) : '' },
+    sub: isNum(y.contract) ? `At ${pqMoney(c.contract)} a month, the tenancy’s.` : c.vacant ? 'The unit is vacant: no tenancy, no contract rent.' : 'Needs the contract rent, from the tenancy.' }));
+  cards.append(lsMetricCard({ label: 'Net yield at the model rent', level: 1, cls: 'au-card cm-card cm-ym', badge: auBadge(y.modelKind, 'the calculator’s net yield at your model rent'),
+    value: cmPct(y.model), attrs: { 'data-cm-fig': 'yield-model' }, valueAttrs: { 'data-value': isNum(y.model) ? String(auR4(y.model)) : '' },
+    sub: isNum(y.model) ? `At ${pqMoney(c.model)} a month — the renewal’s, your assumption.` : 'Needs a purchase price and a model rent.' }));
+  const r12 = c.lease.scenarios.find(s => s.months === 12);
+  const okR = r12 && r12.status !== 'unavailable';
+  cards.append(lsMetricCard({ label: 'Reserve for 12 months vacant', level: 1, cls: 'au-card cm-card cm-r12', badge: auBadge(c.lease.reserveKind, okR ? null : 'not entered'),
+    value: okR ? pqMoney(r12.reserve) : 'Unavailable', attrs: { 'data-cm-fig': 'reserve-12', 'data-status': okR ? r12.status : 'unavailable' }, valueAttrs: { 'data-value': okR ? String(r12.reserve) : '' },
+    sub: okR ? `12 months × ${pqMoney(c.lease.burn)} with no rent coming in${isNum(c.lease.fitOut) ? `, + ${pqMoney(c.lease.fitOut)} of fit-out` : '; fit-out not entered, not counted'}.` : `Enter ${auList(c.lease.missing)} — never assumed.` }));
+  box.append(cards);
+  /* Rent sustainability. */
+  const w = cmSustainWords(c);
+  if (!w) {
+    box.append(lsActionCard({ title: 'Rent sustainability', line: 'Unavailable: needs achieved rents you recorded, named from your register — never a market figure.',
+      cls: 'cm-card cm-sustain', attrs: { 'data-cm-fig': 'sustain', 'data-status': c.sustain.status, 'data-value': '' },
+      cta: lsCta('Name them', { id: `${prefix}-cm-sustain-go`, onclick: toRents }) }));
+  } else {
+    const a = c.sustain.status === 'ok' ? c.sustain.contract : c.sustain.model;
+    box.append(lsInsightCard({ label: 'Rent sustainability', cls: 'cm-card cm-sustain',
+      attrs: { 'data-cm-fig': 'sustain', 'data-status': c.sustain.status, 'data-lo': a ? String(auR4(a.lo)) : '', 'data-hi': a ? String(auR4(a.hi)) : '' },
+      figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure), finding: el('p', { class: 'ls-card-title' }, w.finding),
+      sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,
+      cta: lsCta('See why', { id: `${prefix}-cm-sustain-why`, onclick: why.sustain, sr: ' the rent stands where it does against them' }) }));
+  }
+  box.append(cmRentsFigure(c, d, prefix));
+  box.append(cmLeaseDownTable(c, prefix));
+  const links = [why.rents ? lsCta('How the four rents are kept apart', { id: `${prefix}-cm-rents-why`, onclick: why.rents }) : null,
+    why.yields ? lsCta('How the yields are worked out', { id: `${prefix}-cm-yield-why`, onclick: why.yields }) : null,
+    why.lease ? lsCta('How the lease-down is worked out', { id: `${prefix}-cm-ld-why`, onclick: why.lease }) : null].filter(Boolean);
+  if (links.length) box.append(el('p', { class: 'au-why' }, links));
+  return box;
+}
+
+/* L3: the working, in words. */
+function cmRentsFormula(c) {
+  const o = c.observed;
+  const each = c.comps.map(x => `${x.name}, ${pqMoney(x.rent)} a month${x.type ? ` (${x.type})` : ''} — ${pqWhen(x.date)}, source: ${x.source}, ${x.standing.label.toLowerCase()}`);
+  return `Contract rent: ${c.vacant ? 'none — you recorded the unit as vacant' : isNum(c.contract) ? `${pqMoney(c.contract)} a month, from the tenancy, as you entered it` : 'not entered'}. `
+    + `Asking rent: ${isNum(c.asking) ? `${pqMoney(c.asking)} a month, asked for this unit, as you entered it` : 'not entered'}. `
+    + `Observed comparable rent: ${o ? `the median of ${o.n === 1 ? 'one achieved rent' : `${o.n} achieved rents`} you named from your register — ${each.join('; ')} — = ${pqMoney(o.median)}` : 'Unavailable — no achieved rent is named from your register'}. `
+    + `Model rent: ${pqMoney(c.model)} a month, the calculator’s expected rent — your assumption, the rent the renewal is modelled at. `
+    + `${c.notUsed ? `${cmPlural(c.notUsed, 'named record')} ${c.notUsed === 1 ? 'is' : 'are'} not used: no longer in the register, or not an achieved rent. ` : ''}`
+    + 'Each is its own figure and none is worked from another. Asking rents are never in the observed median, and NAPIC records transactions, not tenancies, so no NAPIC rent is used. Not a valuation.';
+}
+function cmSustainFormula(c) {
+  const s = c.sustain, o = c.observed;
+  if (!o) return 'Unavailable: no achieved rent is named from your register. Name the achieved rents you recorded for units like this one, and the current rent is set against the highest of them, the lowest and their median — your records, never a market figure.';
+  const line = (label, a) => `${label} ${pqMoney(a.rent)}: against the highest, (${pqMoney(a.rent)} − ${pqMoney(o.hi)}) ÷ ${pqMoney(o.hi)} = ${fmtPct(a.lo, 1)}; against the lowest, (${pqMoney(a.rent)} − ${pqMoney(o.lo)}) ÷ ${pqMoney(o.lo)} = ${fmtPct(a.hi, 1)}; against the median ${pqMoney(o.median)}, ${fmtPct(a.median, 1)}.`;
+  return [s.contract ? line('The contract rent', s.contract) : `No current rent: ${c.vacant ? 'the unit is vacant' : 'no contract rent is entered'}.`,
+    s.model ? line('The model rent', s.model) : '', 'The range is said in whole per cent. What the figures you entered imply — not a verdict on the rent or the tenant.'].filter(Boolean).join(' ');
+}
+function cmYieldFormula(c) {
+  const y = c.yields;
+  return `Net yield is the calculator’s own: (the rent × 12 × (1 − the ${fmtNum(y.vacancyPct, 1)}% vacancy allowance you set) − the running costs) ÷ the purchase price. `
+    + `At the contract rent: ${isNum(y.contract) ? `${fmtPct(y.contract, 2)} (gross ${fmtPct(y.grossContract, 2)})` : 'Unavailable — no contract rent'}. `
+    + `At the model rent: ${isNum(y.model) ? `${fmtPct(y.model, 2)} (gross ${fmtPct(y.grossModel, 2)})` : 'Unavailable'}. `
+    + 'The model is run with each rent in turn, every other figure as entered. The lease is modelled to renew at the model rent. Not a forecast.';
+}
+function cmLeaseDownFormula(c) {
+  const L = c.lease;
+  if (L.missing.length) return `Unavailable until you enter ${auList(L.missing)}. Nothing is assumed: the lease-down begins at the expiry you enter, or now if you record the unit as vacant.`;
+  const rows = L.scenarios.map(s => `${s.months} months: reserve ${s.months} × ${pqMoney(L.burn)}${isNum(L.fitOut) ? ` + ${pqMoney(L.fitOut)}` : ''} = ${pqMoney(s.reserve)}; rent ${s.cMonths} months × ${pqMoney(c.contract || 0)} + ${s.mMonths} months × ${pqMoney(c.model)} = ${pqMoney(s.rentIn)}, ${s.vMonths} vacant; (${pqMoney(s.rentIn)} × ${fmtNum(L.rentKept * 100, 1)}% − ${pqMoney(s.costs)}${s.fit ? ` − ${pqMoney(s.fit)}` : ''}) ÷ ${fmtNum(L.hold / 12, 0)} years ÷ ${pqMoney(L.price)} = ${fmtPct(s.effYield, 2)} a year`);
+  return `${cmLeaseDownWhen(c)} With no rent, the property costs ${pqMoney(L.burn)} a month: the instalment and the running costs you pay whatever the rent. `
+    + `The effective yield keeps ${fmtNum(L.rentKept * 100, 1)}% of the rent received (the management and repair shares of the rent come off it) and takes ${pqMoney(L.fixedMonthly)} a month of fixed running costs for every month of the hold, and the fit-out once; rents held flat, the vacancy each scenario’s in place of the allowance. `
+    + `${rows.join('; ')}. What the figures you entered imply — not a forecast.`;
+}
+
+/* --------------------------------------------------- on the calculator */
+function pcCommercialInputs(d) {
+  const box = el('div', { class: 'pc-auction pc-commercial', id: 'commercial' });
+  box.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, `Commercial${dealCommercialSubtype(d) ? ` — ${COMMERCIAL_SUBTYPES[dealCommercialSubtype(d)].label.toLowerCase()}` : ''}`));
+  box.append(cmInputs({ d, prefix: 'pc',
+    answer: (k, v) => { if (pcSubAnswer(d, k, v)) renderKeepFocus(); },
+    evidence: (k, label) => pcEvidencePick(d, k, label),
+    extra: { rents: cmRentPick({ d, prefix: 'pc', legend: 'Achieved rents from your register',
+      toggle: (ids) => { if (setDealAnswer(d, 'rentComparableIds', ids)) { saveDeal(); renderKeepFocus(); } } }) },
+    where: { model: 'The expected rent, above.' } }));
+  return box;
+}
+function pcCommercial(d) {
+  const c = commercialModel(d);
+  const sec = el('section', { class: 'card ls-section au cm', id: 'pc-cm', 'aria-labelledby': 'pc-cm-h' });
+  sec.append(el('h3', { class: 'h-card', id: 'pc-cm-h' }, 'The commercial rents, worked through'));
+  sec.append(el('p', { class: 'metaline au-route' }, CM_LEAD));
+  const det = (id, summary, body) => el('details', { class: 'pc-more ls-l3', id }, [el('summary', { class: 'pc-more-sum' }, summary), el('p', { class: 'pc-more-body lab-formula' }, body)]);
+  const rDet = det('pc-cm-rents-ev', 'How the four rents are kept apart', cmRentsFormula(c));
+  const sDet = det('pc-cm-sustain-ev', 'How rent sustainability is worked out', cmSustainFormula(c));
+  const yDet = det('pc-cm-yield-ev', 'How the yields are worked out', cmYieldFormula(c));
+  const lDet = det('pc-cm-ld-ev', 'How the lease-down is worked out', cmLeaseDownFormula(c));
+  sec.append(cmResults({ c, d, prefix: 'pc', why: { rents: () => lsOpenEvidence(rDet), sustain: () => lsOpenEvidence(sDet), yields: () => lsOpenEvidence(yDet), lease: () => lsOpenEvidence(lDet) },
+    toRents: () => lsGoTo(document.getElementById('pc-cm-rent-comps'), document.querySelector('#pc-cm-rent-comps input, #pc-cm-register')) }));
+  sec.append(rDet, sDet, yDet, lDet);
   return sec;
 }
 /* ==========================================================================
@@ -56462,6 +57059,15 @@ function evidenceFlowDone(o) {
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
       onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+  } else if (o.kind === 'let-rent') {
+    /* An achieved rent (P5): named in the Scenario Lab's observed
+       comparable rents, which a commercial property's rent is set against —
+       and summarised on the area screen as before. */
+    box.append(el('p', { class: 'metaline' }, 'Use it in a scenario: it is named among the Scenario Lab’s observed comparable rents, which a commercial property’s rent is set against — with its source and date, as a what-if until you save. The area screen summarises it by locality, achieved and asking apart.'));
+    box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [
+      el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use', onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      el('a', { class: 'btn btn-ghost', id: 'ef-area-go', href: href('/property/areas'),
+        onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')]));
   } else {
     box.append(el('p', { class: 'metaline' }, 'A rent is summarised by locality on the area screen, achieved and asking apart, each with its count.'));
     box.append(el('p', { class: 'ef-act' }, el('a', { class: 'btn btn-ghost', id: 'ef-use', href: href('/property/areas'),
@@ -57548,7 +58154,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* What the line beside a product's badge proves, and what it does not. */
 const JOURNEY_LINE_TITLE = 'A journey proves that a reader can get through this tool to a result on the live site. It does not show that any figure on the page is accurate.';

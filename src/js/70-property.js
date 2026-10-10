@@ -760,6 +760,30 @@ const SUBSALE_CONDITION = {
 };
 const PRICE_TARGET_KINDS = ['monthly', 'yield'];
 
+/* THE COMMERCIAL MODELS' ANSWERS (P5: commercialModel, 75-property-grade.js).
+   FOUR RENTS, NEVER MIXED, each in its own field and none written from
+   another: the contract rent is the tenancy's (tenancy and tenancyRent,
+   the subsale's own fields — one tenancy, asked once); the asking rent is
+   what is asked for this unit (cmAskingRent); the observed comparable rent
+   is the median of the achieved rents the reader names from their register
+   (rentComparableIds — this browser's records, so they do not travel in
+   the address, as comparableIds do not); and the model rent is the
+   calculator's expected rent (rent) — the reader's assumption, the one the
+   renewal is modelled at. The unit and location fields are the reader's
+   record, each with where it came from: the frontage, corner or
+   intermediate, the floor, parking and loading, the current tenant and
+   their business, the lease expiry, the escalation and the deposit as the
+   tenancy states them, and the fit-out a re-let would need. No catchment
+   or footfall figure exists here: there is no source for one, and none is
+   made up. Words, not figures, where the tenancy's own words are the
+   record (the escalation, the floor, parking and loading). */
+const CM_POSITIONS = {
+  corner:       { id:'corner',       label:'Corner' },
+  intermediate: { id:'intermediate', label:'Intermediate' },
+};
+/* The tenancy, in the commercial section's words (the same three answers). */
+const CM_TENANCY_WORDS = { tenanted: 'Tenanted', vacant: 'Vacant', unknown: 'Not known yet' };
+
 /* THE AUCTION RISK MODE'S ANSWERS (P3). What the deposit is a share of is
    the Proclamation's to say — some state the reserve price, the Malaysian
    Bar's guidance speaks of the purchase price — so it is asked, never
@@ -940,6 +964,15 @@ const DEAL_ANSWER_FIELDS = {
   ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
   ndSchedule: ansSchedule,
   ndRebates: ansSum,
+  /* The commercial models (P5): the asking rent for this unit; the lease —
+     its expiry month, the escalation and the deposit as the tenancy states
+     them, the fit-out a re-let would need; and the unit as the reader
+     recorded it — the current tenant and their business, the frontage,
+     corner or intermediate, the floor, parking and loading. */
+  cmAskingRent: ansSum,
+  cmLeaseExpiry: ansMonth, cmEscalation: ansSource, cmDeposit: ansSum, cmFitOut: ansSum,
+  cmTenant: ansSource, cmBusiness: ansSource,
+  cmFrontage: ansSum, cmPosition: ansEnum(Object.keys(CM_POSITIONS)), cmFloor: ansSource, cmParking: ansSource,
   /* Mortgage protection, optional and off by default (the fee rulebook
      1.1.0): 'included' carries it in the cash required at the rulebook's
      estimate until a quote replaces it. Absent is out. */
@@ -954,7 +987,7 @@ const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
 function setDealAnswer(d, k, v) {
   if (!d) return false;
   let next;
-  if (k === 'comparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
+  if (k === 'comparableIds' || k === 'rentComparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
   else if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) next = v == null || v === '' ? undefined : DEAL_ANSWER_FIELDS[k](String(v));
   else return false;
   const had = d[k];
@@ -3511,6 +3544,16 @@ const PRICE_ASK_KINDS = { residential: 'ask-price', commercial: 'ask-price', lan
 function dealAskingChoices(d) {
   const kind = PRICE_ASK_KINDS[propertyClassOf(d)];
   return (State.observations || []).filter(o => o && o.kind === kind && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
+}
+/* THE ACHIEVED RENTS THAT CAN BE NAMED (P5, the observed comparable rent):
+   the reader's own records of a rent actually paid, in the deal's town —
+   never an asking rent, which is somebody's hope (the register's rule:
+   asking and achieved are never mixed), and never the worked example's
+   invented rows. Which of them is comparable to this unit is the reader's
+   to say, by naming it; each carries the property type it was recorded
+   with, if any. */
+function dealRentChoices(d) {
+  return (State.observations || []).filter(o => o && o.kind === 'let-rent' && o.city === d?.city && !o.sample && isNum(o.value) && o.value > 0);
 }
 const medianOf = (xs) => { const v = xs.slice().sort((a, b) => a - b); return v.length ? (v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2) : null; };
 function priceGap(d) {

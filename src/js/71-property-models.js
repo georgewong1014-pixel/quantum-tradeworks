@@ -820,6 +820,10 @@ const PM_FIELD_WORDS = {
   /* The developer premium model's answers (P4). */
   ndCompPrice: 'Completed comparable price (RM)', ndCompSource: 'Completed comparable — where it came from', ndCompDate: 'Completed comparable — its date',
   ndSpaMonth: 'SPA signed (month)', ndVpMonth: 'Vacant possession expected (month)', ndSchedule: 'Progressive drawdown schedule', ndRebates: 'Developer rebates and incentives (RM)',
+  /* The commercial models' answers (P5). */
+  cmAskingRent: 'Asking rent (RM a month)', rentComparableIds: 'Achieved rents named', cmLeaseExpiry: 'Lease expiry (month)',
+  cmEscalation: 'Escalation', cmDeposit: 'Deposit held (months of rent)', cmFitOut: 'Fit-out for a re-let (RM)', cmTenant: 'Current tenant',
+  cmBusiness: 'Tenant’s business', cmFrontage: 'Frontage (ft)', cmPosition: 'Corner or intermediate', cmFloor: 'Floor', cmParking: 'Parking and loading',
 };
 function pmOverrideLine(ov, max = 6) {
   /* Which figures were entered is bookkeeping that follows a changed figure

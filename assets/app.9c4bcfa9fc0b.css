@@ -6259,6 +6259,24 @@ input.au-in { text-align: right; }
   .nd-tpl { width: 100%; }
 }
 
+/* THE COMMERCIAL MODELS (the property decision layer, P5;
+   83-property-decision.js). On the auction's system: L1 the net yield at
+   the contract rent and at the model rent and the twelve-month reserve
+   (metric cards), L2 rent sustainability (an insight card), the four rents
+   a row each on one scale, and the lease-down a table — a card a row under
+   640px (ls-tcards), in the order of its months, never ranked. */
+.cm-ld { min-width: 0; }
+.cm-ld-h { margin: 0 0 var(--ls-within); }
+.cm-ld .tablewrap { margin: 0; }
+.cm-ld-table { width: 100%; }
+.cm-ld-table td.num, .cm-ld-table th:not(:first-child) { text-align: right; white-space: nowrap; }
+.cm-ld-kind { margin-top: var(--ls-within); max-width: var(--ls-measure); }
+.cm-unit-note { margin: var(--ls-within) 0 0; }
+.cm-unit-more > .cm-group { margin-top: var(--ls-within); }
+.cm-rent-pick { margin-top: var(--ls-related); }
+/* Words the reader records read from the left, as typed. */
+input.au-in[type="text"] { text-align: left; }
+
 /* ---- end layout-system ---- */
 
 /* ---- evidence-classes ---- */
