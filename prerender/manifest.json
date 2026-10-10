@@ -209,8 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "34e211b1bfb8d039",
-      "changed": "2026-10-08"
+      "digest": "6a9e2e1abdd6a874",
+      "changed": "2026-10-10"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -4559,7 +4559,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7d16b65973e63f2d",
+      "digest": "d67552a725ce5048",
       "changed": "2026-10-10"
     },
     "pages/my/portfolio.html": {
@@ -4851,7 +4851,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "456bccd1d478ea1d",
+      "digest": "afde9c4fa323d15c",
       "changed": "2026-10-10"
     },
     "pages/property-investing.html": {
