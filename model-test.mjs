@@ -7435,6 +7435,161 @@ try {
   }
   /* ---- end refurb ---- */
 
+  /* ---- cost-lines ---- */
+  /* COST LINES WITH PROVENANCE (QT-03, the owner's approval of 10 Oct 2026;
+     setCostLines and costLinesSummary, 70-property.js; costLinesBlock,
+     84-property-costs.js). A renovation or improvement cost entered as
+     lines, each with its source, date, what it includes and excludes, and
+     its kind — Quoted, Estimate (Yours) or Placeholder — on fixture F.
+     CL1 — by hand: Quoted RM12,000 + Estimate RM8,000.50 + Placeholder
+           RM5,000 = RM25,000.50, the weakest badge Placeholder (KIND_ORDER),
+           RM13,000.50 resting on estimates; Quoted + Estimate is Quoted,
+           Estimate alone Yours; the lines' total is the figure every model
+           reads (renovation, rfRefurbCost) and the option's basis the
+           weakest kind, so Refurbish on lines is Refurbish on that one
+           figure to the sen; a single figure entered before lines stays
+           valid as one line (Yours, its basis's kind, the sample's untouched
+           figure Illustrative); a quote with no source or date, an amount of
+           nought, 2026-02-30 and a kind "cheap" are refused with the reason;
+           no lines left: the option's cost not entered, the renovation nought.
+     CL2 — the calculator: two lines added by the form, the renovation box the
+           lines' total and not typed over, the badge the weakest line's, the
+           ledger row badged; a quote with no source refused, said why.
+     CL3 — the Lab on a saved property: lines added to Refurbish are a
+           what-if of every column (the record unwritten) until Save, the
+           cost cell their total with the weakest badge, then kept with the
+           property. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const C_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const L3 = [{ item: 'Kitchen cabinets', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic)', date: '2026-09-14', includes: 'carcasses, doors, worktop', excludes: 'appliances' },
+        { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: 'walls and ceilings', excludes: '' },
+        { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }];`;
+    await ftry('cost-lines CL1: totals, the weakest badge and the single figure, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${C_SEED}
+        const s3 = costLinesSummary(costLinesClean(L3)), sQE = costLinesSummary(costLinesClean(L3.slice(0, 2))), sE = costLinesSummary(costLinesClean(L3.slice(1, 2)));
+        const d = F({ rfRefurbUplift: 150, rfRefurbVoid: 2 }); setCostLines(d, 'refurb', L3);
+        const one = F({ rfRefurbUplift: 150, rfRefurbVoid: 2, rfRefurbCost: 25000.5, rfRefurbBasis: 'placeholder' });
+        const pick = (x) => refurbModel(x).options.find(o => o.id === 'refurb');
+        const reno = F(); setCostLines(reno, 'renovation', L3);
+        const renoOne = F({ renovation: 25000.5 });
+        const legacy = { yours: costLinesSummary(costLinesOf(F({ renovation: 25000, touched: { renovation: true } }), 'renovation')),
+          sample: costLinesSummary(costLinesOf({ ...PROPERTY_DEFAULT_DEAL, touched: {} }, 'renovation')),
+          quoted: costLinesOf(F({ rfRefurbCost: 30000, rfRefurbBasis: 'quoted' }), 'refurb') };
+        const faults = [costLineFault({ ...L3[0], source: '' }), costLineFault({ ...L3[0], date: '' }), costLineFault({ ...L3[1], amount: 0 }),
+          costLineFault({ ...L3[1], date: '2026-02-30' }), costLineFault({ ...L3[1], kind: 'cheap' }), costLineFault({ ...L3[1], amount: 12.345 })];
+        const cleared = F({ rfRefurbUplift: 150 }); setCostLines(cleared, 'refurb', L3); setCostLines(cleared, 'refurb', []);
+        const renoCleared = F(); setCostLines(renoCleared, 'renovation', L3); setCostLines(renoCleared, 'renovation', []);
+        return JSON.stringify({ s3, sQE: [sQE.total, sQE.kind, sQE.onEstimates], sE: [sE.total, sE.kind], words: costEstimateWords(s3, (v) => fmtMoney(v, 'MYR', 2)),
+          d: [d.rfRefurbCost, d.rfRefurbBasis, (d.rfRefurbLines || []).length], lined: pick(d), single: pick(one),
+          reno: [reno.renovation, dealModel(reno).safeCashRequired, dealModel(renoOne).safeCashRequired, dealModel(F()).safeCashRequired],
+          legacy: { yours: [legacy.yours.n, legacy.yours.kind, legacy.yours.implicit], sample: [legacy.sample.n, legacy.sample.kind], quoted: legacy.quoted.map(x => [x.kind, x.amount, x.implicit]) },
+          faults, cleared: [cleared.rfRefurbCost ?? null, cleared.rfRefurbBasis ?? null, cleared.rfRefurbLines ?? null, pick(cleared).status],
+          renoCleared: [renoCleared.renovation, renoCleared.renovationLines ?? null],
+          stale: (() => { const x = F(); setCostLines(x, 'renovation', L3); x.renovation = 30000; const ls = costLinesOf(x, 'renovation'); return [ls.length, ls[0].amount, ls[0].implicit === true, costLinesExplicit(x, 'renovation')]; })() }); })()`));
+      const p = [];
+      const near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+      /* By hand: 12,000 + 8,000.50 + 5,000 = 25,000.50; Placeholder is the
+         weakest of Quoted, Yours and Placeholder (KIND_ORDER); 8,000.50 +
+         5,000 = 13,000.50 rests on estimates. */
+      if (!near(r.s3.total, 25000.5) || r.s3.kind !== 'placeholder' || !near(r.s3.onEstimates, 13000.5) || r.s3.n !== 3 || !near(r.s3.by.quoted, 12000))
+        p.push(`three lines: ${JSON.stringify(r.s3)} — by hand RM25,000.50, Placeholder, RM13,000.50 on estimates`);
+      if (!near(r.sQE[0], 20000.5) || r.sQE[1] !== 'quoted' || !near(r.sQE[2], 8000.5)) p.push(`Quoted + Estimate: ${JSON.stringify(r.sQE)} — by hand RM20,000.50, Quoted, RM8,000.50`);
+      if (!near(r.sE[0], 8000.5) || r.sE[1] !== 'yours') p.push(`Estimate alone: ${JSON.stringify(r.sE)} — by hand RM8,000.50, Yours`);
+      if (!/RM13,000\.50 of RM25,000\.50 rests on estimates: RM8,000\.50 your own, RM5,000\.00 placeholder/.test(r.words)) p.push(`the words: "${r.words}"`);
+      if (!near(r.d[0], 25000.5) || r.d[1] !== 'placeholder' || r.d[2] !== 3) p.push(`Refurbish on lines holds ${JSON.stringify(r.d)} — by hand 25,000.50, placeholder, 3 lines`);
+      for (const k of ['cost', 'costKind', 'firstYearMonthly', 'netYield', 'cash', 'incNoi'])
+        if (JSON.stringify(r.lined[k]) !== JSON.stringify(r.single[k])) p.push(`Refurbish's ${k} on lines ${JSON.stringify(r.lined[k])} ≠ on the one figure ${JSON.stringify(r.single[k])}`);
+      if (JSON.stringify(r.lined.payback) !== JSON.stringify(r.single.payback)) p.push(`payback ${JSON.stringify(r.lined.payback)} ≠ ${JSON.stringify(r.single.payback)}`);
+      if (!near(r.reno[0], 25000.5) || r.reno[1] !== r.reno[2] || !near(r.reno[1] - r.reno[3], 25000.5)) p.push(`the renovation on lines: ${JSON.stringify(r.reno)} — the figure 25,000.50, the cash required the one figure's, 25,000.50 above none`);
+      if (JSON.stringify(r.legacy.yours) !== '[1,"yours",true]' || JSON.stringify(r.legacy.sample) !== '[1,"illustrative"]' || JSON.stringify(r.legacy.quoted) !== '[["quoted",30000,true]]')
+        p.push(`a single figure: ${JSON.stringify(r.legacy)} — one line, Yours; the sample Illustrative; a quoted basis a Quoted line`);
+      const want = [/quote with no source/, /quote with no date/, /not above nought/, /not a date/, /not Quoted, Estimate or Placeholder/, /more than two decimal/];
+      r.faults.forEach((f, i) => { if (!f || !want[i].test(f)) p.push(`refusal ${i + 1}: ${JSON.stringify(f)} — wanted ${want[i]}`); });
+      if (JSON.stringify(r.cleared) !== '[null,null,null,"unavailable"]') p.push(`every line removed from Refurbish: ${JSON.stringify(r.cleared)} — its cost not entered, Unavailable`);
+      if (JSON.stringify(r.renoCleared) !== '[0,null]') p.push(`every line removed from the renovation: ${JSON.stringify(r.renoCleared)} — nought`);
+      if (JSON.stringify(r.stale) !== '[1,30000,true,false]') p.push(`a figure moved after its lines (a Lab slider): ${JSON.stringify(r.stale)} — the figure, one line, the lines no longer shown as its`);
+      if (p.length) fail('cost-lines CL1: totals, the weakest badge and the single figure, by hand', p);
+      else ok('cost-lines CL1: Quoted RM12,000 + Estimate RM8,000.50 + Placeholder RM5,000 = RM25,000.50, badged Placeholder (the weakest), RM13,000.50 on estimates; Quoted + Estimate Quoted, Estimate alone Yours; on lines Refurbish is Refurbish on the one figure to the sen (cost, kind, first-year position, yield, cash, payback) and the renovation the same cash required; a single figure is one line (Yours; the sample Illustrative; a quoted basis Quoted); six bad lines refused with their reasons; no lines left, the option Unavailable and the renovation nought; a figure moved after its lines (a Lab slider) is the figure, the lines no longer shown as its');
+    });
+
+    await ftry('cost-lines CL2: the calculator\'s renovation as lines', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${C_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null) });
+        State.deal = F({ renovation: 20000, touched: { ...F().touched, renovation: true } }); saveDeal();
+        navigate('/property/calculator'); await w(700);
+        const box = () => document.getElementById('pc-cl-renovation');
+        const before = { box: !!box(), open: !!box()?.open, sum: document.getElementById('pc-cl-renovation-sum')?.dataset.clKind || null };
+        if (box()) box().open = true;
+        const put = (k, v) => { const n = document.getElementById('pc-cl-renovation-' + k); if (n) n.value = v; };
+        const addLine = async (x) => { for (const [k, v] of Object.entries(x)) put(k, v); document.getElementById('pc-cl-renovation-add')?.click(); await w(400); };
+        await addLine({ item: 'Wardrobes', amount: '9000', kind: 'quoted', source: 'Written quote ref. EX-202 (synthetic)', date: '2026-08-30', includes: 'two wardrobes', excludes: 'delivery' });
+        await addLine({ item: 'Curtains', amount: '1500.25', kind: 'estimate', source: 'My own estimate', date: '' });
+        const after2 = { lines: (State.deal.renovationLines || []).map(x => [x.item, x.amount, x.kind]), reno: State.deal.renovation,
+          box: document.getElementById('d-renovation')?.value, ro: document.getElementById('d-renovation')?.readOnly,
+          sum: document.getElementById('pc-cl-renovation-sum')?.dataset.clKind, sumText: document.getElementById('pc-cl-renovation-sum')?.textContent || '',
+          ledger: document.querySelector('[data-cl-ledger]')?.dataset.clLedger || null, open: !!box()?.open, touched: !!State.deal.touched?.renovation };
+        await addLine({ item: 'Sofa', amount: '3000', kind: 'quoted', source: '', date: '2026-08-30' });
+        const refused = { msg: document.getElementById('pc-cl-renovation-msg')?.textContent || '', n: (State.deal.renovationLines || []).length };
+        const k = JSON.parse(keep); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ before, after2, refused }); })()`));
+      const p = [], a = r.after2;
+      if (!r.before.box || r.before.open) p.push(`before any line: the editor ${r.before.box ? 'is open' : 'is not drawn'} under the renovation`);
+      /* The single figure entered first (RM20,000, Yours) is kept as a line: 20,000 + 9,000 + 1,500.25 = 30,500.25; Yours, Quoted and Yours — the weakest Quoted. */
+      if (JSON.stringify(a.lines) !== '[["Renovation and furnishing",20000,"estimate"],["Wardrobes",9000,"quoted"],["Curtains",1500.25,"estimate"]]') p.push(`the lines kept: ${JSON.stringify(a.lines)}`);
+      if (a.reno !== 30500.25 || a.box !== '30500.25' || !a.ro || !a.touched) p.push(`the renovation reads ${a.reno} (box "${a.box}", ${a.ro ? 'read-only' : 'typeable'}, ${a.touched ? 'yours' : 'not marked yours'}) — by hand 30,500.25, held, yours`);
+      if (a.sum !== 'quoted' || a.ledger !== 'quoted' || !/RM30,500\.25 across 3 lines/.test(a.sumText) || !/RM21,500\.25 of RM30,500\.25 rests on estimates/.test(a.sumText)) p.push(`the badge and words: editor ${a.sum}, ledger ${a.ledger}, "${a.sumText.slice(0, 160)}"`);
+      if (!a.open) p.push('the editor closed itself after a line was added');
+      if (!/Not added — it is a quote with no source/.test(r.refused.msg) || r.refused.n !== 3) p.push(`a quote with no source: "${r.refused.msg}", ${r.refused.n} lines`);
+      if (p.length) fail('cost-lines CL2: the calculator\'s renovation as lines', p);
+      else ok('cost-lines CL2: on the calculator the renovation\'s RM20,000 (Yours) and two lines added by the form — Wardrobes RM9,000 Quoted, with its source and date, and Curtains RM1,500.25, Yours — make RM30,500.25, held in the box and not typed over, badged Quoted (the weakest) in the editor and the ledger, "RM21,500.25 of RM30,500.25 rests on estimates"; a quote with no source refused, "Not added — it is a quote with no source"');
+    });
+
+    await ftry('cost-lines CL3: Refurbish\'s works as lines in the Lab, a what-if until Save', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${C_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+        State.deal = F({ rfRefurbUplift: 150, rfRefurbVoid: 2 }); saveDeal();
+        const rec = saveActiveProperty({ name: 'cl CL3 property' });
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const record = JSON.stringify(pmFind(rec.id));
+        const box = () => document.getElementById('lab-rf-cl-refurb');
+        const drawn = !!box();
+        if (box()) box().open = true;
+        const put = (k, v) => { const n = document.getElementById('lab-rf-cl-refurb-' + k); if (n) n.value = v; };
+        for (const x of L3.slice(0, 2)) { for (const [k, v] of Object.entries(x)) put(k, String(v)); document.getElementById('lab-rf-cl-refurb-add')?.click(); await w(450); }
+        const cell = document.querySelector('#lab-rf-grid .lab-xr-cell[data-row="cost"][data-col="refurb"]');
+        const before = { drawn, recordSame: JSON.stringify(pmFind(rec.id)) === record, cols: LAB[labSubject].cols.map(c => [c.work.rfRefurbCost, c.work.rfRefurbBasis, (c.work.rfRefurbLines || []).length]),
+          cell: [cell?.dataset.value, cell?.dataset.kind, cell?.querySelector('.lab-xr-sub')?.textContent || ''], ro: document.getElementById('lab-rf-rfRefurbCost')?.readOnly,
+          save: document.getElementById('lab-rf-save')?.textContent || null };
+        document.getElementById('lab-rf-save')?.click(); await w(500);
+        const kept = pmInputsOf(pmFind(rec.id));
+        const after = { cost: kept.rfRefurbCost, basis: kept.rfRefurbBasis, lines: (kept.rfRefurbLines || []).map(x => [x.item, x.amount, x.kind, x.source, x.date]) };
+        deletePropertyModel(rec.id);
+        const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ before, after }); })()`));
+      const p = [], b = r.before;
+      if (!b.drawn) p.push('Refurbish has no cost-lines editor');
+      if (!b.recordSame) p.push('the lines were written to the property before Save');
+      /* 12,000 Quoted + 8,000.50 Yours = 20,000.50, the weakest Quoted. */
+      if (b.cols.some(c => c[0] !== 20000.5 || c[1] !== 'quoted' || c[2] !== 2)) p.push(`the columns hold ${JSON.stringify(b.cols)} — by hand 20,000.50, quoted, 2 lines in each`);
+      if (b.cell[0] !== '20000.5' || b.cell[1] !== 'quoted' || !/2 lines; RM8,00[01] on estimates/.test(b.cell[2]) || !b.ro) p.push(`the cost cell reads ${JSON.stringify(b.cell)}, the box ${b.ro ? 'held' : 'typeable'}`);
+      if (!/Save the refurbish-or-not figures to “cl CL3 property”/.test(b.save || '')) p.push(`Save reads "${b.save}"`);
+      if (r.after.cost !== 20000.5 || r.after.basis !== 'quoted' || JSON.stringify(r.after.lines) !== JSON.stringify([['Kitchen cabinets', 12000, 'quoted', 'Written quote ref. EX-101 (synthetic)', '2026-09-14'], ['Painting', 8000.5, 'estimate', 'My own estimate', '']]))
+        p.push(`Save wrote ${JSON.stringify(r.after)}`);
+      if (p.length) fail('cost-lines CL3: Refurbish\'s works as lines in the Lab, a what-if until Save', p);
+      else ok('cost-lines CL3: in the Lab on a saved property, Kitchen cabinets RM12,000 (Quoted, its source and date) and Painting RM8,000.50 (Yours) make Refurbish RM20,000.50 in every column, badged Quoted, "2 lines; RM8,000 on estimates", the cost box held — the property unwritten until "Save the refurbish-or-not figures to …", which keeps both lines with their sources and dates');
+    });
+  }
+  /* ---- end cost-lines ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

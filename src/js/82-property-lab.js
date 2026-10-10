@@ -2870,6 +2870,15 @@ const RF_ROW_SHORT = { monthly: 'the monthly position', netYield: 'the net yield
   cost: 'the cost', uplift: 'the uplift', void: 'the months without rent' };
 const rfSigned = (v) => `${v < 0 ? '−' : ''}${labMoney(Math.abs(v))}`;
 const rfNa = (text, sub = null) => ({ na: true, value: null, text, sub });
+/* Where an option's cost came from: its basis, or — itemised (QT-03) — its
+   lines and how much of them rests on estimates. */
+const rfCostSub = (d, id) => {
+  if (costLinesExplicit(d, id)) {
+    const s = costLinesSummary(costLinesOf(d, id));
+    return `${s.n} line${s.n === 1 ? '' : 's'}; ${s.onEstimates > 0 ? `${labMoney(s.onEstimates)} on estimates` : 'all quoted'}`;
+  }
+  return RF_BASES[d[RF_OPTIONS.find(r => r.id === id).keys.basis]]?.label.toLowerCase() || 'my estimate';
+};
 const rfUnavail = (o) => ({ value: null, text: 'Unavailable', kind: 'unavailable', sub: `enter ${auList(o.missing)}` });
 function rfCell(row, o, x) {
   const sell = o.id === 'sell', none = o.id === 'none';
@@ -2885,7 +2894,7 @@ function rfCell(row, o, x) {
     return { value: o.cash, text: labMoney(o.cash), kind: o.kind, sub: o.cash > 0 ? 'the sale does not settle the loan: the rest is yours to find' : 'the sale settles the loan' };
   }
   if (row === 'cost') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'no works' }
-    : o.status !== 'ok' ? rfUnavail(o) : { value: o.cost, text: labMoney(o.cost), kind: o.costKind, sub: RF_BASES[x.d[RF_OPTIONS.find(r => r.id === o.id).keys.basis]]?.label.toLowerCase() || 'my estimate' };
+    : o.status !== 'ok' ? rfUnavail(o) : { value: o.cost, text: labMoney(o.cost), kind: o.costKind, sub: rfCostSub(x.d, o.id) };
   if (row === 'uplift') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'the rent as modelled' }
     : !o.upliftIn ? { value: null, text: 'Not entered', kind: 'unavailable', sub: 'no uplift counted' }
       : { value: o.uplift, text: `+${labMoney(o.uplift)}`, kind: 'yours', sub: 'a month, your figure' };
@@ -2932,14 +2941,18 @@ function labRefurbCard(P, lab) {
   /* The inputs: an option's cost, uplift and void, and where the cost came
      from; the sale's price and settlement figure, and where each came from. */
   const box = el('div', { class: 'au-inputs rf-inputs', id: labId(P, 'rf-inputs') });
-  const num = (k, label, step, unitNote = null) => {
+  const num = (k, label, step, unitNote = null, { lines = false } = {}) => {
     const id = labId(P, `rf-${k}`);
     return el('div', { class: 'au-field', 'data-rf': k, 'data-kind': auKindOfInput(d, k) }, [
       el('label', { for: id, class: 'au-label' }, label),
+      /* The works as cost lines (QT-03): their total is the cost, held here
+         and not typed over while there are lines. */
       el('input', { class: 'input au-in num', id, type: 'number', min: '0', step: String(step), inputmode: 'decimal', value: d[k] ?? '', placeholder: 'Not entered',
+        readonly: lines ? '' : null, 'aria-describedby': lines ? `${labId(P, 'rf')}-cl-${k === 'rfRefurbCost' ? 'refurb' : 'upgrade'}-sum` : null,
         onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); } }),
       /* No link: on a phone the Lab's every target is 44px (labTag). */
-      el('p', { class: 'au-kind' }, [kindBadge(d[k] == null ? 'unavailable' : 'yours', { link: false, fine: d[k] == null ? (unitNote || 'not entered') : 'your figure' })])]);
+      el('p', { class: 'au-kind' }, [lines ? kindBadge(costLinesSummary(costLinesOf(d, k === 'rfRefurbCost' ? 'refurb' : 'upgrade')).kind, { link: false, fine: 'the weakest of the cost lines' })
+        : kindBadge(d[k] == null ? 'unavailable' : 'yours', { link: false, fine: d[k] == null ? (unitNote || 'not entered') : 'your figure' })])]);
   };
   const basis = (k, label) => {
     const fs = pqGroup(P.idPrefix, `rf-${k}`, label, Object.values(RF_BASES).map(b => [b.id, b.label]), d[k] ?? null, (v) => answer(k, v));
@@ -2949,9 +2962,16 @@ function labRefurbCard(P, lab) {
   for (const o of RF_OPTIONS.filter(x => x.keys)) {
     const k = o.keys;
     const fs = el('fieldset', { class: `au-group rf-group rf-group-${o.id}`, id: labId(P, `rf-${o.id}`) });
+    const lined = costLinesExplicit(d, o.id);
+    /* With lines, the cost's kind is the weakest line's: said, not chosen. */
+    const basisOrKind = lined ? el('div', { class: 'au-field', 'data-rf': k.basis }, [el('p', { class: 'au-label' }, 'The cost is'),
+      el('p', { class: 'au-kind' }, [kindBadge(RF_BASES[d[k.basis]]?.kind || 'yours', { link: false, fine: 'the weakest of the lines' }), ' the weakest line’s'])]) : basis(k.basis, 'The cost is');
     fs.append(el('legend', { class: 'au-legend' }, o.label), el('div', { class: 'au-grid' }, [
-      num(k.cost, 'Cost of the works (RM)', 1000), basis(k.basis, 'The cost is'), num(k.uplift, 'Rent it adds (RM a month)', 50, 'not entered — no uplift counted'),
+      num(k.cost, 'Cost of the works (RM)', 1000, null, { lines: lined }), basisOrKind, num(k.uplift, 'Rent it adds (RM a month)', 50, 'not entered — no uplift counted'),
       num(k.void, 'Months without rent while it runs', 1, 'not entered — none counted')]));
+    /* QT-03: the works itemised — each line its source, date, what it
+       covers and its kind — a what-if of every column until Save. */
+    fs.append(costLinesBlock({ d, target: o.id, prefix: labId(P, 'rf'), write: (lines) => answer(COST_TARGETS[o.id].lines, lines) }));
     box.append(fs);
   }
   const sf = el('fieldset', { class: 'au-group rf-group rf-group-sell', id: labId(P, 'rf-sell') });

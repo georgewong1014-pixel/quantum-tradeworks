@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, scanner, return, records, registers, cases, settings, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, scanner, return, records, registers, cases, settings, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -2069,6 +2069,52 @@ const JOURNEYS = [
         await tab.click(`document.getElementById('lab-rf-save')`, 'Save the refurbish-or-not figures');
         await tab.expect(`(() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})); return d.rfRefurbCost === 30000 && d.rfRefurbUplift === 150 && d.rfUpgradeCost === 80000 && d.rfSalePrice === 650000 && d.rfRefurbBasis === 'quoted'; })()`,
           async () => `the property holds ${await tab.eval(`JSON.stringify(Object.fromEntries(Object.entries(pmInputsOf(pmFind(${JSON.stringify(id)}))).filter(([k]) => k.startsWith('rf'))))`)}`);
+      });
+    },
+  },
+  {
+    /* PROPERTY COSTS WITH PROVENANCE (the owner's Track A of 10 Oct 2026):
+       on a saved property, the works of Refurbish entered as cost lines,
+       each with its source, its date, what it includes and its kind — the
+       cost their total, badged by the weakest line, saved with the
+       property. */
+    id: 'costs', name: 'Property costs: lines with their sources',
+    outcomes: ['Enter cost lines with sources'],
+    async run(j, tab) {
+      let id;
+      const pre = 'lab-rf-cl-refurb';
+      await step(j, tab, 'Open the Lab on a saved property', BUDGET.load * 2, async () => {
+        await tab.goto('/property');
+        id = await tab.eval(`(() => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rfRefurbUplift: 150, rfRefurbVoid: 2 }; saveDeal(); return saveActiveProperty({ name: 'Journey condo, cost lines' }).id; })()`);
+        await tab.goto(`/property/lab?model=${id}`);
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('${pre}')`, async () => `the Lab opened ${await tab.eval(`document.getElementById('lab-rf') ? 'refurbish or not with no cost-lines editor' : 'without refurbish or not'`)}`);
+      });
+      await step(j, tab, 'Enter cost lines with sources', BUDGET.action * 12, async () => {
+        await tab.click(`document.querySelector('#${pre} > summary')`, 'Itemise as lines, with sources');
+        await tab.expect(`document.getElementById('${pre}')?.open`, 'the cost-lines editor did not open');
+        /* A date as a value, not typed: what a date box takes from the keys
+           depends on the locale (JOURNEY_LOCALE). */
+        const line = async (x, what) => {
+          await tab.fill(`document.getElementById('${pre}-item')`, x.item, `${what} — the item`);
+          await tab.fill(`document.getElementById('${pre}-amount')`, x.amount, `${what} — the amount`);
+          await tab.choose(`document.getElementById('${pre}-kind')`, x.kind, `${what} — its kind`);
+          await tab.fill(`document.getElementById('${pre}-source')`, x.source, `${what} — its source`);
+          await tab.eval(`(() => { const n = document.getElementById('${pre}-date'); n.value = ${JSON.stringify(x.date)}; n.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+          if (x.includes) await tab.fill(`document.getElementById('${pre}-includes')`, x.includes, `${what} — what it includes`);
+          const n0 = await tab.eval(`(LAB[labSubject].cols[0].work.rfRefurbLines || []).length`);
+          await tab.click(`document.getElementById('${pre}-add')`, `${what} — Add the line`);
+          await tab.expect(`(LAB[labSubject].cols[0].work.rfRefurbLines || []).length === ${n0 + 1}`,
+            async () => `${what} was not added: “${await tab.eval(`document.getElementById('${pre}-msg')?.textContent || ''`)}”`);
+        };
+        await line({ item: 'Kitchen cabinets', amount: '12000', kind: 'quoted', source: 'Written quote ref. J-1 (journey)', date: '2026-09-14', includes: 'carcasses and doors' }, 'A quoted line');
+        await line({ item: 'Painting', amount: '8000', kind: 'estimate', source: 'My own estimate', date: '' }, 'An estimate');
+        const c = JSON.parse(await tab.eval(`JSON.stringify((() => { const cell = document.querySelector('#lab-rf-grid .lab-xr-cell[data-row="cost"][data-col="refurb"]'); const s = document.getElementById('${pre}-sum');
+          return { cols: LAB[labSubject].cols.map(c => [c.work.rfRefurbCost, c.work.rfRefurbBasis]), v: cell?.dataset.value, k: cell?.dataset.kind, sum: s?.dataset.clKind, text: s?.textContent || '' }; })())`));
+        if (c.cols.some(x => x[0] !== 20000 || x[1] !== 'quoted') || c.v !== '20000' || c.k !== 'quoted' || c.sum !== 'quoted' || !/RM8,000 of RM20,000 rests on estimates/.test(c.text))
+          throw new StepError(`the cost reads ${JSON.stringify(c)}`);
+        await tab.click(`document.getElementById('lab-rf-save')`, 'Save the refurbish-or-not figures');
+        await tab.expect(`(() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})); return d.rfRefurbCost === 20000 && (d.rfRefurbLines || []).length === 2 && d.rfRefurbLines[0].source === 'Written quote ref. J-1 (journey)' && d.rfRefurbLines[0].date === '2026-09-14'; })()`,
+          async () => `the property holds ${await tab.eval(`JSON.stringify(pmInputsOf(pmFind(${JSON.stringify(id)})).rfRefurbLines ?? null)`)}`);
       });
     },
   },

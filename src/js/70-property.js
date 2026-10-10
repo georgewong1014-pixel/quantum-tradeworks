@@ -894,8 +894,158 @@ const RF_OPTIONS = [
   { id:'upgrade', label:'Upgrade',   keys:{ cost:'rfUpgradeCost', uplift:'rfUpgradeUplift', void:'rfUpgradeVoid', basis:'rfUpgradeBasis' } },
   { id:'sell',    label:'Sell' },
 ];
+/* COST LINES WITH PROVENANCE (QT-03, the owner's approval of 10 Oct 2026,
+   on the fee rulebook's pattern). A renovation or improvement cost — the
+   calculator's renovation and furnishing, Refurbish's and Upgrade's works —
+   can be entered as lines, each recording what it is (item), the amount in
+   ringgit, where it came from (source: free text the reader types, the only
+   place a business's name can appear, and only as they typed it), its date,
+   what it includes and excludes, and its kind:
+   - Quoted: a written quote the reader was given (the Quoted badge) — it
+     names its source and its date, or it is not a quote;
+   - Estimate: the reader's own (Yours);
+   - Placeholder: a figure put in to see the arithmetic (Placeholder).
+   A total carries the weakest line's badge (KIND_ORDER) and says how much
+   of it rests on estimates — the Estimate and Placeholder lines. The lines
+   are the cost: writing them writes their total to the single figure every
+   model already reads (renovation, rfRefurbCost, rfUpgradeCost) and, for
+   an option, the weakest kind as its basis, so no model reads the lines
+   and every figure of a deal with none is what it was. A single figure
+   entered without lines stays valid: it reads as one line — Yours for the
+   renovation (the sample's own, untouched, Illustrative), its basis's kind
+   for an option. No supplier is attached, named, asked for or kept. The
+   lines are kept with the property (a saved property's deal); like a
+   comparable's id list they do not travel in the address — its total and
+   basis do. */
+const COST_LINE_KINDS = {
+  quoted:      { id:'quoted',      label:'Quoted',      badge:'quoted',      note:'a written quote you were given', option:'Quoted — a written quote' },
+  estimate:    { id:'estimate',    label:'Estimate',    badge:'yours',       note:'your own estimate', option:'Estimate — your own' },
+  placeholder: { id:'placeholder', label:'Placeholder', badge:'placeholder', note:'a figure put in to see the arithmetic', option:'Placeholder' },
+};
+const COST_LINE_KIND_IDS = Object.keys(COST_LINE_KINDS);
+/* RF_BASES's three and the kinds, both ways. */
+const RF_BASIS_OF_KIND = { quoted:'quoted', estimate:'yours', placeholder:'placeholder' };
+const KIND_OF_RF_BASIS = { quoted:'quoted', yours:'estimate', placeholder:'placeholder' };
+const COST_TARGETS = {
+  renovation: { id:'renovation', lines:'renovationLines', cost:'renovation', basis:null, label:'Renovation and furnishing', item:'Renovation and furnishing' },
+  refurb:     { id:'refurb', lines:'rfRefurbLines', cost:'rfRefurbCost', basis:'rfRefurbBasis', label:'Refurbish', item:'Cost of the works' },
+  upgrade:    { id:'upgrade', lines:'rfUpgradeLines', cost:'rfUpgradeCost', basis:'rfUpgradeBasis', label:'Upgrade', item:'Cost of the works' },
+};
+const COST_LINE_KEYS = Object.values(COST_TARGETS).map(t => t.lines);
+const costTargetOfKey = (k) => Object.values(COST_TARGETS).find(t => t.lines === k) || null;
+const COST_TEXT_MAX = { item: 80, source: 120, includes: 200, excludes: 200 };
+const COST_AMOUNT_MAX = 100000000;
+const COST_DATE = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+/* A calendar date as written, or null: 2026-02-30 is not one. */
+const costDateOk = (s) => { const m = COST_DATE.exec(String(s || '')); if (!m) return false;
+  const t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return t.getUTCMonth() === +m[2] - 1 && +m[1] >= 1990 && +m[1] <= 2100; };
+const costText = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+/* Why a line cannot be kept, or null: each field to its own rule, nothing
+   guessed — an amount is a number of ringgit above nought to the sen, a
+   quote names its source and its date. */
+function costLineFault(x) {
+  if (!isRecord(x)) return 'it is not a line';
+  const item = costText(x.item);
+  if (!item) return 'it names no item';
+  for (const [k, max] of Object.entries(COST_TEXT_MAX)) {
+    if (x[k] != null && typeof x[k] !== 'string') return `its ${k} is not text`;
+    if (costText(x[k]).length > max) return `its ${k} is longer than ${max} characters`;
+    if (/[\u0000-\u001f\u007f]/.test(String(x[k] ?? '').replace(/[\t\r\n]/g, ' '))) return `its ${k} holds a control character`;
+  }
+  if (typeof x.amount !== 'number' || !Number.isFinite(x.amount)) return 'its amount is not a number';
+  if (!(x.amount > 0)) return 'its amount is not above nought';
+  if (x.amount > COST_AMOUNT_MAX) return `its amount is over RM${COST_AMOUNT_MAX.toLocaleString('en-GB')}`;
+  if (Math.abs(Math.round(x.amount * 100) - x.amount * 100) > 1e-6) return 'its amount has more than two decimal places';
+  if (!COST_LINE_KIND_IDS.includes(x.kind)) return 'its kind is not Quoted, Estimate or Placeholder';
+  const date = costText(x.date);
+  if (date && !costDateOk(date)) return `its date “${date.slice(0, 20)}” is not a date written YYYY-MM-DD`;
+  /* A quote names its source and its date — except the single figure a
+     reader entered as a quotation before lines existed (legacy), kept as
+     the quote it was, its missing source said wherever it is listed. */
+  if (x.kind === 'quoted' && !costText(x.source) && x.legacy !== true) return 'it is a quote with no source: say where the quote came from';
+  if (x.kind === 'quoted' && !date && x.legacy !== true) return 'it is a quote with no date: enter the date on the quote';
+  return null;
+}
+/* A line as it is kept: its fields, trimmed, and its id; where it was
+   imported from (the file's name, the format's version, the row), kept. */
+function costLineOf(x, { id = null } = {}) {
+  if (costLineFault(x)) return null;
+  const out = { id: typeof x.id === 'string' && /^[\w-]{1,40}$/.test(x.id) ? x.id : (id || `cl-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`),
+    item: costText(x.item), amount: Math.round(x.amount * 100) / 100, kind: x.kind,
+    source: costText(x.source), date: costText(x.date), includes: costText(x.includes), excludes: costText(x.excludes) };
+  if (x.legacy === true && x.kind === 'quoted' && !(out.source && out.date)) out.legacy = true;
+  if (isRecord(x.from) && typeof x.from.file === 'string') out.from = { file: costText(x.from.file).slice(0, 120), version: Number(x.from.version) || 1, row: Number(x.from.row) || null };
+  return out;
+}
+const costLinesClean = (xs) => (Array.isArray(xs) ? xs.map(x => costLineOf(x)).filter(Boolean) : []);
+/* The same line, whatever its id: what a duplicate import is found by. */
+const costLineFingerprint = (x) => JSON.stringify([costText(x.item).toLowerCase(), Math.round(Number(x.amount) * 100), x.kind,
+  costText(x.source).toLowerCase(), costText(x.date), costText(x.includes).toLowerCase(), costText(x.excludes).toLowerCase()]);
+/* Of the kinds present, the weakest, by its badge's place in KIND_ORDER. */
+const costWeakestKind = (kinds) => COST_LINE_KIND_IDS.slice().sort((a, b) => KIND_ORDER.indexOf(COST_LINE_KINDS[a].badge) - KIND_ORDER.indexOf(COST_LINE_KINDS[b].badge))
+  .find(k => kinds.includes(k)) || null;
+/* The lines a target holds: its own, or the single figure entered without
+   lines, read as one line (implicit) — none where nothing is entered. */
+function costLinesOf(d, target) {
+  const t = COST_TARGETS[target];
+  if (!t || !d) return [];
+  /* The lines explain the figure only while they add up to it: a figure
+     moved since — a slider in the Lab, an address — is the figure, read
+     as one line, and the lines kept no longer describe it. */
+  const own = costLinesClean(d[t.lines]);
+  if (own.length && isNum(d[t.cost]) && Math.abs(costLinesSummary(own).total - d[t.cost]) < 0.005) return own;
+  const v = d[t.cost];
+  if (!isNum(v) || !(v > 0)) return [];
+  const sample = !t.basis && !isTouched(d, t.cost);
+  return [{ id: 'implicit', item: t.item, amount: v, kind: t.basis ? KIND_OF_RF_BASIS[d[t.basis]] || 'estimate' : 'estimate',
+    source: '', date: '', includes: '', excludes: '', implicit: true, sample }];
+}
+const costLinesExplicit = (d, target) => { const xs = costLinesOf(d, target); return xs.length > 0 && !xs[0].implicit; };
+/* A total of lines: the sum to the sen, the weakest line's badge (the
+   sample's untouched figure Illustrative), what each kind comes to and how
+   much rests on estimates — the Estimate and Placeholder lines. */
+function costLinesSummary(lines) {
+  const xs = Array.isArray(lines) ? lines : [];
+  const by = Object.fromEntries(COST_LINE_KIND_IDS.map(k => [k, 0]));
+  let total = 0;
+  for (const x of xs) { by[x.kind] = (by[x.kind] || 0) + x.amount; total += x.amount; }
+  total = Math.round(total * 100) / 100;
+  const weakest = costWeakestKind(xs.map(x => x.kind));
+  const kind = !xs.length ? 'unavailable' : xs.some(x => x.sample) ? 'illustrative' : COST_LINE_KINDS[weakest].badge;
+  const onEstimates = Math.round((by.estimate + by.placeholder) * 100) / 100;
+  return { n: xs.length, total, by, weakest, kind, onEstimates, implicit: xs.length === 1 && !!xs[0].implicit, sample: xs.some(x => x.sample) };
+}
+/* "RM4,500 of it rests on estimates: RM2,000 your own, RM2,500 placeholders"
+   — or that none does. `money`: the format of the place it is said. */
+function costEstimateWords(s, money = (v) => fmtAmount(v, 'MYR')) {
+  if (!s || !s.n) return 'No cost entered.';
+  if (s.sample) return 'The calculator’s sample figure, not yours: replace it, or itemise it as lines with sources.';
+  if (!(s.onEstimates > 0)) return `None of it rests on estimates: ${s.n === 1 ? 'the line is a written quote' : `all ${s.n} lines are written quotes`}.`;
+  const parts = [s.by.estimate > 0 ? `${money(s.by.estimate)} your own` : null, s.by.placeholder > 0 ? `${money(s.by.placeholder)} placeholder${s.by.placeholder === s.onEstimates && s.n > 1 ? 's' : ''}` : null].filter(Boolean);
+  return `${money(s.onEstimates)} of ${money(s.total)} rests on estimates: ${parts.join(', ')}.`;
+}
+/* The one way lines are written to a deal: the lines kept, their total
+   the target's figure and, for an option, the weakest kind its basis. No
+   lines left: the option's cost is not entered (Unavailable); the
+   renovation is nought. Returns whether the deal changed. */
+function setCostLines(d, target, lines) {
+  const t = COST_TARGETS[target];
+  if (!d || !t) return false;
+  const before = JSON.stringify([d[t.lines] ?? null, d[t.cost] ?? null, t.basis ? d[t.basis] ?? null : null]);
+  const clean = costLinesClean(lines);
+  if (!clean.length) {
+    delete d[t.lines];
+    if (t.basis) { delete d[t.cost]; delete d[t.basis]; } else d[t.cost] = 0;
+  } else {
+    const s = costLinesSummary(clean);
+    d[t.lines] = clean;
+    d[t.cost] = s.total;
+    if (t.basis) d[t.basis] = RF_BASIS_OF_KIND[s.weakest];
+  }
+  return JSON.stringify([d[t.lines] ?? null, d[t.cost] ?? null, t.basis ? d[t.basis] ?? null : null]) !== before;
+}
 /* The arrears a Proclamation may pass on, for this deal's class. */
-const auctionArrearsFor = (d) => (propertyClassOf(d) === 'land' ? AUCTION_ARREARS.filter(([k]) => k !== 'arrearsMaintenance') : AUCTION_ARREARS);
+const auctionArrearsFor =(d) => (propertyClassOf(d) === 'land' ? AUCTION_ARREARS.filter(([k]) => k !== 'arrearsMaintenance') : AUCTION_ARREARS);
 
 /* THE DEVELOPER PREMIUM MODEL'S SOURCES (P4). This tool's places are in
    Sarawak, where a licensed developer's sale is made on the forms Sarawak
@@ -1073,6 +1223,9 @@ const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
    Returns whether the deal changed. */
 function setDealAnswer(d, k, v) {
   if (!d) return false;
+  /* Cost lines (QT-03): through their own writer, which keeps the
+     option's figure and basis with them. */
+  if (COST_LINE_KEYS.includes(k)) return setCostLines(d, costTargetOfKey(k).id, v);
   let next;
   if (k === 'comparableIds' || k === 'rentComparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
   else if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) next = v == null || v === '' ? undefined : DEAL_ANSWER_FIELDS[k](String(v));

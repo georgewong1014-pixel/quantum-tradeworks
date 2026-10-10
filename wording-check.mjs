@@ -135,7 +135,9 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
 {
   const ADVICE = /\b(good deal|great deal|better deal|bad deal|bargain|undervalued|overvalued|under-?priced|over-?priced|below market|above market|you should (?:buy|sell|offer|pay)|worth buying|best (?:route|option|choice)|safest|riskiest|recommended price)\b/gi;
   const ADVICE_DENIAL = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing`, 'i');
-  const files = readdirSync(join(ROOT, 'src', 'js')).filter(f => /^(70-property|75-property-grade|82-property-lab|83-property-decision)\.js$/.test(f));
+  /* With the cost lines, the import and actual against modelled (84, the
+     owner's Track A of 10 Oct 2026). */
+  const files = readdirSync(join(ROOT, 'src', 'js')).filter(f => /^(70-property|75-property-grade|82-property-lab|83-property-decision|84-property-costs)\.js$/.test(f));
   let adviceBad = 0, adviceSeen = 0;
   for (const f of files) {
     const code = uncommented(readFileSync(join(ROOT, 'src', 'js', f), 'utf8'));
@@ -149,10 +151,39 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
     }
   }
   bad += adviceBad;
-  if (files.length !== 4) { bad++; console.error(`FAIL  the property decision layer's wording check read ${files.length} of its 4 modules`); }
+  if (files.length !== 5) { bad++; console.error(`FAIL  the property decision layer's wording check read ${files.length} of its 5 modules`); }
   else if (!adviceBad) console.log(`ok    no verdict on a deal or a route ("good deal", "undervalued", "below market", "you should buy", …) in the text of the ${files.length} property modules — ${adviceSeen} use${adviceSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
 }
 /* ---- end p1-route ---- */
+
+/* ---- cost-provenance ---- */
+/* NO SUPPLIER ATTACHED, NAMED OR PREFERRED (the owner's rule for Track A,
+   10 Oct 2026: QT-03's cost lines, the cost-schedule import, Refurbish or
+   not). A cost's source is the reader's own words and nothing else: in the
+   text of the modules that ask for and show it — comments left out — a
+   supplier, contractor, vendor or partner, a preferred or recommended one,
+   is named only in a sentence that denies it. */
+{
+  const SUPPLIER = /\b(suppliers?|contractors?|vendors?|partners?|preferred|recommended)\b/gi;
+  const SUPPLIER_DENIAL = new RegExp(`${DENIAL.source}|\\bno\\b|\\bnot\\b|nothing|\\bnor\\b`, 'i');
+  const files = readdirSync(join(ROOT, 'src', 'js')).filter(f => /^(82-property-lab|84-property-costs)\.js$/.test(f));
+  let supBad = 0, supSeen = 0;
+  for (const f of files) {
+    const code = uncommented(readFileSync(join(ROOT, 'src', 'js', f), 'utf8'));
+    for (const m of code.matchAll(SUPPLIER)) {
+      supSeen++;
+      const s = sentenceAt(code, m.index, m[0].length);
+      if (SUPPLIER_DENIAL.test(s)) continue;
+      supBad++;
+      console.error(`FAIL  "${m[0]}" named in ${f}`);
+      console.error(`      “${s.slice(0, 220)}”`);
+    }
+  }
+  bad += supBad;
+  if (files.length !== 2) { bad++; console.error(`FAIL  the cost-provenance wording check read ${files.length} of its 2 modules`); }
+  else if (!supBad) console.log(`ok    no supplier attached, named or preferred in the text of the ${files.length} modules that ask for a cost's source — ${supSeen} use${supSeen === 1 ? '' : 's'}, each in a sentence that denies it`);
+}
+/* ---- end cost-provenance ---- */
 
 /* ---- fee-integrity ---- */
 /* NO TOTAL IS CALLED VERIFIED (the owner's decision of 9 Oct 2026, audit

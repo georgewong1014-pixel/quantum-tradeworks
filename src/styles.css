@@ -6693,3 +6693,37 @@ input.au-in[type="text"] { text-align: left; }
   .lab-rf-save .btn { min-height: 44px; display: inline-flex; align-items: center; }
 }
 /* ---- end refurb ---- */
+
+/* ---- cost-lines ---- */
+/* COST LINES WITH PROVENANCE (QT-03; 84-property-costs.js, costLinesBlock):
+   under the calculator's renovation and each improvement option of
+   Refurbish or not. A closed <details> (L3) until the reader has lines; a
+   line a row of its item, amount and kind, its source and dates under it;
+   under 640px every control a 44px target. */
+.cl-box.pc-more { margin: var(--ls-related) 0 0; min-width: 0; grid-column: 1 / -1; }
+.cl-box > .cl-box-sum { font-size: var(--ls-support); color: var(--ink-2); }
+.cl-body { margin: var(--ls-within) 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: var(--ls-related); min-width: 0; }
+.cl-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0; font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); max-width: var(--ls-measure); }
+.cl-sum-t { font-weight: var(--weight-semibold); color: var(--ink); }
+.cl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ls-within); min-width: 0; }
+.cl-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 2px var(--ls-related); padding: 6px 0; border-top: 1px solid var(--grid); min-width: 0; }
+.cl-line-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.cl-item { font-size: var(--ls-support); color: var(--ink); overflow-wrap: anywhere; }
+.cl-amt { font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink); white-space: nowrap; }
+.cl-meta { grid-column: 1; margin: 0; font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; max-width: var(--ls-measure); }
+.cl-del { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+.cl-add { min-width: 0; }
+.cl-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); }
+.cl-f-source, .cl-f-includes, .cl-f-excludes, .cl-f-kind { grid-column: 1 / -1; }
+.cl-kind-sel { max-width: 22rem; }
+.cl-f .au-in { text-align: left; }
+.cl-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ls-related); margin-top: var(--ls-related); }
+.cl-msg { margin: var(--ls-within) 0 0; max-width: var(--ls-measure); }
+.cl-msg:empty { display: none; }
+.cl-note { margin: 0; max-width: var(--ls-measure); }
+@media (max-width: 639.98px), (pointer: coarse) {
+  .cl-box > .cl-box-sum, .cl-del, .cl-add-btn, .cl-f .au-in, .cl-kind-sel { min-height: 44px; }
+  .cl-del, .cl-add-btn { display: inline-flex; align-items: center; }
+  .cl-del { min-width: 44px; justify-content: center; }
+}
+/* ---- end cost-lines ---- */
