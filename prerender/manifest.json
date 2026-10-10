@@ -35,8 +35,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "99ca679b8d10c0ba",
-      "changed": "2026-10-09"
+      "digest": "4e6d47244a0c79df",
+      "changed": "2026-10-10"
     },
     "pages/about.html": {
       "path": "/about",
@@ -238,8 +238,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d3e17ca832ca0b43",
-      "changed": "2026-10-09"
+      "digest": "c7a76277ab05af75",
+      "changed": "2026-10-10"
     },
     "pages/app/equities/compare.html": {
       "path": "/app/equities/compare",
@@ -267,8 +267,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "91acc0eaef815349",
-      "changed": "2026-10-04"
+      "digest": "e2bb3c1cc8d4c387",
+      "changed": "2026-10-10"
     },
     "pages/app/equities/explore.html": {
       "path": "/app/equities/explore",
@@ -296,8 +296,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d3e17ca832ca0b43",
-      "changed": "2026-10-09"
+      "digest": "c7a76277ab05af75",
+      "changed": "2026-10-10"
     },
     "pages/app/scanner.html": {
       "path": "/app/scanner",
@@ -325,8 +325,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2be639adc3a88e72",
-      "changed": "2026-10-08"
+      "digest": "3f7d37ed5275b61a",
+      "changed": "2026-10-10"
     },
     "pages/app/scanner/alerts.html": {
       "path": "/app/scanner/alerts",
@@ -470,8 +470,8 @@
         "cellStops": 0,
         "emptyDetails": 1
       },
-      "digest": "8f7b2c94f1665baf",
-      "changed": "2026-10-06"
+      "digest": "225eb9267e60110d",
+      "changed": "2026-10-10"
     },
     "pages/app/scanner/setups/new.html": {
       "path": "/app/scanner/setups/new",
@@ -558,8 +558,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "f67ce775491dfc82",
-      "changed": "2026-10-08"
+      "digest": "c8364c91f9a32618",
+      "changed": "2026-10-10"
     },
     "pages/company/abbv-abbvie-inc.html": {
       "path": "/company/abbv-abbvie-inc",
@@ -587,8 +587,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8fb598d44415a317",
-      "changed": "2026-10-08"
+      "digest": "b927e88ca5055735",
+      "changed": "2026-10-10"
     },
     "pages/company/abt-abbott-laboratories.html": {
       "path": "/company/abt-abbott-laboratories",
@@ -616,8 +616,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ea34a7832e512d31",
-      "changed": "2026-10-08"
+      "digest": "d0cb0be80f42bd39",
+      "changed": "2026-10-10"
     },
     "pages/company/acn-accenture-plc.html": {
       "path": "/company/acn-accenture-plc",
@@ -646,8 +646,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "a4271d3209325db7",
-      "changed": "2026-10-08"
+      "digest": "508c98b9544ff8da",
+      "changed": "2026-10-10"
     },
     "pages/company/adbe-adobe-inc.html": {
       "path": "/company/adbe-adobe-inc",
@@ -675,8 +675,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4878678f4f79dafb",
-      "changed": "2026-10-08"
+      "digest": "4a2ac146077d3281",
+      "changed": "2026-10-10"
     },
     "pages/company/adi-analog-devices.html": {
       "path": "/company/adi-analog-devices",
@@ -705,8 +705,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "275fdfa9dbead46f",
-      "changed": "2026-10-08"
+      "digest": "4458080d4a12d3cf",
+      "changed": "2026-10-10"
     },
     "pages/company/aep-american-electric.html": {
       "path": "/company/aep-american-electric",
@@ -734,8 +734,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "36adf9edf4b58a68",
-      "changed": "2026-10-08"
+      "digest": "cc8657284eb287b5",
+      "changed": "2026-10-10"
     },
     "pages/company/amat-applied-materials.html": {
       "path": "/company/amat-applied-materials",
@@ -764,8 +764,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "3de63fd7e7cb9a9f",
-      "changed": "2026-10-08"
+      "digest": "27bfa530ce25f3c9",
+      "changed": "2026-10-10"
     },
     "pages/company/amd-advanced-micro.html": {
       "path": "/company/amd-advanced-micro",
@@ -794,8 +794,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "60876638c74be780",
-      "changed": "2026-10-08"
+      "digest": "d98bf0c901e3abc2",
+      "changed": "2026-10-10"
     },
     "pages/company/amgn-amgen-inc.html": {
       "path": "/company/amgn-amgen-inc",
@@ -824,8 +824,8 @@
         "emptyDetails": 0,
         "measured": 1
       },
-      "digest": "ea5306d9f6a7d1df",
-      "changed": "2026-10-08"
+      "digest": "775b1720bd57493b",
+      "changed": "2026-10-10"
     },
     "pages/company/amt-american-tower.html": {
       "path": "/company/amt-american-tower",
@@ -854,8 +854,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "26be7aa7cd1fdba8",
-      "changed": "2026-10-08"
+      "digest": "18ee8fdd9deb15c9",
+      "changed": "2026-10-10"
     },
     "pages/company/amzn-amazon-com.html": {
       "path": "/company/amzn-amazon-com",
@@ -884,8 +884,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "e13fcfbac492e062",
-      "changed": "2026-10-08"
+      "digest": "65850c85a4cf42fc",
+      "changed": "2026-10-10"
     },
     "pages/company/apd-air-products.html": {
       "path": "/company/apd-air-products",
@@ -913,8 +913,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8b0dff6ba49603de",
-      "changed": "2026-10-08"
+      "digest": "73126c48194bd632",
+      "changed": "2026-10-10"
     },
     "pages/company/avgo-broadcom-inc.html": {
       "path": "/company/avgo-broadcom-inc",
@@ -943,8 +943,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "604785f9af037d0b",
-      "changed": "2026-10-08"
+      "digest": "1cad2fec13939fe8",
+      "changed": "2026-10-10"
     },
     "pages/company/axp-american-express.html": {
       "path": "/company/axp-american-express",
@@ -973,8 +973,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "b11383e39930b55e",
-      "changed": "2026-10-08"
+      "digest": "6388dcbe5bc660a0",
+      "changed": "2026-10-10"
     },
     "pages/company/ba-boeing-co.html": {
       "path": "/company/ba-boeing-co",
@@ -1002,8 +1002,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3eec073df8bf85c3",
-      "changed": "2026-10-08"
+      "digest": "8c3e60b645af3ebe",
+      "changed": "2026-10-10"
     },
     "pages/company/bac-bank-of.html": {
       "path": "/company/bac-bank-of",
@@ -1032,8 +1032,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "635c1f0d9a51782d",
-      "changed": "2026-10-08"
+      "digest": "5eb9b6ae9f2ad998",
+      "changed": "2026-10-10"
     },
     "pages/company/bkng-booking-holdings.html": {
       "path": "/company/bkng-booking-holdings",
@@ -1061,8 +1061,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6299511d683f9058",
-      "changed": "2026-10-08"
+      "digest": "a526cec7faf012b7",
+      "changed": "2026-10-10"
     },
     "pages/company/blk-blackrock-inc.html": {
       "path": "/company/blk-blackrock-inc",
@@ -1091,8 +1091,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "9b9641a3837ea3a2",
-      "changed": "2026-10-08"
+      "digest": "f4e81e12f2b92586",
+      "changed": "2026-10-10"
     },
     "pages/company/bmy-bristol-myers.html": {
       "path": "/company/bmy-bristol-myers",
@@ -1120,8 +1120,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "14c6d2c875970ef4",
-      "changed": "2026-10-08"
+      "digest": "c3f3c7e9f621e41f",
+      "changed": "2026-10-10"
     },
     "pages/company/brk-b-berkshire-hathaway.html": {
       "path": "/company/brk-b-berkshire-hathaway",
@@ -1149,8 +1149,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9554908c49f20675",
-      "changed": "2026-10-08"
+      "digest": "ef4a615d5f9ffb9d",
+      "changed": "2026-10-10"
     },
     "pages/company/c-citigroup-inc.html": {
       "path": "/company/c-citigroup-inc",
@@ -1178,8 +1178,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d34f62d19dd60ead",
-      "changed": "2026-10-08"
+      "digest": "6fefad6502ff639a",
+      "changed": "2026-10-10"
     },
     "pages/company/cat-caterpillar-inc.html": {
       "path": "/company/cat-caterpillar-inc",
@@ -1208,8 +1208,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "997e8f160126de90",
-      "changed": "2026-10-08"
+      "digest": "5d1ecb8999994c79",
+      "changed": "2026-10-10"
     },
     "pages/company/cdns-cadence-design.html": {
       "path": "/company/cdns-cadence-design",
@@ -1237,8 +1237,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e5ffa10fff32adbd",
-      "changed": "2026-10-08"
+      "digest": "cad00f3f6f50d2a6",
+      "changed": "2026-10-10"
     },
     "pages/company/ci-cigna-group.html": {
       "path": "/company/ci-cigna-group",
@@ -1267,8 +1267,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "228c6b1938594d96",
-      "changed": "2026-10-08"
+      "digest": "81791bd9ea7e3999",
+      "changed": "2026-10-10"
     },
     "pages/company/cl-colgate-palmolive.html": {
       "path": "/company/cl-colgate-palmolive",
@@ -1297,8 +1297,8 @@
         "emptyDetails": 0,
         "measured": 1
       },
-      "digest": "222b778290c8464c",
-      "changed": "2026-10-08"
+      "digest": "043550d0476f4534",
+      "changed": "2026-10-10"
     },
     "pages/company/cmcsa-comcast-corp.html": {
       "path": "/company/cmcsa-comcast-corp",
@@ -1327,8 +1327,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "20f5b5ce18655ab0",
-      "changed": "2026-10-08"
+      "digest": "f3d577895a638fee",
+      "changed": "2026-10-10"
     },
     "pages/company/cof-capital-one.html": {
       "path": "/company/cof-capital-one",
@@ -1357,8 +1357,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "53276682e584a55f",
-      "changed": "2026-10-08"
+      "digest": "2b1ba0cb0efe5b15",
+      "changed": "2026-10-10"
     },
     "pages/company/cop-conocophillips.html": {
       "path": "/company/cop-conocophillips",
@@ -1386,8 +1386,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3f018aec37b610da",
-      "changed": "2026-10-08"
+      "digest": "3a9acf98f1e3ea25",
+      "changed": "2026-10-10"
     },
     "pages/company/cost-costco-wholesale.html": {
       "path": "/company/cost-costco-wholesale",
@@ -1416,8 +1416,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "62765b09578917f6",
-      "changed": "2026-10-08"
+      "digest": "705bbc26f9c5cf9f",
+      "changed": "2026-10-10"
     },
     "pages/company/crm-salesforce-inc.html": {
       "path": "/company/crm-salesforce-inc",
@@ -1446,8 +1446,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "1e004d305b770b64",
-      "changed": "2026-10-08"
+      "digest": "d2904377872903d9",
+      "changed": "2026-10-10"
     },
     "pages/company/csco-cisco-systems.html": {
       "path": "/company/csco-cisco-systems",
@@ -1476,8 +1476,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "0b2ee10222228bb1",
-      "changed": "2026-10-08"
+      "digest": "2a1e45464e1612d4",
+      "changed": "2026-10-10"
     },
     "pages/company/cvs-cvs-health.html": {
       "path": "/company/cvs-cvs-health",
@@ -1506,8 +1506,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "2262bfbdbfda128f",
-      "changed": "2026-10-08"
+      "digest": "b804fc48c436333b",
+      "changed": "2026-10-10"
     },
     "pages/company/cvx-chevron-corp.html": {
       "path": "/company/cvx-chevron-corp",
@@ -1535,8 +1535,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c376e773a795bd1a",
-      "changed": "2026-10-08"
+      "digest": "1fc42f06e2b72d8d",
+      "changed": "2026-10-10"
     },
     "pages/company/d-dominion-energy.html": {
       "path": "/company/d-dominion-energy",
@@ -1564,8 +1564,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2b0dd8eaa60d3b88",
-      "changed": "2026-10-08"
+      "digest": "fc9ef40a76f7e98a",
+      "changed": "2026-10-10"
     },
     "pages/company/de-deere-co.html": {
       "path": "/company/de-deere-co",
@@ -1593,8 +1593,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "56682600cdc56408",
-      "changed": "2026-10-08"
+      "digest": "2ecf1fa2d25886e8",
+      "changed": "2026-10-10"
     },
     "pages/company/dhr-danaher-corp.html": {
       "path": "/company/dhr-danaher-corp",
@@ -1623,8 +1623,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "dadc4312f0e050ad",
-      "changed": "2026-10-08"
+      "digest": "ad02b0b6f0f0d29c",
+      "changed": "2026-10-10"
     },
     "pages/company/dis-walt-disney.html": {
       "path": "/company/dis-walt-disney",
@@ -1653,8 +1653,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "e8095644740241c6",
-      "changed": "2026-10-08"
+      "digest": "96b7e8d294abb216",
+      "changed": "2026-10-10"
     },
     "pages/company/duk-duke-energy.html": {
       "path": "/company/duk-duke-energy",
@@ -1682,8 +1682,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ea0f6a21b0488ab6",
-      "changed": "2026-10-08"
+      "digest": "b042fb463c0b873e",
+      "changed": "2026-10-10"
     },
     "pages/company/emr-emerson-electric.html": {
       "path": "/company/emr-emerson-electric",
@@ -1712,8 +1712,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "c0bad03a12370ace",
-      "changed": "2026-10-08"
+      "digest": "eb3849129265890d",
+      "changed": "2026-10-10"
     },
     "pages/company/eog-eog-resources.html": {
       "path": "/company/eog-eog-resources",
@@ -1741,8 +1741,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9e6ddb2891172fc8",
-      "changed": "2026-10-08"
+      "digest": "c944ef98368750d2",
+      "changed": "2026-10-10"
     },
     "pages/company/eqix-equinix-inc.html": {
       "path": "/company/eqix-equinix-inc",
@@ -1771,8 +1771,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "205c95cc1fc63baf",
-      "changed": "2026-10-08"
+      "digest": "9d3051d32aed9de9",
+      "changed": "2026-10-10"
     },
     "pages/company/etn-eaton-corp.html": {
       "path": "/company/etn-eaton-corp",
@@ -1800,8 +1800,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a9c2181caa40ec1d",
-      "changed": "2026-10-08"
+      "digest": "9445e26d3ff36e34",
+      "changed": "2026-10-10"
     },
     "pages/company/f-ford-motor.html": {
       "path": "/company/f-ford-motor",
@@ -1829,8 +1829,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "97a7cb1823558515",
-      "changed": "2026-10-08"
+      "digest": "ad404778707561c3",
+      "changed": "2026-10-10"
     },
     "pages/company/fcx-freeport-mcmoran.html": {
       "path": "/company/fcx-freeport-mcmoran",
@@ -1858,8 +1858,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "92a7d6f7db0da2f3",
-      "changed": "2026-10-08"
+      "digest": "4e38ce1ad6aa1ee3",
+      "changed": "2026-10-10"
     },
     "pages/company/fdx-fedex-corp.html": {
       "path": "/company/fdx-fedex-corp",
@@ -1887,8 +1887,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ab59f5c3ff08a68b",
-      "changed": "2026-10-08"
+      "digest": "5e34cd5c07e85704",
+      "changed": "2026-10-10"
     },
     "pages/company/ge-general-electric.html": {
       "path": "/company/ge-general-electric",
@@ -1917,8 +1917,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "20ee65289333c531",
-      "changed": "2026-10-08"
+      "digest": "a142f9d8f6e19861",
+      "changed": "2026-10-10"
     },
     "pages/company/gild-gilead-sciences.html": {
       "path": "/company/gild-gilead-sciences",
@@ -1947,8 +1947,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "eb0aecaa32da45ae",
-      "changed": "2026-10-08"
+      "digest": "09b85bd6ee8c96f3",
+      "changed": "2026-10-10"
     },
     "pages/company/gm-general-motors.html": {
       "path": "/company/gm-general-motors",
@@ -1976,8 +1976,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "46bb8fcfed842a29",
-      "changed": "2026-10-08"
+      "digest": "d65a21bc95048f93",
+      "changed": "2026-10-10"
     },
     "pages/company/googl-alphabet-inc.html": {
       "path": "/company/googl-alphabet-inc",
@@ -2006,8 +2006,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "38e836370f12f357",
-      "changed": "2026-10-08"
+      "digest": "d226446582ec38e4",
+      "changed": "2026-10-10"
     },
     "pages/company/gs-goldman-sachs.html": {
       "path": "/company/gs-goldman-sachs",
@@ -2036,8 +2036,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "430244f8c267c9ff",
-      "changed": "2026-10-08"
+      "digest": "874d6bb976f73f86",
+      "changed": "2026-10-10"
     },
     "pages/company/hd-home-depot.html": {
       "path": "/company/hd-home-depot",
@@ -2065,8 +2065,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d88016564d10cf99",
-      "changed": "2026-10-08"
+      "digest": "27c3e21f1d31cfda",
+      "changed": "2026-10-10"
     },
     "pages/company/hon-honeywell-international.html": {
       "path": "/company/hon-honeywell-international",
@@ -2094,8 +2094,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2fbc528b98eccd6d",
-      "changed": "2026-10-08"
+      "digest": "3bf9bfec89c79cd5",
+      "changed": "2026-10-10"
     },
     "pages/company/ibm-international-business.html": {
       "path": "/company/ibm-international-business",
@@ -2124,8 +2124,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "cae2be5f28f66ed7",
-      "changed": "2026-10-08"
+      "digest": "942cb42537a9b886",
+      "changed": "2026-10-10"
     },
     "pages/company/intc-intel-corp.html": {
       "path": "/company/intc-intel-corp",
@@ -2153,8 +2153,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3222035a19746c6a",
-      "changed": "2026-10-08"
+      "digest": "df0bb77b068414b2",
+      "changed": "2026-10-10"
     },
     "pages/company/intu-intuit-inc.html": {
       "path": "/company/intu-intuit-inc",
@@ -2183,8 +2183,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "10ede8b42196b1c7",
-      "changed": "2026-10-08"
+      "digest": "1070dbc432462168",
+      "changed": "2026-10-10"
     },
     "pages/company/isrg-intuitive-surgical.html": {
       "path": "/company/isrg-intuitive-surgical",
@@ -2212,8 +2212,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8b81818a18688583",
-      "changed": "2026-10-08"
+      "digest": "017c006f53f25ba2",
+      "changed": "2026-10-10"
     },
     "pages/company/jnj-johnson-johnson.html": {
       "path": "/company/jnj-johnson-johnson",
@@ -2241,8 +2241,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "23ddd55bd14f98e4",
-      "changed": "2026-10-08"
+      "digest": "ec8336018172137d",
+      "changed": "2026-10-10"
     },
     "pages/company/jpm-jpmorgan-chase.html": {
       "path": "/company/jpm-jpmorgan-chase",
@@ -2271,8 +2271,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "a2e106f0477efcb0",
-      "changed": "2026-10-08"
+      "digest": "38067bd843dcef11",
+      "changed": "2026-10-10"
     },
     "pages/company/klac-kla-corp.html": {
       "path": "/company/klac-kla-corp",
@@ -2300,8 +2300,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "90d880493bd25f32",
-      "changed": "2026-10-08"
+      "digest": "e5862b5ad4ad621f",
+      "changed": "2026-10-10"
     },
     "pages/company/ko-coca-cola.html": {
       "path": "/company/ko-coca-cola",
@@ -2329,8 +2329,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ef56bd165a46c00d",
-      "changed": "2026-10-08"
+      "digest": "37f03de327024bf5",
+      "changed": "2026-10-10"
     },
     "pages/company/lin-linde-plc.html": {
       "path": "/company/lin-linde-plc",
@@ -2358,8 +2358,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "130638dcec000867",
-      "changed": "2026-10-08"
+      "digest": "9f6e8743df4a3436",
+      "changed": "2026-10-10"
     },
     "pages/company/lly-eli-lilly.html": {
       "path": "/company/lly-eli-lilly",
@@ -2387,8 +2387,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a6135e059beac33c",
-      "changed": "2026-10-08"
+      "digest": "bc06ff200403487f",
+      "changed": "2026-10-10"
     },
     "pages/company/lmt-lockheed-martin.html": {
       "path": "/company/lmt-lockheed-martin",
@@ -2417,8 +2417,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "e65d5cbdfbcd7d41",
-      "changed": "2026-10-08"
+      "digest": "f684f41975b118cd",
+      "changed": "2026-10-10"
     },
     "pages/company/low-lowes-companies.html": {
       "path": "/company/low-lowes-companies",
@@ -2446,8 +2446,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "667f1d393cc70ac3",
-      "changed": "2026-10-08"
+      "digest": "adbd2e6d99243edf",
+      "changed": "2026-10-10"
     },
     "pages/company/lrcx-lam-research.html": {
       "path": "/company/lrcx-lam-research",
@@ -2476,8 +2476,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "7e32a20f29f727df",
-      "changed": "2026-10-08"
+      "digest": "15ca2d295b4e253b",
+      "changed": "2026-10-10"
     },
     "pages/company/ma-mastercard-inc.html": {
       "path": "/company/ma-mastercard-inc",
@@ -2506,8 +2506,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "77a79faf94fa8cad",
-      "changed": "2026-10-08"
+      "digest": "dd2719349dfa98c7",
+      "changed": "2026-10-10"
     },
     "pages/company/mcd-mcdonalds-corp.html": {
       "path": "/company/mcd-mcdonalds-corp",
@@ -2535,8 +2535,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "508ca0a31ce05bc8",
-      "changed": "2026-10-08"
+      "digest": "48a2322d890ac3eb",
+      "changed": "2026-10-10"
     },
     "pages/company/mdlz-mondelez-international.html": {
       "path": "/company/mdlz-mondelez-international",
@@ -2564,8 +2564,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "04a0555998b8ab20",
-      "changed": "2026-10-08"
+      "digest": "52ecad981a0e4f19",
+      "changed": "2026-10-10"
     },
     "pages/company/meta-meta-platforms.html": {
       "path": "/company/meta-meta-platforms",
@@ -2594,8 +2594,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "0163ba5c84e2cf8b",
-      "changed": "2026-10-08"
+      "digest": "170db4e6ddfdf3cd",
+      "changed": "2026-10-10"
     },
     "pages/company/mmm-3m-co.html": {
       "path": "/company/mmm-3m-co",
@@ -2624,8 +2624,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "4aab3bcba3510bf5",
-      "changed": "2026-10-08"
+      "digest": "5f9d91e80da2f223",
+      "changed": "2026-10-10"
     },
     "pages/company/mo-altria-group.html": {
       "path": "/company/mo-altria-group",
@@ -2653,8 +2653,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "894035b112c07771",
-      "changed": "2026-10-08"
+      "digest": "dd387fe2547ef6bf",
+      "changed": "2026-10-10"
     },
     "pages/company/mpc-marathon-petroleum.html": {
       "path": "/company/mpc-marathon-petroleum",
@@ -2682,8 +2682,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "206011ede9ef0f8c",
-      "changed": "2026-10-08"
+      "digest": "e415a5c3003e8622",
+      "changed": "2026-10-10"
     },
     "pages/company/mrk-merck-co.html": {
       "path": "/company/mrk-merck-co",
@@ -2711,8 +2711,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7a67910f103ee6e6",
-      "changed": "2026-10-08"
+      "digest": "8a4367f7c090471c",
+      "changed": "2026-10-10"
     },
     "pages/company/ms-morgan-stanley.html": {
       "path": "/company/ms-morgan-stanley",
@@ -2741,8 +2741,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "ceeefc1985c608ed",
-      "changed": "2026-10-08"
+      "digest": "c18df586b04d78cb",
+      "changed": "2026-10-10"
     },
     "pages/company/msft-microsoft-corp.html": {
       "path": "/company/msft-microsoft-corp",
@@ -2771,8 +2771,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "1f37d72d61a06dde",
-      "changed": "2026-10-08"
+      "digest": "c63e3775777b3f72",
+      "changed": "2026-10-10"
     },
     "pages/company/mu-micron-technology.html": {
       "path": "/company/mu-micron-technology",
@@ -2801,8 +2801,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "8c0d941e61cf3313",
-      "changed": "2026-10-08"
+      "digest": "dde49844da001019",
+      "changed": "2026-10-10"
     },
     "pages/company/nee-nextera-energy.html": {
       "path": "/company/nee-nextera-energy",
@@ -2830,8 +2830,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "32d42efd19641c7b",
-      "changed": "2026-10-08"
+      "digest": "4baa377ca2a65a66",
+      "changed": "2026-10-10"
     },
     "pages/company/nflx-netflix-inc.html": {
       "path": "/company/nflx-netflix-inc",
@@ -2860,8 +2860,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "1f8e117e24705010",
-      "changed": "2026-10-08"
+      "digest": "fee265c69928843a",
+      "changed": "2026-10-10"
     },
     "pages/company/nke-nike-inc.html": {
       "path": "/company/nke-nike-inc",
@@ -2890,8 +2890,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "8c34577b55daebe9",
-      "changed": "2026-10-08"
+      "digest": "20fd76d50cd3f3c6",
+      "changed": "2026-10-10"
     },
     "pages/company/now-servicenow-inc.html": {
       "path": "/company/now-servicenow-inc",
@@ -2920,8 +2920,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "c94c663d007c860e",
-      "changed": "2026-10-08"
+      "digest": "1869d977e8e42cc1",
+      "changed": "2026-10-10"
     },
     "pages/company/nvda-nvidia-corp.html": {
       "path": "/company/nvda-nvidia-corp",
@@ -2950,8 +2950,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "90c5b911dd0aec6d",
-      "changed": "2026-10-08"
+      "digest": "afe224767c8f6613",
+      "changed": "2026-10-10"
     },
     "pages/company/o-realty-income.html": {
       "path": "/company/o-realty-income",
@@ -2980,8 +2980,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "08cc3f3065f37a5b",
-      "changed": "2026-10-08"
+      "digest": "1adf3057fe3411fa",
+      "changed": "2026-10-10"
     },
     "pages/company/orcl-oracle-corp.html": {
       "path": "/company/orcl-oracle-corp",
@@ -3009,8 +3009,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bd1d53531cd21665",
-      "changed": "2026-10-08"
+      "digest": "2904a0d42f417b77",
+      "changed": "2026-10-10"
     },
     "pages/company/orly-o-reilly.html": {
       "path": "/company/orly-o-reilly",
@@ -3038,8 +3038,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6091b6474efd44d2",
-      "changed": "2026-10-08"
+      "digest": "e43eb9db9f63e1a8",
+      "changed": "2026-10-10"
     },
     "pages/company/panw-palo-alto.html": {
       "path": "/company/panw-palo-alto",
@@ -3067,8 +3067,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bea47038a8a35095",
-      "changed": "2026-10-08"
+      "digest": "df5d4f6e4ecda34f",
+      "changed": "2026-10-10"
     },
     "pages/company/pep-pepsico-inc.html": {
       "path": "/company/pep-pepsico-inc",
@@ -3096,8 +3096,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "029b637ac8d5721d",
-      "changed": "2026-10-08"
+      "digest": "c0c2eab9d9dd6b62",
+      "changed": "2026-10-10"
     },
     "pages/company/pfe-pfizer-inc.html": {
       "path": "/company/pfe-pfizer-inc",
@@ -3125,8 +3125,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f82bd57204741be0",
-      "changed": "2026-10-08"
+      "digest": "2c4fa74f452f6565",
+      "changed": "2026-10-10"
     },
     "pages/company/pg-procter-gamble.html": {
       "path": "/company/pg-procter-gamble",
@@ -3154,8 +3154,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "af5c69df7a43b749",
-      "changed": "2026-10-08"
+      "digest": "a6a42387e0d1b22e",
+      "changed": "2026-10-10"
     },
     "pages/company/pld-prologis-inc.html": {
       "path": "/company/pld-prologis-inc",
@@ -3184,8 +3184,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "015ddb261b4c3d7c",
-      "changed": "2026-10-08"
+      "digest": "059cb9b149eabcd0",
+      "changed": "2026-10-10"
     },
     "pages/company/pm-philip-morris.html": {
       "path": "/company/pm-philip-morris",
@@ -3213,8 +3213,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "800f153cccdc85ce",
-      "changed": "2026-10-08"
+      "digest": "7a37b23bde3b2ac7",
+      "changed": "2026-10-10"
     },
     "pages/company/pnc-pnc-financial.html": {
       "path": "/company/pnc-pnc-financial",
@@ -3242,8 +3242,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9e817d923012e44e",
-      "changed": "2026-10-08"
+      "digest": "2ff76dafade56673",
+      "changed": "2026-10-10"
     },
     "pages/company/psx-phillips-66.html": {
       "path": "/company/psx-phillips-66",
@@ -3271,8 +3271,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bb617285fdb2dcf9",
-      "changed": "2026-10-08"
+      "digest": "dbc5255b648c2ee0",
+      "changed": "2026-10-10"
     },
     "pages/company/qcom-qualcomm-inc.html": {
       "path": "/company/qcom-qualcomm-inc",
@@ -3301,8 +3301,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "a019acb5a1646836",
-      "changed": "2026-10-08"
+      "digest": "5d56e00779efd718",
+      "changed": "2026-10-10"
     },
     "pages/company/rivn-rivian-automotive.html": {
       "path": "/company/rivn-rivian-automotive",
@@ -3330,8 +3330,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "25dd76c8f84feef0",
-      "changed": "2026-10-08"
+      "digest": "31590ec494e9d05a",
+      "changed": "2026-10-10"
     },
     "pages/company/rtx-rtx-corp.html": {
       "path": "/company/rtx-rtx-corp",
@@ -3359,8 +3359,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "81ad65733fd5dbf8",
-      "changed": "2026-10-08"
+      "digest": "8f507bf61193664f",
+      "changed": "2026-10-10"
     },
     "pages/company/sbux-starbucks-corp.html": {
       "path": "/company/sbux-starbucks-corp",
@@ -3388,8 +3388,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b3d3a13d308d68e9",
-      "changed": "2026-10-08"
+      "digest": "0d80ff8081cb7c8f",
+      "changed": "2026-10-10"
     },
     "pages/company/schw-schwab-charles.html": {
       "path": "/company/schw-schwab-charles",
@@ -3417,8 +3417,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "fb34d38c331101c7",
-      "changed": "2026-10-08"
+      "digest": "fbe338c939eb3598",
+      "changed": "2026-10-10"
     },
     "pages/company/shw-sherwin-williams.html": {
       "path": "/company/shw-sherwin-williams",
@@ -3447,8 +3447,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "5a5559c1b9983ef5",
-      "changed": "2026-10-08"
+      "digest": "73937d3f26d003f9",
+      "changed": "2026-10-10"
     },
     "pages/company/slb-slb-limited.html": {
       "path": "/company/slb-slb-limited",
@@ -3476,8 +3476,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c1d107c2fb4b8a59",
-      "changed": "2026-10-08"
+      "digest": "b7330aa0ff12bff0",
+      "changed": "2026-10-10"
     },
     "pages/company/snps-synopsys-inc.html": {
       "path": "/company/snps-synopsys-inc",
@@ -3506,8 +3506,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "8ac7d71de68501a4",
-      "changed": "2026-10-08"
+      "digest": "de11a0487f3ae075",
+      "changed": "2026-10-10"
     },
     "pages/company/so-southern-co.html": {
       "path": "/company/so-southern-co",
@@ -3535,8 +3535,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8fb461b3707d381f",
-      "changed": "2026-10-08"
+      "digest": "8d425c556c264410",
+      "changed": "2026-10-10"
     },
     "pages/company/spg-simon-property.html": {
       "path": "/company/spg-simon-property",
@@ -3565,8 +3565,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "bc172edb5f29598c",
-      "changed": "2026-10-08"
+      "digest": "8e2e600a31bfb08f",
+      "changed": "2026-10-10"
     },
     "pages/company/spgi-s-p.html": {
       "path": "/company/spgi-s-p",
@@ -3595,8 +3595,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "b9ab92db7802e263",
-      "changed": "2026-10-08"
+      "digest": "0ef8066d84ed47c4",
+      "changed": "2026-10-10"
     },
     "pages/company/t-at-t.html": {
       "path": "/company/t-at-t",
@@ -3624,8 +3624,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6a5c8630af724251",
-      "changed": "2026-10-08"
+      "digest": "f191f33d50828899",
+      "changed": "2026-10-10"
     },
     "pages/company/tjx-tjx-companies.html": {
       "path": "/company/tjx-tjx-companies",
@@ -3654,8 +3654,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "791a40aeffe7dffc",
-      "changed": "2026-10-08"
+      "digest": "c922e3623689f1f4",
+      "changed": "2026-10-10"
     },
     "pages/company/tmo-thermo-fisher.html": {
       "path": "/company/tmo-thermo-fisher",
@@ -3683,8 +3683,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "fc8701238b74b15c",
-      "changed": "2026-10-08"
+      "digest": "2a8ebd33e8dfb724",
+      "changed": "2026-10-10"
     },
     "pages/company/tmus-t-mobile.html": {
       "path": "/company/tmus-t-mobile",
@@ -3713,8 +3713,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "4398119f09261790",
-      "changed": "2026-10-08"
+      "digest": "b825a489b540c0b3",
+      "changed": "2026-10-10"
     },
     "pages/company/tsla-tesla-inc.html": {
       "path": "/company/tsla-tesla-inc",
@@ -3743,8 +3743,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "067785d6b389df64",
-      "changed": "2026-10-08"
+      "digest": "bc58682259f1fc30",
+      "changed": "2026-10-10"
     },
     "pages/company/txn-texas-instruments.html": {
       "path": "/company/txn-texas-instruments",
@@ -3772,8 +3772,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f9454efbaf0abf59",
-      "changed": "2026-10-08"
+      "digest": "7d18c81e05d75ed7",
+      "changed": "2026-10-10"
     },
     "pages/company/unh-unitedhealth-group.html": {
       "path": "/company/unh-unitedhealth-group",
@@ -3802,8 +3802,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "9e2d7866d3a30d65",
-      "changed": "2026-10-08"
+      "digest": "3a29742a4310dce1",
+      "changed": "2026-10-10"
     },
     "pages/company/unp-union-pacific.html": {
       "path": "/company/unp-union-pacific",
@@ -3831,8 +3831,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "319f8dd106ea470c",
-      "changed": "2026-10-08"
+      "digest": "5b50341a81131a96",
+      "changed": "2026-10-10"
     },
     "pages/company/ups-united-parcel.html": {
       "path": "/company/ups-united-parcel",
@@ -3861,8 +3861,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "8ff0207f75ef77c6",
-      "changed": "2026-10-08"
+      "digest": "4ae5af5a289a6390",
+      "changed": "2026-10-10"
     },
     "pages/company/usb-us-bancorp.html": {
       "path": "/company/usb-us-bancorp",
@@ -3891,8 +3891,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "05516ba0b6566ab1",
-      "changed": "2026-10-08"
+      "digest": "7e619f30a6f9fbf0",
+      "changed": "2026-10-10"
     },
     "pages/company/v-visa-inc.html": {
       "path": "/company/v-visa-inc",
@@ -3920,8 +3920,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "adc397e7ad94e406",
-      "changed": "2026-10-08"
+      "digest": "d339bb9bd67ac62d",
+      "changed": "2026-10-10"
     },
     "pages/company/vz-verizon-communications.html": {
       "path": "/company/vz-verizon-communications",
@@ -3949,8 +3949,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "435d18c7101bd869",
-      "changed": "2026-10-08"
+      "digest": "22a94edbc7587659",
+      "changed": "2026-10-10"
     },
     "pages/company/wfc-wells-fargo.html": {
       "path": "/company/wfc-wells-fargo",
@@ -3979,8 +3979,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "999d39ad020c26ab",
-      "changed": "2026-10-08"
+      "digest": "765436611c3c7764",
+      "changed": "2026-10-10"
     },
     "pages/company/wmt-walmart-inc.html": {
       "path": "/company/wmt-walmart-inc",
@@ -4009,8 +4009,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "576011c5c95483c6",
-      "changed": "2026-10-08"
+      "digest": "fd4c489c9c76ecc5",
+      "changed": "2026-10-10"
     },
     "pages/company/xom-exxon-mobil.html": {
       "path": "/company/xom-exxon-mobil",
@@ -4039,8 +4039,8 @@
         "emptyDetails": 0,
         "measured": 3
       },
-      "digest": "fe68c1da88e381f6",
-      "changed": "2026-10-08"
+      "digest": "73fd16b32837dfef",
+      "changed": "2026-10-10"
     },
     "pages/compare.html": {
       "path": "/compare",
@@ -4068,8 +4068,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "91acc0eaef815349",
-      "changed": "2026-10-04"
+      "digest": "e2bb3c1cc8d4c387",
+      "changed": "2026-10-10"
     },
     "pages/contact.html": {
       "path": "/contact",
@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "fac61988251b82ce",
-      "changed": "2026-10-09"
+      "digest": "bb4192e079033007",
+      "changed": "2026-10-10"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4184,8 +4184,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "716c679e6dbdffee",
-      "changed": "2026-10-09"
+      "digest": "70477868856cf9b5",
+      "changed": "2026-10-10"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -4213,8 +4213,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "12d0267f6140f684",
-      "changed": "2026-10-09"
+      "digest": "d7c11cf7caea7d46",
+      "changed": "2026-10-10"
     },
     "pages/discover/sarawak.html": {
       "path": "/discover/sarawak",
@@ -4242,8 +4242,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f2f77dbf77e3a65d",
-      "changed": "2026-10-04"
+      "digest": "c8496b16e4094cf5",
+      "changed": "2026-10-10"
     },
     "pages/discover/screener.html": {
       "path": "/discover/screener",
@@ -4271,8 +4271,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "12d0267f6140f684",
-      "changed": "2026-10-09"
+      "digest": "d7c11cf7caea7d46",
+      "changed": "2026-10-10"
     },
     "pages/discover/value-map.html": {
       "path": "/discover/value-map",
@@ -4300,8 +4300,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "deccc0a1c08cdeec",
-      "changed": "2026-10-09"
+      "digest": "cc04353f7dc1fc31",
+      "changed": "2026-10-10"
     },
     "pages/how-it-works.html": {
       "path": "/how-it-works",
@@ -4358,8 +4358,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "58a769817b118c9f",
-      "changed": "2026-10-04"
+      "digest": "30977ec194f5a044",
+      "changed": "2026-10-10"
     },
     "pages/learn/glossary.html": {
       "path": "/learn/glossary",
@@ -4387,8 +4387,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "58a769817b118c9f",
-      "changed": "2026-10-04"
+      "digest": "30977ec194f5a044",
+      "changed": "2026-10-10"
     },
     "pages/learn/product-boundaries.html": {
       "path": "/learn/product-boundaries",
@@ -4445,8 +4445,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c90fe469e8b15710",
-      "changed": "2026-10-06"
+      "digest": "d7169f572cb75cd5",
+      "changed": "2026-10-10"
     },
     "pages/methodology.html": {
       "path": "/methodology",
@@ -4530,8 +4530,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a61d32a37895a4b9",
-      "changed": "2026-10-09"
+      "digest": "6644b96b683b498e",
+      "changed": "2026-10-10"
     },
     "pages/my/data.html": {
       "path": "/my/data",
@@ -4588,8 +4588,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "30d8ea3183ed7fa0",
-      "changed": "2026-10-09"
+      "digest": "e1fb719cdbcc66dd",
+      "changed": "2026-10-10"
     },
     "pages/my/reports.html": {
       "path": "/my/reports",
@@ -4646,8 +4646,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3c35ef3c24dc34e3",
-      "changed": "2026-10-09"
+      "digest": "31f9a3652cf4815a",
+      "changed": "2026-10-10"
     },
     "pages/my/theses.html": {
       "path": "/my/theses",
@@ -4704,8 +4704,8 @@
         "cellStops": 111,
         "emptyDetails": 0
       },
-      "digest": "ccdaf62be89fdb8c",
-      "changed": "2026-10-09"
+      "digest": "cf710a1aa3f27d5a",
+      "changed": "2026-10-10"
     },
     "pages/my/watchlists.html": {
       "path": "/my/watchlists",
@@ -4762,8 +4762,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "11adaec76da1ab9c",
-      "changed": "2026-10-09"
+      "digest": "688dfe86b1572dba",
+      "changed": "2026-10-10"
     },
     "pages/my/workspace.html": {
       "path": "/my/workspace",
@@ -4880,8 +4880,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6d815d119c6421a3",
-      "changed": "2026-10-09"
+      "digest": "4e829f6316f3f3b5",
+      "changed": "2026-10-10"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -4909,8 +4909,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "720a6353d700f625",
-      "changed": "2026-10-09"
+      "digest": "57aee6e0bb38ff16",
+      "changed": "2026-10-10"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -4938,8 +4938,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "36f7ef3e862f64a5",
-      "changed": "2026-10-09"
+      "digest": "b2afc88ce26c60d3",
+      "changed": "2026-10-10"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -4996,8 +4996,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "778d70528d01ec41",
-      "changed": "2026-10-09"
+      "digest": "19e56cc5d8ea6528",
+      "changed": "2026-10-10"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -5025,8 +5025,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cc7c947f04c4e699",
-      "changed": "2026-10-07"
+      "digest": "5be2b1dd317556ab",
+      "changed": "2026-10-10"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -5083,8 +5083,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7341c0a07cbf50e1",
-      "changed": "2026-10-09"
+      "digest": "3ff16bc7da8f9993",
+      "changed": "2026-10-10"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",
@@ -5112,8 +5112,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2becb0ba08684039",
-      "changed": "2026-10-04"
+      "digest": "cf73b4c477609a44",
+      "changed": "2026-10-10"
     },
     "pages/research/trading-index.html": {
       "path": "/research/trading-index",
@@ -5141,8 +5141,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c90fe469e8b15710",
-      "changed": "2026-10-06"
+      "digest": "d7169f572cb75cd5",
+      "changed": "2026-10-10"
     },
     "pages/start.html": {
       "path": "/start",
@@ -5199,8 +5199,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bc43db2b4300a277",
-      "changed": "2026-10-09"
+      "digest": "49cccdfc43ea3f78",
+      "changed": "2026-10-10"
     },
     "pages/terms.html": {
       "path": "/terms",
@@ -5257,8 +5257,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "11adaec76da1ab9c",
-      "changed": "2026-10-04"
+      "digest": "688dfe86b1572dba",
+      "changed": "2026-10-10"
     },
     "pages/welcome.html": {
       "path": "/welcome",

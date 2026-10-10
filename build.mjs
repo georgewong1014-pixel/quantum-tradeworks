@@ -2083,7 +2083,7 @@ export function kindProblems() {
      as two kinds. */
   const GRADE = js('75-property-grade.js');
   let statusMap = {};
-  try { statusMap = vm.runInContext(`(${cut(LS, '37-layout-system.js', 'const KIND_OF_FEE_STATUS = ', ';\n').replace(/^const KIND_OF_FEE_STATUS = /, '').replace(/;$/, '')})`, vm.createContext({})); }
+  try { statusMap = vm.runInContext(`(${cut(LS, '37-layout-system.js', 'const KIND_OF_FEE_STATUS = ', ';\n').replace(/^const KIND_OF_FEE_STATUS = /, '').replace(/;\s*$/, '')})`, vm.createContext({})); }
   catch { out.push('37-layout-system.js declares no KIND_OF_FEE_STATUS: the fee statuses map to no badge'); }
   const resolver = cut(PROP, '70-property.js', 'function resolveFee(', '\n}\n');
   const statuses = new Set();
@@ -2406,8 +2406,10 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   const RESEARCH_PAGE = `${PAGES}/research.html`;
   const researchCheck = !bare && rendered.renders.has('research.html') && pages.has(RESEARCH_PAGE)
     ? researchFront(pages.get(RESEARCH_PAGE), { usFile: JSON.parse(readFileSync(join(ROOT, 'data', 'us.json'), 'utf8')), companies: plan.companies }) : null;
+  /* D6: the kind badges' mapping, and no metric card without its badge. */
+  const kindMapped = kindProblems(), metricCards = bare ? { problems: [], cards: 0 } : metricBadgeProblems([['index.html', html], ...pages]);
   const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
-    ...kindProblems(), ...(bare ? [] : metricBadgeProblems([['index.html', html], ...pages]).problems), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : []),
+    ...kindMapped, ...(bare ? [] : metricCards.problems), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : []),
     ...(researchCheck ? researchCheck.problems.map(x => `/research (${RESEARCH_PAGE}), its front page (N7): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */
   const COMPANY_PAGES = `${PAGES}/company/`;
@@ -2441,6 +2443,7 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
       console.log(`every page carries the navigation NAV_MARKUP draws; ${rendered.renders.size} of them (${scope.length} in scope) carry their committed render of the page in #views exactly, under prerender/.`);
       console.log(`every page but index.html loads /${files.script.file} (deferred, from its head) and /${files.styles.file} and carries neither inline; the largest is ${kb(largest)} (limit ${kb(PAGE_LIMIT)}). / is ${HOME}, ${kb(Buffer.byteLength(pages.get(HOME)))}, the app's script tag and #views in its first ${HOME_HEAD_BYTES / 1024}kB and its h1 in its first ${HOME_TEXT_BYTES / 1024}kB; .vercelignore keeps index.html off the host and /index.html is a 308 to /.`);
       console.log(`every page, index.html too, carries the first-paint script once in its head before what it loads, named in the CSP (${firstHash().slice(0, 19)}…); ${[...rendered.renders.values()].filter(r => servedReadsOf(r.views, { waits: r.manifest.state === 'filings in', drawn: r.drawn, render: r.render })).length} pages with a render say on <html> what it read.`);
+      { const k = kindMapped.said || {}; console.log(`the kind badges (D6): each of ${k.provenance} PROVENANCE kinds, ${k.evidence} EVIDENCE ids, ${k.feeProvenance} fee provenances and ${k.feeStatus} fee statuses maps to exactly one of the eight words, and each of the ${k.feeLines} FEE_TABLE lines reads one badge by its provenance and its status; ${metricCards.cards} metric cards on the pages written, each with its kind badge.`); }
       console.log(`sitemap.xml lists only canonical addresses that are served their own page, each with the day its render last changed as <lastmod>.`);
       console.log(`${NAPIC_DIR}/ holds ${napic.size} division files made from ${NAPIC_SOURCE}, one division each, ${kb([...napic.values()].reduce((n, b) => n + Buffer.byteLength(b), 0))} in all; .vercelignore keeps ${NAPIC_SOURCE} off the host.`);
     } else {
