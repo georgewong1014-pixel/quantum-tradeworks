@@ -1921,9 +1921,6 @@ function renderScreener() {
            triangle", "Value, up down arrow". */
         html: `${esc(c2.label)}${c2.get ? `<span class="sort-ind" aria-hidden="true">${sc.sort.k === c2.k ? (sc.sort.dir === 1 ? '▲' : '▼') : '↕'}</span>` : ''}` });
       if (c2.get) th.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); sortBy(); } });
-      /* D6, once a column (the rows keep their company's kind): no link —
-         the header is the sort control. */
-      if (c2.k !== 'ident') { const k = screenerColKind(c2.k, sorted, sc); th.append(kindTh(k.kind, k.fine, { link: false })); }
       htr.append(th);
     });
     thead.append(htr); table.append(thead);
@@ -2007,7 +2004,17 @@ function renderScreener() {
        body, the median rows and the header all exist. */
     gridKeyboard(table, `Screener results, ${sorted.length} companies by ${cols.length} measures. `
       + 'Use the arrow keys to move between cells and Enter on a measure to see where it came from.');
-    tw.append(table);
+    /* D6, once for the table, in its head: each kind and the columns it
+       covers (the rows keep their company's kind) — a line above the
+       header rather than a badge in each, which widened the screener's
+       company and three figures past their window beside the rail. */
+    const colKinds = (() => {
+      const by = new Map();
+      cols.filter(c2 => c2.k !== 'ident').forEach(c2 => { const k = screenerColKind(c2.k, sorted, sc).kind; by.set(k, [...(by.get(k) || []), c2.label]); });
+      return el('p', { class: 'scr-col-kinds' }, [...by].sort((a, b) => KIND_ORDER.indexOf(a[0]) - KIND_ORDER.indexOf(b[0]))
+        .flatMap(([k, labels], i) => [i ? ' · ' : null, kindBadge(k, { fine: labels.join(', ') }), ' ', labels.join(', ')]).filter(x => x != null));
+    })();
+    tw.append(colKinds, table);
 
     /* What was converted and what was not, stated where the mixed table is
        rather than on a methodology page. Only shown when the screen actually

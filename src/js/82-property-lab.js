@@ -798,7 +798,9 @@ const labTag = (kind, { fees = false } = {}) => {
   const base = kind.kind === 'unavailable' ? 'unavailable' : KIND_OF_EVIDENCE[kind.kind] || 'unavailable';
   const k = fees ? kindFirst([base, 'placeholder']) : base;
   return kindWithFine(k, k === base ? kind.words : 'fee lines unchecked',
-    { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind } });
+    /* No link: on a phone the Lab's every target is 44px, and a 20px pill
+       is not one (the definitions are in its title, and on /data-sources). */
+    { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind }, link: false });
 };
 /* A deal's result, as cardHead's badge: { kind, fine } — the weakest input
    it rests on (all of the deal's, or `rests`), Placeholder where `fees`

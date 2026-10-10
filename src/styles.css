@@ -3281,6 +3281,14 @@ a.kind-badge:focus-visible { outline: 2px solid var(--brand); outline-offset: 2p
 .kind-th { margin-left: 6px; text-transform: none; letter-spacing: 0; font-weight: var(--weight-semibold); }
 th .kind-th { vertical-align: middle; }
 .kind-th[data-word]::after { content: attr(data-word); }
+/* The screener's kinds, once above its header: a column is no wider for
+   its badge (the company and three figures fit their window). The phone
+   cards say theirs in the measures picker (.scr-pick-kinds). */
+.scr-col-kinds { margin: 0; padding: var(--sm) var(--md); font-size: var(--ls-meta); color: var(--ink-2); line-height: 1.9; border-bottom: 1px solid var(--line); }
+@media (max-width: 768px) { .scr-col-kinds { display: none; } }
+/* A tile's badge and its finer word on one line, the word giving way. */
+.lab-tile .kind-with, .pc-page .ls-card .kind-with { flex-wrap: nowrap; max-width: 100%; }
+.lab-tile .kind-fine, .pc-page .ls-card .kind-fine { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* A card's badge beside its title (cardHead's kind), and a stat tile's
    (statTile's kind) under its figure. */
 .card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }

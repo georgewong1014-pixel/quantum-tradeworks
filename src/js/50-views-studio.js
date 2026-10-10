@@ -2170,7 +2170,7 @@ VIEWS.compare = () => {
      filed column was the one with no word. */
   /* D6: each column's company kind once, in its header (kindBadge after the
      chip); each section's computation kind once, in its divider row. */
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindTh(rowKind(r.c), r.c.tk).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindTh(rowKind(r.c), r.c.tk, { link: false }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
