@@ -867,7 +867,7 @@ function pmCompareFigures(d, run = pmCompareRun(d)) {
   const short = (m.missingCostLines || []).length;
   return [
     ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—', isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? 'neg' : ''],
-    ['Cash required', isNum(m.safeCashRequired) ? `${fmtAmount(m.safeCashRequired, 'MYR')}${short ? ' so far' : ''}` : '—', ''],
+    ['Cash required', isNum(m.safeCashRequired) ? `${fmtAmount(m.safeCashRequired, 'MYR')}${cashPartial(m) ? ' — partial' : short ? ' so far' : ''}` : '—', ''],
     ['Net yield', isNum(m.netYield) ? fmtPct(m.netYield, 2) : '—', ''],
     ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—', ''],
     ['Grade', `${g.grade}${g.verdict ? ` — ${g.verdict}` : ''}`, ''],

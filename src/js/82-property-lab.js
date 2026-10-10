@@ -126,7 +126,10 @@ const LAB_FIGURES = [
         + (m.financingBasisConfirmed && m.valuationRule !== 'valuation_only'
           ? ` Under the lower-of rule the loan stops following the price above the valuation of ${labMoney(m.bankValuation)}.` : '');
     } },
-  { key: 'safeCashRequired', label: () => 'Cash required', fmt: 'money0', help: 'propSafeCash',
+  /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+     every such deal carries a line not yet checked for its class (the
+     utility deposits, at least), so the label says it from the class. */
+  { key: 'safeCashRequired', label: (d) => (FEE_CLASS_WORD[propertyClassOf(d)] ? 'Cash required — partial' : 'Cash required'), fmt: 'money0', help: 'propSafeCash',
     read: (m) => m.safeCashRequired,
     /* While any fee line is not Verified, the headline says how much of it
        rests on those lines; the row's calculation names each one (the fee
@@ -136,11 +139,11 @@ const LAB_FIGURES = [
        tile, or the first slider went under the action bar (n3-first-view).
        An unknown rule is unverified too; the row's calculation, the
        calculator and its ledger say which of the two each line is. */
-    note: (m) => [(m.missingCostLines || []).length ? 'so far' : null,
-      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · '),
+    note: (m) => (cashPartial(m) ? cashPartial(m).short : [(m.missingCostLines || []).length ? 'so far' : null,
+      m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ')),
     formula: (d, m) => `${labMoney(m.transactionCash)} to complete + ${labMoney(m.improvementCash)} renovation and set-up + `
       + `${isNum(m.reserveCash) ? `${labMoney(m.reserveCash)} reserve (${labYears(m.reserveMonths).replace('year', 'month')})` : 'a reserve that cannot be priced'}`
-      + ` = ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
+      + ` = ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. Still to pay on completion: ${labMoney(m.cashStillRequiredToComplete)}. `
       + (m.unconfirmedCost > 0
         ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}`
         : 'No line in it rests on an estimate or an unknown rule: each fee line is computed from its official source or is your own quote')
@@ -658,7 +661,7 @@ function scenarioLabPanel(container, { subject = null, compact = false, idPrefix
 function labDraw(P, focusId = null) {
   const lab = LAB[P.key];
   const had = focusId || (P.node.contains(document.activeElement) ? document.activeElement.id : null);
-  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null, cm: null, xr: null };
+  P.els = { knobs: {}, chain: {}, paid: {}, cmp: null, pe: null, au: null, nd: null, cm: null, xr: null, rf: null };
   if (!lab) { P.node.replaceChildren(el('p', { class: 'body' }, 'Nothing is open in the lab.')); return; }
   /* Every column's figures run again from its inputs as they are (the kept
      runs, pmCompareRun): a drawing never shows a run kept from before. */
@@ -690,7 +693,9 @@ function labDraw(P, focusId = null) {
   /* Columns of more than one property, route or asset: each on its own
      model, side by side, under a lens (P6). */
   const cross = labCrossRoute(lab) ? labXrCard(P, lab) : null;
-  outputs.append(...[chain, alert, price, commercial, evidence, cross, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  /* On a saved property, refurbish or not: four options on P6's columns. */
+  const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
+  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -1050,7 +1055,10 @@ function labAnswersPending(lab) {
   const copy = pmCopy(d);
   return labAnswersWriter(lab)(copy) && pmCanon(pmBare(copy)) !== pmCanon(pmBare(d));
 }
-const labSaveAnswersWords = (lab) => `Save what and how you are buying to “${pmFind(lab.model)?.name || 'this property'}”`;
+/* Refurbish or not's figures alone: said as what they are. */
+const labRfOnly = (lab) => { const ks = Object.keys(lab.answers || {}); return ks.length > 0 && ks.every(k => /^rf[A-Z]/.test(k)); };
+const labSaveAnswersWords = (lab) => (labRfOnly(lab) ? `Save the refurbish-or-not figures to “${pmFind(lab.model)?.name || 'this property'}”`
+  : `Save what and how you are buying to “${pmFind(lab.model)?.name || 'this property'}”`);
 /* A saved property's answers, written to it on Save — and to the
    calculator's copy of it where that is the one open there, so it does not
    read as changed. Its columns read the property again, the answers no
@@ -1060,14 +1068,15 @@ function labSaveAnswers(P, lab) {
   const rec = lab.model ? pmFind(lab.model) : null;
   if (!rec) return false;
   const write = labAnswersWriter(lab);
+  const rfOnly = labRfOnly(lab);
   if (!pmAnswerRecord(rec.id, write)) return false;
   if (State.deal?.modelId === rec.id && write(State.deal)) saveDeal();
   for (const col of lab.cols) if (col.source === 'variant' && !col.prop) labFact(col, write);
   lab.answers = {};
   if (!labRebase(lab)) return false;
-  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'next-go')]);
+  for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, [labId(Q, 'id-save'), labId(Q, 'next-go'), labId(Q, 'rf-h')]);
   labAfterStructure(P, lab, { address: true });
-  toast(`Saved what and how you are buying to “${rec.name}”: ${pqSummaryText(pmInputsOf(pmFind(rec.id)))}.`);
+  toast(rfOnly ? `Saved the refurbish-or-not figures to “${rec.name}”.` : `Saved what and how you are buying to “${rec.name}”: ${pqSummaryText(pmInputsOf(pmFind(rec.id)))}.`);
   return true;
 }
 function labFact(col, write) {
@@ -1191,13 +1200,34 @@ function labAuctionPaint(P, lab) {
   if (!au) return;
   const col = labActive(lab), d = col.work;
   const a = auctionModel(d, col.cur?.m || dealModel(d));
-  const sig = JSON.stringify([col.key, a.steps.map(s => [s.id, s.amount, s.kind]), a.forfeiture, a.checksOpen, a.trueDiscount]);
+  /* THE BID CEILING (auctionBidCeiling): twenty-odd runs of the model, so
+     a drag waits for the slider to rest, as the solved price does
+     (LAB_PE_WAIT); with no ceiling set there is nothing to run. */
+  const key = pmRunKey(d);
+  const set = d.auctionCapKind != null && d.auctionCapValue != null;
+  if (!set) P.auCeil = { key, c: { status: 'no-target' } };
+  else if (!P.auCeil || P.auCeil.key !== key) {
+    if (!P.auCeil || P.auCeil.c?.status === 'no-target') P.auCeil = { key, c: auctionBidCeiling(d, a) };
+    else {
+      clearTimeout(P.auTimer);
+      P.auTimer = setTimeout(() => {
+        const L = LAB[P.key];
+        if (!L || !P.node.isConnected) return;
+        const c = labActive(L);
+        P.auCeil = { key: pmRunKey(c.work), c: auctionBidCeiling(c.work) };
+        labAuctionPaint(P, L);
+      }, LAB_PE_WAIT);
+    }
+  }
+  a.ceiling = P.auCeil.c;
+  const sig = JSON.stringify([col.key, a.steps.map(s => [s.id, s.amount, s.kind]), a.forfeiture, a.checksOpen, a.trueDiscount, a.ceiling]);
   if (au.sig === sig) return;
   au.sig = sig;
   au.figs.replaceChildren(auctionResults({ a, prefix: P.idPrefix, why: { wf: () => lsOpenEvidence(au.wfEv), fx: () => lsOpenEvidence(au.fxEv) },
     toChecklist: () => lsGoTo(document.getElementById(labId(P, 'au-checks')), document.querySelector(`#${labId(P, 'au-checks')} input:not(:checked)`)) }));
   if (au.wfText) labText(au.wfText, auctionWaterfallFormula(a));
   if (au.fxText) labText(au.fxText, auctionForfeitureFormula(a));
+  if (au.ceText) labText(au.ceText, auctionCeilingFormula(a.ceiling, a));
 }
 
 /* THE DEVELOPER PREMIUM MODEL (the decision layer, P4; 83-property-
@@ -1217,7 +1247,8 @@ function labNewDevSection(P, lab) {
   card.append(el('p', { class: 'metaline au-route' }, `${ND_LEAD} A what-if of every column until you save it.`));
   const figs = el('div', { class: 'au-figs', id: labId(P, 'nd-figs') });
   card.append(figs);
-  if (d) {
+  /* Not for land (ROUTE_ASSET_GATES): its gate is said in the figures, and nothing is asked. */
+  if (d && routeAssetGate(d)?.scope !== 'route') {
     const answer = (k, v) => labAnswer(P, lab, k, v);
     card.append(ndInputs({ d, prefix: P.idPrefix, answer,
       extra: { comp: comparablesPick({ d, prefix: P.idPrefix, legend: 'Completed comparables from your register', toggle: (ids) => answer('comparableIds', ids) }) },
@@ -1249,7 +1280,7 @@ function labNewDevPaint(P, lab, { initial = false } = {}) {
      for the figures it names, until the drag rests. */
   const n = ndModelOf(d, m, { solve: false });
   if (P.ndSolve.key === key) n.rentNeeded = P.ndSolve.n.rentNeeded;
-  const sig = JSON.stringify([col.key, n.premium, n.paid, n.comp, n.cash, n.build.status, n.build.idc, n.build.missing, n.vpMonthly, n.exits.map(e => e.value), n.rentNeeded, n.growthNeeded, n.premiumKind, n.rentKind]);
+  const sig = JSON.stringify([col.key, n.premium, n.paid, n.comp, n.cash, n.build.status, n.build.idc, n.build.missing, n.vpMonthly, n.exits.map(e => e.value), n.rentNeeded, n.growthNeeded, n.premiumKind, n.rentKind, n.gated, n.templates, n.delay, n.delayIdc, n.rentFrom]);
   if (nd.sig === sig) return;
   nd.sig = sig;
   nd.figs.replaceChildren(ndResults({ n, d, prefix: P.idPrefix,
@@ -1289,7 +1320,7 @@ function labCommercialPaint(P, lab) {
   if (!cm) return;
   const col = labActive(lab), d = col.work;
   const c = commercialModel(d, col.cur?.m || dealModel(d));
-  const sig = JSON.stringify([col.key, c.rents.map(r => [r.value, r.kind]), c.observed, c.sustain, c.yields, c.lease.scenarios, c.lease.missing, c.lease.reserveKind, c.lease.start, c.lease.burn, c.lease.fitOut]);
+  const sig = JSON.stringify([col.key, c.rents.map(r => [r.value, r.kind]), c.observed, c.sustain, c.yields, c.lease.scenarios, c.lease.missing, c.lease.reserveKind, c.lease.start, c.lease.burn, c.lease.fitOut, c.term]);
   if (cm.sig === sig) return;
   cm.sig = sig;
   cm.figs.replaceChildren(cmResults({ c, d, prefix: P.idPrefix,
@@ -1775,8 +1806,10 @@ function labEvidence(P, lab) {
     P.els.au.wfEv = lsEvidenceSection({ id: labId(P, 'ev-au-wf'), summary: 'How the waterfall is worked out', body: [wfText] });
     P.els.au.fxEv = lsEvidenceSection({ id: labId(P, 'ev-au-fx'), summary: 'How the forfeiture exposure is worked out', body: [fxText] });
     P.els.au.srcEv = lsEvidenceSection({ id: labId(P, 'ev-au-src'), summary: 'Where the checklist comes from', body: [auctionGuidanceList()] });
-    P.els.au.wfText = wfText; P.els.au.fxText = fxText;
-    pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.srcEv);
+    const ceText = el('p', { class: 'lab-formula', id: labId(P, 'ev-au-ce-text') }, '');
+    P.els.au.ceEv = lsEvidenceSection({ id: labId(P, 'ev-au-ce'), summary: 'How the bid ceiling is found', body: [ceText] });
+    P.els.au.wfText = wfText; P.els.au.fxText = fxText; P.els.au.ceText = ceText;
+    pe.push(P.els.au.wfEv, P.els.au.fxEv, P.els.au.ceEv, P.els.au.srcEv);
   }
   /* The new development's working and its sources (P4), there too. */
   if (P.els.nd) {
@@ -1897,13 +1930,13 @@ function labMetricView(metric, lab) {
       parts: r => [{ part: 'transactionCash', value: r.m.transactionCash, label: 'to complete' },
         { part: 'improvementCash', value: r.m.improvementCash, label: 'renovation and set-up' },
         ...(isNum(r.m.reserveCash) ? [{ part: 'reserveCash', value: r.m.reserveCash, label: 'reserve' }] : [])],
-      note: r => [(r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
+      note: r => [cashPartial(r.m) ? cashPartial(r.m).short : (r.m.missingCostLines || []).length ? 'so far' : null, !isNum(r.m.reserveCash) ? 'the reserve cannot be priced, so it draws no part' : null,
         `${labMoney(r.m.unconfirmedCost)} on unverified or unknown fee lines`].filter(Boolean).join(' · '),
       table: { form: 'stacked', title: 'Cash required: to complete, renovation and set-up, and the reserve' } }));
     vm.words.push('Each bar, from nought: what completion takes, then renovation and set-up (the stronger shade), then the reserve (outlined).');
     vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'To complete', 'Renovation and set-up', 'Reserve', 'Cash required', 'On unverified or unknown fee lines'],
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, ...(r.m ? [labMoney(r.m.transactionCash), labMoney(r.m.improvementCash), isNum(r.m.reserveCash) ? labMoney(r.m.reserveCash) : 'cannot be priced',
-        `${labMoney(r.m.safeCashRequired)}${(r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
+        `${labMoney(r.m.safeCashRequired)}${cashPartial(r.m) ? ' — partial' : (r.m.missingCostLines || []).length ? ' so far' : ''}`, labMoney(r.m.unconfirmedCost)] : ['not computed yet', '—', '—', '—', '—'])]) };
   } else if (metric === 'appreciation') {
     vm.tables.push(one('exitValue', 'money0', r => r.m.exitValue, {
       parts: r => [{ part: 'price', value: num0(r.d.price), label: 'price' }, { part: 'priceGrowthAtExit', value: r.m.priceGrowthAtExit, label: 'growth on the price' },
@@ -2556,7 +2589,7 @@ const labXrUnavailable = (why) => ({ value: null, text: 'Unavailable', kind: 'un
 const LAB_XR_ROWS = [
   { id: 'cash', label: 'Cash required', cell: (f) => ({ value: f.m.safeCashRequired, text: labMoney(f.m.safeCashRequired),
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.safeCashRequired, fees: true }).kind,
-      sub: [(f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
+      sub: [cashPartial(f.m) ? cashPartial(f.m).short : (f.m.missingCostLines || []).length ? 'so far' : null, f.m.unconfirmedCost > 0 ? `${labMoney(f.m.unconfirmedCost)} on unverified lines` : null].filter(Boolean).join(' · ') }) },
   { id: 'monthly', label: 'Monthly position', neg: true, cell: (f) => (isNum(f.m.cashflowMonthly)
       ? { value: f.m.cashflowMonthly, text: labMoney(f.m.cashflowMonthly), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.cashflowMonthly }).kind,
           sub: f.m.taxComputed && isNum(f.m.path?.[0]?.cf) ? `after tax on the rent: ${labMoney(f.m.path[0].cf / 12)}` : 'before tax on the rent' }
@@ -2633,6 +2666,9 @@ const labXrApplies = (r, f) => (r.only === 'commercial' ? f.cls === 'commercial'
 function labXrCell(r, f) {
   if (!f) return { plain: true, value: null, text: 'Needs a purchase price' };
   if (!labXrApplies(r, f)) return { na: true, value: null, text: r.only === 'commercial' || r.asset ? 'Not for this asset' : 'Not for this route' };
+  /* A route's model not written for this asset (ROUTE_ASSET_GATES): the
+     new development's figures on a bare parcel. */
+  if (r.only === 'newdev' && f.nd?.gated) return { na: true, value: null, text: 'Not for this asset' };
   return r.cell(f);
 }
 /* THE LENS'S CHART: one figure every column has, its form and its scale
@@ -2811,6 +2847,186 @@ function labXrUpdate(P, vm) {
     }
     if (be.note) labText(be.note, b.note || '');
   });
+}
+
+/* REFURBISH OR NOT (the owner's approval of 10 Oct 2026; refurbModel,
+   75-property-grade.js), on a saved property: four options side by side
+   on P6's columns — Do nothing, Refurbish, Upgrade, Sell, in that order
+   always — each from the reader's own figures, each figure with its kind
+   badge, and the lens deciding which rows lead (the first two, L1), never
+   the order of the options. No supplier is attached, named or asked for;
+   nothing is ranked; "Do nothing" is an option on the same terms as the
+   others. Its figures are answers of the property: a what-if of every
+   column until saved (labAnswer), written by Save. */
+const RF_LENS_ORDER = {
+  cashflow: ['monthly', 'netYield', 'payback', 'cash', 'netExit', 'cost', 'uplift', 'void'],
+  growth: ['netYield', 'payback', 'netExit', 'monthly', 'cash', 'cost', 'uplift', 'void'],
+  risk: ['cash', 'void', 'monthly', 'payback', 'netYield', 'netExit', 'cost', 'uplift'],
+  liquidity: ['cash', 'netExit', 'monthly', 'void', 'payback', 'netYield', 'cost', 'uplift'],
+};
+const RF_ROW_LABEL = { monthly: 'Monthly position, first 12 months', netYield: 'Net yield, once let', cash: 'Cash required', payback: 'Improvement payback',
+  netExit: 'Net from a sale now', cost: 'Cost of the works', uplift: 'Rent uplift', void: 'Months without rent' };
+const RF_ROW_SHORT = { monthly: 'the monthly position', netYield: 'the net yield', cash: 'the cash required', payback: 'the payback', netExit: 'the net from a sale',
+  cost: 'the cost', uplift: 'the uplift', void: 'the months without rent' };
+const rfSigned = (v) => `${v < 0 ? '−' : ''}${labMoney(Math.abs(v))}`;
+const rfNa = (text, sub = null) => ({ na: true, value: null, text, sub });
+const rfUnavail = (o) => ({ value: null, text: 'Unavailable', kind: 'unavailable', sub: `enter ${auList(o.missing)}` });
+function rfCell(row, o, x) {
+  const sell = o.id === 'sell', none = o.id === 'none';
+  if (row === 'netExit') {
+    if (!sell) return rfNa('Not for this option', 'kept, not sold');
+    if (o.status !== 'ok') return rfUnavail(o);
+    return { value: o.netExit, text: rfSigned(o.netExit), kind: o.kind, neg: o.netExit < 0,
+      sub: `${labMoney(o.sale)} − agent ${labMoney(o.agent)} − legal ${labMoney(o.legal)} − ${o.settledByReader ? 'your settlement figure' : 'the loan as modelled'} ${labMoney(o.settlement)}; before gains tax` };
+  }
+  if (sell && ['monthly', 'netYield', 'payback', 'cost', 'uplift', 'void'].includes(row)) return rfNa('Not for this option', 'sold — nothing held');
+  if (sell && row === 'cash') {
+    if (o.status !== 'ok') return rfUnavail(o);
+    return { value: o.cash, text: labMoney(o.cash), kind: o.kind, sub: o.cash > 0 ? 'the sale does not settle the loan: the rest is yours to find' : 'the sale settles the loan' };
+  }
+  if (row === 'cost') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'no works' }
+    : o.status !== 'ok' ? rfUnavail(o) : { value: o.cost, text: labMoney(o.cost), kind: o.costKind, sub: RF_BASES[x.d[RF_OPTIONS.find(r => r.id === o.id).keys.basis]]?.label.toLowerCase() || 'my estimate' };
+  if (row === 'uplift') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'the rent as modelled' }
+    : !o.upliftIn ? { value: null, text: 'Not entered', kind: 'unavailable', sub: 'no uplift counted' }
+      : { value: o.uplift, text: `+${labMoney(o.uplift)}`, kind: 'yours', sub: 'a month, your figure' };
+  if (row === 'void') return none ? { value: 0, text: '0 months', kind: 'derived', sub: 'no works' }
+    : o.voidMonths == null || !o.voidIn ? { value: null, text: 'Not entered', kind: 'unavailable', sub: 'none counted' }
+      : { value: o.voidMonths, text: `${o.voidMonths} month${o.voidMonths === 1 ? '' : 's'}`, kind: 'yours', sub: 'with no rent while the works run' };
+  if (o.status !== 'ok') return rfUnavail(o);
+  if (row === 'monthly') return isNum(o.firstYearMonthly)
+    ? { value: labR4(o.firstYearMonthly), text: rfSigned(o.firstYearMonthly), kind: o.kind, neg: o.firstYearMonthly < 0,
+      sub: none ? 'as modelled' : `${Math.min(o.voidMonths, 12)} of 12 without rent; once let ${rfSigned(o.letMonthly)}` }
+    : labXrUnavailable('the loan has no schedule of repayments');
+  if (row === 'netYield') return isNum(o.netYield) ? { value: labR4(o.netYield), text: fmtPct(o.netYield, 2), kind: o.kind, sub: none ? 'on the price' : 'on the price plus the works' } : labXrUnavailable('needs a purchase price');
+  if (row === 'cash') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'nothing to spend' }
+    : isNum(o.cash) ? { value: o.cash, text: labMoney(o.cash), kind: o.kind, sub: `the works${o.voidMonths ? ` + ${o.voidMonths} × ${labMoney(o.burn)} without rent` : ''}` } : labXrUnavailable('the loan has no schedule of repayments');
+  if (row === 'payback') {
+    if (none) return rfNa('Not for this option', 'no works, no capex');
+    if (o.payback.status !== 'ok') return { value: null, text: 'Not demonstrated', kind: 'unavailable', sub: o.payback.why };
+    return { value: labR4(o.payback.years), text: `${fmtNum(o.payback.years, 1)} years`, kind: kindFirst([o.costKind, 'yours']) || 'yours',
+      sub: `${labMoney(o.cost)} ÷ ${labMoney(o.incNoi)} a year more net operating income` };
+  }
+  return rfNa('—');
+}
+/* "The figures you entered imply …": every option's monthly position and
+   each improvement's payback, in the options' order — none of them named
+   the one to choose. */
+function rfWords(r) {
+  if (r.gated) return r.why;
+  const mo = r.options.filter(o => o.id !== 'sell').map(o => `${o.label} ${o.status === 'ok' && isNum(o.firstYearMonthly) ? `${rfSigned(o.firstYearMonthly)} a month` : 'Unavailable'}`);
+  const pb = r.options.filter(o => o.id === 'refurb' || o.id === 'upgrade').map(o => `${o.label.toLowerCase()} ${o.status !== 'ok' ? 'Unavailable' : o.payback.status === 'ok' ? `${fmtNum(o.payback.years, 1)} years` : 'not demonstrated'}`);
+  const s = r.options.find(o => o.id === 'sell');
+  return `The figures you entered imply, over the first twelve months: ${auList(mo)}. Improvement payback: ${auList(pb)}. ${s.status === 'ok' ? `A sale now would leave ${rfSigned(s.netExit)} before gains tax.` : 'A sale needs the price you assume.'} Doing nothing stands on the same terms as the others; nothing here is ranked.`;
+}
+function labRefurbCard(P, lab) {
+  const d = labAnswerInputs(lab);
+  const card = el('section', { class: 'card ls-section lab-xr lab-rf', id: labId(P, 'rf'), 'aria-labelledby': labId(P, 'rf-h') });
+  card.append(el('h2', { class: 'h-card', id: labId(P, 'rf-h') }, 'Refurbish or not'));
+  card.append(el('p', { class: 'metaline lab-xr-lede' }, 'Four options for this property, from the figures you enter for each — what they imply. No supplier is named or preferred, and nothing is ranked. Not a valuation.'));
+  if (!d || !PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) {
+    card.append(el('p', { class: 'metaline', 'data-rf-gate': 'land' }, 'Not for this asset: a bare parcel has no rent to lift, so refurbishing it is not set against doing nothing here.'));
+    P.els.rf = null;
+    return card;
+  }
+  const answer = (k, v) => labAnswer(P, lab, k, v);
+  /* The inputs: an option's cost, uplift and void, and where the cost came
+     from; the sale's price and settlement figure, and where each came from. */
+  const box = el('div', { class: 'au-inputs rf-inputs', id: labId(P, 'rf-inputs') });
+  const num = (k, label, step, unitNote = null) => {
+    const id = labId(P, `rf-${k}`);
+    return el('div', { class: 'au-field', 'data-rf': k, 'data-kind': auKindOfInput(d, k) }, [
+      el('label', { for: id, class: 'au-label' }, label),
+      el('input', { class: 'input au-in num', id, type: 'number', min: '0', step: String(step), inputmode: 'decimal', value: d[k] ?? '', placeholder: 'Not entered',
+        onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); } }),
+      /* No link: on a phone the Lab's every target is 44px (labTag). */
+      el('p', { class: 'au-kind' }, [kindBadge(d[k] == null ? 'unavailable' : 'yours', { link: false, fine: d[k] == null ? (unitNote || 'not entered') : 'your figure' })])]);
+  };
+  const basis = (k, label) => {
+    const fs = pqGroup(P.idPrefix, `rf-${k}`, label, Object.values(RF_BASES).map(b => [b.id, b.label]), d[k] ?? null, (v) => answer(k, v));
+    fs.classList.add('au-pick');
+    return el('div', { class: 'au-field', 'data-rf': k }, fs);
+  };
+  for (const o of RF_OPTIONS.filter(x => x.keys)) {
+    const k = o.keys;
+    const fs = el('fieldset', { class: `au-group rf-group rf-group-${o.id}`, id: labId(P, `rf-${o.id}`) });
+    fs.append(el('legend', { class: 'au-legend' }, o.label), el('div', { class: 'au-grid' }, [
+      num(k.cost, 'Cost of the works (RM)', 1000), basis(k.basis, 'The cost is'), num(k.uplift, 'Rent it adds (RM a month)', 50, 'not entered — no uplift counted'),
+      num(k.void, 'Months without rent while it runs', 1, 'not entered — none counted')]));
+    box.append(fs);
+  }
+  const sf = el('fieldset', { class: 'au-group rf-group rf-group-sell', id: labId(P, 'rf-sell') });
+  sf.append(el('legend', { class: 'au-legend' }, 'Sell'), el('div', { class: 'au-grid' }, [
+    num('rfSalePrice', 'Sale price you assume (RM)', 1000), basis('rfSaleBasis', 'The price is'),
+    num('rfSettlement', 'Loan settlement (RM)', 1000, 'not entered — the loan as modelled'), basis('rfSettlementBasis', 'The settlement figure is')]));
+  box.append(sf);
+  const how = el('details', { class: 'pc-more ls-l3 au-more', id: labId(P, 'rf-how') }, [el('summary', { class: 'pc-more-sum' }, 'How each option is worked out'),
+    el('p', { class: 'pc-more-body au-note' }, 'Once let, an option’s monthly position and net operating income are the calculator’s own at your rent plus the uplift, every other figure held; its net yield is that income over the price plus the works. The monthly position shown averages the first twelve months: the months without rent cost what the property costs with no rent coming in (the instalment and the running costs). Cash required is the works plus those months. Improvement payback is the works’ cost ÷ the net operating income they add a year — “Not demonstrated” when they add none, or no uplift is entered. A sale is your price less the calculator’s agent’s and legal percentages and the loan settlement — your figure, or the loan as modelled before any repayment — before gains tax, which turns on how long you have held it.')]);
+  box.append(how);
+  /* The lens: which rows lead, never the options' order. */
+  const fs = el('fieldset', { class: 'lab-pick lab-pick-lens' });
+  fs.append(el('legend', { class: 'lab-legend' }, 'Lens'));
+  const seg = el('div', { class: 'lab-seg ls-chips', role: 'presentation' });
+  for (const ln of LAB_LENSES) {
+    const id = labId(P, `rf-lens-${ln.id}`), on = (lab.lens || LAB_LENS_DEFAULT) === ln.id;
+    seg.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'rf-lens'), id, value: ln.id, checked: on ? '' : null,
+        onchange: () => { lab.lens = ln.id; seg.querySelectorAll('.lab-seg-opt').forEach(o => o.classList.toggle('is-on', o.getAttribute('for') === id)); labPaintPanel(P); if (P.address) labAddressSoon(lab); } }),
+      el('span', {}, ln.label)]));
+  }
+  fs.append(seg);
+  const say = el('p', { class: 'metaline lab-xr-say lab-rf-say', id: labId(P, 'rf-say'), 'aria-live': 'polite' }, '');
+  /* On a phone one option at a time (the layout system: a phone sequences). */
+  const show = el('fieldset', { class: 'lab-pick lab-xr-show' });
+  show.append(el('legend', { class: 'lab-legend' }, 'Show'));
+  const sseg = el('div', { class: 'lab-seg ls-chips', role: 'presentation' });
+  const shown = RF_OPTIONS.some(o => o.id === P.rfShow) ? P.rfShow : 'none';
+  const grid = el('div', { class: 'lab-xr-grid lab-rf-grid', id: labId(P, 'rf-grid'), 'data-show': shown, style: '--xr-n:4' });
+  for (const o of RF_OPTIONS) {
+    const id = labId(P, `rf-show-${o.id}`), on = o.id === shown;
+    sseg.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}`, for: id }, [
+      el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'rf-show'), id, value: o.id, checked: on ? '' : null,
+        onchange: () => { P.rfShow = o.id; sseg.querySelectorAll('.lab-seg-opt').forEach(x => x.classList.toggle('is-on', x.getAttribute('for') === id)); grid.dataset.show = o.id; } }),
+      el('span', {}, o.label)]));
+  }
+  show.append(sseg);
+  const save = el('div', { class: 'lab-rf-save', id: labId(P, 'rf-save-box') });
+  card.append(box, fs, say, show, grid, save);
+  P.els.rf = { card, say, grid, save, sig: null };
+  return card;
+}
+function labRfPaint(P, lab) {
+  const rf = P.els?.rf;
+  if (!rf) return;
+  const col = labActive(lab), d = col.work;
+  if (!(num0(d.price) > 0)) { labText(rf.say, 'Needs a purchase price.'); rf.grid.replaceChildren(); rf.sig = null; return; }
+  const r = refurbModel(d, col.cur?.m || dealModel(d));
+  const lens = LAB_LENS_BY_ID[lab.lens] ? lab.lens : LAB_LENS_DEFAULT;
+  const rows = RF_LENS_ORDER[lens].map((id, i) => ({ id, label: RF_ROW_LABEL[id], level: i < 2 ? 1 : 2, cells: r.options.map(o => rfCell(id, o, { d })) }));
+  const pending = !!lab.model && labAnswersPending(lab);
+  const sig = JSON.stringify([lens, rows.map(x => [x.id, x.cells.map(c => [c.text, c.sub, c.kind, !!c.na])]), pending]);
+  labText(rf.say, `${rfWords(r)} ${LAB_LENS_BY_ID[lens].label} lens: ${RF_ROW_SHORT[rows[0].id]} and ${RF_ROW_SHORT[rows[1].id]} lead; the options keep their order.`);
+  if (rf.sig === sig) return;
+  rf.sig = sig;
+  const pre = labId(P, 'rf');
+  const kids = [el('div', { class: 'lab-xr-row lab-xr-cols' }, r.options.map(o => el('div', { class: 'lab-xr-colhd lab-rf-colhd', 'data-col': o.id, 'data-option': o.id }, [
+    el('strong', { class: 'lab-xr-colname' }, o.label), el('span', { class: 'lab-xr-ra' }, o.id === 'none' ? 'the property as modelled' : o.id === 'sell' ? 'your price, less selling costs and the loan' : 'your cost, uplift and void')])))];
+  rows.forEach(row => {
+    const hid = `${pre}-row-${row.id}`;
+    const rowEl = el('div', { class: `lab-xr-row is-l${row.level}`, role: 'group', 'aria-labelledby': hid, 'data-row': row.id });
+    rowEl.append(el('p', { class: 'lab-xr-rowhd', id: hid }, row.label));
+    row.cells.forEach((c, i) => {
+      const o = r.options[i];
+      rowEl.append(el('div', { class: `lab-xr-cell${c.na ? ' is-na' : ''}`, 'data-col': o.id, 'data-row': row.id, 'data-value': isNum(c.value) ? String(c.value) : '', 'data-kind': c.na ? 'none' : c.kind || 'none' }, [
+        el('span', { class: 'sr-only' }, `${o.label}: `),
+        el('span', { class: `lab-xr-v${c.na ? '' : ' num'}${c.neg ? ' neg' : ''}` }, c.text),
+        c.kind && !c.na ? el('span', { class: 'lab-xr-tags' }, kindBadge(c.kind, { link: false })) : null,
+        c.sub ? el('span', { class: 'lab-xr-sub' }, c.sub) : null]));
+    });
+    kids.push(rowEl);
+  });
+  rf.grid.replaceChildren(...kids);
+  rf.save.replaceChildren(...(pending ? [el('button', { type: 'button', class: 'btn btn-primary btn-sm', id: labId(P, 'rf-save'), onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)),
+    el('p', { class: 'metaline' }, 'Until you save, these figures are a what-if of every column, kept in this tab.')] : []));
 }
 
 /* SAVED COMPARISONS, the reader's own, in this browser — written only by
@@ -3070,7 +3286,7 @@ function labPaintPanel(P, { initial = false } = {}) {
   }
   /* The cash required by kind, written while open (and served whole). */
   if (P.els.fees && (initial || P.els.fees.node.open)) {
-    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${(m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
+    labText(P.els.fees.text, !m ? '' : `${col.key}’s cash required, ${labMoney(m.safeCashRequired)}${cashPartial(m) ? ` — ${cashPartial(m).words}` : (m.missingCostLines || []).length ? ' so far' : ''}. ${ledgerSplitWords(m, labMoney)} `
       + (m.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} of it rests on unverified or unknown lines: ${feeUncertainWords(m, labMoney)}.` : 'No line in it rests on an estimate or an unknown rule.')
       + ` Fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}; every line’s source is on the data sources page.`);
   }
@@ -3113,6 +3329,8 @@ function labPaintPanel(P, { initial = false } = {}) {
   labCommercialPaint(P, lab);
   /* Across routes and assets (P6). */
   labXrPaint(P, lab, { initial });
+  /* Refurbish or not, on a saved property. */
+  labRfPaint(P, lab);
   /* The comparison: in place while its shape holds, drawn again when not. */
   if (P.els.cmpBody) {
     const vm = labMetricView(lab.metric, lab);

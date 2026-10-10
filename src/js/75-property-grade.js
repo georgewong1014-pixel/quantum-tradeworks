@@ -620,7 +620,12 @@ function dealModel(d) {
      and whether it is unset. A line the registry cannot price is listed with a
      null amount rather than omitted — an absent row reads as a cost that does
      not exist, and these all exist. */
-  const feeLine = (id, bases, opts) => { const r = resolveFee(id, bases, opts); return [r.label, r.amount, r]; };
+  /* THE CLASS GATE (the fee rulebook 1.2.0): on a commercial property or on
+     land, a line whose rule differs by class and was not checked for it
+     has no amount, and says why (feeGate, 70-property.js). A residential
+     deal's lines pass through untouched. */
+  const feeClass = propertyClassOf(d);
+  const feeLine = (id, bases, opts, on = null) => { const r = feeGate(resolveFee(id, bases, opts), feeClass, { on }); return [r.label, r.amount, r]; };
   /* The fees service tax is charged on (the rulebook: the purchase and loan
      legal fees; the valuation fee, on its own line), resolved once so the
      tax and the fee cannot disagree. Null, not zero: coercing an unpriced
@@ -637,12 +642,14 @@ function dealModel(d) {
   const purchaseLegalR = legalQuote != null
     ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
-    : resolveFee('purchaseLegal', { price: d.price });
-  const loanLegalR = resolveFee('loanLegal', { loan });
+    : feeGate(resolveFee('purchaseLegal', { price: d.price }), feeClass);
+  const loanLegalR = feeGate(resolveFee('loanLegal', { loan }), feeClass);
   /* What the auction passes to the buyer, as the reader entered it: each a
      line only once entered, so a deal answered Auction with nothing entered
      is the deal it was. */
-  const auctionArrears = auctionRoute ? AUCTION_ARREARS.map(([k]) => d[k]).filter(isNum) : [];
+  /* Of this class's arrears only: a bare parcel has no maintenance or
+     sinking fund to be in arrears with (ROUTE_ASSET_GATES). */
+  const auctionArrears = auctionRoute ? auctionArrearsFor(d).map(([k]) => d[k]).filter(isNum) : [];
   const auctionLines = !auctionRoute ? [] : [
     ...(auctionArrears.length && auctionArrears.some(v => v > 0) ? [['Arrears the Proclamation passes to you', auctionArrears.reduce((t, v) => t + v, 0)]] : []),
     ...(num0(d.auctionRepairs) > 0 ? [['Repairs', num0(d.auctionRepairs)]] : []),
@@ -657,10 +664,12 @@ function dealModel(d) {
      the reader entered it, comes off the acquisition costs. Neither exists
      until entered, so a deal answered New development with nothing entered
      is the deal it was. */
-  const newDevRoute = dealRoute(d) === 'newdev';
+  /* Not for land (ROUTE_ASSET_GATES): a bare parcel is not built in
+     stages, so no construction interest enters its cash required. */
+  const newDevRoute = dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land';
   const ndBuild = newDevRoute ? ndConstruction(d, loan) : null;
   const ndRebate = newDevRoute && isNum(d.ndRebates) && d.ndRebates > 0 ? d.ndRebates : 0;
-  const valuationR = resolveFee('valuationFee', { price: d.price });
+  const valuationR = feeGate(resolveFee('valuationFee', { price: d.price }), feeClass);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
@@ -693,7 +702,7 @@ function dealModel(d) {
            1.1.0: verified, out of the disbursements estimate). */
         feeLine('registration', { instruments: loan > 0 ? 2 : 1 }),
         feeLine('disbursements', {}),
-        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }),
+        feeLine('professionalServiceTax', { legalFees: legalBase }, { basedOn: [purchaseLegalR.provenance, loanLegalR.provenance] }, [purchaseLegalR, loanLegalR]),
       ] },
     { id:'financing', label:'Financing costs', items:[
         feeLine('loanStampDuty', { loan }),
@@ -702,7 +711,7 @@ function dealModel(d) {
         feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
-        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }),
+        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR]),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -734,7 +743,9 @@ function dealModel(d) {
   /* The group's id travels with each line, so a total can ask whether a
      missing line is one of its own without matching on label text. */
   const missingCostLines = costGroups.flatMap(g =>
-    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why })));
+    g.items.filter(it => !isNum(it[1])).map(it => ({ group: g.label, groupId: g.id, label: it[0], why: it[2]?.why,
+      /* Gated for the class (1.2.0): the total is partial, and names it. */
+      ...(it[2]?.gated ? { gated: it[2].gated, id: it[2].id } : {}) })));
 
   /* How much of the completion cash rests on a figure nobody has checked. A
      placeholder total looks exactly like a finished one, so the proportion has
@@ -1556,7 +1567,7 @@ function auctionModel(d, m = dealModel(d)) {
   const bid = num0(d?.price) > 0 ? num0(d.price) : null;
   const bidKind = inputIsSeeded(d, 'price') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'price')] || 'yours';
   /* What an auction adds. */
-  const arrearsParts = AUCTION_ARREARS.map(([k, label]) => ({ key: k, label, amount: has(k) ? d[k] : null, kind: has(k) ? kindOf(k) : 'unavailable' }));
+  const arrearsParts = auctionArrearsFor(d).map(([k, label]) => ({ key: k, label, amount: has(k) ? d[k] : null, kind: has(k) ? kindOf(k) : 'unavailable' }));
   const arrearsIn = arrearsParts.filter(p => p.amount != null);
   const fees = (m.costGroups || []).filter(gr => gr.id === 'acquisition' || gr.id === 'financing').flatMap(gr => gr.items)
     .filter(it => it[2]?.line && (it[2].quotedLine ? it[2].id === 'auctionLegal'
@@ -1574,7 +1585,9 @@ function auctionModel(d, m = dealModel(d)) {
       kindFirst(arrearsIn.map(p => p.kind)) || 'yours', { parts: arrearsParts, partsMissing: arrearsParts.filter(p => p.amount == null).map(p => p.label) }),
     step('possession', 'Possession', has('possessionCost') ? d.possessionCost : null, kindOf('possessionCost'), { key: 'possessionCost', months: has('possessionMonths') ? d.possessionMonths : null }),
     step('transaction', 'Transaction costs', feesPriced.length ? feesPriced.reduce((t, it) => t + it[1], 0) : null, kindFirst(feeKinds) || 'derived',
-      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance })), unpriced: fees.length - feesPriced.length }),
+      { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
+        /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
+        gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
     step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
   ];
   const counted = adds.filter(a => a.amount != null);
@@ -1621,6 +1634,55 @@ function auctionModel(d, m = dealModel(d)) {
   };
 }
 
+/* THE BID CEILING (the validation pass, audit #4, 10 Oct 2026).
+   ---------------------------------------------------------------------------
+   The highest winning bid, to the ringgit, at which the effective
+   acquisition cost — auctionModel's own, run at that bid with every other
+   input held — stays at or under the ceiling the reader sets:
+   - a cost of their own, all in (auctionCapKind 'cost', RM); or
+   - the market value their comparables imply less a margin they choose
+     (auctionCapKind 'margin', %) — Unavailable without a market value,
+     never a market figure standing in for one.
+   WHY BISECTION IS ENOUGH. Every step of the effective cost rises or stays
+   as the bid rises: the bid itself; the transfer duty and the scale fees,
+   charged on it; the loan, a share of it, and with it the loan's fees, the
+   instalment and so the holding cost; the repairs, the arrears and the
+   possession cost do not move. So the cost is at or under the ceiling
+   below some bid and over it above.
+   A cost not entered is not counted (auctionModel's rule), and a fee line
+   not priced is not either: the ceiling names both, so a reader sees what
+   it leaves out. Whole ringgit, no tolerance on the ceiling: at the bid
+   returned the cost is at or under it, at one ringgit more it is over. */
+function auctionBidCeiling(d, a = auctionModel(d)) {
+  const kind = Object.hasOwn(AUCTION_CAP_KINDS, d?.auctionCapKind) ? d.auctionCapKind : null;
+  const value = isNum(d?.auctionCapValue) ? d.auctionCapValue : null;
+  const missing = [kind == null ? 'what the ceiling is' : null, value == null ? 'its figure' : null].filter(Boolean);
+  const valueKind = value == null ? 'unavailable' : KIND_OF_EVIDENCE[d?.evidence?.auctionCapValue || 'user'] || 'yours';
+  if (missing.length) return { status: 'no-target', missing, kind, value };
+  if (kind === 'margin' && !(value < 100)) return { status: 'invalid', kind, value, why: 'A margin of 100% or more leaves no price to bid.' };
+  if (kind === 'margin' && !isNum(a.market)) return { status: 'unavailable', kind, value, why: 'needs the market value — enter comparable prices or name comparables from your register' };
+  const cap = kind === 'margin' ? a.market * (1 - value / 100) : value;
+  let runs = 0;
+  const at = (bid) => { runs++; return auctionModel({ ...d, price: bid }); };
+  const eff = (x) => x.effective;
+  const lo0 = PRICE_SOLVE_FLOOR;
+  const aLo = at(lo0);
+  const base = { kind, value, cap, capKind: kindFirst([valueKind, kind === 'margin' ? a.marketKind : null].filter(Boolean)) || 'yours',
+    notEntered: a.notEntered, unpriced: a.adds.find(s => s.id === 'transaction')?.unpriced || 0 };
+  if (!isNum(eff(aLo))) return { ...base, status: 'unknown', runs, why: 'The effective cost cannot be worked out for these inputs.' };
+  if (eff(aLo) > cap) return { ...base, status: 'infeasible', runs, floor: lo0, atFloor: eff(aLo) };
+  let lo = lo0, hi = Math.max(lo0 + 1, Math.floor(cap) + 1);
+  if (eff(at(hi)) <= cap) return { ...base, status: 'unbounded', runs, ceiling: hi };
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (eff(at(mid)) <= cap) lo = mid; else hi = mid;
+  }
+  const mAt = at(lo), mOver = at(lo + 1);
+  return { ...base, status: 'solved', runs, bid: lo, effective: eff(mAt), above: eff(mOver),
+    vsBid: num0(d?.price) > 0 ? lo - num0(d.price) : null,
+    resultKind: kindFirst([base.capKind, a.effectiveKind]) || 'derived' };
+}
+
 /* THE DEVELOPER PREMIUM MODEL (the property decision layer, P4).
    ---------------------------------------------------------------------------
    A new development is bought off plan at the SPA price, paid by stages as
@@ -1663,7 +1725,13 @@ function ndConstruction(d, loan) {
     ndMonthIndex(d?.ndVpMonth) == null ? 'the month of vacant possession' : null,
     vpMonths != null && vpMonths <= 0 ? 'a vacant-possession month after the SPA month' : null,
   ].filter(Boolean);
-  const base = { stages, template, vpMonths, total, missing, ratePct: num0(d?.ratePct) };
+  /* THE COMPLETION DELAY (the validation pass, audit #4): whole months past
+     the expected VP, the reader's. Vacant possession is then `vpAt` months
+     after signing: every release is charged to it, and the rent begins
+     after it. Not entered, none — and the figures are what they were. */
+  const delay = isNum(d?.ndDelayMonths) && d.ndDelayMonths > 0 ? d.ndDelayMonths : 0;
+  const vpAt = vpMonths == null ? null : vpMonths + delay;
+  const base = { stages, template, vpMonths, delay, vpAt, total, missing, ratePct: num0(d?.ratePct) };
   if (missing.length) return { ...base, status: 'unavailable', idc: null, draws: null };
   const price = num0(d.price), lent = Math.max(0, num0(loan));
   /* Own money first, then the loan: the buyer's share of the price (the
@@ -1671,18 +1739,25 @@ function ndConstruction(d, loan) {
      order of their months, in the schedule's order within a month. */
   const own = Math.max(0, price - lent);
   const order = stages.map((s, i) => ({ ...s, i })).sort((a, b) => a.month - b.month || a.i - b.i);
-  let paid = 0, idc = 0;
   const r = num0(d.ratePct) / 100 / 12;
-  const draws = order.map(s => {
-    const amount = price * s.pct / 100;
-    const fromLoan = Math.max(0, Math.min(paid + amount, price) - Math.max(paid, own));
-    paid += amount;
-    const months = Math.max(0, vpMonths - s.month);
-    const interest = fromLoan * r * months;
-    idc += interest;
-    return { i: s.i, pct: s.pct, month: s.month, amount, own: amount - fromLoan, fromLoan, months, interest };
-  });
-  return { ...base, status: lent > 0 ? 'ok' : 'no-loan', idc: Math.round(idc), draws, own, loan: lent };
+  const run = (vp) => {
+    let paid = 0, idc = 0;
+    const draws = order.map(s => {
+      const amount = price * s.pct / 100;
+      const fromLoan = Math.max(0, Math.min(paid + amount, price) - Math.max(paid, own));
+      paid += amount;
+      const months = Math.max(0, vp - s.month);
+      const interest = fromLoan * r * months;
+      idc += interest;
+      return { i: s.i, pct: s.pct, month: s.month, amount, own: amount - fromLoan, fromLoan, months, interest };
+    });
+    return { idc, draws };
+  };
+  const at = run(vpAt);
+  /* What the delay alone adds: the same schedule charged to the expected VP. */
+  const onTime = delay ? Math.round(run(vpMonths).idc) : null;
+  return { ...base, status: lent > 0 ? 'ok' : 'no-loan', idc: Math.round(at.idc), draws: at.draws, own, loan: lent,
+    idcOnTime: onTime, delayIdc: delay ? Math.round(at.idc) - onTime : 0 };
 }
 /* The rent that justifies the premium: the lowest monthly rent (to the
    ringgit) at which dealModel at the deal's own price gives at least the
@@ -1716,31 +1791,46 @@ function newDevModel(d, m = dealModel(d), { solve = true } = {}) {
   const values = [...g.comps.map(c => c.implied), ...(typed ? [typed.price] : [])];
   const comp = values.length ? medianOf(values) : null;
   const compKind = values.length ? kindFirst([...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours'), ...(typed ? [typed.kind] : [])]) || 'yours' : 'unavailable';
-  const premium = isNum(paid) && isNum(comp) && comp > 0 ? { amount: paid - comp, pct: (paid - comp) / comp * 100 } : null;
+  /* NOT FOR LAND (ROUTE_ASSET_GATES, 70-property.js): a bare parcel is not
+     bought off plan, so nothing of this model is run for it — no premium,
+     no construction interest, no exit from VP — and it says why. */
+  const gate = routeAssetGate(d);
+  const gated = gate?.scope === 'route';
+  const premium = !gated && isNum(paid) && isNum(comp) && comp > 0 ? { amount: paid - comp, pct: (paid - comp) / comp * 100 } : null;
   const premiumKind = premium ? kindFirst([priceKind, compKind]) || 'derived' : 'unavailable';
   /* The construction. */
-  const build = ndConstruction(d, m.loan);
-  /* Exit values, from the comparable, at the reader's rate. */
+  const build = gated ? { status: 'gated', missing: [], idc: null, draws: null, vpMonths: null, vpAt: null, delay: 0, stages: null, template: null }
+    : ndConstruction(d, m.loan);
+  /* Exit values, from the comparable, at the reader's rate — from vacant
+     possession as it falls, the delay entered included. */
   const growth = num0(d?.apprecPct);
-  const exitMissing = [!isNum(comp) ? 'a completed comparable' : null, build.vpMonths == null || build.vpMonths <= 0 ? 'the SPA month and the month of vacant possession' : null].filter(Boolean);
+  const exitMissing = gated ? [] : [!isNum(comp) ? 'a completed comparable' : null, build.vpMonths == null || build.vpMonths <= 0 ? 'the SPA month and the month of vacant possession' : null].filter(Boolean);
   const exits = [3, 5, 10].map(n => {
-    if (exitMissing.length) return { n, status: 'unavailable', value: null, years: null };
-    const years = build.vpMonths / 12 + n;
+    if (gated || exitMissing.length) return { n, status: gated ? 'gated' : 'unavailable', value: null, years: null };
+    const years = build.vpAt / 12 + n;
     return { n, status: 'ok', years, value: comp * Math.pow(1 + growth / 100, years) };
   });
   /* What would justify the premium. */
-  const rentNeeded = !premium ? { status: 'no-comparable' } : solve ? ndRentNeeded(d, premium.amount) : { status: 'pending' };
-  const growthNeeded = !premium ? { status: 'no-comparable' }
+  const rentNeeded = gated ? { status: 'not-applicable', why: gate.why } : !premium ? { status: 'no-comparable' } : solve ? ndRentNeeded(d, premium.amount) : { status: 'pending' };
+  const growthNeeded = gated ? { status: 'not-applicable', why: gate.why } : !premium ? { status: 'no-comparable' }
     : !(build.vpMonths > 0) ? { status: 'no-dates' }
     : !(premium.amount > 0) ? { status: 'no-premium' }
-    : { status: 'solved', pct: (Math.pow(paid / comp, 12 / build.vpMonths) - 1) * 100, years: build.vpMonths / 12 };
+    : { status: 'solved', pct: (Math.pow(paid / comp, 12 / build.vpAt) - 1) * 100, years: build.vpAt / 12 };
   const rentKind = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant ? (inputIsSeeded(d, 'rent') || KIND_OF_EVIDENCE[shownEvidence(d, 'rent')] === 'illustrative' ? 'illustrative' : 'modelled') : 'unavailable';
+  /* The first month of rent: the month after vacant possession falls, the
+     delay included — "N months after signing". */
+  const rentFrom = isNum(build.vpAt) && build.vpAt > 0 ? build.vpAt : null;
   return {
+    gate, gated,
+    /* Sarawak's prescribed stages and defect liability: for housing
+       accommodation only (ROUTE_ASSET_GATES 'newdev|commercial'). */
+    templates: !gate,
     price, priceKind, rebates, paid, comp, compKind, compFrom: { named: g.comps, typed, notUsed: g.notUsed },
     premium, premiumKind, build,
     idcKind: build.status === 'ok' || build.status === 'no-loan' ? 'modelled' : 'unavailable',
     cash: m.safeCashRequired, cashMissing: m.missingCostLines || [], cashUnverified: m.unconfirmedCost,
     vpMonthly: m.cashflowMonthly, rent: num0(d?.rent), occupancyPct: 100 - num0(d?.vacancyPct), rentKind,
+    delay: build.delay || 0, delayIdc: build.delayIdc || 0, rentFrom,
     growth, exits, exitMissing, rentNeeded, growthNeeded,
   };
 }
@@ -1835,28 +1925,140 @@ function commercialModel(d, m = dealModel(d), { asOf = null } = {}) {
   const price = num0(d?.price);
   const rentKept = 1 - num0(m.variableCostRate);
   const fixedMonthly = num0(m.fixedOperatingCosts) / 12;
+  /* THE TENANCY'S RENT-FREE MONTHS AND ITS SERVICE CHARGE (the validation
+     pass, audit #4): the reader's, from the tenancy. Rent-free months are
+     the first months of the contract still to run from now, in which no
+     rent is paid; the service charge is what the tenancy has the tenant
+     pay the owner a month, for the months the contract runs — received in
+     full, no management or repair share taken off it (it is not rent).
+     Neither exists for a vacant unit; neither is assumed. */
+  const rentFree = !vacant && isNum(d?.cmRentFreeMonths) && d.cmRentFreeMonths > 0 ? d.cmRentFreeMonths : 0;
+  const serviceCharge = !vacant && isNum(d?.cmServiceCharge) && d.cmServiceCharge > 0 ? d.cmServiceCharge : 0;
   const scenarios = CM_LEASE_DOWN_MONTHS.map(n => {
     if (missing.length) return { months: n, status: 'unavailable', reserve: null, effYield: null };
     const reserve = Math.round(n * burn + (fitOut || 0));
     const cMonths = Math.min(start, hold);
+    const free = Math.min(rentFree, cMonths);
     const vMonths = Math.max(0, Math.min(n, hold - start));
     const mMonths = Math.max(0, hold - start - n);
-    const rentIn = (contract || 0) * cMonths + model * mMonths;
+    const rentIn = (contract || 0) * (cMonths - free) + model * mMonths;
+    const scIn = serviceCharge * cMonths;
     const fit = start < hold ? (fitOut || 0) : 0;
     const costs = fixedMonthly * hold;
-    const net = rentIn * rentKept - costs - fit;
+    const net = rentIn * rentKept + scIn - costs - fit;
     const effYield = price > 0 ? net / (hold / 12) / price * 100 : null;
-    return { months: n, status: start >= hold ? 'beyond' : 'ok', reserve, cMonths, vMonths, mMonths, rentIn, costs, fit, net, effYield };
+    return { months: n, status: start >= hold ? 'beyond' : 'ok', reserve, cMonths, free, vMonths, mMonths, rentIn, scIn, costs, fit, net, effYield };
   });
+  /* THE CONTRACT RENT'S CASH FLOW, over the rest of the lease: from now to
+     the expiry, the contract rent less its rent-free months, plus the
+     service charge received, less the rent-linked costs on the rent and
+     the fixed running costs every month — a year's worth of it over the
+     price (the effective yield), and a month's worth less the instalment
+     (the monthly position, averaged). Unavailable without the contract
+     rent and the expiry; not for a vacant unit. */
+  const term = (() => {
+    if (vacant) return { status: 'vacant', missing: [] };
+    const miss = [!contract ? 'the contract rent' : null, expiry == null ? 'the lease expiry' : null].filter(Boolean);
+    if (miss.length) return { status: 'unavailable', missing: miss };
+    const months = Math.max(0, expiry - now);
+    if (!(months > 0)) return { status: 'expired', missing: [], months: 0 };
+    const free = Math.min(rentFree, months);
+    const rentIn = contract * (months - free), scIn = serviceCharge * months, costs = fixedMonthly * months;
+    const net = rentIn * rentKept + scIn - costs;
+    return { status: 'ok', missing: [], months, free, rentFree, serviceCharge, rentIn, scIn, costs, net,
+      effYield: price > 0 ? net / (months / 12) / price * 100 : null,
+      monthly: isNum(m.instalment) ? net / months - m.instalment : null };
+  })();
   const seeded = ['price', 'downPct', 'ratePct', 'tenureYears'].some(k => inputIsSeeded(d, k));
   const lease = {
     vacant, expiry, expiryText: d?.cmLeaseExpiry || null, expired: !vacant && expiry != null && expiry < now, now, start, hold, fitOut, burn, missing,
-    rentKept, fixedMonthly, price, scenarios,
+    rentKept, fixedMonthly, price, scenarios, rentFree, serviceCharge,
     reserveKind: missing.length ? 'unavailable' : seeded ? 'illustrative' : 'modelled',
     effKind: missing.length ? 'unavailable' : seeded || costsSeeded || modelKind === 'illustrative' ? 'illustrative' : 'modelled',
   };
+  const termKind = term.status !== 'ok' ? 'unavailable' : seeded || costsSeeded ? 'illustrative' : 'modelled';
   return { contract, asking, model, modelKind, vacant, tenancy: d?.tenancy || null, observed, observedKind, comps, notUsed: ids.length - used.length,
-    rents, sustain, yields, lease };
+    rents, sustain, yields, lease, term: { ...term, kind: termKind } };
+}
+
+/* REFURBISH OR NOT (the owner's approval of 10 Oct 2026).
+   ---------------------------------------------------------------------------
+   Four options for a property already modelled, side by side in this order
+   always — Do nothing, Refurbish, Upgrade, Sell — each from the reader's
+   own figures and the calculator's own model (dealModel), and nothing
+   else: no supplier is attached, named or preferred; nothing is ranked;
+   doing nothing is an option on the same terms as the others, and can
+   plainly come out ahead.
+   - DO NOTHING: the property as modelled — the calculator's figures.
+   - REFURBISH, UPGRADE: the reader's cost of the works, the rent they add a
+     month, and the months with no rent while they run. Once let, the
+     monthly position and the net operating income are dealModel's at the
+     rent plus the uplift (every other figure held); the net yield is that
+     income over the price plus the works. The MONTHLY POSITION shown is
+     the average of the first twelve months: the void months with no rent
+     (each costing what the property costs with no rent coming in —
+     burnWithoutRent, the instalment and the running costs), the rest let
+     at the new rent. The CASH REQUIRED is the cost plus every void month's
+     cost. IMPROVEMENT PAYBACK = the additional capex (the cost) ÷ the
+     incremental annual net operating income (the income with the uplift
+     less the income without) — "Not demonstrated" when that increment is
+     nought, negative or not entered: never a made-up payback.
+   - SELL: the reader's assumed sale price less the selling costs (the
+     calculator's agent's and legal percentages, the legal at least RM500,
+     as its exit) and the loan settlement — the reader's redemption figure,
+     or else the loan as modelled, before any repayment, said so. Before
+     gains tax: what it charges turns on how long the property has been
+     held, which is not asked. A shortfall is cash required to settle.
+   An option with its cost not entered is Unavailable, and names it. A
+   class with no tenancy has no rent to lift: not run for land. */
+const RF_KIND = (d, k, basisKey) => (d?.[k] == null ? 'unavailable' : RF_BASES[d?.[basisKey]]?.kind || 'yours');
+function refurbModel(d, m = dealModel(d)) {
+  if (!PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant) return { gated: true, why: 'A bare parcel has no rent to lift, so refurbishing it is not set against doing nothing here.' };
+  const has = (k) => isNum(d?.[k]);
+  const price = num0(d?.price);
+  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  /* The property's own figures' kind: Illustrative while they rest on the
+     sample's (the Lab's rule), else the weakest of the reader's. */
+  const baseKind = dealKind(d, m).kind;
+  const options = RF_OPTIONS.map(o => {
+    if (o.id === 'none') {
+      return { id: o.id, label: o.label, status: 'ok', cost: 0, uplift: 0, voidMonths: 0, costKind: 'derived', kind: baseKind,
+        noi: m.noi, netYield: m.netYield, letMonthly: m.cashflowMonthly, firstYearMonthly: m.cashflowMonthly, cash: 0,
+        incNoi: 0, payback: { status: 'none' } };
+    }
+    if (o.id === 'sell') {
+      const S = has('rfSalePrice') && d.rfSalePrice > 0 ? d.rfSalePrice : null;
+      const saleKind = RF_KIND(d, 'rfSalePrice', 'rfSaleBasis');
+      if (S == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['the sale price you assume'], kind: 'unavailable', saleKind };
+      const agent = S * num0(d.agentPct) / 100, legal = Math.max(500, S * num0(d.exitLegalPct) / 100);
+      const settledByReader = has('rfSettlement');
+      const settlement = settledByReader ? d.rfSettlement : num0(m.loan);
+      const settlementKind = settledByReader ? RF_KIND(d, 'rfSettlement', 'rfSettlementBasis') : baseKind === 'illustrative' ? 'illustrative' : 'derived';
+      const costsKind = ['agentPct', 'exitLegalPct'].every(k => isTouched(d, k)) ? 'yours' : 'illustrative';
+      const net = S - agent - legal - settlement;
+      return { id: o.id, label: o.label, status: 'ok', sale: S, saleKind, agent, legal, settlement, settledByReader, settlementKind, costsKind,
+        netExit: net, cash: Math.max(0, -net), kind: kindFirst([saleKind, settlementKind, costsKind]) || 'derived' };
+    }
+    const k = o.keys;
+    const cost = has(k.cost) ? d[k.cost] : null;
+    const upliftIn = has(k.uplift), uplift = upliftIn ? d[k.uplift] : 0;
+    const voidMonths = has(k.void) ? d[k.void] : 0;
+    const costKind = RF_KIND(d, k.cost, k.basis);
+    if (cost == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['its cost'], kind: 'unavailable', costKind, uplift: upliftIn ? uplift : null, voidMonths: has(k.void) ? voidMonths : null };
+    const mX = uplift > 0 ? dealModel({ ...d, rent: num0(d.rent) + uplift }) : m;
+    const v12 = Math.min(voidMonths, 12);
+    const firstYearMonthly = isNum(mX.cashflowMonthly) && burn != null ? (v12 * -burn + (12 - v12) * mX.cashflowMonthly) / 12 : null;
+    const incNoi = isNum(mX.noi) && isNum(m.noi) ? mX.noi - m.noi : null;
+    const payback = !upliftIn ? { status: 'not-demonstrated', why: 'no rent uplift entered' }
+      : !(incNoi > 0) ? { status: 'not-demonstrated', why: 'the uplift you entered adds no net operating income' }
+        : { status: 'ok', years: cost / incNoi };
+    const kind = kindFirst([baseKind, costKind, upliftIn || has(k.void) ? 'yours' : null].filter(Boolean)) || 'derived';
+    return { id: o.id, label: o.label, status: 'ok', cost, costKind, uplift, upliftIn, voidMonths, voidIn: has(k.void), kind,
+      noi: mX.noi, netYield: isNum(mX.noi) && price + cost > 0 ? mX.noi / (price + cost) * 100 : null,
+      letMonthly: mX.cashflowMonthly, firstYearMonthly, cash: burn != null ? cost + voidMonths * burn : null, burn,
+      incNoi, payback };
+  });
+  return { gated: false, options, burn, price, baseKind };
 }
 
 /* Inputs arrive from number fields, where an emptied box is '' and not 0. */
@@ -2429,8 +2631,12 @@ VIEWS.property = () => {
     /* While any fee line is not Verified, the headline says how much of
        it rests on those lines (the fee rulebook, 70-property.js); the
        ledger below names them. */
-    safe: ['Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
-      (unpricedLines.length
+    /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+       the lines not yet checked for the class are named, never a
+       full-looking figure. */
+    safe: [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+      (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
+        : unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
         : 'Including rent-ready and the reserve')
       + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
@@ -2563,7 +2769,7 @@ VIEWS.property = () => {
     });
     wf.append(bars);
     if (m.missingCostLines?.length) wf.append(el('p', { class: 'metaline', style: 'margin-top:10px;color:var(--bronze)' },
-      `${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
+      `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}${m.missingCostLines.length} cost line${m.missingCostLines.length === 1 ? '' : 's'} could not be priced, so this total is short by an unknown amount rather than complete.`));
     onePage.append(wf);
   }
 
@@ -3633,7 +3839,7 @@ VIEWS.property = () => {
         isNum(it[1])
           ? el('td', { class: 'num' }, fmtAmount(it[1], 'MYR'))
           : el('td', { class: 'num' }, el('span', { class: 'caption', style: 'color:var(--bronze)',
-              title: it[2]?.why || 'No value has been entered for this line.' }, 'not set')),
+              title: it[2]?.why || 'No value has been entered for this line.', 'data-gated': it[2]?.gated || null }, it[2]?.gated ? 'Unavailable' : 'not set')),
       ]));
     });
     /* THE OPTIONAL LINES LEFT OUT (the rulebook 1.1.0): listed, with no
@@ -3662,7 +3868,7 @@ VIEWS.property = () => {
   cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' }, [
-      nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
+      cashPartial(m) ? 'Total initial cash — partial' : nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
       /* Its weakest input's kind, the fee lines' included (N6). */
       kindBadge(DKF.kind, { fine: DKF.fine })]),
     el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
@@ -3670,7 +3876,7 @@ VIEWS.property = () => {
      bold figure at the foot of a ledger is read as the answer. */
   if (nMissing) cashB.append(el('tr', {}, [
     el('td', { colspan: 2, class: 'metaline', style: 'color:var(--bronze);white-space:normal' },
-      `This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
+      `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}This is not the full amount. ${nMissing} cost line${nMissing === 1 ? ' has' : 's have'} no value yet — ${m.missingCostLines.map(x => x.label.toLowerCase()).join(', ')} — so the real figure is higher by whatever those come to. They are unpriced rather than zero, and this tool will not guess them.`)]));
   /* The share of the total resting on unchecked figures, stated as a
      proportion. Individual markers tell a reader which lines; only this tells
      them how much of the answer is affected. */
@@ -3768,7 +3974,9 @@ VIEWS.property = () => {
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
      ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
      : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
-   ['Safe cash required', m.safeCashRequired, (m.missingCostLines || []).length
+   [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', m.safeCashRequired, cashPartial(m)
+     ? `Everything priced, including what is already paid — ${cashPartial(m).words}. The real figure is higher by whatever those come to.`
+     : (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
      : 'Everything together, including what is already paid. This is the number that decides whether the purchase is survivable, not the deposit.']]
     .forEach(([label, amount, sub], i, arr) => threeCash.append(el('div', { class: 'panel ls-fig' },

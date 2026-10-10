@@ -346,6 +346,8 @@ function pcSubsaleInputs(d) {
   /* A commercial unit's tenancy is asked once, with the four rents, under
      Rental (P5): its contract rent is one of them. */
   if (propertyClassOf(d) === 'commercial') box.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, 'The tenancy and its contract rent are under Rental, with the four rents.'));
+  /* A bare parcel has no tenancy to be sold with (PROPERTY_CLASSES.land). */
+  else if (propertyClassOf(d) === 'land') box.append(el('p', { class: 'metaline', style: 'margin-bottom:8px', 'data-gate': 'tenancy' }, 'Not for this asset: a bare parcel has no tenancy, so none is asked.'));
   else {
     box.append(pick('tenancy', 'Existing tenancy', SUBSALE_TENANCY, 'tenancy'));
     if (d.tenancy === 'tenanted') box.append(num('tenancyRent', 'Rent under the existing tenancy (RM a month)', 50, 'tenancy’s rent'));
@@ -468,14 +470,16 @@ const auNotFinal = (a) => (a.final ? '' : ' Not final.');
 /* THE INPUTS, in three groups. `answer(k, v)` writes one (the page's own
    writer); `evidence(k, label)` draws where a figure came from, where the
    page asks it (the calculator). */
-const AU_GROUPS = () => [
+const AU_GROUPS = (d = null) => [
   { id: 'terms', legend: 'From the Proclamation of Sale and its Conditions',
     note: 'Entered from the Proclamation and the Conditions of Sale — nothing here is assumed. Until the deposit, what it is a share of and the days are entered, the deposit, the balance and the forfeiture exposure read Unavailable.',
-    fields: [['reservePrice', 'Reserve price (RM)', 1000], ['auctionDepositPct', 'Deposit (%)', 0.5], ['auctionDepositOf', 'The deposit is a share of', null],
+    fields: [['reservePrice', 'Reserve price (RM)', 1000], ['auctionDepositPct', 'Deposit (%)', 0.5], ['auctionDepositOf', 'The deposit is a share of', null, AUCTION_DEPOSIT_OF],
       ['auctionBalanceDays', 'Days to pay the balance', 1],
-      ['arrearsMaintenance', 'Arrears passed to you: maintenance and sinking fund (RM)', 100], ['arrearsQuitRent', 'Arrears passed to you: quit rent (RM)', 10],
+      /* A bare parcel has no strata body to be in arrears with
+         (ROUTE_ASSET_GATES 'auction|land'): not asked, not counted. */
+      ...(propertyClassOf(d) === 'land' ? [] : [['arrearsMaintenance', 'Arrears passed to you: maintenance and sinking fund (RM)', 100]]), ['arrearsQuitRent', 'Arrears passed to you: quit rent (RM)', 10],
       ['arrearsAssessment', 'Arrears passed to you: assessment (RM)', 10], ['arrearsUtilities', 'Arrears passed to you: utilities (RM)', 10]],
-    after: 'Arrears: only what the Proclamation passes to you — 0 where it pays them out of the purchase money.' },
+    after: `Arrears: only what the Proclamation passes to you — 0 where it pays them out of the purchase money.${propertyClassOf(d) === 'land' ? ` ${ROUTE_ASSET_GATES['auction|land'].why}` : ''}` },
   { id: 'market', legend: 'The market value, from comparables',
     note: 'The median of the comparable prices you enter here and the comparables you name from your register — your own records, never a market figure. Not a valuation.',
     fields: [['auctionComp1', 'Comparable price 1 (RM)', 1000], ['auctionComp2', 'Comparable price 2 (RM)', 1000], ['auctionComp3', 'Comparable price 3 (RM)', 1000]] },
@@ -483,26 +487,31 @@ const AU_GROUPS = () => [
     note: null,
     fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
       ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
+  /* The bid ceiling (the validation pass, audit #4): the reader's, never a
+     default. */
+  { id: 'ceiling', legend: 'Your bid ceiling',
+    note: 'The highest winning bid at which the effective acquisition cost — the bid and everything the auction adds, as above — stays at or under the ceiling you set: a cost of your own, all in, or the market value your comparables imply less a margin you choose. Worked out by running this model at trial bids, every other figure held. A margin needs a market value: without comparables it is Unavailable. A cost not entered, or a fee line not priced, is not counted in the effective cost, so not in the ceiling either.',
+    fields: [['auctionCapKind', 'The ceiling is', null, AUCTION_CAP_KINDS], ['auctionCapValue', 'Its figure — RM for a cost, % for a margin', 1]] },
 ];
 const AU_HOW_OPEN = new Set();
 function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
   const box = el('div', { class: 'au-inputs', id: `${prefix}-au-inputs` });
   const m = dealModel(d);
-  for (const g of AU_GROUPS()) {
+  for (const g of AU_GROUPS(d)) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
       ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
-    for (const [k, label, step] of g.fields) {
+    for (const [k, label, step, opts] of g.fields) {
       const id = `${prefix}-au-${k}`;
       const kind = auKindOfInput(d, k);
-      /* What the deposit is a share of: two chips, as the questions are —
-         neither chosen until the reader chooses (pqGroup's ids:
-         `${prefix}-q-au-depositOf-reserve`). */
+      /* What the deposit is a share of, and what the ceiling is: chips, as
+         the questions are — none chosen until the reader chooses (pqGroup's
+         ids: `${prefix}-q-au-depositOf-reserve`, `${prefix}-q-au-auctionCapKind-cost`). */
       const control = step == null
-        ? pqGroup(prefix, 'au-depositOf', label, Object.values(AUCTION_DEPOSIT_OF).map(o => [o.id, o.label]), d[k] ?? null, (v) => answer(k, v))
+        ? pqGroup(prefix, k === 'auctionDepositOf' ? 'au-depositOf' : `au-${k}`, label, Object.values(opts).map(o => [o.id, o.label]), d[k] ?? null, (v) => answer(k, v))
         : el('input', { class: 'input au-in num', id, type: 'number', min: '0', step: String(step), inputmode: 'decimal',
             value: d[k] ?? '', placeholder: 'Not entered',
             onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); } });
@@ -524,7 +533,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
       /* Kept open for the tab across the drawings an answer makes. */
       const hid = `${prefix}-au-${g.id}-how`;
       const det = el('details', { class: 'pc-more ls-l3 au-more', id: hid, open: AU_HOW_OPEN.has(hid) ? '' : null }, [
-        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : 'How these terms are used'),
+        el('summary', { class: 'pc-more-sum' }, g.id === 'costs' ? 'What these estimates are' : g.id === 'market' ? 'How the market value is found' : g.id === 'ceiling' ? 'How the ceiling is found' : 'How these terms are used'),
         ...how.map(t => el('p', { class: 'pc-more-body au-note' }, t))]);
       det.addEventListener('toggle', () => { if (det.open) AU_HOW_OPEN.add(hid); else AU_HOW_OPEN.delete(hid); });
       fs.append(det);
@@ -594,8 +603,8 @@ function auctionWaterfall(a, prefix) {
     const label = add ? `+ ${s.label}` : s.label;
     const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
       : s.id === 'holding' && has ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'} × ${auMoney(s.monthly)}`
-      : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced`
-      : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of 4 not entered`
+      : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
+      : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
       : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
     list.append(el('li', { class: `au-wf-row${add ? ' is-add' : ' is-total'}${has ? '' : ' is-na'}${s.id === 'effective' ? ' is-end' : ''}`, 'data-step': s.id, 'data-value': has ? String(s.amount) : '' }, [
       el('p', { class: 'au-wf-hd' }, [el('span', { class: 'au-wf-label' }, label), ' ', auBadge(s.kind), el('span', { class: 'au-wf-amt num' }, word)]),
@@ -636,12 +645,39 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
     sub: f.status === 'ok'
       ? `The deposit — ${fmtNum(f.depositPct, f.depositPct % 1 ? 2 : 0)}% ${f.depositOf === 'reserve' ? 'of the reserve price' : 'of the winning bid'} — at risk if the balance of ${auMoney(f.balance)} is not paid within ${f.days} day${f.days === 1 ? '' : 's'}${isNum(f.cashForBalance) ? `; ${auMoney(f.cashForBalance)} of it is cash beyond the loan${isNum(f.buffer) ? `, against your buffer of ${auMoney(f.buffer)}` : ''}` : ''}.${auNotFinal(a)}`
       : `Enter ${auList(f.missing)} from the Proclamation — never assumed.` }));
+  /* The bid ceiling, once the reader sets one (auctionBidCeiling). */
+  const c = a.ceiling;
+  if (c && c.status !== 'no-target') cards.append(auctionCeilingCard(c, a));
   box.append(cards);
   box.append(auctionWaterfall(a, prefix));
   const links = [why.wf ? lsCta('How the waterfall is worked out', { id: `${prefix}-au-wf-why`, onclick: why.wf }) : null,
     why.fx ? lsCta('How the forfeiture exposure is worked out', { id: `${prefix}-au-fx-why`, onclick: why.fx }) : null].filter(Boolean);
   if (links.length) box.append(el('p', { class: 'au-why' }, links));
   return box;
+}
+
+/* THE BID CEILING'S CARD (L2): the bid, its kind, and what it leaves out. */
+const auCeilingTarget = (c) => (c.kind === 'margin' ? `${fmtNum(c.value, c.value % 1 ? 1 : 0)}% under the market value your comparables imply` : `an effective cost of ${auMoney(c.value)}, all in`);
+function auctionCeilingCard(c, a) {
+  const ok = c.status === 'solved';
+  const left = [c.notEntered?.length ? `Not entered, not counted: ${auList(c.notEntered.map(x => x.toLowerCase()))}` : null,
+    c.unpriced ? `${c.unpriced} fee line${c.unpriced === 1 ? '' : 's'} not priced` : null].filter(Boolean);
+  const sen = (v) => fmtMoney(v, 'MYR', 2);
+  const sub = ok
+    ? `The figures you entered imply a winning bid of at most ${auMoney(c.bid)} to keep the effective cost at or under ${auMoney(c.cap)} — ${auCeilingTarget(c)}${c.kind === 'margin' ? ` (${auMoney(a.market)})` : ''}. At that bid it is ${sen(c.effective)}; one ringgit more, ${sen(c.above)}.${left.length ? ` ${left.join('; ')}.` : ''}${auNotFinal(a)}`
+    : c.status === 'unavailable' ? `Unavailable: ${c.why}.`
+      : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auMoney(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
+        : c.why || 'Not computable for these inputs.';
+  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok ? c.resultKind : 'unavailable', ok ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
+    value: ok ? auMoney(c.bid) : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
+    valueAttrs: { 'data-value': ok ? String(c.bid) : '' }, sub });
+}
+function auctionCeilingFormula(c, a) {
+  if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under the market value — and its figure. Nothing is assumed.';
+  if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off the market value your comparables imply, never off a market figure.`;
+  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${fmtNum(c.value, 2)}%) = ${auMoney(c.cap)}` : `your cost, ${auMoney(c.cap)}`;
+  if (c.status !== 'solved') return `Ceiling: ${cap}. ${c.status === 'infeasible' ? `At a bid of ${auMoney(c.floor)} the effective cost is already ${auMoney(c.atFloor)}.` : 'Not computable for these inputs.'}`;
+  return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held — the transfer duty, the scale fees and the loan follow the bid; the repairs, arrears and possession do not. At ${auMoney(c.bid)} the effective cost is ${fmtMoney(c.effective, 'MYR', 2)}, at or under the ceiling; at ${auMoney(c.bid + 1)} it is ${fmtMoney(c.above, 'MYR', 2)}, over it. What the figures you entered imply — not a recommendation to bid.`;
 }
 
 /* L3: the working, in words. */
@@ -685,8 +721,14 @@ function pcAuctionInputs(d) {
     extra: { market: pcComparablesFieldset(d, 'Comparables named from your register') } }));
   return box;
 }
+/* The auction's figures with its bid ceiling, where one is set. */
+function auctionWithCeiling(d, m = dealModel(d)) {
+  const a = auctionModel(d, m);
+  a.ceiling = auctionBidCeiling(d, a);
+  return a;
+}
 function pcAuction(d) {
-  const a = auctionModel(d);
+  const a = auctionWithCeiling(d);
   const sec = el('section', { class: 'card ls-section au', id: 'pc-au', 'aria-labelledby': 'pc-au-h' });
   sec.append(el('h3', { class: 'h-card', id: 'pc-au-h' }, 'The auction, worked through'));
   sec.append(el('p', { class: 'metaline au-route' }, AUCTION_LEAD));
@@ -694,10 +736,11 @@ function pcAuction(d) {
   const wfDet = det('pc-au-wf-ev', 'How the waterfall is worked out', auctionWaterfallFormula(a));
   const fxDet = det('pc-au-fx-ev', 'How the forfeiture exposure is worked out', auctionForfeitureFormula(a));
   const srcDet = det('pc-au-src-ev', 'Where the checklist comes from', auctionGuidanceList());
+  const ceDet = a.ceiling?.status !== 'no-target' ? det('pc-au-ce-ev', 'How the bid ceiling is found', auctionCeilingFormula(a.ceiling, a)) : null;
   sec.append(auctionResults({ a, prefix: 'pc', why: { wf: () => lsOpenEvidence(wfDet), fx: () => lsOpenEvidence(fxDet) },
     toChecklist: () => lsGoTo(document.getElementById('pc-au-checks'), document.querySelector('#pc-au-checks input:not(:checked)')) }));
   sec.append(auctionChecklist({ d, prefix: 'pc', answer: (k, v) => { if (setDealAnswer(d, k, v)) { saveDeal(); renderKeepFocus(); } } }));
-  sec.append(wfDet, fxDet, srcDet);
+  sec.append(...[wfDet, fxDet, ceDet, srcDet].filter(Boolean));
   return sec;
 }
 
@@ -767,6 +810,9 @@ function ndInputs({ d, prefix, answer, evidence = null, extra = {}, where = {} }
   box.append(group('dates', 'Signing and completion', [el('div', { class: 'au-grid' }, [
     field('ndSpaMonth', 'SPA signed (month)', input('ndSpaMonth', { type: 'month', placeholder: 'YYYY-MM' })),
     field('ndVpMonth', 'Vacant possession expected (month)', input('ndVpMonth', { type: 'month', placeholder: 'YYYY-MM' })),
+    /* The validation pass, audit #4: months past the expected VP — they
+       extend the construction interest and move the first rent. */
+    field('ndDelayMonths', 'Completion delay past that (months)', input('ndDelayMonths', { type: 'number', min: '0', max: '120', step: '1', inputmode: 'numeric', class: 'input au-in num' }), auKindOfInput(d, 'ndDelayMonths'), d.ndDelayMonths == null ? 'not entered — no delay counted' : null),
   ])]));
   /* The schedule of progressive drawdown. */
   box.append(ndScheduleEditor({ d, prefix, answer }));
@@ -829,9 +875,12 @@ function ndScheduleEditor({ d, prefix, answer }) {
   const pick = ND_TPL_PICK[prefix] || (landed ? 'swk-b2' : 'swk-c');
   const sel = el('select', { class: 'select au-in nd-tpl', id: `${prefix}-nd-tpl`, onchange: (e) => { ND_TPL_PICK[prefix] = e.target.value; } },
     NEWDEV_TEMPLATE_IDS.map(id => el('option', { value: id, selected: id === pick ? '' : null }, NEWDEV_TEMPLATES[id].label)));
+  /* For housing accommodation only (ROUTE_ASSET_GATES 'newdev|commercial'):
+     a commercial unit's SPA sets its own stages. */
+  const tplGate = routeAssetGate(d)?.scope === 'template' ? routeAssetGate(d) : null;
   fs.append(el('div', { class: 'nd-tools' }, [
     el('button', { type: 'button', class: 'btn btn-ghost btn-sm nd-add', id: `${prefix}-nd-add`, onclick: () => write([...stages, { pct: 0, month: null }]) }, 'Add a stage'),
-    el('div', { class: 'nd-tpl-row' }, [
+    tplGate ? el('p', { class: 'au-note nd-tpl-gate', id: `${prefix}-nd-tpl-gate`, 'data-gate': 'template' }, `Not for this asset: ${tplGate.why}`) : el('div', { class: 'nd-tpl-row' }, [
       el('label', { class: 'au-label', for: `${prefix}-nd-tpl` }, 'A template from Sarawak’s prescribed SPA'), sel,
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm nd-tpl-go', id: `${prefix}-nd-tpl-go`,
         onclick: () => { const t = NEWDEV_TEMPLATES[document.getElementById(`${prefix}-nd-tpl`)?.value || pick]; if (t) write(t.stages.map(([p]) => ({ pct: p, month: null }))); } }, 'Apply this template')]),
@@ -882,6 +931,12 @@ function ndExitFigure(n, prefix) {
    what each "How … is worked out" opens. */
 function ndResults({ n, d, prefix, why = {} }) {
   const box = el('div', { class: 'au-results nd-results', id: `${prefix}-nd-results` });
+  /* Not for land (ROUTE_ASSET_GATES 'newdev|land'): said, and nothing run. */
+  if (n.gated) {
+    box.append(lsActionCard({ title: 'Not for this asset', line: n.gate.why, cls: 'nd-card nd-gated', attrs: { 'data-nd-fig': 'gated', 'data-gate': 'route' },
+      cta: lsCta('Choose another route', { id: `${prefix}-nd-gate-go`, onclick: () => { const x = document.getElementById(`${prefix}-q-how-subsale`); if (x) { x.scrollIntoView({ block: 'center' }); x.focus({ preventScroll: true }); } } }) }));
+    return box;
+  }
   const cards = el('div', { class: 'au-cards' });
   const p = n.premium;
   cards.append(lsMetricCard({ label: 'Developer premium', level: 1, cls: 'au-card nd-card nd-premium',
@@ -893,15 +948,16 @@ function ndResults({ n, d, prefix, why = {} }) {
   const b = n.build;
   const seededCash = ['price', 'downPct', 'ratePct', 'tenureYears'].some(k => inputIsSeeded(d, k));
   const cashKind = kindFirst([seededCash ? 'illustrative' : null, n.cashUnverified > 0 ? 'placeholder' : null, b.status === 'ok' ? 'modelled' : null].filter(Boolean)) || 'derived';
-  cards.append(lsMetricCard({ label: 'Cash required', level: 1, cls: 'au-card nd-card nd-cash', badge: auBadge(cashKind),
+  const part = cashPartial({ missingCostLines: n.cashMissing });
+  cards.append(lsMetricCard({ label: part ? 'Cash required — partial' : 'Cash required', level: 1, cls: 'au-card nd-card nd-cash', badge: auBadge(cashKind),
     value: auMoney(n.cash), attrs: { 'data-nd-fig': 'cash' }, valueAttrs: { 'data-value': isNum(n.cash) ? String(Math.round(n.cash)) : '' },
-    sub: `${b.status === 'ok' ? `With ${pqMoney(b.idc)} of interest during construction.` : b.status === 'no-loan' ? 'No loan, so no interest during construction.' : 'Interest during construction not included: Unavailable until it can be worked out.'}${n.rebates ? ` Less ${pqMoney(n.rebates)} of rebates and incentives.` : ''}${n.cashUnverified > 0 ? ` ${pqMoney(n.cashUnverified)} on unverified lines.` : ''}` }));
+    sub: `${part ? `${part.words.replace(/^partial: e/, 'E')}. ` : ''}${b.status === 'ok' ? `With ${pqMoney(b.idc)} of interest during construction.` : b.status === 'no-loan' ? 'No loan, so no interest during construction.' : 'Interest during construction not included: Unavailable until it can be worked out.'}${n.rebates ? ` Less ${pqMoney(n.rebates)} of rebates and incentives.` : ''}${n.cashUnverified > 0 ? ` ${pqMoney(n.cashUnverified)} on unverified lines.` : ''}` }));
   box.append(cards);
   const ctx = el('div', { class: 'au-cards nd-l2' });
   ctx.append(lsMetricCard({ label: 'Interest during construction', level: 2, cls: 'au-card nd-card nd-idc', badge: auBadge(n.idcKind, b.status === 'unavailable' ? 'not entered' : 'the rate and the months you entered'),
     value: b.status === 'ok' || b.status === 'no-loan' ? pqMoney(b.idc ?? 0) : 'Unavailable',
     attrs: { 'data-nd-fig': 'idc', 'data-status': b.status }, valueAttrs: { 'data-value': b.status === 'ok' || b.status === 'no-loan' ? String(b.idc ?? 0) : '' },
-    sub: b.status === 'ok' ? `Interest only on what the ${pqMoney(b.loan)} loan has released, at ${fmtNum(b.ratePct, 2)}% a year, until vacant possession ${b.vpMonths} months after signing — on ${b.template ? `the ${b.template.form} template you applied` : 'your schedule'}.`
+    sub: b.status === 'ok' ? `Interest only on what the ${pqMoney(b.loan)} loan has released, at ${fmtNum(b.ratePct, 2)}% a year, until vacant possession ${b.vpAt} months after signing${b.delay ? ` — ${b.delay} month${b.delay === 1 ? '' : 's'} of the delay you entered add ${pqMoney(b.delayIdc)}` : ''} — on ${b.template ? `the ${b.template.form} template you applied` : 'your schedule'}.`
       : b.status === 'no-loan' ? 'No loan: nothing is released, so nothing is charged.'
         : `Enter ${auList(b.missing)}, or apply the template — never assumed.` }));
   const letting = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
@@ -909,7 +965,7 @@ function ndResults({ n, d, prefix, why = {} }) {
     value: isNum(n.vpMonthly) ? `${n.vpMonthly < 0 ? '−' : ''}${pqMoney(Math.abs(n.vpMonthly))}` : 'Unavailable',
     attrs: { 'data-nd-fig': 'vp' }, valueAttrs: { 'data-value': isNum(n.vpMonthly) ? String(Math.round(n.vpMonthly)) : '' },
     sub: isNum(n.vpMonthly) ? (letting
-      ? `At the rent you assume for completion, ${pqMoney(n.rent)} a month, ${fmtNum(n.occupancyPct, 0)}% occupied, with the loan fully released. Nothing comes in before the keys.`
+      ? `At the rent you assume for completion, ${pqMoney(n.rent)} a month, ${fmtNum(n.occupancyPct, 0)}% occupied, with the loan fully released. Nothing comes in before the keys${isNum(n.rentFrom) ? ` — the first rent ${n.rentFrom} months after signing${n.delay ? `, ${n.delay} later for the delay you entered` : ''}` : ''}.`
       : 'A class with no tenancy: the instalment and the running costs, with the loan fully released.') : 'The loan has no schedule of repayments.' }));
   box.append(ctx);
   box.append(ndExitFigure(n, prefix));
@@ -931,9 +987,11 @@ function ndResults({ n, d, prefix, why = {} }) {
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, figure), finding: el('p', { class: 'ls-card-title' }, finding), sub: sub ? el('p', { class: 'ls-card-sub' }, sub) : null,
       cta: lsCta('See why', { id: `${prefix}-nd-needed-why`, onclick: why.needed, sr: ' this rent and growth would cover the premium' }) }));
   }
-  /* The route's defect liability: a feature, not a figure. */
-  box.append(el('p', { class: 'nd-dlp', id: `${prefix}-nd-dlp` }, [el('strong', {}, `Defect liability, ${NEWDEV_DLP.months} months from vacant possession. `),
-    'Defects that appear in that time from defective workmanship or materials are the developer’s to repair at its own cost within 14 days of your written notice. ', el('span', { class: 'nd-cite' }, NEWDEV_DLP.cite)]));
+  /* The route's defect liability: a feature, not a figure — of the forms
+     for housing accommodation, so not stated for a commercial unit. */
+  box.append(n.templates ? el('p', { class: 'nd-dlp', id: `${prefix}-nd-dlp` }, [el('strong', {}, `Defect liability, ${NEWDEV_DLP.months} months from vacant possession. `),
+    'Defects that appear in that time from defective workmanship or materials are the developer’s to repair at its own cost within 14 days of your written notice. ', el('span', { class: 'nd-cite' }, NEWDEV_DLP.cite)])
+    : el('p', { class: 'nd-dlp', id: `${prefix}-nd-dlp`, 'data-gate': 'template' }, [el('strong', {}, 'Defect liability: your SPA’s. '), 'The 18 months of Sarawak’s prescribed forms are for housing accommodation, not a commercial unit — read the defect clause of yours.']));
   const links = [why.premium ? lsCta('How the premium is worked out', { id: `${prefix}-nd-premium-why`, onclick: why.premium }) : null,
     why.idc ? lsCta('How construction interest is worked out', { id: `${prefix}-nd-idc-why`, onclick: why.idc }) : null,
     why.exit ? lsCta('How the exit values are worked out', { id: `${prefix}-nd-exit-why`, onclick: why.exit }) : null].filter(Boolean);
@@ -943,6 +1001,7 @@ function ndResults({ n, d, prefix, why = {} }) {
 
 /* L3: the working, in words. */
 function ndPremiumFormula(n) {
+  if (n.gated) return `Not for this asset. ${n.gate.why}`;
   if (!isNum(n.comp)) return 'Unavailable: no completed comparable is entered or named. The premium is the price you pay against what a completed unit like it fetched — your comparable, typed with its source and date or named from your register, never a market figure.';
   const named = n.compFrom.named.map(c => `${c.name} ${pqMoney(c.implied)}${c.basis === 'rate' ? ' (by its rate a sq ft)' : ''} (${pqWhen(c.date)}, source: ${c.source})`);
   const typed = n.compFrom.typed ? [ndTypedWords(n.compFrom.typed)] : [];
@@ -954,21 +1013,25 @@ function ndPremiumFormula(n) {
 }
 function ndConstructionFormula(n) {
   const b = n.build;
+  if (n.gated) return `Not for this asset. ${n.gate.why}`;
   if (b.status === 'unavailable') return `Unavailable until you enter ${auList(b.missing)}. Nothing is assumed: no schedule, no months and no dates stand in for yours. Sarawak’s prescribed stage percentages are offered as a template you may apply — never applied for you.`;
   if (b.status === 'no-loan') return 'No loan: your own money pays every stage, so nothing is released and no interest is charged.';
   const rows = b.draws.map(x => `stage ${x.i + 1}, ${fmtNum(x.pct, x.pct % 1 ? 1 : 0)}% (${pqMoney(x.amount)}) in month ${x.month}: ${x.fromLoan > 0 ? `${pqMoney(x.fromLoan)} from the loan × ${x.months} month${x.months === 1 ? '' : 's'} = ${pqMoney(x.interest)}` : 'your own money'}`);
-  return `Your own money — the price less the ${pqMoney(b.loan)} loan, ${pqMoney(b.own)} — pays the first stages; the loan the rest. Each release is charged interest only, at ${fmtNum(b.ratePct, 2)}% a year ÷ 12 a month, from the month it is drawn until vacant possession in month ${b.vpMonths} (${ndMonthWords(n.spaMonth)} to ${ndMonthWords(n.vpMonth)}); a stage billed after it adds nothing. `
-    + `${rows.join('; ')}. Interest during construction = ${pqMoney(b.idc)}, a line of the cash required. `
+  return `Your own money — the price less the ${pqMoney(b.loan)} loan, ${pqMoney(b.own)} — pays the first stages; the loan the rest. Each release is charged interest only, at ${fmtNum(b.ratePct, 2)}% a year ÷ 12 a month, from the month it is drawn until vacant possession in month ${b.vpAt} (${ndMonthWords(n.spaMonth)} to ${ndMonthWords(n.vpMonth)}${b.delay ? `, then the ${b.delay} month${b.delay === 1 ? '' : 's'} of delay you entered` : ''}); a stage billed after it adds nothing. `
+    + `${rows.join('; ')}. Interest during construction = ${pqMoney(b.idc)}, a line of the cash required${b.delay ? `; charged to the expected month ${b.vpMonths} it would be ${pqMoney(b.idcOnTime)}, so the delay adds ${pqMoney(b.delayIdc)}` : ''}. `
     + `${b.template ? `The percentages are Sarawak’s ${b.template.form} (the 2014 Regulations), applied by you as a template.` : 'The percentages are yours.'} The rate is the loan rate you entered, held through the construction. Not a lender’s quotation.`;
 }
 function ndExitFormula(n) {
+  if (n.gated) return `Not for this asset. ${n.gate.why}`;
   if (n.exitMissing.length) return `Unavailable until you enter ${auList(n.exitMissing)}. The exit values are grown from what a completed unit fetched — your comparable — never from the price you pay, which carries the premium.`;
   return `Exit value = the completed comparable ${pqMoney(n.comp)} × (1 + ${fmtNum(n.growth, 1)}%) ^ years from the SPA month: `
     + `${n.exits.map(x => `VP+${x.n}, ${fmtNum(x.years, 2)} years → ${pqMoney(x.value)}`).join('; ')}. `
+    + `${n.delay ? `Vacant possession is taken ${n.build.vpAt} months after signing — the ${n.delay}-month delay you entered included — so each horizon is counted from then. ` : ''}`
     + 'The growth is your appreciation assumption — Modelled, and not a forecast: another rate gives another figure. The comparable is taken as the value at the SPA month, whatever its own date. Not a valuation.';
 }
 function ndNeededFormula(n) {
   const rn = n.rentNeeded, gn = n.growthNeeded;
+  if (n.gated) return `Not for this asset. ${n.gate.why}`;
   if (!n.premium) return 'Needs a completed comparable: the premium, and what would cover it, are worked out from yours.';
   const rent = rn.status === 'solved'
     ? `Rent: the calculator’s model (dealModel) is run at trial rents, every other figure as entered, until the monthly position at the SPA price is at least the ${pqMoney(rn.target)} it gives with the price ${pqMoney(n.premium.amount)} lower — the premium taken off. At ${pqMoney(rn.rent)} a month it is ${pqMoney(rn.achieved)}; at ${pqMoney(rn.rent - 1)}, ${pqMoney(rn.below)}.`
@@ -991,6 +1054,8 @@ const ndModelOf = (d, m, opts) => Object.assign(newDevModel(d, m, opts), { spaMo
 function pcNewDevInputs(d) {
   const box = el('div', { class: 'pc-auction pc-newdev', id: 'newdev' });
   box.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, 'The new development'));
+  const gate = routeAssetGate(d);
+  if (gate?.scope === 'route') { box.append(el('p', { class: 'metaline nd-gate', 'data-gate': 'route' }, `Not for this asset: ${gate.why}`)); return box; }
   box.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' }, 'The purchase price above is the SPA price: every figure is worked from it.'));
   box.append(ndInputs({ d, prefix: 'pc',
     answer: (k, v) => { if (pcSubAnswer(d, k, v)) renderKeepFocus(); },
@@ -1134,6 +1199,9 @@ function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, 
   /* The lease. */
   box.append(group('lease', 'The lease', [el('div', { class: 'au-grid' }, [
     vacant ? null : field('cmLeaseExpiry', 'Lease expiry (month)', input('cmLeaseExpiry', { type: 'month', placeholder: 'YYYY-MM' }), 'when a lease-down would begin'),
+    /* The validation pass, audit #4: from the tenancy, the reader's. */
+    vacant ? null : field('cmRentFreeMonths', 'Rent-free months still to run', input('cmRentFreeMonths', { type: 'number', min: '0', max: '120', step: '1', inputmode: 'numeric', class: 'input au-in num' }), d.cmRentFreeMonths == null ? 'not entered — none counted' : 'from now, as the tenancy grants them'),
+    vacant ? null : field('cmServiceCharge', 'Service charge the tenant pays you (RM a month)', money('cmServiceCharge', 10), d.cmServiceCharge == null ? 'not entered — none counted' : 'as the tenancy states it'),
     field('cmFitOut', 'Fit-out for a re-let (RM)', money('cmFitOut', 500), 'what letting it again would cost you'),
     vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal')),
     vacant ? null : field('cmDeposit', 'Deposit held (months of rent)', input('cmDeposit', { type: 'number', min: '0', step: '0.5', inputmode: 'decimal', class: 'input au-in num' })),
@@ -1263,6 +1331,29 @@ function cmLeaseDownWhen(c) {
   return `${from}, over your ${L.hold / 12}-year hold. Each reserve is its months × ${pqMoney(L.burn)} with no rent${isNum(L.fitOut) ? ` + the ${pqMoney(L.fitOut)} fit-out you entered` : ' — fit-out not entered, not counted'}.${beyond}`;
 }
 
+/* THE CONTRACT RENT OVER THE REST OF THE LEASE (L2): its effective yield,
+   with the rent-free months and the service charge, and the monthly
+   position it averages. */
+const cmTermWhat = (t) => [t.free ? `${cmPlural(t.free, 'rent-free month')}` : 'no rent-free months', t.serviceCharge ? `${pqMoney(t.serviceCharge)} a month of service charge received` : 'no service charge received'].join(' and ');
+function cmTermCard(c) {
+  const t = c.term, ok = t.status === 'ok';
+  return lsMetricCard({ label: 'Over the rest of the lease', level: 2, cls: 'au-card cm-card cm-term',
+    badge: auBadge(t.kind, ok ? 'the contract rent, its rent-free months and service charge as you entered them' : t.status === 'vacant' ? 'vacant — no contract' : 'not entered'),
+    value: ok && isNum(t.effYield) ? `${fmtPct(t.effYield, 2)} a year` : 'Unavailable', attrs: { 'data-cm-fig': 'term', 'data-status': t.status },
+    valueAttrs: { 'data-value': ok && isNum(t.effYield) ? String(auR4(t.effYield)) : '', 'data-monthly': ok && isNum(t.monthly) ? String(auR4(t.monthly)) : '' },
+    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
+      : t.status === 'vacant' ? 'The unit is vacant: there is no contract rent to run.'
+        : t.status === 'expired' ? 'The lease expiry you entered has passed: no contract months are left to run.'
+          : `Enter ${auList(t.missing)} — never assumed.` });
+}
+function cmTermFormula(c) {
+  const t = c.term, L = c.lease;
+  if (t.status !== 'ok') return t.status === 'vacant' ? 'The unit is vacant: no contract rent, so no contract cash flow.' : t.status === 'expired' ? 'The lease expiry has passed: no contract months remain.' : `Unavailable until you enter ${auList(t.missing)}.`;
+  return `Over the ${t.months} months from ${cmMonthAt(L.now)} to the expiry: rent ${pqMoney(c.contract)} × (${t.months} − ${t.free} rent-free) = ${pqMoney(t.rentIn)}, of which ${fmtNum(L.rentKept * 100, 1)}% is kept after the management and repair shares; service charge received ${pqMoney(t.serviceCharge)} × ${t.months} = ${pqMoney(t.scIn)}, in full; fixed running costs ${pqMoney(L.fixedMonthly)} × ${t.months} = ${pqMoney(t.costs)}. `
+    + `Net ${pqMoney(t.net)} ÷ ${fmtNum(t.months / 12, 2)} years ÷ the price ${pqMoney(L.price)} = ${fmtPct(t.effYield, 2)} a year; ${pqMoney(t.net)} ÷ ${t.months} − the instalment ${isNum(t.monthly) ? `= ${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))} a month` : 'cannot be worked out'}. `
+    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. What the figures you entered imply — not a forecast.';
+}
+
 /* THE FIGURES: L1 and L2. `why` holds what each "How … is worked out"
    opens; `toRents` is where the achieved rents are named. */
 function cmResults({ c, d, prefix, why = {}, toRents = null }) {
@@ -1281,6 +1372,9 @@ function cmResults({ c, d, prefix, why = {}, toRents = null }) {
     value: okR ? pqMoney(r12.reserve) : 'Unavailable', attrs: { 'data-cm-fig': 'reserve-12', 'data-status': okR ? r12.status : 'unavailable' }, valueAttrs: { 'data-value': okR ? String(r12.reserve) : '' },
     sub: okR ? `12 months × ${pqMoney(c.lease.burn)} with no rent coming in${isNum(c.lease.fitOut) ? `, + ${pqMoney(c.lease.fitOut)} of fit-out` : '; fit-out not entered, not counted'}.` : `Enter ${auList(c.lease.missing)} — never assumed.` }));
   box.append(cards);
+  /* The contract rent over the rest of the lease: its rent-free months
+     and the service charge received in (the validation pass, audit #4). */
+  box.append(el('div', { class: 'au-cards cm-l2' }, cmTermCard(c)));
   /* Rent sustainability. */
   const w = cmSustainWords(c);
   if (!w) {
@@ -1327,12 +1421,13 @@ function cmYieldFormula(c) {
   return `Net yield is the calculator’s own: (the rent × 12 × (1 − the ${fmtNum(y.vacancyPct, 1)}% vacancy allowance you set) − the running costs) ÷ the purchase price. `
     + `At the contract rent: ${isNum(y.contract) ? `${fmtPct(y.contract, 2)} (gross ${fmtPct(y.grossContract, 2)})` : 'Unavailable — no contract rent'}. `
     + `At the model rent: ${isNum(y.model) ? `${fmtPct(y.model, 2)} (gross ${fmtPct(y.grossModel, 2)})` : 'Unavailable'}. `
-    + 'The model is run with each rent in turn, every other figure as entered. The lease is modelled to renew at the model rent. Not a forecast.';
+    + 'The model is run with each rent in turn, every other figure as entered. The lease is modelled to renew at the model rent. Not a forecast. '
+    + `Over the rest of the lease: ${cmTermFormula(c)}`;
 }
 function cmLeaseDownFormula(c) {
   const L = c.lease;
   if (L.missing.length) return `Unavailable until you enter ${auList(L.missing)}. Nothing is assumed: the lease-down begins at the expiry you enter, or now if you record the unit as vacant.`;
-  const rows = L.scenarios.map(s => `${s.months} months: reserve ${s.months} × ${pqMoney(L.burn)}${isNum(L.fitOut) ? ` + ${pqMoney(L.fitOut)}` : ''} = ${pqMoney(s.reserve)}; rent ${s.cMonths} months × ${pqMoney(c.contract || 0)} + ${s.mMonths} months × ${pqMoney(c.model)} = ${pqMoney(s.rentIn)}, ${s.vMonths} vacant; (${pqMoney(s.rentIn)} × ${fmtNum(L.rentKept * 100, 1)}% − ${pqMoney(s.costs)}${s.fit ? ` − ${pqMoney(s.fit)}` : ''}) ÷ ${fmtNum(L.hold / 12, 0)} years ÷ ${pqMoney(L.price)} = ${fmtPct(s.effYield, 2)} a year`);
+  const rows = L.scenarios.map(s => `${s.months} months: reserve ${s.months} × ${pqMoney(L.burn)}${isNum(L.fitOut) ? ` + ${pqMoney(L.fitOut)}` : ''} = ${pqMoney(s.reserve)}; rent ${s.cMonths - s.free} months × ${pqMoney(c.contract || 0)}${s.free ? ` (${s.free} rent-free)` : ''} + ${s.mMonths} months × ${pqMoney(c.model)} = ${pqMoney(s.rentIn)}, ${s.vMonths} vacant; (${pqMoney(s.rentIn)} × ${fmtNum(L.rentKept * 100, 1)}%${s.scIn ? ` + ${pqMoney(s.scIn)} service charge` : ''} − ${pqMoney(s.costs)}${s.fit ? ` − ${pqMoney(s.fit)}` : ''}) ÷ ${fmtNum(L.hold / 12, 0)} years ÷ ${pqMoney(L.price)} = ${fmtPct(s.effYield, 2)} a year`);
   return `${cmLeaseDownWhen(c)} With no rent, the property costs ${pqMoney(L.burn)} a month: the instalment and the running costs you pay whatever the rent. `
     + `The effective yield keeps ${fmtNum(L.rentKept * 100, 1)}% of the rent received (the management and repair shares of the rent come off it) and takes ${pqMoney(L.fixedMonthly)} a month of fixed running costs for every month of the hold, and the fit-out once; rents held flat, the vacancy each scenario’s in place of the allowance. `
     + `${rows.join('; ')}. What the figures you entered imply — not a forecast.`;

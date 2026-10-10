@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, scanner, return, records, registers, cases, settings, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, scanner, return, records, registers, cases, settings, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -2007,6 +2007,64 @@ const JOURNEYS = [
           async () => `reopened: ${await tab.eval(`labSubject + ' ' + LAB[labSubject].cols.map(c => labColId(c)).join() + ' ' + LAB[labSubject].lens`)}`);
         const o = JSON.parse(await tab.eval(order));
         if (o.heads !== 'ABC' || o.first !== 'cmReserve') throw new StepError(`reopened, the comparison reads ${JSON.stringify(o)}`);
+      });
+    },
+  },
+  {
+    /* REFURBISH OR NOT (the owner's approval of 10 Oct 2026): on a saved
+       property, the four options on P6's columns — Do nothing, Refurbish,
+       Upgrade, Sell — from the reader's figures, the improvement payback
+       read (and "Not demonstrated" where no uplift is entered), the lens
+       switched with the options kept in their order, and the figures
+       saved to the property. */
+    id: 'refurb', name: 'Property refurbish or not: four options built from your figures, the payback read, the order kept, saved',
+    outcomes: ['Enter Refurbish and Upgrade: the cost, the rent each adds, the months without rent', 'Read the improvement payback', 'Save the figures to the property'],
+    async run(j, tab) {
+      let id;
+      const cell = (row, col) => `(document.querySelector('#lab-rf-grid .lab-xr-cell[data-row="${row}"][data-col="${col}"]') || null)`;
+      const heads = `[...document.querySelectorAll('#lab-rf-grid .lab-xr-colhd')].map(n => n.dataset.option).join(',')`;
+      const typed = async (k, v, what) => {
+        await tab.fill(`document.getElementById('lab-rf-${k}')`, v, what, { commit: true });
+        await tab.expect(`LAB[labSubject].cols.every(c => c.work.${k} === ${Number(v)})`, async () => `${what}: the columns hold ${await tab.eval(`JSON.stringify(LAB[labSubject].cols.map(c => c.work.${k} ?? null))`)}`);
+      };
+      await step(j, tab, 'Open the Lab on a saved property', BUDGET.load * 2, async () => {
+        await tab.goto('/property');
+        id = await tab.eval(`(() => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} }; saveDeal(); return saveActiveProperty({ name: 'Journey condo, refurbish or not' }).id; })()`);
+        await tab.goto(`/property/lab?model=${id}`);
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('lab-rf') && ${heads} === 'none,refurb,upgrade,sell'`,
+          async () => `the Lab opened ${await tab.eval(`document.getElementById('lab-rf') ? 'refurbish or not with ' + (${heads}) : 'without refurbish or not'`)}`);
+      });
+      await step(j, tab, 'Enter Refurbish and Upgrade: the cost, the rent each adds, the months without rent', BUDGET.action * 10, async () => {
+        await typed('rfRefurbCost', '30000', 'Refurbish — cost of the works');
+        await typed('rfRefurbUplift', '150', 'Refurbish — rent it adds');
+        await typed('rfRefurbVoid', '2', 'Refurbish — months without rent');
+        await tab.click(`document.querySelector('label[for="lab-q-rf-rfRefurbBasis-quoted"]')`, 'Refurbish — the cost is a quotation');
+        await tab.expect(`LAB[labSubject].cols.every(c => c.work.rfRefurbBasis === 'quoted')`, async () => `the basis is ${await tab.eval(`LAB[labSubject].cols[0].work.rfRefurbBasis`)}`);
+        await typed('rfUpgradeCost', '80000', 'Upgrade — cost of the works');
+        await typed('rfUpgradeVoid', '4', 'Upgrade — months without rent');
+        await typed('rfSalePrice', '650000', 'Sell — the sale price you assume');
+        const c = JSON.parse(await tab.eval(`JSON.stringify({ q: ${cell('cost', 'refurb')}?.dataset.kind, s: ${cell('netExit', 'sell')}?.dataset.value, h: ${heads} })`));
+        if (c.q !== 'quoted' || !(Number(c.s) > 0) || c.h !== 'none,refurb,upgrade,sell') throw new StepError(`the columns read ${JSON.stringify(c)}`);
+      });
+      await step(j, tab, 'Read the improvement payback', BUDGET.action * 6, async () => {
+        const r = JSON.parse(await tab.eval(`(() => { const d = LAB[labSubject].cols[0].work, k = refurbModel(d);
+          const o = Object.fromEntries(k.options.map(x => [x.id, x]));
+          return JSON.stringify({ want: Math.round(o.refurb.payback.years * 1e4) / 1e4, got: ${cell('payback', 'refurb')}?.dataset.value, up: ${cell('payback', 'upgrade')}?.querySelector('.lab-xr-v')?.textContent,
+            none: ${cell('payback', 'none')}?.querySelector('.lab-xr-v')?.textContent, say: document.getElementById('lab-rf-say')?.textContent || '' }); })()`));
+        if (!(r.want > 0) || Number(r.got) !== r.want) throw new StepError(`Refurbish's payback reads ${r.got}; its model gives ${r.want}`);
+        if (r.up !== 'Not demonstrated' || r.none !== 'Not for this option') throw new StepError(`Upgrade's payback reads "${r.up}" with no uplift entered, Do nothing's "${r.none}"`);
+        if (!/The figures you entered imply/.test(r.say) || /\b(best|better|recommend\w*)\b/i.test(r.say)) throw new StepError(`the card says "${r.say.slice(0, 160)}"`);
+        for (const [lens, first] of [['risk', 'cash'], ['growth', 'netYield'], ['cashflow', 'monthly']]) {
+          await tab.click(`document.querySelector('label[for="lab-rf-lens-${lens}"]')`, `Lens — ${lens}`);
+          await tab.expect(`document.querySelector('#lab-rf-grid .lab-xr-row[data-row]')?.dataset.row === '${first}' && ${heads} === 'none,refurb,upgrade,sell'`,
+            async () => `the ${lens} lens leads with ${await tab.eval(`document.querySelector('#lab-rf-grid .lab-xr-row[data-row]')?.dataset.row`)}, the options ${await tab.eval(heads)}`);
+        }
+      });
+      await step(j, tab, 'Save the figures to the property', BUDGET.action * 3, async () => {
+        if (await tab.eval(`pmInputsOf(pmFind(${JSON.stringify(id)})).rfRefurbCost ?? null`) !== null) throw new StepError('the figures were written before Save');
+        await tab.click(`document.getElementById('lab-rf-save')`, 'Save the refurbish-or-not figures');
+        await tab.expect(`(() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})); return d.rfRefurbCost === 30000 && d.rfRefurbUplift === 150 && d.rfUpgradeCost === 80000 && d.rfSalePrice === 650000 && d.rfRefurbBasis === 'quoted'; })()`,
+          async () => `the property holds ${await tab.eval(`JSON.stringify(Object.fromEntries(Object.entries(pmInputsOf(pmFind(${JSON.stringify(id)}))).filter(([k]) => k.startsWith('rf'))))`)}`);
       });
     },
   },

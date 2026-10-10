@@ -3659,6 +3659,100 @@ for (const w of [360, 390]) {
   else console.log(`ok   p6-compare: a subsale condominium, an auction condominium and a whole shoplot side by side on /property at 360, 390 and 430, in the page's font and in Verdana: one column at a time, the sliders' column and then C by the Show chips; the Show and lens chips one line each; every cell and header inside the card; every control of the comparison, of adding a column and of saving a comparison a 44px target; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
 }
 /* ---- end p6-compare ---- */
+/* ---- refurb ---- */
+/* REFURBISH OR NOT ON A PHONE (the owner's approval of 10 Oct 2026;
+   82-property-lab.js, labRefurbCard). A saved property with each option's
+   figures entered, opened on /property at 360×640, 390×844 and 430×932, in
+   the page's font and in Verdana:
+     - one option at a time, chosen by the Show chips (one line that
+       scrolls sideways), the lens chips one line too; every cell and
+       header inside the card; nothing on the page scrolls sideways;
+     - every control of the card — the figures, where each came from, the
+       lens, Show, Save — is a 44px target;
+     - the action bar stands at the window's foot, and at 390×844 the first
+       slider is whole above it on the first screen.
+   Fails on 84d0fb35, where there is no refurbish-or-not card. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const SEED = `(() => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {},
+      rfRefurbCost: 30000, rfRefurbUplift: 150, rfRefurbVoid: 2, rfRefurbBasis: 'quoted', rfUpgradeCost: 80000, rfUpgradeVoid: 4, rfUpgradeBasis: 'placeholder', rfSalePrice: 650000 };
+    saveDeal(); return saveActiveProperty({ name: 'Condominium, Tabuan — refurbish or not' }).id; })()`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { if (!shown(n)) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+    const s = document.getElementById('lab-rf');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    const ctrls = [...s.querySelectorAll('input:not([type=radio]):not([type=checkbox]), button, select, a, .lab-seg-opt, summary')].filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const p = s.getBoundingClientRect();
+    const inside = [...s.querySelectorAll('.lab-xr-cell, .lab-xr-colhd, .lab-xr-rowhd, .au-field, .lab-pick')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.className.split(' ')[0] + (n.dataset.row ? ':' + n.dataset.row : ''));
+    const lines = (sel) => { const xs = [...s.querySelectorAll(sel + ' .lab-seg-opt')].filter(shown).map(n => Math.round(n.getBoundingClientRect().top)); return new Set(xs).size; };
+    const bar = document.querySelector('.ls-actbar');
+    const range = [...document.querySelectorAll('#views input[type=range]')].find(shown);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, inside, controls: ctrls.length,
+      shownCols: [...new Set([...s.querySelectorAll('.lab-xr-cell')].filter(shown).map(n => n.dataset.col))].join(','),
+      allCols: [...new Set([...s.querySelectorAll('.lab-xr-cell')].map(n => n.dataset.col))].join(','),
+      showChips: [...s.querySelectorAll('.lab-xr-show input')].length, lensLines: lines('.lab-pick-lens'), showLines: lines('.lab-xr-show'),
+      bar: box(bar), barFixed: bar ? getComputedStyle(bar.closest('.dock') || bar).position : null, vh: innerHeight, slider: box(range),
+      face: getComputedStyle(s.querySelector('.lab-xr-v') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      await ev(SEED);
+      const got = await load('/property');
+      if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const top = await ev(read);
+      if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
+      await ev(`(() => { const s = document.getElementById('lab-rf'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+      await sleep(200);
+      const r = await ev(read);
+      if (r.none) { fails.push(`${at}: no refurbish-or-not card on a saved property`); continue; }
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.allCols !== 'none,refurb,upgrade,sell' || r.shownCols !== 'none') fails.push(`${at}: the options shown are ${r.shownCols || 'none'} of ${r.allCols} — not Do nothing alone at first`);
+      if (r.showChips !== 4 || r.showLines !== 1 || r.lensLines !== 1) fails.push(`${at}: ${r.showChips} Show chips on ${r.showLines} line(s), the lens on ${r.lensLines} line(s)`);
+      if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+      if (r.inside.length) fails.push(`${at}: outside the card's width: ${r.inside.slice(0, 4).join(', ')}`);
+      if (!r.bar || r.barFixed !== 'fixed' || r.bar.b > r.vh + 0.5) fails.push(`${at}: the action bar is ${r.bar ? `${r.barFixed}, ${r.bar.t}–${r.bar.b}px of ${r.vh}` : 'not drawn'}`);
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+      /* Sell shown: still one option, and still inside. */
+      await ev(`(() => { const x = document.getElementById('lab-rf-show-sell'); x.checked = true; x.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+      const c = await ev(read);
+      if (c.shownCols !== 'sell' || c.inside.length || c.over > 0) fails.push(`${at}: Sell shown, the card shows ${c.shownCols}, ${c.inside.length} outside, ${c.over}px sideways`);
+      said.push(`${at.replace(' in Verdana', ' V')}: ${r.controls} controls`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL refurb — refurbish or not on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   refurb: a saved property's refurbish-or-not card on /property at 360, 390 and 430, in the page's font and in Verdana: one option at a time (Do nothing, then Sell by the Show chips), the Show and lens chips one line each; every cell, header and field inside the card; every control a 44px target; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
+}
+/* ---- end refurb ---- */
 /* ---- lab-words ---- */
 /* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
    "Scenario Lab is useful but too explanation-heavy, especially for

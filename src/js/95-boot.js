@@ -815,7 +815,7 @@ const DOCKS = {
     const short = (m.missingCostLines || []).length > 0;
     return {
       figs: [
-        { label: short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: cashPartial(m) ? 'Safe cash — partial' : short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
           tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
         { label: g.verdict || 'Grade', value: g.grade },

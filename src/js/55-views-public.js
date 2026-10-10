@@ -447,7 +447,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Safe cash — partial' : pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
