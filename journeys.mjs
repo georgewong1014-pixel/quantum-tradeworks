@@ -1808,7 +1808,13 @@ const JOURNEYS = [
         await tab.expect(`!!document.getElementById('lab-cm-tenancyRent')`, 'Tenanted chosen, the contract rent is not asked');
         await tab.fill(`document.getElementById('lab-cm-tenancyRent')`, '4600', 'The contract rent', { commit: true });
         await tab.eval(`(() => { const n = document.getElementById('lab-cm-cmLeaseExpiry'); n.value = '2027-04'; n.dispatchEvent(new Event('change', { bubbles: true })); return n.value; })()`);
-        await sleep(300);
+        /* Wait for the Lab to have taken the lease month and drawn again,
+           not a fixed 300ms: on the production run's slower runner the draw
+           the month started landed while the Rent box was being typed into,
+           replaced the box, and it read the sample's "1850" (10 Oct 2026). */
+        await tab.expect(`(${work}).cmLeaseExpiry === '2027-04' && (${work}).tenancyRent === 4600 && !!document.getElementById('lab-n-rent')`,
+          async () => `the lease month and contract rent were not taken: ${await tab.eval(`JSON.stringify({ contract: (${work}).tenancyRent, expiry: (${work}).cmLeaseExpiry })`)}`, 4000);
+        await tab.eval(`new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => r(true), 250))))`);
         await tab.fill(`document.getElementById('lab-n-rent')`, '4000', 'The model rent — the Rent box', { commit: true });
         await tab.expect(`(${work}).rent === 4000 && (${work}).tenancyRent === 4600 && (${work}).cmLeaseExpiry === '2027-04'`,
           async () => `the column holds ${await tab.eval(`JSON.stringify({ rent: (${work}).rent, contract: (${work}).tenancyRent, expiry: (${work}).cmLeaseExpiry })`)}`, 4000);
