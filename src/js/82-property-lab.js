@@ -1595,8 +1595,8 @@ function labEvidence(P, lab) {
   if (P.els.nd) {
     const nd = P.els.nd, sec = (k, summary) => { const t = el('p', { class: 'lab-formula', id: labId(P, `ev-nd-${k}-text`) }, ''); nd[`${k}Text`] = t; nd[`${k}Ev`] = lsEvidenceSection({ id: labId(P, `ev-nd-${k}`), summary, body: [t] }); return nd[`${k}Ev`]; };
     pe.push(sec('premium', 'How the premium is worked out'), sec('idc', 'How construction interest is worked out'), sec('exit', 'How the exit values are worked out'),
-      sec('needed', 'How what would justify the premium is worked out'));
-    nd.srcEv = lsEvidenceSection({ id: labId(P, 'ev-nd-src'), summary: 'Where the template and the defect liability period come from', body: [ndSourcesList()] });
+      sec('needed', 'How the rent and growth needed are found'));
+    nd.srcEv = lsEvidenceSection({ id: labId(P, 'ev-nd-src'), summary: 'Where the template comes from', body: [ndSourcesList()] });
     pe.push(nd.srcEv);
   }
   return lsEvidence({ id: labId(P, 'evidence'), title: 'Evidence', sections: [why, rest, fees, ...pe, how] });

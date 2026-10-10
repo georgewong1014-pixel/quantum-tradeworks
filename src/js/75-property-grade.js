@@ -1734,7 +1734,7 @@ function newDevModel(d, m = dealModel(d), { solve = true } = {}) {
     : !(build.vpMonths > 0) ? { status: 'no-dates' }
     : !(premium.amount > 0) ? { status: 'no-premium' }
     : { status: 'solved', pct: (Math.pow(paid / comp, 12 / build.vpMonths) - 1) * 100, years: build.vpMonths / 12 };
-  const rentKind = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant ? (inputIsSeeded(d, 'rent') ? 'illustrative' : 'modelled') : 'unavailable';
+  const rentKind = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant ? (inputIsSeeded(d, 'rent') || KIND_OF_EVIDENCE[shownEvidence(d, 'rent')] === 'illustrative' ? 'illustrative' : 'modelled') : 'unavailable';
   return {
     price, priceKind, rebates, paid, comp, compKind, compFrom: { named: g.comps, typed, notUsed: g.notUsed },
     premium, premiumKind, build,

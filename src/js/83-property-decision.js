@@ -769,14 +769,14 @@ function ndInputs({ d, prefix, answer, evidence = null, extra = {}, where = {} }
   /* At completion: the model's own rent, vacancy and furnishing, named here
      as the assumptions they are on this route. */
   const letting = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
-  const assumed = (k) => (inputIsSeeded(d, k) ? 'illustrative' : 'modelled');
+  const assumed = (k) => (inputIsSeeded(d, k) || KIND_OF_EVIDENCE[shownEvidence(d, k)] === 'illustrative' ? 'illustrative' : 'modelled');
   const line = (label, value, kind, fine, whereText) => el('div', { class: 'au-field nd-at', 'data-kind': kind }, [
     el('p', { class: 'au-label' }, label), el('p', { class: 'nd-at-v num' }, value),
     el('p', { class: 'au-kind' }, [auBadge(kind, fine), whereText ? el('span', { class: 'nd-where' }, whereText) : null])]);
   box.append(group('completion', 'At completion — your assumptions', [el('div', { class: 'au-grid' }, [
     letting ? line('Rent at completion', `${pqMoney(num0(d.rent))} a month`, assumed('rent'), 'your assumption of the rent once the keys are handed over — not an observed rent', where.rent || null) : null,
     letting ? line('Occupancy', `${fmtNum(100 - num0(d.vacancyPct), 0)}%`, assumed('vacancyPct'), 'your assumption: 100% less the vacancy you set', where.vacancy || null) : null,
-    line('Furnishing on completion', pqMoney(num0(d.renovation)), inputIsSeeded(d, 'renovation') ? 'illustrative' : 'yours', 'the renovation and furnishing figure, paid at vacant possession on this route', where.furnishing || null),
+    line('Furnishing on completion', pqMoney(num0(d.renovation)), inputIsSeeded(d, 'renovation') ? 'illustrative' : KIND_OF_EVIDENCE[shownEvidence(d, 'renovation')] || 'yours', 'the renovation and furnishing figure, paid at vacant possession on this route', where.furnishing || null),
   ])]));
   return box;
 }
@@ -878,7 +878,7 @@ function ndResults({ n, d, prefix, why = {} }) {
   const p = n.premium;
   cards.append(lsMetricCard({ label: 'Developer premium', level: 1, cls: 'au-card nd-card nd-premium',
     badge: auBadge(n.premiumKind, p ? null : 'no completed comparable entered'),
-    value: p ? `${pqSigned(p.amount)} · ${ndPctWords(p.pct)}` : 'Unavailable',
+    value: p ? [el('span', { class: 'nd-v' }, pqSigned(p.amount)), ' · ', el('span', { class: 'nd-v' }, ndPctWords(p.pct))] : 'Unavailable',
     attrs: { 'data-nd-fig': 'premium' }, valueAttrs: { 'data-value': p ? String(Math.round(p.amount)) : '', 'data-pct': p ? String(auR4(p.pct)) : '' },
     sub: p ? `You are paying ${pqMoney(Math.abs(p.amount))} / ${ndPctWords(p.pct)} ${p.amount >= 0 ? 'over' : 'under'} the completed comparable you entered: ${pqMoney(n.paid)}${n.rebates ? ` (the SPA price ${pqMoney(n.price)} less ${pqMoney(n.rebates)} of rebates and incentives)` : ''} against ${pqMoney(n.comp)}, from ${ndCompList(n).join('; ')}.`
       : 'Enter a completed comparable, or name one from your register: the premium is set against yours only, never a market figure.' }));
@@ -912,7 +912,7 @@ function ndResults({ n, d, prefix, why = {} }) {
       cls: 'nd-card nd-needed', attrs: { 'data-nd-fig': 'needed', 'data-status': 'no-comparable' },
       cta: lsCta('Enter one', { id: `${prefix}-nd-needed-go`, onclick: () => { const x = document.getElementById(`${prefix}-nd-ndCompPrice`); if (x) { x.scrollIntoView({ block: 'center' }); x.focus({ preventScroll: true }); } } }) }));
   } else {
-    const figure = rn.status === 'solved' ? `${pqMoney(rn.rent)} a month` : rn.status === 'no-premium' ? 'No premium' : rn.status === 'pending' ? '…' : '—';
+    const figure = rn.status === 'solved' ? pqMoney(rn.rent) : rn.status === 'no-premium' ? 'No premium' : rn.status === 'pending' ? '…' : '—';
     const finding = rn.status === 'solved'
       ? `The figures you entered imply a rent of ${pqMoney(rn.rent)} a month — ${pqMoney(Math.abs(rn.extra))} ${rn.extra >= 0 ? 'more' : 'less'} than the ${pqMoney(n.rent)} you assume — to give the ${rn.target < 0 ? '−' : ''}${pqMoney(Math.abs(rn.target))} monthly position the same deal gives priced at the comparable.`
       : rn.status === 'no-premium' ? 'The price you pay is at or under the completed comparable you entered: there is no premium to cover.'
@@ -1000,8 +1000,8 @@ function pcNewDev(d) {
   const prDet = det('pc-nd-premium-ev', 'How the premium is worked out', ndPremiumFormula(n));
   const idcDet = det('pc-nd-idc-ev', 'How construction interest is worked out', ndConstructionFormula(n));
   const exDet = det('pc-nd-exit-ev', 'How the exit values are worked out', ndExitFormula(n));
-  const neDet = det('pc-nd-needed-ev', 'How what would justify the premium is worked out', ndNeededFormula(n));
-  const srcDet = det('pc-nd-src-ev', 'Where the template and the defect liability period come from', ndSourcesList());
+  const neDet = det('pc-nd-needed-ev', 'How the rent and growth needed are found', ndNeededFormula(n));
+  const srcDet = det('pc-nd-src-ev', 'Where the template comes from', ndSourcesList());
   sec.append(ndResults({ n, d, prefix: 'pc', why: { premium: () => lsOpenEvidence(prDet), idc: () => lsOpenEvidence(idcDet), exit: () => lsOpenEvidence(exDet), needed: () => lsOpenEvidence(neDet) } }));
   sec.append(el('p', { class: 'metaline nd-fees' }, newDevFeeNote()));
   sec.append(prDet, idcDet, exDet, neDet, srcDet);

@@ -6391,10 +6391,10 @@ try {
     const a = r.applied;
     if (a.stored !== '10@,15@,20@,20@,10@,10@,5@,5@,2.5@,2.5@' || a.stages !== 10 || !/Form C/.test(a.kind) || !/applied by you/.test(a.kind) || !/On signing the agreement/.test(a.what)) p.push(`the template applied: ${JSON.stringify(a)}`);
     if (!a.card || a.card.status !== 'unavailable' || !/the month of each stage/.test(a.card.sub)) p.push(`the template applied with no months: ${JSON.stringify(a.card)}`);
-    if (!r.spaced.card || r.spaced.card.status !== 'ok' || !/Form C template you applied/.test(r.spaced.card.sub) || !/^10@0,15@4,20@8,20@12,10@16,10@20,5@24,5@28,2\.5@32,2\.5@36$/.test(r.spaced.stored || '')) p.push(`spaced evenly to VP: ${JSON.stringify(r.spaced)}`);
+    if (!r.spaced.card || r.spaced.card.status !== 'ok' || !/Form C, Third Schedule template you applied/.test(r.spaced.card.sub) || !/^10@0,15@4,20@8,20@12,10@16,10@20,5@24,5@28,2\.5@32,2\.5@36$/.test(r.spaced.stored || '')) p.push(`spaced evenly to VP: ${JSON.stringify(r.spaced)}`);
     if (r.tpl.some(([, t]) => Math.abs(t - 100) > 1e-9)) p.push(`a template does not add to 100%: ${JSON.stringify(r.tpl)}`);
     if (p.length) fail('p4 N4: no drawdown entered, construction interest is Unavailable — the template visibly applied, never silent', p);
-    else ok(`p4 N4: with no schedule, construction interest is Unavailable ("${b.card.sub.slice(0, 70)}…"), no line is added and the cash required is the subsale's; Apply this template writes Sarawak's Form C percentages (10/15/20/20/10/10/5/5/2.5/2.5) only when pressed, named on the schedule ("${a.kind.slice(0, 60)}…") with each stage's words, and still Unavailable until the months are entered; spaced evenly to VP it is worked out "on the Form C template you applied"; stages adding to 50% are said; the four templates each add to 100%`);
+    else ok(`p4 N4: with no schedule, construction interest is Unavailable ("${b.card.sub.slice(0, 70)}…"), no line is added and the cash required is the subsale's; Apply this template writes Sarawak's Form C percentages (10/15/20/20/10/10/5/5/2.5/2.5) only when pressed, named on the schedule ("${a.kind.slice(0, 60)}…") with each stage's words, and still Unavailable until the months are entered; spaced evenly to VP it is worked out "on the Form C, Third Schedule template you applied"; stages adding to 50% are said; the four templates each add to 100%`);
   });
   await p4try('p4 N5: the monthly position from VP is the model\'s at the rent and occupancy assumed', async () => {
     const r = JSON.parse(await evaluate(`(() => {

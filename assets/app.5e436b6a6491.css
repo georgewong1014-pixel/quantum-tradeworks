@@ -6210,6 +6210,10 @@ input.au-in { text-align: right; }
    would justify the premium (an insight card). The schedule a row a stage:
    its share, its month and Remove; under 640px every control 44px. */
 .nd-l2 { margin-top: 0; }
+/* The premium is two figures, the amount and its share: on a narrow card they
+   wrap between them, never inside one. */
+.nd-premium .ls-card-value { white-space: normal; }
+.nd-v { white-space: nowrap; }
 .nd-dlp { margin: 0; max-width: var(--ls-measure); font-size: var(--ls-meta); line-height: 18px; color: var(--ink-2); }
 .nd-dlp > strong { color: var(--ink); }
 .nd-cite { color: var(--ink-3); }
@@ -6226,8 +6230,6 @@ input.au-in { text-align: right; }
 .nd-tpl-row > .au-label { flex-basis: 100%; }
 .nd-tpl { width: auto; max-width: 100%; min-height: 40px; }
 @media (max-width: 639.98px) {
-  .nd-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .nd-stage-rm { grid-column: 1 / -1; justify-self: start; }
   .nd-stage-rm, .nd-tools .btn, .nd-tpl { min-height: 44px; }
   .nd-tools, .nd-tpl-row { flex-direction: column; align-items: stretch; }
   .nd-tpl { width: 100%; }
