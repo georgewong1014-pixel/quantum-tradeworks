@@ -23,7 +23,7 @@ const PLANS = {
        phrasing it as breadth is the kind of claim this product refuses
        everywhere else. The count is appended at render time from the universe
        actually loaded, so the sentence cannot drift from it. */
-    blurb:'Every company in the beta universe, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no ratings, no target prices.',
+    blurb:'Every company in the beta universe, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no buy, sell or hold ratings, and no single-figure target price.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
              compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
              valuationEditable:true, exports:true, fundamentalAlerts:true, priceAlerts:100,

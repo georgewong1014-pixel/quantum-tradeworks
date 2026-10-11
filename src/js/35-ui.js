@@ -1283,7 +1283,7 @@ const META = {
   marketing: POSITIONING.description,
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
-  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
+  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
@@ -2893,6 +2893,9 @@ const SERVED_READ = {
   userData: () => userData,
   proposalDetails: () => store.read('proposalDetails', null),
   startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
+  /* When this browser last exported (the backup line on /my/data and /app,
+     backupHealth): the record, as kept. */
+  lastExport: () => store.read('lastExport', null),
 };
 /* Whether this browser keeps a key at all ('kept.deal'), where a page lists
    what is kept rather than drawing from it: /my/data writes a row for each
@@ -2929,8 +2932,12 @@ const SERVED_READS = {
      (savedWork), the research, price and screen alerts (theses,
      priceAlerts, savedScreens) — a returning reader holding any of them
      is never shown the first visit's page. */
-  home: ['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
-    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal'],
+  /* And its backup line (the 10 Oct 2026 audit, #8): when this browser last
+     exported, and what of the reader's is held since — counted over every
+     key the export carries (PORTABLE_KEYS) but the base currency, which it
+     does not count (BACKUP_UNCOUNTED), so each is named. */
+  home: [...new Set(['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy'), 'lastExport'])],
   /* /research/queue: the cards' arrangement, the active list, the
      differences between price and model estimate (a price typed in), the
      plan's limits, the currency. */
@@ -3067,7 +3074,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh

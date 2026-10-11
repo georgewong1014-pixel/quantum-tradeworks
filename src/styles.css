@@ -3719,6 +3719,23 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
 .dash-side .dash-note { flex-direction: column; align-items: flex-start; }
 .dash-side .dash-note .caption { flex: none; }
 .dash-foot { max-width: 80ch; }
+/* The backup line (backupLine, 55-views-public.js): one quiet line above the
+   foot, the way to the export beside it. */
+.dash-backup { max-width: 70ch; margin: 0; color: var(--ink-2); }
+/* Which twelve months the compared columns are (fyAlignment,
+   50-views-studio.js): a warning where they differ, a plain note where it
+   cannot be told. A measure with no meaning for a column's business model
+   says so in the column, its words kept whole. */
+.cmp-periods { margin: 0 0 var(--md); padding: var(--sm) var(--md); max-width: 70ch; font-size: var(--text-sm); line-height: 1.5;
+  color: var(--ink-2); background: var(--surface-sunk); border-left: 3px solid var(--line); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.cmp-periods-warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--surface-sunk)); }
+.cmp-periods-k { font-weight: var(--weight-semibold); color: var(--ink); }
+.caption.cmp-na { white-space: normal; overflow-wrap: normal; }
+/* What a clear removes (confirmClear): a plain list — a tick would read as done. */
+.clear-list { margin: 0; padding-left: 1.25em; list-style: disc; }
+.clear-list li { margin: 4px 0; }
+.backup-line { margin: var(--sm) 0 0; max-width: 70ch; }
+.backup-line strong, .dash-backup strong { color: var(--ink); font-weight: var(--weight-semibold); }
 .dash-inline { color: var(--brand); font-weight: var(--weight-semibold); text-underline-offset: 3px; }
 .dash-inline:hover { text-decoration-thickness: 2px; }
 
@@ -3750,7 +3767,7 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
 }
 @media (pointer: coarse), (max-width: 768px) {
   .dash-co { min-height: 44px; }
-  .dash-scanline .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
+  .dash-scanline .dash-inline, .dash-backup .dash-inline { display: inline-flex; align-items: center; min-height: 44px; }
 }
 /* Still under reduced motion, as the public pages' cards are: a lift on
    hover is movement, and the global .01ms rule only made it a jump. */
@@ -6514,7 +6531,7 @@ input.au-in[type="text"] { text-align: left; }
 :root .ls-view .dash :is(.dash-row-t, .dash-more-link strong) { font-size: var(--ls-support); }
 :root .ls-view .dash .dash-row-k { font-size: var(--ls-meta); }
 :root .ls-view .dash .dash-empty-t { font-size: var(--ls-body); }
-:root .ls-view .dash .dash-foot { font-size: var(--ls-support); }
+:root .ls-view .dash .dash-foot, :root .ls-view .dash .dash-backup { font-size: var(--ls-support); }
 .dash-start-lede { margin: var(--ls-within) 0 0; }
 
 /* The step's picture, between its mark and its words. */

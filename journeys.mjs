@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, scanner, return, records, registers, cases, settings, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, scanner, return, records, registers, cases, settings, backup, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -90,7 +90,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -1036,6 +1036,18 @@ async function openTab(browser, { width = 1440, height = 900, storage = null } =
   };
   tab.lastDownload = (since) => tab.eval(`(async () => { const b = (window.__journeyBlobs || [])[${since}]; return b ? await b.text() : null; })()`);
   tab.downloads = () => tab.eval(`(window.__journeyBlobs || []).length`);
+  /* A file the page hands over, saved as the browser saves a download: into
+     a folder of the journey's own (the backup journey, which reads it back
+     from disk, sets it on a file input, and deletes the folder). */
+  tab.downloadInto = (dir) => browser.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: dir, browserContextId, eventsEnabled: true });
+  /* A file chosen in a file input, as a reader picks it. */
+  tab.chooseFile = async (find, file, what) => {
+    await S('DOM.enable').catch(() => {});
+    const r = await S('Runtime.evaluate', { expression: `(${find})` });
+    if (!r.result?.objectId || r.result.subtype === 'null') throw new StepError(`${what} is not on the page`);
+    await S('DOM.setFileInputFiles', { files: [file], objectId: r.result.objectId });
+    await sleep(200);
+  };
   tab.close = async () => {
     browser.listeners.delete(listener);
     await browser.send('Target.closeTarget', { targetId }).catch(() => {});
@@ -2825,6 +2837,123 @@ const JOURNEYS = [
         if (r.page !== '100' || r.precision !== 'rounded' || r.count !== false) throw new StepError(`after a reload the settings read ${r.page} alerts a page, ${r.precision} values and the unread count ${r.count ? 'on' : 'off'} — not 100, rounded and off`);
         if (r.kept.pageSize !== 100 || r.kept.precision !== 'rounded' || r.kept.inApp !== false) throw new StepError(`this browser keeps ${JSON.stringify(r.kept)}, not the three settings changed`);
       });
+    },
+  },
+  {
+    /* BACKUP AND RESTORE (the 10 Oct 2026 audit, #8). Saved work lives in
+       this browser and nowhere else, so the one copy that survives a cleared
+       browser is the file "Export everything" hands over. Representative
+       work, made by the app's own hand — a watchlist, an investment case, a
+       price alert, a comparable with its source and date, a saved property
+       with a scenario, a Scenario Lab comparison of the two, a saved
+       equities comparison and two settings — is exported as a reader
+       exports it: the button pressed, the file saved by the browser into a
+       folder of the journey's own and read back from disk. The browser is
+       cleared, as a new one is; the file is chosen in "Restore from a file"
+       and restored; and again: each item back, once, as it was exported. The
+       page says when it was exported, and that nothing has been saved since.
+       The folder is deleted at the end. */
+    id: 'backup', name: 'Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once',
+    outcomes: ['Export everything: the file holds each item, and the page says when', 'Import the file: each item back, once', 'Import it again: nothing doubled'],
+    async run(j, tab) {
+      const dir = join(tmpdir(), `qt-backup-journey-${process.pid}-${Date.now()}`);
+      mkdirSync(dir, { recursive: true });
+      const NAMES = `({ lists: State.watchlists.filter(x => x.name === 'Backup journey list').length, cases: State.theses.filter(x => x.id === 't-backup-1').length,
+        alerts: State.priceAlerts.filter(x => x.id === 'pa-backup-1').length, comparables: State.observations.filter(x => x.sourceRef === 'SPA ref BJ-0814').length,
+        properties: pmAll().filter(x => x.name === 'Backup journey property').length,
+        scenarios: pmAll().filter(x => x.name === 'Backup journey property').flatMap(x => x.scenarios || []).filter(s => s.name === 'Backup journey: lower rent').length,
+        labComparisons: labComparisons().filter(x => x.name === 'Backup journey lab comparison').length, comparisons: loadComparisons().filter(x => x.name === 'Backup journey compare set').length })`;
+      const SETTINGS = `({ withholding: State.wht?.US, baseCcy: store.read('baseCcy', null), provenance: (() => { const o = State.observations.find(x => x.sourceRef === 'SPA ref BJ-0814'); return o ? [o.date, o.sourceName, o.evidence].join(' · ') : null; })() })`;
+      const LINE = `(document.querySelector('#views [data-backup-line]')?.textContent || '')`;
+      const each = (names, n) => Object.entries(names || {}).filter(([, v]) => v !== n).map(([k, v]) => `${k} ${v}`);
+      let file = null, doc = null;
+      try {
+        await step(j, tab, 'Save representative items', BUDGET.load * 2, async () => {
+          await tab.goto('/my/data');
+          const made = await tab.eval(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms)); const at = new Date().toISOString();
+            const r = wlCreate('Backup journey list'); if (!r.ok) return 'the watchlist was refused: ' + r.why; wlAdd(r.watchlist.id, 'MSFT-SEC');
+            State.theses = [...State.theses, { id: 't-backup-1', ticker: 'MSFT-SEC', oneLine: 'Backup journey case.', quality: '', valCase: '', catalysts: [], risks: [], conds: [], horizon: '3–5 years', review: '2026-12-01', conf: 'Medium', questions: [], created: '2026-10-01' }]; saveTheses();
+            State.priceAlerts = [...State.priceAlerts, { id: 'pa-backup-1', ticker: 'MSFT-SEC', op: '>', price: 600, note: 'Backup journey alert', updatedAt: at }]; store.write('priceAlerts', State.priceAlerts);
+            addObservation({ district: 'Kuching', locality: 'Tabuan Jaya', date: '2026-08-14', price: 498000, sqft: 1250, propertyType: 'Terrace', sourceRef: 'SPA ref BJ-0814', sourceName: 'Own record', evidence: 'verified' });
+            const rec = pmNewRecord({ ...pmSampleDeal(), price: 512000, rent: 2300 }, 'Backup journey property', at);
+            if (!persistWork([rec, ...loadWork()])) return 'the property was not kept';
+            const sc = pmAddScenario(rec.id, { rent: 2100 }, 'Backup journey: lower rent'); if (!sc) return 'the scenario was not kept';
+            store.write('labComparisons', [{ id: 'lc-backup-1', name: 'Backup journey lab comparison', model: rec.id, cols: ['pm:' + rec.id, 'pm:' + rec.id + '/' + sc.id], lens: LAB_LENS_DEFAULT, metric: 'yield', createdAt: at }, ...labComparisons()]);
+            State.wht = { ...State.wht, US: 15 }; store.write('wht', State.wht); store.write('baseCcy', 'USD');
+            navigate('/compare?companies=AAPL-SEC,MSFT-SEC'); await w(500);
+            if (!saveComparison('Backup journey compare set')) return 'the comparison was not saved';
+            return true; })()`);
+          if (made !== true) throw new StepError(made || 'the work could not be made');
+          await tab.goto('/my/data');
+          const names = await tab.eval(NAMES);
+          if (each(names, 1).length) throw new StepError(`the work made is not each held once: ${each(names, 1).join(', ')}`);
+          const line = await tab.eval(LINE);
+          if (!/^Never exported — \d+ items of yours are only in this browser$/.test(line)) throw new StepError(`before any export the backup line reads “${line}”`);
+        });
+        await step(j, tab, 'Export everything: the file holds each item, and the page says when', BUDGET.action * 3, async () => {
+          await tab.downloadInto(dir);
+          await tab.click(byText('main button', '/^Export everything$/'), 'Export everything');
+          const t0 = Date.now();
+          while (Date.now() - t0 < 10000) {
+            const got = readdirSync(dir).filter(f => /^quantum-tradeworks-\d{4}-\d\d-\d\d\.json$/.test(f));
+            if (got.length) { file = join(dir, got[0]); break; }
+            await sleep(150);
+          }
+          if (!file) throw new StepError(`“Export everything” saved no file (the folder holds ${readdirSync(dir).join(', ') || 'nothing'})`);
+          await sleep(300);
+          try { doc = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new StepError(`the file saved is not JSON: ${e.message}`); }
+          if (doc.format !== 'quantum-tradeworks/user-data') throw new StepError(`the file saved is “${doc.format}”, not an Export everything file`);
+          const d = doc.data || {};
+          const missing = [
+            !(d.watchlists || []).some(x => x.name === 'Backup journey list' && (x.ids || []).includes('MSFT-SEC')) && 'the watchlist',
+            !(d.theses || []).some(x => x.id === 't-backup-1') && 'the investment case',
+            !(d.priceAlerts || []).some(x => x.id === 'pa-backup-1') && 'the price alert',
+            !(d.observations || []).some(x => x.sourceRef === 'SPA ref BJ-0814' && x.date === '2026-08-14' && x.sourceName === 'Own record') && 'the comparable with its source and date',
+            !(d.savedWork || []).some(x => x.name === 'Backup journey property' && (x.scenarios || []).some(s => s.name === 'Backup journey: lower rent')) && 'the property and its scenario',
+            !(d.labComparisons || []).some(x => x.name === 'Backup journey lab comparison') && 'the Scenario Lab comparison',
+            !(d.comparisons || []).some(x => x.name === 'Backup journey compare set') && 'the saved comparison',
+            d.wht?.US !== 15 && 'the withholding setting', d.baseCcy !== 'USD' && 'the base currency',
+          ].filter(Boolean);
+          if (missing.length) throw new StepError(`the file does not hold ${missing.join(', ')}`);
+          const want = await tab.eval(`'Last exported: ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' — nothing saved since'`);
+          await tab.expect(`${LINE} === ${JSON.stringify(want)}`, async () => `after the export the backup line reads “${await tab.eval(LINE)}”, not “${want}”`, 4000);
+          await tab.goto('/app');
+          const app = await tab.eval(LINE);
+          if (app !== `Backup: ${want.replace('Last exported:', 'last exported')}. Export again`) throw new StepError(`the workspace's backup line reads “${app}”`);
+        });
+        await step(j, tab, 'Clear this browser, as a new one', BUDGET.load, async () => {
+          await tab.S('Storage.clearDataForOrigin', { origin: BASE, storageTypes: 'local_storage' });
+          await tab.goto('/my/data');
+          const names = await tab.eval(NAMES);
+          if (each(names, 0).length) throw new StepError(`after clearing, still held: ${each(names, 0).join(', ')}`);
+          const line = await tab.eval(LINE);
+          if (line !== 'Never exported') throw new StepError(`a cleared browser's backup line reads “${line}”, not “Never exported”`);
+        });
+        const restore = async (round) => {
+          await tab.click(byText('main button', '/^Restore from a file$/'), 'Restore from a file');
+          await tab.expect(`!!document.querySelector('#drawerBody input[type=file]')`, '“Restore from a file” opened no file chooser', 4000);
+          await tab.chooseFile(`document.querySelector('#drawerBody input[type=file]')`, file, 'The file chooser');
+          await tab.expect(byText('#drawerBody button', '/^Restore \\d+ items?$/'), async () => `the file chosen was not read: “${(await tab.text('#drawerBody')).slice(0, 200)}”`, 6000);
+          const said = await tab.text('#drawerBody');
+          if (/not restored|Ignored/.test(said)) throw new StepError(`import ${round}: the drawer refuses part of this build's own file: “${said.slice(0, 300)}”`);
+          if (!/Export first/.test(said)) throw new StepError(`import ${round}: no “Export first” before what is here is replaced`);
+          await tab.eval('window.__journeyMark = 1');
+          await tab.click(byText('#drawerBody button', '/^Restore \\d+ items?$/'), 'Restore');
+          await tab.expect(`!window.__journeyMark && document.readyState === 'complete' && typeof State !== 'undefined' && State.view === 'userdata' && typeof realPending !== 'undefined' && !realPending`, `import ${round}: the page did not reload after the restore`, 30000);
+          await sleep(300);
+          const names = await tab.eval(NAMES);
+          if (each(names, 1).length) throw new StepError(`after import ${round}, not each once: ${each(names, 1).join(', ')}`);
+          const set = await tab.eval(SETTINGS);
+          if (set.withholding !== 15 || set.baseCcy !== 'USD') throw new StepError(`after import ${round} the settings read withholding ${set.withholding}% and ${set.baseCcy}, not 15% and USD`);
+          if (set.provenance !== '2026-08-14 · Own record · verified') throw new StepError(`after import ${round} the comparable's date, source and evidence read ${set.provenance}`);
+          const off = await tab.eval(`(() => { const doc = ${JSON.stringify(doc)}; return Object.keys(doc.data).filter(k => JSON.stringify(store.read(k, null)) !== JSON.stringify(doc.data[k])); })()`);
+          if (off.length) throw new StepError(`after import ${round} these are not as exported: ${off.join(', ')}`);
+        };
+        await step(j, tab, 'Import the file: each item back, once', BUDGET.load + BUDGET.action * 3, () => restore(1));
+        await step(j, tab, 'Import it again: nothing doubled', BUDGET.load + BUDGET.action * 3, () => restore(2));
+      } finally {
+        await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(() => {});
+      }
     },
   },
   {

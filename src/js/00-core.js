@@ -361,6 +361,9 @@ const STORE_SHAPES = {
      from the page without a word, and the export carried it on. */
   proposalDetails: { ...SHAPE_RECORD, fault: (v) => proposalDetailsFault(v) },
   valuation: SHAPE_RECORD, scanSetups: SHAPE_RECORD, scanAlertState: SHAPE_RECORD, scanPrefs: SHAPE_RECORD,
+  /* When this browser last handed over an export (backupHealth,
+     55-views-public.js): this browser's own record, never in a file. */
+  lastExport: SHAPE_RECORD,
   registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
   baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
 };
@@ -492,11 +495,13 @@ const PORTABLE_KEYS = [
   { k:'scanPrefs',         label:'Scanner notification and display preferences' },
 ];
 
+/* The format version this build writes, and the highest it reads in full. */
+const EXPORT_VERSION = 1;
 function exportEverything() {
   /* The envelope says which data the file was taken against, as well as
      which model: every saved item inside carries its own stamp, and this is
      the same record for the file as a whole. */
-  const out = { format:'quantum-tradeworks/user-data', version:1,
+  const out = { format:'quantum-tradeworks/user-data', version:EXPORT_VERSION,
                 exportedAt:new Date().toISOString(), model:MODEL_VERSION,
                 dataVersions: buildStamp('universe').data, data:{} };
   PORTABLE_KEYS.forEach(({ k }) => {
@@ -542,7 +547,16 @@ function importEverything(doc) {
   const labelOf = (k) => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
   if (!incoming.length) return { ok:false, refused,
     err:`Nothing in that file can be restored, because nothing in it is in the shape this app writes: ${refused.map(x => `${labelOf(x.k)} ${x.why}`).join('; ')}.` };
-  return { ok:true, incoming, ignored, refused, exportedAt:doc.exportedAt,
+  /* A FILE FROM ANOTHER BUILD (the 10 Oct 2026 audit, #8). One exported
+     before a kind of record existed carries nothing for it, and one from a
+     later build may carry kinds this one does not know. What it lacks is
+     named (missing), so the drawer can say what is kept as it is here
+     rather than leave the reader to find the gap; and a format version
+     above this build's is said, and only what is recognised is taken. */
+  const missing = known.filter(k => !(k in doc.data));
+  const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
+  return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
+    model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
     apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
 }
 

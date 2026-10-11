@@ -64,8 +64,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9595028208c64de8",
-      "changed": "2026-10-03"
+      "digest": "1083055857acd333",
+      "changed": "2026-10-11"
     },
     "pages/admin/scanner.html": {
       "path": "/admin/scanner",
@@ -209,8 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "34e211b1bfb8d039",
-      "changed": "2026-10-08"
+      "digest": "6a9e2e1abdd6a874",
+      "changed": "2026-10-10"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -267,7 +267,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "4e05965097da272a",
+      "digest": "e482a0de16cc9237",
       "changed": "2026-10-10"
     },
     "pages/app/equities/explore.html": {
@@ -4068,7 +4068,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "4e05965097da272a",
+      "digest": "e482a0de16cc9237",
       "changed": "2026-10-10"
     },
     "pages/contact.html": {
@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "247c10b2834a8747",
-      "changed": "2026-10-11"
+      "digest": "d7d87940af505c7c",
+      "changed": "2026-10-10"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4329,8 +4329,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f30b03d8ad3f3c1b",
-      "changed": "2026-10-09"
+      "digest": "1263162eaad43ed5",
+      "changed": "2026-10-11"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -4416,8 +4416,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cac2f82d2bbf66b2",
-      "changed": "2026-10-07"
+      "digest": "f056bb3a86170c3b",
+      "changed": "2026-10-11"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -4530,8 +4530,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6644b96b683b498e",
-      "changed": "2026-10-10"
+      "digest": "e4f7e7234cf688f1",
+      "changed": "2026-10-11"
     },
     "pages/my/data.html": {
       "path": "/my/data",
@@ -4559,8 +4559,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d665b2d4b090a748",
-      "changed": "2026-10-11"
+      "digest": "d67552a725ce5048",
+      "changed": "2026-10-10"
     },
     "pages/my/portfolio.html": {
       "path": "/my/portfolio",
@@ -4822,8 +4822,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4706b7adfd60a4a2",
-      "changed": "2026-10-07"
+      "digest": "922652a829c0081a",
+      "changed": "2026-10-11"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -4851,8 +4851,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "495a7bb02e8747ae",
-      "changed": "2026-10-11"
+      "digest": "afde9c4fa323d15c",
+      "changed": "2026-10-10"
     },
     "pages/property-investing.html": {
       "path": "/property-investing",
@@ -4907,8 +4907,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "31b257d7679ce0fe",
-      "changed": "2026-10-11"
+      "digest": "91938c9f5d21a999",
+      "changed": "2026-10-10"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -4954,19 +4954,19 @@
         ]
       },
       "inert": {
-        "buttons": 62,
-        "fields": 91,
+        "buttons": 61,
+        "fields": 84,
         "choices": 26,
         "roles": 0,
         "forms": 0,
-        "removed": 1,
-        "notShown": 8,
+        "removed": 0,
+        "notShown": 6,
         "now": 1,
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "6d0fc008489bdd8c",
-      "changed": "2026-10-11"
+      "digest": "fb615e6c4884abe3",
+      "changed": "2026-10-10"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5023,8 +5023,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3706e2e069535464",
-      "changed": "2026-10-11"
+      "digest": "488e5327a37a530c",
+      "changed": "2026-10-10"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -5139,8 +5139,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "81802073f45b28f5",
-      "changed": "2026-10-10"
+      "digest": "4b51670252b7e961",
+      "changed": "2026-10-11"
     },
     "pages/research/trading-index.html": {
       "path": "/research/trading-index",
@@ -5226,8 +5226,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "27a33951027e8409",
-      "changed": "2026-10-10"
+      "digest": "62acd7d25a442e78",
+      "changed": "2026-10-11"
     },
     "pages/terms.html": {
       "path": "/terms",
