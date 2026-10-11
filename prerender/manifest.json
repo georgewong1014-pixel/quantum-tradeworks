@@ -4126,8 +4126,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "323d93be70d87bc0",
-      "changed": "2026-10-04"
+      "digest": "4eba85d486e2280d",
+      "changed": "2026-10-11"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -4155,7 +4155,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5864ccc62e5908fd",
+      "digest": "d1ce709bd14f79c2",
       "changed": "2026-10-11"
     },
     "pages/decision-record.html": {
@@ -4358,8 +4358,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "30977ec194f5a044",
-      "changed": "2026-10-10"
+      "digest": "c3a8252514317cef",
+      "changed": "2026-10-11"
     },
     "pages/learn/glossary.html": {
       "path": "/learn/glossary",
@@ -4387,8 +4387,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "30977ec194f5a044",
-      "changed": "2026-10-10"
+      "digest": "c3a8252514317cef",
+      "changed": "2026-10-11"
     },
     "pages/learn/product-boundaries.html": {
       "path": "/learn/product-boundaries",
@@ -4474,7 +4474,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "44c0d3de04b3b7a1",
+      "digest": "45fbb38fbcd27615",
       "changed": "2026-10-11"
     },
     "pages/methodology/ips.html": {

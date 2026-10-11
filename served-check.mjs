@@ -3189,6 +3189,15 @@ const HOME_PAGE = read(HOME);
       p.push(`the calculator's Malay and Chinese labels for the renovation recovery do not say it is an assumption: {${row.slice(0, 200)}}`);
   }
   said.push('/property/calculator "compares the result with the equity return you enter", "move the result most", "you assume a buyer pays" (en, ms, zh)');
+  /* 6f — the Learn lede (F-15, R-10): "Every formula, weight, anchor range
+     and limitation used anywhere in this prototype is published here" on
+     the five Learn pages — a completeness guarantee no check holds (the
+     valuation's risk-free rates and equity risk premiums are not
+     published). */
+  gone(/used anywhere in this prototype is published here/, 'the Learn lede\'s "Every formula … used anywhere in this prototype is published here"');
+  for (const path of ['/learn', '/learn/glossary', '/methodology', '/data-sources', '/corrections'])
+    here(path, /The formulas, weights, anchor ranges and limitations are published here; one that is missing is a gap to report — Report an error, under Corrections & model changes, records it\./, 'the Learn lede without its completeness guarantee');
+  said.push('the Learn lede "one that is missing is a gap to report"');
   /* ---- parts above ---- */
   judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
     'a served page still claims more than it holds');

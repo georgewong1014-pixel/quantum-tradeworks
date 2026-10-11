@@ -38220,7 +38220,11 @@ VIEWS.learn = () => {
     el('p', { class: 'eyebrow' }, 'Learn · Methodology, in public'),
     el('h1', {}, tabLabel),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
+      /* "Every … used anywhere … is published here" was a completeness
+         guarantee no check holds — the valuation's risk-free rates and
+         equity risk premiums are not published (the claims audit of 11 Oct
+         2026, rank 6; F-15, R-10). */
+      'If a number cannot be explained, it should not be shown. The formulas, weights, anchor ranges and limitations are published here; one that is missing is a gap to report — Report an error, under Corrections & model changes, records it.'),
   ])));
 
   /* Through the address. Four of the five tabs are pages in their own right
