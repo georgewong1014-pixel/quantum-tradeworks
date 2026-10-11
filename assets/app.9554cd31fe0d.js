@@ -359,6 +359,9 @@ const STORE_SHAPES = {
      from the page without a word, and the export carried it on. */
   proposalDetails: { ...SHAPE_RECORD, fault: (v) => proposalDetailsFault(v) },
   valuation: SHAPE_RECORD, scanSetups: SHAPE_RECORD, scanAlertState: SHAPE_RECORD, scanPrefs: SHAPE_RECORD,
+  /* When this browser last handed over an export (backupHealth,
+     55-views-public.js): this browser's own record, never in a file. */
+  lastExport: SHAPE_RECORD,
   registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
   baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
 };
@@ -487,11 +490,13 @@ const PORTABLE_KEYS = [
   { k:'scanPrefs',         label:'Scanner notification and display preferences' },
 ];
 
+/* The format version this build writes, and the highest it reads in full. */
+const EXPORT_VERSION = 1;
 function exportEverything() {
   /* The envelope says which data the file was taken against, as well as
      which model: every saved item inside carries its own stamp, and this is
      the same record for the file as a whole. */
-  const out = { format:'quantum-tradeworks/user-data', version:1,
+  const out = { format:'quantum-tradeworks/user-data', version:EXPORT_VERSION,
                 exportedAt:new Date().toISOString(), model:MODEL_VERSION,
                 dataVersions: buildStamp('universe').data, data:{} };
   PORTABLE_KEYS.forEach(({ k }) => {
@@ -537,7 +542,16 @@ function importEverything(doc) {
   const labelOf = (k) => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
   if (!incoming.length) return { ok:false, refused,
     err:`Nothing in that file can be restored, because nothing in it is in the shape this app writes: ${refused.map(x => `${labelOf(x.k)} ${x.why}`).join('; ')}.` };
-  return { ok:true, incoming, ignored, refused, exportedAt:doc.exportedAt,
+  /* A FILE FROM ANOTHER BUILD (the 10 Oct 2026 audit, #8). One exported
+     before a kind of record existed carries nothing for it, and one from a
+     later build may carry kinds this one does not know. What it lacks is
+     named (missing), so the drawer can say what is kept as it is here
+     rather than leave the reader to find the gap; and a format version
+     above this build's is said, and only what is recognised is taken. */
+  const missing = known.filter(k => !(k in doc.data));
+  const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
+  return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
+    model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
     apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
 }
 
@@ -2499,6 +2513,9 @@ function backupPayload() {
     /* Not the reader's: digests of the rest, made again from them by the
        page (servedReads, 35-ui.js). */
     if (k === `${STORE_PREFIX}servedReads`) continue;
+    /* Nor is when this browser last exported (backupHealth): a file restored
+       elsewhere was not exported from there. */
+    if (k === `${STORE_PREFIX}lastExport`) continue;
     try { data[k.slice(STORE_PREFIX.length)] = JSON.parse(localStorage.getItem(k)); }
     catch { /* a value this app did not write; skipped rather than corrupted */ }
   }
@@ -9586,6 +9603,20 @@ function remapSavedIds(pairs) {
   let n = 0;
   let wl = false;
   (State.watchlists || []).forEach(w => { const next = list(w.ids); if (changed(next, w.ids)) { w.ids = next; wl = true; } });
+  /* And the date each company was added, which is keyed by its id: renamed
+     with it. Left under the stand-in's id, the date read as unknown for the
+     filer (migrateWatchlists keyed it afresh, as null, on the next load), and
+     a list exported, cleared and restored came back changed by that next
+     load (the 10 Oct 2026 audit, #8: a restore must not lose provenance). */
+  (State.watchlists || []).forEach(w => {
+    if (!isRecord(w?.added)) return;
+    for (const [from, to] of map) {
+      if (!(from in w.added)) continue;
+      if (!(to in w.added) || (w.added[to] == null && w.added[from] != null)) w.added[to] = w.added[from];
+      delete w.added[from];
+      wl = true;
+    }
+  });
   if (wl) { store.write('watchlists', State.watchlists); n++; }
   const cmp = list(State.compare); if (changed(cmp, State.compare)) { State.compare = cmp; store.write('compare', cmp); n++; }
   const rc = list(State.recentCompanies); if (changed(rc, State.recentCompanies)) { State.recentCompanies = rc; store.write('recentCompanies', rc); n++; }
@@ -14877,6 +14908,9 @@ const SERVED_READ = {
   userData: () => userData,
   proposalDetails: () => store.read('proposalDetails', null),
   startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
+  /* When this browser last exported (the backup line on /my/data and /app,
+     backupHealth): the record, as kept. */
+  lastExport: () => store.read('lastExport', null),
 };
 /* Whether this browser keeps a key at all ('kept.deal'), where a page lists
    what is kept rather than drawing from it: /my/data writes a row for each
@@ -14913,8 +14947,12 @@ const SERVED_READS = {
      (savedWork), the research, price and screen alerts (theses,
      priceAlerts, savedScreens) — a returning reader holding any of them
      is never shown the first visit's page. */
-  home: ['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
-    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal'],
+  /* And its backup line (the 10 Oct 2026 audit, #8): when this browser last
+     exported, and what of the reader's is held since — counted over every
+     key the export carries (PORTABLE_KEYS) but the base currency, which it
+     does not count (BACKUP_UNCOUNTED), so each is named. */
+  home: [...new Set(['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy'), 'lastExport'])],
   /* /research/queue: the cards' arrangement, the active list, the
      differences between price and model estimate (a price typed in), the
      plan's limits, the currency. */
@@ -15051,7 +15089,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
@@ -17247,7 +17285,7 @@ VIEWS.home = () => {
     const main = el('div', { class: 'dash-side' }, [card, myDashSections(o)]);
     const aside = el('div', { class: 'dash-side' }, [ways, o.samples ? myDashSampleNote() : null]);
     wrap.append(el('div', { class: 'dash-first' }, [main, aside]));
-    wrap.append(myDashFoot());
+    wrap.append(backupLine({ compact: true }), myDashFoot());
     return wrap;
   }
 
@@ -17291,7 +17329,7 @@ VIEWS.home = () => {
   if (o.samples) side.append(myDashSampleNote());
   split.append(main, side);
   wrap.append(split);
-  wrap.append(myDashFoot());
+  wrap.append(backupLine({ compact: true }), myDashFoot());
   return wrap;
 };
 
@@ -17460,7 +17498,7 @@ function myDashSampleNote() {
        given nothing. */
     el('p', { class: 'caption', 'data-now': 'Sample watchlists, holdings, investment cases and price alerts are given to a browser running this page’s script, so other pages have something to show. This page counts none of them.' },
       'This browser was given sample watchlists, holdings, investment cases and price alerts so the other pages have something to show. They are not yours, and nothing on this page counts them.'),
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear the sample data'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear the sample data'),
   ]);
 }
 
@@ -25354,10 +25392,12 @@ function accountingBasis(c) {
   return { id: 'unknown', label: 'Not stated', detail: 'The source of these statements does not record an accounting standard.' };
 }
 /* The latest fiscal year each column reads, and the date it ended where the
-   ingest recorded one. The shipped us.json predates the period-end field, so
-   for now the month is said to be missing rather than assumed to be December. */
+   ingest recorded one — the company's period ends (periodEnds), or the end
+   date its filing index records for revenue (lineFiling). The shipped
+   us.json predates both fields, so for now the month is said to be missing
+   rather than assumed to be December. */
 function reportingPeriod(c) {
-  const fy = latestFy(c), end = fyEndOf(c, fy);
+  const fy = latestFy(c), end = fyEndOf(c, fy) || (c?.real ? lineFiling(c, 'rev', fy).end : null);
   return { fy, end, label: `FY${fy}`, detail: end ? `ended ${fmtFyEnd(end)}` : (c.real ? 'year-end date not in this dataset yet' : 'illustrative year') };
 }
 /* An absent cell names its reason, with the sentence on hover — the same five
@@ -25373,11 +25413,52 @@ function disclosureCell(r, v, fmt, what) {
   if (isNum(v)) return fmt(v);
   return absentCell('not reported', `${what} is not in the figures held for ${r.c.tk}.${r.c.real ? ' SEC companyfacts, as this build reads it, carries no such disclosure.' : ''} Nothing is imputed.`);
 }
-/* The months between two ISO dates, ignoring days. */
-const monthsApart = (a, b) => {
-  const x = new Date(a + 'T00:00:00Z'), y = new Date(b + 'T00:00:00Z');
-  return Math.abs((x.getUTCFullYear() - y.getUTCFullYear()) * 12 + x.getUTCMonth() - y.getUTCMonth());
-};
+/* WHICH TWELVE MONTHS EACH COLUMN IS (the 10 Oct 2026 audit, #6). Apple's
+   fiscal year ends in September and Microsoft's in June, so their latest
+   years side by side are not the same twelve months, even under one label.
+   The warning read only the period ends the data holds, and said nothing
+   where it held none — which for the shipped statements is every company,
+   so every comparison was silent — and it waited for ends more than six
+   months apart, so September beside June passed. Now, among the filed
+   columns (a synthetic column has no period to place):
+   - year-ends held in different months: each column's latest year and the
+     month it ends, in the columns' own order, and that they are not the
+     same twelve months;
+   - different fiscal-year labels: said, as before;
+   - a year-end not held: said, by company — never assumed to be December,
+     and never a date this dataset does not hold. */
+const FY_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const andList = (a) => (a.length < 3 ? a.join(' and ') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+function fyAlignment(rows) {
+  const cols = rows.filter(r => r.c.real).map(r => {
+    const p = reportingPeriod(r.c);
+    const d = p.end ? new Date(`${p.end}T00:00:00Z`) : null;
+    return { tk: r.c.tk, fy: p.fy, month: d && !Number.isNaN(d.getTime()) ? d.getUTCMonth() : null };
+  });
+  if (cols.length < 2) return null;
+  const labels = [...new Set(cols.map(x => x.fy))];
+  const known = cols.filter(x => x.month !== null), unknown = cols.filter(x => x.month === null);
+  const months = new Set(known.map(x => x.month));
+  const same = labels.length === 1;
+  const ends = known.map((x, i) => (i && same ? `${x.tk}’s ends ${FY_MONTHS[x.month]}` : `${x.tk}’s FY${x.fy} ends ${FY_MONTHS[x.month]}`));
+  const notHeld = !unknown.length ? ''
+    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the shipped statements predate the ingest that records it — so ${known.length
+      ? `${unknown.length === 1 ? 'that column' : 'those columns'} cannot be placed against the others`
+      : `whether ${same ? `these FY${labels[0]} columns` : 'these columns'} cover the same twelve months cannot be checked here`}.`;
+  if (known.length >= 2 && months.size > 1)
+    return { state: 'misaligned', text: `${ends.join('; ')} — the columns are not the same twelve months, so growth and margin rows are not measured over one period.${notHeld ? ` ${notHeld}` : ''}` };
+  if (!same)
+    return { state: 'labels', text: `The selection compares ${[...labels].sort().map(y => `FY${y}`).join(' statements with ')} statements — growth and margin rows are not measured over the same twelve months.${notHeld ? ` ${notHeld}` : ''}` };
+  if (unknown.length) return { state: 'unknown', text: `${known.length ? `${ends.join('; ')}; ` : ''}${known.length ? notHeld.charAt(0).toLowerCase() + notHeld.slice(1) : notHeld}` };
+  return null;
+}
+/* A measure that has no meaning for a column's business model, said in
+   the column (the 10 Oct 2026 audit, #6): "n/a" stood for it, with the
+   reason only on hover. The plurals are the glossary's (TYPE_PLURAL,
+   65-learn.js). */
+const typePlural = (t) => TYPE_PLURAL[t] || `${t} businesses`;
+const notMeaningfulFor = (c) => `Not meaningful for ${typePlural(c.type)}`;
+const naCell = (r, text) => `<span class="caption cmp-absent cmp-na" data-na="${esc(r.c.type)}" title="${esc(text)}">${esc(notMeaningfulFor(r.c))}</span>`;
 
 /* SAVED COMPARISONS. A comparison was only ever the current selection; a
    named one keeps the companies, the currency mode, the stamp, and the text
@@ -25535,20 +25616,16 @@ VIEWS.compare = () => {
 
   const mixedTypes = new Set(rows.map(r => r.c.type)).size > 1;
   const mixedMkts = new Set(rows.map(r => r.c.mkt)).size > 1;
-  /* Periods: the latest fiscal-year labels, and where both period ends are
-     held, how many months apart they fall. Bases: the accounting standard.
-     Kinds: synthetic beside filed. */
-  const periods = rows.map(r => reportingPeriod(r.c));
-  const fyLabels = [...new Set(periods.map(p => p.label))];
-  const ends = periods.map(p => p.end).filter(Boolean);
-  const endSpread = ends.length > 1 ? Math.max(...ends.flatMap(a => ends.map(b => monthsApart(a, b)))) : 0;
-  const mixedPeriods = fyLabels.length > 1 || endSpread > 6;
+  /* Periods: which twelve months each filed column is, or that it cannot
+     be told (fyAlignment) — said in a line of its own below. Bases: the
+     accounting standard. Kinds: synthetic beside filed. */
+  const periods = fyAlignment(rows);
   /* Among the columns that have a basis at all; synthetic beside filed is
      its own sentence below. */
   const bases = [...new Set(rows.filter(r => r.c.real).map(r => accountingBasis(r.c).id))];
   const mixedBasis = bases.length > 1;
   const mixedIllus = rows.some(r => r.c.real) && rows.some(r => !r.c.real);
-  if (mixedTypes || mixedMkts || mixedPeriods || mixedBasis || mixedIllus) {
+  if (mixedTypes || mixedMkts || mixedBasis || mixedIllus) {
     const warn = el('div', { class: 'guardrail', style: 'background:color-mix(in srgb, var(--warn) 12%, transparent);border-color:color-mix(in srgb, var(--warn) 36%, transparent);margin-bottom:var(--md)' });
     const said = [];
     if (mixedTypes) said.push('This selection mixes business models, so some rows are not comparable — return on invested capital and enterprise value are not meaningful for banks, and free cash flow is not meaningful for a deposit-taking balance sheet.');
@@ -25558,14 +25635,15 @@ VIEWS.compare = () => {
          Local-currency mode, above a row printing $ and RM side by side. */
       ? `${opener()} reporting currencies; per-share figures, market capitalisation and the scale rows are shown in each company’s reporting currency and are not comparable across markets.`
       : `${opener()} reporting currencies; per-share figures are shown in the reporting currency, and market capitalisation and the scale rows are converted to ${State.baseCcy}.`);
-    if (mixedPeriods) said.push(fyLabels.length > 1
-      ? `The selection compares ${fyLabels.sort().join(' statements with ')} statements — growth and margin rows are not measured over the same twelve months.`
-      : `The latest fiscal years end ${endSpread} months apart, so growth and margin rows are not measured over the same twelve months.`);
     if (mixedBasis) said.push('Statements are prepared under different accounting bases, or none; lease, revenue-recognition and impairment treatment can differ line by line, and no adjustment is made here.');
     if (mixedIllus) said.push('This selection places synthetic demonstration figures beside filed statements; the illustrative columns are not evidence about any company.');
     warn.innerHTML = `<span style="color:var(--warn)">${icon('alert')}</span><span>${esc(said.join(' '))}</span>`;
     wrap.append(warn);
   }
+  /* The periods, in a line of their own: a warning where the columns are
+     not the same twelve months, a plain note where it cannot be told. */
+  if (periods) wrap.append(el('p', { class: `cmp-periods cmp-periods-${periods.state === 'unknown' ? 'unknown' : 'warn'}`, 'data-cmp-periods': periods.state, role: 'note' },
+    [el('span', { class: 'cmp-periods-k' }, periods.state === 'unknown' ? 'Fiscal years' : 'Not the same twelve months'), ' ', periods.text]));
 
   /* peer table */
   /* Currency, stated rather than assumed. A table mixing RM share prices with
@@ -25722,15 +25800,15 @@ VIEWS.compare = () => {
        latest stored statements": a missing-data claim about a line that is
        meaningless for a deposit-taking balance sheet. */
     ['Operating cash flow', r => r.c.type === 'bank'
-      ? absentCell('not applicable', 'Operating cash flow is not meaningful for a deposit-taking balance sheet: it moves with deposits and loans, not with what the bank earns.')
+      ? naCell(r, 'Operating cash flow is not meaningful for a deposit-taking balance sheet: it moves with deposits and loans, not with what the bank earns.')
       : lineCell(r, last(r.d.ocf), ['ocf'])],
     /* Not a row at all for an all-bank selection; a bank in a mixed one says
        why its cell is empty. */
     ...(pack.id === 'bank' ? [] : [['Free cash flow', r => r.c.type === 'bank'
-      ? absentCell('not applicable', 'Free cash flow is not meaningful for a deposit-taking balance sheet, whose operating cash flow moves with deposits and loans.')
+      ? naCell(r, 'Free cash flow is not meaningful for a deposit-taking balance sheet, whose operating cash flow moves with deposits and loans.')
       : lineCell(r, r.m.fcf, ['ocf', 'capex'])]]),
     ['Net debt', r => r.c.type === 'bank'
-      ? absentCell('not applicable', 'Net debt is not meaningful for a deposit-taking balance sheet: its borrowings are its raw material, not its financing.')
+      ? naCell(r, 'Net debt is not meaningful for a deposit-taking balance sheet: its borrowings are its raw material, not its financing.')
       : lineCell(r, r.m.netDebt, ['debt', 'cash'])],
   ];
 
@@ -25803,10 +25881,14 @@ VIEWS.compare = () => {
     const fld = FIELD_BY_K[k];
     const present = isNum(r.m[k]);
     const st = present ? null : metricStatus(r, k);
+    /* A measure with no meaning for this column's business model says so in
+       the column — "Not meaningful for banks" — not as "n/a" with the reason
+       only on hover (the 10 Oct 2026 audit, #6). */
+    const na = !present && st.reason === 'not applicable';
     const td = el('td', { class: 'cell-sourced', role: 'button', tabindex: '0',
-      html: present ? get(r) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>` });
+      html: present ? get(r) : na ? naCell(r, st.text) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>` });
     /* Read off the cell, so a converted money figure is announced as shown. */
-    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${present ? td.textContent.trim() : `unavailable, ${st.reason}`} — show source`);
+    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${present ? td.textContent.trim() : na ? notMeaningfulFor(r.c).toLowerCase() : `unavailable, ${st.reason}`} — show source`);
     td.addEventListener('click', () => openSourceDrawer(r, fld));
     td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
     return td;
@@ -26011,7 +26093,7 @@ function sampleBanner() {
     /* The banner goes with what it describes, and the button with it: focus
        fell to the top of the page. It goes to the page's heading, as the
        dashboard's "Clear the sample data" sends it (40-views-discover.js). */
-    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => { clearSeededData(); focusAfterRedraw('#views h1'); } }, 'Clear and start my own'),
+    el('button', { class: 'btn btn-ghost btn-sm', onclick: () => askClearSamples('#views h1') }, 'Clear and start my own'),
   ]));
   return b;
 }
@@ -27846,6 +27928,142 @@ const HELD_IS_SAMPLE = {
   deal: (v) => !dealIsTheReaders(v),
 };
 
+/* ==========================================================================
+   BACKUP HEALTH (the 10 Oct 2026 audit, #8)
+
+   Everything a reader makes lives in this browser and nowhere else, and the
+   page said so — but never when it was last carried out of it. So the two
+   whole exports ("Export everything", "Download a backup") record, in this
+   browser, when a file was handed over and a print of each item it held;
+   the line on /my/data and on the workspace (/app) says "Last exported:
+   <date> — N items saved since", or "Never exported". An item is one record
+   of a list the export carries, or one record or setting kept whole — never
+   a sample (the rules /my/data counts them apart by, HELD_SAMPLES), and
+   never an empty record. Saved since is new or changed since that export:
+   an item whose print the export did not hold. The base currency is left
+   out: kept as its default it is not something the reader made. No count
+   at all is said where there is nothing of the reader's, so a fresh
+   visitor's page reads "Never exported" and no figure (served-check). The
+   date is the reader's own calendar day, in one fixed form (en-GB). */
+const BACKUP_SAMPLE_ITEM = {
+  portfolios: (p) => SEEDED_PF_IDS.includes(p?.id) || (p?.id === 'pf-user' && !(p.holdings || []).length),
+  theses: (t) => SEEDED_THESIS_IDS.includes(t?.id),
+  /* A seeded list the reader has not touched, and the empty list of their
+     own that clearing the samples leaves (clearSeededData). */
+  watchlists: (w) => isSeededWL(w) || (w?.id === 'wl-user' && !(w.ids || []).length),
+  priceAlerts: (a) => isSeededPA(a),
+  observations: (o) => !!o?.sample,
+  registerLog: (e) => e?.actor === SAMPLE_ACTOR,
+  savedWork: (w) => workIsSample(w),
+};
+const BACKUP_UNCOUNTED = new Set(['baseCcy']);
+/* A record kept with nothing in it is not an item. */
+const backupHolds = (k, v) => k === 'userData'
+  ? Object.keys(v.series || {}).length > 0 || Object.keys(v.statements || {}).length > 0
+  : Object.keys(v).length > 0;
+/* A print names an item's content. The filings' arrival renames a filed
+   company's id (AAPL → AAPL-SEC, remapSavedIds): the same item either side
+   of it prints the same. */
+const backupPrint = (k, v) => `${k}:${servedHash(JSON.stringify(v ?? null).replace(/-SEC\b/g, ''))}`;
+function backupPrints() {
+  const out = [];
+  PORTABLE_KEYS.forEach(({ k }) => {
+    if (BACKUP_UNCOUNTED.has(k)) return;
+    const v = store.read(k, null);
+    if (v === null || v === undefined || v === '') return;
+    if (Array.isArray(v)) { v.forEach(x => { if (!BACKUP_SAMPLE_ITEM[k]?.(x)) out.push(backupPrint(k, x)); }); return; }
+    if (isRecord(v) && (!backupHolds(k, v) || HELD_IS_SAMPLE[k]?.(v))) return;
+    out.push(backupPrint(k, v));
+  });
+  return out;
+}
+/* Recorded when a whole export is handed over. */
+const recordExport = (kind) => store.write('lastExport', { v: 1, at: new Date().toISOString(), kind, prints: backupPrints() });
+function backupHealth() {
+  const rec = store.read('lastExport', null);
+  const prints = backupPrints();
+  const at = isRecord(rec) && typeof rec.at === 'string' && Number.isFinite(Date.parse(rec.at)) ? rec.at : null;
+  if (!at) return { at: null, own: prints.length, since: null };
+  const had = new Map();
+  (Array.isArray(rec.prints) ? rec.prints : []).forEach(p => had.set(p, (had.get(p) || 0) + 1));
+  let since = 0;
+  prints.forEach(p => { const n = had.get(p) || 0; if (n) had.set(p, n - 1); else since++; });
+  return { at, own: prints.length, since };
+}
+const backupDay = (iso) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+/* The line itself: on /my/data whole, on the workspace compact (with the
+   way to the page that exports). */
+function backupLine({ compact = false } = {}) {
+  const h = backupHealth();
+  const items = (n) => `${n} item${n === 1 ? '' : 's'}`;
+  const state = !h.at ? 'never' : h.since ? 'behind' : 'current';
+  const head = h.at ? `${compact ? 'last exported' : 'Last exported:'} ${backupDay(h.at)}` : compact ? 'never exported' : 'Never exported';
+  const tail = !h.at ? (h.own ? `${items(h.own)} of yours ${h.own === 1 ? 'is' : 'are'} only in this browser` : null)
+    : h.since ? `${items(h.since)} saved since` : 'nothing saved since';
+  const p = el('p', { class: compact ? 'caption dash-backup' : 'metaline backup-line', 'data-backup-line': '', 'data-backup-state': state }, [
+    compact ? 'Backup: ' : null, el('strong', {}, head), tail ? ` — ${tail}` : null, compact ? '. ' : null]);
+  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Export from Your data & settings'));
+  return p;
+}
+/* Export everything, handed over as a file, and recorded. False, said,
+   when there is nothing to put in it. */
+function downloadEverything() {
+  const doc = exportEverything();
+  if (!Object.keys(doc.data).length) { toast('Nothing saved yet'); return false; }
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+  const a = el('a', { href: URL.createObjectURL(blob),
+    download: `quantum-tradeworks-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  recordExport('everything');
+  return true;
+}
+
+/* BEFORE ANYTHING IS CLEARED (the 10 Oct 2026 audit, #8): what will be
+   removed, what is kept, that it cannot be undone without an export, and
+   the export one press away — in a drawer, not a native confirm, because a
+   confirm has no room for "Export first". */
+function confirmClear({ title, lead, removes, keeps = null, label, run }) {
+  const body = el('div', { class: 'stack', 'data-clear-confirm': '' });
+  body.append(el('p', { class: 'body' }, lead));
+  body.append(el('ul', { class: 'clear-list' }, removes.map(x => el('li', {}, x))));
+  if (keeps) body.append(el('p', { class: 'metaline' }, keeps));
+  body.append(el('p', { class: 'body', style: 'font-weight:600' },
+    'This cannot be undone without an export. This browser holds the only copy — nothing is kept on a server.'));
+  let line = backupLine();
+  body.append(line);
+  body.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    el('button', { class: 'btn btn-primary btn-sm', 'data-export-first': '', onclick: () => {
+      if (!downloadEverything()) return;
+      const next = backupLine(); line.replaceWith(next); line = next;
+      toast('Exported — the file is in your downloads');
+    } }, 'Export first'),
+    el('button', { class: 'btn btn-ghost btn-sm', 'data-clear-go': '', onclick: () => { closeDrawer({ restore: false }); run(); } }, label),
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => closeDrawer() }, 'Cancel'),
+  ]));
+  openDrawer(title, body);
+}
+/* Clearing the samples, asked first. What goes is counted from what is
+   held; the reader's own lists, cases and alerts are kept, and said to be. */
+function askClearSamples(focusAfter = '#views h1') {
+  const n = (k, one, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+  const pf = seededPortfolios().length, th = seededTheses().length;
+  const wl = (State.watchlists || []).filter(isSeededWL).length;
+  const wlIn = (State.watchlists || []).filter(w => !isSeededWL(w) && seededMembersOf(w).length).length;
+  const pa = (State.priceAlerts || []).filter(isSeededPA).length;
+  const removes = [
+    pf ? `${n(pf, 'sample portfolio')} and their holdings` : null,
+    th ? n(th, 'sample investment case') : null,
+    wl ? n(wl, 'sample watchlist') : null,
+    wlIn ? `the sample companies in ${n(wlIn, 'list')} you changed` : null,
+    pa ? n(pa, 'sample price alert') : null,
+  ].filter(Boolean);
+  confirmClear({ title: 'Clear the sample data', lead: 'Clearing removes what this browser was given so the pages had something to show:',
+    removes: removes.length ? removes : ['the samples left in this browser'],
+    keeps: 'Your own portfolios, cases, lists and alerts are kept. The samples do not come back.',
+    label: 'Clear the samples', run: () => { clearSeededData(); focusAfterRedraw(focusAfter); } });
+}
+
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
@@ -27871,31 +28089,48 @@ VIEWS.userdata = () => {
   const bk = el('div', { class: 'card' });
   bk.append(cardHead('Back up everything in this browser',
     'One file with every calculation, saved deal, watchlist, screen and correction case this browser holds. There is no server copy, so this file is the only copy.'));
+  /* When a file last left this browser, and what has been saved since
+     (backupHealth): kept in sight, never a modal. */
+  bk.append(backupLine());
 
   const bkRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-  bkRow.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+  bkRow.append(el('button', { class: 'btn btn-primary btn-sm', id: 'ud-backup-download', onclick: () => {
     const payload = backupPayload();
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const a = el('a', { href: URL.createObjectURL(blob),
       download: `quantum-tradeworks-backup-${new Date().toISOString().slice(0, 10)}.json` });
     document.body.append(a); a.click(); a.remove();
+    recordExport('backup');
     toast(`Downloaded ${payload.keys} stored item${payload.keys === 1 ? '' : 's'}`);
+    redrawKeepFocus();
   } }, 'Download a backup'));
 
   /* A hidden input behind a button, because the native file control cannot be
-     styled and reads as a browser artefact rather than part of the page. */
+     styled and reads as a browser artefact rather than part of the page.
+     Nothing is written as the file is chosen: what it would overwrite is
+     said first, with the export one press away (confirmClear). */
   const fileIn = el('input', { type: 'file', accept: 'application/json,.json', style: 'display:none',
     onchange: async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      const res = restoreBackup(await file.text());
+      const text = await file.text();
       e.target.value = '';
-      if (!res.ok) { toast(res.error); return; }
-      const left = res.refused || [];
-      toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'}${left.length ? ` — ${left.length} left as ${left.length === 1 ? 'it was' : 'they were'}, not in the shape this app writes: ${left.join(', ')}` : ''} — reloading`);
-      /* A reload rather than a re-render: State was populated from storage at
-         boot, and half the app would still be holding the pre-restore values. */
-      setTimeout(() => location.reload(), 700);
+      let doc = null;
+      try { doc = JSON.parse(text); } catch { /* restoreBackup says so */ }
+      const sibling = siblingFileOf(doc);
+      if (!doc || (sibling !== 'backup')) { const res = restoreBackup(text); if (!res.ok) toast(res.error); return; }
+      const n = Object.keys(doc.data || {}).length;
+      confirmClear({ title: 'Restore this backup', lead: `The backup taken ${String(doc.takenAt || '').slice(0, 16).replace('T', ' ') || 'at an unstated time'} UTC replaces what this browser holds now for each of the ${n} item${n === 1 ? '' : 's'} it carries:`,
+        removes: ['every saved item, list, case, comparison and setting this browser holds under the same names'],
+        keeps: 'Anything the backup does not carry is kept as it is here.', label: 'Restore and reload', run: () => {
+          const res = restoreBackup(text);
+          if (!res.ok) { toast(res.error); return; }
+          const left = res.refused || [];
+          toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'}${left.length ? ` — ${left.length} left as ${left.length === 1 ? 'it was' : 'they were'}, not in the shape this app writes: ${left.join(', ')}` : ''} — reloading`);
+          /* A reload rather than a re-render: State was populated from storage at
+             boot, and half the app would still be holding the pre-restore values. */
+          setTimeout(() => location.reload(), 700);
+        } });
     } });
   bkRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileIn.click() },
     'Restore from a backup'));
@@ -27992,11 +28227,13 @@ VIEWS.userdata = () => {
          which exports portfolios, cases and watchlists; a reader backing up
          from this one got pasted prices and nothing else. */
     } }, 'Export these prices'));
-    exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      if (!confirm('Remove every price you have added? This cannot be undone and there is no copy on any server.')) return;
-      if (!commitUserData(() => { userData.series = {}; })) { toast(STORE_UNDELETED); return; }
-      location.reload();
-    } }, 'Remove all'));
+    exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => confirmClear({ title: 'Remove every price you added',
+      lead: 'Removing clears the price series you pasted into this browser:',
+      removes: [`${userCloseCount().toLocaleString()} closes across ${have} instrument${have === 1 ? '' : 's'}`],
+      keeps: 'Everything else you have made is kept.', label: 'Remove all prices', run: () => {
+        if (!commitUserData(() => { userData.series = {}; })) { toast(STORE_UNDELETED); return; }
+        location.reload();
+      } }) }, 'Remove all'));
     status.append(exp);
   } else {
     status.append(el('p', { class: 'body', style: 'font-size:13px' },
@@ -28036,15 +28273,8 @@ VIEWS.userdata = () => {
     'A sample was written into this browser on a first visit, or by the worked example, so the pages have something to show. Samples are counted apart from your own work here; Export everything carries them too, with the marks that say they are samples.'));
 
   all.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-      const doc = exportEverything();
-      if (!Object.keys(doc.data).length) { toast('Nothing saved yet'); return; }
-      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
-      const a = el('a', { href: URL.createObjectURL(blob),
-        download: `quantum-tradeworks-${new Date().toISOString().slice(0, 10)}.json` });
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    } }, 'Export everything'),
+    /* Recorded as the last export (backupHealth), and the line above says so. */
+    el('button', { class: 'btn btn-primary btn-sm', id: 'ud-export-all', onclick: () => { if (downloadEverything()) redrawKeepFocus(); } }, 'Export everything'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openRestoreDrawer() }, 'Restore from a file'),
   ]));
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -28699,7 +28929,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
-         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
+         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
@@ -31455,18 +31685,32 @@ function openRestoreDrawer() {
       report.append(el('ul', { class: 'ticklist', style: 'margin-top:6px' }, r.refused.map(({ k, why }) =>
         el('li', {}, `${(PORTABLE_KEYS.find(x => x.k === k) || {}).label || k} — not restored: it ${why}`))));
     }
-    if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+    if (r.ignored.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-ignored': '' },
       `Ignored, because this build does not recognise them: ${r.ignored.join(', ')}.`));
+    /* A file from another build (the 10 Oct 2026 audit, #8): one from a
+       later format is said to be, and what a file does not carry is named
+       where this browser holds something for it — kept as it is. */
+    if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
+      `This file was written by a later build (format ${r.version}; this build writes ${EXPORT_VERSION}). Only what this build recognises is restored.`));
+    const keptHere = (r.missing || []).filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length); });
+    if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
+      `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this build is ${MODEL_VERSION}.` : ''}`));
 
-    report.append(el('button', { class: 'btn btn-primary btn-sm', style: 'margin-top:var(--md)', onclick: () => {
-      if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
-      r.apply();
-      closeDrawer();
-      /* A full reload rather than render(): half this state was read into
-         module-level variables at boot, and repainting over them would show a
-         mixture of the old and the new. */
-      location.reload();
-    } }, `Restore ${r.incoming.length} item${r.incoming.length === 1 ? '' : 's'}`));
+    /* Replacing is clearing what is here now: the export of it is offered
+       first, as before every clear (confirmClear, 55-views-public.js). */
+    report.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);font-weight:600' },
+      'Replacing cannot be undone without an export of what this browser holds now.'));
+    report.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--sm)' }, [
+      el('button', { class: 'btn btn-ghost btn-sm', 'data-export-first': '', onclick: () => { if (downloadEverything()) toast('Exported what this browser holds now — the file is in your downloads'); } }, 'Export first'),
+      el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+        if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
+        r.apply();
+        closeDrawer();
+        /* A full reload rather than render(): half this state was read into
+           module-level variables at boot, and repainting over them would show a
+           mixture of the old and the new. */
+        location.reload();
+      } }, `Restore ${r.incoming.length} item${r.incoming.length === 1 ? '' : 's'}`)]));
   } }, 'Check this file');
   body.append(check);
   body.append(report);
@@ -59665,7 +59909,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same

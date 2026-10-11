@@ -2825,6 +2825,49 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end deep-links ---- */
 
+/* ---- backup-served ---- */
+/* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the
+   workspace at /app say when this browser last exported, and what has been
+   saved since. Served, they are a fresh visitor's: "Never exported", and no
+   count of anything — a fresh visitor holds only samples, which are never
+   counted as theirs. Held here on the served HTML, before any script:
+   - each page's #views holds one backup line (data-backup-line), its state
+     "never", reading exactly "Never exported" on /my/data and "Backup: never
+     exported. Export from Your data & settings" on /app — no digit in it;
+   - its render read the export record (lastExport in data-served-reads), so
+     a reader who has exported is kept from the fresh page until the script
+     draws their own (FIRST_SCRIPT, build.mjs);
+   - the line is the committed render's own (served = drawn: prerender
+     --check holds the render to the page the app draws). */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const WANT = { '/my/data': 'Never exported', '/app': 'Backup: never exported. Export from Your data & settings' };
+  const got = await getAll(Object.keys(WANT));
+  const said = [];
+  for (const [path, want] of Object.entries(WANT)) {
+    const r = got.get(path);
+    if (!r || r.status !== 200) { p.push(`${path}: ${r?.status || 'no answer'}, not 200`); continue; }
+    const tree = B.htmlTree(r.body);
+    const views = all(tree).find(n => attr(n, 'id') === 'views');
+    const html = all(tree).find(n => n.tag === 'html');
+    const lines = views ? all(views).filter(n => attr(n, 'data-backup-line') !== null) : [];
+    if (lines.length !== 1) { p.push(`${path}: ${lines.length} backup lines in the served page, not one`); continue; }
+    /* sightText joins a node's pieces with a space; a full stop after an
+       element is the page's own "exported." */
+    const text = sight(lines[0]).replace(/\s+/g, ' ').replace(/ ([.,])/g, '$1').trim();
+    if (attr(lines[0], 'data-backup-state') !== 'never') p.push(`${path}: the backup line's state is "${attr(lines[0], 'data-backup-state')}", not "never"`);
+    if (text !== want) p.push(`${path}: the backup line reads "${text}", not "${want}"`);
+    if (/\d/.test(text)) p.push(`${path}: the backup line carries a figure ("${text}") — a fresh visitor has nothing of theirs to count`);
+    if (!/(^|\s)lastExport:/.test(attr(html, 'data-served-reads') || '')) p.push(`${path}: its render did not read the export record (no lastExport in data-served-reads), so a reader who has exported would be shown "Never exported" before the script`);
+    said.push(`${path} "${text}"`);
+  }
+  judge(p, `the backup line, served (audit #8): ${said.join(' and ')} — one line each, state "never", no count; each render read the export record, so a reader who has exported waits for their own`,
+    'the backup line is not served honestly to a fresh visitor');
+}
+/* ---- end backup-served ---- */
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

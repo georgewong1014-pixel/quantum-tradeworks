@@ -1007,6 +1007,142 @@ const HELD_IS_SAMPLE = {
   deal: (v) => !dealIsTheReaders(v),
 };
 
+/* ==========================================================================
+   BACKUP HEALTH (the 10 Oct 2026 audit, #8)
+
+   Everything a reader makes lives in this browser and nowhere else, and the
+   page said so — but never when it was last carried out of it. So the two
+   whole exports ("Export everything", "Download a backup") record, in this
+   browser, when a file was handed over and a print of each item it held;
+   the line on /my/data and on the workspace (/app) says "Last exported:
+   <date> — N items saved since", or "Never exported". An item is one record
+   of a list the export carries, or one record or setting kept whole — never
+   a sample (the rules /my/data counts them apart by, HELD_SAMPLES), and
+   never an empty record. Saved since is new or changed since that export:
+   an item whose print the export did not hold. The base currency is left
+   out: kept as its default it is not something the reader made. No count
+   at all is said where there is nothing of the reader's, so a fresh
+   visitor's page reads "Never exported" and no figure (served-check). The
+   date is the reader's own calendar day, in one fixed form (en-GB). */
+const BACKUP_SAMPLE_ITEM = {
+  portfolios: (p) => SEEDED_PF_IDS.includes(p?.id) || (p?.id === 'pf-user' && !(p.holdings || []).length),
+  theses: (t) => SEEDED_THESIS_IDS.includes(t?.id),
+  /* A seeded list the reader has not touched, and the empty list of their
+     own that clearing the samples leaves (clearSeededData). */
+  watchlists: (w) => isSeededWL(w) || (w?.id === 'wl-user' && !(w.ids || []).length),
+  priceAlerts: (a) => isSeededPA(a),
+  observations: (o) => !!o?.sample,
+  registerLog: (e) => e?.actor === SAMPLE_ACTOR,
+  savedWork: (w) => workIsSample(w),
+};
+const BACKUP_UNCOUNTED = new Set(['baseCcy']);
+/* A record kept with nothing in it is not an item. */
+const backupHolds = (k, v) => k === 'userData'
+  ? Object.keys(v.series || {}).length > 0 || Object.keys(v.statements || {}).length > 0
+  : Object.keys(v).length > 0;
+/* A print names an item's content. The filings' arrival renames a filed
+   company's id (AAPL → AAPL-SEC, remapSavedIds): the same item either side
+   of it prints the same. */
+const backupPrint = (k, v) => `${k}:${servedHash(JSON.stringify(v ?? null).replace(/-SEC\b/g, ''))}`;
+function backupPrints() {
+  const out = [];
+  PORTABLE_KEYS.forEach(({ k }) => {
+    if (BACKUP_UNCOUNTED.has(k)) return;
+    const v = store.read(k, null);
+    if (v === null || v === undefined || v === '') return;
+    if (Array.isArray(v)) { v.forEach(x => { if (!BACKUP_SAMPLE_ITEM[k]?.(x)) out.push(backupPrint(k, x)); }); return; }
+    if (isRecord(v) && (!backupHolds(k, v) || HELD_IS_SAMPLE[k]?.(v))) return;
+    out.push(backupPrint(k, v));
+  });
+  return out;
+}
+/* Recorded when a whole export is handed over. */
+const recordExport = (kind) => store.write('lastExport', { v: 1, at: new Date().toISOString(), kind, prints: backupPrints() });
+function backupHealth() {
+  const rec = store.read('lastExport', null);
+  const prints = backupPrints();
+  const at = isRecord(rec) && typeof rec.at === 'string' && Number.isFinite(Date.parse(rec.at)) ? rec.at : null;
+  if (!at) return { at: null, own: prints.length, since: null };
+  const had = new Map();
+  (Array.isArray(rec.prints) ? rec.prints : []).forEach(p => had.set(p, (had.get(p) || 0) + 1));
+  let since = 0;
+  prints.forEach(p => { const n = had.get(p) || 0; if (n) had.set(p, n - 1); else since++; });
+  return { at, own: prints.length, since };
+}
+const backupDay = (iso) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+/* The line itself: on /my/data whole, on the workspace compact (with the
+   way to the page that exports). */
+function backupLine({ compact = false } = {}) {
+  const h = backupHealth();
+  const items = (n) => `${n} item${n === 1 ? '' : 's'}`;
+  const state = !h.at ? 'never' : h.since ? 'behind' : 'current';
+  const head = h.at ? `${compact ? 'last exported' : 'Last exported:'} ${backupDay(h.at)}` : compact ? 'never exported' : 'Never exported';
+  const tail = !h.at ? (h.own ? `${items(h.own)} of yours ${h.own === 1 ? 'is' : 'are'} only in this browser` : null)
+    : h.since ? `${items(h.since)} saved since` : 'nothing saved since';
+  const p = el('p', { class: compact ? 'caption dash-backup' : 'metaline backup-line', 'data-backup-line': '', 'data-backup-state': state }, [
+    compact ? 'Backup: ' : null, el('strong', {}, head), tail ? ` — ${tail}` : null, compact ? '. ' : null]);
+  if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Export from Your data & settings'));
+  return p;
+}
+/* Export everything, handed over as a file, and recorded. False, said,
+   when there is nothing to put in it. */
+function downloadEverything() {
+  const doc = exportEverything();
+  if (!Object.keys(doc.data).length) { toast('Nothing saved yet'); return false; }
+  const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+  const a = el('a', { href: URL.createObjectURL(blob),
+    download: `quantum-tradeworks-${new Date().toISOString().slice(0, 10)}.json` });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  recordExport('everything');
+  return true;
+}
+
+/* BEFORE ANYTHING IS CLEARED (the 10 Oct 2026 audit, #8): what will be
+   removed, what is kept, that it cannot be undone without an export, and
+   the export one press away — in a drawer, not a native confirm, because a
+   confirm has no room for "Export first". */
+function confirmClear({ title, lead, removes, keeps = null, label, run }) {
+  const body = el('div', { class: 'stack', 'data-clear-confirm': '' });
+  body.append(el('p', { class: 'body' }, lead));
+  body.append(el('ul', { class: 'clear-list' }, removes.map(x => el('li', {}, x))));
+  if (keeps) body.append(el('p', { class: 'metaline' }, keeps));
+  body.append(el('p', { class: 'body', style: 'font-weight:600' },
+    'This cannot be undone without an export. This browser holds the only copy — nothing is kept on a server.'));
+  let line = backupLine();
+  body.append(line);
+  body.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    el('button', { class: 'btn btn-primary btn-sm', 'data-export-first': '', onclick: () => {
+      if (!downloadEverything()) return;
+      const next = backupLine(); line.replaceWith(next); line = next;
+      toast('Exported — the file is in your downloads');
+    } }, 'Export first'),
+    el('button', { class: 'btn btn-ghost btn-sm', 'data-clear-go': '', onclick: () => { closeDrawer({ restore: false }); run(); } }, label),
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: () => closeDrawer() }, 'Cancel'),
+  ]));
+  openDrawer(title, body);
+}
+/* Clearing the samples, asked first. What goes is counted from what is
+   held; the reader's own lists, cases and alerts are kept, and said to be. */
+function askClearSamples(focusAfter = '#views h1') {
+  const n = (k, one, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+  const pf = seededPortfolios().length, th = seededTheses().length;
+  const wl = (State.watchlists || []).filter(isSeededWL).length;
+  const wlIn = (State.watchlists || []).filter(w => !isSeededWL(w) && seededMembersOf(w).length).length;
+  const pa = (State.priceAlerts || []).filter(isSeededPA).length;
+  const removes = [
+    pf ? `${n(pf, 'sample portfolio')} and their holdings` : null,
+    th ? n(th, 'sample investment case') : null,
+    wl ? n(wl, 'sample watchlist') : null,
+    wlIn ? `the sample companies in ${n(wlIn, 'list')} you changed` : null,
+    pa ? n(pa, 'sample price alert') : null,
+  ].filter(Boolean);
+  confirmClear({ title: 'Clear the sample data', lead: 'Clearing removes what this browser was given so the pages had something to show:',
+    removes: removes.length ? removes : ['the samples left in this browser'],
+    keeps: 'Your own portfolios, cases, lists and alerts are kept. The samples do not come back.',
+    label: 'Clear the samples', run: () => { clearSeededData(); focusAfterRedraw(focusAfter); } });
+}
+
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
@@ -1032,31 +1168,48 @@ VIEWS.userdata = () => {
   const bk = el('div', { class: 'card' });
   bk.append(cardHead('Back up everything in this browser',
     'One file with every calculation, saved deal, watchlist, screen and correction case this browser holds. There is no server copy, so this file is the only copy.'));
+  /* When a file last left this browser, and what has been saved since
+     (backupHealth): kept in sight, never a modal. */
+  bk.append(backupLine());
 
   const bkRow = el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' });
-  bkRow.append(el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
+  bkRow.append(el('button', { class: 'btn btn-primary btn-sm', id: 'ud-backup-download', onclick: () => {
     const payload = backupPayload();
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const a = el('a', { href: URL.createObjectURL(blob),
       download: `quantum-tradeworks-backup-${new Date().toISOString().slice(0, 10)}.json` });
     document.body.append(a); a.click(); a.remove();
+    recordExport('backup');
     toast(`Downloaded ${payload.keys} stored item${payload.keys === 1 ? '' : 's'}`);
+    redrawKeepFocus();
   } }, 'Download a backup'));
 
   /* A hidden input behind a button, because the native file control cannot be
-     styled and reads as a browser artefact rather than part of the page. */
+     styled and reads as a browser artefact rather than part of the page.
+     Nothing is written as the file is chosen: what it would overwrite is
+     said first, with the export one press away (confirmClear). */
   const fileIn = el('input', { type: 'file', accept: 'application/json,.json', style: 'display:none',
     onchange: async (e) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
-      const res = restoreBackup(await file.text());
+      const text = await file.text();
       e.target.value = '';
-      if (!res.ok) { toast(res.error); return; }
-      const left = res.refused || [];
-      toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'}${left.length ? ` — ${left.length} left as ${left.length === 1 ? 'it was' : 'they were'}, not in the shape this app writes: ${left.join(', ')}` : ''} — reloading`);
-      /* A reload rather than a re-render: State was populated from storage at
-         boot, and half the app would still be holding the pre-restore values. */
-      setTimeout(() => location.reload(), 700);
+      let doc = null;
+      try { doc = JSON.parse(text); } catch { /* restoreBackup says so */ }
+      const sibling = siblingFileOf(doc);
+      if (!doc || (sibling !== 'backup')) { const res = restoreBackup(text); if (!res.ok) toast(res.error); return; }
+      const n = Object.keys(doc.data || {}).length;
+      confirmClear({ title: 'Restore this backup', lead: `The backup taken ${String(doc.takenAt || '').slice(0, 16).replace('T', ' ') || 'at an unstated time'} UTC replaces what this browser holds now for each of the ${n} item${n === 1 ? '' : 's'} it carries:`,
+        removes: ['every saved item, list, case, comparison and setting this browser holds under the same names'],
+        keeps: 'Anything the backup does not carry is kept as it is here.', label: 'Restore and reload', run: () => {
+          const res = restoreBackup(text);
+          if (!res.ok) { toast(res.error); return; }
+          const left = res.refused || [];
+          toast(`Restored ${res.restored} item${res.restored === 1 ? '' : 's'}${left.length ? ` — ${left.length} left as ${left.length === 1 ? 'it was' : 'they were'}, not in the shape this app writes: ${left.join(', ')}` : ''} — reloading`);
+          /* A reload rather than a re-render: State was populated from storage at
+             boot, and half the app would still be holding the pre-restore values. */
+          setTimeout(() => location.reload(), 700);
+        } });
     } });
   bkRow.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => fileIn.click() },
     'Restore from a backup'));
@@ -1153,11 +1306,13 @@ VIEWS.userdata = () => {
          which exports portfolios, cases and watchlists; a reader backing up
          from this one got pasted prices and nothing else. */
     } }, 'Export these prices'));
-    exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => {
-      if (!confirm('Remove every price you have added? This cannot be undone and there is no copy on any server.')) return;
-      if (!commitUserData(() => { userData.series = {}; })) { toast(STORE_UNDELETED); return; }
-      location.reload();
-    } }, 'Remove all'));
+    exp.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => confirmClear({ title: 'Remove every price you added',
+      lead: 'Removing clears the price series you pasted into this browser:',
+      removes: [`${userCloseCount().toLocaleString()} closes across ${have} instrument${have === 1 ? '' : 's'}`],
+      keeps: 'Everything else you have made is kept.', label: 'Remove all prices', run: () => {
+        if (!commitUserData(() => { userData.series = {}; })) { toast(STORE_UNDELETED); return; }
+        location.reload();
+      } }) }, 'Remove all'));
     status.append(exp);
   } else {
     status.append(el('p', { class: 'body', style: 'font-size:13px' },
@@ -1197,15 +1352,8 @@ VIEWS.userdata = () => {
     'A sample was written into this browser on a first visit, or by the worked example, so the pages have something to show. Samples are counted apart from your own work here; Export everything carries them too, with the marks that say they are samples.'));
 
   all.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
-    el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
-      const doc = exportEverything();
-      if (!Object.keys(doc.data).length) { toast('Nothing saved yet'); return; }
-      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
-      const a = el('a', { href: URL.createObjectURL(blob),
-        download: `quantum-tradeworks-${new Date().toISOString().slice(0, 10)}.json` });
-      document.body.append(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    } }, 'Export everything'),
+    /* Recorded as the last export (backupHealth), and the line above says so. */
+    el('button', { class: 'btn btn-primary btn-sm', id: 'ud-export-all', onclick: () => { if (downloadEverything()) redrawKeepFocus(); } }, 'Export everything'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openRestoreDrawer() }, 'Restore from a file'),
   ]));
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -1860,7 +2008,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
-         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
+         [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',

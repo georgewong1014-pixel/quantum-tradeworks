@@ -297,6 +297,9 @@ function backupPayload() {
     /* Not the reader's: digests of the rest, made again from them by the
        page (servedReads, 35-ui.js). */
     if (k === `${STORE_PREFIX}servedReads`) continue;
+    /* Nor is when this browser last exported (backupHealth): a file restored
+       elsewhere was not exported from there. */
+    if (k === `${STORE_PREFIX}lastExport`) continue;
     try { data[k.slice(STORE_PREFIX.length)] = JSON.parse(localStorage.getItem(k)); }
     catch { /* a value this app did not write; skipped rather than corrupted */ }
   }

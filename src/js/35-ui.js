@@ -2891,6 +2891,9 @@ const SERVED_READ = {
   userData: () => userData,
   proposalDetails: () => store.read('proposalDetails', null),
   startHereAll: () => Object.keys(startHereHidden()).filter(k => startHereHidden()[k]).sort(),
+  /* When this browser last exported (the backup line on /my/data and /app,
+     backupHealth): the record, as kept. */
+  lastExport: () => store.read('lastExport', null),
 };
 /* Whether this browser keeps a key at all ('kept.deal'), where a page lists
    what is kept rather than drawing from it: /my/data writes a row for each
@@ -2927,8 +2930,12 @@ const SERVED_READS = {
      (savedWork), the research, price and screen alerts (theses,
      priceAlerts, savedScreens) — a returning reader holding any of them
      is never shown the first visit's page. */
-  home: ['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
-    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal'],
+  /* And its backup line (the 10 Oct 2026 audit, #8): when this browser last
+     exported, and what of the reader's is held since — counted over every
+     key the export carries (PORTABLE_KEYS) but the base currency, which it
+     does not count (BACKUP_UNCOUNTED), so each is named. */
+  home: [...new Set(['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy'), 'lastExport'])],
   /* /research/queue: the cards' arrangement, the active list, the
      differences between price and model estimate (a price typed in), the
      plan's limits, the currency. */
@@ -3065,7 +3072,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
