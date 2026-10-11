@@ -1,0 +1,110 @@
+# CHECKS FOR THE RECORDED COMMIT, ONCE THEY FINISH (11 Oct 2026).
+#
+# journeys.yml records the journeys on a deployment and, with them, checks.yml's
+# suites on the same commit (checks-record.mjs collect) — waiting up to 50
+# minutes. A code deployment's checks often run longer: on 87efe3a the record
+# said "checks.yml was still running on this commit after 3000s", so /status
+# showed Numbers, Data and Layout "Not run" for the deployed commit while CI
+# went on to pass them. The daily audit of 11 Oct read that, rightly, as the
+# deployed commit carrying no numerical evidence of its own.
+#
+# This runs when checks.yml completes on main. Only when that run was on the
+# commit health/journeys.json records, and health/checks.json does not already
+# hold a finished result for it, does it collect the run's suites into
+# health/checks.json, draw the island pages again (node build.mjs) and commit —
+# the record's own commit, as journeys.yml's is: health files and island pages
+# only (journeys.mjs --guard), so its deployment records nothing. The checks it
+# starts on that commit complete on a commit that is not the recorded one, so
+# they end here without a write: no loop.
+name: checks record
+
+on:
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+
+jobs:
+  record:
+    if: github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The same group as journeys.yml's job: the two never write the record at once.
+    concurrency:
+      group: journeys
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: is it the recorded commit, still without its checks
+        id: which
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          node - "$SHA" >> "$GITHUB_OUTPUT" <<'EOF'
+          const fs = require('fs'), sha = process.argv[2];
+          const read = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+          const j = read('health/journeys.json'), c = read('health/checks.json');
+          const recorded = j?.commit || '';
+          const done = !!c && c.commit === sha && (c.suites || []).length > 0 && (c.suites || []).every(s => s.status !== 'NOT RUN');
+          const go = !!sha && recorded === sha && !done;
+          console.log(`go=${go}`);
+          console.error(go ? `checks.yml finished on ${sha.slice(0, 7)}, the recorded commit, whose checks record is missing or not run: collecting it`
+            : recorded !== sha ? `checks.yml finished on ${sha.slice(0, 7)}; the record is of ${recorded.slice(0, 7) || 'nothing'}: nothing to write`
+            : `the checks record already holds ${sha.slice(0, 7)}'s results: nothing to write`);
+          EOF
+
+      - name: collect the run's suites
+        if: steps.which.outputs.go == 'true'
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: node checks-record.mjs collect --commit "$SHA" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/checks.json" --wait 0
+
+      - name: record them on main
+        if: steps.which.outputs.go == 'true'
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f "$RUNNER_TEMP/checks.json" ] || { echo "collect wrote no record"; exit 0; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          record() {
+            cp "$RUNNER_TEMP/checks.json" health/checks.json || return 2
+            node build.mjs > "$RUNNER_TEMP/build.log" 2>&1 || { cat "$RUNNER_TEMP/build.log"; return 2; }
+            node journeys.mjs --guard || return 2
+            git add -A || return 2
+            if git diff --cached --quiet; then echo "nothing changed"; return 3; fi
+            git commit -q -m "chore(health): CI checks for ${SHA:0:7}, the recorded commit" -m "Written by .github/workflows/checks-record.yml when checks.yml finished on the commit health/journeys.json records, after journeys.yml had stopped waiting for it: health/checks.json and the island pages node build.mjs drew from it."
+          }
+          record; r=$?
+          [ "$r" = 3 ] && exit 0
+          [ "$r" = 0 ] || exit 1
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              gh workflow run checks.yml --repo "$GITHUB_REPOSITORY" --ref main || echo "could not start checks.yml on the record's commit"
+              exit 0
+            fi
+            sleep $((i * 5))
+            git fetch -q origin main
+            git reset -q --hard origin/main
+            # Another record may have landed meanwhile: write only if it is still this commit's.
+            node -e "const j=JSON.parse(require('fs').readFileSync('health/journeys.json','utf8'));process.exit(j.commit===process.argv[1]?0:1)" "$SHA" || { echo "the record moved on; nothing to write"; exit 0; }
+            record; r=$?
+            [ "$r" = 3 ] && exit 0
+            [ "$r" = 0 ] || exit 1
+          done
+          echo "could not push the checks record after 5 attempts"
+          exit 1
