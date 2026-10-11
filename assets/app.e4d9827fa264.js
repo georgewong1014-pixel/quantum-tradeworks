@@ -59514,11 +59514,14 @@ function scopeCard() {
 let plansCompareOpen = false;
 const PLAN_CARDS = [
   { id: 'free', name: () => PLANS.free.name, price: 'RM0', per: null, mark: 'Nothing to buy',
-    line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.' },
+    line: 'Research a few companies, keep one list and one portfolio, and model a property by hand.',
+    today: 'available now — all of it works in this browser.' },
   { id: 'pro', name: () => PLANS.pro.name, price: `RM${PLANS.pro.priceMo}`, per: '/month, proposed', mark: 'Not on sale',
-    line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.' },
+    line: 'Every company here, editable valuation assumptions, the full screener, comparison, alerts and exports.',
+    today: 'a preview — turn it on in this browser below; nothing is charged. No licensed prices on any plan.' },
   { id: 'report', name: () => 'Property reports', price: `from RM${PROPERTY_REPORT_PRICE.basic}`, per: 'per report, proposed', mark: 'Not on sale',
-    line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.' },
+    line: 'A fee per report, not a subscription: from a saved analysis to a full investor report.',
+    today: 'the saved analysis and the investor report are drawn from your own figures; the verified project report needs verified project data, which is not held.' },
 ];
 VIEWS.plans = () => {
   const wrap = el('div', { class: 'plans-page' });
@@ -59547,6 +59550,9 @@ VIEWS.plans = () => {
       el('p', { class: 'plan-concept-price' }, [el('span', { class: pc.id === 'free' ? 'plan-price' : 'plan-price plan-price-proposed' }, pc.price),
         pc.per ? el('span', { class: 'metaline' }, ` ${pc.per}`) : null]),
       el('p', { class: 'plan-concept-line' }, pc.line),
+      /* What each can be today (the daily audit of 11 Oct 2026): available,
+         a preview, or needing data that is not held. */
+      el('p', { class: 'metaline plan-concept-today' }, [el('strong', {}, 'Today: '), pc.today]),
       on ? el('p', { class: 'plan-concept-on' }, [el('span', { 'aria-hidden': 'true', html: icon('check', 14) }), pc.id === 'free' ? 'Current' : 'Previewing']) : null,
     ]);
   })));
@@ -59601,13 +59607,13 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
   const pt = el('table', { class: 'dt dt-stack' });
-  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds'].map((h, i) => el('th', { style: i === 2 ? 'text-align:left' : null }, h)))));
+  pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
-    ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.'],
-    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Comparable transactions, price and rental ranges, net operating income, cash-on-cash, debt-service cover, ten-year scenarios, exit costs and the equity comparison.'],
-    ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.'],
+    ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
+    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'The comparable transactions you record, NAPIC’s published price and rental ranges, net operating income, cash-on-cash, debt-service cover, ten-year scenarios, exit costs and the equity comparison.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
+    ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
-    el('td', { class: i === 0 ? 'ident' : '', style: i === 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
+    el('td', { class: i === 0 ? 'ident' : '', style: i >= 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));
   ptw.append(pt);
   body.append(ptw);
 
