@@ -3333,6 +3333,30 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-cash-required-name ---- */
 
 
+/* ---- claims-business-planning ---- */
+/* "BUSINESS PLANNING IS NEXT." (the owner's decision of 11 Oct 2026; the
+   claims audit, rank 20: R-20). The footer of every page and the site
+   root's description, og: and twitter: tags promised a next release no plan
+   or date is behind. They say "planned, not yet scheduled" — from
+   POSITIONING, typed once (wording-check) — and Business Intelligence is
+   still "Coming soon" as text on / and /how-it-works, never a link (held by
+   the homepage block above). Held on every page served: no "is next", and
+   the footer's line and the root's description say it as approved. */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const next = statics.filter(path => /Business planning is next/i.test(got.get(path)?.body || ''));
+  if (next.length) p.push(`"Business planning is next." is served on ${next.length} page(s): ${next.slice(0, 6).join(', ')}${next.length > 6 ? ' …' : ''}`);
+  const foot = (/<p class="body foot-desc">([^<]*)<\/p>/.exec(got.get('/about')?.body || '') || [])[1]?.replace(/&amp;/g, '&') || '';
+  const desc = headOf(got.get('/')?.body || '').description || '';
+  if (!/Business planning: planned, not yet scheduled\./.test(foot)) p.push(`the footer's line reads "${foot}"`);
+  if (!/Business planning: planned, not yet scheduled\./.test(desc)) p.push(`/'s description reads "${desc}"`);
+  judge(p, `business planning "planned, not yet scheduled" (the owner's decision of 11 Oct 2026): no page says it "is next"; the footer reads "${foot}"`,
+    'a page still says business planning is next');
+}
+/* ---- end claims-business-planning ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

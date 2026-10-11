@@ -1133,11 +1133,14 @@ const POSITIONING = {
   kicker: 'Research · Monitor · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
-  /* The footer's line on every page. */
-  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next.',
+  /* The footer's line on every page. Business planning is "planned, not
+     yet scheduled" (the owner's decision of 11 Oct 2026; the claims audit,
+     R-20): "is next" promised a release no plan or date is behind.
+     Business Intelligence stays "Coming soon" as text, never a link. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled.',
   /* The site root's description, og:description and twitter:description:
      the one-liner and what the site will not do. */
-  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next. Research only — no recommendations.',
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled. Research only — no recommendations.',
 };
 
 const ROUTES = [
