@@ -181,6 +181,21 @@ function learnModels() {
      row's companies sat off-screen, so the Bank to Early-stage rows read as if
      no company were routed to them. */
   const MEMBERS = 'text-align:left;white-space:normal;min-width:220px';
+  /* EACH COMPANY UNDER THE LABEL ITS OWN PAGE WEARS (the claims audit of 11
+     Oct 2026, rank 4: F-02). The cell marked only the illustrative half,
+     " · illustrative" after a ticker, and was served as drawn before the
+     filings landed — when the stand-ins a filer replaces were still here —
+     so seventeen filers read illustrative. The tab now waits for the
+     filings (UNIVERSE_TABS, 35-ui.js), and the cell names both halves, a
+     lane each: SEC-filed, personal research where the owner's lane is
+     loaded, illustrative. */
+  const LANES = [['SEC-filed', (c) => c.real && !c.personal, FILED_TITLE], ['Personal research', (c) => c.real && c.personal, PERSONAL_TITLE],
+    ['Illustrative', (c) => !c.real, ILLUS_TITLE]];
+  const lanes = (members) => {
+    const out = LANES.map(([name, of, title]) => [name, title, members.filter(m => of(m.c)).map(m => m.c.tk)]).filter(([, , tks]) => tks.length);
+    return out.length ? out.map(([name, title, tks], i) => el('p', { class: 'router-lane', 'data-lane': name.toLowerCase(), style: i ? 'margin-top:4px' : null },
+      [el('b', { title }, `${name}:`), ` ${tks.join(', ')}`])) : '—';
+  };
   t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map((h, i) => el('th', i === 3 ? { style: MEMBERS } : {}, h)))));
   /* Every type routeModel handles, and the pack from routeModel itself. The
      table used to list seven types and take each pack from the first company
@@ -198,7 +213,7 @@ function learnModels() {
       el('td', { class: 'ident' }, label),
       el('td', { style: 'text-align:left;white-space:normal;max-width:200px' }, pack?.name || '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:260px', class: 'caption' }, pack?.secondary.join(' · ') || '—'),
-      el('td', { style: MEMBERS }, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
+      el('td', { style: MEMBERS }, lanes(members)),
     ]);
   })));
   tw.append(t); intro.append(tw);

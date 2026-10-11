@@ -177,7 +177,7 @@ function recentOnScreen(route) {
    box should take them back to where they were, not reopen it. */
 function recentHere() {
   const v = State.view;
-  if (!v || v === 'notfound' || (realPending && UNIVERSE_VIEWS.has(v))) return null;
+  if (!v || v === 'notfound' || (realPending && viewWaits(v))) return null;
   const route = matchRoute(location.pathname);
   return route && VIEWS[route.view] ? recentOnScreen(route) : null;
 }
@@ -190,7 +190,7 @@ let recentSeenAt = null;
 let recentOpening = null;
 function recentOnPage() {
   const v = State.view;
-  if (!v || v === 'notfound' || (realPending && UNIVERSE_VIEWS.has(v))) return;
+  if (!v || v === 'notfound' || (realPending && viewWaits(v))) return;
   const route = matchRoute(location.pathname);
   if (!route || !VIEWS[route.view]) return;
   const opening = recentOpening;

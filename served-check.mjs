@@ -3028,6 +3028,58 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-meta ---- */
 
 
+/* ---- claims-methodology ---- */
+/* FILED COMPANIES LABELLED FILED ON /methodology (the claims audit of 11 Oct
+   2026, rank 4: F-02). The router table's Companies column was served as
+   the page's first draw, before the filings land: the illustrative
+   stand-ins a filer replaces as they load, so "AAPL · illustrative", "JPM ·
+   illustrative" — seventeen companies whose own pages say Filed. Held on
+   the served page, before any script:
+   1. its render is drawn with the filings in (the manifest's state);
+   2. no company filed in data/us.json is served as illustrative — neither
+      "TICKER · illustrative" nor under the table's "Illustrative:" lane;
+   3. the "SEC-filed:" lanes, row by row, name every filer in data/us.json
+      once, and nothing else. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, sight = B.sightText;
+  const US = new Set((JSON.parse(read('data/us.json')).results || []).map(r => String(r.id).toUpperCase()));
+  const manifest = JSON.parse(read('prerender/manifest.json'));
+  const state = manifest.pages?.['pages/methodology.html']?.state;
+  if (state !== 'filings in') p.push(`/methodology's render is its ${state || 'missing'} state, drawn before the filings land — not "filings in"`);
+  const r = (await getAll(['/methodology'])).get('/methodology');
+  const said = { filed: 0, illus: 0 };
+  if (!r || r.status !== 200) p.push(`/methodology: ${r?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(r.body);
+    const table = all(tree).find(n => n.tag === 'table' && all(n).some(h => h.tag === 'th' && sight(h) === 'Companies'));
+    if (!table) p.push('/methodology serves no router table with a Companies column');
+    else {
+      const filed = [];
+      for (const tr of all(table).filter(n => n.tag === 'tr')) {
+        const cells = all(tr).filter(n => n.tag === 'td' && n.parent === tr);
+        if (cells.length < 4) continue;
+        const text = sight(cells[3]);
+        for (const m of text.matchAll(/\b([A-Z][A-Z0-9.-]{0,9}) · illustrative\b/g)) if (US.has(m[1])) p.push(`/methodology: ${m[1]} is served "${m[0]}", where data/us.json holds it as filed`);
+        const lane = (name) => (new RegExp(`${name}:\\s*([^:]*?)(?=\\s+(?:SEC-filed|Personal research|Illustrative):|$)`).exec(text)?.[1] || '').split(/,\s*/).map(x => x.trim()).filter(Boolean);
+        const il = lane('Illustrative'), fl = lane('SEC-filed');
+        il.filter(t => US.has(t)).forEach(t => p.push(`/methodology: ${t} is served under "Illustrative:" in the ${sight(cells[0])} row, where data/us.json holds it as filed`));
+        fl.filter(t => !US.has(t)).forEach(t => p.push(`/methodology: ${t} is served under "SEC-filed:" in the ${sight(cells[0])} row, and data/us.json holds no such filer`));
+        filed.push(...fl); said.illus += il.length;
+      }
+      said.filed = filed.length;
+      const missing = [...US].filter(t => !filed.includes(t)), twice = filed.filter((t, i) => filed.indexOf(t) !== i);
+      if (missing.length) p.push(`/methodology's router table names ${filed.length} SEC-filed companies; data/us.json's ${missing.length} others are not under any "SEC-filed:" lane (${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ' …' : ''})`);
+      if (twice.length) p.push(`/methodology names ${twice.join(', ')} twice`);
+    }
+  }
+  judge(p, `/methodology serves each company under the label its own page wears (the claims audit, rank 4): drawn with the filings in, ${said.filed} SEC-filed — every filer in data/us.json, once — and ${said.illus} illustrative, none of them a filer`,
+    '/methodology labels a filed company illustrative, or leaves a filer out');
+}
+/* ---- end claims-methodology ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

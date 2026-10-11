@@ -8788,18 +8788,21 @@ try {
       const obsNow = await at();
       (obsNow.at === obsWas.at && Math.abs(obsNow.top - obsWas.top) <= 2 ? kept : lost).push(`"What you observed" ${obsWas.top}px down → after the data lands ${said(obsNow)}`);
 
-      /* V9 — a box that holds focus because it scrolls (the methodology's
-         table of company types, whose figures the filings change) keeps it
-         when the filings land. At 390: since fixwave: shell (SHELL-05) the
-         table wraps inside its card at 1440, and a box that does not scroll
-         takes no focus. */
+      /* V9 — a box that holds focus because it scrolls keeps it when the
+         filings land and the page is drawn again. At 390: a box that does
+         not scroll takes no focus. It was the methodology's table of
+         company types; that tab now waits for the filings (UNIVERSE_TABS,
+         35-ui.js; the claims audit of 11 Oct 2026, rank 4), so it is not
+         drawn until they land and nothing redraws under the reader there.
+         /data-sources is drawn at once and again when they land, and its
+         source hierarchy scrolls at 390. */
       await view(390, 844);
-      await open('/methodology', /us\.json/, `[...document.querySelectorAll('#main .tablewrap')].some(t => /Company type/.test(t.textContent))`);
-      const box = await evaluate(`(() => { const t = [...document.querySelectorAll('#main .tablewrap')].find(t => /Company type/.test(t.textContent));
+      await open('/data-sources', /us\.json/, `[...document.querySelectorAll('#main .tablewrap')].some(t => /Used for/.test(t.textContent))`);
+      const box = await evaluate(`(() => { const t = [...document.querySelectorAll('#main .tablewrap')].find(t => /Used for/.test(t.textContent));
         t.scrollIntoView({ block: 'center' }); t.focus({ preventScroll: true }); return document.activeElement === t; })()`);
-      await release('/methodology');
-      const onBox = await evaluate(`(() => { const a = document.activeElement; return a.matches?.('.tablewrap') && /Company type/.test(a.textContent) ? 'the company-type table' : a === document.body ? 'BODY' : a.id || a.tagName; })()`);
-      (box && onBox === 'the company-type table' ? kept : lost).push(`the company-type table's scroller → ${onBox}`);
+      await release('/data-sources');
+      const onBox = await evaluate(`(() => { const a = document.activeElement; return a.matches?.('.tablewrap') && /Used for/.test(a.textContent) ? 'the source-hierarchy table' : a === document.body ? 'BODY' : a.id || a.tagName; })()`);
+      (box && onBox === 'the source-hierarchy table' ? kept : lost).push(`the source-hierarchy table's scroller → ${onBox}`);
       await view(1440, 900);
 
       /* V10 — /decision-record is the record from the first paint, not

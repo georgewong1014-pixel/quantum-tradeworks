@@ -2754,6 +2754,22 @@ const UNIVERSE_VIEWS = new Set([
      once the company is in. */
   ...SCANNER_VIEWS,
 ]);
+/* A TAB THAT WAITS (the claims audit of 11 Oct 2026, rank 4: F-02). The
+   methodology's router table names the companies routed to each model
+   pack. Drawn before the filings land, it listed the illustrative
+   stand-ins a filer replaces as they load — "AAPL · illustrative", "JPM ·
+   illustrative", seventeen companies whose own pages say Filed — and that
+   first draw was what /methodology served. So that one tab of Learn waits
+   for the filings as the views above do, and is served drawn with them in;
+   the other four read no company and draw at once. Every "does this page
+   wait" asks viewWaits, here and in prerender.mjs and coverage-frames.mjs. */
+const UNIVERSE_TABS = { learn: ['models'] };
+function viewWaits(view = State.view) {
+  if (UNIVERSE_VIEWS.has(view)) return true;
+  if (view !== State.view || !UNIVERSE_TABS[view]) return false;
+  const tab = view === 'learn' ? ((typeof LEARN_TAB_ALIAS !== 'undefined' && LEARN_TAB_ALIAS[State.learnTab]) || State.learnTab) : null;
+  return UNIVERSE_TABS[view].includes(tab);
+}
 
 function bootSkeleton() {
   /* A screen tall, so the footer waits below the fold with the page. The
@@ -3090,7 +3106,16 @@ const SERVED_READS = {
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
     'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+  /* /methodology, the one tab of Learn that waits (UNIVERSE_TABS): the
+     router table reads the universe and nothing this browser keeps. Keyed
+     view:tab (servedKeyOf), so Learn's other tabs, which do not wait, are
+     served as before. */
+  'learn:models': [],
 };
+/* The SERVED_READS row of the page on screen: a view's, or — for a tab
+   that waits (UNIVERSE_TABS) — that tab's. */
+const servedKeyOf = (view) => (!UNIVERSE_VIEWS.has(view) && UNIVERSE_TABS[view] && viewWaits(view)
+  ? `${view}:${view === 'learn' ? ((typeof LEARN_TAB_ALIAS !== 'undefined' && LEARN_TAB_ALIAS[State.learnTab]) || State.learnTab) : ''}` : view);
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
    (keepServedReads, below): a digest is kept only while the copy is what
@@ -3120,7 +3145,7 @@ const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i+
 /* What a draw of this view reads now, as "name:digest …"; null for a view
    that names nothing (its served page never stands). */
 function servedFrom(view = State.view) {
-  const names = SERVED_READS[view];
+  const names = SERVED_READS[servedKeyOf(view)];
   if (!names) return null;
   return [...SERVED_READS_ALL, ...names].map(n => {
     let v;
@@ -3623,7 +3648,7 @@ function drawPage(samePage) {
      render's read (SERVED_READS, servedIsReaders). */
   /* Kept out of sight by the head's script (FIRST_SCRIPT, build.mjs) and
      this reader's after all: shown, standing. */
-  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view) && servedIsReaders()) { servedShown(); servedWaiting(true); return; }
+  if (onServedPage() && realPending && viewWaits() && servedIsReaders()) { servedShown(); servedWaiting(true); return; }
   /* The served page is replaced here, whether it stood or not (servedAt):
      not an entrance either way. */
   const served = overServedPage();
@@ -3636,15 +3661,15 @@ function drawPage(samePage) {
      something as it draws (the dashboard notes the visit). A page that does
      not wait says it too (2026-10-04): its render's is what the head's script
      holds a reader to (FIRST_SCRIPT, build.mjs). */
-  const waits = UNIVERSE_VIEWS.has(State.view);
+  const waits = viewWaits();
   const drawnFrom = waits ? (!realPending ? servedFrom() : null) : servedFrom();
-  const node = (realPending && UNIVERSE_VIEWS.has(State.view))
+  const node = (realPending && viewWaits())
     ? bootSkeleton()
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));
   /* A surface the capability register marks feature-flagged says so on the
      page, from the register row itself (80-registers.js). Not on the
      skeleton: there is no surface yet to describe. */
-  if (!(realPending && UNIVERSE_VIEWS.has(State.view))) {
+  if (!(realPending && viewWaits())) {
     mountFlagNotice(node, State.view, State.researchTab);
     /* And a tool that is delayed or unavailable here says why on its own
        page (TOOLS, toolState). */
@@ -3691,7 +3716,7 @@ function drawPage(samePage) {
      below it, and there is no page below a skeleton yet. */
   document.querySelectorAll('.dock').forEach(n => n.remove());
   dockSizer?.disconnect();
-  const dockSpec = (!realPending || !UNIVERSE_VIEWS.has(State.view)) ? DOCKS[State.view]?.() : null;
+  const dockSpec = (!realPending || !viewWaits()) ? DOCKS[State.view]?.() : null;
   if (dockSpec) {
     /* Still at body level, but BEFORE the footer rather than after it. Tab
        order follows the DOM, so appended last the dock's one action was the

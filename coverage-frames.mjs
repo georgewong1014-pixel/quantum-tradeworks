@@ -432,7 +432,7 @@ try {
         /* 1. Every request held. */
         if (!await quiet(`document.readyState === 'complete' && typeof State !== 'undefined' && !!State.view`)) problems.push('the page never settled with its requests held');
         const want = await value(`(${P.textOfMarkup})(${P.servedText}, ${JSON.stringify(committedText)})`);
-        const one = await value(`({ snaps: window.__served, waits: UNIVERSE_VIEWS.has(State.view), served: document.getElementById('views').hasAttribute('data-served'), text: (${textOf})(document.getElementById('views')) })`);
+        const one = await value(`({ snaps: window.__served, waits: typeof viewWaits === 'function' ? viewWaits() : UNIVERSE_VIEWS.has(State.view), served: document.getElementById('views').hasAttribute('data-served'), text: (${textOf})(document.getElementById('views')) })`);
         const first = one.snaps[0];
         let drawnAt = null;
         if (one.waits) {

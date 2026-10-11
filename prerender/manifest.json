@@ -4451,7 +4451,7 @@
     "pages/methodology.html": {
       "path": "/methodology",
       "view": "learn",
-      "state": "first draw",
+      "state": "filings in",
       "chrome": "public",
       "h1": "Valuation model router",
       "tabs": false,
@@ -4474,8 +4474,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0360e22704fba64e",
-      "changed": "2026-10-04"
+      "digest": "44c0d3de04b3b7a1",
+      "changed": "2026-10-11"
     },
     "pages/methodology/ips.html": {
       "path": "/methodology/ips",

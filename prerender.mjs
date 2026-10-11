@@ -647,7 +647,7 @@ function capturePage(servedCopy, servedText, { origin, site }) {
   const indices = (sel) => [...document.querySelectorAll(sel)].flatMap((x, i) => (x.getAttribute('aria-current') === 'page' ? [i] : []));
   const resBtn = document.getElementById('menuResourcesBtn');
   return {
-    path: location.pathname, view: State.view, waits: !!(UNIVERSE_VIEWS.has(State.view)),
+    path: location.pathname, view: State.view, waits: !!(typeof viewWaits === 'function' ? viewWaits() : UNIVERSE_VIEWS.has(State.view)),
     /* What a page that waits was drawn from (SERVED_READS, 35-ui.js), and
        what it would be drawn from now. */
     drawnFrom: section?.getAttribute('data-drawn-from') || null,
