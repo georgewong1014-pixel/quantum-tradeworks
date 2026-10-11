@@ -3080,6 +3080,44 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-methodology ---- */
 
 
+/* ---- claims-point-in-time ---- */
+/* WHAT IS POLICY AND WHAT IS THIS BUILD (the claims audit of 11 Oct 2026,
+   rank 5: F-07, R-09). /data-sources' point-in-time card said "Amended
+   filings create a new version; history is never overwritten", and the
+   same page, under Absent by design, "a restatement overwrites rather than
+   branches". Held on the served page: no sentence says history is never
+   overwritten; the card names the production policy and this build's
+   state, each as such; and its restatement row says what this build does. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, sight = B.sightText, has = B.hasClass;
+  const r = (await getAll(['/data-sources'])).get('/data-sources');
+  const said = {};
+  if (!r || r.status !== 200) p.push(`/data-sources: ${r?.status || 'no answer'}, not 200`);
+  else {
+    const text = pageText(r.body);
+    if (/history is never overwritten/i.test(text)) p.push('/data-sources still says "history is never overwritten", beside "a restatement overwrites rather than branches"');
+    const tree = B.htmlTree(r.body);
+    const card = all(tree).find(n => has(n, 'card') && all(n).some(h => /^h\d$/.test(h.tag) && sight(h) === 'Point-in-time policy'));
+    if (!card) p.push('/data-sources serves no "Point-in-time policy" card');
+    else {
+      const t = sight(card);
+      said.card = t;
+      if (!/\bproduction\b/i.test(t) || !/\bthis build\b/i.test(t)) p.push(`the point-in-time card does not say which is the production policy and which is this build: "${t.slice(0, 160)}…"`);
+      const dts = all(card).filter(n => n.tag === 'dt'), row = dts.find(d => sight(d) === 'Restatement link');
+      const dd = row ? row.parent.kids.slice(row.parent.kids.indexOf(row) + 1).find(k => k.tag === 'dd') : null;
+      said.row = dd ? sight(dd) : null;
+      if (!said.row) p.push('the point-in-time card has no "Restatement link" row');
+      else if (!/\bthis build\b/i.test(said.row) || !/\boverwrite/i.test(said.row)) p.push(`the restatement row does not say what this build does: "${said.row}"`);
+    }
+  }
+  judge(p, `/data-sources says what is policy and what is this build (the claims audit, rank 5): no "history is never overwritten"; Restatement link — "${said.row || '—'}"`,
+    '/data-sources contradicts itself on point-in-time history');
+}
+/* ---- end claims-point-in-time ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

@@ -31448,15 +31448,21 @@ function learnData() {
   lic.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, lt));
   wrap.append(lic);
 
+  /* POLICY, AND THIS BUILD (the claims audit of 11 Oct 2026, rank 5: F-07,
+     R-09). The card stated the policy as fact — "Amended filings create a
+     new version; history is never overwritten" — above "Absent by design",
+     which says a restatement here overwrites rather than branches. The
+     policy is what a production build must do; this build does not, and
+     each is said as which it is. */
   const pit = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  pit.append(cardHead('Point-in-time policy', 'Screens and backtests must query what was known on the selected date, not the latest corrected database. Without this, historical results are not credible.'));
+  pit.append(cardHead('Point-in-time policy', 'The policy a production build has to meet: screens and backtests query what was known on the selected date, not the latest corrected database — without it, historical results are not credible. This build does not meet it yet: it holds one version of each period, and of the times below it carries only the day the SEC statements were retrieved.'));
   const kv = el('dl', { class: 'kv' });
   [['Source event time', 'When the company published it'],
    ['Provider receipt time', 'When the vendor made it available'],
    ['Ingestion time', 'When the platform stored it'],
    ['Calculation time', 'When the derived metric was computed'],
    ['Effective availability time', 'The timestamp a point-in-time query uses'],
-   ['Restatement link', 'Amended filings create a new version; history is never overwritten']]
+   ['Restatement link', 'Production policy: an amended filing is kept as a new version beside the one it amends. This build: one version of each period, so a restatement overwrites it — see Absent by design, below']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   pit.append(kv);
   wrap.append(pit);
