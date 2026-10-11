@@ -146,7 +146,9 @@ function propertySensitivityPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('What actually decides this',
     'Every assumption moved one realistic step in each direction, ranked by how far it moves the rate of return. '
-    + 'The ones at the top are where a valuer or a rental appraisal is worth paying for. The ones at the bottom are not.', null, dealKind(d, m)));
+    /* What the ranking shows, not what to spend on (the claims audit of
+       11 Oct 2026, rank 6; F-16, R-14). */
+    + 'The ones at the top move the result most; firmer evidence there (a valuation, a rental appraisal) narrows the range most. The ones at the bottom move it least.', null, dealKind(d, m)));
 
   if (!s.ok) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, s.why));

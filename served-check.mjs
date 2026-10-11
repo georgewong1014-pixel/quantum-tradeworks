@@ -3171,6 +3171,24 @@ const HOME_PAGE = read(HOME);
   gone(/Latest reported period, current price/, '"Latest reported period, current price"');
   here('/discover/value-map', /Latest reported period, sample price \(or the close you supplied\)\./, 'its As of line "Latest reported period, sample price (or the close you supplied)."');
   said.push('/discover/value-map "sample price (or the close you supplied)"');
+  /* 6e — the calculator (F-16, R-13–R-15): a comparison with other tools no
+     one surveyed and a "true" acquisition cost while some fee lines are
+     estimates; a sensitivity ranking that said what is "worth paying for";
+     and the renovation's recovery at exit, an input the reader sets,
+     worded as what a buyer "will pay" — in English, Malay and Chinese. */
+  gone(/Most property tools show you what things sold for/, '"Most property tools show you what things sold for"');
+  gone(/true acquisition cost/, '"true acquisition cost"');
+  gone(/worth paying for/, 'the sensitivity\'s "worth paying for"');
+  gone(/a buyer will pay for at exit/, '"a buyer will pay for at exit"');
+  here('/property/calculator', /This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter\./, 'what the calculator models, without a comparison or "true"');
+  here('/property/calculator', /The ones at the top move the result most; firmer evidence there \(a valuation, a rental appraisal\) narrows the range most\. The ones at the bottom move it least\./, 'the sensitivity\'s ranking as what moves the result');
+  here('/property/calculator', /Share of the renovation you assume a buyer pays for at exit \(%\)/, 'the renovation recovery as an assumption');
+  {
+    const row = /'in\.renoValueRecoveryPct':\{([^}]*)\}/.exec(read('src/js/70-property.js'))?.[1] || '';
+    if (!/en:'Share of the renovation you assume a buyer pays for at exit \(%\)'/.test(row) || !/andaikan/.test(row) || !/假设/.test(row) || /akan dibayar|愿为/.test(row))
+      p.push(`the calculator's Malay and Chinese labels for the renovation recovery do not say it is an assumption: {${row.slice(0, 200)}}`);
+  }
+  said.push('/property/calculator "compares the result with the equity return you enter", "move the result most", "you assume a buyer pays" (en, ms, zh)');
   /* ---- parts above ---- */
   judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
     'a served page still claims more than it holds');

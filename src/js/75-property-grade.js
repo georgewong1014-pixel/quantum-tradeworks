@@ -2555,7 +2555,10 @@ VIEWS.property = () => {
   wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.' }));
   wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
     el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
-    el('p', { class: 'pc-more-body' }, 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.')]));
+    /* No comparison with other tools (none was surveyed) and no "true"
+       cost, while some fee lines are estimates (the claims audit of 11
+       Oct 2026, rank 6; F-16, R-13). */
+    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -3444,7 +3447,7 @@ VIEWS.property = () => {
       ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
       ['renovation', 'Renovation and furnishing (RM)', 500],
       ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
-      ['renoValueRecoveryPct', 'Share of the renovation a buyer will pay for at exit (%)', 10],
+      ['renoValueRecoveryPct', 'Share of the renovation you assume a buyer pays for at exit (%)', 10],
     ]],
     [fnc, 'Loan', [
       ['downPct', 'Deposit (%)', 1],

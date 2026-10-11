@@ -42852,7 +42852,9 @@ const PROPERTY_I18N = {
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
   'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
-  'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
+  /* An assumption the reader sets, worded as one in each language (the
+     claims audit of 11 Oct 2026, R-15). */
+  'in.renoValueRecoveryPct':{ en:'Share of the renovation you assume a buyer pays for at exit (%)', ms:'Bahagian kos ubah suai yang anda andaikan dibayar oleh pembeli semasa jualan (%)', zh:'您假设出售时买家为装修支付的比例 (%)' },
   /* The cost lines' fields (QT-03) and the schedule import, in the rail. */
   'cl.item':{ en:'Item', ms:'Butiran', zh:'项目' },
   'cl.amount':{ en:'Amount (RM)', ms:'Amaun (RM)', zh:'金额 (RM)' },
@@ -49139,7 +49141,10 @@ VIEWS.property = () => {
   wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.' }));
   wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
     el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
-    el('p', { class: 'pc-more-body' }, 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.')]));
+    /* No comparison with other tools (none was surveyed) and no "true"
+       cost, while some fee lines are estimates (the claims audit of 11
+       Oct 2026, rank 6; F-16, R-13). */
+    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -50028,7 +50033,7 @@ VIEWS.property = () => {
       ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
       ['renovation', 'Renovation and furnishing (RM)', 500],
       ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
-      ['renoValueRecoveryPct', 'Share of the renovation a buyer will pay for at exit (%)', 10],
+      ['renoValueRecoveryPct', 'Share of the renovation you assume a buyer pays for at exit (%)', 10],
     ]],
     [fnc, 'Loan', [
       ['downPct', 'Deposit (%)', 1],
@@ -52139,7 +52144,9 @@ function propertySensitivityPanel(d, m) {
   const card = el('div', { class: 'card ls-section' });
   card.append(cardHead('What actually decides this',
     'Every assumption moved one realistic step in each direction, ranked by how far it moves the rate of return. '
-    + 'The ones at the top are where a valuer or a rental appraisal is worth paying for. The ones at the bottom are not.', null, dealKind(d, m)));
+    /* What the ranking shows, not what to spend on (the claims audit of
+       11 Oct 2026, rank 6; F-16, R-14). */
+    + 'The ones at the top move the result most; firmer evidence there (a valuation, a rental appraisal) narrows the range most. The ones at the bottom move it least.', null, dealKind(d, m)));
 
   if (!s.ok) {
     card.append(el('p', { class: 'body', style: 'margin-top:var(--md)' }, s.why));

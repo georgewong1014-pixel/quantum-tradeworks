@@ -3358,7 +3358,9 @@ const PROPERTY_I18N = {
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
   'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
-  'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
+  /* An assumption the reader sets, worded as one in each language (the
+     claims audit of 11 Oct 2026, R-15). */
+  'in.renoValueRecoveryPct':{ en:'Share of the renovation you assume a buyer pays for at exit (%)', ms:'Bahagian kos ubah suai yang anda andaikan dibayar oleh pembeli semasa jualan (%)', zh:'您假设出售时买家为装修支付的比例 (%)' },
   /* The cost lines' fields (QT-03) and the schedule import, in the rail. */
   'cl.item':{ en:'Item', ms:'Butiran', zh:'项目' },
   'cl.amount':{ en:'Amount (RM)', ms:'Amaun (RM)', zh:'金额 (RM)' },
