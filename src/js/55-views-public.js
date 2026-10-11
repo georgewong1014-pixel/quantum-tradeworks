@@ -1051,7 +1051,9 @@ const BACKUP_SAMPLE_ITEM = {
   registerLog: (e) => e?.actor === SAMPLE_ACTOR,
   savedWork: (w) => workIsSample(w),
 };
-const BACKUP_UNCOUNTED = new Set(['baseCcy']);
+/* Not counted either: how far the reader has got (furthestStep) is a
+   marker of their progress, not something they made. */
+const BACKUP_UNCOUNTED = new Set(['baseCcy', 'furthestStep']);
 /* A record kept with nothing in it is not an item. */
 const backupHolds = (k, v) => k === 'userData'
   ? Object.keys(v.series || {}).length > 0 || Object.keys(v.statements || {}).length > 0
@@ -1375,6 +1377,8 @@ VIEWS.userdata = () => {
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'The file never leaves your machine unless you send it. It is plain JSON — you can read it, and so can anyone you give it to.'));
   wrap.append(all);
+  /* How far you have got (D15c; furthestCard, 59-recent.js). */
+  wrap.append(furthestCard());
 
   /* ---------- paste ---------- */
   const add = el('div', { class: 'card' });
@@ -2023,6 +2027,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; the actual rent, vacancy and costs you record for a saved property, by month or by year of the hold; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
+         [el('strong', {}, 'Your progress: '), 'the furthest step you have reached in each product — opened it, worked on your own figures, saved what you made — and the day you reached it, shown on Your data & settings and counted by nothing.'],
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),

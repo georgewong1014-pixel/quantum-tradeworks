@@ -3357,6 +3357,48 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-business-planning ---- */
 
 
+/* ---- furthest-step-served ---- */
+/* THE FURTHEST STEP, SERVED (the owner's decision D15c, 7 Oct 2026; the
+   claims audit, rank 15). A record of how far the reader has got in each
+   product, kept in this browser and never sent:
+   - /my/data serves its card as a fresh visitor's: each product "Not
+     started", no step and no date;
+   - its render read the record (furthestStep in data-served-reads), so a
+     reader who holds one waits for their own (FIRST_SCRIPT, build.mjs);
+   - /privacy names it, and says the list it is in is never sent. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const got = await getAll(['/my/data', '/privacy']);
+  const said = [];
+  const r = got.get('/my/data');
+  if (!r || r.status !== 200) p.push(`/my/data: ${r?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(r.body);
+    const card = all(tree).find(n => attr(n, 'data-furthest') !== null);
+    if (!card) p.push('/my/data serves no furthest-step card');
+    else {
+      const rows = all(card).filter(n => attr(n, 'data-furthest-product') !== null);
+      if (rows.length !== 3) p.push(`/my/data's furthest-step card serves ${rows.length} products, not 3`);
+      rows.forEach(n => {
+        const t = sight(n);
+        if (attr(n, 'data-furthest-n') !== '0' || !/^Not started · first step: /.test(t) || /\d/.test(t)) p.push(`/my/data serves ${attr(n, 'data-furthest-product')} as "${t}" to a fresh visitor`);
+        said.push(`${attr(n, 'data-furthest-product')} "${t}"`);
+      });
+      if (!/never sent anywhere/.test(sight(card))) p.push('/my/data\'s furthest-step card does not say the record is never sent');
+    }
+    const html = all(tree).find(n => n.tag === 'html');
+    if (!/(^|\s)furthestStep:/.test(attr(html, 'data-served-reads') || '')) p.push('/my/data\'s render did not read the furthest-step record (no furthestStep in data-served-reads)');
+  }
+  const pv = pageText(got.get('/privacy')?.body || '');
+  if (!/the furthest step you have reached in each product/.test(pv)) p.push('/privacy does not name the furthest-step record');
+  judge(p, `the furthest step, served (D15c): /my/data ${said.join(', ')}, its render reading the record; /privacy names it`,
+    'the furthest-step record is not served as a fresh visitor\'s, or not named on /privacy');
+}
+/* ---- end furthest-step-served ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

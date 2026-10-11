@@ -7475,6 +7475,8 @@ const STORE_SHAPES = {
   /* When this browser last handed over an export (backupHealth,
      55-views-public.js): this browser's own record, never in a file. */
   lastExport: SHAPE_RECORD,
+  /* How far the reader has got in each product (furthestRead, 59-recent.js). */
+  furthestStep: SHAPE_RECORD,
   registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
   baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
 };
@@ -7604,6 +7606,10 @@ const PORTABLE_KEYS = [
   { k:'scanSetups',        label:'Scanner setups and their versions' },
   { k:'scanAlertState',    label:'Scanner alerts read or archived' },
   { k:'scanPrefs',         label:'Scanner notification and display preferences' },
+  /* How far you have got in each product (D15c, 59-recent.js): yours, so it
+     travels; not work, so the backup line does not count it
+     (BACKUP_UNCOUNTED). */
+  { k:'furthestStep',      label:'How far you have got' },
 ];
 
 /* The format version this build writes, and the highest it reads in full. */
@@ -22073,6 +22079,8 @@ const SERVED_READ = {
   /* When this browser last exported (the backup line on /my/data and /app,
      backupHealth): the record, as kept. */
   lastExport: () => store.read('lastExport', null),
+  /* How far the reader has got (/my/data; furthestRead, 59-recent.js). */
+  furthestStep: () => store.read('furthestStep', null),
 };
 /* Whether this browser keeps a key at all ('kept.deal'), where a page lists
    what is kept rather than drawing from it: /my/data writes a row for each
@@ -22114,7 +22122,7 @@ const SERVED_READS = {
      key the export carries (PORTABLE_KEYS) but the base currency, which it
      does not count (BACKUP_UNCOUNTED), so each is named. */
   home: [...new Set(['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
-    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy'), 'lastExport'])],
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy' && k !== 'furthestStep'), 'lastExport'])],
   /* /research/queue: the cards' arrangement, the active list, the
      differences between price and model estimate (a price typed in), the
      plan's limits, the currency. */
@@ -22251,7 +22259,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', 'furthestStep', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
   /* /how-it-works, which waits for the filings so that its report preview
      opens on a filed company (HIW_PICKS, 55-views-public.js): the
      calculator's deal its "Your calculator, as it stands" card reads. */
@@ -35162,7 +35170,9 @@ const BACKUP_SAMPLE_ITEM = {
   registerLog: (e) => e?.actor === SAMPLE_ACTOR,
   savedWork: (w) => workIsSample(w),
 };
-const BACKUP_UNCOUNTED = new Set(['baseCcy']);
+/* Not counted either: how far the reader has got (furthestStep) is a
+   marker of their progress, not something they made. */
+const BACKUP_UNCOUNTED = new Set(['baseCcy', 'furthestStep']);
 /* A record kept with nothing in it is not an item. */
 const backupHolds = (k, v) => k === 'userData'
   ? Object.keys(v.series || {}).length > 0 || Object.keys(v.statements || {}).length > 0
@@ -35486,6 +35496,8 @@ VIEWS.userdata = () => {
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'The file never leaves your machine unless you send it. It is plain JSON — you can read it, and so can anyone you give it to.'));
   wrap.append(all);
+  /* How far you have got (D15c; furthestCard, 59-recent.js). */
+  wrap.append(furthestCard());
 
   /* ---------- paste ---------- */
   const add = el('div', { class: 'card' });
@@ -36134,6 +36146,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; the actual rent, vacancy and costs you record for a saved property, by month or by year of the hold; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
+         [el('strong', {}, 'Your progress: '), 'the furthest step you have reached in each product — opened it, worked on your own figures, saved what you made — and the day you reached it, shown on Your data & settings and counted by nothing.'],
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),
@@ -37224,6 +37237,100 @@ const recentWatch = new MutationObserver(() => {
   try { recentOnPage(); } catch (e) { console.warn('recent: this page was not noted —', e.message); }
 });
 recentWatch.observe(viewRoot, { childList: true });
+
+/* ==========================================================================
+   THE FURTHEST STEP, IN THIS BROWSER (the owner's decision D15c, 7 Oct 2026;
+   the claims audit of 11 Oct 2026, rank 15)
+
+   No measurement: no analytics, nothing sent, no count across readers. What
+   the owner chose instead is a record the reader keeps — how far they have
+   got in each product, in three steps: opened it, worked on their own
+   figures, saved what they made — so a reader can see, and show in a
+   session they choose to have, where they stopped. It is one key in this
+   browser's local storage (furthestStep), shown on Your data & settings,
+   named on /privacy, carried by "Export everything" and the backup, and
+   forgotten when this browser's storage for the site is cleared.
+
+   Each step is read from what the page already holds — the view on screen,
+   the deal's own figures, the saved work — after each draw, as Recent is
+   (recentWatch, above), and only a further step is written: the record
+   keeps the furthest step reached and the day it was reached, never a
+   history and never a time of day. A step the reader later undoes (a
+   saved property deleted) stays reached: it was.
+   ========================================================================== */
+const FURTHEST_KEY = 'furthestStep';
+const FURTHEST_STEPS = {
+  equities: [
+    ['Opened a company report', () => State.view === 'research' && !!State.ticker && typeof BY_ID !== 'undefined' && BY_ID.has(State.ticker)],
+    ['Compared companies side by side', () => State.view === 'compare'],
+    ['Saved a comparison, a case or a watchlist of your own', () => (store.read('comparisons', []) || []).length > 0
+      || (State.theses || []).some(t => t && !SEEDED_THESIS_IDS.includes(t.id))
+      || (State.watchlists || []).some(w => w && !isSeededWL(w) && (w.ids || []).length > 0)],
+  ],
+  scanner: [
+    ['Opened the scanner', () => SCANNER_VIEWS.includes(State.view)],
+    ['Opened the setup builder', () => State.view === 'scannerSetupNew' || State.view === 'scannerSetupEdit'],
+    ['Saved a setup', () => Object.keys(scanStoreRead().setups || {}).length > 0],
+  ],
+  property: [
+    ['Opened the Scenario Lab or the calculator', () => State.view === 'property' || State.view === 'propertyLab'],
+    ['Entered your own price and rent', () => !!(State.deal?.touched?.price && State.deal?.touched?.rent)],
+    ['Saved a property', () => loadWork().some(w => w?.kind === 'property' && !workIsSample(w))],
+  ],
+};
+/* The record as this module writes it, whatever storage holds: a product
+   this build does not know, a step out of range or a day that is not one
+   is dropped, entry by entry. */
+function furthestRead() {
+  const raw = store.read(FURTHEST_KEY, null);
+  const out = {};
+  const p = isRecord(raw) && isRecord(raw.products) ? raw.products : {};
+  for (const [id, steps] of Object.entries(FURTHEST_STEPS)) {
+    const e = p[id];
+    if (isRecord(e) && Number.isInteger(e.n) && e.n >= 1 && e.n <= steps.length && typeof e.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.on)) out[id] = { n: e.n, on: e.on };
+  }
+  return out;
+}
+/* The reader's calendar day, as the backup line's is (en-CA is YYYY-MM-DD). */
+const furthestToday = () => new Date().toLocaleDateString('en-CA');
+function furthestNote() {
+  const v = State.view;
+  if (!v || v === 'notfound' || (realPending && viewWaits(v))) return;
+  const have = furthestRead();
+  let changed = false;
+  for (const [id, steps] of Object.entries(FURTHEST_STEPS)) {
+    let n = 0;
+    steps.forEach(([, reached], i) => { try { if (reached()) n = i + 1; } catch { /* a step its page cannot read yet */ } });
+    if (n > (have[id]?.n || 0)) { have[id] = { n, on: furthestToday() }; changed = true; }
+  }
+  if (changed) store.write(FURTHEST_KEY, { v: 1, products: have });
+}
+const furthestWatch = new MutationObserver(() => {
+  try { furthestNote(); } catch (e) { console.warn('furthest step: not noted —', e.message); }
+});
+furthestWatch.observe(viewRoot, { childList: true });
+
+/* Your data & settings: the record, each product's furthest step of three,
+   and when each was reached. Served as a fresh visitor's (nothing reached);
+   the page's render reads the key (SERVED_READS.userdata, 35-ui.js), so a
+   reader who has one waits for their own. */
+function furthestCard() {
+  const rec = furthestRead();
+  const card = el('div', { class: 'card', id: 'furthest-step', 'data-furthest': '' });
+  card.append(cardHead('How far you have got',
+    'The furthest step you have reached in each product, kept in this browser to show you where you stopped. It is never sent anywhere, and nothing counts it.'));
+  const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+  for (const [id, steps] of Object.entries(FURTHEST_STEPS)) {
+    const p = typeof productById === 'function' ? productById(id) : null;
+    const e = rec[id];
+    kv.append(el('dt', {}, p?.name || id));
+    kv.append(el('dd', { 'data-furthest-product': id, 'data-furthest-n': String(e?.n || 0) },
+      e ? `${e.n} of ${steps.length}: ${steps[e.n - 1][0]} · ${new Date(`${e.on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : `Not started · first step: ${steps[0][0].charAt(0).toLowerCase()}${steps[0][0].slice(1)}`));
+  }
+  card.append(kv);
+  return card;
+}
 
 /* Open a saved item from the search, noted as the item. Where opening it
    draws a page, the note is taken there; where it opens a drawer on the

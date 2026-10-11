@@ -2930,6 +2930,8 @@ const SERVED_READ = {
   /* When this browser last exported (the backup line on /my/data and /app,
      backupHealth): the record, as kept. */
   lastExport: () => store.read('lastExport', null),
+  /* How far the reader has got (/my/data; furthestRead, 59-recent.js). */
+  furthestStep: () => store.read('furthestStep', null),
 };
 /* Whether this browser keeps a key at all ('kept.deal'), where a page lists
    what is kept rather than drawing from it: /my/data writes a row for each
@@ -2971,7 +2973,7 @@ const SERVED_READS = {
      key the export carries (PORTABLE_KEYS) but the base currency, which it
      does not count (BACKUP_UNCOUNTED), so each is named. */
   home: [...new Set(['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
-    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy'), 'lastExport'])],
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy' && k !== 'furthestStep'), 'lastExport'])],
   /* /research/queue: the cards' arrangement, the active list, the
      differences between price and model estimate (a price typed in), the
      plan's limits, the currency. */
@@ -3108,7 +3110,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', 'furthestStep', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
   /* /how-it-works, which waits for the filings so that its report preview
      opens on a filed company (HIW_PICKS, 55-views-public.js): the
      calculator's deal its "Your calculator, as it stands" card reads. */

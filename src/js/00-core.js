@@ -364,6 +364,8 @@ const STORE_SHAPES = {
   /* When this browser last handed over an export (backupHealth,
      55-views-public.js): this browser's own record, never in a file. */
   lastExport: SHAPE_RECORD,
+  /* How far the reader has got in each product (furthestRead, 59-recent.js). */
+  furthestStep: SHAPE_RECORD,
   registerActor: { ok: (v) => typeof v === 'string', what: 'text' },
   baseCcy: { ok: (v) => v === 'MYR' || v === 'USD', what: 'MYR or USD' },
 };
@@ -493,6 +495,10 @@ const PORTABLE_KEYS = [
   { k:'scanSetups',        label:'Scanner setups and their versions' },
   { k:'scanAlertState',    label:'Scanner alerts read or archived' },
   { k:'scanPrefs',         label:'Scanner notification and display preferences' },
+  /* How far you have got in each product (D15c, 59-recent.js): yours, so it
+     travels; not work, so the backup line does not count it
+     (BACKUP_UNCOUNTED). */
+  { k:'furthestStep',      label:'How far you have got' },
 ];
 
 /* The format version this build writes, and the highest it reads in full. */
