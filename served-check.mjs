@@ -2980,6 +2980,54 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end claims-cash-required ---- */
 
+/* ---- claims-meta ---- */
+/* ONE ACCURATE DESCRIPTION A PAGE (the claims audit of 11 Oct 2026, rank 3:
+   F-11, R-17–R-19). /learn, /learn/glossary, /methodology, /data-sources
+   and /corrections all carried the methodology's sentence; the value map
+   the screener's, which said "Screen Bursa Malaysia and US companies on …
+   valuation" (the Bursa figures are synthetic; no filed company carries a
+   price to value against); the calculator's said "a Malaysian property
+   purchase to its real monthly cash flow" on a Sarawak fee rulebook and
+   the reader's own figures. Held on what each address is served, before
+   any script:
+   1. no two canonical pages share a description (the addresses of one page
+      — /wheel and /us-options/wheel — are one page), and the audit's seven
+      pages each have their own, /learn's apart from /learn/glossary's;
+   2. the calculator's names Sarawak and the reader's own figures, and not
+      "Malaysian" or "real";
+   3. the screener's names the SEC-filed set and the illustrative one, and
+      promises no Bursa screen or valuation; the value map's says its
+      prices are sample prices or the reader's. */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const desc = (path) => headOf(got.get(path)?.body || '').description || '';
+  const canon = (path) => headOf(got.get(path)?.body || '').canonical || path;
+  const byDesc = new Map();
+  for (const path of statics) {
+    const d = desc(path);
+    if (!byDesc.has(d)) byDesc.set(d, new Map());
+    const m = byDesc.get(d); const c = canon(path);
+    if (!m.has(c)) m.set(c, []); m.get(c).push(path);
+  }
+  for (const [d, m] of byDesc) if (m.size > 1) p.push(`${m.size} pages share one description — ${[...m.values()].map(x => x[0]).join(', ')}: "${d.slice(0, 70)}…"`);
+  const AUDIT = ['/learn', '/learn/glossary', '/methodology', '/data-sources', '/corrections', '/discover/value-map', '/discover/screener', '/property/calculator'];
+  const mine = AUDIT.map(desc);
+  AUDIT.forEach((path, i) => { if (mine.indexOf(mine[i]) !== i) p.push(`${path} is served ${AUDIT[mine.indexOf(mine[i])]}'s description`); });
+  const calc = desc('/property/calculator');
+  if (!/\bSarawak\b/.test(calc) || !/\byour own figures\b/.test(calc)) p.push(`/property/calculator's description does not say Sarawak and your own figures: "${calc}"`);
+  if (/\bMalaysian\b|\breal\b/i.test(calc)) p.push(`/property/calculator's description still says "Malaysian" or "real": "${calc}"`);
+  const scr = desc('/discover/screener');
+  if (!/\bSEC-filed\b/.test(scr) || !/\billustrative\b/.test(scr)) p.push(`/discover/screener's description does not name the SEC-filed set and the illustrative one: "${scr}"`);
+  if (/Bursa Malaysia and US companies|\bvaluation\b/i.test(scr)) p.push(`/discover/screener's description promises a Bursa screen or a valuation: "${scr}"`);
+  const vm = desc('/discover/value-map');
+  if (!/\bsample prices?\b/.test(vm)) p.push(`/discover/value-map's description does not say whose prices it plots: "${vm}"`);
+  judge(p, `one accurate description a page (the claims audit, rank 3): ${byDesc.size} descriptions on ${statics.length} addresses, none shared by two pages; the calculator's "${calc.slice(0, 60)}…"; the screener's names the SEC-filed and the illustrative sets; the value map's its sample prices`,
+    'a meta description is shared by two pages, or claims what its page does not hold');
+}
+/* ---- end claims-meta ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

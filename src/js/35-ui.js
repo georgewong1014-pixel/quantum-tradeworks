@@ -1284,12 +1284,20 @@ const META = {
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
-  discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
+  /* ONE DESCRIPTION A PAGE, TRUE TO IT (the claims audit of 11 Oct 2026,
+     rank 3: F-11, R-17–R-19). The screener's said "Screen Bursa Malaysia
+     and US companies on … valuation" — the Bursa figures are synthetic and
+     no filed company carries a price to value against — and the value map
+     wore it too. A tab of a view with a page of its own takes the line
+     keyed view:tab (metaOf, below): the Learn hub's five pages all carried
+     the methodology's sentence. */
+  discover:  'Screen the SEC-filed US companies on quality, returns on capital and financial strength, each filter and measure explained — and an illustrative Malaysian set, labelled as such. A measure that needs a price is blank where none is held.',
+  'discover:radar': 'The Quality vs Value Map: each company placed by business quality against the gap between its price and its base-case model estimate — which needs a price: the illustrative set on sample prices, and any company whose close you supplied.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
   sarawak: 'Companies with material exposure to the Sarawak economy. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
-  property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
+  property:  'Model a Sarawak property purchase from your own figures: the monthly cash flow, the break-even rent and the cash required, each fee line from a cited fee rulebook and marked verified or estimated. Not a valuation, not advice.',
   propertyModels: 'The properties you have saved in this browser, each with its inputs and its scenarios. Open one and the calculator edits it.',
   propertyProposal: 'A saved property set out for a client: who prepared it and for whom, the cost of buying it, the loan, the rent and the cash flow, its scenarios side by side and a sale at the end of the hold. A preview, printed or saved as PDF through your browser.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
@@ -1303,7 +1311,11 @@ const META = {
   scannerAdminJobs:     'Every run the scanner worker recorded on this machine, with status, duration and errors, and the log of controls.',
   scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
   /* /Phase 3 — ops */
-  learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
+  learn:     'The methodology in public: the metric dictionary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
+  'learn:glossary': 'The metric dictionary: each measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
+  'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
+  'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what this build does not hold.',
+  'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the research and advisory modes, the cases you record in this browser, and how a figure is reported against the exact item.',
   plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
@@ -1334,6 +1346,9 @@ const META = {
   privacy:     'What this build stores, where it stores it and what leaves your device — no cookies, no accounts — and a draft PDPA 2010 notice.',
   terms:       'Draft terms for this build: a research tool, not advice, with illustrative data, no warranty and nothing for sale; governed by Malaysian law.',
 };
+/* A route's line: its tab's own (view:tab) where the tab is a page of its
+   own, else its view's. build.mjs evaluates it with setDocumentMeta. */
+const metaOf = (route, fallback = META.marketing) => (route?.tab && META[`${route.view}:${route.tab}`]) || META[route?.view] || fallback;
 
 /* The app is mounted at the domain root in production, but served from a
    subdirectory in some local setups. Deriving the base once keeps every
@@ -1443,7 +1458,7 @@ function setDocumentMeta(route) {
     : (route?.title || 'Not found');
   if (!holdHead) {
     document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
-    const desc = co && route.view === 'research' ? companyMetaDescription(co.c, META.research) : (META[route?.view] || META.marketing);
+    const desc = co && route.view === 'research' ? companyMetaDescription(co.c, META.research) : metaOf(route);
     let tag = document.querySelector('meta[name="description"]');
     if (!tag) { tag = document.createElement('meta'); tag.setAttribute('name', 'description'); document.head.append(tag); }
     tag.setAttribute('content', desc);
