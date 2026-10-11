@@ -491,10 +491,17 @@ function hiwTradingCard() {
    homepage's demo. A pick repaints only the panel, and focus stays on the
    pressed button: the whole page used to re-render under the reader's
    pointer, and the button that had focus was destroyed with it. */
+/* A filed bank first (the owner's decision of 11 Oct 2026; the claims
+   audit, F-05): the preview opened on Maybank's synthetic figures. JPMorgan
+   Chase and Apple from their filings, and one illustrative company, labelled
+   so, to show how a synthetic one is marked. The filers are in once the
+   filings land, so the page waits for them (UNIVERSE_VIEWS, below) and is
+   served drawn with them in; with the filings off, Tenaga alone is offered. */
 const HIW_PICKS = [
-  { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
-  { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
+  { id: 'JPM-SEC', label: 'JPMorgan Chase' }, { id: 'AAPL-SEC', label: 'Apple' },
+  { id: 'TENAGA', label: 'Tenaga' },
 ];
+UNIVERSE_VIEWS.add('howItWorks');
 function hiwReportBody(r) {
   const out = [];
   /* The illustrative marker every other company surface carries. The panel

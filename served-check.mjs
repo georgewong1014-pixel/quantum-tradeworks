@@ -3261,6 +3261,55 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-status-splits ---- */
 
 
+/* ---- claims-filed-defaults ---- */
+/* FILED COMPANIES AS THE DEFAULTS (the owner's decision of 11 Oct 2026; the
+   claims audit, rank 13: F-05). /how-it-works's report preview opened on
+   Maybank and /compare's first visit compared MAYBANK with PBBANK —
+   synthetic figures on real banks' names, the example the owner kept out
+   on 7 Oct. Held on what a first visit is served:
+   1. /how-it-works is drawn with the filings in, and its report preview
+      opens on JPMorgan Chase, from its filed statements; no pick is Maybank;
+   2. /compare opens on Apple and Microsoft, both filed, and on no Bursa
+      bank. (A reader's saved comparison stays theirs: the default is only
+      what store.read falls back to.) */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const manifest = JSON.parse(read('prerender/manifest.json'));
+  const got = await getAll(['/how-it-works', '/compare']);
+  const said = {};
+  const hiw = got.get('/how-it-works');
+  if (manifest.pages?.['pages/how-it-works.html']?.state !== 'filings in') p.push(`/how-it-works's render is its ${manifest.pages?.['pages/how-it-works.html']?.state || 'missing'} state — drawn before the filed statements it opens on could land`);
+  if (!hiw || hiw.status !== 200) p.push(`/how-it-works: ${hiw?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(hiw.body);
+    const seg = all(tree).find(n => has(n, 'hiw-seg'));
+    const picks = seg ? all(seg).filter(n => attr(n, 'data-inert') === 'button' || n.tag === 'button').map(n => ({ label: sight(n), on: attr(n, 'data-on') !== null || attr(n, 'aria-pressed') === 'true' })) : [];
+    said.picks = picks.map(x => `${x.label}${x.on ? ' (open)' : ''}`).join(', ');
+    const on = picks.find(x => x.on);
+    if (!on || on.label !== 'JPMorgan Chase') p.push(`/how-it-works's report preview opens on ${on ? `"${on.label}"` : 'no pick'}, not JPMorgan Chase (picks: ${said.picks || 'none'})`);
+    if (picks.some(x => /Maybank/i.test(x.label))) p.push(`/how-it-works still offers Maybank as an example (picks: ${said.picks})`);
+    const panel = all(tree).find(n => has(n, 'hiw-panel') && all(n).some(x => has(x, 'hiw-label')));
+    const label = panel ? sight(all(panel).find(x => has(x, 'hiw-label'))) : '';
+    said.label = label;
+    if (!/^JPMorgan Chase & Co\.?: from audited statements filed with the SEC\.$/i.test(label)) p.push(`/how-it-works's preview reads "${label.slice(0, 120)}", not JPMorgan Chase's filed statements`);
+  }
+  const cmp = got.get('/compare');
+  if (!cmp || cmp.status !== 200) p.push(`/compare: ${cmp?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(cmp.body);
+    const chosen = all(tree).filter(n => /^cmp-chip-/.test(attr(n, 'id') || '') && attr(n, 'data-on') !== null).map(n => sight(n));
+    said.compare = chosen.join(', ');
+    if (chosen.length !== 2 || !chosen.some(x => /^AAPL\b/.test(x)) || !chosen.some(x => /^MSFT\b/.test(x))) p.push(`/compare's first visit compares ${said.compare || 'nothing'}, not Apple and Microsoft`);
+    if (chosen.some(x => /MAYBANK|PBBANK/.test(x))) p.push(`/compare's first visit still compares a Bursa bank (${said.compare})`);
+  }
+  judge(p, `filed companies as the defaults (the owner's decision of 11 Oct 2026): /how-it-works opens on JPMorgan Chase — "${said.label || '—'}" (picks ${said.picks || '—'}); /compare opens on ${said.compare || '—'}`,
+    'a first visit opens on Maybank, or on a pair that is not Apple and Microsoft');
+}
+/* ---- end claims-filed-defaults ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

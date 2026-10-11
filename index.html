@@ -7765,7 +7765,12 @@ const State = {
      contradicted each other on first load. The stored value is clamped on
      read as well, further down, so an existing saved set of three cannot
      reintroduce the contradiction after a downgrade. */
-  compare: store.read('compare', ['MAYBANK', 'PBBANK']),
+  /* A first visit compares two filed companies (the owner's decision of 11
+     Oct 2026; the claims audit, F-05): Maybank and Public Bank were
+     synthetic figures on real banks' names. Only the fallback: a reader's
+     saved comparison is read as it is. The filers' own ids, so the filings'
+     arrival renames nothing a first visit holds. */
+  compare: store.read('compare', ['AAPL-SEC', 'MSFT-SEC']),
   valuation: {},
 
   /* Multiple watchlists and portfolios. The single-list shape used earlier is
@@ -22244,6 +22249,10 @@ const SERVED_READS = {
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
     'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+  /* /how-it-works, which waits for the filings so that its report preview
+     opens on a filed company (HIW_PICKS, 55-views-public.js): the
+     calculator's deal its "Your calculator, as it stands" card reads. */
+  howItWorks: ['deal'],
   /* /methodology, the one tab of Learn that waits (UNIVERSE_TABS): the
      router table reads the universe and nothing this browser keeps. Keyed
      view:tab (servedKeyOf), so Learn's other tabs, which do not wait, are
@@ -34590,10 +34599,17 @@ function hiwTradingCard() {
    homepage's demo. A pick repaints only the panel, and focus stays on the
    pressed button: the whole page used to re-render under the reader's
    pointer, and the button that had focus was destroyed with it. */
+/* A filed bank first (the owner's decision of 11 Oct 2026; the claims
+   audit, F-05): the preview opened on Maybank's synthetic figures. JPMorgan
+   Chase and Apple from their filings, and one illustrative company, labelled
+   so, to show how a synthetic one is marked. The filers are in once the
+   filings land, so the page waits for them (UNIVERSE_VIEWS, below) and is
+   served drawn with them in; with the filings off, Tenaga alone is offered. */
 const HIW_PICKS = [
-  { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
-  { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
+  { id: 'JPM-SEC', label: 'JPMorgan Chase' }, { id: 'AAPL-SEC', label: 'Apple' },
+  { id: 'TENAGA', label: 'Tenaga' },
 ];
+UNIVERSE_VIEWS.add('howItWorks');
 function hiwReportBody(r) {
   const out = [];
   /* The illustrative marker every other company surface carries. The panel

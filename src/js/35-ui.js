@@ -3106,6 +3106,10 @@ const SERVED_READS = {
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
     'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+  /* /how-it-works, which waits for the filings so that its report preview
+     opens on a filed company (HIW_PICKS, 55-views-public.js): the
+     calculator's deal its "Your calculator, as it stands" card reads. */
+  howItWorks: ['deal'],
   /* /methodology, the one tab of Learn that waits (UNIVERSE_TABS): the
      router table reads the universe and nothing this browser keeps. Keyed
      view:tab (servedKeyOf), so Learn's other tabs, which do not wait, are
