@@ -1351,7 +1351,10 @@ const HOME_PAGE = read(HOME);
       if (!dep) p.push('GitHub lists no Production deployment');
       else if (dep !== rec.commit) {
         const files = ((await gh(`compare/${rec.commit}...${dep}`))?.files || []).map(f => f.filename);
-        const other = files.filter(f => f !== 'health/journeys.json' && !ISLAND_PAGES.includes(f));
+        /* The bot's record commit carries both records since 10 Oct 2026
+           (health/checks.json beside health/journeys.json) — neither changes
+           the app the journeys ran on. */
+        const other = files.filter(f => f !== 'health/journeys.json' && f !== 'health/checks.json' && !ISLAND_PAGES.includes(f));
         if (!files.length || other.length) p.push(`the latest Production deployment ${dep.slice(0, 7)} is not the recorded commit ${String(rec.commit).slice(0, 7)}, and differs from it in ${other.length ? other.slice(0, 5).join(', ') : 'nothing GitHub lists'}`);
       }
     } catch (e) { p.push(`GitHub's deployments and compare APIs could not be read (${e.message})`); }
