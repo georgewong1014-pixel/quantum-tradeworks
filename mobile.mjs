@@ -3906,6 +3906,81 @@ for (const w of [360, 390]) {
   else console.log(`ok   report-split: a saved shophouse's client proposal at 360, 390 and 430, in the page's font and in Verdana: Facts, Assumptions, Missing evidence and Risks drawn, every row and badge inside the document, nothing scrolling sideways (${said.slice(0, 3).join('; ')} …)`);
 }
 /* ---- end report-split ---- */
+/* ---- actuals ---- */
+/* ACTUAL AGAINST MODELLED ON A PHONE (QT-06; labActualsCard,
+   84-property-costs.js). A saved property with two months and a year of the
+   hold recorded, its Lab at 360×640, 390×844 and 430×932, in the page's
+   font and in Verdana: every figure row and the form inside the card,
+   every control of the card a 44px target, nothing scrolling sideways.
+   Fails on 86c455a6, where there is no such card. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const SEED = `(() => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} }; saveDeal();
+    const id = saveActiveProperty({ name: 'Condominium, Tabuan — actual against modelled' }).id;
+    actualsWrite(id, { start: '2025-01', entries: [{ kind: 'month', period: '2025-01', months: 1, rent: 1850, vacancy: 0, costs: 412.5, at: '2026-10-01T00:00:00Z' },
+      { kind: 'month', period: '2025-02', months: 1, rent: 0, vacancy: 1, costs: 1260, at: '2026-10-01T00:00:00Z' },
+      { kind: 'year', period: 2, months: 12, rent: 19800, vacancy: 1.5, costs: 5200, at: '2026-10-01T00:00:00Z' }] });
+    return id; })()`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const s = document.getElementById('lab-ac');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    const ctrls = [...s.querySelectorAll('input, button, select, summary')].filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const p = s.getBoundingClientRect();
+    const inside = [...s.querySelectorAll('.ac-row, .ac-row > *, .ac-f, .ac-entry-hd, .ac-years')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.className.split(' ')[0]);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, inside, controls: ctrls.length,
+      entries: s.querySelectorAll('.ac-entry').length, face: getComputedStyle(s.querySelector('.ac-label') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const id = await ev(SEED);
+      const got = await load(`/property/lab?model=${id}`);
+      if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      await ev(`(() => { const s = document.getElementById('lab-ac'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+      await sleep(200);
+      const r = await ev(read);
+      if (r.none) { fails.push(`${at}: no actual-against-modelled card on a saved property`); continue; }
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.entries !== 3) fails.push(`${at}: ${r.entries} entries drawn, not 3`);
+      if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+      if (r.inside.length) fails.push(`${at}: outside the card's width: ${r.inside.slice(0, 4).join(', ')}`);
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+      said.push(`${at.replace(' in Verdana', ' V')}: ${r.controls} controls`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL actuals — actual against modelled on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   actuals: a saved property's actual-against-modelled card (two months and a year recorded) at 360, 390 and 430, in the page's font and in Verdana: every row, figure and field inside the card, every control a 44px target, nothing scrolling sideways (${said.slice(0, 3).join('; ')} …)`);
+}
+/* ---- end actuals ---- */
 /* ---- lab-words ---- */
 /* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
    "Scenario Lab is useful but too explanation-heavy, especially for

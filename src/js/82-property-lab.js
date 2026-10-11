@@ -695,7 +695,9 @@ function labDraw(P, focusId = null) {
   const cross = labCrossRoute(lab) ? labXrCard(P, lab) : null;
   /* On a saved property, refurbish or not: four options on P6's columns. */
   const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
-  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  /* On a saved property, what it actually did beside what was modelled (QT-06). */
+  const actuals = !P.compact && lab.model ? labActualsCard(P, lab) : null;
+  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));

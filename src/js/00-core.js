@@ -348,6 +348,9 @@ const STORE_SHAPES = {
   savedScreens: SHAPE_RECORDS, savedWork: SHAPE_RECORDS, runs: SHAPE_RECORDS, sarawakExposure: SHAPE_RECORDS, comparisons: SHAPE_RECORDS,
   /* The Scenario Lab's comparisons across properties (82-property-lab.js, P6). */
   labComparisons: SHAPE_RECORDS,
+  /* What a saved property actually did, by month or year of the hold
+     (84-property-costs.js, QT-06): held to its own shape on a restore. */
+  propertyActuals: { ...SHAPE_RECORD, fault: (v) => propertyActualsFault(v) },
   areaProfiles: SHAPE_RECORD, demand: SHAPE_RECORD, deal: SHAPE_RECORD, wheelPlan: SHAPE_RECORD, qttiPlan: SHAPE_RECORD,
   manualPrices: SHAPE_RECORD, userData: SHAPE_RECORD, wht: SHAPE_RECORD, reviews: SHAPE_RECORD, borrowerProfile: SHAPE_RECORD,
   /* The name, agency, contact and logo a client proposal prints
@@ -477,6 +480,9 @@ const PORTABLE_KEYS = [
   /* Which saved property stands in each Scenario Lab column, and the lens
      (the decision layer, P6) — the properties themselves are saved work. */
   { k:'labComparisons',    label:'Scenario Lab comparisons' },
+  /* What a saved property actually did — rent received, months vacant,
+     costs paid — by month or year of the hold (QT-06). */
+  { k:'propertyActuals',   label:'Actual rent, vacancy and costs you recorded' },
   /* The scanner's three: the setups with every version (the export to the
      worker's file carries only the current ones), which recorded matches
      were read or archived here, and the scanner's notification and display

@@ -9542,7 +9542,7 @@ try {
         const r = await evaluate(`(async () => { ${W}
           const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-29T00:00:00Z', data });
           const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons', 'labComparisons'];
-          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails'];
+          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails', 'propertyActuals'];
           const bad = [];
           const accepted = (k, v) => { const x = importEverything(doc({ [k]: v })); return x.ok && x.incoming.includes(k); };
           LISTS.forEach(k => { if (accepted(k, { id: 'x' })) bad.push(k + ' as a record'); if (accepted(k, [1, 'x'])) bad.push(k + ' as a list of non-records'); });
@@ -9573,7 +9573,7 @@ try {
         const BAD1 = { portfolios: { name: 'x', holdings: [] }, theses: { id: 't' }, priceAlerts: { id: 'x' }, watchlists: {}, observations: {}, savedWork: {}, runs: {},
           dividendsReceived: {}, registerLog: {}, comparisons: {}, labComparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
           deal: [], wheelPlan: [], qttiPlan: [], reviews: [], valuation: [], areaProfiles: [], demand: [], manualPrices: [], userData: [], wht: [],
-          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], registerActor: 5, baseCcy: 'EUR' };
+          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], propertyActuals: [], registerActor: 5, baseCcy: 'EUR' };
         const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons', 'labComparisons',
           'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
         BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
@@ -10609,6 +10609,7 @@ try {
       onboarding: /whether you dismissed the introduction/, opportunities: /saved property candidates/, plan: /the plan you are previewing/,
       portfolios: /portfolio holdings/, priceAlerts: /price alerts/, propertyReportLog: /included property reports you used this month/,
       proposalDetails: /your details for proposals/, labComparisons: /the Scenario Lab comparisons you save/,
+      propertyActuals: /the actual rent, vacancy and costs you record for a saved property/,
       propertyReportsBought: /property reports you unlocked/, qttiPlan: /trading-index observations/, rateUnitBuilt: /units for property rates/,
       rateUnitLand: /units for property rates/, realData: /whether filed SEC data is switched on/, recentCompanies: /companies you recently viewed/,
       recent: /pages, tools and saved work you recently opened/,

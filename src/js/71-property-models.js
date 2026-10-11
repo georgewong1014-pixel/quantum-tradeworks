@@ -463,6 +463,8 @@ function renamePropertyModel(id, name) {
    as an unsaved deal, so nothing on screen goes with it. */
 function deletePropertyModel(id) {
   const ok = persistWork(loadWork().filter(r => r.id !== id));
+  /* What it actually did goes with it (QT-06). */
+  if (ok && actualsAll()[id]) actualsWrite(id, null);
   if (ok && State.deal?.modelId === id) { State.deal.modelId = null; State.deal.scenarioId = null; saveDeal(); }
   return ok;
 }

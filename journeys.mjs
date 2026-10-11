@@ -2078,8 +2078,8 @@ const JOURNEYS = [
        each with its source, its date, what it includes and its kind — the
        cost their total, badged by the weakest line, saved with the
        property. */
-    id: 'costs', name: 'Property costs: lines with their sources, the report in four parts',
-    outcomes: ['Enter cost lines with sources', 'Open the report and see the four sections'],
+    id: 'costs', name: 'Property costs: lines with their sources, the report in four parts, actual against modelled',
+    outcomes: ['Enter cost lines with sources', 'Open the report and see the four sections', 'Record an actual and see the difference'],
     async run(j, tab) {
       let id;
       const pre = 'lab-rf-cl-refurb';
@@ -2125,6 +2125,23 @@ const JOURNEYS = [
             paint: rows('assumptions').find(li => /Painting/.test(li.textContent))?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null,
             unbadged: ['facts', 'assumptions', 'missing', 'risks'].flatMap(rows).filter(li => !li.querySelector('[data-kind-badge]')).length }; })())`));
         if (r.kc !== 'quoted' || r.paint !== 'yours' || r.unbadged) throw new StepError(`the four sections read ${JSON.stringify(r)}`);
+      });
+      await step(j, tab, 'Record an actual and see the difference', BUDGET.load * 2, async () => {
+        await tab.goto(`/property/lab?model=${id}`);
+        await tab.expect(`!!document.getElementById('lab-ac-record')`, 'the Lab has no actual-against-modelled card on the saved property');
+        /* Months as values, not typed: what a month box takes from the keys
+           depends on the locale (JOURNEY_LOCALE). */
+        await tab.eval(`(() => { for (const [k, v] of [['start', '2025-01'], ['month', '2025-03']]) { const n = document.getElementById('lab-ac-' + k); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } return true; })()`);
+        await tab.fill(`document.getElementById('lab-ac-rent')`, '1700', 'Rent received');
+        await tab.fill(`document.getElementById('lab-ac-costs')`, '420', 'Running costs paid');
+        await tab.click(`document.getElementById('lab-ac-record')`, 'Record');
+        await tab.expect(`actualsOf(${JSON.stringify(id)}).entries.length === 1 && !!document.querySelector('#lab-ac-list [data-ac-entry="month:2025-03"]')`,
+          async () => `not recorded: “${await tab.eval(`document.getElementById('lab-ac-msg')?.textContent || ''`)}”`);
+        const r = JSON.parse(await tab.eval(`JSON.stringify((() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})), c = actualsCompare(d, dealModel(d), actualsOf(${JSON.stringify(id)}));
+          const cell = (f) => document.querySelector('#lab-ac-list [data-ac-entry="month:2025-03"] .ac-row[data-ac-fig="' + f + '"] [data-ac="diff"]')?.dataset.value ?? null;
+          return { rent: cell('rent'), want: String(Math.round(c.rows[0].diff.rent * 100) / 100), net: cell('net'), wantNet: String(Math.round(c.rows[0].diff.net * 100) / 100),
+            year: document.querySelector('#lab-ac-years [data-ac-year="1"]')?.textContent || '' }; })())`));
+        if (r.rent !== r.want || r.net !== r.wantNet || !/partial/.test(r.year) || /\d\.\d+%/.test(r.year)) throw new StepError(`the difference reads ${JSON.stringify(r)}`);
       });
     },
   },

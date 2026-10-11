@@ -2842,6 +2842,8 @@ const SERVED_READ = {
   comparisons: () => loadComparisons(),
   /* The Scenario Lab's saved comparisons across properties (P6). */
   labComparisons: () => labComparisons(),
+  /* What saved properties actually did (QT-06). */
+  propertyActuals: () => store.read('propertyActuals', null),
   runs: () => store.read('runs', []),
   reviews: () => store.read('reviews', {}),
   manualPrices: () => manualPrices,
@@ -3005,7 +3007,7 @@ const SERVED_READS = {
      draws (a page that does not wait: its first draw replaces the served
      page at once); and the comparisons across properties the reader saved
      (P6). */
-  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons'],
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons', 'propertyActuals'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -3065,7 +3067,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh

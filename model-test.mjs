@@ -7694,6 +7694,121 @@ try {
   }
   /* ---- end report-split ---- */
 
+  /* ---- actuals ---- */
+  /* ACTUAL AGAINST MODELLED (QT-06, the owner's approval of 10 Oct 2026;
+     actualsCompare and labActualsCard, 84-property-costs.js). On fixture F
+     with RM1,200 a year of assessment and 5% vacancy (the model's year 1:
+     rent after vacancy 22,800, running costs 1,200; rent growth 2.5% and
+     running costs 2% a year after), the hold starting January 2025:
+     AC1 — by hand: January (rent 2,000, costs 150) against 1,900 and 100 —
+           +100, +50, net +50; February (vacant, costs 80) −1,900, net
+           −1,880; year 1 "2 of 12 months recorded — partial", no yield;
+           year 2 recorded whole (22,000 rent, 1,500 costs) against 23,370
+           and 1,224 — a realised 5.13% on RM400,000 (20,500), net −1,646;
+           year 3, 6 months — partial, no yield; refused with the reason: a
+           month before the start, one not yet begun, year 11 of a 10-year
+           hold, 2 months vacant in one, a year over its months, a month with
+           no start, rent on land; the key in the export, a restore of a bad
+           shape refused, the property's deletion taking its record.
+     AC2 — the Lab on a saved property: recorded through the card, set
+           beside the model, the partial year said and no yield in it, the
+           property itself unwritten. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const A_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears','assessment','rentGrowthPct'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 5, rentGrowthPct: 2.5, maintenance: 0, sinkingFund: 0, assessment: 1200, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, holdYears: 10, ...x });
+      const M = (period, x) => ({ kind: 'month', period, months: 1, rent: null, vacancy: null, costs: null, at: '2026-10-01T00:00:00Z', ...x });
+      const Y = (period, months, x) => ({ kind: 'year', period, months, rent: null, vacancy: null, costs: null, at: '2026-10-01T00:00:00Z', ...x });
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []), ac: localStorage.getItem('vl.propertyActuals') });
+      const restore = () => { const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); } if (k.ac === null) localStorage.removeItem('vl.propertyActuals'); else localStorage.setItem('vl.propertyActuals', k.ac); };`;
+    await ftry('actuals AC1: actual against modelled, partial periods and refusals, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${A_SEED}
+        const d = F(), m = dealModel(d);
+        const rec = { start: '2025-01', entries: [M('2025-01', { rent: 2000, vacancy: 0, costs: 150 }), M('2025-02', { rent: 0, vacancy: 1, costs: 80 }), Y(2, 12, { rent: 22000, vacancy: 1, costs: 1500 }), Y(3, 6, { rent: 11000, costs: 600 })] };
+        const c = actualsCompare(d, m, rec, { now: '2026-10' });
+        const words = c.years.map(Y2 => actualYearWords(Y2, c));
+        const H = { holdYears: 10, lets: true, now: '2026-10' };
+        const refusals = [actualRecordFault(rec, M('2024-12', { rent: 1 }), H), actualRecordFault(rec, M('2099-01', { rent: 1 }), H), actualRecordFault(rec, Y(11, 12, { rent: 1 }), H),
+          actualRecordFault(rec, M('2025-03', { vacancy: 2 }), H), actualRecordFault(rec, Y(1, 12, { rent: 1 }), H), actualRecordFault({ start: null, entries: [] }, M('2025-03', { rent: 1 }), H),
+          actualRecordFault(rec, Y(4, 13, { rent: 1 }), H), actualRecordFault(rec, M('2025-03', {}), H), actualRecordFault(rec, M('2025-03', { rent: 1 }), { ...H, lets: false })];
+        const keepAc = localStorage.getItem('vl.propertyActuals');
+        actualsWrite('w-ac-test', rec);
+        const round = actualsOf('w-ac-test');
+        const exported = exportEverything().data.propertyActuals?.['w-ac-test']?.entries?.length ?? null;
+        const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-10-11T00:00:00Z', data });
+        const badRestore = importEverything(doc({ propertyActuals: { 'w-x': { start: '2025-01', entries: 'none' } } }));
+        const goodRestore = importEverything(doc({ propertyActuals: { 'w-x': rec } }));
+        if (keepAc === null) localStorage.removeItem('vl.propertyActuals'); else localStorage.setItem('vl.propertyActuals', keepAc);
+        const pick = (row) => ({ y: row.y, month: row.month, partial: row.partial, a: row.actual, mo: row.modelled, df: row.diff });
+        return JSON.stringify({ rows: c.rows.map(pick), years: c.years, words, refusals, round: [round.start, round.entries.length], exported,
+          badRestore: [badRestore.ok, (badRestore.refused || []).map(x => x.why).join(' ') || badRestore.err || ''], goodRestore: goodRestore.ok && goodRestore.incoming.includes('propertyActuals') }); })()`));
+      const p = [], near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+      const [jan, feb, y2, y3] = r.rows;
+      /* Year 1: rent after 5% vacancy 22,800 a year (1,900 a month), running costs 1,200 (100). */
+      if (!jan || jan.y !== 1 || jan.month !== 1 || !near(jan.mo.rent, 1900) || !near(jan.mo.costs, 100) || !near(jan.df.rent, 100) || !near(jan.df.costs, 50) || !near(jan.df.net, 50) || !near(jan.mo.vacancy, 0.05) || !near(jan.df.vacancy, -0.05))
+        p.push(`January: ${JSON.stringify(jan)} — by hand modelled 1,900 and 100, differences +100, +50, net +50, vacancy −0.05`);
+      if (!feb || !near(feb.df.rent, -1900) || !near(feb.df.costs, -20) || !near(feb.df.net, -1880) || !near(feb.df.vacancy, 0.95)) p.push(`February: ${JSON.stringify(feb)} — by hand −1,900, −20, net −1,880, vacancy +0.95`);
+      /* Year 2: 22,800 × 1.025 = 23,370; 1,200 × 1.02 = 1,224; net modelled 22,146; actual 20,500. */
+      if (!y2 || y2.y !== 2 || !near(y2.mo.rent, 23370) || !near(y2.mo.costs, 1224) || !near(y2.df.net, -1646) || y2.partial) p.push(`year 2: ${JSON.stringify(y2)} — by hand 23,370, 1,224, net −1,646, whole`);
+      /* Year 3, six months: 22,800 × 1.025² = 23,954.25, ÷ 2 = 11,977.125;
+         running costs 1,200 × 1.02² = 1,248.48, ÷ 2 = 624.24. */
+      if (!y3 || y3.partial !== '6 of 12 months' || !near(y3.mo.rent, 11977.125, 0.01) || !near(y3.mo.costs, 624.24)) p.push(`year 3: ${JSON.stringify(y3)} — by hand 11,977.13 and 624.24 for 6 of 12 months, partial`);
+      const Y1 = r.years.find(x => x.y === 1), Y2 = r.years.find(x => x.y === 2), Y3 = r.years.find(x => x.y === 3);
+      if (!Y2?.realised || !near(Y2.realised.yieldPct, 5.125, 1e-9) || !near(Y2.realised.net, 20500)) p.push(`year 2's realised yield: ${JSON.stringify(Y2)} — by hand 20,500 ÷ 400,000 = 5.125%`);
+      if (Y1?.realised || Y3?.realised) p.push(`a realised yield stated for a partial year: ${JSON.stringify([Y1, Y3])}`);
+      const [w1, w2, w3] = r.words;
+      if (!/Year 1 of the hold: 2 of 12 months recorded — partial/.test(w1) || !/No yield for the year is stated/.test(w1) || /\d\.\d+%/.test(w1)) p.push(`year 1 says "${w1}"`);
+      if (!/realised net yield of 5\.13% for the year, before the loan/.test(w2)) p.push(`year 2 says "${w2}"`);
+      if (!/6 of 12 months recorded — partial/.test(w3) || /\d\.\d+%/.test(w3)) p.push(`year 3 says "${w3}"`);
+      const want = [/before .* the first month of the hold/, /has not begun/, /after the 10-year hold/, /more than the 1 month/, /would count twice/, /enter the first month of the hold first/, /no whole number of months/, /records no figure/, /bare parcel earns no rent/];
+      r.refusals.forEach((f, i) => { if (!f || !want[i].test(f)) p.push(`refusal ${i + 1}: ${JSON.stringify(f)} — wanted ${want[i]}`); });
+      if (JSON.stringify(r.round) !== '["2025-01",4]' || r.exported !== 4) p.push(`kept and exported: ${JSON.stringify([r.round, r.exported])}`);
+      if (r.badRestore[0] && !/propertyActuals|start month and a list of entries/.test(r.badRestore[1])) p.push(`a bad restore: ${JSON.stringify(r.badRestore)}`);
+      if (!/a start month and a list of entries/.test(r.badRestore[1]) || !r.goodRestore) p.push(`restore: bad ${JSON.stringify(r.badRestore)}, good ${r.goodRestore}`);
+      if (p.length) fail('actuals AC1: actual against modelled, partial periods and refusals, by hand', p);
+      else ok('actuals AC1: January (RM2,000 rent, RM150 costs) against the model\'s RM1,900 and RM100 — +RM100, +RM50, net +RM50; February vacant −RM1,900, net −RM1,880; year 1 "2 of 12 months recorded — partial", no yield stated; year 2 recorded whole against RM23,370 and RM1,224 — a realised 5.13% (RM20,500 on RM400,000), net −RM1,646; year 3\'s six months partial, no yield; nine bad entries refused with their reasons; the record kept, exported, restored, a bad shape refused');
+    });
+
+    await ftry('actuals AC2: recorded in the Lab, beside the model, partial said', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${A_SEED}
+        State.deal = F(); saveDeal();
+        const rec = saveActiveProperty({ name: 'ac AC2 property' });
+        const before = JSON.stringify(pmFind(rec.id));
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const card = !!document.getElementById('lab-ac');
+        const put = (k, v) => { const n = document.getElementById('lab-ac-' + k); if (n) { n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } };
+        put('start', '2025-01'); put('month', '2025-01'); put('rent', '2000'); put('vacancy', '0'); put('costs', '150');
+        document.getElementById('lab-ac-record')?.click(); await w(500);
+        const msg1 = document.getElementById('lab-ac-msg')?.textContent || '';
+        const row = (fig, col) => document.querySelector('#lab-ac-list .ac-entry[data-ac-entry="month:2025-01"] .ac-row[data-ac-fig="' + fig + '"] [data-ac="' + col + '"]')?.dataset.value ?? null;
+        const one = { rent: [row('rent', 'actual'), row('rent', 'modelled'), row('rent', 'diff')], net: row('net', 'diff'), year: document.querySelector('#lab-ac-years [data-ac-year="1"]')?.textContent || '' };
+        put('month', '2099-01'); put('rent', '100');
+        document.getElementById('lab-ac-record')?.click(); await w(300);
+        const msg2 = document.getElementById('lab-ac-msg')?.textContent || '';
+        const stored = actualsOf(rec.id);
+        const recordSame = JSON.stringify(pmFind(rec.id)) === before;
+        deletePropertyModel(rec.id);
+        const gone = !actualsAll()[rec.id];
+        restore(); navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ card, msg1, one, msg2, stored: [stored.start, stored.entries.length], recordSame, gone }); })()`));
+      const p = [];
+      if (!r.card) p.push('no actual-against-modelled card on a saved property');
+      if (!/Recorded Jan 2025/.test(r.msg1) || JSON.stringify(r.stored) !== '["2025-01",1]') p.push(`recording January: "${r.msg1}", kept ${JSON.stringify(r.stored)}`);
+      if (JSON.stringify(r.one.rent) !== '["2000","1900","100"]' || r.one.net !== '50') p.push(`January set beside the model: rent ${JSON.stringify(r.one.rent)}, net difference ${r.one.net} — by hand 2,000 / 1,900 / +100, net +50`);
+      if (!/1 of 12 months recorded — partial/.test(r.one.year) || /\d\.\d+%/.test(r.one.year)) p.push(`year 1 reads "${r.one.year}"`);
+      if (!/Not recorded — .*has not begun/.test(r.msg2)) p.push(`a month not begun: "${r.msg2}"`);
+      if (!r.recordSame) p.push('recording an actual wrote to the saved property');
+      if (!r.gone) p.push('deleting the property left its actuals behind');
+      if (p.length) fail('actuals AC2: recorded in the Lab, beside the model, partial said', p);
+      else ok('actuals AC2: in the Lab on a saved property January 2025 recorded (RM2,000 rent, RM150 costs) reads RM2,000 against RM1,900 modelled, +RM100, net +RM50; year 1 "1 of 12 months recorded — partial", no yield; a month not begun refused, "Not recorded — … has not begun"; the property itself unwritten, and its record gone with it');
+    });
+  }
+  /* ---- end actuals ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
