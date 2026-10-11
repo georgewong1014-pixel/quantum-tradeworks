@@ -4559,8 +4559,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7d16b65973e63f2d",
-      "changed": "2026-10-10"
+      "digest": "d665b2d4b090a748",
+      "changed": "2026-10-11"
     },
     "pages/my/portfolio.html": {
       "path": "/my/portfolio",
@@ -4851,8 +4851,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "456bccd1d478ea1d",
-      "changed": "2026-10-10"
+      "digest": "495a7bb02e8747ae",
+      "changed": "2026-10-11"
     },
     "pages/property-investing.html": {
       "path": "/property-investing",
@@ -4907,8 +4907,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "91938c9f5d21a999",
-      "changed": "2026-10-10"
+      "digest": "31b257d7679ce0fe",
+      "changed": "2026-10-11"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5023,8 +5023,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "488e5327a37a530c",
-      "changed": "2026-10-10"
+      "digest": "3706e2e069535464",
+      "changed": "2026-10-11"
     },
     "pages/property/models.html": {
       "path": "/property/models",
