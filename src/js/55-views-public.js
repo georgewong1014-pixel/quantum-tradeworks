@@ -338,7 +338,7 @@ const HIW_FLOW = {
   equities: [
     ['Input', 'A company. Search by ticker, name or Bursa code, or narrow the list in the screener or on the value map.'],
     ['Analysis', 'Statements, ratios and a valuation model chosen for the business type. Every figure shows its formula, its period and its source.'],
-    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No ratings, no target prices.'],
+    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No buy, sell or hold ratings, and no single-figure target price.'],
     ['Save', 'Put the company on a watchlist, save a valuation run or a comparison, or write an investment case.'],
     ['Next', 'Compare it with similar businesses, or write a scanner rule on the price history you supply for it.'],
   ],
@@ -1925,7 +1925,7 @@ VIEWS.about = () => trustPage('About',
       /* "Asks nothing about your circumstances" was unqualified, beside a
          property calculator whose loan-readiness check asks for income,
          debts and a credit record. */
-      ['Not advice. It does not tell you what to buy, hold or sell, produces no ratings or target prices, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
+      ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
        'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',

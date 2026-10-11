@@ -580,7 +580,7 @@ const PLANS = {
        phrasing it as breadth is the kind of claim this product refuses
        everywhere else. The count is appended at render time from the universe
        actually loaded, so the sentence cannot drift from it. */
-    blurb:'Every company in the beta universe, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no ratings, no target prices.',
+    blurb:'Every company in the beta universe, editable valuation assumptions, the full screener, comparison, multiple portfolios and watchlists, fundamental alerts and exports. Research only — no recommendations, no buy, sell or hold ratings, and no single-figure target price.',
     limits:{ reportsPerMonth:Infinity, watchlists:20, watchlistStocks:100, portfolios:20, holdings:100,
              compare:5, screenerFields:Infinity, percentileMode:true, savedScreens:50,
              valuationEditable:true, exports:true, fundamentalAlerts:true, priceAlerts:100,
@@ -9950,15 +9950,20 @@ function buildFeed() {
        there is no earlier value for it to have moved from: the item is any
        company whose current discount exceeds 18%, in a dataset that does not
        advance. */
+    /* Information, not "Positive" in green, and a sample price said to be
+       one: only illustrative companies carry a price here, so the gap is
+       between a synthetic price and a model of synthetic figures — under
+       real company names. "PCHEM sits at a 69% discount", green, read as a
+       pick (the claims audit of 11 Oct 2026). */
     if (val.mos && val.mos.base > 18 && val.confBand !== 'Low')
-      feed.push({ kind:'valuation', sev:'good', id:c.id, title:`${c.tk} sits at a ${fmtPct(val.mos.base,0)} discount to its base-case model estimate`,
-        detail:`${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
+      feed.push({ kind:'valuation', sev:'info', id:c.id, title:`${c.tk}: the sample price is ${fmtPct(val.mos.base,0)} below its base-case model estimate`,
+        detail:`Illustrative figures and a sample price, not a market quotation; a gap to a model is not a recommendation. ${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,
         detail:'Cash cover below 1.0× — the payout is being funded from the balance sheet rather than from operations.' });
     if (isNum(c.px?.m3) && Math.abs(c.px.m3) > 10)
-      feed.push({ kind:'price', sev: c.px.m3 > 0 ? 'good' : 'warning', id:c.id, title:`${c.tk} ${c.px.m3 > 0 ? 'up' : 'down'} ${fmtPct(Math.abs(c.px.m3),1)} over three months`,
-        detail:'Price move only. Check the "Why moved?" attribution before treating this as new information.' });
+      feed.push({ kind:'price', sev:'info', id:c.id, title:`${c.tk} sample price ${c.px.m3 > 0 ? 'up' : 'down'} ${fmtPct(Math.abs(c.px.m3),1)} over three months`,
+        detail:'A move in the illustrative sample price, not a market quotation. Check the "Why moved?" attribution before treating it as new information.' });
     /* The router reads the business type, not the drawdown. Pfizer, 3M and
        Mastercard fell more than 25% inside the window and are valued on the
        FCFF pack from their latest year, while this line told a reader
@@ -13300,7 +13305,7 @@ const META = {
   marketing: POSITIONING.description,
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
-  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
+  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
@@ -16751,8 +16756,8 @@ VIEWS.researchQueue = () => {
   const disc = el('div', { class: 'card' });
   disc.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
     'A large difference indicates model sensitivity or disagreement. It is not a recommendation.'));
-  disc.append(cardHead('Largest differences between market price and model estimate',
-    'An arithmetic sort of the universe by the distance between price and the modelled base case, in either direction, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
+  disc.append(cardHead('Largest differences between sample price and model estimate',
+    'Illustrative companies only — the only ones with a price here, a sample price and not a market quotation. An arithmetic sort by the distance between that price and the modelled base case, in either direction, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
   /* By the size of the distance, the sign kept on each row. The sort was on
      the signed difference, so the card listed the five largest discounts
      only — PCHEM +69% down to PETGAS +28% — while Tenaga at −61% and Nestlé
@@ -27259,7 +27264,7 @@ const HIW_FLOW = {
   equities: [
     ['Input', 'A company. Search by ticker, name or Bursa code, or narrow the list in the screener or on the value map.'],
     ['Analysis', 'Statements, ratios and a valuation model chosen for the business type. Every figure shows its formula, its period and its source.'],
-    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No ratings, no target prices.'],
+    ['Result', 'A report of what the company reported and what the model gives under assumptions you can see and change. No buy, sell or hold ratings, and no single-figure target price.'],
     ['Save', 'Put the company on a watchlist, save a valuation run or a comparison, or write an investment case.'],
     ['Next', 'Compare it with similar businesses, or write a scanner rule on the price history you supply for it.'],
   ],
@@ -28846,7 +28851,7 @@ VIEWS.about = () => trustPage('About',
       /* "Asks nothing about your circumstances" was unqualified, beside a
          property calculator whose loan-readiness check asks for income,
          debts and a credit record. */
-      ['Not advice. It does not tell you what to buy, hold or sell, produces no ratings or target prices, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
+      ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
        'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
@@ -59407,7 +59412,7 @@ VIEWS.boundaries = () => {
   legal.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Advising on securities to specific people is a regulated activity in Malaysia under the Capital Markets and Services Act. A disclaimer does not change what a feature does: a screen that ranks companies by attractiveness and calls the result a "top pick" is making a recommendation whatever the footer says.'));
   legal.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'So the boundary is built into the product rather than applied to it afterwards. There are no ratings to suppress, no target prices to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
+    'So the boundary is built into the product rather than applied to it afterwards. There are no buy, sell or hold ratings to suppress, no single-figure target price to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
   wrap.append(legal);
 
   wrap.append(notMonetisedCard());

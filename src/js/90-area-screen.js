@@ -1295,7 +1295,7 @@ VIEWS.boundaries = () => {
   legal.append(el('p', { class: 'body', style: 'font-size:13px' },
     'Advising on securities to specific people is a regulated activity in Malaysia under the Capital Markets and Services Act. A disclaimer does not change what a feature does: a screen that ranks companies by attractiveness and calls the result a "top pick" is making a recommendation whatever the footer says.'));
   legal.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'So the boundary is built into the product rather than applied to it afterwards. There are no ratings to suppress, no target prices to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
+    'So the boundary is built into the product rather than applied to it afterwards. There are no buy, sell or hold ratings to suppress, no single-figure target price to caveat, and no suitability questions to disclaim — the question does not arise. That is a harder constraint to work inside and a much easier one to be honest about.'));
   wrap.append(legal);
 
   wrap.append(notMonetisedCard());
