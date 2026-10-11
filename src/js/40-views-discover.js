@@ -250,8 +250,8 @@ VIEWS.researchQueue = () => {
   const disc = el('div', { class: 'card' });
   disc.append(el('p', { class: 'metaline', style: 'margin-bottom:8px' },
     'A large difference indicates model sensitivity or disagreement. It is not a recommendation.'));
-  disc.append(cardHead('Largest differences between market price and model estimate',
-    'An arithmetic sort of the universe by the distance between price and the modelled base case, in either direction, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
+  disc.append(cardHead('Largest differences between sample price and model estimate',
+    'Illustrative companies only — the only ones with a price here, a sample price and not a market quotation. An arithmetic sort by the distance between that price and the modelled base case, in either direction, restricted to Medium confidence or better. A sort, not a selection — the order carries no view about which company is worth owning.'));
   /* By the size of the distance, the sign kept on each row. The sort was on
      the signed difference, so the card listed the five largest discounts
      only — PCHEM +69% down to PETGAS +28% — while Tenaga at −61% and Nestlé

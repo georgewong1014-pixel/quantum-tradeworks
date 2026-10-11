@@ -636,15 +636,20 @@ function buildFeed() {
        there is no earlier value for it to have moved from: the item is any
        company whose current discount exceeds 18%, in a dataset that does not
        advance. */
+    /* Information, not "Positive" in green, and a sample price said to be
+       one: only illustrative companies carry a price here, so the gap is
+       between a synthetic price and a model of synthetic figures — under
+       real company names. "PCHEM sits at a 69% discount", green, read as a
+       pick (the claims audit of 11 Oct 2026). */
     if (val.mos && val.mos.base > 18 && val.confBand !== 'Low')
-      feed.push({ kind:'valuation', sev:'good', id:c.id, title:`${c.tk} sits at a ${fmtPct(val.mos.base,0)} discount to its base-case model estimate`,
-        detail:`${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
+      feed.push({ kind:'valuation', sev:'info', id:c.id, title:`${c.tk}: the sample price is ${fmtPct(val.mos.base,0)} below its base-case model estimate`,
+        detail:`Illustrative figures and a sample price, not a market quotation; a gap to a model is not a recommendation. ${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,
         detail:'Cash cover below 1.0× — the payout is being funded from the balance sheet rather than from operations.' });
     if (isNum(c.px?.m3) && Math.abs(c.px.m3) > 10)
-      feed.push({ kind:'price', sev: c.px.m3 > 0 ? 'good' : 'warning', id:c.id, title:`${c.tk} ${c.px.m3 > 0 ? 'up' : 'down'} ${fmtPct(Math.abs(c.px.m3),1)} over three months`,
-        detail:'Price move only. Check the "Why moved?" attribution before treating this as new information.' });
+      feed.push({ kind:'price', sev:'info', id:c.id, title:`${c.tk} sample price ${c.px.m3 > 0 ? 'up' : 'down'} ${fmtPct(Math.abs(c.px.m3),1)} over three months`,
+        detail:'A move in the illustrative sample price, not a market quotation. Check the "Why moved?" attribution before treating it as new information.' });
     /* The router reads the business type, not the drawdown. Pfizer, 3M and
        Mastercard fell more than 25% inside the window and are valued on the
        FCFF pack from their latest year, while this line told a reader

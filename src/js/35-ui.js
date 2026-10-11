@@ -1283,7 +1283,7 @@ const META = {
   marketing: POSITIONING.description,
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
-  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between price and model estimate — each company labelled filed or illustrative, with nothing recommended.',
+  researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
   discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',

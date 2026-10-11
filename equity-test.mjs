@@ -9915,7 +9915,7 @@ try {
           State.recentCompanies = keep.recent; store.write('recentCompanies', keep.recent); State.ticker = keep.ticker;
         }
         navigate('/research/queue'); await w(300);
-        const dc = card(/^Largest differences between market price and model estimate$/);
+        const dc = card(/^Largest differences between sample price and model estimate$/);
         const shown = dc ? [...dc.querySelectorAll('button.row')].map(b => b.querySelector('span').textContent.trim() + ' ' + b.querySelector('.num').textContent.trim()) : [];
         const want = U.filter(x => x.val.mos && isNum(x.val.mos.base) && x.val.confBand !== 'Low')
           .sort((a, b) => Math.abs(b.val.mos.base) - Math.abs(a.val.mos.base)).slice(0, 5).map(x => x.c.tk + ' ' + withSign(x.val.mos.base, 0));
