@@ -963,7 +963,7 @@ VIEWS.researchHome = () => {
     ['Banks', 'Deposit takers, on measures that fit a bank balance sheet.', '/discover/screener?template=my-banks', viaTemplate('my-banks'), 'illustrative', 'The lens screens the illustrative Malaysian set'],
     ['REITs', 'Property trusts, on distribution and gearing.', '/discover/screener?template=my-reits', viaTemplate('my-reits'), 'illustrative', 'The lens screens the illustrative Malaysian set'],
     ['Dividend research', 'Payout covered by cash rather than borrowing.', '/discover/screener?template=div-cover', viaTemplate('div-cover'), 'illustrative', 'Its yield needs a price, and only the illustrative companies carry one'],
-    ['Sarawak Economy Watch', 'Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', '/discover/sarawak', null],
+    ['Sarawak Economy Watch', 'Bursa companies that operate in Sarawak. Descriptive, not a preference.', '/discover/sarawak', null],
   ];
   /* The press sets the screen up, then goes to the screener itself: the
      address's parameter is for a link opened anew, and applied twice it

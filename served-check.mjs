@@ -3118,6 +3118,43 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-point-in-time ---- */
 
 
+/* ---- claims-wording ---- */
+/* THE TRUTHFUL-WORDING BATCH, AS SERVED (the claims audit of 11 Oct 2026,
+   rank 6). Each phrase the audit found claiming more than its page holds,
+   held out of every served page (and every description), and its
+   replacement held where it stands — a part a page family, each added
+   with its fix:
+   6a  the Sarawak watch: "Companies with material exposure to the Sarawak
+       economy" (F-08, R-21), where the page says the exposure is not
+       identified, is "Bursa companies that operate in Sarawak"; and a
+       listing code "resolved against a live quote", an authoring-time
+       check that read as a live feed, is "checked once against a
+       published quote when the list was made". */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const text = (path) => pageText(got.get(path)?.body || '');
+  const desc = (path) => headOf(got.get(path)?.body || '').description || '';
+  const said = [];
+  const gone = (re, what) => { const at = statics.filter(path => re.test(text(path)) || re.test(desc(path))); if (at.length) p.push(`${what} is still served on ${at.join(', ')}`); };
+  const here = (path, re, what) => { if (!re.test(text(path))) p.push(`${path} does not serve ${what}`); };
+  /* 6a */
+  gone(/material exposure to the Sarawak economy/i, '"material exposure to the Sarawak economy"');
+  gone(/resolved against a live quote/i, '"resolved against a live quote"');
+  {
+    const h1 = pageText((/<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(got.get('/discover/sarawak')?.body || '') || [])[1] || '');
+    if (h1 !== 'Bursa companies that operate in Sarawak') p.push(`/discover/sarawak's h1 reads "${h1}"`);
+    here('/discover/sarawak', /checked once against a published quote when the list was made/, 'how the listing codes were checked');
+    here('/research', /Sarawak Economy Watch Bursa companies that operate in Sarawak\./, 'the Sarawak watch\'s lens as "Bursa companies that operate in Sarawak"');
+    said.push(`/discover/sarawak "${h1}"`);
+  }
+  /* ---- parts above ---- */
+  judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
+    'a served page still claims more than it holds');
+}
+/* ---- end claims-wording ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

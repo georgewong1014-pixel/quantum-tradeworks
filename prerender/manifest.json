@@ -238,8 +238,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c7a76277ab05af75",
-      "changed": "2026-10-10"
+      "digest": "194eb24d8cb82caf",
+      "changed": "2026-10-11"
     },
     "pages/app/equities/compare.html": {
       "path": "/app/equities/compare",
@@ -296,8 +296,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c7a76277ab05af75",
-      "changed": "2026-10-10"
+      "digest": "194eb24d8cb82caf",
+      "changed": "2026-10-11"
     },
     "pages/app/scanner.html": {
       "path": "/app/scanner",
@@ -4221,7 +4221,7 @@
       "view": "sarawak",
       "state": "filings in",
       "chrome": "app",
-      "h1": "Companies with material exposure to the Sarawak economy",
+      "h1": "Bursa companies that operate in Sarawak",
       "tabs": true,
       "nav": {
         "pubnav": [],
@@ -4242,8 +4242,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5ab2a40b07586dfa",
-      "changed": "2026-10-10"
+      "digest": "0f3c61c492fed28d",
+      "changed": "2026-10-11"
     },
     "pages/discover/screener.html": {
       "path": "/discover/screener",
@@ -5110,8 +5110,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3ff16bc7da8f9993",
-      "changed": "2026-10-10"
+      "digest": "07aff2289a0a6b95",
+      "changed": "2026-10-11"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",

@@ -2150,7 +2150,11 @@ VIEWS.sarawak = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js); the
      watch's own name is its tab in the header above. */
-  wrap.append(pageHead({ title: 'Companies with material exposure to the Sarawak economy',
+  /* "Material exposure" was a finding the page itself says it has not
+     made ("The names are identified. The exposure is not."): the title
+     says what is identified (the claims audit of 11 Oct 2026, rank 6;
+     F-08, R-21). */
+  wrap.append(pageHead({ title: 'Bursa companies that operate in Sarawak',
     lede: 'The Bursa companies that operate in Sarawak, and what you record about them.',
     note: 'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.' }));
 
@@ -2161,7 +2165,7 @@ VIEWS.sarawak = () => {
   why.append(cardHead('What is here, and what is not',
     'The names are identified. The exposure is not.'));
   why.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'Which companies operate in Sarawak is checkable, and they are listed below — each listing code resolved against a live quote and the returned company name checked against the one recorded here. What share of a company’s order book is state contracts, which concessions it depends on, how concentrated its state customer base is: none of that is carried by any source this product can reach.'));
+    'Which companies operate in Sarawak is checkable, and they are listed below — each listing code checked once against a published quote when the list was made, and the company name returned checked against the one recorded here. What share of a company’s order book is state contracts, which concessions it depends on, how concentrated its state customer base is: none of that is carried by any source this product can reach.'));
   why.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
     'So the two are kept apart. Identifying a company is not researching it, and a list of familiar names with pre-filled exposure fields would look like the second while only being the first. The fields stay empty until someone fills them from a document they have read.'));
   why.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -2192,7 +2196,7 @@ VIEWS.sarawak = () => {
   if (flagged.length) {
     const roster = el('div', { class: 'card' });
     roster.append(cardHead(`Companies operating in Sarawak — ${flagged.length} identified`,
-      'Listing codes resolved against a live quote and checked against the company name. Ordered by listing code, not by merit.'));
+      'Listing codes checked once against a published quote when the list was made, and against the company name. Ordered by listing code, not by merit.'));
     const rw = el('div', { class: 'tablewrap' });
     const rt = el('table', { class: 'dt' });
     rt.append(el('thead', {}, el('tr', {}, ['Code', 'Company', 'Suggested theme', 'Closes held',

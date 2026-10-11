@@ -1295,7 +1295,7 @@ const META = {
   'discover:radar': 'The Quality vs Value Map: each company placed by business quality against the gap between its price and its base-case model estimate — which needs a price: the illustrative set on sample prices, and any company whose close you supplied.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
-  sarawak: 'Companies with material exposure to the Sarawak economy. Inclusion is descriptive and does not indicate preference.',
+  sarawak: 'Bursa companies that operate in Sarawak, and what you record about them. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
   property:  'Model a Sarawak property purchase from your own figures: the monthly cash flow, the break-even rent and the cash required, each fee line from a cited fee rulebook and marked verified or estimated. Not a valuation, not advice.',
   propertyModels: 'The properties you have saved in this browser, each with its inputs and its scenarios. Open one and the calculator edits it.',
