@@ -7590,6 +7590,110 @@ try {
   }
   /* ---- end cost-lines ---- */
 
+  /* ---- report-split ---- */
+  /* THE REPORT IN FOUR PARTS (QT-05, the owner's approval of 10 Oct 2026;
+     cpSplitSections, 72-property-proposal.js). A saved property's client
+     proposal separates Facts, Assumptions, Missing evidence and Risks, every
+     figure with its kind badge and no recommendation word. On fixture F
+     (RM400,000 graded a verified transaction, 10% down, 0% over 30 years,
+     RM2,000 rent) with the renovation as three lines:
+     RS1 — the four sections in order; Facts hold the transfer duty at the
+           ledger's printed RM7,000 (Derived, its citation), the quoted
+           Kitchen cabinets RM12,000 with its source and the price (Yours,
+           graded verified); Assumptions the estimate Painting RM8,000.50
+           and the rent; Missing evidence the valuation fee RM850, the
+           searches RM1,170 and the deposits RM1,500 (Placeholder), the
+           placeholder Contingency RM5,000 and the valuation not entered;
+           Risks the rate +1/+2/+3 pp at the model's own stressed figures;
+           every row badged; no ranking or advice word.
+     RS2 — as a shophouse: the gated lines named in Missing evidence and the
+           partial cash required in Risks; at auction with no terms, "Not
+           final — 6 checks open" in Risks and the deposit terms in Missing. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const R_SEED = `const EV = { price:'verified', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears','renovation'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const L3 = [{ item: 'Kitchen cabinets', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic)', date: '2026-09-14', includes: 'carcasses, doors', excludes: 'appliances' },
+        { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: '', excludes: '' },
+        { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }];
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+      const restore = () => { const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); } };
+      const open = async (d, name) => { State.deal = d; saveDeal(); const rec = saveActiveProperty({ name }); navigate(cpPath(rec.id)); await w(900); return rec; };
+      const read = () => [...document.querySelectorAll('#cp-doc .cp-split-sec')].map(s => ({ id: s.dataset.cpSplit, h: s.querySelector('h2')?.textContent || '',
+        rows: [...s.querySelectorAll('.cp-split-item')].map(li => ({ label: li.querySelector('.cp-split-label')?.textContent || '', v: li.querySelector('.cp-split-v')?.textContent || '',
+          kind: li.querySelector('[data-kind-badge]')?.dataset.kindBadge || null, note: li.querySelector('.cp-split-note')?.textContent || '' })),
+        text: s.textContent.replace(/\\s+/g, ' ') }));`;
+    await ftry('report-split RS1: Facts, Assumptions, Missing evidence and Risks, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
+        const d = F(); setCostLines(d, 'renovation', L3);
+        const rec = await open(d, 'rs RS1 property');
+        const secs = read();
+        const ledger = document.querySelector('#cp-doc [data-cp="line"][data-cp-line="Transfer stamp duty (MOT)"]')?.textContent || null;
+        const m = dealModel(pmInputsOf(pmFind(rec.id)));
+        const stress = m.stress.rate.slice(1).map(x => x.monthly);
+        deletePropertyModel(rec.id); restore(); navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ secs, ledger, stress }); })()`));
+      const p = [], by = Object.fromEntries(r.secs.map(s => [s.id, s]));
+      const find = (id, re) => (by[id]?.rows || []).find(x => re.test(x.label));
+      if (r.secs.map(s => s.h).join('|') !== 'Facts|Assumptions|Missing evidence|Risks') p.push(`the sections read ${JSON.stringify(r.secs.map(s => s.h))}`);
+      const unbadged = r.secs.flatMap(s => s.rows.filter(x => !x.kind).map(x => `${s.id}: ${x.label}`));
+      if (unbadged.length) p.push(`rows with no kind badge: ${unbadged.slice(0, 4).join('; ')}`);
+      const duty = find('facts', /^Transfer stamp duty/);
+      if (!duty || duty.v !== 'RM7,000' || duty.kind !== 'derived' || duty.v !== r.ledger || !/Item 32/.test(duty.note)) p.push(`Facts' transfer duty: ${JSON.stringify(duty)}, the ledger ${r.ledger} — by hand RM7,000, Derived, Item 32(a)`);
+      const kc = find('facts', /Kitchen cabinets/);
+      if (!kc || kc.v !== 'RM12,000' || kc.kind !== 'quoted' || !/Written quote ref\. EX-101/.test(kc.note)) p.push(`Facts' quoted line: ${JSON.stringify(kc)}`);
+      const price = find('facts', /^Purchase price/);
+      if (!price || price.v !== 'RM400,000' || price.kind !== 'yours' || !/verified transaction/.test(price.note)) p.push(`Facts' price: ${JSON.stringify(price)}`);
+      const paint = find('assumptions', /Painting/), rent = find('assumptions', /rent$/i);
+      if (!paint || paint.v !== 'RM8,000.50' || paint.kind !== 'yours') p.push(`Assumptions' estimate: ${JSON.stringify(paint)}`);
+      if (!rent || !/RM2,000/.test(rent.v) || rent.kind !== 'yours') p.push(`Assumptions' rent: ${JSON.stringify(rent)}`);
+      if (!find('assumptions', /^Running costs over the hold/)) p.push('the model\'s own assumption (running costs up 2% a year) is not among the Assumptions');
+      /* Each figure in one part only; nothing "Not entered" called the preparer's. */
+      const seen = {}, twice = [];
+      for (const id of ['facts', 'assumptions', 'missing']) for (const x of by[id]?.rows || []) { if (seen[x.label] && seen[x.label] !== id) twice.push(`${x.label} (${seen[x.label]}, ${id})`); seen[x.label] = id; }
+      if (twice.length) p.push(`listed in two parts: ${twice.slice(0, 4).join('; ')}`);
+      const empty = (by.assumptions?.rows || []).filter(x => /^not entered$/i.test(x.v));
+      if (empty.length) p.push(`"Not entered" listed as an assumption: ${empty.map(x => x.label).join(', ')}`);
+      for (const [re, v, k] of [[/^Valuation fee/, 'RM850', 'placeholder'], [/^Searches/, 'RM1,170', 'placeholder'], [/deposits/i, 'RM1,500', 'placeholder'], [/Contingency/, 'RM5,000', 'placeholder'], [/^Bank or valuer estimate/, 'not entered', 'unavailable']]) {
+        const x = find('missing', re);
+        if (!x || x.v !== v || x.kind !== k) p.push(`Missing evidence ${re}: ${JSON.stringify(x)} — by hand ${v}, ${k}`);
+      }
+      if (find('facts', /Contingency|Painting/) || find('missing', /Kitchen cabinets/)) p.push('a cost line is in the wrong part');
+      r.stress.forEach((v, i) => { const x = find('risks', new RegExp(`^Interest rate \\+${i + 1}\\.0 pp`)); const want = `${v < 0 ? '−' : ''}RM${Math.round(Math.abs(v)).toLocaleString('en-GB')} a month`;
+        if (!x || x.v !== want) p.push(`Risks' rate +${i + 1} pp: ${JSON.stringify(x)} — the model's ${want}`); });
+      const words = r.secs.map(s => s.text).join(' ').match(/\b(best|better|worse|recommend(?:ed|s)?|should|good deal|bargain|safest|riskiest|undervalued|overvalued)\b/i);
+      if (words) p.push(`the four parts say "${words[0]}"`);
+      if (p.length) fail('report-split RS1: Facts, Assumptions, Missing evidence and Risks, by hand', p);
+      else ok(`report-split RS1: the proposal's Facts, Assumptions, Missing evidence and Risks in that order, ${r.secs.reduce((t, s) => t + s.rows.length, 0)} rows each with its kind badge — Facts: transfer duty RM7,000 (Derived, Item 32(a), the ledger's own figure), Kitchen cabinets RM12,000 Quoted with its source, the price RM400,000 graded a verified transaction; Assumptions: Painting RM8,000.50 and the rent (Yours), running costs up 2% a year (Modelled); Missing evidence: valuation fee RM850, searches RM1,170, deposits RM1,500, Contingency RM5,000 (Placeholder), the valuation not entered; Risks: the rate +1/+2/+3 pp at the model's stressed monthly positions; no ranking or advice word`);
+    });
+
+    await ftry('report-split RS2: gated lines, the partial total and an auction\'s open checks', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
+        const shop = F(); setDealClass(shop, 'commercial');
+        const a = await open(shop, 'rs RS2 shophouse'); const s1 = read(); deletePropertyModel(a.id);
+        const auc = F(); setDealAnswer(auc, 'route', 'auction');
+        const b = await open(auc, 'rs RS2 auction'); const s2 = read(); deletePropertyModel(b.id);
+        restore(); navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ s1, s2 }); })()`));
+      const p = [];
+      const sec = (s, id) => s.find(x => x.id === id) || { rows: [], text: '' };
+      const legal = sec(r.s1, 'missing').rows.find(x => /^Loan legal fees/.test(x.label));
+      if (!legal || legal.kind !== 'unavailable' || !/not yet checked for commercial property/.test(legal.v)) p.push(`the shophouse's loan legal fees in Missing evidence: ${JSON.stringify(legal)}`);
+      const part = sec(r.s1, 'risks').rows.find(x => /^Cash required — partial/.test(x.label));
+      if (!part || !/excludes loan legal fees/.test(part.note)) p.push(`the shophouse's partial cash required in Risks: ${JSON.stringify(part)}`);
+      const nf = sec(r.s2, 'risks').rows.find(x => /^Not final — 6 checks open/.test(x.label));
+      if (!nf || nf.kind !== 'unavailable') p.push(`the auction's open checks in Risks: ${JSON.stringify(nf)}`);
+      if (!sec(r.s2, 'missing').rows.some(x => /deposit terms/.test(x.label))) p.push('the auction\'s deposit terms are not named in Missing evidence');
+      if (p.length) fail('report-split RS2: gated lines, the partial total and an auction\'s open checks', p);
+      else ok('report-split RS2: as a shophouse the loan legal fees read "Unavailable — not yet checked for commercial property" under Missing evidence and "Cash required — partial", naming them, under Risks; at auction with nothing entered, "Not final — 6 checks open" under Risks and the Proclamation\'s deposit terms under Missing evidence');
+    });
+  }
+  /* ---- end report-split ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

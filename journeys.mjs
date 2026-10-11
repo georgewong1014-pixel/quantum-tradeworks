@@ -2078,8 +2078,8 @@ const JOURNEYS = [
        each with its source, its date, what it includes and its kind — the
        cost their total, badged by the weakest line, saved with the
        property. */
-    id: 'costs', name: 'Property costs: lines with their sources',
-    outcomes: ['Enter cost lines with sources'],
+    id: 'costs', name: 'Property costs: lines with their sources, the report in four parts',
+    outcomes: ['Enter cost lines with sources', 'Open the report and see the four sections'],
     async run(j, tab) {
       let id;
       const pre = 'lab-rf-cl-refurb';
@@ -2115,6 +2115,16 @@ const JOURNEYS = [
         await tab.click(`document.getElementById('lab-rf-save')`, 'Save the refurbish-or-not figures');
         await tab.expect(`(() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})); return d.rfRefurbCost === 20000 && (d.rfRefurbLines || []).length === 2 && d.rfRefurbLines[0].source === 'Written quote ref. J-1 (journey)' && d.rfRefurbLines[0].date === '2026-09-14'; })()`,
           async () => `the property holds ${await tab.eval(`JSON.stringify(pmInputsOf(pmFind(${JSON.stringify(id)})).rfRefurbLines ?? null)`)}`);
+      });
+      await step(j, tab, 'Open the report and see the four sections', BUDGET.load * 2, async () => {
+        await tab.goto(`/property/models/${encodeURIComponent(id)}/proposal`);
+        await tab.expect(`[...document.querySelectorAll('#cp-doc .cp-split-sec h2')].map(h => h.textContent).join('|') === 'Facts|Assumptions|Missing evidence|Risks'`,
+          async () => `the report's sections read ${await tab.eval(`JSON.stringify([...document.querySelectorAll('#cp-doc h2')].map(h => h.textContent))`)}`);
+        const r = JSON.parse(await tab.eval(`JSON.stringify((() => { const rows = (id) => [...document.querySelectorAll('#cp-doc .cp-split-sec[data-cp-split="' + id + '"] .cp-split-item')];
+          return { kc: rows('facts').find(li => /Kitchen cabinets/.test(li.textContent))?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null,
+            paint: rows('assumptions').find(li => /Painting/.test(li.textContent))?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null,
+            unbadged: ['facts', 'assumptions', 'missing', 'risks'].flatMap(rows).filter(li => !li.querySelector('[data-kind-badge]')).length }; })())`));
+        if (r.kc !== 'quoted' || r.paint !== 'yours' || r.unbadged) throw new StepError(`the four sections read ${JSON.stringify(r)}`);
       });
     },
   },

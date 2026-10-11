@@ -957,6 +957,154 @@ function cpDisclosures(rec, d, m) {
   return s;
 }
 
+/* ---------------------------------------- the report in four parts (QT-05) */
+/* FACTS, ASSUMPTIONS, MISSING EVIDENCE, RISKS (the owner's approval of 10
+   Oct 2026, the four-business strategy's Track A, QT-05). Every figure the
+   proposal rests on, sorted by what stands behind it, each with its kind
+   badge (D6) — the arithmetic dealModel's, nothing computed here but sums
+   of its own lines:
+   - FACTS: figures computed from a verified rule (the fee rulebook's
+     Derived lines, at the ledger's printed amounts), quotations entered
+     with their source, the preparer's figures graded a verified
+     transaction or public data, and the comparables named that record a
+     source;
+   - ASSUMPTIONS: the preparer's inputs (Yours) and the calculator's
+     starting values still in them (Illustrative), the preparer's own cost
+     estimates, and the model's own assumptions (Modelled);
+   - MISSING EVIDENCE: every Unavailable, Placeholder or unverified line,
+     named — the rulebook's estimates, lines not priced or gated for the
+     class, placeholder cost lines, quotes with no source or date, inputs
+     still the sample's, figures graded no better than an estimate, a loan
+     with no valuation, comparables with no source, the auction's terms and
+     the lease's dates not entered;
+   - RISKS: the downside cases — the rate and the vacancy stressed, the
+     renovation overrunning, a monthly shortfall, the lease-down's reserves,
+     the auction's forfeiture and its "Not final" checks, a partial cash
+     required, gains tax on an early sale.
+   No figure is ranked and nothing is recommended: the lead says the
+   figures entered imply them. A section with nothing in it says so. */
+const CP_SPLIT = [
+  ['facts', 'Facts', 'Figures from a verified rule, a quotation with its source, a figure graded a verified transaction or public data, a comparable that records its source.'],
+  ['assumptions', 'Assumptions', 'The preparer’s inputs and estimates, and the model’s own assumptions — each marked whose it is.'],
+  ['missing', 'Missing evidence', 'Every figure still an estimate, a placeholder, unverified or not entered, named — what to replace before relying on the totals.'],
+  ['risks', 'Risks', 'The downside cases the model can work out from these inputs. Each is arithmetic on the figures entered, not a forecast.'],
+];
+const CP_EV_WORD = { verified: 'graded a verified transaction', public: 'graded public data', user: 'the preparer’s', developer: 'quoted by the seller or developer', estimated: 'graded an estimate', assumed: 'graded an assumption', illustrative_default: 'the calculator’s starting value' };
+const CP_DRIVER_LABEL = { price: 'Purchase price', rent: 'Expected monthly rent', maintenance: 'Monthly maintenance', sqft: 'Built-up area' };
+const cpSignedMoney = (v) => (isNum(v) ? `${v < 0 ? '−' : ''}${cpMoney(Math.abs(v))}` : '—');
+function cpSplitItems(d, m, cash) {
+  const out = { facts: [], assumptions: [], missing: [], risks: [] };
+  const put = (part, label, value, kind, note = null, key = null) => out[part].push({ label, value, kind, note, key });
+  const lets = m.letsToTenant, loan = m.loan > 0;
+  /* The ledger's lines, at the amounts the ledger prints. */
+  cash.groups.forEach(g => g.items.forEach((it, j) => {
+    const r = it[2], amount = g.lines[j];
+    if (!r?.provenance) return;
+    if (!isNum(it[1])) { put('missing', cpLineLabel(it[0]), r.gated ? feeGateWords(r.gated) : 'not priced', 'unavailable', r.gated ? (r.gateWhy || null) : (r.why || 'No amount could be worked out.'), 'fee'); return; }
+    if (r.provenance === 'verified') put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived',
+      `${r.line?.source?.citation || r.line?.source?.title || 'the fee rulebook'} — fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}`, 'fee');
+    else if (r.provenance === 'quote') put('facts', cpLineLabel(it[0]), cpMoney(amount), feeKindBadge(r, it[1]), 'A quotation the preparer entered; no rule checks it.', 'fee');
+    else put('missing', cpLineLabel(it[0]), cpMoney(amount), 'placeholder',
+      r.provenance === 'unknown' ? 'Rests on a rule that could not be verified for this jurisdiction.' : 'The fee rulebook’s estimate, not a quotation: replace it with one.', 'fee');
+  }));
+  /* A cost line nobody priced has no provenance of its own: said too. */
+  (m.missingCostLines || []).filter(x => !x.gated && !(cash.groups.flatMap(g => g.items).find(it => it[0] === x.label)?.[2]?.provenance))
+    .forEach(x => put('missing', x.label, 'not priced', 'unavailable', x.why || 'No amount could be worked out.', 'line'));
+  /* The cost lines (QT-03): each where its kind puts it. */
+  for (const id of Object.keys(COST_TARGETS)) {
+    if (!costLinesExplicit(d, id)) continue;
+    const t = COST_TARGETS[id];
+    for (const x of costLinesOf(d, id)) {
+      const label = `${t.label} — ${x.item}`, said = [x.source ? `Source: ${x.source}` : null, x.date ? `dated ${feeDay(x.date)}` : null,
+        x.includes ? `includes ${x.includes}` : null, x.excludes ? `excludes ${x.excludes}` : null].filter(Boolean).join(' · ');
+      if (x.kind === 'quoted' && x.source && x.date) put('facts', label, clMoney(x.amount), 'quoted', said, 'cost');
+      else if (x.kind === 'quoted') put('missing', label, clMoney(x.amount), 'quoted', 'A quote with no source or date recorded.', 'cost');
+      else if (x.kind === 'estimate') put('assumptions', label, clMoney(x.amount), 'yours', said || 'The preparer’s own estimate.', 'cost');
+      else put('missing', label, clMoney(x.amount), 'placeholder', 'A placeholder, put in to see the arithmetic: replace it with a quote or an estimate.', 'cost');
+    }
+  }
+  /* The figures the evidence is graded for, by their grade. */
+  const drivers = evidenceDriversFor(d);
+  for (const k of drivers) {
+    const ev = shownEvidence(d, k), val = k === 'sqft' ? `${cpN(d[k])} sq ft` : k === 'rent' || k === 'maintenance' ? cpMoneyMonth(d[k]) : cpMoneyIn(d[k]);
+    if (ev === 'verified' || ev === 'public') put('facts', CP_DRIVER_LABEL[k], val, 'yours', `${cpCap(CP_EV_WORD[ev])} by the preparer.`, 'input');
+    else if (!cpSeeded(d, k) && ['estimated', 'assumed', 'developer'].includes(ev)) put('missing', CP_DRIVER_LABEL[k], val, KIND_OF_EVIDENCE[ev] || 'yours', `${cpCap(CP_EV_WORD[ev])}: no transaction or published figure stands behind it.`, 'input');
+  }
+  /* The comparables named. */
+  const gap = priceGap(d);
+  for (const c of [...gap.comps, ...gap.askingComps]) {
+    const sourced = c.source && c.source !== 'no source recorded';
+    put(sourced ? 'facts' : 'missing', `Comparable — ${c.name}`, cpMoneyIn(c.price), 'yours', sourced ? `Source: ${c.source}${c.date ? ` · ${c.date}` : ''}` : 'Named from the register with no source recorded.', 'comparable');
+  }
+  /* The inputs: the preparer's, and the sample's still in them. */
+  const factKeys = new Set(drivers.filter(k => ['verified', 'public'].includes(shownEvidence(d, k))));
+  const sample = new Set(cpSampleKeys(d, m));
+  const inputRows = [['price', 'Purchase price', cpMoneyIn(d.price)], ['sqft', 'Built-up area', `${cpN(d.sqft)} sq ft`],
+    ...cpInputGroups(d, m).flatMap(([, rows]) => rows.map(r => [r.k, r.label, r.value]))];
+  /* A figure listed under Missing evidence for its grade is not listed
+     again; nor is an input left empty (a valuation, a tax rate or a quote
+     of nought: "Not entered") — what it leaves out is said on its own row. */
+  const listed = new Set(out.missing.filter(x => x.key === 'input').map(x => x.label));
+  for (const [k, label, value] of inputRows) {
+    if (factKeys.has(k) || listed.has(CP_DRIVER_LABEL[k])) continue;
+    if (k === 'renovation' && costLinesExplicit(d, 'renovation')) continue;
+    if (CP_EMPTY_AT_NIL.includes(k) && !(num0(d[k]) > 0)) continue;
+    if (sample.has(k)) put('missing', label, value, 'illustrative', 'The calculator’s starting value: nobody entered it for this property.', 'input');
+    else put('assumptions', label, value, 'yours', 'Entered by the preparer.', 'input');
+  }
+  /* The model's own. */
+  put('assumptions', 'Running costs over the hold', '2% a year', 'modelled', 'The model raises the running costs by 2% a year after the first.', 'model');
+  if (lets && !m.taxComputed) put('assumptions', 'Tax on the rent', 'not counted', 'modelled', 'No marginal tax rate is entered: every figure is before tax on the rent.', 'model');
+  if (loan && !m.financingBasisConfirmed) put('missing', 'Bank or valuer estimate', 'not entered', 'unavailable', 'The loan is calculated on the purchase price, not on a lender’s valuation.', 'input');
+  /* By route. */
+  const route = dealRoute(d), cls = propertyClassOf(d);
+  const au = route === 'auction' ? auctionModel(d, m) : null;
+  if (au) {
+    if (au.forfeiture.status !== 'ok') put('missing', 'The Proclamation’s deposit terms', 'not entered', 'unavailable', `Enter ${cpList2(au.forfeiture.missing)} — never assumed.`, 'route');
+    au.notEntered.forEach(l => put('missing', `Auction — ${l}`, 'not entered', 'unavailable', 'Not entered, not counted in the effective cost.', 'route'));
+  }
+  const cm = cls === 'commercial' ? commercialModel(d, m) : null;
+  if (cm && cm.lease.missing.length) put('missing', 'The lease', 'not entered', 'unavailable', `Enter ${cpList2(cm.lease.missing)} for the lease-down.`, 'route');
+  /* THE RISKS. */
+  const stressRow = (label, v, note) => put('risks', label, isNum(v) ? `${cpSignedMoney(v)} a month` : 'not computed', isNum(v) ? (sample.size ? 'illustrative' : 'modelled') : 'unavailable', note, 'stress');
+  if (isNum(m.cashflowMonthly) && m.cashflowMonthly < 0) put('risks', 'Monthly position as modelled', `${cpSignedMoney(m.cashflowMonthly)} a month`, sample.size ? 'illustrative' : 'modelled', 'Met from the owner’s own income every month.', 'position');
+  if (loan) for (const r of (m.stress?.rate || []).slice(1)) stressRow(`Interest rate ${r.label} (${cpPct(r.ratePct, 2)})`, r.monthly, 'The monthly position with the rate raised and everything else held.');
+  if (lets) for (const r of (m.stress?.vacancy || []).slice(1)) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
+  if (num0(d.renovation) > 0) for (const r of (m.stress?.renovation || []).slice(1, 3)) put('risks', `Renovation ${r.label}`, `${cpMoney(r.cash)} cash required`, sample.size ? 'illustrative' : 'modelled', `The renovation at ${cpMoney(r.renovation)}; every other line as entered.`, 'stress');
+  if (cashPartial(m)) put('risks', 'Cash required — partial', cpMoney(cash.total), 'unavailable', `${cpCap(cashPartial(m).words)}: the total is short by whatever ${cashPartial(m).n === 1 ? 'that line comes' : 'those lines come'} to.`, 'gated');
+  if (cm && !cm.lease.missing.length) for (const s of cm.lease.scenarios || []) {
+    if (s.status === 'unavailable') continue;
+    put('risks', `Lease-down — ${s.months} months empty`, isNum(s.reserve) ? `${cpMoney(s.reserve)} reserve` : 'not computed', cm.lease.reserveKind, `${isNum(s.effYield) ? `Effective yield over the hold ${fmtPct(s.effYield, 2)}. ` : ''}The cash to carry it with no rent${num0(cm.lease.fitOut) > 0 ? ', and the fit-out to re-let' : ''}.`, 'lease');
+  }
+  if (au) {
+    if (au.forfeiture.status === 'ok') put('risks', 'Forfeiture — the deposit at risk', cpMoney(au.forfeiture.atRisk), 'yours', `Lost if the ${cpMoney(au.forfeiture.balance)} balance is not paid within ${cpN(au.forfeiture.days)} days.`, 'auction');
+    if (!au.final) put('risks', `Not final — ${au.checksOpen.length} check${au.checksOpen.length === 1 ? '' : 's'} open`, `${au.checksOpen.length} of ${AUCTION_CHECK_IDS.length}`, 'unavailable', `Open: ${cpList2(au.checksOpen.map(id => AUCTION_CHECKS[id].label.toLowerCase()))}. No auction figure is final until each is checked.`, 'auction');
+  }
+  if (num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
+  return out;
+}
+const cpList2 = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+function cpSplitSections(d, m, cash) {
+  const items = cpSplitItems(d, m, cash);
+  const wrap = el('div', { class: 'cp-split', 'data-cp-split': 'all' });
+  wrap.append(cpNote('Every figure this proposal rests on, in four parts, each marked with its kind. The figures entered imply these; none is ranked and nothing here is a recommendation.'));
+  for (const [id, title, lede] of CP_SPLIT) {
+    const s = cpSection(id, title);
+    s.classList.add('cp-split-sec');
+    s.dataset.cpSplit = id;
+    s.append(el('p', { class: 'cp-note cp-split-lede' }, lede));
+    const xs = items[id];
+    if (!xs.length) s.append(el('p', { class: 'cp-note', 'data-cp-none': id }, id === 'missing' ? 'Nothing: every figure here is entered, priced and sourced.' : id === 'risks' ? 'None the model can work out from these inputs.' : 'None.'));
+    else s.append(el('ul', { class: 'cp-split-list' }, xs.map(x => el('li', { class: 'cp-split-item', 'data-split-kind': x.kind, 'data-split-key': x.key || '' }, [
+      el('span', { class: 'cp-split-label' }, x.label),
+      el('span', { class: 'cp-split-v num' }, x.value),
+      kindBadge(x.kind, { link: false }),
+      x.note ? el('span', { class: 'cp-split-note' }, x.note) : null]))));
+    wrap.append(s);
+  }
+  return wrap;
+}
+
 function cpDocument(rec, details, forWhom, picks) {
   const d = pmInputsOf(rec), m = dealModel(d), cash = cpCash(m), paid = propertyReportUnlocked(d.projectId);
   const doc = el('article', { class: 'cp-doc', id: 'cp-doc', 'aria-label': 'Client proposal' });
@@ -970,6 +1118,9 @@ function cpDocument(rec, details, forWhom, picks) {
   if (workIsSample(rec)) doc.append(el('p', { class: 'cp-note cp-warn cp-sample' },
     'Illustrative: every figure in this proposal comes from the calculator’s sample inputs, which nobody chose for any real property.'));
   doc.append(cpKeyFigures(d, m, cash));
+  /* QT-05: Facts, Assumptions, Missing evidence and Risks, before the
+     working section by section. */
+  doc.append(cpSplitSections(d, m, cash));
   doc.append(cpPropertySection(rec, d, m));
   doc.append(cpAcquisitionSection(d, m, cash));
   doc.append(cpFinancingSection(d, m));

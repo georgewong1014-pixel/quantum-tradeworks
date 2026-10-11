@@ -3837,6 +3837,75 @@ for (const w of [360, 390]) {
   else console.log(`ok   cost-lines: the calculator's renovation (three lines) and a saved property's Refurbish (two) at 360, 390 and 430, in the page's font and in Verdana: every line, field and the total inside the editor; every control a 44px target; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
 }
 /* ---- end cost-lines ---- */
+/* ---- report-split ---- */
+/* THE REPORT'S FOUR PARTS ON A PHONE (QT-05; cpSplitSections,
+   72-property-proposal.js). A saved property's client proposal — the
+   renovation as three lines, a shophouse so the gated lines and the
+   partial total appear — at 360×640, 390×844 and 430×932, in the page's
+   font and in Verdana: Facts, Assumptions, Missing evidence and Risks
+   drawn, every row and its badge inside the document's width, nothing on
+   the page scrolling sideways. Fails on 31a1f400, where there are no four
+   parts. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const SEED = `(() => { const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { renovation: true } };
+    setDealClass(d, 'commercial');
+    setCostLines(d, 'renovation', [{ item: 'Kitchen cabinets and a long worktop description to wrap', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic), a long source to wrap on a phone', date: '2026-09-14', includes: 'carcasses, doors, worktop', excludes: 'appliances' },
+      { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: '', excludes: '' }, { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }]);
+    State.deal = d; saveDeal(); return saveActiveProperty({ name: 'Shophouse, Tabuan — the report' }).id; })()`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0;
+    const doc = document.getElementById('cp-doc');
+    if (!doc) return { none: true };
+    const p = doc.getBoundingClientRect();
+    const secs = [...doc.querySelectorAll('.cp-split-sec')].map(s => s.dataset.cpSplit).join(',');
+    const outside = [...doc.querySelectorAll('.cp-split-item, .cp-split-item > *')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.className.split(' ')[0]);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, secs, rows: doc.querySelectorAll('.cp-split-item').length, outside,
+      face: getComputedStyle(doc.querySelector('.cp-split-label') || doc).fontFamily };
+  })()`;
+  try {
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const id = await ev(SEED);
+      await load(`/property/models/${encodeURIComponent(id)}/proposal`);
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      await sleep(200);
+      const r = await ev(read);
+      if (r.none) { fails.push(`${at}: no proposal drawn`); continue; }
+      if (r.secs !== 'facts,assumptions,missing,risks') fails.push(`${at}: the parts drawn are "${r.secs}"`);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.outside.length) fails.push(`${at}: outside the document's width: ${r.outside.slice(0, 4).join(', ')}`);
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+      said.push(`${at.replace(' in Verdana', ' V')}: ${r.rows} rows`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL report-split — the report's four parts on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   report-split: a saved shophouse's client proposal at 360, 390 and 430, in the page's font and in Verdana: Facts, Assumptions, Missing evidence and Risks drawn, every row and badge inside the document, nothing scrolling sideways (${said.slice(0, 3).join('; ')} …)`);
+}
+/* ---- end report-split ---- */
 /* ---- lab-words ---- */
 /* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
    "Scenario Lab is useful but too explanation-heavy, especially for
