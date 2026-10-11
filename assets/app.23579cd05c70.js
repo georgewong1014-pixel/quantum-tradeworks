@@ -35409,6 +35409,15 @@ const PROPERTY_I18N = {
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
   'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
   'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
+  /* The cost lines' fields (QT-03) and the schedule import, in the rail. */
+  'cl.item':{ en:'Item', ms:'Butiran', zh:'项目' },
+  'cl.amount':{ en:'Amount (RM)', ms:'Amaun (RM)', zh:'金额 (RM)' },
+  'cl.kind':{ en:'Kind', ms:'Jenis', zh:'类型' },
+  'cl.source':{ en:'Source — where it came from, in your words', ms:'Sumber — dari mana ia datang, dalam kata-kata anda', zh:'来源——用您自己的话说明出处' },
+  'cl.date':{ en:'Date', ms:'Tarikh', zh:'日期' },
+  'cl.includes':{ en:'What it includes', ms:'Apa yang termasuk', zh:'包括的内容' },
+  'cl.excludes':{ en:'What it excludes', ms:'Apa yang tidak termasuk', zh:'不包括的内容' },
+  'cl.import':{ en:'Import a cost schedule — a .json or .csv file in the published format', ms:'Import jadual kos — fail .json atau .csv dalam format yang diterbitkan', zh:'导入成本明细表——已发布格式的 .json 或 .csv 文件' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
@@ -38203,7 +38212,7 @@ const CP_SPLIT = [
 const CP_EV_WORD = { verified: 'graded a verified transaction', public: 'graded public data', user: 'the preparer’s', developer: 'quoted by the seller or developer', estimated: 'graded an estimate', assumed: 'graded an assumption', illustrative_default: 'the calculator’s starting value' };
 const CP_DRIVER_LABEL = { price: 'Purchase price', rent: 'Expected monthly rent', maintenance: 'Monthly maintenance', sqft: 'Built-up area' };
 const cpSignedMoney = (v) => (isNum(v) ? `${v < 0 ? '−' : ''}${cpMoney(Math.abs(v))}` : '—');
-function cpSplitItems(d, m, cash) {
+function cpSplitItems(d, m, cash, paid = false) {
   const out = { facts: [], assumptions: [], missing: [], risks: [] };
   const put = (part, label, value, kind, note = null, key = null) => out[part].push({ label, value, kind, note, key });
   const lets = m.letsToTenant, loan = m.loan > 0;
@@ -38291,12 +38300,14 @@ function cpSplitItems(d, m, cash) {
     if (au.forfeiture.status === 'ok') put('risks', 'Forfeiture — the deposit at risk', cpMoney(au.forfeiture.atRisk), 'yours', `Lost if the ${cpMoney(au.forfeiture.balance)} balance is not paid within ${cpN(au.forfeiture.days)} days.`, 'auction');
     if (!au.final) put('risks', `Not final — ${au.checksOpen.length} check${au.checksOpen.length === 1 ? '' : 's'} open`, `${au.checksOpen.length} of ${AUCTION_CHECK_IDS.length}`, 'unavailable', `Open: ${cpList2(au.checksOpen.map(id => AUCTION_CHECKS[id].label.toLowerCase()))}. No auction figure is final until each is checked.`, 'auction');
   }
-  if (num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
+  /* Gains tax is the full report's (the owner's paywall rule, 3 Oct 2026:
+     cpExitSection): named only where the report is unlocked. */
+  if (paid && num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
   return out;
 }
 const cpList2 = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
-function cpSplitSections(d, m, cash) {
-  const items = cpSplitItems(d, m, cash);
+function cpSplitSections(d, m, cash, paid = false) {
+  const items = cpSplitItems(d, m, cash, paid);
   const wrap = el('div', { class: 'cp-split', 'data-cp-split': 'all' });
   wrap.append(cpNote('Every figure this proposal rests on, in four parts, each marked with its kind. The figures entered imply these; none is ranked and nothing here is a recommendation.'));
   for (const [id, title, lede] of CP_SPLIT) {
@@ -38331,7 +38342,7 @@ function cpDocument(rec, details, forWhom, picks) {
   doc.append(cpKeyFigures(d, m, cash));
   /* QT-05: Facts, Assumptions, Missing evidence and Risks, before the
      working section by section. */
-  doc.append(cpSplitSections(d, m, cash));
+  doc.append(cpSplitSections(d, m, cash, paid));
   doc.append(cpPropertySection(rec, d, m));
   doc.append(cpAcquisitionSection(d, m, cash));
   doc.append(cpFinancingSection(d, m));
@@ -51729,13 +51740,13 @@ function costLinesBlock({ d, target, prefix, write }) {
     COST_LINE_KIND_IDS.map(k => el('option', { value: k, selected: k === 'quoted' ? '' : null }, COST_LINE_KINDS[k].option)));
   const add = el('fieldset', { class: 'au-group cl-add', id: `${id}-addset` });
   add.append(el('legend', { class: 'au-legend' }, 'Add a line'), el('div', { class: 'au-grid cl-grid' }, [
-    f('item', 'Item', { type: 'text', maxlength: String(COST_TEXT_MAX.item), placeholder: 'e.g. Kitchen cabinets' }),
-    f('amount', 'Amount (RM)', { type: 'text', inputmode: 'decimal', placeholder: 'e.g. 12000' }),
-    el('div', { class: 'au-field cl-f cl-f-kind' }, [el('label', { for: `${id}-kind`, class: 'au-label' }, 'Kind'), kindSel]),
-    f('source', 'Source — where it came from, in your words', { type: 'text', maxlength: String(COST_TEXT_MAX.source), placeholder: 'e.g. Written quote ref. 123' }),
-    f('date', 'Date', { type: 'date' }),
-    f('includes', 'What it includes', { type: 'text', maxlength: String(COST_TEXT_MAX.includes) }),
-    f('excludes', 'What it excludes', { type: 'text', maxlength: String(COST_TEXT_MAX.excludes) }),
+    f('item', ptr('cl.item', 'Item'), { type: 'text', maxlength: String(COST_TEXT_MAX.item), placeholder: 'e.g. Kitchen cabinets' }),
+    f('amount', ptr('cl.amount', 'Amount (RM)'), { type: 'text', inputmode: 'decimal', placeholder: 'e.g. 12000' }),
+    el('div', { class: 'au-field cl-f cl-f-kind' }, [el('label', { for: `${id}-kind`, class: 'au-label' }, ptr('cl.kind', 'Kind')), kindSel]),
+    f('source', ptr('cl.source', 'Source — where it came from, in your words'), { type: 'text', maxlength: String(COST_TEXT_MAX.source), placeholder: 'e.g. Written quote ref. 123' }),
+    f('date', ptr('cl.date', 'Date'), { type: 'date' }),
+    f('includes', ptr('cl.includes', 'What it includes'), { type: 'text', maxlength: String(COST_TEXT_MAX.includes) }),
+    f('excludes', ptr('cl.excludes', 'What it excludes'), { type: 'text', maxlength: String(COST_TEXT_MAX.excludes) }),
   ]));
   const msg = el('p', { class: 'cl-msg metaline', id: `${id}-msg`, role: 'status', 'aria-live': 'polite' }, CL_SAID[id] || '');
   add.append(el('div', { class: 'cl-acts' }, [el('button', { type: 'button', class: 'btn btn-ghost btn-sm cl-add-btn', id: `${id}-add`, onclick: () => {
@@ -51933,8 +51944,11 @@ function costImportControl({ id, lines, write }) {
     e.target.value = '';
   } });
   return el('div', { class: 'au-field cl-import', id: `${id}-import` }, [
-    el('label', { for: fid, class: 'au-label' }, 'Import a cost schedule — a .json or .csv file in the published format'),
-    input,
+    el('label', { for: fid, class: 'au-label' }, ptr('cl.import', 'Import a cost schedule — a .json or .csv file in the published format')),
+    /* In a box of the control's own height: a served page carries no file
+       field (prerender.mjs removes it), and the words under it must stand
+       where the drawn page puts them. */
+    el('span', { class: 'cl-file-box' }, input),
     el('p', { class: 'metaline cl-import-note' }, 'Read in this page from the file you choose; nothing is fetched or sent.'),
     el('a', { class: 'cl-import-link metaline', href: '/data-sources#cost-schedule' }, 'The format, and an example'),
     say]);

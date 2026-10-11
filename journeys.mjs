@@ -1479,8 +1479,10 @@ const JOURNEYS = [
         await tab.expect(`State.view === 'propertyProposal' && !!document.getElementById('cp-h-exit')`, 'the Client proposal link did not open a proposal with its sale');
         const sale = await tab.eval(`(() => { const doc = document.getElementById('cp-doc'), sec = document.getElementById('cp-h-exit').parentElement;
           /* Its words but its inputs (.cp-assume): "Agent commission on
-             exit, 2%" is an assumption, not the sale's commission. */
-          const words = doc.cloneNode(true); words.querySelectorAll('.cp-assume').forEach(n => n.remove());
+             exit, 2%" is an assumption, not the sale's commission — and so
+             are the same inputs listed again in the report split (QT-05,
+             .cp-split-item[data-split-key="input"]). */
+          const words = doc.cloneNode(true); words.querySelectorAll('.cp-assume, .cp-split-item[data-split-key="input"]').forEach(n => n.remove());
           return { rows: [...sec.querySelectorAll('tbody th')].map(th => th.textContent.replace(/\\s+/g, ' ').trim()), text: words.textContent.replace(/\\s+/g, ' '),
             notes: [...sec.querySelectorAll('.cp-note')].map(p => p.textContent.replace(/\\s+/g, ' ').trim()) }; })()`);
         const want = [/^Value less loan, year \d+ \(before selling costs\)$/, /^If sold in year \d+$/];

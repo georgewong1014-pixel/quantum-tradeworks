@@ -90,13 +90,13 @@ function costLinesBlock({ d, target, prefix, write }) {
     COST_LINE_KIND_IDS.map(k => el('option', { value: k, selected: k === 'quoted' ? '' : null }, COST_LINE_KINDS[k].option)));
   const add = el('fieldset', { class: 'au-group cl-add', id: `${id}-addset` });
   add.append(el('legend', { class: 'au-legend' }, 'Add a line'), el('div', { class: 'au-grid cl-grid' }, [
-    f('item', 'Item', { type: 'text', maxlength: String(COST_TEXT_MAX.item), placeholder: 'e.g. Kitchen cabinets' }),
-    f('amount', 'Amount (RM)', { type: 'text', inputmode: 'decimal', placeholder: 'e.g. 12000' }),
-    el('div', { class: 'au-field cl-f cl-f-kind' }, [el('label', { for: `${id}-kind`, class: 'au-label' }, 'Kind'), kindSel]),
-    f('source', 'Source — where it came from, in your words', { type: 'text', maxlength: String(COST_TEXT_MAX.source), placeholder: 'e.g. Written quote ref. 123' }),
-    f('date', 'Date', { type: 'date' }),
-    f('includes', 'What it includes', { type: 'text', maxlength: String(COST_TEXT_MAX.includes) }),
-    f('excludes', 'What it excludes', { type: 'text', maxlength: String(COST_TEXT_MAX.excludes) }),
+    f('item', ptr('cl.item', 'Item'), { type: 'text', maxlength: String(COST_TEXT_MAX.item), placeholder: 'e.g. Kitchen cabinets' }),
+    f('amount', ptr('cl.amount', 'Amount (RM)'), { type: 'text', inputmode: 'decimal', placeholder: 'e.g. 12000' }),
+    el('div', { class: 'au-field cl-f cl-f-kind' }, [el('label', { for: `${id}-kind`, class: 'au-label' }, ptr('cl.kind', 'Kind')), kindSel]),
+    f('source', ptr('cl.source', 'Source — where it came from, in your words'), { type: 'text', maxlength: String(COST_TEXT_MAX.source), placeholder: 'e.g. Written quote ref. 123' }),
+    f('date', ptr('cl.date', 'Date'), { type: 'date' }),
+    f('includes', ptr('cl.includes', 'What it includes'), { type: 'text', maxlength: String(COST_TEXT_MAX.includes) }),
+    f('excludes', ptr('cl.excludes', 'What it excludes'), { type: 'text', maxlength: String(COST_TEXT_MAX.excludes) }),
   ]));
   const msg = el('p', { class: 'cl-msg metaline', id: `${id}-msg`, role: 'status', 'aria-live': 'polite' }, CL_SAID[id] || '');
   add.append(el('div', { class: 'cl-acts' }, [el('button', { type: 'button', class: 'btn btn-ghost btn-sm cl-add-btn', id: `${id}-add`, onclick: () => {
@@ -294,8 +294,11 @@ function costImportControl({ id, lines, write }) {
     e.target.value = '';
   } });
   return el('div', { class: 'au-field cl-import', id: `${id}-import` }, [
-    el('label', { for: fid, class: 'au-label' }, 'Import a cost schedule — a .json or .csv file in the published format'),
-    input,
+    el('label', { for: fid, class: 'au-label' }, ptr('cl.import', 'Import a cost schedule — a .json or .csv file in the published format')),
+    /* In a box of the control's own height: a served page carries no file
+       field (prerender.mjs removes it), and the words under it must stand
+       where the drawn page puts them. */
+    el('span', { class: 'cl-file-box' }, input),
     el('p', { class: 'metaline cl-import-note' }, 'Read in this page from the file you choose; nothing is fetched or sent.'),
     el('a', { class: 'cl-import-link metaline', href: '/data-sources#cost-schedule' }, 'The format, and an example'),
     say]);

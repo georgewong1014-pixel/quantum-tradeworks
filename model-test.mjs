@@ -4258,8 +4258,11 @@ try {
                 keys: [...(doc?.querySelectorAll('[data-cp]') || [])].map(n => n.dataset.cp),
                 /* The page's words but its inputs (.cp-assume): "Agent
                    commission on exit, 2%" is an assumption anyone sees on
-                   the calculator, not the sale's commission. */
-                text: (() => { const c = doc?.cloneNode(true); c?.querySelectorAll('.cp-assume').forEach(n => n.remove()); return txt(c); })(), notes: [...(sec?.querySelectorAll('.cp-note') || [])].map(txt),
+                   the calculator, not the sale's commission. The same inputs
+                   listed again under the report split's Assumptions and
+                   Missing evidence (QT-05: .cp-split-item[data-split-key=
+                   "input"]) are those inputs, and are left out with them. */
+                text: (() => { const c = doc?.cloneNode(true); c?.querySelectorAll('.cp-assume, .cp-split-item[data-split-key="input"]').forEach(n => n.remove()); return txt(c); })(), notes: [...(sec?.querySelectorAll('.cp-note') || [])].map(txt),
                 want: { vll: fmtMoney(m.valueLessLoanAtExit, 'MYR', 0), irr: fmtPct(m.irrPct, 2), labels: ['valueLessLoanAtExit', 'irrPct'].map(k => LAB_FIGURES.find(f => f.key === k).label(d)) } };
             };
             State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== pid);

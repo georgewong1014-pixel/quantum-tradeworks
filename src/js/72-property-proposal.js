@@ -992,7 +992,7 @@ const CP_SPLIT = [
 const CP_EV_WORD = { verified: 'graded a verified transaction', public: 'graded public data', user: 'the preparer’s', developer: 'quoted by the seller or developer', estimated: 'graded an estimate', assumed: 'graded an assumption', illustrative_default: 'the calculator’s starting value' };
 const CP_DRIVER_LABEL = { price: 'Purchase price', rent: 'Expected monthly rent', maintenance: 'Monthly maintenance', sqft: 'Built-up area' };
 const cpSignedMoney = (v) => (isNum(v) ? `${v < 0 ? '−' : ''}${cpMoney(Math.abs(v))}` : '—');
-function cpSplitItems(d, m, cash) {
+function cpSplitItems(d, m, cash, paid = false) {
   const out = { facts: [], assumptions: [], missing: [], risks: [] };
   const put = (part, label, value, kind, note = null, key = null) => out[part].push({ label, value, kind, note, key });
   const lets = m.letsToTenant, loan = m.loan > 0;
@@ -1080,12 +1080,14 @@ function cpSplitItems(d, m, cash) {
     if (au.forfeiture.status === 'ok') put('risks', 'Forfeiture — the deposit at risk', cpMoney(au.forfeiture.atRisk), 'yours', `Lost if the ${cpMoney(au.forfeiture.balance)} balance is not paid within ${cpN(au.forfeiture.days)} days.`, 'auction');
     if (!au.final) put('risks', `Not final — ${au.checksOpen.length} check${au.checksOpen.length === 1 ? '' : 's'} open`, `${au.checksOpen.length} of ${AUCTION_CHECK_IDS.length}`, 'unavailable', `Open: ${cpList2(au.checksOpen.map(id => AUCTION_CHECKS[id].label.toLowerCase()))}. No auction figure is final until each is checked.`, 'auction');
   }
-  if (num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
+  /* Gains tax is the full report's (the owner's paywall rule, 3 Oct 2026:
+     cpExitSection): named only where the report is unlocked. */
+  if (paid && num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
   return out;
 }
 const cpList2 = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
-function cpSplitSections(d, m, cash) {
-  const items = cpSplitItems(d, m, cash);
+function cpSplitSections(d, m, cash, paid = false) {
+  const items = cpSplitItems(d, m, cash, paid);
   const wrap = el('div', { class: 'cp-split', 'data-cp-split': 'all' });
   wrap.append(cpNote('Every figure this proposal rests on, in four parts, each marked with its kind. The figures entered imply these; none is ranked and nothing here is a recommendation.'));
   for (const [id, title, lede] of CP_SPLIT) {
@@ -1120,7 +1122,7 @@ function cpDocument(rec, details, forWhom, picks) {
   doc.append(cpKeyFigures(d, m, cash));
   /* QT-05: Facts, Assumptions, Missing evidence and Risks, before the
      working section by section. */
-  doc.append(cpSplitSections(d, m, cash));
+  doc.append(cpSplitSections(d, m, cash, paid));
   doc.append(cpPropertySection(rec, d, m));
   doc.append(cpAcquisitionSection(d, m, cash));
   doc.append(cpFinancingSection(d, m));
