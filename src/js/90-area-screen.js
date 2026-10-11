@@ -1258,6 +1258,9 @@ VIEWS.status = () => {
          36-row sample set and froze that. It reported "0 US companies with
          audited SEC filings" on a build holding 119 of them. */
       el('td', { class: 'caption', style: 'text-align:left;white-space:normal;min-width:15rem' }, [
+        /* Model and data on two lines, where one tool wears two status
+           words (registerSplitNode, 91-health.js). */
+        c.split ? registerSplitNode(c) : null,
         c.now ? coverageCell('div', {}, typeof c.now === 'function' ? c.now() : c.now, { hold: c.nowHold?.() }) : null,
         c.gate ? coverageCell('div', { style: 'color:var(--bronze);margin-top:4px' },
           `Gate: ${typeof c.gate === 'function' ? c.gate() : c.gate}`, { hold: c.gateHold?.() }) : null,

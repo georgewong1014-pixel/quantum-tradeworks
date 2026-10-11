@@ -107,7 +107,11 @@ const CAPABILITY_REGISTER = [
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
     now:'Records real candidates with source, availability date, four separate prices, grade and a next action with an owner.',
     gate:'Holds nothing until you add cases. This product sources no listings and republishes none.' },
+  /* split: the tool's badge and its journey's last result on one line,
+     what is gated on the other (registerSplitNode, 91-health.js; the claims
+     audit of 11 Oct 2026, rank 7). */
   { name:'Sarawak comparables register', status:'data-gated', path:'/property/comparables',
+    split:{ tool:'comparables', data:'it ships empty, and stays so until you record evidence — no source publishes Sarawak transacted prices or achieved rents this product may redistribute' },
     now:'The structure: address, district, title, built-up area, asking and achieved kept apart, date, evidence class, source reference and a reviewer.',
     gate:'Ships empty, and stays empty until a person records evidence. No source publishes Sarawak transacted prices or achieved rents this product may redistribute.' },
   { name:'Loan comparison across lenders', status:'queued', path:null,
@@ -175,12 +179,17 @@ const CAPABILITY_REGISTER = [
             { file:'equity-test.mjs', name:'canonical ids are one per instrument' },
             { file:'ingest-test.mjs', name:'ingest rules hold' }] },
   { name:'US Options Cash Wheel', status:'data-gated', path:'/us-options/wheel',
+    split:{ tool:'wheel', data:'no authorised option-chain data — each contract is entered by hand, and live chains, a recommended contract and execution are not built' },
     now:'Cash-secured put and covered-call arithmetic, collateral gates, downside scenarios and the full risk card, from figures you enter.',
     gate:'No authorised option-chain data, so contracts are entered by hand. Live chains, any recommended contract, broker routing and execution stay Compliance Gated and are not built.' },
   { name:'QT Trading Index', status:'active-core', path:'/research/trading-index',
     now:'Multi-timeframe trend regime, first-tranche readiness against your own rules, screenshot confidence, template and derivative hard gates, from chart evidence you record.',
     gate:'Phase 1 only. It does not read your screenshot — OCR and vision extraction are phase 2. No indicator here has been backtested on point-in-time data, so no rule is claimed to be effective.' },
   { name:'Trade-setup scanner', status:'data-gated', path:'/app/scanner',
+    /* The scanner's tools are Beta and none names an outcome step; its
+       engine is proven by the scanner journey's replay of the example. */
+    split:{ tool:'scanDash', proof:{ journey:'scanner', step:'Its replay holds the rule only at bar 66' },
+      data:'no price history ships with this site — it reads the daily history you build under your own subscription, on your own computer' },
     brief:['EQ-214'], priority:'P0',
     now:'Conditions you write — price, volume, moving averages, RSI, MACD; above, below, crossing, between — evaluated on your own daily history by a worker that records which held on the last daily bar your history holds. A watchlist can be its universe, snapshotted into the setup. Never ranked, never delivered, never claimed to work.',
     gate:'Personal lane only: it reads the price history you built under your own subscription, so the deployed site has nothing to scan. Offering it to anyone else needs a licensed end-of-day feed and written classification, and neither exists.' },

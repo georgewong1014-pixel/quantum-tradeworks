@@ -3205,6 +3205,62 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-wording ---- */
 
 
+/* ---- claims-status-splits ---- */
+/* THE TOOLS' MODEL AND DATA ON TWO LINES (the claims audit of 11 Oct 2026,
+   rank 7: F-12; D17's way, which N2d served for Property). The US Options
+   Cash Wheel and the Sarawak comparables register wore "Live" under "What
+   proves each Live badge" and sat in the register's "Data Gated" group;
+   the scanner was "Beta" on its cards and "Data Gated" in the register —
+   two status words for one tool, explained only for Property. Each of the
+   three register rows now says, before any script:
+   1. "Model: <its tool's badge> — <its journey's last recorded result>":
+      the badge the registry gives the tool (TOOLS, 35-ui.js) and,
+      exactly, journeysServed(record).proof(journey, step) of the record
+      this same site serves;
+   2. "Data: Data Gated — <what is gated>", the register's own label. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const rec = await fetch(`${BASE}/health/journeys.json?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(e => ({ unreadable: e.message }));
+  const want = journeysServed(rec);
+  const WANT = {
+    'US Options Cash Wheel': { badge: 'Live', journey: 'records', step: 'Enter a contract: the obligation, the shortfall and the payoff at expiry', data: /^Data: Data Gated — no authorised option-chain data/ },
+    'Sarawak comparables register': { badge: 'Live', journey: 'registers', step: 'Record a transaction and a rent: each listed with what it rests on', data: /^Data: Data Gated — it ships empty/ },
+    'Trade-setup scanner': { badge: 'Beta', journey: 'scanner', step: 'Its replay holds the rule only at bar 66', data: /^Data: Data Gated — no price history ships with this site/ },
+  };
+  const status = (await getAll(['/status'])).get('/status');
+  const said = [];
+  if (!status || status.status !== 200) p.push(`/status: ${status?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(status.body);
+    const rows = all(tree).filter(n => n.tag === 'tr');
+    for (const [name, w] of Object.entries(WANT)) {
+      const tr = rows.find(r => all(r).some(n => n.tag === 'div' && sight(n) === name));
+      if (!tr) { p.push(`/status serves no register row "${name}"`); continue; }
+      const split = all(tr).find(n => n.tag === 'dl' && has(n, 'status-split'));
+      if (!split) { p.push(`/status: "${name}" serves no Model / Data lines`); continue; }
+      const line = (k) => all(split).find(n => has(n, 'status-split-row') && attr(n, 'data-split') === k);
+      const model = line('model'), data = line('data');
+      const mt = model ? sight(model) : '', dt = data ? sight(data) : '';
+      if (!model || !new RegExp(`^Model: ${w.badge} — `).test(mt)) p.push(`/status: "${name}" does not read "Model: ${w.badge} — …": "${mt.slice(0, 90)}"`);
+      const slot = model ? all(model).find(n => has(n, 'proof-result')) : null;
+      if (!slot) p.push(`/status: "${name}"'s model line serves no recorded result`);
+      else {
+        if (attr(slot, 'data-proof-journey') !== w.journey) p.push(`/status: "${name}"'s model line is ${attr(slot, 'data-proof-journey')}'s journey, not ${w.journey}'s`);
+        const inner = /<span class="proof-result"[^>]*>([\s\S]*?)<\/span><\/dd>/.exec(status.body.slice(status.body.indexOf(name)))?.[1];
+        if (typeof want.proof === 'function' && inner !== want.proof(w.journey, w.step)) p.push(`/status: "${name}"'s last result is not the record's: served "${(inner || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)}"`);
+      }
+      if (!data || !w.data.test(dt)) p.push(`/status: "${name}" does not read "Data: Data Gated — …" as written: "${dt.slice(0, 120)}"`);
+      said.push(`${name}: "${mt.slice(0, 40)}…" / "${dt.slice(0, 50)}…"`);
+    }
+  }
+  judge(p, `/status serves the Cash Wheel, the comparables register and the scanner each on two lines (the claims audit, rank 7): ${said.join('; ')}`,
+    '/status does not say what a tool\'s badge and its Data Gated rest on');
+}
+/* ---- end claims-status-splits ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);
