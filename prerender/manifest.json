@@ -64,8 +64,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9595028208c64de8",
-      "changed": "2026-10-03"
+      "digest": "1083055857acd333",
+      "changed": "2026-10-11"
     },
     "pages/admin/scanner.html": {
       "path": "/admin/scanner",
@@ -4329,8 +4329,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f30b03d8ad3f3c1b",
-      "changed": "2026-10-09"
+      "digest": "1263162eaad43ed5",
+      "changed": "2026-10-11"
     },
     "pages/learn.html": {
       "path": "/learn",
@@ -4416,8 +4416,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "cac2f82d2bbf66b2",
-      "changed": "2026-10-07"
+      "digest": "f056bb3a86170c3b",
+      "changed": "2026-10-11"
     },
     "pages/learn/trading-index.html": {
       "path": "/learn/trading-index",
@@ -4530,8 +4530,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6644b96b683b498e",
-      "changed": "2026-10-10"
+      "digest": "e4f7e7234cf688f1",
+      "changed": "2026-10-11"
     },
     "pages/my/data.html": {
       "path": "/my/data",
@@ -4822,7 +4822,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7fbab560f89dfa06",
+      "digest": "922652a829c0081a",
       "changed": "2026-10-11"
     },
     "pages/privacy.html": {
@@ -5139,8 +5139,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "81802073f45b28f5",
-      "changed": "2026-10-10"
+      "digest": "4b51670252b7e961",
+      "changed": "2026-10-11"
     },
     "pages/research/trading-index.html": {
       "path": "/research/trading-index",
