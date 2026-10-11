@@ -3310,6 +3310,29 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-filed-defaults ---- */
 
 
+/* ---- claims-cash-required-name ---- */
+/* "CASH REQUIRED (WITH A 3-MONTH RESERVE)" (the owner's decision of 11 Oct
+   2026; the claims audit, rank 9: F-06, R-11). The calculator, the client
+   proposal, the decision record, the opportunity register and the property
+   dock called the model's total "Safe cash (required)", and the cash chart
+   said "to be safe": "safe" promised a safety the figure is not — the cash
+   to complete, the renovation and set-up, and the reserve. Held on every
+   page served: no "safe cash" and no "to be safe"; the calculator and the
+   decision record say "Cash required (with a 3-month reserve)" on the
+   sample, whose reserve is three months. */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const at = statics.filter(path => /\bsafe cash\b|\bto be safe\b|\bbeing safe\b/i.test(pageText(got.get(path)?.body || '')));
+  if (at.length) p.push(`"safe cash" or "to be safe" is still served on ${at.join(', ')}`);
+  for (const path of ['/property/calculator', '/decision-record'])
+    if (!/Cash required \(with a 3-month reserve\)/.test(pageText(got.get(path)?.body || ''))) p.push(`${path} does not serve "Cash required (with a 3-month reserve)"`);
+  judge(p, `"Cash required (with a 3-month reserve)", not "safe cash" (the owner's decision of 11 Oct 2026): no page serves "safe cash" or "to be safe"; /property/calculator and /decision-record say it as approved`,
+    'a served page still calls the cash required "safe"');
+}
+/* ---- end claims-cash-required-name ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

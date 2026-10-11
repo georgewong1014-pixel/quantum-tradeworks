@@ -104,7 +104,7 @@ const FRAMES = [
   {
     id: 'property-waterfall', path: '/property/calculator', w: 1180, h: 1000, wait: 5200,
     sel: 'svg[aria-label^="Cash needed to buy"]',
-    what: 'What the cash to buy is actually for, and the gap between completing the purchase and being safe afterwards.',
+    what: 'What the cash to buy is actually for, and the gap between completing the purchase and the cash required with the reserve.',
   },
   {
     id: 'property-rent', path: '/property/calculator', w: 1180, h: 1000, wait: 5200,

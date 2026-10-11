@@ -7468,10 +7468,10 @@ try {
     })()`);
     const p = [];
     const f = (list, k) => (list || []).find(x => x.k === k || x.k.startsWith(k));
-    const safeShort = f(r.short.figs, 'Safe cash'), safeWhole = f(r.whole.figs, 'Safe cash');
+    const safeShort = f(r.short.figs, 'Cash required'), safeWhole = f(r.whole.figs, 'Cash required');
     if (!r.short.missing || !r.short.strip) p.push(`tenure 0 no longer leaves a line unpriced (${r.short.missing}) — this check needs another way in`);
-    if (safeShort?.k !== 'Safe cash so far') p.push(`tenure 0: the dock reads "${safeShort?.v} ${safeShort?.k}" under a capstrip reading "So far"`);
-    if (r.whole.missing || safeWhole?.k !== 'Safe cash') p.push(`tenure 35: the dock reads "${safeWhole?.k}" with ${r.whole.missing} line(s) unpriced`);
+    if (safeShort?.k !== 'Cash required so far') p.push(`tenure 0: the dock reads "${safeShort?.v} ${safeShort?.k}" under a capstrip reading "So far"`);
+    if (r.whole.missing || safeWhole?.k !== 'Cash required') p.push(`tenure 35: the dock reads "${safeWhole?.k}" with ${r.whole.missing} line(s) unpriced`);
     for (const [name, list] of [['adjusted, unverified', r.adjusted], ['no contracts', r.noContracts]]) {
       const buf = f(list, 'Cash buffer');
       if (buf?.v !== '—' || buf?.tone) p.push(`${name}: Cash buffer "${buf?.v}" ${buf?.tone}`);
@@ -7481,7 +7481,7 @@ try {
     const bWorst = f(r.blank, 'Worst case at zero');
     if (bWorst?.v !== '—' || bWorst?.tone) p.push(`blank contract: Worst case at zero "${bWorst?.v}" ${bWorst?.tone}`);
     if (p.length) fail('bugfix5 shell: the dock shows a short safe cash as whole, or a cash buffer against an obligation the page does not compute', p);
-    else ok('bugfix5 shell: the dock reads "Safe cash so far" while a cost line is unpriced, withholds the Cash Wheel buffer until there is an obligation, and tones no withheld figure');
+    else ok('bugfix5 shell: the dock reads "Cash required so far" while a cost line is unpriced, withholds the Cash Wheel buffer until there is an obligation, and tones no withheld figure');
   }
   /* The deal and the wheel are put back, and the page reloaded from them. */
   await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(bf5Saved)});

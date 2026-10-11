@@ -352,7 +352,7 @@ const HIW_FLOW = {
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
     ['Analysis', 'Instalment, fees, maintenance, vacancy, tax on the rent and exit costs, in one deal model shared by the calculator and its printed record.'],
-    ['Result', 'Cash to complete, safe cash, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
+    ['Result', 'Cash to complete, cash required with the reserve, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
     ['Save', 'Save the deal as a snapshot, record the property on the opportunity register, or print the decision record.'],
     ['Next', 'Test it against the comparables you have recorded and the area screen for its town.'],
   ],
@@ -447,7 +447,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [cashPartial(pm) ? 'Safe cash — partial' : pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');

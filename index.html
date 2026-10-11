@@ -18066,7 +18066,7 @@ function cashWaterfall(container, m) {
       'aria-label': `Cash needed to buy, built up in ${groups.length} groups totalling `
         + `${fmtMoney(total, 'MYR')}. ` + (twoTier
           ? `${fmtMoney(toComplete, 'MYR')} of that is needed to complete the purchase; `
-            + `${fmtMoney(total - toComplete, 'MYR')} is needed afterwards to be safe.`
+            + `${fmtMoney(total - toComplete, 'MYR')} is needed afterwards: the renovation and set-up, and the reserve.`
           : '') });
 
     let run = 0;
@@ -18099,7 +18099,7 @@ function cashWaterfall(container, m) {
 
     /* The summary bar: the same total, split where completion ends. */
     const sy = groups.length * rowH + 6;
-    g.append(sv('text', { x: 0, y: sy + 12, class: 'dl', fill: 'var(--ink)' }, 'Total cash to be safe'));
+    g.append(sv('text', { x: 0, y: sy + 12, class: 'dl', fill: 'var(--ink)' }, 'Cash required, with the reserve'));
     g.append(sv('text', { x: w, y: sy + 12, class: 'dl', fill: 'var(--ink)',
       'text-anchor': 'end' }, fmtAmount(total, 'MYR')));
     if (twoTier) {
@@ -18119,7 +18119,7 @@ function cashWaterfall(container, m) {
   container.append(tableTwin('Show the table view',
     ['Group', 'Amount', twoTier ? 'When it is needed' : 'Unpriced lines'],
     groups.map((g2, i) => [g2.label, fmtMoney(g2.value, 'MYR', 0),
-      twoTier ? (i <= splitAfter ? 'To complete the purchase' : 'Afterwards, to be safe')
+      twoTier ? (i <= splitAfter ? 'To complete the purchase' : 'Afterwards: renovation and the reserve')
               : (g2.unpriced ? `${g2.unpriced} line(s) not priced` : '—')])
       .concat([['Total', fmtMoney(total, 'MYR', 0), twoTier ? `${fmtMoney(toComplete, 'MYR', 0)} of it to complete` : '']])));
 }
@@ -34460,7 +34460,7 @@ const HIW_FLOW = {
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
     ['Analysis', 'Instalment, fees, maintenance, vacancy, tax on the rent and exit costs, in one deal model shared by the calculator and its printed record.'],
-    ['Result', 'Cash to complete, safe cash, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
+    ['Result', 'Cash to complete, cash required with the reserve, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
     ['Save', 'Save the deal as a snapshot, record the property on the opportunity register, or print the decision record.'],
     ['Next', 'Test it against the comparables you have recorded and the area screen for its town.'],
   ],
@@ -34555,7 +34555,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [cashPartial(pm) ? 'Safe cash — partial' : pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
@@ -41707,6 +41707,19 @@ function cashPartial(m) {
     words: `partial: excludes ${feeList(labels)} — not yet checked for ${FEE_CLASS_WORD[cls]}`,
     short: `partial — ${g.length} line${g.length === 1 ? '' : 's'} not checked for ${cls === 'land' ? 'land' : 'commercial'}` };
 }
+/* "CASH REQUIRED (WITH A 3-MONTH RESERVE)" (the owner's decision of 11 Oct
+   2026; the claims audit, rank 9: F-06, R-11). It was "Safe cash
+   required", and "safe" promised a safety the figure is not: it is the cash
+   to complete, the renovation and set-up, and the reserve the reader
+   chose to hold — the total the Scenario Lab, the homepage and
+   /property-investing call "Cash required". The months are the deal's own
+   (3 unless the reader changes them); a table of several deals whose
+   reserves differ says "the reserve". Where a figure is short of a line it
+   says "— partial" or "so far" after this, as before. */
+function cashRequiredLabel(...models) {
+  const months = [...new Set(models.map(m => m?.reserveMonths).filter(isNum))];
+  return months.length === 1 ? `Cash required (with a ${months[0]}-month reserve)` : 'Cash required (with the reserve)';
+}
 
 /* What the rulebook still needs, so it can be reported rather than discovered. */
 const feeLinesWith = (...provenances) => Object.entries(FEE_TABLE.lines)
@@ -45318,7 +45331,7 @@ function cpKeyFigures(d, m, cash) {
   return el('div', { class: 'cp-figs' }, [
     fig('Cash to complete', 'cashStillRequiredToComplete', cash.complete,
       shortComplete ? 'So far — a cost line is not priced' : cash.paid > 0 ? ['On completion day, after ', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), ' paid at offer'] : 'Paid out on completion day'),
-    fig(cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', 'safeCashRequired', cash.safe,
+    fig(cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), 'safeCashRequired', cash.safe,
       cashPartial(m) ? `Partial — ${cashPartial(m).n} line${cashPartial(m).n === 1 ? '' : 's'} not yet checked for ${FEE_CLASS_WORD[cashPartial(m).cls]}` : short ? 'So far — a cost line is not priced' : 'With the renovation and the reserve'),
     fig('Monthly instalment', 'instalment', m.instalment,
       !(m.loan > 0) ? 'No loan: the price is paid without one'
@@ -45432,7 +45445,7 @@ function cpAcquisitionSection(d, m, cash) {
       lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits.' : 'Spent after completion: renovation, furnishing and deposits.'],
     ['Cash to keep untouched', isNum(cash.reserve) ? cpFig('reserveCash', cpMoney(cash.reserve)) : el('span', { class: 'cp-unpriced' }, 'not priced'),
       `${cpPlural(m.reserveMonths, 'month')} of instalment and owner-paid running costs, held in the owner’s account rather than spent.`],
-    ['Safe cash required', cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
+    [cashRequiredLabel(m), cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
   ]));
   return s;
 }
@@ -45549,7 +45562,7 @@ function cpScenariosSection(rec, picks) {
     line('Monthly instalment', 'instalment', m => m.instalment),
     line('Monthly position', 'cashflowMonthly', m => m.cashflowMonthly),
     line('Cash to complete', 'cashStillRequiredToComplete', (m, c) => c.complete),
-    line('Safe cash required', 'safeCashRequired', (m, c) => c.safe),
+    line(cashRequiredLabel(...models), 'safeCashRequired', (m, c) => c.safe),
     line('Net yield', 'netYield', m => m.netYield, v => (isNum(v) ? fmtPct(v, 2) : '—')),
     line('Break-even rent', 'breakEvenRent', m => m.breakEvenRent),
   ]));
@@ -49247,7 +49260,7 @@ VIEWS.property = () => {
     /* Partial on a commercial property or land (the fee rulebook 1.2.0):
        the lines not yet checked for the class are named, never a
        full-looking figure. */
-    safe: [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+    safe: [cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), fmtAmount(m.safeCashRequired, 'MYR'),
       (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
         : unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
@@ -49361,7 +49374,7 @@ VIEWS.property = () => {
   if (isNum(m.transactionCash) && m.transactionCash > 0) {
     const wf = el('details', { class: 'pc-more' });
     wf.append(el('summary', { class: 'pc-more-sum' },
-      `Where ${fmtAmount(m.safeCashRequired, 'MYR')} of safe cash goes`));
+      `Where the ${fmtAmount(m.safeCashRequired, 'MYR')} of cash required goes`));
     /* The cost groups already include the improvement costs and the reserve.
        Two further rows for them counted both twice, so the parts of RM130.1k
        added to RM165.1k and every bar was drawn against the wrong total. */
@@ -49622,7 +49635,7 @@ VIEWS.property = () => {
   const lets = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
   const acq = propertySection('acquisition', {
     provide: 'where the property is, what it is — its type, class, title and size — the purchase price, any bank or valuer estimate, the booking deposit already paid, the renovation and the months of reserve you mean to hold.',
-    calculates: 'the cash to complete and every cost line under it — the deposit, stamp duties, legal fees and any valuation gap — the price per unit of area, and the safe cash required once the renovation and the reserve are counted.' });
+    calculates: 'the cash to complete and every cost line under it — the deposit, stamp duties, legal fees and any valuation gap — the price per unit of area, and the cash required once the renovation and the reserve are counted.' });
   const fnc = propertySection('financing', {
     provide: 'the deposit, the loan interest rate and its tenure; any flat-rate or loan-insurance quote you were given; and, only if you choose, your own income, debts and credit record.',
     calculates: 'the loan and the value it is lent against, the monthly instalment, the loan at a 70, 80 and 90% margin of finance, what the quotes cost, and whether the borrower and the property can each be financed.' });
@@ -50331,7 +50344,7 @@ VIEWS.property = () => {
      ledger, and the cash to hold back. */
   const buyCard = el('div', { class: 'card ls-section' });
   buyCard.append(cardHead('What buying it takes',
-    'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.', null, DKF));
+    'The cash to complete, where every ringgit of it goes, and the cash required once the renovation and the reserve are counted.', null, DKF));
 
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
   unitCard.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
@@ -50405,13 +50418,13 @@ VIEWS.property = () => {
       text]);
     wf.append(el('div', { style: 'display:flex;flex-wrap:wrap;gap:var(--md);margin:6px 0 var(--md)' }, [
       swatch('--seq-6', 'Needed to complete the purchase'),
-      swatch('--seq-4', 'Needed afterwards, to be safe'),
+      swatch('--seq-4', 'Needed afterwards: renovation and the reserve'),
     ]));
     const wfHost = el('div');
     wf.append(wfHost);
     cashWaterfall(wfHost, m);
     wf.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      'Completing and being safe are different amounts of money. The table below itemises every line in each group.'));
+      'The cash to complete and the cash required with the reserve are different amounts. The table below itemises every line in each group.'));
     buyCard.append(wf);
   }
 
@@ -50600,7 +50613,7 @@ VIEWS.property = () => {
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
      ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
      : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
-   [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', m.safeCashRequired, cashPartial(m)
+   [cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), m.safeCashRequired, cashPartial(m)
      ? `Everything priced, including what is already paid — ${cashPartial(m).words}. The real figure is higher by whatever those come to.`
      : (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
@@ -51046,7 +51059,7 @@ VIEWS.property = () => {
          ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
          ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
          ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
-         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
+         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} cash required instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
         ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel ls-fig' }, statTile(k, v, { sub }))));
         card.append(g);
         card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
@@ -51892,10 +51905,10 @@ function propertyIpsAnswers(d, m, g) {
   A.push(m.reserveComputable === false
     ? ipsAnswer('capital', 'unknown',
         'The loan’s instalment could not be computed from the entered tenure, so neither can the reserve that has to cover it, '
-        + 'nor what it takes to complete and stay safe.')
+        + 'nor the cash required with it.')
     : safe > 0
     ? ipsAnswer('capital', meets ? 'pass' : 'partial',
-        `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
+        `${fmtMoney(safe, 'MYR', 0)} required to complete, renovate and hold the reserve, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
         + (reserve > 0 ? ` — ${months} month${months === 1 ? '' : 's'} of instalment and owner-paid running costs. ` : '. ')
         /* This gate's own threshold, stated as such — the IPS text carries no
            reserve period, so it must not be quoted for one. */
@@ -60891,7 +60904,7 @@ VIEWS.opportunities = () => {
     t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => { const k = oppKind(x); return el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, [x.o.name, ' ', kindTh(k.kind, k.fine)]); })])));
     const rows = [
       ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
-      ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
+      [cashRequiredLabel(...modelled.map(x => x.m)), x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
       ['Monthly position', x => isNum(x.m.cashflowMonthly) ? fmtAmount(x.m.cashflowMonthly, 'MYR') : '—'],
       ['Gross yield', x => isNum(x.m.grossYield) ? fmtPct(x.m.grossYield, 2) : 'n/a'],
       ['Net yield', x => isNum(x.m.netYield) ? fmtPct(x.m.netYield, 2) : 'n/a'],
@@ -60955,7 +60968,7 @@ VIEWS.opportunities = () => {
      ['Your negotiated price', isNum(o.negotiatedPrice) ? fmtAmount(o.negotiatedPrice, 'MYR') : 'none'],
      ['Bank valuation', isNum(o.deal.bankValuation) && o.deal.bankValuation > 0 ? fmtAmount(o.deal.bankValuation, 'MYR') : 'not obtained'],
      ['Registered valuer', isNum(o.valuerEstimate) ? fmtAmount(o.valuerEstimate, 'MYR') : 'not obtained'],
-     ['Safe cash required', isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : '—'],
+     [cashRequiredLabel(m), isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : '—'],
      ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—'],
      ['Property Financeability', isNum(finance.score) ? `${finance.score}/100` : `unscored — ${finance.gates.length} to verify`]]
       .forEach(([k, v]) => { pk.append(el('dt', {}, k)); pk.append(el('dd', {}, v)); });
@@ -69921,7 +69934,7 @@ const DOCKS = {
     const short = (m.missingCostLines || []).length > 0;
     return {
       figs: [
-        { label: cashPartial(m) ? 'Safe cash — partial' : short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: cashPartial(m) ? 'Cash required — partial' : short ? 'Cash required so far' : 'Cash required', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
           tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
         { label: g.verdict || 'Grade', value: g.grade },
@@ -70130,7 +70143,7 @@ function decisionRecordProperty() {
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null,
      shortOf(['acquisition', 'financing'])],
-   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
+   [cashRequiredLabel(m), isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
    ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
@@ -70146,7 +70159,7 @@ function decisionRecordProperty() {
   if (unpriced.length) out.append(el('p', { class: 'dr-warn' },
     `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
     + `${unpriced.map(x => x.label.toLowerCase()).join(', ')} — so `
-    + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the safe cash are' : 'the safe cash is'} `
+    + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the cash required are' : 'the cash required is'} `
     + `short by whatever ${unpriced.length === 1 ? 'it comes' : 'they come'} to. `
     + `${unpriced.length === 1 ? 'It is' : 'They are'} unpriced rather than zero, and this tool will not guess.`));
 

@@ -1406,7 +1406,7 @@ const JOURNEYS = [
       const fig = (labels) => tab.eval(`(${FIGURE})(${JSON.stringify(labels)})`);
       const read = async () => ({
         monthly: await fig(['Monthly position', 'Monthly cash flow']),
-        cash: await fig(['Safe cash required', 'Cash required', 'Cash to complete']),
+        cash: await fig(['Cash required (with a 3-month reserve)', 'Cash required', 'Cash to complete']),
         yield: await fig(['Gross yield', 'Net yield']),
       });
       /* A calculator input by its label, so a regrouped page is still typed

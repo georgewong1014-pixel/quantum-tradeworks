@@ -758,7 +758,7 @@ try {
     if (!r.lines.some(l => l.provenance === 'quote' && l.badge === 'quoted')) p.push('no quoted line was drawn with the Quoted badge');
     if (!r.optRow || !/^Optional: mortgage protection/.test(r.optRow) || !/not included/.test(r.optRow)) p.push(`on the sample the optional row reads "${r.optRow}"`);
     if (!/^By kind: statutory charges RM/.test(r.split || '') || !/Optional, left out: mortgage protection is not included\./.test(r.split || '')) p.push(`the ledger's split reads "${(r.split || '').slice(0, 160)}"`);
-    if (!r.safe.includes(`${r.want} of this rests on unverified or unknown lines`)) p.push(`"Safe cash required" reads "${r.safe}", without "${r.want} of this rests on unverified or unknown lines"`);
+    if (!r.safe.includes(`${r.want} of this rests on unverified or unknown lines`)) p.push(`"Cash required (with a 3-month reserve)" reads "${r.safe}", without "${r.want} of this rests on unverified or unknown lines"`);
     if (!r.note.startsWith(`${r.want} of this`)) p.push(`the ledger's note reads "${r.note.slice(0, 120)}"`);
     if (!r.book) p.push('/data-sources has no #fee-rulebook');
     else {
@@ -769,7 +769,7 @@ try {
       if (r.book.changes[0] !== r.version) p.push(`the card's changelog starts at ${r.book.changes[0]}, not ${r.version}`);
     }
     if (p.length) fail('fee rulebook: every fee line shows its provenance badge, the headline its unverified or unknown share, and /data-sources the rulebook', p);
-    else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Safe cash required" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
+    else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Cash required (with a 3-month reserve)" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
   }
 
   /* 20 — every class the land-risk consequences and blockers name exists in
@@ -1064,7 +1064,7 @@ try {
   {
     const r = await evaluate(`(async () => {
       State.deal = ${FRESH}; saveDeal(); navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
-      const det = [...document.querySelectorAll('details')].find(x => /of safe cash goes/.test(x.querySelector('summary')?.textContent || ''));
+      const det = [...document.querySelectorAll('details')].find(x => /of cash required goes/.test(x.querySelector('summary')?.textContent || ''));
       const rows = det ? det.querySelectorAll('div > div.row').length : -1;
       const m = dealModel(State.deal);
       const parts = m.costGroups.map(g => g.items.reduce((a, it) => a + (isNum(it[1]) ? it[1] : 0), 0)).filter(v => v > 0);
@@ -2223,7 +2223,7 @@ try {
           /* The strip said the safe cash a second time above the sections;
              since N3 (D18) the tile is the one place it is said. */
           strip: document.querySelector('#views .capstrip') ? 'present' : null,
-          untouched: tile(/^Cash to keep untouched/i), safeTile: tile(/^Safe cash required/i) };
+          untouched: tile(/^Cash to keep untouched/i), safeTile: tile(/^Cash required \\(with a \\d+-month reserve\\)/i) };
         let rec = '';
         try { rec = decisionRecordProperty().textContent; } finally { State.deal = kept; }
         out.recShort = /So far — short/.test(rec) && /Not the full amount/.test(rec);
@@ -2314,11 +2314,11 @@ try {
     const { paid, unpriced, whole, noFee } = r;
     if (paid.pk[0] !== 'Cash to complete' || paid.pv[0] !== paid.still || paid.still === paid.whole)
       p.push(`RM5,000 paid: card "${paid.pk[0]} ${paid.pv[0]}", calculator ${paid.still}, whole ${paid.whole}`);
-    if (unpriced.pk[1] !== 'Safe cash so far' || unpriced.pv[1] !== unpriced.safe || unpriced.pk[0] !== 'Cash to complete')
+    if (unpriced.pk[1] !== 'Cash required so far' || unpriced.pv[1] !== unpriced.safe || unpriced.pk[0] !== 'Cash to complete')
       p.push(`reserve unpriced (${unpriced.missing.join(', ')}): card "${unpriced.pk[0]}" / "${unpriced.pk[1]} ${unpriced.pv[1]}"`);
-    if (whole.missing.length || whole.pk[0] !== 'Cash to complete' || whole.pk[1] !== 'Safe cash' || whole.pv[0] !== whole.whole)
+    if (whole.missing.length || whole.pk[0] !== 'Cash to complete' || whole.pk[1] !== 'Cash required' || whole.pv[0] !== whole.whole)
       p.push(`a priced deal is flagged or moved: ${JSON.stringify(whole)}`);
-    if (!noFee.missing.includes('acquisition') || noFee.pk[0] !== 'Cash to complete so far' || noFee.pk[1] !== 'Safe cash so far')
+    if (!noFee.missing.includes('acquisition') || noFee.pk[0] !== 'Cash to complete so far' || noFee.pk[1] !== 'Cash required so far')
       p.push(`an unset acquisition fee: card "${noFee.pk[0]}" / "${noFee.pk[1]}" (${noFee.missing.join(', ')})`);
     if (p.length) fail('views: the property card on /how-it-works prints a different cash to complete from the calculator, or a short total as whole', p);
     else ok(`views: the property card on /how-it-works reads ${paid.still} to complete with RM5,000 paid at offer, and marks a total with an unpriced line "so far"`);
@@ -3859,7 +3859,10 @@ try {
           const say = (key, calcText, where, col = null, sign = null) => pairs.push({ key, calcText, where, col, sign });
           say('cashStillRequiredToComplete', base.tiles['Cash to complete'], 'tile "Cash to complete"');
           say('cashStillRequiredToComplete', base.tiles['Cash still to complete'], 'tile "Cash still to complete"');
-          say('safeCashRequired', base.tiles['Safe cash required'], 'tile "Safe cash required"');
+          /* The label names the deal's own reserve months (cashRequiredLabel):
+             the odd-figures property holds six. */
+          const cashKey = Object.keys(base.tiles).find(k => /^Cash required \(with a \d+-month reserve\)$/.test(k));
+          say('safeCashRequired', base.tiles[cashKey], `tile "${cashKey}"`);
           say('instalment', base.tiles['Monthly instalment'], 'tile "Monthly instalment"');
           say('cashflowMonthly', base.tiles['Monthly position'], 'tile "Monthly position"');
           say('breakEvenRent', base.tiles['Break-even rent'], 'tile "Break-even rent"');
@@ -7321,10 +7324,10 @@ try {
         State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
         return JSON.stringify({ cards, ledgerGated, total, dock, tile, book }); })()`));
       const p = [];
-      if (!/Safe cash required — partial/.test(r.cards) || !/Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property/.test(r.cards)) p.push(`the calculator's answer card: "${r.cards.slice(0, 300)}"`);
+      if (!/Cash required \(with a 3-month reserve\) — partial/.test(r.cards) || !/Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property/.test(r.cards)) p.push(`the calculator's answer card: "${r.cards.slice(0, 300)}"`);
       if (r.ledgerGated.length !== 4 || r.ledgerGated.some(t => t !== 'Unavailable')) p.push(`the ledger's gated rows: ${JSON.stringify(r.ledgerGated)}`);
       if (!/Total initial cash — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
-      if (r.dock && !/Safe cash — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
+      if (r.dock && !/Cash required — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
       if (!/Cash required — partial/.test(r.tile || '') || !/partial — 4 lines not checked for commercial/.test(r.tile || '')) p.push(`the Lab's tile reads "${r.tile}"`);
       if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.2.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
       const want = { transferStampDuty: ['same', 'same'], loanStampDuty: ['same', 'same'], chargeStampDuty: ['same', 'same'], registration: ['same', 'same'], purchaseLegal: ['same', 'same'],
@@ -7332,7 +7335,7 @@ try {
         disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
       if (JSON.stringify(r.book.cls) !== JSON.stringify(want)) p.push(`the class table: ${JSON.stringify(r.book.cls)}`);
       if (p.length) fail('val G4: drawn — partial wherever the cash required is shown', p);
-      else ok('val G4: on a shophouse the calculator says "Safe cash required — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Total initial cash — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.2.0, its changelog and the class table line by line');
+      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Total initial cash — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.2.0, its changelog and the class table line by line');
     });
   }
   /* ---- end val-fee-gates ---- */
