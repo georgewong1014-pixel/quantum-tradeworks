@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d7d87940af505c7c",
-      "changed": "2026-10-10"
+      "digest": "247c10b2834a8747",
+      "changed": "2026-10-11"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4959,14 +4959,14 @@
         "choices": 26,
         "roles": 0,
         "forms": 0,
-        "removed": 0,
-        "notShown": 7,
+        "removed": 1,
+        "notShown": 8,
         "now": 1,
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "c3de462587600471",
-      "changed": "2026-10-10"
+      "digest": "06dd8e4de819bbf1",
+      "changed": "2026-10-11"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
