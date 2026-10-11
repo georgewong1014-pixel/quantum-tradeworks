@@ -4822,8 +4822,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4706b7adfd60a4a2",
-      "changed": "2026-10-07"
+      "digest": "7fbab560f89dfa06",
+      "changed": "2026-10-11"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -5226,8 +5226,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "27a33951027e8409",
-      "changed": "2026-10-10"
+      "digest": "62acd7d25a442e78",
+      "changed": "2026-10-11"
     },
     "pages/terms.html": {
       "path": "/terms",
