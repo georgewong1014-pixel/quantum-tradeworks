@@ -52238,7 +52238,13 @@ const CAPABILITY_REGISTER = [
     now:'Capital ledger, valuation gap, grade, downside and plain-language result.' },
   { name:'True capital ledger', status:'active-core', path:'/property/calculator',
     now:'Every completion, rent-ready and reserve line, reconciled.',
-    gate:'Seven fee lines carry placeholder values pending verification against the Solicitors’ Remuneration Order 2023 and the current rate orders.' },
+    /* Counted from the fee rulebook, not typed: "Seven fee lines carry
+       placeholder values" stood here from rulebook 0.1.0 to 1.2.0, while
+       the calculator named four (the daily audit of 11 Oct 2026). */
+    gate:() => {
+      const ls = Object.values(FEE_TABLE.lines), est = ls.filter(l => l.provenance !== 'verified').length;
+      return `${est} of ${ls.length} fee lines in fee rulebook ${FEE_TABLE.version} are estimates not yet checked against a primary source; for commercial property and land, the lines that differ by class are left out of the total until they are checked. Each is named, with its source, at /data-sources#fee-rulebook.`;
+    } },
   { name:'Borrower Loan Readiness', status:'active-core', path:'/property/calculator',
     now:'Income, debts, disposable income, credit conduct and documents, as a diagnostic score.' },
   { name:'Property Financeability', status:'active-core', path:'/property/calculator',
