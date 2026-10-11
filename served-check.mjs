@@ -3157,6 +3157,14 @@ const HOME_PAGE = read(HOME);
   here('/discover/screener', /Removes companies flagged PN17 or GN3 \(Bursa’s financial-distress classifications\) in the illustrative set — flags authored for that set, not checked against Bursa’s lists/, 'the PN17 template saying where its flags come from');
   here('/data-sources', /PN17 flags for the Malaysian set — authored for the illustrative set, not checked against the Securities Commission’s or Bursa’s lists/, 'the flags\' provenance under Present');
   said.push('the Shariah and PN17 flags "authored for the illustrative set"');
+  /* 6c — /welcome (F-18, R-28): "Research Bursa companies — Malaysian
+     listed companies" with no word that the figures are illustrative, and
+     "Monitor my existing portfolio — Track what you already hold", where
+     nothing on this site monitors anything without prices. */
+  gone(/Monitor my existing portfolio|Track what you already hold/, '"Monitor my existing portfolio — Track what you already hold"');
+  here('/welcome', /Research Bursa companies An illustrative set — synthetic figures, not filed statements/, 'the Bursa option qualified as an illustrative set');
+  here('/welcome', /Record my portfolio What you hold, valued where a price is held or you supply one/, '"Record my portfolio — What you hold, valued where a price is held or you supply one"');
+  said.push('/welcome "An illustrative set — synthetic figures" and "Record my portfolio"');
   /* ---- parts above ---- */
   judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
     'a served page still claims more than it holds');

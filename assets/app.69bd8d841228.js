@@ -26854,9 +26854,13 @@ const OB_STEPS = [
   { key:'goal', q:'What would you like Quantum Tradeworks to help you with?',
     note:'This decides where you land at the end, and nothing else.',
     options:[
-      { v:'bursa',    t:'Research Bursa companies',      n:'Malaysian listed companies' },
+      /* Qualified as each set is (the claims audit of 11 Oct 2026, rank 6;
+         F-18, R-28): the Bursa figures are an illustrative set, and nothing
+         here monitors a holding — it records it, valued where a price is
+         held or you supply one. */
+      { v:'bursa',    t:'Research Bursa companies',      n:'An illustrative set — synthetic figures, not filed statements' },
       { v:'us',       t:'Research US companies',         n:'Filed with the SEC, audited annual statements' },
-      { v:'monitor',  t:'Monitor my existing portfolio', n:'Track what you already hold' },
+      { v:'monitor',  t:'Record my portfolio',           n:'What you hold, valued where a price is held or you supply one' },
       { v:'property', t:'Analyse a property',            n:'Model a purchase to its monthly cash flow' },
       { v:'learn',    t:'Learn investment fundamentals', n:'Start with how the measures work' },
     ] },
