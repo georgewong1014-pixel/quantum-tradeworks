@@ -4155,7 +4155,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "50243d5371d0f15c",
+      "digest": "5864ccc62e5908fd",
       "changed": "2026-10-11"
     },
     "pages/decision-record.html": {
@@ -4213,8 +4213,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "a9be108d62965f79",
-      "changed": "2026-10-10"
+      "digest": "effdbb06ad0f1692",
+      "changed": "2026-10-11"
     },
     "pages/discover/sarawak.html": {
       "path": "/discover/sarawak",
@@ -4271,8 +4271,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "a9be108d62965f79",
-      "changed": "2026-10-10"
+      "digest": "effdbb06ad0f1692",
+      "changed": "2026-10-11"
     },
     "pages/discover/value-map.html": {
       "path": "/discover/value-map",

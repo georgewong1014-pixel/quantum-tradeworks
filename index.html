@@ -24904,10 +24904,14 @@ const SCREEN_TEMPLATES = [
     untestable:[ICOV_UNTESTABLE(3)],
     apply: (s) => { s.universe='MY'; s.sectors=['Industrials','Utilities']; s.crit = { ndEbit:{max:4} }; s.cols = ['ndEbit','icov','om','rev5','roic','pe']; } },
   { id:'shariah', name:'Shariah-compliant universe',
-    why:'Only companies flagged Shariah-compliant in this dataset. The flag is carried from the source, not assessed here.',
+    /* The flags were "carried from the source"; the source is the hand-
+       authored illustrative set, and a Shariah status or a PN17
+       classification of a real, named company is a regulator's to state
+       (the claims audit of 11 Oct 2026, rank 6; F-09, R-22). */
+    why:'Only companies flagged Shariah-compliant in the illustrative set. Its flags were authored for that set — not checked against the Securities Commission’s list of Shariah-compliant securities — and not assessed here.',
     apply: (s) => { s.universe='MY'; s.local = { ...s.local, shariahOnly:true }; s.cols = ['roic','om','ndEbit','dy','pe','fcfy']; } },
   { id:'no-pn17', name:'Excluding PN17 and GN3',
-    why:'Removes companies under Bursa financial-distress classifications. This is an exclusion, not an endorsement of what remains.',
+    why:'Removes companies flagged PN17 or GN3 (Bursa’s financial-distress classifications) in the illustrative set — flags authored for that set, not checked against Bursa’s lists. An exclusion, not an endorsement of what remains.',
     apply: (s) => { s.universe='MY'; s.local = { ...s.local, excludePn17:true }; s.cols = ['roic','ndEbit','icov','om','dy','pe']; } },
 ];
 
@@ -28293,6 +28297,9 @@ const RESEARCH_TABS = [
 /* Where a company lists, said honestly. The illustrative and personal sets
    name their exchange; a filer's is in the SEC submissions record, which the
    ingest now reads but the shipped statements predate. */
+/* Where the Malaysian set's Shariah and PN17 flags come from (the claims
+   audit of 11 Oct 2026, R-22): only an illustrative company carries one. */
+const FLAG_PROVENANCE = 'Authored for the illustrative set — not checked against the Securities Commission’s list of Shariah-compliant securities or Bursa’s PN17 and GN3 lists.';
 const EXCH_UNKNOWN = 'SEC companyfacts carries no listing venue. The ingest records it from the filer’s submissions record, and it appears here once data/us.json is regenerated.';
 const listingOf = (c) => (c.cik && !c.exchKnown ? 'an exchange not recorded in this dataset' : c.exch);
 
@@ -28630,9 +28637,10 @@ VIEWS.research = () => {
        the same string for a Malaysian company and rendering both put
        "Materials Materials" in the header. One fact, shown once. */
     c.industry && c.industry !== c.sector ? el('span', { class: 'chip' }, c.industry) : null,
-    c.flags.shariah === true ? el('span', { class: 'chip chip-my' }, 'Shariah-compliant') : null,
+    /* Where the flags come from, on hover (the claims audit, R-22). */
+    c.flags.shariah === true ? el('span', { class: 'chip chip-my', title: FLAG_PROVENANCE }, 'Shariah-compliant') : null,
     c.flags.idx ? el('span', { class: 'chip' }, c.flags.idx) : null,
-    c.flags.pn17 ? sevChip('critical', 'PN17') : null,
+    c.flags.pn17 ? Object.assign(sevChip('critical', 'PN17'), { title: FLAG_PROVENANCE }) : null,
   ]));
   idBlock.append(el('h1', { style: 'font-size:24px;letter-spacing:-.02em' }, c.name));
   idBlock.append(el('p', { class: 'body', style: 'margin-top:6px;font-size:13px' }, c.desc));
@@ -38586,7 +38594,7 @@ function learnData() {
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
    'Up to ten fiscal years for each SEC-filed company — as many as it has filed in XBRL, and a few carry fewer; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
-   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(coverageCell('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
+   'Shariah status, board category and PN17 flags for the Malaysian set — authored for the illustrative set, not checked against the Securities Commission’s or Bursa’s lists'].forEach(x => hl.append(coverageCell('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
   const lack = el('div');
   lack.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Absent by design'));

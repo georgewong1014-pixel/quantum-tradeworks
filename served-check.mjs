@@ -3148,6 +3148,15 @@ const HOME_PAGE = read(HOME);
     here('/research', /Sarawak Economy Watch Bursa companies that operate in Sarawak\./, 'the Sarawak watch\'s lens as "Bursa companies that operate in Sarawak"');
     said.push(`/discover/sarawak "${h1}"`);
   }
+  /* 6b — the Shariah and PN17 flags (F-09, R-22): "carried from the
+     source", where the source is the hand-authored illustrative set. The
+     screener's two templates and /data-sources' Present list say where the
+     flags come from, and that no regulator's list was checked. */
+  gone(/carried from the source/i, 'the Shariah flag "carried from the source"');
+  here('/discover/screener', /Only companies flagged Shariah-compliant in the illustrative set\. Its flags were authored for that set — not checked against the Securities Commission’s list of Shariah-compliant securities/, 'the Shariah template saying its flags were authored for the illustrative set');
+  here('/discover/screener', /Removes companies flagged PN17 or GN3 \(Bursa’s financial-distress classifications\) in the illustrative set — flags authored for that set, not checked against Bursa’s lists/, 'the PN17 template saying where its flags come from');
+  here('/data-sources', /PN17 flags for the Malaysian set — authored for the illustrative set, not checked against the Securities Commission’s or Bursa’s lists/, 'the flags\' provenance under Present');
+  said.push('the Shariah and PN17 flags "authored for the illustrative set"');
   /* ---- parts above ---- */
   judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
     'a served page still claims more than it holds');
