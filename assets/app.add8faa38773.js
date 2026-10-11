@@ -31073,6 +31073,10 @@ function learnData() {
   /* THE PROPERTY FEE RULEBOOK (the owner's property track, 8 Oct 2026):
      its version, the day it was checked, and every line's source. */
   wrap.append(feeRulebookCard());
+  /* THE COST-SCHEDULE FORMAT (the owner's Track A, 10 Oct 2026, item 4):
+     what the property tools import as cost lines, with a synthetic example
+     of each kind to download. */
+  wrap.append(costScheduleCard());
 
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
@@ -51746,11 +51750,215 @@ function costLinesBlock({ d, target, prefix, write }) {
     write([...clStart(lines), x]);
   } }, 'Add the line')]), msg);
   body.append(add);
+  /* A cost schedule, imported as lines (item 4). */
+  body.append(costImportControl({ id, lines, write }));
   body.append(el('p', { class: 'metaline cl-note' }, s.sample
     ? 'A line added replaces the calculator’s sample figure. The total is the cost; each line keeps where it came from.'
     : 'The lines’ total is the cost. Each keeps its source, its date and what it covers; the total carries the weakest line’s badge.'));
   box.append(body);
   return box;
+}
+
+/* ==========================================================================
+   THE COST-SCHEDULE IMPORT (the owner's approval of 10 Oct 2026, Track A,
+   item 4). A versioned JSON or CSV file of cost lines — item, amount,
+   currency (RM), source, date, includes, excludes, kind — read into an
+   improvement's lines (QT-03's structure), keeping each line's source and
+   date and where it came from (the file's name and row). A manual file
+   only: chosen by the reader, read in the page; nothing is fetched and
+   nothing is linked to any other system. Validated strictly: a file not in
+   the format, or of another version, is refused whole; a bad row is
+   refused with the reason and the rest imported; nothing is guessed (no
+   separators in an amount, no currency but RM, a quote names its source
+   and date). A line already among the lines — the same item, amount,
+   kind, source, date, includes and excludes — is skipped, so importing a
+   file twice does not double it. The format is published at
+   /data-sources#cost-schedule, with a synthetic example of each kind.
+   ========================================================================== */
+const COST_SCHEDULE = {
+  format: 'qt-cost-schedule', version: 1, currency: 'RM',
+  fields: ['item', 'amount', 'currency', 'source', 'date', 'includes', 'excludes', 'kind'],
+  maxRows: 200, maxBytes: 200 * 1024,
+  examples: { json: '/data/examples/cost-schedule-v1.json', csv: '/data/examples/cost-schedule-v1.csv' },
+};
+/* What each field takes, as /data-sources publishes it. */
+const COST_SCHEDULE_RULES = {
+  item: 'Required. What the line is, up to 80 characters.',
+  amount: 'Required. Ringgit, above nought, at most two decimal places, no separators or symbol: 12000 or 12000.50. In JSON a number.',
+  currency: 'Required. RM — the only currency the format takes.',
+  source: 'Where the figure came from, in your words, up to 120 characters. Required for a quoted line.',
+  date: 'A date written YYYY-MM-DD. Required for a quoted line.',
+  includes: 'What it covers, up to 200 characters. Optional.',
+  excludes: 'What it leaves out, up to 200 characters. Optional.',
+  kind: 'Required. quoted (a written quote), estimate (your own) or placeholder.',
+};
+/* A CSV of the format: its rows of cells, quotes as RFC 4180 has them
+   (a field in double quotes may hold commas, line breaks and "" for a
+   quote). Null where a quote is never closed. */
+function costCsvRows(text) {
+  const rows = []; let row = [], cell = '', q = false, line = 1, rowLine = 1;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') q = false;
+      else { if (c === '\n') line++; cell += c; }
+      continue;
+    }
+    if (c === '"' && cell === '') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\r') continue;
+    else if (c === '\n') { row.push(cell); rows.push({ cells: row, line: rowLine }); row = []; cell = ''; line++; rowLine = line; }
+    else cell += c;
+  }
+  if (q) return null;
+  if (cell !== '' || row.length) { row.push(cell); rows.push({ cells: row, line: rowLine }); }
+  return rows;
+}
+/* One row of the format, read: a line, or the reason it is refused. */
+function costScheduleRow(rec, { json }) {
+  const extra = Object.keys(rec).filter(k => !COST_SCHEDULE.fields.includes(k));
+  if (extra.length) return { why: `it carries “${extra[0].slice(0, 30)}”, which the format does not have` };
+  const txt = (k) => (rec[k] == null ? '' : rec[k]);
+  for (const k of ['item', 'source', 'date', 'includes', 'excludes', 'kind', 'currency']) if (rec[k] != null && typeof rec[k] !== 'string') return { why: `its ${k} is not text` };
+  if (String(txt('currency')).trim() === '') return { why: 'it gives no currency: the format takes RM' };
+  if (String(txt('currency')).trim() !== COST_SCHEDULE.currency) return { why: `its currency is “${String(rec.currency).trim().slice(0, 12)}”: the format takes RM only` };
+  let amount;
+  if (json) {
+    if (typeof rec.amount !== 'number') return { why: rec.amount == null ? 'it has no amount' : 'its amount is not a number' };
+    amount = rec.amount;
+  } else {
+    const s = String(txt('amount')).trim();
+    if (!s) return { why: 'it has no amount' };
+    if (!/^\d+(\.\d{1,2})?$/.test(s)) return { why: `its amount “${s.slice(0, 20)}” is not ringgit and sen written 12000 or 12000.50 (no separators or symbol)` };
+    amount = Number(s);
+  }
+  const kind = String(txt('kind')).trim().toLowerCase();
+  if (!kind) return { why: 'it gives no kind: quoted, estimate or placeholder' };
+  const x = { item: txt('item'), amount, kind, source: txt('source'), date: String(txt('date')).trim(), includes: txt('includes'), excludes: txt('excludes') };
+  const fault = costLineFault(x);
+  if (fault) return { why: fault };
+  return { line: x };
+}
+/* The file, read: { ok: false, err } refused whole, or { ok: true, kind,
+   rows: [{ row, line }], refused: [{ row, why }] }. */
+function parseCostSchedule(text, name = '') {
+  const file = String(name || 'the file');
+  const ext = /\.json$/i.test(file) ? 'json' : /\.csv$/i.test(file) ? 'csv' : null;
+  if (!ext) return { ok: false, err: `“${file}” is neither a .json nor a .csv file: a cost schedule is one or the other` };
+  const body = String(text ?? '').replace(/^﻿/, '');
+  if (!body.trim()) return { ok: false, err: `“${file}” is empty` };
+  if (body.length > COST_SCHEDULE.maxBytes) return { ok: false, err: `“${file}” is over ${COST_SCHEDULE.maxBytes / 1024} KB` };
+  const rows = [], refused = [], seen = new Map();
+  const take = (row, rec, json) => {
+    const r = isRecord(rec) ? costScheduleRow(rec, { json }) : { why: 'it is not a record of the format’s fields' };
+    if (r.why) { refused.push({ row, why: r.why }); return; }
+    const fp = costLineFingerprint(r.line);
+    if (seen.has(fp)) { refused.push({ row, why: `the same line as ${seen.get(fp)}` }); return; }
+    seen.set(fp, row);
+    rows.push({ row, line: r.line });
+  };
+  if (ext === 'json') {
+    let doc;
+    try { doc = JSON.parse(body); } catch (e) { return { ok: false, err: `“${file}” is not JSON: ${String(e.message).split('\n')[0].slice(0, 80)}` }; }
+    if (!isRecord(doc) || doc.format !== COST_SCHEDULE.format) return { ok: false, err: `“${file}” is not a cost schedule: it does not say "format": "${COST_SCHEDULE.format}"` };
+    if (doc.version !== COST_SCHEDULE.version) return { ok: false, err: `“${file}” is version ${JSON.stringify(doc.version ?? null)} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    const extra = Object.keys(doc).filter(k => !['format', 'version', 'currency', 'title', 'lines'].includes(k));
+    if (extra.length) return { ok: false, err: `“${file}” carries “${extra[0].slice(0, 30)}”, which the format does not have` };
+    if (doc.currency != null && doc.currency !== COST_SCHEDULE.currency) return { ok: false, err: `“${file}” is in ${String(doc.currency).slice(0, 12)}: the format takes RM only` };
+    if (!Array.isArray(doc.lines) || !doc.lines.length) return { ok: false, err: `“${file}” holds no lines` };
+    if (doc.lines.length > COST_SCHEDULE.maxRows) return { ok: false, err: `“${file}” holds ${doc.lines.length} lines, over the ${COST_SCHEDULE.maxRows} the format takes` };
+    doc.lines.forEach((x, i) => take(`entry ${i + 1}`, x, true));
+  } else {
+    const all = costCsvRows(body);
+    if (!all) return { ok: false, err: `“${file}” opens a quoted field it never closes` };
+    const lines = all.filter(r => r.cells.some(c => c.trim() !== ''));
+    const head = lines[0]?.cells.map(c => c.trim()) || [];
+    while (head.length && head.at(-1) === '') head.pop();
+    if (head[0] !== COST_SCHEDULE.format || head.length !== 2) return { ok: false, err: `“${file}” does not begin with the line “${COST_SCHEDULE.format},${COST_SCHEDULE.version}”, which names the format and its version` };
+    if (head[1] !== String(COST_SCHEDULE.version)) return { ok: false, err: `“${file}” is version ${head[1]} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    const cols = (lines[1]?.cells || []).map(c => c.trim().toLowerCase());
+    while (cols.length && cols.at(-1) === '') cols.pop();
+    const missing = COST_SCHEDULE.fields.filter(f => !cols.includes(f));
+    const unknown = cols.filter(c => !COST_SCHEDULE.fields.includes(c));
+    const twice = cols.filter((c, i) => cols.indexOf(c) !== i);
+    if (missing.length || unknown.length || twice.length) return { ok: false, err: `“${file}”’s second line is not the header the format names (${COST_SCHEDULE.fields.join(', ')}): ${[missing.length ? `${missing.join(', ')} missing` : null, unknown.length ? `“${unknown[0].slice(0, 30)}” not a field` : null, twice.length ? `“${twice[0]}” twice` : null].filter(Boolean).join('; ')}` };
+    const data = lines.slice(2);
+    if (!data.length) return { ok: false, err: `“${file}” holds no lines` };
+    if (data.length > COST_SCHEDULE.maxRows) return { ok: false, err: `“${file}” holds ${data.length} lines, over the ${COST_SCHEDULE.maxRows} the format takes` };
+    for (const r of data) {
+      const cells = r.cells.slice();
+      while (cells.length > cols.length && cells.at(-1).trim() === '') cells.pop();
+      if (cells.length !== cols.length) { refused.push({ row: `row ${r.line}`, why: `it has ${cells.length} cells where the header has ${cols.length}` }); continue; }
+      take(`row ${r.line}`, Object.fromEntries(cols.map((c, i) => [c, cells[i]])), false);
+    }
+  }
+  return { ok: true, kind: ext, file, rows, refused };
+}
+/* Into the lines a target holds: each new line kept with where it came
+   from; a line already among them skipped. */
+function costImportMerge(current, parsed) {
+  const have = new Set(current.map(costLineFingerprint));
+  const added = [], skipped = [...parsed.refused];
+  for (const r of parsed.rows) {
+    const fp = costLineFingerprint(r.line);
+    if (have.has(fp)) { skipped.push({ row: r.row, why: 'already among the lines' }); continue; }
+    have.add(fp);
+    added.push({ ...r.line, from: { file: parsed.file, version: COST_SCHEDULE.version, row: Number(String(r.row).replace(/\D/g, '')) || null } });
+  }
+  return { lines: [...current, ...added], added, skipped };
+}
+/* What an import did, in one sentence or two. */
+function costImportWords(parsed, merged) {
+  if (!parsed.ok) return `Nothing imported — ${parsed.err}.`;
+  const sum = merged.added.reduce((t, x) => t + x.amount, 0);
+  const skip = merged.skipped.slice(0, 8).map(x => `${x.row} — ${x.why}`).join('; ') + (merged.skipped.length > 8 ? `; and ${merged.skipped.length - 8} more` : '');
+  return merged.added.length
+    ? `Imported ${merged.added.length} line${merged.added.length === 1 ? '' : 's'} from “${parsed.file}” (${COST_SCHEDULE.format}, version ${COST_SCHEDULE.version}): ${clMoney(Math.round(sum * 100) / 100)}.${merged.skipped.length ? ` Skipped ${merged.skipped.length}: ${skip}.` : ''}`
+    : `Nothing imported from “${parsed.file}”${merged.skipped.length ? `. Skipped ${merged.skipped.length}: ${skip}.` : '.'}`;
+}
+/* The control, in the editor: a file the reader chooses, read here. */
+function costImportControl({ id, lines, write }) {
+  const fid = `${id}-file`;
+  const say = el('p', { class: 'cl-msg metaline cl-import-msg', id: `${id}-import-msg`, role: 'status', 'aria-live': 'polite' }, CL_SAID[`${id}-import`] || '');
+  const input = el('input', { type: 'file', class: 'input au-in cl-file', id: fid, accept: '.json,.csv,application/json,text/csv', onchange: async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const parsed = f.size > COST_SCHEDULE.maxBytes ? { ok: false, err: `“${f.name}” is over ${COST_SCHEDULE.maxBytes / 1024} KB` } : parseCostSchedule(await f.text(), f.name);
+    const merged = parsed.ok ? costImportMerge(clStart(lines), parsed) : null;
+    CL_SAID[`${id}-import`] = costImportWords(parsed, merged);
+    CL_OPEN.add(id);
+    if (merged?.added.length) write(merged.lines);
+    else say.textContent = CL_SAID[`${id}-import`];
+    e.target.value = '';
+  } });
+  return el('div', { class: 'au-field cl-import', id: `${id}-import` }, [
+    el('label', { for: fid, class: 'au-label' }, 'Import a cost schedule — a .json or .csv file in the published format'),
+    input,
+    el('p', { class: 'metaline cl-import-note' }, 'Read in this page from the file you choose; nothing is fetched or sent.'),
+    el('a', { class: 'cl-import-link metaline', href: '/data-sources#cost-schedule' }, 'The format, and an example'),
+    say]);
+}
+
+/* THE FORMAT, PUBLISHED (/data-sources#cost-schedule): its name and
+   version, each field's rule, and the two synthetic examples to download. */
+function costScheduleCard() {
+  const card = el('section', { class: 'card cost-schedule', id: 'cost-schedule', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'cost-schedule-h' });
+  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'cost-schedule-h' }, `Cost schedule format, version ${COST_SCHEDULE.version}`),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'The file the property calculator and the Scenario Lab import as cost lines — renovation, refurbishment, an upgrade. A manual file only: you choose it, the page reads it, nothing is fetched and nothing is linked to any other system.'),
+  ])));
+  card.append(el('dl', { class: 'fee-book-dl cost-schedule-fields', 'aria-label': 'The fields of a cost line' },
+    COST_SCHEDULE.fields.flatMap(f => [el('dt', {}, el('code', {}, f)), el('dd', {}, COST_SCHEDULE_RULES[f])])));
+  card.append(el('p', { class: 'body cost-schedule-shape', style: 'font-size:13px' }, [
+    el('strong', {}, 'JSON: '), `an object { "format": "${COST_SCHEDULE.format}", "version": ${COST_SCHEDULE.version}, "currency": "RM", "lines": [ … ] }, a line an object of the fields above. `,
+    el('strong', {}, 'CSV: '), `the first line “${COST_SCHEDULE.format},${COST_SCHEDULE.version}”, the second the field names, then a line a row; a field holding a comma in double quotes. `,
+    `At most ${COST_SCHEDULE.maxRows} lines and ${COST_SCHEDULE.maxBytes / 1024} KB.`]));
+  card.append(el('p', { class: 'body', style: 'font-size:13px' }, 'Checked strictly: a file of another format or version is refused whole; a row that breaks a rule is refused with the reason and the others are imported; nothing is guessed. A line already among the lines is skipped, so a file imported twice is not counted twice. Each line keeps its source, its date and the file it came from.'));
+  card.append(el('p', { class: 'body cost-schedule-dl', style: 'font-size:13px' }, ['Examples, made up for the format — no real quotation, business or property: ',
+    el('a', { href: COST_SCHEDULE.examples.json, download: 'cost-schedule-v1.json', 'data-example': 'json' }, 'cost-schedule-v1.json'), ' · ',
+    el('a', { href: COST_SCHEDULE.examples.csv, download: 'cost-schedule-v1.csv', 'data-example': 'csv' }, 'cost-schedule-v1.csv'), '.']));
+  return card;
 }
 
 /* ==========================================================================
@@ -60337,7 +60545,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same

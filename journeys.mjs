@@ -2078,8 +2078,8 @@ const JOURNEYS = [
        each with its source, its date, what it includes and its kind — the
        cost their total, badged by the weakest line, saved with the
        property. */
-    id: 'costs', name: 'Property costs: lines with their sources, the report in four parts, actual against modelled',
-    outcomes: ['Enter cost lines with sources', 'Open the report and see the four sections', 'Record an actual and see the difference'],
+    id: 'costs', name: 'Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported',
+    outcomes: ['Enter cost lines with sources', 'Open the report and see the four sections', 'Record an actual and see the difference', 'Import the synthetic schedule'],
     async run(j, tab) {
       let id;
       const pre = 'lab-rf-cl-refurb';
@@ -2142,6 +2142,31 @@ const JOURNEYS = [
           return { rent: cell('rent'), want: String(Math.round(c.rows[0].diff.rent * 100) / 100), net: cell('net'), wantNet: String(Math.round(c.rows[0].diff.net * 100) / 100),
             year: document.querySelector('#lab-ac-years [data-ac-year="1"]')?.textContent || '' }; })())`));
         if (r.rent !== r.want || r.net !== r.wantNet || !/partial/.test(r.year) || /\d\.\d+%/.test(r.year)) throw new StepError(`the difference reads ${JSON.stringify(r)}`);
+      });
+      await step(j, tab, 'Import the synthetic schedule', BUDGET.action * 6, async () => {
+        /* The published example, synthetic, written to a folder of its own
+           and chosen in Upgrade's file control as a reader chooses a file
+           (DOM.setFileInputFiles); the folder deleted after. */
+        const dir = join(tmpdir(), `qt-journey-costs-${process.pid}-${Date.now()}`);
+        mkdirSync(dir, { recursive: true });
+        try {
+          const file = join(dir, 'cost-schedule-v1.csv');
+          const res = await fetch(`${BASE}/data/examples/cost-schedule-v1.csv`);
+          if (!res.ok) throw new StepError(`the example schedule is served ${res.status}`);
+          writeFileSync(file, await res.text());
+          const box = `document.getElementById('lab-rf-cl-upgrade')`;
+          await tab.click(`${box}?.querySelector(':scope > summary')`, 'Upgrade — Itemise as lines, with sources');
+          await tab.expect(`${box}?.open`, 'Upgrade\'s cost-lines editor did not open');
+          const { result } = await tab.S('Runtime.evaluate', { expression: `document.getElementById('lab-rf-cl-upgrade-file')` });
+          if (!result?.objectId) throw new StepError('Upgrade\'s editor has no file control');
+          await tab.S('DOM.enable');
+          await tab.S('DOM.setFileInputFiles', { files: [file], objectId: result.objectId });
+          await tab.expect(`(LAB[labSubject].cols[0].work.rfUpgradeLines || []).length === 4`,
+            async () => `nothing imported: “${await tab.eval(`document.getElementById('lab-rf-cl-upgrade-import-msg')?.textContent || ''`)}”`);
+          const r = JSON.parse(await tab.eval(`JSON.stringify({ msg: document.getElementById('lab-rf-cl-upgrade-import-msg')?.textContent || '',
+            cols: LAB[labSubject].cols.map(c => [c.work.rfUpgradeCost, c.work.rfUpgradeBasis]), src: LAB[labSubject].cols[0].work.rfUpgradeLines[0].source })`));
+          if (!/^Imported 4 lines from “cost-schedule-v1\.csv”/.test(r.msg) || r.cols.some(c => c[0] !== 26300.5 || c[1] !== 'placeholder') || !/EX-101/.test(r.src)) throw new StepError(`the import reads ${JSON.stringify(r)}`);
+        } finally { await rm(dir, { recursive: true, force: true }); }
       });
     },
   },

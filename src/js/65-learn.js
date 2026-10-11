@@ -296,6 +296,10 @@ function learnData() {
   /* THE PROPERTY FEE RULEBOOK (the owner's property track, 8 Oct 2026):
      its version, the day it was checked, and every line's source. */
   wrap.append(feeRulebookCard());
+  /* THE COST-SCHEDULE FORMAT (the owner's Track A, 10 Oct 2026, item 4):
+     what the property tools import as cost lines, with a synthetic example
+     of each kind to download. */
+  wrap.append(costScheduleCard());
 
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It

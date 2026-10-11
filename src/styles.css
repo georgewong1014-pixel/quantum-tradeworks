@@ -6735,8 +6735,13 @@ input.au-in[type="text"] { text-align: left; }
 .cl-msg { margin: var(--ls-within) 0 0; max-width: var(--ls-measure); }
 .cl-msg:empty { display: none; }
 .cl-note { margin: 0; max-width: var(--ls-measure); }
+.cl-import { margin-top: var(--ls-related); }
+.cl-file { width: 100%; max-width: 26rem; padding: 6px 8px; text-align: left; }
+.cl-import-note { margin: 0; max-width: var(--ls-measure); }
+.cost-schedule-fields code { font-size: 12px; }
 @media (max-width: 639.98px), (pointer: coarse) {
-  .cl-box > .cl-box-sum, .cl-del, .cl-add-btn, .cl-f .au-in, .cl-kind-sel { min-height: 44px; }
+  .cl-box > .cl-box-sum, .cl-del, .cl-add-btn, .cl-f .au-in, .cl-kind-sel, .cl-file { min-height: 44px; }
+  .cl-import-link { display: inline-flex; align-items: center; min-height: 44px; align-self: flex-start; }
   .cl-del, .cl-add-btn { display: inline-flex; align-items: center; }
   .cl-del { min-width: 44px; justify-content: center; }
 }

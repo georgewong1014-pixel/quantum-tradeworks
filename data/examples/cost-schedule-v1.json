@@ -1,0 +1,12 @@
+{
+  "format": "qt-cost-schedule",
+  "version": 1,
+  "currency": "RM",
+  "title": "Example cost schedule — synthetic, made up for the format; no real quotation, business or property",
+  "lines": [
+    { "item": "Kitchen cabinets", "amount": 12000, "currency": "RM", "source": "Written quote ref. EX-101 (synthetic example)", "date": "2026-09-14", "includes": "carcasses, doors, worktop", "excludes": "appliances", "kind": "quoted" },
+    { "item": "Bathroom retiling", "amount": 6500.5, "currency": "RM", "source": "Written quote ref. EX-102 (synthetic example)", "date": "2026-09-20", "includes": "two bathrooms, tiles and labour", "excludes": "sanitary ware", "kind": "quoted" },
+    { "item": "Painting", "amount": 4800, "currency": "RM", "source": "My own estimate (synthetic example)", "date": "", "includes": "walls and ceilings", "excludes": "", "kind": "estimate" },
+    { "item": "Contingency", "amount": 3000, "currency": "RM", "source": "", "date": "", "includes": "", "excludes": "", "kind": "placeholder" }
+  ]
+}

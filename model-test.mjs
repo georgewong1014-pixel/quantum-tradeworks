@@ -7809,6 +7809,102 @@ try {
   }
   /* ---- end actuals ---- */
 
+  /* ---- cost-import ---- */
+  /* THE COST-SCHEDULE IMPORT (the owner's approval of 10 Oct 2026, Track A
+     item 4; parseCostSchedule, costImportMerge, 84-property-costs.js). Only
+     synthetic files: the two examples /data-sources publishes, and files
+     made here.
+     CI1 — the examples read whole: four lines each, RM26,300.50 (12,000 +
+           6,500.50 + 4,800 + 3,000), each with its source and date; a file
+           with bad rows imports the good and refuses each bad one with its
+           reason (an amount with a separator, a currency not RM, a quote
+           with no source, a kind not the format's, a row short of cells, a
+           row twice); a file of another format, version, header, field or
+           type refused whole; the same file imported twice adds nothing.
+     CI2 — the Lab on a saved property: the example chosen in Refurbish's
+           editor becomes its lines (a what-if until Save), the message says
+           what was imported, a second import says "already among the lines"
+           and adds none, a bad file is refused whole. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    /* Real line breaks, CRLF as a spreadsheet on Windows writes them. */
+    const BAD_CSV = ['qt-cost-schedule,1', 'item,amount,currency,source,date,includes,excludes,kind',
+      'Wardrobes,9000,RM,Written quote ref. T-1 (test),2026-08-30,two wardrobes,delivery,quoted',
+      'Flooring,"12,000",RM,My estimate,,,,estimate',
+      'Lights,800,MYR,My estimate,,,,estimate',
+      'Sofa,3000,RM,,2026-08-30,,,quoted',
+      'Fan,200,RM,My estimate,,,,cheap',
+      'Blinds,450,RM,My estimate',
+      'Wardrobes,9000,RM,Written quote ref. T-1 (test),2026-08-30,two wardrobes,delivery,quoted',
+      'Curtains,1500.25,RM,My estimate,,,,Estimate', ''].join('\r\n');
+    await ftry('cost-import CI1: the examples, bad rows and bad files, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const json = await (await fetch('/data/examples/cost-schedule-v1.json', { cache: 'no-store' })).text();
+        const csv = await (await fetch('/data/examples/cost-schedule-v1.csv', { cache: 'no-store' })).text();
+        const pj = parseCostSchedule(json, 'cost-schedule-v1.json'), pc = parseCostSchedule(csv, 'cost-schedule-v1.csv');
+        const sum = (p) => p.ok ? Math.round(p.rows.reduce((t, x) => t + x.line.amount, 0) * 100) / 100 : null;
+        const bad = parseCostSchedule(${JSON.stringify(BAD_CSV)}, 'bad.csv');
+        const once = costImportMerge([], pc), twice = costImportMerge(once.lines, pc);
+        const files = [parseCostSchedule('item,amount\\nX,1', 'a.csv'), parseCostSchedule('qt-cost-schedule,2\\nitem', 'b.csv'),
+          parseCostSchedule('qt-cost-schedule,1\\nitem,amount,currency,source,date,includes,excludes,kind,supplier\\nX,1,RM,,,,,estimate,Y', 'c.csv'),
+          parseCostSchedule('{"lines":[]}', 'd.json'), parseCostSchedule('{"format":"qt-cost-schedule","version":2,"lines":[]}', 'e.json'),
+          parseCostSchedule('{"format":"qt-cost-schedule","version":1,"lines":[{"item":"X","amount":"12000","currency":"RM","kind":"estimate"}]}', 'f.json'),
+          parseCostSchedule('anything', 'g.txt'), parseCostSchedule('qt-cost-schedule,1\\n"item,amount', 'h.csv')];
+        return JSON.stringify({ pj: [pj.ok, pj.rows.length, pj.refused.length, sum(pj)], pc: [pc.ok, pc.rows.length, pc.refused.length, sum(pc)],
+          kinds: pc.rows.map(x => x.line.kind).join(','), first: pc.rows[0]?.line, includes: pc.rows[0]?.line.includes,
+          bad: { ok: bad.ok, rows: bad.rows.map(x => [x.row, x.line.item, x.line.amount, x.line.kind]), refused: bad.refused },
+          once: [once.added.length, once.added[0]?.from], twice: [twice.added.length, twice.skipped.map(x => x.why)], words: costImportWords(pc, twice),
+          files: files.map(f => f.ok ? (f.rows.length + ' rows, refused: ' + f.refused.map(x => x.why).join('; ')) : f.err) }); })()`));
+      const p = [];
+      if (JSON.stringify(r.pj) !== '[true,4,0,26300.5]' || JSON.stringify(r.pc) !== '[true,4,0,26300.5]') p.push(`the examples read ${JSON.stringify([r.pj, r.pc])} — by hand 4 lines each, none refused, RM26,300.50`);
+      if (r.kinds !== 'quoted,quoted,estimate,placeholder' || r.first?.source !== 'Written quote ref. EX-101 (synthetic example)' || r.first?.date !== '2026-09-14' || r.includes !== 'carcasses, doors, worktop') p.push(`the CSV's lines: ${r.kinds}, ${JSON.stringify(r.first)}`);
+      const rows = JSON.stringify(r.bad.rows);
+      if (!r.bad.ok || rows !== '[["row 3","Wardrobes",9000,"quoted"],["row 10","Curtains",1500.25,"estimate"]]') p.push(`the bad file's good rows: ${rows} — by hand rows 3 and 10`);
+      const want = [['row 4', /12,000.*not ringgit and sen/], ['row 5', /currency is “MYR”/], ['row 6', /quote with no source/], ['row 7', /kind is not Quoted/], ['row 8', /4 cells where the header has 8/], ['row 9', /same line as row 3/]];
+      for (const [row, re] of want) { const x = r.bad.refused.find(y => y.row === row); if (!x || !re.test(x.why)) p.push(`${row}: ${JSON.stringify(x)} — wanted ${re}`); }
+      if (r.bad.refused.length !== 6) p.push(`${r.bad.refused.length} rows refused, not 6`);
+      if (r.once[0] !== 4 || r.once[1]?.file !== 'cost-schedule-v1.csv' || r.once[1]?.row !== 3) p.push(`the first import: ${JSON.stringify(r.once)}`);
+      if (r.twice[0] !== 0 || r.twice[1].length !== 4 || r.twice[1].some(w => w !== 'already among the lines')) p.push(`the same file again: ${JSON.stringify(r.twice)} — none added, four already among the lines`);
+      if (!/^Nothing imported from “cost-schedule-v1.csv”\. Skipped 4: row 3 — already among the lines/.test(r.words)) p.push(`the second import says "${r.words}"`);
+      const fileWant = [/does not begin with the line “qt-cost-schedule,1”/, /version 2 of the format/, /“supplier” not a field/, /not a cost schedule/, /version 2 of the format/, /0 rows, refused: its amount is not a number/, /neither a \.json nor a \.csv/, /never closes/];
+      r.files.forEach((f, i) => { if (!fileWant[i].test(f)) p.push(`file ${i + 1}: "${f}" — wanted ${fileWant[i]}`); });
+      if (p.length) fail('cost-import CI1: the examples, bad rows and bad files, by hand', p);
+      else ok('cost-import CI1: both published examples read whole — four lines, RM26,300.50, each with its source and date; a file with six bad rows imports rows 3 and 10 and refuses each of the others with its reason (an amount "12,000", currency MYR, a quote with no source, the kind "cheap", four cells of eight, row 3 again); eight bad files refused whole (no format line, version 2 in CSV and JSON, a "supplier" column, no format, an amount as text, a .txt, an unclosed quote); the same file twice adds nothing ("already among the lines")');
+    });
+
+    await ftry('cost-import CI2: the example chosen in the Lab\'s Refurbish', async () => {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rfRefurbUplift: 150 }; saveDeal();
+        const rec = saveActiveProperty({ name: 'ci CI2 property' });
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const csv = await (await fetch('/data/examples/cost-schedule-v1.csv', { cache: 'no-store' })).text();
+        const choose = async (text, name) => { const n = document.getElementById('lab-rf-cl-refurb-file'); if (!n) return false; const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'text/csv' })); n.files = dt.files; n.dispatchEvent(new Event('change', { bubbles: true })); await w(700); return true; };
+        const msg = () => document.getElementById('lab-rf-cl-refurb-import-msg')?.textContent || '';
+        const cols = () => LAB[labSubject].cols.map(c => [(c.work.rfRefurbLines || []).length, c.work.rfRefurbCost ?? null, c.work.rfRefurbBasis ?? null]);
+        const had = await choose(csv, 'cost-schedule-v1.csv');
+        const first = { msg: msg(), cols: cols(), saved: (pmInputsOf(pmFind(rec.id)).rfRefurbLines || []).length, from: LAB[labSubject].cols[0].work.rfRefurbLines?.[0]?.from || null };
+        await choose(csv, 'cost-schedule-v1.csv');
+        const second = { msg: msg(), cols: cols() };
+        await choose('item,amount\\nX,1', 'not-a-schedule.csv');
+        const third = { msg: msg(), cols: cols() };
+        deletePropertyModel(rec.id);
+        const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ had, first, second, third }); })()`));
+      const p = [];
+      if (!r.had) p.push('Refurbish\'s editor has no file control');
+      if (!/^Imported 4 lines from “cost-schedule-v1\.csv” \(qt-cost-schedule, version 1\): RM26,300\.50\.$/.test(r.first.msg)) p.push(`the import says "${r.first.msg}"`);
+      if (r.first.cols.some(c => JSON.stringify(c) !== '[4,26300.5,"placeholder"]') || r.first.saved !== 0 || r.first.from?.file !== 'cost-schedule-v1.csv') p.push(`after the import: ${JSON.stringify(r.first)} — 4 lines, RM26,300.50, Placeholder in every column, the property unwritten`);
+      if (!/already among the lines/.test(r.second.msg) || r.second.cols.some(c => c[0] !== 4)) p.push(`a second import: "${r.second.msg}", ${JSON.stringify(r.second.cols)}`);
+      if (!/^Nothing imported — “not-a-schedule\.csv” does not begin with the line/.test(r.third.msg) || r.third.cols.some(c => c[0] !== 4)) p.push(`a bad file: "${r.third.msg}", ${JSON.stringify(r.third.cols)}`);
+      if (p.length) fail('cost-import CI2: the example chosen in the Lab\'s Refurbish', p);
+      else ok('cost-import CI2: in the Lab on a saved property the published CSV chosen in Refurbish\'s editor is "Imported 4 lines from “cost-schedule-v1.csv” (qt-cost-schedule, version 1): RM26,300.50." — four lines in every column, the cost RM26,300.50 and Placeholder, each kept with the file it came from, the property unwritten until Save; the same file again adds none ("already among the lines"); a file not in the format is refused whole');
+    });
+  }
+  /* ---- end cost-import ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {
