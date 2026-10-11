@@ -2931,6 +2931,55 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end backup-served ---- */
 
+/* ---- claims-cash-required ---- */
+/* ONE DEFINITION OF "CASH REQUIRED" (the claims audit of 11 Oct 2026, rank
+   2: F-06, R-12). /how-it-works's deal check said "Cash required upfront
+   RM107,211 — deposit, fees, renovation", which left the reserve out, while
+   the homepage, the Scenario Lab and /property-investing call RM118,960
+   "Cash required" with the 3-month reserve in it: one name, two figures.
+   Held here on every served page, before any script: no tile reads "Cash
+   required upfront"; and /how-it-works's deal check carries one "Cash
+   required" tile (or its partial / so-far form) whose line names the
+   reserve. model-test holds its figure to the model's safeCashRequired,
+   the quantity the calculator and the Lab show under that name. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const got = await getAll(statics);
+  const upfront = [];
+  for (const path of statics) {
+    const body = got.get(path)?.body || '';
+    if (/Cash required upfront/i.test(body.replace(/<[^>]*>/g, ' '))) upfront.push(path);
+  }
+  if (upfront.length) p.push(`"Cash required upfront" is served on ${upfront.join(', ')} — the reserve left out of a figure every other page calls cash required with it`);
+  const said = {};
+  const hiw = got.get('/how-it-works');
+  if (!hiw || hiw.status !== 200) p.push(`/how-it-works: ${hiw?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(hiw.body);
+    const box = all(tree).find(n => has(n, 'hiw-example') && all(n).some(h => h.tag === 'h4' && sight(h) === 'A Sarawak property deal check'));
+    if (!box) p.push('/how-it-works serves no "A Sarawak property deal check" example');
+    else {
+      const tiles = all(box).filter(n => has(n, 'stat')).map(t => ({
+        label: sight(all(t).find(n => has(n, 'stat-label')) || { kids: [] }),
+        value: sight(all(t).find(n => has(n, 'stat-value')) || { kids: [] }),
+        sub: sight(all(t).find(n => has(n, 'stat-sub')) || { kids: [] }) }));
+      const cash = tiles.filter(t => /^Cash required\b/.test(t.label));
+      if (cash.length !== 1) p.push(`/how-it-works's deal check carries ${cash.length} "Cash required" tiles (${tiles.map(t => t.label).join(', ')}), not one`);
+      else {
+        Object.assign(said, cash[0]);
+        if (!/^Cash required(?: — partial| so far)?$/.test(cash[0].label)) p.push(`/how-it-works's deal check labels its cash "${cash[0].label}", not "Cash required" as the calculator and the Lab do`);
+        if (!/\breserve\b/.test(cash[0].sub)) p.push(`/how-it-works's deal check says its cash required is "${cash[0].sub}" — the reserve the Lab and the calculator count is not named`);
+        if (!/^RM[\d,]+$/.test(cash[0].value)) p.push(`/how-it-works's deal check prints its cash required as "${cash[0].value}"`);
+      }
+    }
+  }
+  judge(p, `one definition of cash required, as served (the claims audit, rank 2): no page serves "Cash required upfront"; /how-it-works's deal check reads "${said.label || '—'} ${said.value || '—'} — ${said.sub || '—'}"`,
+    'a served page calls a figure without the reserve cash required');
+}
+/* ---- end claims-cash-required ---- */
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

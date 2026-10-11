@@ -27481,12 +27481,21 @@ function hiwReportPreview() {
    page then invited the reader to calculate their own and see different
    numbers. The example is the calculator's default deal at the stated price
    and rent, run through the same dealModel the calculator uses. */
+/* ONE "CASH REQUIRED" (the claims audit of 11 Oct 2026, rank 2). This tile
+   read "Cash required upfront RM107,211 — deposit, fees, renovation": the
+   cash to complete and the renovation, with no reserve, where the homepage,
+   the Scenario Lab and /property-investing call the model's total WITH the
+   reserve "Cash required". Now it is that total — safeCashRequired, the
+   quantity the calculator and the Lab show under the name — its line names
+   the reserve, and a total short of a line says so as theirs do. */
 function hiwDealCheck() {
   const EX_PRICE = 550000, EX_RENT = 1900;
   const exm = dealModel({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
     checks: {}, price: EX_PRICE, rent: EX_RENT });
   const rm0 = (v) => isNum(v) ? fmtMoney(v, 'MYR', 0) : '—';
-  const upfront = isNum(exm.transactionCash) ? exm.transactionCash + (exm.improvementCash || 0) : null;
+  const cashLabel = cashPartial(exm) ? 'Cash required — partial' : (exm.missingCostLines || []).length ? 'Cash required so far' : 'Cash required';
+  const cashSub = isNum(exm.reserveCash) ? `deposit, fees, renovation and a ${exm.reserveMonths}-month reserve`
+    : 'deposit, fees and renovation — the reserve cannot be priced';
   const box = el('div', { class: 'hiw-example' });
   box.append(el('h4', { class: 'hiw-ex-t' }, 'A Sarawak property deal check'));
   box.append(el('p', { class: 'hiw-ex-b' }, `The calculator’s own model at ${rm0(EX_PRICE)} and ${rm0(EX_RENT)} a month.`));
@@ -27498,7 +27507,7 @@ function hiwDealCheck() {
       statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy',
         tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
       statTile('Break-even rent', rm0(exm.breakEvenRent), { sub: 'rent needed to cover every cost' }),
-      statTile('Cash required upfront', rm0(upfront), { sub: 'deposit, fees, renovation' }),
+      statTile(cashLabel, rm0(exm.safeCashRequired), { sub: cashSub }),
     ]),
     el('p', { class: 'metaline hiw-label', style: 'margin-top:var(--md)' },
       'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing, with no verified comparables behind it. Enter your own numbers to get your own answer.'),
