@@ -3165,6 +3165,12 @@ const HOME_PAGE = read(HOME);
   here('/welcome', /Research Bursa companies An illustrative set — synthetic figures, not filed statements/, 'the Bursa option qualified as an illustrative set');
   here('/welcome', /Record my portfolio What you hold, valued where a price is held or you supply one/, '"Record my portfolio — What you hold, valued where a price is held or you supply one"');
   said.push('/welcome "An illustrative set — synthetic figures" and "Record my portfolio"');
+  /* 6d — the Value Map's "As of" (F-19, R-29): "Latest reported period,
+     current price", on a page whose every plotted company is on a sample
+     price or a close the reader supplied. */
+  gone(/Latest reported period, current price/, '"Latest reported period, current price"');
+  here('/discover/value-map', /Latest reported period, sample price \(or the close you supplied\)\./, 'its As of line "Latest reported period, sample price (or the close you supplied)."');
+  said.push('/discover/value-map "sample price (or the close you supplied)"');
   /* ---- parts above ---- */
   judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
     'a served page still claims more than it holds');

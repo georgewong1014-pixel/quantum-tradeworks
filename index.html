@@ -26908,7 +26908,10 @@ function renderRadar() {
   timeRow.append(yiChip);
   timeRow.append(el('span', { class: 'metaline' },
     rr.yi === YEARS.length - 1
-      ? 'Latest reported period, current price.'
+      /* "current price" read as an observed one; what is plotted is a
+         sample price or a close the reader supplied (the claims audit of
+         11 Oct 2026, rank 6; F-19, R-29). */
+      ? 'Latest reported period, sample price (or the close you supplied).'
       : `Statements truncated to FY${YEARS[rr.yi]}, priced from the illustrative set's sample series for that year — the same models re-run, not today's answer replotted. Filed companies carry no sample series and drop out of past snapshots.`));
   bar.append(timeRow);
   wrap.append(bar);
