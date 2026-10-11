@@ -2602,11 +2602,20 @@ for (const route of ROUTES) {
         return of; })()`);
       const placed = groupOf.length;
       if (!placed) { p.push('no assumptions to place on paper'); break; }
+      /* Pages 1 to 8, until every row is found: since the report split
+         (QT-05, Facts, Assumptions, Missing evidence and Risks after the key
+         figures — two to three pages of them) the assumptions print from
+         page 3 or 4, where pages 1–3 held them before. One page more is
+         read after the one where the last row is found, so a row run on
+         into the next page is still seen split. */
       const runs = [];
-      for (let pg = 1; pg <= 3; pg++) {
+      let allAt = null;
+      for (let pg = 1; pg <= 8; pg++) {
         const one = await send('Page.printToPDF', { preferCSSPageSize: true, pageRanges: String(pg) }, sessionId);
         if (!one.result?.data) break;
         pdfRuns(Buffer.from(one.result.data, 'base64')).forEach(x => runs.push({ ...x, pg }));
+        if (allAt != null) break;
+        if (groupOf.every((g, j) => runs.some(x => x.fill === `251,${j},0`) && runs.some(x => x.fill === `252,${j},0`))) allAt = pg;
       }
       const where = (fill) => runs.filter(x => x.fill === fill);
       const col = (x) => (x.x < PAGE_W / 2 ? 0 : 1);
@@ -2614,7 +2623,7 @@ for (const route of ROUTES) {
       let prev = null;
       for (let j = 0; j < placed; j++) {
         const dt = where(`251,${j},0`), dd = where(`252,${j},0`);
-        if (!dt.length) { p.push(`${at}: row ${j + 1}'s label is not on pages 1–3`); continue; }
+        if (!dt.length) { p.push(`${at}: row ${j + 1}'s label is not on pages 1–8`); continue; }
         const both = [...dt, ...dd];
         const pages = new Set(both.map(x => x.pg)), cols = new Set(both.map(x => col(x)));
         if (pages.size > 1 || cols.size > 1) p.push(`${at}: row ${j + 1} is split — ${both.length} runs over page${pages.size > 1 ? 's' : ''} ${[...pages].join(' and ')}, column${cols.size > 1 ? 's' : ''} ${[...cols].map(c => c + 1).join(' and ')}`);

@@ -2825,6 +2825,69 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end deep-links ---- */
 
+/* ---- cost-schedule ---- */
+/* THE COST-SCHEDULE FORMAT, AS SERVED (the owner's Track A of 10 Oct 2026,
+   item 4; costScheduleCard, 84-property-costs.js). /data-sources read as a
+   fetch reads it, before any script:
+   - a section#cost-schedule headed "Cost schedule format, version 1", each
+     of the eight fields (item, amount, currency, source, date, includes,
+     excludes, kind) named with its rule, the JSON and CSV shapes, "nothing
+     is fetched", and the strict rule (refused with the reason, nothing
+     guessed, a file imported twice not counted twice);
+   - two links to the examples, each served 200 — the JSON as JSON in the
+     format and version with every line of the eight fields, currency RM;
+     the CSV as text/csv beginning "qt-cost-schedule,1" and the header —
+     both said to be synthetic, naming no real quotation or business.
+   Fails on a8d9e5c1, which serves no format section and no example. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const FIELDS = ['item', 'amount', 'currency', 'source', 'date', 'includes', 'excludes', 'kind'];
+  const r = await get('/data-sources');
+  const views = r.status === 200 ? all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views') : null;
+  const sec = views ? all(views).find(n => attr(n, 'id') === 'cost-schedule') : null;
+  if (r.status !== 200) p.push(`/data-sources: ${described(r)}`);
+  else if (!sec) p.push('/data-sources serves no section#cost-schedule in #views');
+  else {
+    const text = sight(sec);
+    const h2 = all(sec).find(n => n.tag === 'h2');
+    if (!h2 || sight(h2) !== 'Cost schedule format, version 1') p.push(`the section is headed ${JSON.stringify(h2 ? sight(h2) : null)}`);
+    const named = all(sec).filter(n => n.tag === 'dt').map(n => sight(n));
+    const lost = FIELDS.filter(f => !named.includes(f));
+    if (lost.length) p.push(`fields not named: ${lost.join(', ')}`);
+    for (const [re, what] of [[/"format": "qt-cost-schedule", "version": 1/, 'the JSON shape'], [/“qt-cost-schedule,1”/, 'the CSV\'s first line'], [/nothing is fetched/, 'that nothing is fetched'],
+      [/refused with the reason/, 'that a bad row is refused with the reason'], [/nothing is guessed/, 'that nothing is guessed'], [/imported twice is not counted twice/, 'that a duplicate import does not double'],
+      [/RM — the only currency/, 'that RM is the only currency'], [/no real quotation, business or property/, 'that the examples are synthetic']])
+      if (!re.test(text)) p.push(`the section does not say ${what}`);
+    const links = all(sec).filter(n => n.tag === 'a' && attr(n, 'data-example'));
+    said.links = links.length;
+    const hrefs = Object.fromEntries(links.map(n => [attr(n, 'data-example'), attr(n, 'href')]));
+    if (hrefs.json !== '/data/examples/cost-schedule-v1.json' || hrefs.csv !== '/data/examples/cost-schedule-v1.csv') p.push(`the example links are ${JSON.stringify(hrefs)}`);
+    const j = await get('/data/examples/cost-schedule-v1.json'), c = await get('/data/examples/cost-schedule-v1.csv');
+    let doc = null; try { doc = JSON.parse(j.body); } catch { doc = null; }
+    if (j.status !== 200 || !doc) p.push(`the JSON example: ${described(j)}${doc ? '' : ', not JSON'}`);
+    else {
+      if (doc.format !== 'qt-cost-schedule' || doc.version !== 1 || doc.currency !== 'RM' || !Array.isArray(doc.lines) || !doc.lines.length) p.push('the JSON example is not in the format, version 1, RM, with lines');
+      const off = (doc.lines || []).filter(x => JSON.stringify(Object.keys(x).sort()) !== JSON.stringify([...FIELDS].sort()) || x.currency !== 'RM' || typeof x.amount !== 'number');
+      if (off.length) p.push(`${off.length} JSON example lines are not the eight fields in RM`);
+      if (!/synthetic/i.test(doc.title || '')) p.push('the JSON example does not say it is synthetic');
+      said.json = (doc.lines || []).length;
+    }
+    const lines = String(c.body || '').split(/\r?\n/);
+    if (c.status !== 200) p.push(`the CSV example: ${described(c)}`);
+    else {
+      if (!/^text\/csv/.test(c.headers.get('content-type') || '')) p.push(`the CSV example is served as ${c.headers.get('content-type')}`);
+      if (lines[0] !== 'qt-cost-schedule,1' || lines[1] !== FIELDS.join(',')) p.push(`the CSV example begins ${JSON.stringify(lines.slice(0, 2))}`);
+      if (!/synthetic/i.test(c.body)) p.push('the CSV example does not say it is synthetic');
+      said.csv = lines.filter(Boolean).length - 2;
+    }
+  }
+  judge(p, `/data-sources serves the cost-schedule format before any script: "Cost schedule format, version 1", the eight fields each with its rule, the JSON and CSV shapes, nothing fetched, strict (refused with the reason, nothing guessed, an import twice not counted twice), RM only; ${said.links} example links, the JSON (${said.json} lines of the eight fields) and the CSV (${said.csv} rows, text/csv, its format line and header) served 200, both synthetic`,
+    '/data-sources does not serve the cost-schedule format');
+}
+/* ---- end cost-schedule ---- */
+
 /* ---- backup-served ---- */
 /* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the
    workspace at /app say when this browser last exported, and what has been

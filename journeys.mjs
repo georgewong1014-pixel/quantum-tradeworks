@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, scanner, return, records, registers, cases, settings, backup, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, scanner, return, records, registers, cases, settings, backup, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1491,8 +1491,10 @@ const JOURNEYS = [
         await tab.expect(`State.view === 'propertyProposal' && !!document.getElementById('cp-h-exit')`, 'the Client proposal link did not open a proposal with its sale');
         const sale = await tab.eval(`(() => { const doc = document.getElementById('cp-doc'), sec = document.getElementById('cp-h-exit').parentElement;
           /* Its words but its inputs (.cp-assume): "Agent commission on
-             exit, 2%" is an assumption, not the sale's commission. */
-          const words = doc.cloneNode(true); words.querySelectorAll('.cp-assume').forEach(n => n.remove());
+             exit, 2%" is an assumption, not the sale's commission — and so
+             are the same inputs listed again in the report split (QT-05,
+             .cp-split-item[data-split-key="input"]). */
+          const words = doc.cloneNode(true); words.querySelectorAll('.cp-assume, .cp-split-item[data-split-key="input"]').forEach(n => n.remove());
           return { rows: [...sec.querySelectorAll('tbody th')].map(th => th.textContent.replace(/\\s+/g, ' ').trim()), text: words.textContent.replace(/\\s+/g, ' '),
             notes: [...sec.querySelectorAll('.cp-note')].map(p => p.textContent.replace(/\\s+/g, ' ').trim()) }; })()`);
         const want = [/^Value less loan, year \d+ \(before selling costs\)$/, /^If sold in year \d+$/];
@@ -2081,6 +2083,104 @@ const JOURNEYS = [
         await tab.click(`document.getElementById('lab-rf-save')`, 'Save the refurbish-or-not figures');
         await tab.expect(`(() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})); return d.rfRefurbCost === 30000 && d.rfRefurbUplift === 150 && d.rfUpgradeCost === 80000 && d.rfSalePrice === 650000 && d.rfRefurbBasis === 'quoted'; })()`,
           async () => `the property holds ${await tab.eval(`JSON.stringify(Object.fromEntries(Object.entries(pmInputsOf(pmFind(${JSON.stringify(id)}))).filter(([k]) => k.startsWith('rf'))))`)}`);
+      });
+    },
+  },
+  {
+    /* PROPERTY COSTS WITH PROVENANCE (the owner's Track A of 10 Oct 2026):
+       on a saved property, the works of Refurbish entered as cost lines,
+       each with its source, its date, what it includes and its kind — the
+       cost their total, badged by the weakest line, saved with the
+       property. */
+    id: 'costs', name: 'Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported',
+    outcomes: ['Enter cost lines with sources', 'Open the report and see the four sections', 'Record an actual and see the difference', 'Import the synthetic schedule'],
+    async run(j, tab) {
+      let id;
+      const pre = 'lab-rf-cl-refurb';
+      await step(j, tab, 'Open the Lab on a saved property', BUDGET.load * 2, async () => {
+        await tab.goto('/property');
+        id = await tab.eval(`(() => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rfRefurbUplift: 150, rfRefurbVoid: 2 }; saveDeal(); return saveActiveProperty({ name: 'Journey condo, cost lines' }).id; })()`);
+        await tab.goto(`/property/lab?model=${id}`);
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('${pre}')`, async () => `the Lab opened ${await tab.eval(`document.getElementById('lab-rf') ? 'refurbish or not with no cost-lines editor' : 'without refurbish or not'`)}`);
+      });
+      await step(j, tab, 'Enter cost lines with sources', BUDGET.action * 12, async () => {
+        await tab.click(`document.querySelector('#${pre} > summary')`, 'Itemise as lines, with sources');
+        await tab.expect(`document.getElementById('${pre}')?.open`, 'the cost-lines editor did not open');
+        /* A date as a value, not typed: what a date box takes from the keys
+           depends on the locale (JOURNEY_LOCALE). */
+        const line = async (x, what) => {
+          await tab.fill(`document.getElementById('${pre}-item')`, x.item, `${what} — the item`);
+          await tab.fill(`document.getElementById('${pre}-amount')`, x.amount, `${what} — the amount`);
+          await tab.choose(`document.getElementById('${pre}-kind')`, x.kind, `${what} — its kind`);
+          await tab.fill(`document.getElementById('${pre}-source')`, x.source, `${what} — its source`);
+          await tab.eval(`(() => { const n = document.getElementById('${pre}-date'); n.value = ${JSON.stringify(x.date)}; n.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+          if (x.includes) await tab.fill(`document.getElementById('${pre}-includes')`, x.includes, `${what} — what it includes`);
+          const n0 = await tab.eval(`(LAB[labSubject].cols[0].work.rfRefurbLines || []).length`);
+          await tab.click(`document.getElementById('${pre}-add')`, `${what} — Add the line`);
+          await tab.expect(`(LAB[labSubject].cols[0].work.rfRefurbLines || []).length === ${n0 + 1}`,
+            async () => `${what} was not added: “${await tab.eval(`document.getElementById('${pre}-msg')?.textContent || ''`)}”`);
+        };
+        await line({ item: 'Kitchen cabinets', amount: '12000', kind: 'quoted', source: 'Written quote ref. J-1 (journey)', date: '2026-09-14', includes: 'carcasses and doors' }, 'A quoted line');
+        await line({ item: 'Painting', amount: '8000', kind: 'estimate', source: 'My own estimate', date: '' }, 'An estimate');
+        const c = JSON.parse(await tab.eval(`JSON.stringify((() => { const cell = document.querySelector('#lab-rf-grid .lab-xr-cell[data-row="cost"][data-col="refurb"]'); const s = document.getElementById('${pre}-sum');
+          return { cols: LAB[labSubject].cols.map(c => [c.work.rfRefurbCost, c.work.rfRefurbBasis]), v: cell?.dataset.value, k: cell?.dataset.kind, sum: s?.dataset.clKind, text: s?.textContent || '' }; })())`));
+        if (c.cols.some(x => x[0] !== 20000 || x[1] !== 'quoted') || c.v !== '20000' || c.k !== 'quoted' || c.sum !== 'quoted' || !/RM8,000 of RM20,000 rests on estimates/.test(c.text))
+          throw new StepError(`the cost reads ${JSON.stringify(c)}`);
+        await tab.click(`document.getElementById('lab-rf-save')`, 'Save the refurbish-or-not figures');
+        await tab.expect(`(() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})); return d.rfRefurbCost === 20000 && (d.rfRefurbLines || []).length === 2 && d.rfRefurbLines[0].source === 'Written quote ref. J-1 (journey)' && d.rfRefurbLines[0].date === '2026-09-14'; })()`,
+          async () => `the property holds ${await tab.eval(`JSON.stringify(pmInputsOf(pmFind(${JSON.stringify(id)})).rfRefurbLines ?? null)`)}`);
+      });
+      await step(j, tab, 'Open the report and see the four sections', BUDGET.load * 2, async () => {
+        await tab.goto(`/property/models/${encodeURIComponent(id)}/proposal`);
+        await tab.expect(`[...document.querySelectorAll('#cp-doc .cp-split-sec h2')].map(h => h.textContent).join('|') === 'Facts|Assumptions|Missing evidence|Risks'`,
+          async () => `the report's sections read ${await tab.eval(`JSON.stringify([...document.querySelectorAll('#cp-doc h2')].map(h => h.textContent))`)}`);
+        const r = JSON.parse(await tab.eval(`JSON.stringify((() => { const rows = (id) => [...document.querySelectorAll('#cp-doc .cp-split-sec[data-cp-split="' + id + '"] .cp-split-item')];
+          return { kc: rows('facts').find(li => /Kitchen cabinets/.test(li.textContent))?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null,
+            paint: rows('assumptions').find(li => /Painting/.test(li.textContent))?.querySelector('[data-kind-badge]')?.dataset.kindBadge || null,
+            unbadged: ['facts', 'assumptions', 'missing', 'risks'].flatMap(rows).filter(li => !li.querySelector('[data-kind-badge]')).length }; })())`));
+        if (r.kc !== 'quoted' || r.paint !== 'yours' || r.unbadged) throw new StepError(`the four sections read ${JSON.stringify(r)}`);
+      });
+      await step(j, tab, 'Record an actual and see the difference', BUDGET.load * 2, async () => {
+        await tab.goto(`/property/lab?model=${id}`);
+        await tab.expect(`!!document.getElementById('lab-ac-record')`, 'the Lab has no actual-against-modelled card on the saved property');
+        /* Months as values, not typed: what a month box takes from the keys
+           depends on the locale (JOURNEY_LOCALE). */
+        await tab.eval(`(() => { for (const [k, v] of [['start', '2025-01'], ['month', '2025-03']]) { const n = document.getElementById('lab-ac-' + k); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } return true; })()`);
+        await tab.fill(`document.getElementById('lab-ac-rent')`, '1700', 'Rent received');
+        await tab.fill(`document.getElementById('lab-ac-costs')`, '420', 'Running costs paid');
+        await tab.click(`document.getElementById('lab-ac-record')`, 'Record');
+        await tab.expect(`actualsOf(${JSON.stringify(id)}).entries.length === 1 && !!document.querySelector('#lab-ac-list [data-ac-entry="month:2025-03"]')`,
+          async () => `not recorded: “${await tab.eval(`document.getElementById('lab-ac-msg')?.textContent || ''`)}”`);
+        const r = JSON.parse(await tab.eval(`JSON.stringify((() => { const d = pmInputsOf(pmFind(${JSON.stringify(id)})), c = actualsCompare(d, dealModel(d), actualsOf(${JSON.stringify(id)}));
+          const cell = (f) => document.querySelector('#lab-ac-list [data-ac-entry="month:2025-03"] .ac-row[data-ac-fig="' + f + '"] [data-ac="diff"]')?.dataset.value ?? null;
+          return { rent: cell('rent'), want: String(Math.round(c.rows[0].diff.rent * 100) / 100), net: cell('net'), wantNet: String(Math.round(c.rows[0].diff.net * 100) / 100),
+            year: document.querySelector('#lab-ac-years [data-ac-year="1"]')?.textContent || '' }; })())`));
+        if (r.rent !== r.want || r.net !== r.wantNet || !/partial/.test(r.year) || /\d\.\d+%/.test(r.year)) throw new StepError(`the difference reads ${JSON.stringify(r)}`);
+      });
+      await step(j, tab, 'Import the synthetic schedule', BUDGET.action * 6, async () => {
+        /* The published example, synthetic, written to a folder of its own
+           and chosen in Upgrade's file control as a reader chooses a file
+           (DOM.setFileInputFiles); the folder deleted after. */
+        const dir = join(tmpdir(), `qt-journey-costs-${process.pid}-${Date.now()}`);
+        mkdirSync(dir, { recursive: true });
+        try {
+          const file = join(dir, 'cost-schedule-v1.csv');
+          const res = await fetch(`${BASE}/data/examples/cost-schedule-v1.csv`);
+          if (!res.ok) throw new StepError(`the example schedule is served ${res.status}`);
+          writeFileSync(file, await res.text());
+          const box = `document.getElementById('lab-rf-cl-upgrade')`;
+          await tab.click(`${box}?.querySelector(':scope > summary')`, 'Upgrade — Itemise as lines, with sources');
+          await tab.expect(`${box}?.open`, 'Upgrade\'s cost-lines editor did not open');
+          const { result } = await tab.S('Runtime.evaluate', { expression: `document.getElementById('lab-rf-cl-upgrade-file')` });
+          if (!result?.objectId) throw new StepError('Upgrade\'s editor has no file control');
+          await tab.S('DOM.enable');
+          await tab.S('DOM.setFileInputFiles', { files: [file], objectId: result.objectId });
+          await tab.expect(`(LAB[labSubject].cols[0].work.rfUpgradeLines || []).length === 4`,
+            async () => `nothing imported: “${await tab.eval(`document.getElementById('lab-rf-cl-upgrade-import-msg')?.textContent || ''`)}”`);
+          const r = JSON.parse(await tab.eval(`JSON.stringify({ msg: document.getElementById('lab-rf-cl-upgrade-import-msg')?.textContent || '',
+            cols: LAB[labSubject].cols.map(c => [c.work.rfUpgradeCost, c.work.rfUpgradeBasis]), src: LAB[labSubject].cols[0].work.rfUpgradeLines[0].source })`));
+          if (!/^Imported 4 lines from “cost-schedule-v1\.csv”/.test(r.msg) || r.cols.some(c => c[0] !== 26300.5 || c[1] !== 'placeholder') || !/EX-101/.test(r.src)) throw new StepError(`the import reads ${JSON.stringify(r)}`);
+        } finally { await rm(dir, { recursive: true, force: true }); }
       });
     },
   },

@@ -3753,6 +3753,234 @@ for (const w of [360, 390]) {
   else console.log(`ok   refurb: a saved property's refurbish-or-not card on /property at 360, 390 and 430, in the page's font and in Verdana: one option at a time (Do nothing, then Sell by the Show chips), the Show and lens chips one line each; every cell, header and field inside the card; every control a 44px target; the action bar fixed at the foot, the first slider whole above it at 390×844; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
 }
 /* ---- end refurb ---- */
+/* ---- cost-lines ---- */
+/* COST LINES ON A PHONE (QT-03, the owner's approval of 10 Oct 2026;
+   84-property-costs.js, costLinesBlock). The calculator's renovation with
+   three lines (Quoted, Estimate, Placeholder), and a saved property's
+   Refurbish with two, each editor open, at 360×640, 390×844 and 430×932, in
+   the page's font and in Verdana:
+     - nothing on the page scrolls sideways;
+     - every line, the add form's every field and the total inside the
+       editor's width;
+     - every control of the editor — its summary, Remove, the fields, the
+       kind, Add — a 44px target.
+   Fails on 87efe3ab, where there is no cost-lines editor. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const LINES = `[{ item: 'Kitchen cabinets and a long worktop description to wrap', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic), a long source to wrap on a phone', date: '2026-09-14', includes: 'carcasses, doors, worktop', excludes: 'appliances' },
+    { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: '', excludes: '' },
+    { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }]`;
+  const SEED = `(() => { const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { renovation: true }, rfRefurbUplift: 150, rfRefurbVoid: 2 };
+    setCostLines(d, 'renovation', ${LINES}); setCostLines(d, 'refurb', ${LINES}.slice(0, 2));
+    State.deal = d; saveDeal(); return saveActiveProperty({ name: 'Condominium, Tabuan — cost lines' }).id; })()`;
+  const read = (boxId) => `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const s = document.getElementById('${boxId}');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    s.open = true;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const ctrls = [...s.querySelectorAll('input, button, select, summary')].filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const p = s.getBoundingClientRect();
+    const inside = [...s.querySelectorAll('.cl-line, .cl-line-hd, .cl-meta, .cl-f, .cl-sum, .cl-del, .cl-add-btn')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.className.split(' ')[0]);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, inside, controls: ctrls.length,
+      lines: s.querySelectorAll('.cl-line').length, face: getComputedStyle(s.querySelector('.cl-item') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const id = await ev(SEED);
+      for (const [path, boxId, want] of [['/property/calculator', 'pc-cl-renovation', 3], [`/property/lab?model=${id}`, 'lab-rf-cl-refurb', 2]]) {
+        const got = await load(path);
+        if (!/^property/.test(got || '')) { fails.push(`${at} ${path}: opened ${got}`); continue; }
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        await ev(`(() => { const s = document.getElementById('${boxId}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await sleep(200);
+        const r = await ev(read(boxId));
+        if (r.none) { fails.push(`${at} ${path}: no cost-lines editor (#${boxId})`); continue; }
+        if (r.over > 0) fails.push(`${at} ${path}: the page scrolls ${r.over}px sideways`);
+        if (r.lines !== want) fails.push(`${at} ${path}: ${r.lines} lines drawn, not ${want}`);
+        if (r.small.length) fails.push(`${at} ${path}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+        if (r.inside.length) fails.push(`${at} ${path}: outside the editor's width: ${r.inside.slice(0, 4).join(', ')}`);
+        if (font && !/Verdana/.test(r.face)) fails.push(`${at} ${path}: drawn in ${r.face}, not Verdana`);
+        said.push(`${at.replace(' in Verdana', ' V')} ${path.startsWith('/property/lab') ? 'Lab' : 'calculator'}: ${r.controls} controls`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL cost-lines — cost lines on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   cost-lines: the calculator's renovation (three lines) and a saved property's Refurbish (two) at 360, 390 and 430, in the page's font and in Verdana: every line, field and the total inside the editor; every control a 44px target; nothing scrolls sideways (${said.slice(0, 4).join('; ')} …)`);
+}
+/* ---- end cost-lines ---- */
+/* ---- report-split ---- */
+/* THE REPORT'S FOUR PARTS ON A PHONE (QT-05; cpSplitSections,
+   72-property-proposal.js). A saved property's client proposal — the
+   renovation as three lines, a shophouse so the gated lines and the
+   partial total appear — at 360×640, 390×844 and 430×932, in the page's
+   font and in Verdana: Facts, Assumptions, Missing evidence and Risks
+   drawn, every row and its badge inside the document's width, nothing on
+   the page scrolling sideways. Fails on 31a1f400, where there are no four
+   parts. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const SEED = `(() => { const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { renovation: true } };
+    setDealClass(d, 'commercial');
+    setCostLines(d, 'renovation', [{ item: 'Kitchen cabinets and a long worktop description to wrap', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic), a long source to wrap on a phone', date: '2026-09-14', includes: 'carcasses, doors, worktop', excludes: 'appliances' },
+      { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: '', excludes: '' }, { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }]);
+    State.deal = d; saveDeal(); return saveActiveProperty({ name: 'Shophouse, Tabuan — the report' }).id; })()`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0;
+    const doc = document.getElementById('cp-doc');
+    if (!doc) return { none: true };
+    const p = doc.getBoundingClientRect();
+    const secs = [...doc.querySelectorAll('.cp-split-sec')].map(s => s.dataset.cpSplit).join(',');
+    const outside = [...doc.querySelectorAll('.cp-split-item, .cp-split-item > *')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.className.split(' ')[0]);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, secs, rows: doc.querySelectorAll('.cp-split-item').length, outside,
+      face: getComputedStyle(doc.querySelector('.cp-split-label') || doc).fontFamily };
+  })()`;
+  try {
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const id = await ev(SEED);
+      await load(`/property/models/${encodeURIComponent(id)}/proposal`);
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      await sleep(200);
+      const r = await ev(read);
+      if (r.none) { fails.push(`${at}: no proposal drawn`); continue; }
+      if (r.secs !== 'facts,assumptions,missing,risks') fails.push(`${at}: the parts drawn are "${r.secs}"`);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.outside.length) fails.push(`${at}: outside the document's width: ${r.outside.slice(0, 4).join(', ')}`);
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+      said.push(`${at.replace(' in Verdana', ' V')}: ${r.rows} rows`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL report-split — the report's four parts on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   report-split: a saved shophouse's client proposal at 360, 390 and 430, in the page's font and in Verdana: Facts, Assumptions, Missing evidence and Risks drawn, every row and badge inside the document, nothing scrolling sideways (${said.slice(0, 3).join('; ')} …)`);
+}
+/* ---- end report-split ---- */
+/* ---- actuals ---- */
+/* ACTUAL AGAINST MODELLED ON A PHONE (QT-06; labActualsCard,
+   84-property-costs.js). A saved property with two months and a year of the
+   hold recorded, its Lab at 360×640, 390×844 and 430×932, in the page's
+   font and in Verdana: every figure row and the form inside the card,
+   every control of the card a 44px target, nothing scrolling sideways.
+   Fails on 86c455a6, where there is no such card. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const SEED = `(() => { State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} }; saveDeal();
+    const id = saveActiveProperty({ name: 'Condominium, Tabuan — actual against modelled' }).id;
+    actualsWrite(id, { start: '2025-01', entries: [{ kind: 'month', period: '2025-01', months: 1, rent: 1850, vacancy: 0, costs: 412.5, at: '2026-10-01T00:00:00Z' },
+      { kind: 'month', period: '2025-02', months: 1, rent: 0, vacancy: 1, costs: 1260, at: '2026-10-01T00:00:00Z' },
+      { kind: 'year', period: 2, months: 12, rent: 19800, vacancy: 1.5, costs: 5200, at: '2026-10-01T00:00:00Z' }] });
+    return id; })()`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const s = document.getElementById('lab-ac');
+    if (!s) return { none: true, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+    const ctrls = [...s.querySelectorAll('input, button, select, summary')].filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5)
+      .map(([n, b]) => (n.id || n.className || n.tagName) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const p = s.getBoundingClientRect();
+    const inside = [...s.querySelectorAll('.ac-row, .ac-row > *, .ac-f, .ac-entry-hd, .ac-years')].filter(shown).filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => n.className.split(' ')[0]);
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, small, inside, controls: ctrls.length,
+      entries: s.querySelectorAll('.ac-entry').length, face: getComputedStyle(s.querySelector('.ac-label') || s).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const id = await ev(SEED);
+      const got = await load(`/property/lab?model=${id}`);
+      if (got !== 'propertyLab') { fails.push(`${at}: opened ${got}`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      await ev(`(() => { const s = document.getElementById('lab-ac'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+      await sleep(200);
+      const r = await ev(read);
+      if (r.none) { fails.push(`${at}: no actual-against-modelled card on a saved property`); continue; }
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.entries !== 3) fails.push(`${at}: ${r.entries} entries drawn, not 3`);
+      if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+      if (r.inside.length) fails.push(`${at}: outside the card's width: ${r.inside.slice(0, 4).join(', ')}`);
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+      said.push(`${at.replace(' in Verdana', ' V')}: ${r.controls} controls`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL actuals — actual against modelled on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   actuals: a saved property's actual-against-modelled card (two months and a year recorded) at 360, 390 and 430, in the page's font and in Verdana: every row, figure and field inside the card, every control a 44px target, nothing scrolling sideways (${said.slice(0, 3).join('; ')} …)`);
+}
+/* ---- end actuals ---- */
 /* ---- lab-words ---- */
 /* THE LAB SAYS LESS BEFORE IT SHOWS (the 9 Oct audit, #5, owner-approved:
    "Scenario Lab is useful but too explanation-heavy, especially for

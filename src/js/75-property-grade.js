@@ -3514,8 +3514,11 @@ VIEWS.property = () => {
         return;
       }
       f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+      /* The renovation as cost lines (QT-03): their total is the figure,
+         so the box holds it and is not typed over while there are lines. */
+      const linesOn = k === 'renovation' && costLinesExplicit(d, 'renovation');
       f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
-        value: d[k] ?? 0, style: 'text-align:right',
+        value: d[k] ?? 0, style: 'text-align:right', readonly: linesOn ? '' : null, 'aria-describedby': linesOn ? 'pc-cl-renovation-sum' : null,
         ...(k === 'holdYears' ? { min: 1, max: HOLD_YEARS_MAX } : {}),
         onchange: e => {
           /* AN EMPTIED BOX IS NOT ZERO. It was stored as 0, so clearing the
@@ -3540,6 +3543,10 @@ VIEWS.property = () => {
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
       rail.append(f);
+      /* QT-03: the renovation itemised, each line with its source, date,
+         what it covers and its kind; the total the weakest line's badge. */
+      if (k === 'renovation') rail.append(costLinesBlock({ d, target: 'renovation', prefix: 'pc',
+        write: (lines) => { setCostLines(d, 'renovation', lines); markTouched(d, 'renovation'); saveDeal(); renderKeepFocus(); } }));
     });
   });
 
@@ -3832,6 +3839,12 @@ VIEWS.property = () => {
           ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2])),
             /* Which of the ledger's five kinds it is (the rulebook 1.1.0). */
             el('span', { class: 'pc-fee-kind', 'data-fee-kind': feeKindOf(it[2]) || '' }, FEE_TABLE.categories[feeKindOf(it[2])] || '')] : []),
+          /* The renovation as cost lines (QT-03): the weakest line's badge,
+             and how much of it rests on estimates. */
+          ...(g.id === 'improvement' && it[0] === 'Renovation and furnishing' && costLinesExplicit(d, 'renovation') ? (() => {
+            const s = costLinesSummary(costLinesOf(d, 'renovation'));
+            return [' ', kindBadge(s.kind, { fine: 'the weakest of the cost lines' }), el('span', { class: 'pc-fee-prov', 'data-cl-ledger': s.kind }, `${s.n} cost line${s.n === 1 ? '' : 's'} — ${costEstimateWords(s)}`)];
+          })() : []),
           /* Included at the estimate, it can be left out again here. */
           ...(it[2]?.id === 'mortgageProtection' && it[2].provenance !== 'quote' ? [el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
             onclick: () => { if (setDealAnswer(d, 'mortgageProtection', null)) { saveDeal(); renderKeepFocus(); toast('Mortgage protection left out of the cash required.'); } } }, 'Leave it out')] : []),

@@ -4258,8 +4258,11 @@ try {
                 keys: [...(doc?.querySelectorAll('[data-cp]') || [])].map(n => n.dataset.cp),
                 /* The page's words but its inputs (.cp-assume): "Agent
                    commission on exit, 2%" is an assumption anyone sees on
-                   the calculator, not the sale's commission. */
-                text: (() => { const c = doc?.cloneNode(true); c?.querySelectorAll('.cp-assume').forEach(n => n.remove()); return txt(c); })(), notes: [...(sec?.querySelectorAll('.cp-note') || [])].map(txt),
+                   the calculator, not the sale's commission. The same inputs
+                   listed again under the report split's Assumptions and
+                   Missing evidence (QT-05: .cp-split-item[data-split-key=
+                   "input"]) are those inputs, and are left out with them. */
+                text: (() => { const c = doc?.cloneNode(true); c?.querySelectorAll('.cp-assume, .cp-split-item[data-split-key="input"]').forEach(n => n.remove()); return txt(c); })(), notes: [...(sec?.querySelectorAll('.cp-note') || [])].map(txt),
                 want: { vll: fmtMoney(m.valueLessLoanAtExit, 'MYR', 0), irr: fmtPct(m.irrPct, 2), labels: ['valueLessLoanAtExit', 'irrPct'].map(k => LAB_FIGURES.find(f => f.key === k).label(d)) } };
             };
             State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== pid);
@@ -7434,6 +7437,476 @@ try {
     });
   }
   /* ---- end refurb ---- */
+
+  /* ---- cost-lines ---- */
+  /* COST LINES WITH PROVENANCE (QT-03, the owner's approval of 10 Oct 2026;
+     setCostLines and costLinesSummary, 70-property.js; costLinesBlock,
+     84-property-costs.js). A renovation or improvement cost entered as
+     lines, each with its source, date, what it includes and excludes, and
+     its kind — Quoted, Estimate (Yours) or Placeholder — on fixture F.
+     CL1 — by hand: Quoted RM12,000 + Estimate RM8,000.50 + Placeholder
+           RM5,000 = RM25,000.50, the weakest badge Placeholder (KIND_ORDER),
+           RM13,000.50 resting on estimates; Quoted + Estimate is Quoted,
+           Estimate alone Yours; the lines' total is the figure every model
+           reads (renovation, rfRefurbCost) and the option's basis the
+           weakest kind, so Refurbish on lines is Refurbish on that one
+           figure to the sen; a single figure entered before lines stays
+           valid as one line (Yours, its basis's kind, the sample's untouched
+           figure Illustrative); a quote with no source or date, an amount of
+           nought, 2026-02-30 and a kind "cheap" are refused with the reason;
+           no lines left: the option's cost not entered, the renovation nought.
+     CL2 — the calculator: two lines added by the form, the renovation box the
+           lines' total and not typed over, the badge the weakest line's, the
+           ledger row badged; a quote with no source refused, said why.
+     CL3 — the Lab on a saved property: lines added to Refurbish are a
+           what-if of every column (the record unwritten) until Save, the
+           cost cell their total with the weakest badge, then kept with the
+           property. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const C_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const L3 = [{ item: 'Kitchen cabinets', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic)', date: '2026-09-14', includes: 'carcasses, doors, worktop', excludes: 'appliances' },
+        { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: 'walls and ceilings', excludes: '' },
+        { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }];`;
+    await ftry('cost-lines CL1: totals, the weakest badge and the single figure, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${C_SEED}
+        const s3 = costLinesSummary(costLinesClean(L3)), sQE = costLinesSummary(costLinesClean(L3.slice(0, 2))), sE = costLinesSummary(costLinesClean(L3.slice(1, 2)));
+        const d = F({ rfRefurbUplift: 150, rfRefurbVoid: 2 }); setCostLines(d, 'refurb', L3);
+        const one = F({ rfRefurbUplift: 150, rfRefurbVoid: 2, rfRefurbCost: 25000.5, rfRefurbBasis: 'placeholder' });
+        const pick = (x) => refurbModel(x).options.find(o => o.id === 'refurb');
+        const reno = F(); setCostLines(reno, 'renovation', L3);
+        const renoOne = F({ renovation: 25000.5 });
+        const legacy = { yours: costLinesSummary(costLinesOf(F({ renovation: 25000, touched: { renovation: true } }), 'renovation')),
+          sample: costLinesSummary(costLinesOf({ ...PROPERTY_DEFAULT_DEAL, touched: {} }, 'renovation')),
+          quoted: costLinesOf(F({ rfRefurbCost: 30000, rfRefurbBasis: 'quoted' }), 'refurb') };
+        const faults = [costLineFault({ ...L3[0], source: '' }), costLineFault({ ...L3[0], date: '' }), costLineFault({ ...L3[1], amount: 0 }),
+          costLineFault({ ...L3[1], date: '2026-02-30' }), costLineFault({ ...L3[1], kind: 'cheap' }), costLineFault({ ...L3[1], amount: 12.345 })];
+        const cleared = F({ rfRefurbUplift: 150 }); setCostLines(cleared, 'refurb', L3); setCostLines(cleared, 'refurb', []);
+        const renoCleared = F(); setCostLines(renoCleared, 'renovation', L3); setCostLines(renoCleared, 'renovation', []);
+        return JSON.stringify({ s3, sQE: [sQE.total, sQE.kind, sQE.onEstimates], sE: [sE.total, sE.kind], words: costEstimateWords(s3, (v) => fmtMoney(v, 'MYR', 2)),
+          d: [d.rfRefurbCost, d.rfRefurbBasis, (d.rfRefurbLines || []).length], lined: pick(d), single: pick(one),
+          reno: [reno.renovation, dealModel(reno).safeCashRequired, dealModel(renoOne).safeCashRequired, dealModel(F()).safeCashRequired],
+          legacy: { yours: [legacy.yours.n, legacy.yours.kind, legacy.yours.implicit], sample: [legacy.sample.n, legacy.sample.kind], quoted: legacy.quoted.map(x => [x.kind, x.amount, x.implicit]) },
+          faults, cleared: [cleared.rfRefurbCost ?? null, cleared.rfRefurbBasis ?? null, cleared.rfRefurbLines ?? null, pick(cleared).status],
+          renoCleared: [renoCleared.renovation, renoCleared.renovationLines ?? null],
+          stale: (() => { const x = F(); setCostLines(x, 'renovation', L3); x.renovation = 30000; const ls = costLinesOf(x, 'renovation'); return [ls.length, ls[0].amount, ls[0].implicit === true, costLinesExplicit(x, 'renovation')]; })() }); })()`));
+      const p = [];
+      const near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+      /* By hand: 12,000 + 8,000.50 + 5,000 = 25,000.50; Placeholder is the
+         weakest of Quoted, Yours and Placeholder (KIND_ORDER); 8,000.50 +
+         5,000 = 13,000.50 rests on estimates. */
+      if (!near(r.s3.total, 25000.5) || r.s3.kind !== 'placeholder' || !near(r.s3.onEstimates, 13000.5) || r.s3.n !== 3 || !near(r.s3.by.quoted, 12000))
+        p.push(`three lines: ${JSON.stringify(r.s3)} — by hand RM25,000.50, Placeholder, RM13,000.50 on estimates`);
+      if (!near(r.sQE[0], 20000.5) || r.sQE[1] !== 'quoted' || !near(r.sQE[2], 8000.5)) p.push(`Quoted + Estimate: ${JSON.stringify(r.sQE)} — by hand RM20,000.50, Quoted, RM8,000.50`);
+      if (!near(r.sE[0], 8000.5) || r.sE[1] !== 'yours') p.push(`Estimate alone: ${JSON.stringify(r.sE)} — by hand RM8,000.50, Yours`);
+      if (!/RM13,000\.50 of RM25,000\.50 rests on estimates: RM8,000\.50 your own, RM5,000\.00 placeholder/.test(r.words)) p.push(`the words: "${r.words}"`);
+      if (!near(r.d[0], 25000.5) || r.d[1] !== 'placeholder' || r.d[2] !== 3) p.push(`Refurbish on lines holds ${JSON.stringify(r.d)} — by hand 25,000.50, placeholder, 3 lines`);
+      for (const k of ['cost', 'costKind', 'firstYearMonthly', 'netYield', 'cash', 'incNoi'])
+        if (JSON.stringify(r.lined[k]) !== JSON.stringify(r.single[k])) p.push(`Refurbish's ${k} on lines ${JSON.stringify(r.lined[k])} ≠ on the one figure ${JSON.stringify(r.single[k])}`);
+      if (JSON.stringify(r.lined.payback) !== JSON.stringify(r.single.payback)) p.push(`payback ${JSON.stringify(r.lined.payback)} ≠ ${JSON.stringify(r.single.payback)}`);
+      if (!near(r.reno[0], 25000.5) || r.reno[1] !== r.reno[2] || !near(r.reno[1] - r.reno[3], 25000.5)) p.push(`the renovation on lines: ${JSON.stringify(r.reno)} — the figure 25,000.50, the cash required the one figure's, 25,000.50 above none`);
+      if (JSON.stringify(r.legacy.yours) !== '[1,"yours",true]' || JSON.stringify(r.legacy.sample) !== '[1,"illustrative"]' || JSON.stringify(r.legacy.quoted) !== '[["quoted",30000,true]]')
+        p.push(`a single figure: ${JSON.stringify(r.legacy)} — one line, Yours; the sample Illustrative; a quoted basis a Quoted line`);
+      const want = [/quote with no source/, /quote with no date/, /not above nought/, /not a date/, /not Quoted, Estimate or Placeholder/, /more than two decimal/];
+      r.faults.forEach((f, i) => { if (!f || !want[i].test(f)) p.push(`refusal ${i + 1}: ${JSON.stringify(f)} — wanted ${want[i]}`); });
+      if (JSON.stringify(r.cleared) !== '[null,null,null,"unavailable"]') p.push(`every line removed from Refurbish: ${JSON.stringify(r.cleared)} — its cost not entered, Unavailable`);
+      if (JSON.stringify(r.renoCleared) !== '[0,null]') p.push(`every line removed from the renovation: ${JSON.stringify(r.renoCleared)} — nought`);
+      if (JSON.stringify(r.stale) !== '[1,30000,true,false]') p.push(`a figure moved after its lines (a Lab slider): ${JSON.stringify(r.stale)} — the figure, one line, the lines no longer shown as its`);
+      if (p.length) fail('cost-lines CL1: totals, the weakest badge and the single figure, by hand', p);
+      else ok('cost-lines CL1: Quoted RM12,000 + Estimate RM8,000.50 + Placeholder RM5,000 = RM25,000.50, badged Placeholder (the weakest), RM13,000.50 on estimates; Quoted + Estimate Quoted, Estimate alone Yours; on lines Refurbish is Refurbish on the one figure to the sen (cost, kind, first-year position, yield, cash, payback) and the renovation the same cash required; a single figure is one line (Yours; the sample Illustrative; a quoted basis Quoted); six bad lines refused with their reasons; no lines left, the option Unavailable and the renovation nought; a figure moved after its lines (a Lab slider) is the figure, the lines no longer shown as its');
+    });
+
+    await ftry('cost-lines CL2: the calculator\'s renovation as lines', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${C_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null) });
+        State.deal = F({ renovation: 20000, touched: { ...F().touched, renovation: true } }); saveDeal();
+        navigate('/property/calculator'); await w(700);
+        const box = () => document.getElementById('pc-cl-renovation');
+        const before = { box: !!box(), open: !!box()?.open, sum: document.getElementById('pc-cl-renovation-sum')?.dataset.clKind || null };
+        if (box()) box().open = true;
+        const put = (k, v) => { const n = document.getElementById('pc-cl-renovation-' + k); if (n) n.value = v; };
+        const addLine = async (x) => { for (const [k, v] of Object.entries(x)) put(k, v); document.getElementById('pc-cl-renovation-add')?.click(); await w(400); };
+        await addLine({ item: 'Wardrobes', amount: '9000', kind: 'quoted', source: 'Written quote ref. EX-202 (synthetic)', date: '2026-08-30', includes: 'two wardrobes', excludes: 'delivery' });
+        await addLine({ item: 'Curtains', amount: '1500.25', kind: 'estimate', source: 'My own estimate', date: '' });
+        const after2 = { lines: (State.deal.renovationLines || []).map(x => [x.item, x.amount, x.kind]), reno: State.deal.renovation,
+          box: document.getElementById('d-renovation')?.value, ro: document.getElementById('d-renovation')?.readOnly,
+          sum: document.getElementById('pc-cl-renovation-sum')?.dataset.clKind, sumText: document.getElementById('pc-cl-renovation-sum')?.textContent || '',
+          ledger: document.querySelector('[data-cl-ledger]')?.dataset.clLedger || null, open: !!box()?.open, touched: !!State.deal.touched?.renovation };
+        await addLine({ item: 'Sofa', amount: '3000', kind: 'quoted', source: '', date: '2026-08-30' });
+        const refused = { msg: document.getElementById('pc-cl-renovation-msg')?.textContent || '', n: (State.deal.renovationLines || []).length };
+        const k = JSON.parse(keep); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ before, after2, refused }); })()`));
+      const p = [], a = r.after2;
+      if (!r.before.box || r.before.open) p.push(`before any line: the editor ${r.before.box ? 'is open' : 'is not drawn'} under the renovation`);
+      /* The single figure entered first (RM20,000, Yours) is kept as a line: 20,000 + 9,000 + 1,500.25 = 30,500.25; Yours, Quoted and Yours — the weakest Quoted. */
+      if (JSON.stringify(a.lines) !== '[["Renovation and furnishing",20000,"estimate"],["Wardrobes",9000,"quoted"],["Curtains",1500.25,"estimate"]]') p.push(`the lines kept: ${JSON.stringify(a.lines)}`);
+      if (a.reno !== 30500.25 || a.box !== '30500.25' || !a.ro || !a.touched) p.push(`the renovation reads ${a.reno} (box "${a.box}", ${a.ro ? 'read-only' : 'typeable'}, ${a.touched ? 'yours' : 'not marked yours'}) — by hand 30,500.25, held, yours`);
+      if (a.sum !== 'quoted' || a.ledger !== 'quoted' || !/RM30,500\.25 across 3 lines/.test(a.sumText) || !/RM21,500\.25 of RM30,500\.25 rests on estimates/.test(a.sumText)) p.push(`the badge and words: editor ${a.sum}, ledger ${a.ledger}, "${a.sumText.slice(0, 160)}"`);
+      if (!a.open) p.push('the editor closed itself after a line was added');
+      if (!/Not added — it is a quote with no source/.test(r.refused.msg) || r.refused.n !== 3) p.push(`a quote with no source: "${r.refused.msg}", ${r.refused.n} lines`);
+      if (p.length) fail('cost-lines CL2: the calculator\'s renovation as lines', p);
+      else ok('cost-lines CL2: on the calculator the renovation\'s RM20,000 (Yours) and two lines added by the form — Wardrobes RM9,000 Quoted, with its source and date, and Curtains RM1,500.25, Yours — make RM30,500.25, held in the box and not typed over, badged Quoted (the weakest) in the editor and the ledger, "RM21,500.25 of RM30,500.25 rests on estimates"; a quote with no source refused, "Not added — it is a quote with no source"');
+    });
+
+    await ftry('cost-lines CL3: Refurbish\'s works as lines in the Lab, a what-if until Save', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${C_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+        State.deal = F({ rfRefurbUplift: 150, rfRefurbVoid: 2 }); saveDeal();
+        const rec = saveActiveProperty({ name: 'cl CL3 property' });
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const record = JSON.stringify(pmFind(rec.id));
+        const box = () => document.getElementById('lab-rf-cl-refurb');
+        const drawn = !!box();
+        if (box()) box().open = true;
+        const put = (k, v) => { const n = document.getElementById('lab-rf-cl-refurb-' + k); if (n) n.value = v; };
+        for (const x of L3.slice(0, 2)) { for (const [k, v] of Object.entries(x)) put(k, String(v)); document.getElementById('lab-rf-cl-refurb-add')?.click(); await w(450); }
+        const cell = document.querySelector('#lab-rf-grid .lab-xr-cell[data-row="cost"][data-col="refurb"]');
+        const before = { drawn, recordSame: JSON.stringify(pmFind(rec.id)) === record, cols: LAB[labSubject].cols.map(c => [c.work.rfRefurbCost, c.work.rfRefurbBasis, (c.work.rfRefurbLines || []).length]),
+          cell: [cell?.dataset.value, cell?.dataset.kind, cell?.querySelector('.lab-xr-sub')?.textContent || ''], ro: document.getElementById('lab-rf-rfRefurbCost')?.readOnly,
+          save: document.getElementById('lab-rf-save')?.textContent || null };
+        document.getElementById('lab-rf-save')?.click(); await w(500);
+        const kept = pmInputsOf(pmFind(rec.id));
+        const after = { cost: kept.rfRefurbCost, basis: kept.rfRefurbBasis, lines: (kept.rfRefurbLines || []).map(x => [x.item, x.amount, x.kind, x.source, x.date]) };
+        deletePropertyModel(rec.id);
+        const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ before, after }); })()`));
+      const p = [], b = r.before;
+      if (!b.drawn) p.push('Refurbish has no cost-lines editor');
+      if (!b.recordSame) p.push('the lines were written to the property before Save');
+      /* 12,000 Quoted + 8,000.50 Yours = 20,000.50, the weakest Quoted. */
+      if (b.cols.some(c => c[0] !== 20000.5 || c[1] !== 'quoted' || c[2] !== 2)) p.push(`the columns hold ${JSON.stringify(b.cols)} — by hand 20,000.50, quoted, 2 lines in each`);
+      if (b.cell[0] !== '20000.5' || b.cell[1] !== 'quoted' || !/2 lines; RM8,00[01] on estimates/.test(b.cell[2]) || !b.ro) p.push(`the cost cell reads ${JSON.stringify(b.cell)}, the box ${b.ro ? 'held' : 'typeable'}`);
+      if (!/Save the refurbish-or-not figures to “cl CL3 property”/.test(b.save || '')) p.push(`Save reads "${b.save}"`);
+      if (r.after.cost !== 20000.5 || r.after.basis !== 'quoted' || JSON.stringify(r.after.lines) !== JSON.stringify([['Kitchen cabinets', 12000, 'quoted', 'Written quote ref. EX-101 (synthetic)', '2026-09-14'], ['Painting', 8000.5, 'estimate', 'My own estimate', '']]))
+        p.push(`Save wrote ${JSON.stringify(r.after)}`);
+      if (p.length) fail('cost-lines CL3: Refurbish\'s works as lines in the Lab, a what-if until Save', p);
+      else ok('cost-lines CL3: in the Lab on a saved property, Kitchen cabinets RM12,000 (Quoted, its source and date) and Painting RM8,000.50 (Yours) make Refurbish RM20,000.50 in every column, badged Quoted, "2 lines; RM8,000 on estimates", the cost box held — the property unwritten until "Save the refurbish-or-not figures to …", which keeps both lines with their sources and dates');
+    });
+  }
+  /* ---- end cost-lines ---- */
+
+  /* ---- report-split ---- */
+  /* THE REPORT IN FOUR PARTS (QT-05, the owner's approval of 10 Oct 2026;
+     cpSplitSections, 72-property-proposal.js). A saved property's client
+     proposal separates Facts, Assumptions, Missing evidence and Risks, every
+     figure with its kind badge and no recommendation word. On fixture F
+     (RM400,000 graded a verified transaction, 10% down, 0% over 30 years,
+     RM2,000 rent) with the renovation as three lines:
+     RS1 — the four sections in order; Facts hold the transfer duty at the
+           ledger's printed RM7,000 (Derived, its citation), the quoted
+           Kitchen cabinets RM12,000 with its source and the price (Yours,
+           graded verified); Assumptions the estimate Painting RM8,000.50
+           and the rent; Missing evidence the valuation fee RM850, the
+           searches RM1,170 and the deposits RM1,500 (Placeholder), the
+           placeholder Contingency RM5,000 and the valuation not entered;
+           Risks the rate +1/+2/+3 pp at the model's own stressed figures;
+           every row badged; no ranking or advice word.
+     RS2 — as a shophouse: the gated lines named in Missing evidence and the
+           partial cash required in Risks; at auction with no terms, "Not
+           final — 6 checks open" in Risks and the deposit terms in Missing. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const R_SEED = `const EV = { price:'verified', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears','renovation'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const L3 = [{ item: 'Kitchen cabinets', amount: 12000, kind: 'quoted', source: 'Written quote ref. EX-101 (synthetic)', date: '2026-09-14', includes: 'carcasses, doors', excludes: 'appliances' },
+        { item: 'Painting', amount: 8000.5, kind: 'estimate', source: 'My own estimate', date: '', includes: '', excludes: '' },
+        { item: 'Contingency', amount: 5000, kind: 'placeholder', source: '', date: '', includes: '', excludes: '' }];
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+      const restore = () => { const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); } };
+      const open = async (d, name) => { State.deal = d; saveDeal(); const rec = saveActiveProperty({ name }); navigate(cpPath(rec.id)); await w(900); return rec; };
+      const read = () => [...document.querySelectorAll('#cp-doc .cp-split-sec')].map(s => ({ id: s.dataset.cpSplit, h: s.querySelector('h2')?.textContent || '',
+        rows: [...s.querySelectorAll('.cp-split-item')].map(li => ({ label: li.querySelector('.cp-split-label')?.textContent || '', v: li.querySelector('.cp-split-v')?.textContent || '',
+          kind: li.querySelector('[data-kind-badge]')?.dataset.kindBadge || null, note: li.querySelector('.cp-split-note')?.textContent || '' })),
+        text: s.textContent.replace(/\\s+/g, ' ') }));`;
+    await ftry('report-split RS1: Facts, Assumptions, Missing evidence and Risks, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
+        const d = F(); setCostLines(d, 'renovation', L3);
+        const rec = await open(d, 'rs RS1 property');
+        const secs = read();
+        const ledger = document.querySelector('#cp-doc [data-cp="line"][data-cp-line="Transfer stamp duty (MOT)"]')?.textContent || null;
+        const m = dealModel(pmInputsOf(pmFind(rec.id)));
+        const stress = m.stress.rate.slice(1).map(x => x.monthly);
+        deletePropertyModel(rec.id); restore(); navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ secs, ledger, stress }); })()`));
+      const p = [], by = Object.fromEntries(r.secs.map(s => [s.id, s]));
+      const find = (id, re) => (by[id]?.rows || []).find(x => re.test(x.label));
+      if (r.secs.map(s => s.h).join('|') !== 'Facts|Assumptions|Missing evidence|Risks') p.push(`the sections read ${JSON.stringify(r.secs.map(s => s.h))}`);
+      const unbadged = r.secs.flatMap(s => s.rows.filter(x => !x.kind).map(x => `${s.id}: ${x.label}`));
+      if (unbadged.length) p.push(`rows with no kind badge: ${unbadged.slice(0, 4).join('; ')}`);
+      const duty = find('facts', /^Transfer stamp duty/);
+      if (!duty || duty.v !== 'RM7,000' || duty.kind !== 'derived' || duty.v !== r.ledger || !/Item 32/.test(duty.note)) p.push(`Facts' transfer duty: ${JSON.stringify(duty)}, the ledger ${r.ledger} — by hand RM7,000, Derived, Item 32(a)`);
+      const kc = find('facts', /Kitchen cabinets/);
+      if (!kc || kc.v !== 'RM12,000' || kc.kind !== 'quoted' || !/Written quote ref\. EX-101/.test(kc.note)) p.push(`Facts' quoted line: ${JSON.stringify(kc)}`);
+      const price = find('facts', /^Purchase price/);
+      if (!price || price.v !== 'RM400,000' || price.kind !== 'yours' || !/verified transaction/.test(price.note)) p.push(`Facts' price: ${JSON.stringify(price)}`);
+      const paint = find('assumptions', /Painting/), rent = find('assumptions', /rent$/i);
+      if (!paint || paint.v !== 'RM8,000.50' || paint.kind !== 'yours') p.push(`Assumptions' estimate: ${JSON.stringify(paint)}`);
+      if (!rent || !/RM2,000/.test(rent.v) || rent.kind !== 'yours') p.push(`Assumptions' rent: ${JSON.stringify(rent)}`);
+      if (!find('assumptions', /^Running costs over the hold/)) p.push('the model\'s own assumption (running costs up 2% a year) is not among the Assumptions');
+      /* Each figure in one part only; nothing "Not entered" called the preparer's. */
+      const seen = {}, twice = [];
+      for (const id of ['facts', 'assumptions', 'missing']) for (const x of by[id]?.rows || []) { if (seen[x.label] && seen[x.label] !== id) twice.push(`${x.label} (${seen[x.label]}, ${id})`); seen[x.label] = id; }
+      if (twice.length) p.push(`listed in two parts: ${twice.slice(0, 4).join('; ')}`);
+      const empty = (by.assumptions?.rows || []).filter(x => /^not entered$/i.test(x.v));
+      if (empty.length) p.push(`"Not entered" listed as an assumption: ${empty.map(x => x.label).join(', ')}`);
+      for (const [re, v, k] of [[/^Valuation fee/, 'RM850', 'placeholder'], [/^Searches/, 'RM1,170', 'placeholder'], [/deposits/i, 'RM1,500', 'placeholder'], [/Contingency/, 'RM5,000', 'placeholder'], [/^Bank or valuer estimate/, 'not entered', 'unavailable']]) {
+        const x = find('missing', re);
+        if (!x || x.v !== v || x.kind !== k) p.push(`Missing evidence ${re}: ${JSON.stringify(x)} — by hand ${v}, ${k}`);
+      }
+      if (find('facts', /Contingency|Painting/) || find('missing', /Kitchen cabinets/)) p.push('a cost line is in the wrong part');
+      r.stress.forEach((v, i) => { const x = find('risks', new RegExp(`^Interest rate \\+${i + 1}\\.0 pp`)); const want = `${v < 0 ? '−' : ''}RM${Math.round(Math.abs(v)).toLocaleString('en-GB')} a month`;
+        if (!x || x.v !== want) p.push(`Risks' rate +${i + 1} pp: ${JSON.stringify(x)} — the model's ${want}`); });
+      const words = r.secs.map(s => s.text).join(' ').match(/\b(best|better|worse|recommend(?:ed|s)?|should|good deal|bargain|safest|riskiest|undervalued|overvalued)\b/i);
+      if (words) p.push(`the four parts say "${words[0]}"`);
+      if (p.length) fail('report-split RS1: Facts, Assumptions, Missing evidence and Risks, by hand', p);
+      else ok(`report-split RS1: the proposal's Facts, Assumptions, Missing evidence and Risks in that order, ${r.secs.reduce((t, s) => t + s.rows.length, 0)} rows each with its kind badge — Facts: transfer duty RM7,000 (Derived, Item 32(a), the ledger's own figure), Kitchen cabinets RM12,000 Quoted with its source, the price RM400,000 graded a verified transaction; Assumptions: Painting RM8,000.50 and the rent (Yours), running costs up 2% a year (Modelled); Missing evidence: valuation fee RM850, searches RM1,170, deposits RM1,500, Contingency RM5,000 (Placeholder), the valuation not entered; Risks: the rate +1/+2/+3 pp at the model's stressed monthly positions; no ranking or advice word`);
+    });
+
+    await ftry('report-split RS2: gated lines, the partial total and an auction\'s open checks', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
+        const shop = F(); setDealClass(shop, 'commercial');
+        const a = await open(shop, 'rs RS2 shophouse'); const s1 = read(); deletePropertyModel(a.id);
+        const auc = F(); setDealAnswer(auc, 'route', 'auction');
+        const b = await open(auc, 'rs RS2 auction'); const s2 = read(); deletePropertyModel(b.id);
+        restore(); navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ s1, s2 }); })()`));
+      const p = [];
+      const sec = (s, id) => s.find(x => x.id === id) || { rows: [], text: '' };
+      const legal = sec(r.s1, 'missing').rows.find(x => /^Loan legal fees/.test(x.label));
+      if (!legal || legal.kind !== 'unavailable' || !/not yet checked for commercial property/.test(legal.v)) p.push(`the shophouse's loan legal fees in Missing evidence: ${JSON.stringify(legal)}`);
+      const part = sec(r.s1, 'risks').rows.find(x => /^Cash required — partial/.test(x.label));
+      if (!part || !/excludes loan legal fees/.test(part.note)) p.push(`the shophouse's partial cash required in Risks: ${JSON.stringify(part)}`);
+      const nf = sec(r.s2, 'risks').rows.find(x => /^Not final — 6 checks open/.test(x.label));
+      if (!nf || nf.kind !== 'unavailable') p.push(`the auction's open checks in Risks: ${JSON.stringify(nf)}`);
+      if (!sec(r.s2, 'missing').rows.some(x => /deposit terms/.test(x.label))) p.push('the auction\'s deposit terms are not named in Missing evidence');
+      if (p.length) fail('report-split RS2: gated lines, the partial total and an auction\'s open checks', p);
+      else ok('report-split RS2: as a shophouse the loan legal fees read "Unavailable — not yet checked for commercial property" under Missing evidence and "Cash required — partial", naming them, under Risks; at auction with nothing entered, "Not final — 6 checks open" under Risks and the Proclamation\'s deposit terms under Missing evidence');
+    });
+  }
+  /* ---- end report-split ---- */
+
+  /* ---- actuals ---- */
+  /* ACTUAL AGAINST MODELLED (QT-06, the owner's approval of 10 Oct 2026;
+     actualsCompare and labActualsCard, 84-property-costs.js). On fixture F
+     with RM1,200 a year of assessment and 5% vacancy (the model's year 1:
+     rent after vacancy 22,800, running costs 1,200; rent growth 2.5% and
+     running costs 2% a year after), the hold starting January 2025:
+     AC1 — by hand: January (rent 2,000, costs 150) against 1,900 and 100 —
+           +100, +50, net +50; February (vacant, costs 80) −1,900, net
+           −1,880; year 1 "2 of 12 months recorded — partial", no yield;
+           year 2 recorded whole (22,000 rent, 1,500 costs) against 23,370
+           and 1,224 — a realised 5.13% on RM400,000 (20,500), net −1,646;
+           year 3, 6 months — partial, no yield; refused with the reason: a
+           month before the start, one not yet begun, year 11 of a 10-year
+           hold, 2 months vacant in one, a year over its months, a month with
+           no start, rent on land; the key in the export, a restore of a bad
+           shape refused, the property's deletion taking its record.
+     AC2 — the Lab on a saved property: recorded through the card, set
+           beside the model, the partial year said and no yield in it, the
+           property itself unwritten. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const A_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears','assessment','rentGrowthPct'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 5, rentGrowthPct: 2.5, maintenance: 0, sinkingFund: 0, assessment: 1200, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, holdYears: 10, ...x });
+      const M = (period, x) => ({ kind: 'month', period, months: 1, rent: null, vacancy: null, costs: null, at: '2026-10-01T00:00:00Z', ...x });
+      const Y = (period, months, x) => ({ kind: 'year', period, months, rent: null, vacancy: null, costs: null, at: '2026-10-01T00:00:00Z', ...x });
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []), ac: localStorage.getItem('vl.propertyActuals') });
+      const restore = () => { const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); } if (k.ac === null) localStorage.removeItem('vl.propertyActuals'); else localStorage.setItem('vl.propertyActuals', k.ac); };`;
+    await ftry('actuals AC1: actual against modelled, partial periods and refusals, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${A_SEED}
+        const d = F(), m = dealModel(d);
+        const rec = { start: '2025-01', entries: [M('2025-01', { rent: 2000, vacancy: 0, costs: 150 }), M('2025-02', { rent: 0, vacancy: 1, costs: 80 }), Y(2, 12, { rent: 22000, vacancy: 1, costs: 1500 }), Y(3, 6, { rent: 11000, costs: 600 })] };
+        const c = actualsCompare(d, m, rec, { now: '2026-10' });
+        const words = c.years.map(Y2 => actualYearWords(Y2, c));
+        const H = { holdYears: 10, lets: true, now: '2026-10' };
+        const refusals = [actualRecordFault(rec, M('2024-12', { rent: 1 }), H), actualRecordFault(rec, M('2099-01', { rent: 1 }), H), actualRecordFault(rec, Y(11, 12, { rent: 1 }), H),
+          actualRecordFault(rec, M('2025-03', { vacancy: 2 }), H), actualRecordFault(rec, Y(1, 12, { rent: 1 }), H), actualRecordFault({ start: null, entries: [] }, M('2025-03', { rent: 1 }), H),
+          actualRecordFault(rec, Y(4, 13, { rent: 1 }), H), actualRecordFault(rec, M('2025-03', {}), H), actualRecordFault(rec, M('2025-03', { rent: 1 }), { ...H, lets: false })];
+        const keepAc = localStorage.getItem('vl.propertyActuals');
+        actualsWrite('w-ac-test', rec);
+        const round = actualsOf('w-ac-test');
+        const exported = exportEverything().data.propertyActuals?.['w-ac-test']?.entries?.length ?? null;
+        const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-10-11T00:00:00Z', data });
+        const badRestore = importEverything(doc({ propertyActuals: { 'w-x': { start: '2025-01', entries: 'none' } } }));
+        const goodRestore = importEverything(doc({ propertyActuals: { 'w-x': rec } }));
+        if (keepAc === null) localStorage.removeItem('vl.propertyActuals'); else localStorage.setItem('vl.propertyActuals', keepAc);
+        const pick = (row) => ({ y: row.y, month: row.month, partial: row.partial, a: row.actual, mo: row.modelled, df: row.diff });
+        return JSON.stringify({ rows: c.rows.map(pick), years: c.years, words, refusals, round: [round.start, round.entries.length], exported,
+          badRestore: [badRestore.ok, (badRestore.refused || []).map(x => x.why).join(' ') || badRestore.err || ''], goodRestore: goodRestore.ok && goodRestore.incoming.includes('propertyActuals') }); })()`));
+      const p = [], near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+      const [jan, feb, y2, y3] = r.rows;
+      /* Year 1: rent after 5% vacancy 22,800 a year (1,900 a month), running costs 1,200 (100). */
+      if (!jan || jan.y !== 1 || jan.month !== 1 || !near(jan.mo.rent, 1900) || !near(jan.mo.costs, 100) || !near(jan.df.rent, 100) || !near(jan.df.costs, 50) || !near(jan.df.net, 50) || !near(jan.mo.vacancy, 0.05) || !near(jan.df.vacancy, -0.05))
+        p.push(`January: ${JSON.stringify(jan)} — by hand modelled 1,900 and 100, differences +100, +50, net +50, vacancy −0.05`);
+      if (!feb || !near(feb.df.rent, -1900) || !near(feb.df.costs, -20) || !near(feb.df.net, -1880) || !near(feb.df.vacancy, 0.95)) p.push(`February: ${JSON.stringify(feb)} — by hand −1,900, −20, net −1,880, vacancy +0.95`);
+      /* Year 2: 22,800 × 1.025 = 23,370; 1,200 × 1.02 = 1,224; net modelled 22,146; actual 20,500. */
+      if (!y2 || y2.y !== 2 || !near(y2.mo.rent, 23370) || !near(y2.mo.costs, 1224) || !near(y2.df.net, -1646) || y2.partial) p.push(`year 2: ${JSON.stringify(y2)} — by hand 23,370, 1,224, net −1,646, whole`);
+      /* Year 3, six months: 22,800 × 1.025² = 23,954.25, ÷ 2 = 11,977.125;
+         running costs 1,200 × 1.02² = 1,248.48, ÷ 2 = 624.24. */
+      if (!y3 || y3.partial !== '6 of 12 months' || !near(y3.mo.rent, 11977.125, 0.01) || !near(y3.mo.costs, 624.24)) p.push(`year 3: ${JSON.stringify(y3)} — by hand 11,977.13 and 624.24 for 6 of 12 months, partial`);
+      const Y1 = r.years.find(x => x.y === 1), Y2 = r.years.find(x => x.y === 2), Y3 = r.years.find(x => x.y === 3);
+      if (!Y2?.realised || !near(Y2.realised.yieldPct, 5.125, 1e-9) || !near(Y2.realised.net, 20500)) p.push(`year 2's realised yield: ${JSON.stringify(Y2)} — by hand 20,500 ÷ 400,000 = 5.125%`);
+      if (Y1?.realised || Y3?.realised) p.push(`a realised yield stated for a partial year: ${JSON.stringify([Y1, Y3])}`);
+      const [w1, w2, w3] = r.words;
+      if (!/Year 1 of the hold: 2 of 12 months recorded — partial/.test(w1) || !/No yield for the year is stated/.test(w1) || /\d\.\d+%/.test(w1)) p.push(`year 1 says "${w1}"`);
+      if (!/realised net yield of 5\.13% for the year, before the loan/.test(w2)) p.push(`year 2 says "${w2}"`);
+      if (!/6 of 12 months recorded — partial/.test(w3) || /\d\.\d+%/.test(w3)) p.push(`year 3 says "${w3}"`);
+      const want = [/before .* the first month of the hold/, /has not begun/, /after the 10-year hold/, /more than the 1 month/, /would count twice/, /enter the first month of the hold first/, /no whole number of months/, /records no figure/, /bare parcel earns no rent/];
+      r.refusals.forEach((f, i) => { if (!f || !want[i].test(f)) p.push(`refusal ${i + 1}: ${JSON.stringify(f)} — wanted ${want[i]}`); });
+      if (JSON.stringify(r.round) !== '["2025-01",4]' || r.exported !== 4) p.push(`kept and exported: ${JSON.stringify([r.round, r.exported])}`);
+      if (r.badRestore[0] && !/propertyActuals|start month and a list of entries/.test(r.badRestore[1])) p.push(`a bad restore: ${JSON.stringify(r.badRestore)}`);
+      if (!/a start month and a list of entries/.test(r.badRestore[1]) || !r.goodRestore) p.push(`restore: bad ${JSON.stringify(r.badRestore)}, good ${r.goodRestore}`);
+      if (p.length) fail('actuals AC1: actual against modelled, partial periods and refusals, by hand', p);
+      else ok('actuals AC1: January (RM2,000 rent, RM150 costs) against the model\'s RM1,900 and RM100 — +RM100, +RM50, net +RM50; February vacant −RM1,900, net −RM1,880; year 1 "2 of 12 months recorded — partial", no yield stated; year 2 recorded whole against RM23,370 and RM1,224 — a realised 5.13% (RM20,500 on RM400,000), net −RM1,646; year 3\'s six months partial, no yield; nine bad entries refused with their reasons; the record kept, exported, restored, a bad shape refused');
+    });
+
+    await ftry('actuals AC2: recorded in the Lab, beside the model, partial said', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${A_SEED}
+        State.deal = F(); saveDeal();
+        const rec = saveActiveProperty({ name: 'ac AC2 property' });
+        const before = JSON.stringify(pmFind(rec.id));
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const card = !!document.getElementById('lab-ac');
+        const put = (k, v) => { const n = document.getElementById('lab-ac-' + k); if (n) { n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); } };
+        put('start', '2025-01'); put('month', '2025-01'); put('rent', '2000'); put('vacancy', '0'); put('costs', '150');
+        document.getElementById('lab-ac-record')?.click(); await w(500);
+        const msg1 = document.getElementById('lab-ac-msg')?.textContent || '';
+        const row = (fig, col) => document.querySelector('#lab-ac-list .ac-entry[data-ac-entry="month:2025-01"] .ac-row[data-ac-fig="' + fig + '"] [data-ac="' + col + '"]')?.dataset.value ?? null;
+        const one = { rent: [row('rent', 'actual'), row('rent', 'modelled'), row('rent', 'diff')], net: row('net', 'diff'), year: document.querySelector('#lab-ac-years [data-ac-year="1"]')?.textContent || '' };
+        put('month', '2099-01'); put('rent', '100');
+        document.getElementById('lab-ac-record')?.click(); await w(300);
+        const msg2 = document.getElementById('lab-ac-msg')?.textContent || '';
+        const stored = actualsOf(rec.id);
+        const recordSame = JSON.stringify(pmFind(rec.id)) === before;
+        deletePropertyModel(rec.id);
+        const gone = !actualsAll()[rec.id];
+        restore(); navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ card, msg1, one, msg2, stored: [stored.start, stored.entries.length], recordSame, gone }); })()`));
+      const p = [];
+      if (!r.card) p.push('no actual-against-modelled card on a saved property');
+      if (!/Recorded Jan 2025/.test(r.msg1) || JSON.stringify(r.stored) !== '["2025-01",1]') p.push(`recording January: "${r.msg1}", kept ${JSON.stringify(r.stored)}`);
+      if (JSON.stringify(r.one.rent) !== '["2000","1900","100"]' || r.one.net !== '50') p.push(`January set beside the model: rent ${JSON.stringify(r.one.rent)}, net difference ${r.one.net} — by hand 2,000 / 1,900 / +100, net +50`);
+      if (!/1 of 12 months recorded — partial/.test(r.one.year) || /\d\.\d+%/.test(r.one.year)) p.push(`year 1 reads "${r.one.year}"`);
+      if (!/Not recorded — .*has not begun/.test(r.msg2)) p.push(`a month not begun: "${r.msg2}"`);
+      if (!r.recordSame) p.push('recording an actual wrote to the saved property');
+      if (!r.gone) p.push('deleting the property left its actuals behind');
+      if (p.length) fail('actuals AC2: recorded in the Lab, beside the model, partial said', p);
+      else ok('actuals AC2: in the Lab on a saved property January 2025 recorded (RM2,000 rent, RM150 costs) reads RM2,000 against RM1,900 modelled, +RM100, net +RM50; year 1 "1 of 12 months recorded — partial", no yield; a month not begun refused, "Not recorded — … has not begun"; the property itself unwritten, and its record gone with it');
+    });
+  }
+  /* ---- end actuals ---- */
+
+  /* ---- cost-import ---- */
+  /* THE COST-SCHEDULE IMPORT (the owner's approval of 10 Oct 2026, Track A
+     item 4; parseCostSchedule, costImportMerge, 84-property-costs.js). Only
+     synthetic files: the two examples /data-sources publishes, and files
+     made here.
+     CI1 — the examples read whole: four lines each, RM26,300.50 (12,000 +
+           6,500.50 + 4,800 + 3,000), each with its source and date; a file
+           with bad rows imports the good and refuses each bad one with its
+           reason (an amount with a separator, a currency not RM, a quote
+           with no source, a kind not the format's, a row short of cells, a
+           row twice); a file of another format, version, header, field or
+           type refused whole; the same file imported twice adds nothing.
+     CI2 — the Lab on a saved property: the example chosen in Refurbish's
+           editor becomes its lines (a what-if until Save), the message says
+           what was imported, a second import says "already among the lines"
+           and adds none, a bad file is refused whole. */
+  {
+    const ftry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    /* Real line breaks, CRLF as a spreadsheet on Windows writes them. */
+    const BAD_CSV = ['qt-cost-schedule,1', 'item,amount,currency,source,date,includes,excludes,kind',
+      'Wardrobes,9000,RM,Written quote ref. T-1 (test),2026-08-30,two wardrobes,delivery,quoted',
+      'Flooring,"12,000",RM,My estimate,,,,estimate',
+      'Lights,800,MYR,My estimate,,,,estimate',
+      'Sofa,3000,RM,,2026-08-30,,,quoted',
+      'Fan,200,RM,My estimate,,,,cheap',
+      'Blinds,450,RM,My estimate',
+      'Wardrobes,9000,RM,Written quote ref. T-1 (test),2026-08-30,two wardrobes,delivery,quoted',
+      'Curtains,1500.25,RM,My estimate,,,,Estimate', ''].join('\r\n');
+    await ftry('cost-import CI1: the examples, bad rows and bad files, by hand', async () => {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const json = await (await fetch('/data/examples/cost-schedule-v1.json', { cache: 'no-store' })).text();
+        const csv = await (await fetch('/data/examples/cost-schedule-v1.csv', { cache: 'no-store' })).text();
+        const pj = parseCostSchedule(json, 'cost-schedule-v1.json'), pc = parseCostSchedule(csv, 'cost-schedule-v1.csv');
+        const sum = (p) => p.ok ? Math.round(p.rows.reduce((t, x) => t + x.line.amount, 0) * 100) / 100 : null;
+        const bad = parseCostSchedule(${JSON.stringify(BAD_CSV)}, 'bad.csv');
+        const once = costImportMerge([], pc), twice = costImportMerge(once.lines, pc);
+        const files = [parseCostSchedule('item,amount\\nX,1', 'a.csv'), parseCostSchedule('qt-cost-schedule,2\\nitem', 'b.csv'),
+          parseCostSchedule('qt-cost-schedule,1\\nitem,amount,currency,source,date,includes,excludes,kind,supplier\\nX,1,RM,,,,,estimate,Y', 'c.csv'),
+          parseCostSchedule('{"lines":[]}', 'd.json'), parseCostSchedule('{"format":"qt-cost-schedule","version":2,"lines":[]}', 'e.json'),
+          parseCostSchedule('{"format":"qt-cost-schedule","version":1,"lines":[{"item":"X","amount":"12000","currency":"RM","kind":"estimate"}]}', 'f.json'),
+          parseCostSchedule('anything', 'g.txt'), parseCostSchedule('qt-cost-schedule,1\\n"item,amount', 'h.csv')];
+        return JSON.stringify({ pj: [pj.ok, pj.rows.length, pj.refused.length, sum(pj)], pc: [pc.ok, pc.rows.length, pc.refused.length, sum(pc)],
+          kinds: pc.rows.map(x => x.line.kind).join(','), first: pc.rows[0]?.line, includes: pc.rows[0]?.line.includes,
+          bad: { ok: bad.ok, rows: bad.rows.map(x => [x.row, x.line.item, x.line.amount, x.line.kind]), refused: bad.refused },
+          once: [once.added.length, once.added[0]?.from], twice: [twice.added.length, twice.skipped.map(x => x.why)], words: costImportWords(pc, twice),
+          files: files.map(f => f.ok ? (f.rows.length + ' rows, refused: ' + f.refused.map(x => x.why).join('; ')) : f.err) }); })()`));
+      const p = [];
+      if (JSON.stringify(r.pj) !== '[true,4,0,26300.5]' || JSON.stringify(r.pc) !== '[true,4,0,26300.5]') p.push(`the examples read ${JSON.stringify([r.pj, r.pc])} — by hand 4 lines each, none refused, RM26,300.50`);
+      if (r.kinds !== 'quoted,quoted,estimate,placeholder' || r.first?.source !== 'Written quote ref. EX-101 (synthetic example)' || r.first?.date !== '2026-09-14' || r.includes !== 'carcasses, doors, worktop') p.push(`the CSV's lines: ${r.kinds}, ${JSON.stringify(r.first)}`);
+      const rows = JSON.stringify(r.bad.rows);
+      if (!r.bad.ok || rows !== '[["row 3","Wardrobes",9000,"quoted"],["row 10","Curtains",1500.25,"estimate"]]') p.push(`the bad file's good rows: ${rows} — by hand rows 3 and 10`);
+      const want = [['row 4', /12,000.*not ringgit and sen/], ['row 5', /currency is “MYR”/], ['row 6', /quote with no source/], ['row 7', /kind is not Quoted/], ['row 8', /4 cells where the header has 8/], ['row 9', /same line as row 3/]];
+      for (const [row, re] of want) { const x = r.bad.refused.find(y => y.row === row); if (!x || !re.test(x.why)) p.push(`${row}: ${JSON.stringify(x)} — wanted ${re}`); }
+      if (r.bad.refused.length !== 6) p.push(`${r.bad.refused.length} rows refused, not 6`);
+      if (r.once[0] !== 4 || r.once[1]?.file !== 'cost-schedule-v1.csv' || r.once[1]?.row !== 3) p.push(`the first import: ${JSON.stringify(r.once)}`);
+      if (r.twice[0] !== 0 || r.twice[1].length !== 4 || r.twice[1].some(w => w !== 'already among the lines')) p.push(`the same file again: ${JSON.stringify(r.twice)} — none added, four already among the lines`);
+      if (!/^Nothing imported from “cost-schedule-v1.csv”\. Skipped 4: row 3 — already among the lines/.test(r.words)) p.push(`the second import says "${r.words}"`);
+      const fileWant = [/does not begin with the line “qt-cost-schedule,1”/, /version 2 of the format/, /“supplier” not a field/, /not a cost schedule/, /version 2 of the format/, /0 rows, refused: its amount is not a number/, /neither a \.json nor a \.csv/, /never closes/];
+      r.files.forEach((f, i) => { if (!fileWant[i].test(f)) p.push(`file ${i + 1}: "${f}" — wanted ${fileWant[i]}`); });
+      if (p.length) fail('cost-import CI1: the examples, bad rows and bad files, by hand', p);
+      else ok('cost-import CI1: both published examples read whole — four lines, RM26,300.50, each with its source and date; a file with six bad rows imports rows 3 and 10 and refuses each of the others with its reason (an amount "12,000", currency MYR, a quote with no source, the kind "cheap", four cells of eight, row 3 again); eight bad files refused whole (no format line, version 2 in CSV and JSON, a "supplier" column, no format, an amount as text, a .txt, an unclosed quote); the same file twice adds nothing ("already among the lines")');
+    });
+
+    await ftry('cost-import CI2: the example chosen in the Lab\'s Refurbish', async () => {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const keep = JSON.stringify({ deal: store.read('deal', null), list: store.read('savedWork', []) });
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rfRefurbUplift: 150 }; saveDeal();
+        const rec = saveActiveProperty({ name: 'ci CI2 property' });
+        navigate('/property/lab?model=' + rec.id); await w(900);
+        const csv = await (await fetch('/data/examples/cost-schedule-v1.csv', { cache: 'no-store' })).text();
+        const choose = async (text, name) => { const n = document.getElementById('lab-rf-cl-refurb-file'); if (!n) return false; const dt = new DataTransfer(); dt.items.add(new File([text], name, { type: 'text/csv' })); n.files = dt.files; n.dispatchEvent(new Event('change', { bubbles: true })); await w(700); return true; };
+        const msg = () => document.getElementById('lab-rf-cl-refurb-import-msg')?.textContent || '';
+        const cols = () => LAB[labSubject].cols.map(c => [(c.work.rfRefurbLines || []).length, c.work.rfRefurbCost ?? null, c.work.rfRefurbBasis ?? null]);
+        const had = await choose(csv, 'cost-schedule-v1.csv');
+        const first = { msg: msg(), cols: cols(), saved: (pmInputsOf(pmFind(rec.id)).rfRefurbLines || []).length, from: LAB[labSubject].cols[0].work.rfRefurbLines?.[0]?.from || null };
+        await choose(csv, 'cost-schedule-v1.csv');
+        const second = { msg: msg(), cols: cols() };
+        await choose('item,amount\\nX,1', 'not-a-schedule.csv');
+        const third = { msg: msg(), cols: cols() };
+        deletePropertyModel(rec.id);
+        const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify({ had, first, second, third }); })()`));
+      const p = [];
+      if (!r.had) p.push('Refurbish\'s editor has no file control');
+      if (!/^Imported 4 lines from “cost-schedule-v1\.csv” \(qt-cost-schedule, version 1\): RM26,300\.50\.$/.test(r.first.msg)) p.push(`the import says "${r.first.msg}"`);
+      if (r.first.cols.some(c => JSON.stringify(c) !== '[4,26300.5,"placeholder"]') || r.first.saved !== 0 || r.first.from?.file !== 'cost-schedule-v1.csv') p.push(`after the import: ${JSON.stringify(r.first)} — 4 lines, RM26,300.50, Placeholder in every column, the property unwritten`);
+      if (!/already among the lines/.test(r.second.msg) || r.second.cols.some(c => c[0] !== 4)) p.push(`a second import: "${r.second.msg}", ${JSON.stringify(r.second.cols)}`);
+      if (!/^Nothing imported — “not-a-schedule\.csv” does not begin with the line/.test(r.third.msg) || r.third.cols.some(c => c[0] !== 4)) p.push(`a bad file: "${r.third.msg}", ${JSON.stringify(r.third.cols)}`);
+      if (p.length) fail('cost-import CI2: the example chosen in the Lab\'s Refurbish', p);
+      else ok('cost-import CI2: in the Lab on a saved property the published CSV chosen in Refurbish\'s editor is "Imported 4 lines from “cost-schedule-v1.csv” (qt-cost-schedule, version 1): RM26,300.50." — four lines in every column, the cost RM26,300.50 and Placeholder, each kept with the file it came from, the property unwritten until Save; the same file again adds none ("already among the lines"); a file not in the format is refused whole');
+    });
+  }
+  /* ---- end cost-import ---- */
 
 } catch (e) {
   fail('harness error', e.message);

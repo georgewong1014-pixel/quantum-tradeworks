@@ -349,6 +349,9 @@ const STORE_SHAPES = {
   savedScreens: SHAPE_RECORDS, savedWork: SHAPE_RECORDS, runs: SHAPE_RECORDS, sarawakExposure: SHAPE_RECORDS, comparisons: SHAPE_RECORDS,
   /* The Scenario Lab's comparisons across properties (82-property-lab.js, P6). */
   labComparisons: SHAPE_RECORDS,
+  /* What a saved property actually did, by month or year of the hold
+     (84-property-costs.js, QT-06): held to its own shape on a restore. */
+  propertyActuals: { ...SHAPE_RECORD, fault: (v) => propertyActualsFault(v) },
   areaProfiles: SHAPE_RECORD, demand: SHAPE_RECORD, deal: SHAPE_RECORD, wheelPlan: SHAPE_RECORD, qttiPlan: SHAPE_RECORD,
   manualPrices: SHAPE_RECORD, userData: SHAPE_RECORD, wht: SHAPE_RECORD, reviews: SHAPE_RECORD, borrowerProfile: SHAPE_RECORD,
   /* The name, agency, contact and logo a client proposal prints
@@ -481,6 +484,9 @@ const PORTABLE_KEYS = [
   /* Which saved property stands in each Scenario Lab column, and the lens
      (the decision layer, P6) — the properties themselves are saved work. */
   { k:'labComparisons',    label:'Scenario Lab comparisons' },
+  /* What a saved property actually did — rent received, months vacant,
+     costs paid — by month or year of the hold (QT-06). */
+  { k:'propertyActuals',   label:'Actual rent, vacancy and costs you recorded' },
   /* The scanner's three: the setups with every version (the export to the
      worker's file carries only the current ones), which recorded matches
      were read or archived here, and the scanner's notification and display
@@ -14864,6 +14870,8 @@ const SERVED_READ = {
   comparisons: () => loadComparisons(),
   /* The Scenario Lab's saved comparisons across properties (P6). */
   labComparisons: () => labComparisons(),
+  /* What saved properties actually did (QT-06). */
+  propertyActuals: () => store.read('propertyActuals', null),
   runs: () => store.read('runs', []),
   reviews: () => store.read('reviews', {}),
   manualPrices: () => manualPrices,
@@ -15034,7 +15042,7 @@ const SERVED_READS = {
      draws (a page that does not wait: its first draw replaces the served
      page at once); and the comparisons across properties the reader saved
      (P6). */
-  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons'],
+  propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons', 'propertyActuals'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
@@ -15094,7 +15102,7 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
 };
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
@@ -28931,7 +28939,7 @@ VIEWS.privacy = () => {
       [tp('Everything this product remembers is held in this browser’s local storage, under this site’s address, and none of it is sent anywhere. Unlike a cookie, local storage is not sent with any request: it stays on this device until you clear it. It holds:'),
        tlist([
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
-         [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
+         [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; the actual rent, vacancy and costs you record for a saved property, by month or by year of the hold; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
@@ -31300,6 +31308,10 @@ function learnData() {
   /* THE PROPERTY FEE RULEBOOK (the owner's property track, 8 Oct 2026):
      its version, the day it was checked, and every line's source. */
   wrap.append(feeRulebookCard());
+  /* THE COST-SCHEDULE FORMAT (the owner's Track A, 10 Oct 2026, item 4):
+     what the property tools import as cost lines, with a synthetic example
+     of each kind to download. */
+  wrap.append(costScheduleCard());
 
   /* SARAWAK TRANSACTION EVIDENCE — CORRECTED.
      This page previously implied no Sarawak transaction source existed. It
@@ -33181,8 +33193,158 @@ const RF_OPTIONS = [
   { id:'upgrade', label:'Upgrade',   keys:{ cost:'rfUpgradeCost', uplift:'rfUpgradeUplift', void:'rfUpgradeVoid', basis:'rfUpgradeBasis' } },
   { id:'sell',    label:'Sell' },
 ];
+/* COST LINES WITH PROVENANCE (QT-03, the owner's approval of 10 Oct 2026,
+   on the fee rulebook's pattern). A renovation or improvement cost — the
+   calculator's renovation and furnishing, Refurbish's and Upgrade's works —
+   can be entered as lines, each recording what it is (item), the amount in
+   ringgit, where it came from (source: free text the reader types, the only
+   place a business's name can appear, and only as they typed it), its date,
+   what it includes and excludes, and its kind:
+   - Quoted: a written quote the reader was given (the Quoted badge) — it
+     names its source and its date, or it is not a quote;
+   - Estimate: the reader's own (Yours);
+   - Placeholder: a figure put in to see the arithmetic (Placeholder).
+   A total carries the weakest line's badge (KIND_ORDER) and says how much
+   of it rests on estimates — the Estimate and Placeholder lines. The lines
+   are the cost: writing them writes their total to the single figure every
+   model already reads (renovation, rfRefurbCost, rfUpgradeCost) and, for
+   an option, the weakest kind as its basis, so no model reads the lines
+   and every figure of a deal with none is what it was. A single figure
+   entered without lines stays valid: it reads as one line — Yours for the
+   renovation (the sample's own, untouched, Illustrative), its basis's kind
+   for an option. No supplier is attached, named, asked for or kept. The
+   lines are kept with the property (a saved property's deal); like a
+   comparable's id list they do not travel in the address — its total and
+   basis do. */
+const COST_LINE_KINDS = {
+  quoted:      { id:'quoted',      label:'Quoted',      badge:'quoted',      note:'a written quote you were given', option:'Quoted — a written quote' },
+  estimate:    { id:'estimate',    label:'Estimate',    badge:'yours',       note:'your own estimate', option:'Estimate — your own' },
+  placeholder: { id:'placeholder', label:'Placeholder', badge:'placeholder', note:'a figure put in to see the arithmetic', option:'Placeholder' },
+};
+const COST_LINE_KIND_IDS = Object.keys(COST_LINE_KINDS);
+/* RF_BASES's three and the kinds, both ways. */
+const RF_BASIS_OF_KIND = { quoted:'quoted', estimate:'yours', placeholder:'placeholder' };
+const KIND_OF_RF_BASIS = { quoted:'quoted', yours:'estimate', placeholder:'placeholder' };
+const COST_TARGETS = {
+  renovation: { id:'renovation', lines:'renovationLines', cost:'renovation', basis:null, label:'Renovation and furnishing', item:'Renovation and furnishing' },
+  refurb:     { id:'refurb', lines:'rfRefurbLines', cost:'rfRefurbCost', basis:'rfRefurbBasis', label:'Refurbish', item:'Cost of the works' },
+  upgrade:    { id:'upgrade', lines:'rfUpgradeLines', cost:'rfUpgradeCost', basis:'rfUpgradeBasis', label:'Upgrade', item:'Cost of the works' },
+};
+const COST_LINE_KEYS = Object.values(COST_TARGETS).map(t => t.lines);
+const costTargetOfKey = (k) => Object.values(COST_TARGETS).find(t => t.lines === k) || null;
+const COST_TEXT_MAX = { item: 80, source: 120, includes: 200, excludes: 200 };
+const COST_AMOUNT_MAX = 100000000;
+const COST_DATE = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+/* A calendar date as written, or null: 2026-02-30 is not one. */
+const costDateOk = (s) => { const m = COST_DATE.exec(String(s || '')); if (!m) return false;
+  const t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return t.getUTCMonth() === +m[2] - 1 && +m[1] >= 1990 && +m[1] <= 2100; };
+const costText = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+/* Why a line cannot be kept, or null: each field to its own rule, nothing
+   guessed — an amount is a number of ringgit above nought to the sen, a
+   quote names its source and its date. */
+function costLineFault(x) {
+  if (!isRecord(x)) return 'it is not a line';
+  const item = costText(x.item);
+  if (!item) return 'it names no item';
+  for (const [k, max] of Object.entries(COST_TEXT_MAX)) {
+    if (x[k] != null && typeof x[k] !== 'string') return `its ${k} is not text`;
+    if (costText(x[k]).length > max) return `its ${k} is longer than ${max} characters`;
+    if (/[\u0000-\u001f\u007f]/.test(String(x[k] ?? '').replace(/[\t\r\n]/g, ' '))) return `its ${k} holds a control character`;
+  }
+  if (typeof x.amount !== 'number' || !Number.isFinite(x.amount)) return 'its amount is not a number';
+  if (!(x.amount > 0)) return 'its amount is not above nought';
+  if (x.amount > COST_AMOUNT_MAX) return `its amount is over RM${COST_AMOUNT_MAX.toLocaleString('en-GB')}`;
+  if (Math.abs(Math.round(x.amount * 100) - x.amount * 100) > 1e-6) return 'its amount has more than two decimal places';
+  if (!COST_LINE_KIND_IDS.includes(x.kind)) return 'its kind is not Quoted, Estimate or Placeholder';
+  const date = costText(x.date);
+  if (date && !costDateOk(date)) return `its date “${date.slice(0, 20)}” is not a date written YYYY-MM-DD`;
+  /* A quote names its source and its date — except the single figure a
+     reader entered as a quotation before lines existed (legacy), kept as
+     the quote it was, its missing source said wherever it is listed. */
+  if (x.kind === 'quoted' && !costText(x.source) && x.legacy !== true) return 'it is a quote with no source: say where the quote came from';
+  if (x.kind === 'quoted' && !date && x.legacy !== true) return 'it is a quote with no date: enter the date on the quote';
+  return null;
+}
+/* A line as it is kept: its fields, trimmed, and its id; where it was
+   imported from (the file's name, the format's version, the row), kept. */
+function costLineOf(x, { id = null } = {}) {
+  if (costLineFault(x)) return null;
+  const out = { id: typeof x.id === 'string' && /^[\w-]{1,40}$/.test(x.id) ? x.id : (id || `cl-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`),
+    item: costText(x.item), amount: Math.round(x.amount * 100) / 100, kind: x.kind,
+    source: costText(x.source), date: costText(x.date), includes: costText(x.includes), excludes: costText(x.excludes) };
+  if (x.legacy === true && x.kind === 'quoted' && !(out.source && out.date)) out.legacy = true;
+  if (isRecord(x.from) && typeof x.from.file === 'string') out.from = { file: costText(x.from.file).slice(0, 120), version: Number(x.from.version) || 1, row: Number(x.from.row) || null };
+  return out;
+}
+const costLinesClean = (xs) => (Array.isArray(xs) ? xs.map(x => costLineOf(x)).filter(Boolean) : []);
+/* The same line, whatever its id: what a duplicate import is found by. */
+const costLineFingerprint = (x) => JSON.stringify([costText(x.item).toLowerCase(), Math.round(Number(x.amount) * 100), x.kind,
+  costText(x.source).toLowerCase(), costText(x.date), costText(x.includes).toLowerCase(), costText(x.excludes).toLowerCase()]);
+/* Of the kinds present, the weakest, by its badge's place in KIND_ORDER. */
+const costWeakestKind = (kinds) => COST_LINE_KIND_IDS.slice().sort((a, b) => KIND_ORDER.indexOf(COST_LINE_KINDS[a].badge) - KIND_ORDER.indexOf(COST_LINE_KINDS[b].badge))
+  .find(k => kinds.includes(k)) || null;
+/* The lines a target holds: its own, or the single figure entered without
+   lines, read as one line (implicit) — none where nothing is entered. */
+function costLinesOf(d, target) {
+  const t = COST_TARGETS[target];
+  if (!t || !d) return [];
+  /* The lines explain the figure only while they add up to it: a figure
+     moved since — a slider in the Lab, an address — is the figure, read
+     as one line, and the lines kept no longer describe it. */
+  const own = costLinesClean(d[t.lines]);
+  if (own.length && isNum(d[t.cost]) && Math.abs(costLinesSummary(own).total - d[t.cost]) < 0.005) return own;
+  const v = d[t.cost];
+  if (!isNum(v) || !(v > 0)) return [];
+  const sample = !t.basis && !isTouched(d, t.cost);
+  return [{ id: 'implicit', item: t.item, amount: v, kind: t.basis ? KIND_OF_RF_BASIS[d[t.basis]] || 'estimate' : 'estimate',
+    source: '', date: '', includes: '', excludes: '', implicit: true, sample }];
+}
+const costLinesExplicit = (d, target) => { const xs = costLinesOf(d, target); return xs.length > 0 && !xs[0].implicit; };
+/* A total of lines: the sum to the sen, the weakest line's badge (the
+   sample's untouched figure Illustrative), what each kind comes to and how
+   much rests on estimates — the Estimate and Placeholder lines. */
+function costLinesSummary(lines) {
+  const xs = Array.isArray(lines) ? lines : [];
+  const by = Object.fromEntries(COST_LINE_KIND_IDS.map(k => [k, 0]));
+  let total = 0;
+  for (const x of xs) { by[x.kind] = (by[x.kind] || 0) + x.amount; total += x.amount; }
+  total = Math.round(total * 100) / 100;
+  const weakest = costWeakestKind(xs.map(x => x.kind));
+  const kind = !xs.length ? 'unavailable' : xs.some(x => x.sample) ? 'illustrative' : COST_LINE_KINDS[weakest].badge;
+  const onEstimates = Math.round((by.estimate + by.placeholder) * 100) / 100;
+  return { n: xs.length, total, by, weakest, kind, onEstimates, implicit: xs.length === 1 && !!xs[0].implicit, sample: xs.some(x => x.sample) };
+}
+/* "RM4,500 of it rests on estimates: RM2,000 your own, RM2,500 placeholders"
+   — or that none does. `money`: the format of the place it is said. */
+function costEstimateWords(s, money = (v) => fmtAmount(v, 'MYR')) {
+  if (!s || !s.n) return 'No cost entered.';
+  if (s.sample) return 'The calculator’s sample figure, not yours: replace it, or itemise it as lines with sources.';
+  if (!(s.onEstimates > 0)) return `None of it rests on estimates: ${s.n === 1 ? 'the line is a written quote' : `all ${s.n} lines are written quotes`}.`;
+  const parts = [s.by.estimate > 0 ? `${money(s.by.estimate)} your own` : null, s.by.placeholder > 0 ? `${money(s.by.placeholder)} placeholder${s.by.placeholder === s.onEstimates && s.n > 1 ? 's' : ''}` : null].filter(Boolean);
+  return `${money(s.onEstimates)} of ${money(s.total)} rests on estimates: ${parts.join(', ')}.`;
+}
+/* The one way lines are written to a deal: the lines kept, their total
+   the target's figure and, for an option, the weakest kind its basis. No
+   lines left: the option's cost is not entered (Unavailable); the
+   renovation is nought. Returns whether the deal changed. */
+function setCostLines(d, target, lines) {
+  const t = COST_TARGETS[target];
+  if (!d || !t) return false;
+  const before = JSON.stringify([d[t.lines] ?? null, d[t.cost] ?? null, t.basis ? d[t.basis] ?? null : null]);
+  const clean = costLinesClean(lines);
+  if (!clean.length) {
+    delete d[t.lines];
+    if (t.basis) { delete d[t.cost]; delete d[t.basis]; } else d[t.cost] = 0;
+  } else {
+    const s = costLinesSummary(clean);
+    d[t.lines] = clean;
+    d[t.cost] = s.total;
+    if (t.basis) d[t.basis] = RF_BASIS_OF_KIND[s.weakest];
+  }
+  return JSON.stringify([d[t.lines] ?? null, d[t.cost] ?? null, t.basis ? d[t.basis] ?? null : null]) !== before;
+}
 /* The arrears a Proclamation may pass on, for this deal's class. */
-const auctionArrearsFor = (d) => (propertyClassOf(d) === 'land' ? AUCTION_ARREARS.filter(([k]) => k !== 'arrearsMaintenance') : AUCTION_ARREARS);
+const auctionArrearsFor =(d) => (propertyClassOf(d) === 'land' ? AUCTION_ARREARS.filter(([k]) => k !== 'arrearsMaintenance') : AUCTION_ARREARS);
 
 /* THE DEVELOPER PREMIUM MODEL'S SOURCES (P4). This tool's places are in
    Sarawak, where a licensed developer's sale is made on the forms Sarawak
@@ -33360,6 +33522,9 @@ const DEAL_ANSWER_KEYS = Object.keys(DEAL_ANSWER_FIELDS);
    Returns whether the deal changed. */
 function setDealAnswer(d, k, v) {
   if (!d) return false;
+  /* Cost lines (QT-03): through their own writer, which keeps the
+     option's figure and basis with them. */
+  if (COST_LINE_KEYS.includes(k)) return setCostLines(d, costTargetOfKey(k).id, v);
   let next;
   if (k === 'comparableIds' || k === 'rentComparableIds') next = Array.isArray(v) && v.length ? [...new Set(v.map(String))] : undefined;
   else if (Object.hasOwn(DEAL_ANSWER_FIELDS, k)) next = v == null || v === '' ? undefined : DEAL_ANSWER_FIELDS[k](String(v));
@@ -35493,6 +35658,15 @@ const PROPERTY_I18N = {
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
   'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
   'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
+  /* The cost lines' fields (QT-03) and the schedule import, in the rail. */
+  'cl.item':{ en:'Item', ms:'Butiran', zh:'项目' },
+  'cl.amount':{ en:'Amount (RM)', ms:'Amaun (RM)', zh:'金额 (RM)' },
+  'cl.kind':{ en:'Kind', ms:'Jenis', zh:'类型' },
+  'cl.source':{ en:'Source — where it came from, in your words', ms:'Sumber — dari mana ia datang, dalam kata-kata anda', zh:'来源——用您自己的话说明出处' },
+  'cl.date':{ en:'Date', ms:'Tarikh', zh:'日期' },
+  'cl.includes':{ en:'What it includes', ms:'Apa yang termasuk', zh:'包括的内容' },
+  'cl.excludes':{ en:'What it excludes', ms:'Apa yang tidak termasuk', zh:'不包括的内容' },
+  'cl.import':{ en:'Import a cost schedule — a .json or .csv file in the published format', ms:'Import jadual kos — fail .json atau .csv dalam format yang diterbitkan', zh:'导入成本明细表——已发布格式的 .json 或 .csv 文件' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
@@ -36609,6 +36783,8 @@ function renamePropertyModel(id, name) {
    as an unsaved deal, so nothing on screen goes with it. */
 function deletePropertyModel(id) {
   const ok = persistWork(loadWork().filter(r => r.id !== id));
+  /* What it actually did goes with it (QT-06). */
+  if (ok && actualsAll()[id]) actualsWrite(id, null);
   if (ok && State.deal?.modelId === id) { State.deal.modelId = null; State.deal.scenarioId = null; saveDeal(); }
   return ok;
 }
@@ -38250,6 +38426,156 @@ function cpDisclosures(rec, d, m) {
   return s;
 }
 
+/* ---------------------------------------- the report in four parts (QT-05) */
+/* FACTS, ASSUMPTIONS, MISSING EVIDENCE, RISKS (the owner's approval of 10
+   Oct 2026, the four-business strategy's Track A, QT-05). Every figure the
+   proposal rests on, sorted by what stands behind it, each with its kind
+   badge (D6) — the arithmetic dealModel's, nothing computed here but sums
+   of its own lines:
+   - FACTS: figures computed from a verified rule (the fee rulebook's
+     Derived lines, at the ledger's printed amounts), quotations entered
+     with their source, the preparer's figures graded a verified
+     transaction or public data, and the comparables named that record a
+     source;
+   - ASSUMPTIONS: the preparer's inputs (Yours) and the calculator's
+     starting values still in them (Illustrative), the preparer's own cost
+     estimates, and the model's own assumptions (Modelled);
+   - MISSING EVIDENCE: every Unavailable, Placeholder or unverified line,
+     named — the rulebook's estimates, lines not priced or gated for the
+     class, placeholder cost lines, quotes with no source or date, inputs
+     still the sample's, figures graded no better than an estimate, a loan
+     with no valuation, comparables with no source, the auction's terms and
+     the lease's dates not entered;
+   - RISKS: the downside cases — the rate and the vacancy stressed, the
+     renovation overrunning, a monthly shortfall, the lease-down's reserves,
+     the auction's forfeiture and its "Not final" checks, a partial cash
+     required, gains tax on an early sale.
+   No figure is ranked and nothing is recommended: the lead says the
+   figures entered imply them. A section with nothing in it says so. */
+const CP_SPLIT = [
+  ['facts', 'Facts', 'Figures from a verified rule, a quotation with its source, a figure graded a verified transaction or public data, a comparable that records its source.'],
+  ['assumptions', 'Assumptions', 'The preparer’s inputs and estimates, and the model’s own assumptions — each marked whose it is.'],
+  ['missing', 'Missing evidence', 'Every figure still an estimate, a placeholder, unverified or not entered, named — what to replace before relying on the totals.'],
+  ['risks', 'Risks', 'The downside cases the model can work out from these inputs. Each is arithmetic on the figures entered, not a forecast.'],
+];
+const CP_EV_WORD = { verified: 'graded a verified transaction', public: 'graded public data', user: 'the preparer’s', developer: 'quoted by the seller or developer', estimated: 'graded an estimate', assumed: 'graded an assumption', illustrative_default: 'the calculator’s starting value' };
+const CP_DRIVER_LABEL = { price: 'Purchase price', rent: 'Expected monthly rent', maintenance: 'Monthly maintenance', sqft: 'Built-up area' };
+const cpSignedMoney = (v) => (isNum(v) ? `${v < 0 ? '−' : ''}${cpMoney(Math.abs(v))}` : '—');
+function cpSplitItems(d, m, cash, paid = false) {
+  const out = { facts: [], assumptions: [], missing: [], risks: [] };
+  const put = (part, label, value, kind, note = null, key = null) => out[part].push({ label, value, kind, note, key });
+  const lets = m.letsToTenant, loan = m.loan > 0;
+  /* The ledger's lines, at the amounts the ledger prints. */
+  cash.groups.forEach(g => g.items.forEach((it, j) => {
+    const r = it[2], amount = g.lines[j];
+    if (!r?.provenance) return;
+    if (!isNum(it[1])) { put('missing', cpLineLabel(it[0]), r.gated ? feeGateWords(r.gated) : 'not priced', 'unavailable', r.gated ? (r.gateWhy || null) : (r.why || 'No amount could be worked out.'), 'fee'); return; }
+    if (r.provenance === 'verified') put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived',
+      `${r.line?.source?.citation || r.line?.source?.title || 'the fee rulebook'} — fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}`, 'fee');
+    else if (r.provenance === 'quote') put('facts', cpLineLabel(it[0]), cpMoney(amount), feeKindBadge(r, it[1]), 'A quotation the preparer entered; no rule checks it.', 'fee');
+    else put('missing', cpLineLabel(it[0]), cpMoney(amount), 'placeholder',
+      r.provenance === 'unknown' ? 'Rests on a rule that could not be verified for this jurisdiction.' : 'The fee rulebook’s estimate, not a quotation: replace it with one.', 'fee');
+  }));
+  /* A cost line nobody priced has no provenance of its own: said too. */
+  (m.missingCostLines || []).filter(x => !x.gated && !(cash.groups.flatMap(g => g.items).find(it => it[0] === x.label)?.[2]?.provenance))
+    .forEach(x => put('missing', x.label, 'not priced', 'unavailable', x.why || 'No amount could be worked out.', 'line'));
+  /* The cost lines (QT-03): each where its kind puts it. */
+  for (const id of Object.keys(COST_TARGETS)) {
+    if (!costLinesExplicit(d, id)) continue;
+    const t = COST_TARGETS[id];
+    for (const x of costLinesOf(d, id)) {
+      const label = `${t.label} — ${x.item}`, said = [x.source ? `Source: ${x.source}` : null, x.date ? `dated ${feeDay(x.date)}` : null,
+        x.includes ? `includes ${x.includes}` : null, x.excludes ? `excludes ${x.excludes}` : null].filter(Boolean).join(' · ');
+      if (x.kind === 'quoted' && x.source && x.date) put('facts', label, clMoney(x.amount), 'quoted', said, 'cost');
+      else if (x.kind === 'quoted') put('missing', label, clMoney(x.amount), 'quoted', 'A quote with no source or date recorded.', 'cost');
+      else if (x.kind === 'estimate') put('assumptions', label, clMoney(x.amount), 'yours', said || 'The preparer’s own estimate.', 'cost');
+      else put('missing', label, clMoney(x.amount), 'placeholder', 'A placeholder, put in to see the arithmetic: replace it with a quote or an estimate.', 'cost');
+    }
+  }
+  /* The figures the evidence is graded for, by their grade. */
+  const drivers = evidenceDriversFor(d);
+  for (const k of drivers) {
+    const ev = shownEvidence(d, k), val = k === 'sqft' ? `${cpN(d[k])} sq ft` : k === 'rent' || k === 'maintenance' ? cpMoneyMonth(d[k]) : cpMoneyIn(d[k]);
+    if (ev === 'verified' || ev === 'public') put('facts', CP_DRIVER_LABEL[k], val, 'yours', `${cpCap(CP_EV_WORD[ev])} by the preparer.`, 'input');
+    else if (!cpSeeded(d, k) && ['estimated', 'assumed', 'developer'].includes(ev)) put('missing', CP_DRIVER_LABEL[k], val, KIND_OF_EVIDENCE[ev] || 'yours', `${cpCap(CP_EV_WORD[ev])}: no transaction or published figure stands behind it.`, 'input');
+  }
+  /* The comparables named. */
+  const gap = priceGap(d);
+  for (const c of [...gap.comps, ...gap.askingComps]) {
+    const sourced = c.source && c.source !== 'no source recorded';
+    put(sourced ? 'facts' : 'missing', `Comparable — ${c.name}`, cpMoneyIn(c.price), 'yours', sourced ? `Source: ${c.source}${c.date ? ` · ${c.date}` : ''}` : 'Named from the register with no source recorded.', 'comparable');
+  }
+  /* The inputs: the preparer's, and the sample's still in them. */
+  const factKeys = new Set(drivers.filter(k => ['verified', 'public'].includes(shownEvidence(d, k))));
+  const sample = new Set(cpSampleKeys(d, m));
+  const inputRows = [['price', 'Purchase price', cpMoneyIn(d.price)], ['sqft', 'Built-up area', `${cpN(d.sqft)} sq ft`],
+    ...cpInputGroups(d, m).flatMap(([, rows]) => rows.map(r => [r.k, r.label, r.value]))];
+  /* A figure listed under Missing evidence for its grade is not listed
+     again; nor is an input left empty (a valuation, a tax rate or a quote
+     of nought: "Not entered") — what it leaves out is said on its own row. */
+  const listed = new Set(out.missing.filter(x => x.key === 'input').map(x => x.label));
+  for (const [k, label, value] of inputRows) {
+    if (factKeys.has(k) || listed.has(CP_DRIVER_LABEL[k])) continue;
+    if (k === 'renovation' && costLinesExplicit(d, 'renovation')) continue;
+    if (CP_EMPTY_AT_NIL.includes(k) && !(num0(d[k]) > 0)) continue;
+    if (sample.has(k)) put('missing', label, value, 'illustrative', 'The calculator’s starting value: nobody entered it for this property.', 'input');
+    else put('assumptions', label, value, 'yours', 'Entered by the preparer.', 'input');
+  }
+  /* The model's own. */
+  put('assumptions', 'Running costs over the hold', '2% a year', 'modelled', 'The model raises the running costs by 2% a year after the first.', 'model');
+  if (lets && !m.taxComputed) put('assumptions', 'Tax on the rent', 'not counted', 'modelled', 'No marginal tax rate is entered: every figure is before tax on the rent.', 'model');
+  if (loan && !m.financingBasisConfirmed) put('missing', 'Bank or valuer estimate', 'not entered', 'unavailable', 'The loan is calculated on the purchase price, not on a lender’s valuation.', 'input');
+  /* By route. */
+  const route = dealRoute(d), cls = propertyClassOf(d);
+  const au = route === 'auction' ? auctionModel(d, m) : null;
+  if (au) {
+    if (au.forfeiture.status !== 'ok') put('missing', 'The Proclamation’s deposit terms', 'not entered', 'unavailable', `Enter ${cpList2(au.forfeiture.missing)} — never assumed.`, 'route');
+    au.notEntered.forEach(l => put('missing', `Auction — ${l}`, 'not entered', 'unavailable', 'Not entered, not counted in the effective cost.', 'route'));
+  }
+  const cm = cls === 'commercial' ? commercialModel(d, m) : null;
+  if (cm && cm.lease.missing.length) put('missing', 'The lease', 'not entered', 'unavailable', `Enter ${cpList2(cm.lease.missing)} for the lease-down.`, 'route');
+  /* THE RISKS. */
+  const stressRow = (label, v, note) => put('risks', label, isNum(v) ? `${cpSignedMoney(v)} a month` : 'not computed', isNum(v) ? (sample.size ? 'illustrative' : 'modelled') : 'unavailable', note, 'stress');
+  if (isNum(m.cashflowMonthly) && m.cashflowMonthly < 0) put('risks', 'Monthly position as modelled', `${cpSignedMoney(m.cashflowMonthly)} a month`, sample.size ? 'illustrative' : 'modelled', 'Met from the owner’s own income every month.', 'position');
+  if (loan) for (const r of (m.stress?.rate || []).slice(1)) stressRow(`Interest rate ${r.label} (${cpPct(r.ratePct, 2)})`, r.monthly, 'The monthly position with the rate raised and everything else held.');
+  if (lets) for (const r of (m.stress?.vacancy || []).slice(1)) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
+  if (num0(d.renovation) > 0) for (const r of (m.stress?.renovation || []).slice(1, 3)) put('risks', `Renovation ${r.label}`, `${cpMoney(r.cash)} cash required`, sample.size ? 'illustrative' : 'modelled', `The renovation at ${cpMoney(r.renovation)}; every other line as entered.`, 'stress');
+  if (cashPartial(m)) put('risks', 'Cash required — partial', cpMoney(cash.total), 'unavailable', `${cpCap(cashPartial(m).words)}: the total is short by whatever ${cashPartial(m).n === 1 ? 'that line comes' : 'those lines come'} to.`, 'gated');
+  if (cm && !cm.lease.missing.length) for (const s of cm.lease.scenarios || []) {
+    if (s.status === 'unavailable') continue;
+    put('risks', `Lease-down — ${s.months} months empty`, isNum(s.reserve) ? `${cpMoney(s.reserve)} reserve` : 'not computed', cm.lease.reserveKind, `${isNum(s.effYield) ? `Effective yield over the hold ${fmtPct(s.effYield, 2)}. ` : ''}The cash to carry it with no rent${num0(cm.lease.fitOut) > 0 ? ', and the fit-out to re-let' : ''}.`, 'lease');
+  }
+  if (au) {
+    if (au.forfeiture.status === 'ok') put('risks', 'Forfeiture — the deposit at risk', cpMoney(au.forfeiture.atRisk), 'yours', `Lost if the ${cpMoney(au.forfeiture.balance)} balance is not paid within ${cpN(au.forfeiture.days)} days.`, 'auction');
+    if (!au.final) put('risks', `Not final — ${au.checksOpen.length} check${au.checksOpen.length === 1 ? '' : 's'} open`, `${au.checksOpen.length} of ${AUCTION_CHECK_IDS.length}`, 'unavailable', `Open: ${cpList2(au.checksOpen.map(id => AUCTION_CHECKS[id].label.toLowerCase()))}. No auction figure is final until each is checked.`, 'auction');
+  }
+  /* Gains tax is the full report's (the owner's paywall rule, 3 Oct 2026:
+     cpExitSection): named only where the report is unlocked. */
+  if (paid && num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
+  return out;
+}
+const cpList2 = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+function cpSplitSections(d, m, cash, paid = false) {
+  const items = cpSplitItems(d, m, cash, paid);
+  const wrap = el('div', { class: 'cp-split', 'data-cp-split': 'all' });
+  wrap.append(cpNote('Every figure this proposal rests on, in four parts, each marked with its kind. The figures entered imply these; none is ranked and nothing here is a recommendation.'));
+  for (const [id, title, lede] of CP_SPLIT) {
+    const s = cpSection(id, title);
+    s.classList.add('cp-split-sec');
+    s.dataset.cpSplit = id;
+    s.append(el('p', { class: 'cp-note cp-split-lede' }, lede));
+    const xs = items[id];
+    if (!xs.length) s.append(el('p', { class: 'cp-note', 'data-cp-none': id }, id === 'missing' ? 'Nothing: every figure here is entered, priced and sourced.' : id === 'risks' ? 'None the model can work out from these inputs.' : 'None.'));
+    else s.append(el('ul', { class: 'cp-split-list' }, xs.map(x => el('li', { class: 'cp-split-item', 'data-split-kind': x.kind, 'data-split-key': x.key || '' }, [
+      el('span', { class: 'cp-split-label' }, x.label),
+      el('span', { class: 'cp-split-v num' }, x.value),
+      kindBadge(x.kind, { link: false }),
+      x.note ? el('span', { class: 'cp-split-note' }, x.note) : null]))));
+    wrap.append(s);
+  }
+  return wrap;
+}
+
 function cpDocument(rec, details, forWhom, picks) {
   const d = pmInputsOf(rec), m = dealModel(d), cash = cpCash(m), paid = propertyReportUnlocked(d.projectId);
   const doc = el('article', { class: 'cp-doc', id: 'cp-doc', 'aria-label': 'Client proposal' });
@@ -38263,6 +38589,9 @@ function cpDocument(rec, details, forWhom, picks) {
   if (workIsSample(rec)) doc.append(el('p', { class: 'cp-note cp-warn cp-sample' },
     'Illustrative: every figure in this proposal comes from the calculator’s sample inputs, which nobody chose for any real property.'));
   doc.append(cpKeyFigures(d, m, cash));
+  /* QT-05: Facts, Assumptions, Missing evidence and Risks, before the
+     working section by section. */
+  doc.append(cpSplitSections(d, m, cash, paid));
   doc.append(cpPropertySection(rec, d, m));
   doc.append(cpAcquisitionSection(d, m, cash));
   doc.append(cpFinancingSection(d, m));
@@ -42574,8 +42903,11 @@ VIEWS.property = () => {
         return;
       }
       f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+      /* The renovation as cost lines (QT-03): their total is the figure,
+         so the box holds it and is not typed over while there are lines. */
+      const linesOn = k === 'renovation' && costLinesExplicit(d, 'renovation');
       f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
-        value: d[k] ?? 0, style: 'text-align:right',
+        value: d[k] ?? 0, style: 'text-align:right', readonly: linesOn ? '' : null, 'aria-describedby': linesOn ? 'pc-cl-renovation-sum' : null,
         ...(k === 'holdYears' ? { min: 1, max: HOLD_YEARS_MAX } : {}),
         onchange: e => {
           /* AN EMPTIED BOX IS NOT ZERO. It was stored as 0, so clearing the
@@ -42600,6 +42932,10 @@ VIEWS.property = () => {
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
       rail.append(f);
+      /* QT-03: the renovation itemised, each line with its source, date,
+         what it covers and its kind; the total the weakest line's badge. */
+      if (k === 'renovation') rail.append(costLinesBlock({ d, target: 'renovation', prefix: 'pc',
+        write: (lines) => { setCostLines(d, 'renovation', lines); markTouched(d, 'renovation'); saveDeal(); renderKeepFocus(); } }));
     });
   });
 
@@ -42892,6 +43228,12 @@ VIEWS.property = () => {
           ...(it[2]?.provenance ? [' ', feeBadge(it[2], it[1]), el('span', { class: 'pc-fee-prov', 'data-fee-provenance': it[2].provenance }, feeProvenanceLine(it[2])),
             /* Which of the ledger's five kinds it is (the rulebook 1.1.0). */
             el('span', { class: 'pc-fee-kind', 'data-fee-kind': feeKindOf(it[2]) || '' }, FEE_TABLE.categories[feeKindOf(it[2])] || '')] : []),
+          /* The renovation as cost lines (QT-03): the weakest line's badge,
+             and how much of it rests on estimates. */
+          ...(g.id === 'improvement' && it[0] === 'Renovation and furnishing' && costLinesExplicit(d, 'renovation') ? (() => {
+            const s = costLinesSummary(costLinesOf(d, 'renovation'));
+            return [' ', kindBadge(s.kind, { fine: 'the weakest of the cost lines' }), el('span', { class: 'pc-fee-prov', 'data-cl-ledger': s.kind }, `${s.n} cost line${s.n === 1 ? '' : 's'} — ${costEstimateWords(s)}`)];
+          })() : []),
           /* Included at the estimate, it can be left out again here. */
           ...(it[2]?.id === 'mortgageProtection' && it[2].provenance !== 'quote' ? [el('button', { type: 'button', class: 'btn btn-quiet btn-sm pc-opt-btn', id: 'pc-mrta-toggle',
             onclick: () => { if (setDealAnswer(d, 'mortgageProtection', null)) { saveDeal(); renderKeepFocus(); toast('Mortgage protection left out of the cash required.'); } } }, 'Leave it out')] : []),
@@ -47308,7 +47650,9 @@ function labDraw(P, focusId = null) {
   const cross = labCrossRoute(lab) ? labXrCard(P, lab) : null;
   /* On a saved property, refurbish or not: four options on P6's columns. */
   const refurb = !P.compact && lab.model ? labRefurbCard(P, lab) : null;
-  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
+  /* On a saved property, what it actually did beside what was modelled (QT-06). */
+  const actuals = !P.compact && lab.model ? labActualsCard(P, lab) : null;
+  outputs.append(...[chain, alert, price, commercial, evidence, cross, refurb, actuals, labCompare(P, lab), P.els.colsCard, P.els.commitCard].filter(Boolean));
   /* The rows the workspace's column takes from 1440px, where the knobs and
      the drawer stand beside every one of them (styles.css). */
   grid.style.setProperty('--lab-rows', String(outputs.children.length - 1));
@@ -49483,6 +49827,15 @@ const RF_ROW_SHORT = { monthly: 'the monthly position', netYield: 'the net yield
   cost: 'the cost', uplift: 'the uplift', void: 'the months without rent' };
 const rfSigned = (v) => `${v < 0 ? '−' : ''}${labMoney(Math.abs(v))}`;
 const rfNa = (text, sub = null) => ({ na: true, value: null, text, sub });
+/* Where an option's cost came from: its basis, or — itemised (QT-03) — its
+   lines and how much of them rests on estimates. */
+const rfCostSub = (d, id) => {
+  if (costLinesExplicit(d, id)) {
+    const s = costLinesSummary(costLinesOf(d, id));
+    return `${s.n} line${s.n === 1 ? '' : 's'}; ${s.onEstimates > 0 ? `${labMoney(s.onEstimates)} on estimates` : 'all quoted'}`;
+  }
+  return RF_BASES[d[RF_OPTIONS.find(r => r.id === id).keys.basis]]?.label.toLowerCase() || 'my estimate';
+};
 const rfUnavail = (o) => ({ value: null, text: 'Unavailable', kind: 'unavailable', sub: `enter ${auList(o.missing)}` });
 function rfCell(row, o, x) {
   const sell = o.id === 'sell', none = o.id === 'none';
@@ -49498,7 +49851,7 @@ function rfCell(row, o, x) {
     return { value: o.cash, text: labMoney(o.cash), kind: o.kind, sub: o.cash > 0 ? 'the sale does not settle the loan: the rest is yours to find' : 'the sale settles the loan' };
   }
   if (row === 'cost') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'no works' }
-    : o.status !== 'ok' ? rfUnavail(o) : { value: o.cost, text: labMoney(o.cost), kind: o.costKind, sub: RF_BASES[x.d[RF_OPTIONS.find(r => r.id === o.id).keys.basis]]?.label.toLowerCase() || 'my estimate' };
+    : o.status !== 'ok' ? rfUnavail(o) : { value: o.cost, text: labMoney(o.cost), kind: o.costKind, sub: rfCostSub(x.d, o.id) };
   if (row === 'uplift') return none ? { value: 0, text: labMoney(0), kind: 'derived', sub: 'the rent as modelled' }
     : !o.upliftIn ? { value: null, text: 'Not entered', kind: 'unavailable', sub: 'no uplift counted' }
       : { value: o.uplift, text: `+${labMoney(o.uplift)}`, kind: 'yours', sub: 'a month, your figure' };
@@ -49545,14 +49898,18 @@ function labRefurbCard(P, lab) {
   /* The inputs: an option's cost, uplift and void, and where the cost came
      from; the sale's price and settlement figure, and where each came from. */
   const box = el('div', { class: 'au-inputs rf-inputs', id: labId(P, 'rf-inputs') });
-  const num = (k, label, step, unitNote = null) => {
+  const num = (k, label, step, unitNote = null, { lines = false } = {}) => {
     const id = labId(P, `rf-${k}`);
     return el('div', { class: 'au-field', 'data-rf': k, 'data-kind': auKindOfInput(d, k) }, [
       el('label', { for: id, class: 'au-label' }, label),
+      /* The works as cost lines (QT-03): their total is the cost, held here
+         and not typed over while there are lines. */
       el('input', { class: 'input au-in num', id, type: 'number', min: '0', step: String(step), inputmode: 'decimal', value: d[k] ?? '', placeholder: 'Not entered',
+        readonly: lines ? '' : null, 'aria-describedby': lines ? `${labId(P, 'rf')}-cl-${k === 'rfRefurbCost' ? 'refurb' : 'upgrade'}-sum` : null,
         onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); } }),
       /* No link: on a phone the Lab's every target is 44px (labTag). */
-      el('p', { class: 'au-kind' }, [kindBadge(d[k] == null ? 'unavailable' : 'yours', { link: false, fine: d[k] == null ? (unitNote || 'not entered') : 'your figure' })])]);
+      el('p', { class: 'au-kind' }, [lines ? kindBadge(costLinesSummary(costLinesOf(d, k === 'rfRefurbCost' ? 'refurb' : 'upgrade')).kind, { link: false, fine: 'the weakest of the cost lines' })
+        : kindBadge(d[k] == null ? 'unavailable' : 'yours', { link: false, fine: d[k] == null ? (unitNote || 'not entered') : 'your figure' })])]);
   };
   const basis = (k, label) => {
     const fs = pqGroup(P.idPrefix, `rf-${k}`, label, Object.values(RF_BASES).map(b => [b.id, b.label]), d[k] ?? null, (v) => answer(k, v));
@@ -49562,9 +49919,16 @@ function labRefurbCard(P, lab) {
   for (const o of RF_OPTIONS.filter(x => x.keys)) {
     const k = o.keys;
     const fs = el('fieldset', { class: `au-group rf-group rf-group-${o.id}`, id: labId(P, `rf-${o.id}`) });
+    const lined = costLinesExplicit(d, o.id);
+    /* With lines, the cost's kind is the weakest line's: said, not chosen. */
+    const basisOrKind = lined ? el('div', { class: 'au-field', 'data-rf': k.basis }, [el('p', { class: 'au-label' }, 'The cost is'),
+      el('p', { class: 'au-kind' }, [kindBadge(RF_BASES[d[k.basis]]?.kind || 'yours', { link: false, fine: 'the weakest of the lines' }), ' the weakest line’s'])]) : basis(k.basis, 'The cost is');
     fs.append(el('legend', { class: 'au-legend' }, o.label), el('div', { class: 'au-grid' }, [
-      num(k.cost, 'Cost of the works (RM)', 1000), basis(k.basis, 'The cost is'), num(k.uplift, 'Rent it adds (RM a month)', 50, 'not entered — no uplift counted'),
+      num(k.cost, 'Cost of the works (RM)', 1000, null, { lines: lined }), basisOrKind, num(k.uplift, 'Rent it adds (RM a month)', 50, 'not entered — no uplift counted'),
       num(k.void, 'Months without rent while it runs', 1, 'not entered — none counted')]));
+    /* QT-03: the works itemised — each line its source, date, what it
+       covers and its kind — a what-if of every column until Save. */
+    fs.append(costLinesBlock({ d, target: o.id, prefix: labId(P, 'rf'), write: (lines) => answer(COST_TARGETS[o.id].lines, lines) }));
     box.append(fs);
   }
   const sf = el('fieldset', { class: 'au-group rf-group rf-group-sell', id: labId(P, 'rf-sell') });
@@ -51538,6 +51902,536 @@ function pcCommercial(d) {
     toRents: () => lsGoTo(document.getElementById('pc-cm-rent-comps'), document.querySelector('#pc-cm-rent-comps input, #pc-cm-register')) }));
   sec.append(rDet, sDet, yDet, lDet);
   return sec;
+}
+/* ==========================================================================
+   PROPERTY COSTS WITH PROVENANCE — the owner's Track A of 10 Oct 2026
+   (the four-business synergy strategy, Quantum Tradeworks items only)
+   --------------------------------------------------------------------------
+   QT-03, COST LINES. Every renovation and improvement cost — the
+   calculator's renovation and furnishing, and Refurbish's and Upgrade's
+   works in the Lab's Refurbish or not — can be entered as lines, each with
+   its source (the reader's own words), date, what it includes and
+   excludes, and its kind: Quoted, Estimate or Placeholder. The registry and
+   the writer are in 70-property.js (COST_LINE_KINDS, setCostLines), beside
+   RF_BASES; this module draws them. A total carries the weakest line's
+   badge and says how much rests on estimates.
+
+   Rules that hold throughout (the owner's, binding): every figure is the
+   reader's own or sourced; nothing is ranked; no recommendation or verdict
+   wording; no supplier attached, named or preferred — a business's name
+   appears only as the source text the reader typed.
+   ========================================================================== */
+
+/* Ringgit as a line holds it: whole, or to the sen where it has sen. */
+const clMoney = (v) => (isNum(v) ? fmtMoney(v, 'MYR', Math.round(v * 100) % 100 ? 2 : 0) : '—');
+/* Which editors the reader has open, and the last thing each said, so a
+   redraw (every write redraws its page) keeps both. */
+const CL_OPEN = new Set();
+const CL_SAID = {};
+/* The kind of a line, as its badge and its word: "Quoted", "Yours ·
+   estimate", "Placeholder". */
+const clKind = (x) => (x.sample ? kindWithFine('illustrative', 'Illustrative default', { link: false, cls: 'cl-kind' })
+  : kindWithFine(COST_LINE_KINDS[x.kind].badge, COST_LINE_KINDS[x.kind].label, { link: false, cls: 'cl-kind' }));
+/* What a line records besides its amount, in one line of words. */
+function clMeta(x) {
+  const bits = [];
+  bits.push(x.source ? `Source: ${x.source}` : x.implicit ? (x.sample ? 'The calculator’s sample figure' : 'Entered as one figure, with no source recorded') : 'No source recorded');
+  if (x.date) bits.push(`dated ${feeDay(x.date)}`);
+  if (x.includes) bits.push(`includes ${x.includes}`);
+  if (x.excludes) bits.push(`excludes ${x.excludes}`);
+  if (x.from?.file) bits.push(`imported from ${x.from.file}${x.from.row ? `, row ${x.from.row}` : ''}`);
+  return bits.join(' · ');
+}
+/* The total, as the editor heads it and every place that shows the cost
+   reads it: the weakest line's badge, the sum, and what rests on
+   estimates. */
+function clSummaryLine(s, { id = null } = {}) {
+  return el('p', { class: 'cl-sum', id, 'data-cl-kind': s.kind, 'data-cl-total': String(s.total), 'data-cl-estimates': String(s.onEstimates) }, [
+    kindBadge(s.kind, { link: false, fine: s.n ? `the weakest of ${s.n} line${s.n === 1 ? '' : 's'}` : 'not entered' }), ' ',
+    el('span', { class: 'cl-sum-t' }, s.n ? `${clMoney(s.total)} across ${s.n} line${s.n === 1 ? '' : 's'}. ` : 'No lines yet. '),
+    el('span', { class: 'cl-sum-e' }, s.n ? costEstimateWords(s, clMoney) : 'Enter the first line below.')]);
+}
+/* The lines as written once more lines are added: the single figure entered
+   before lines read as its own line (kept as it was — a quote with no
+   source stays a quote, its missing source said where it is listed), the
+   sample's untouched figure left out, never carried as the reader's. */
+const clStart = (lines) => lines.filter(x => !x.sample).map(x => (x.implicit ? { ...x, id: undefined, implicit: undefined, legacy: x.kind === 'quoted' ? true : undefined } : x));
+
+/* THE EDITOR. `d`: the deal its lines are read from; `target`: one of
+   COST_TARGETS; `prefix`: the ids' prefix; `write(lines)`: the page's own
+   writer (the calculator writes its deal; the Lab answers every column of
+   the property, a what-if until Save). A <details> (L3): open while the
+   reader has lines, or has opened it. */
+function costLinesBlock({ d, target, prefix, write }) {
+  const t = COST_TARGETS[target];
+  const id = `${prefix}-cl-${target}`;
+  const lines = costLinesOf(d, target);
+  const explicit = costLinesExplicit(d, target);
+  const s = costLinesSummary(lines);
+  const box = el('details', { class: 'pc-more cl-box', id, 'data-cl-target': target, open: explicit || CL_OPEN.has(id) ? '' : null,
+    ontoggle: (e) => { if (e.target.open) CL_OPEN.add(id); else CL_OPEN.delete(id); } });
+  box.append(el('summary', { class: 'pc-more-sum cl-box-sum' }, explicit ? `${s.n} cost line${s.n === 1 ? '' : 's'}, with sources` : 'Itemise as lines, with sources'));
+  const body = el('div', { class: 'cl-body' });
+  body.append(clSummaryLine(s, { id: `${id}-sum` }));
+  if (lines.length) {
+    body.append(el('ul', { class: 'cl-list', 'aria-label': `${t.label}: the cost lines` }, lines.map((x, i) => el('li', { class: 'cl-line', 'data-line': x.id, 'data-kind': x.kind }, [
+      el('div', { class: 'cl-line-hd' }, [el('span', { class: 'cl-item' }, x.item), el('span', { class: 'cl-amt num' }, clMoney(x.amount)), clKind(x)]),
+      el('p', { class: 'cl-meta' }, clMeta(x)),
+      x.sample ? null : el('button', { type: 'button', class: 'btn btn-quiet btn-sm cl-del', id: `${id}-del-${i}`, onclick: () => {
+        CL_SAID[id] = `Removed “${x.item}”, ${clMoney(x.amount)}.`;
+        CL_OPEN.add(id);
+        write(clStart(lines).filter((y, j) => j !== i));
+      } }, ['Remove', el('span', { class: 'sr-only' }, ` the line ${x.item}`)]),
+    ]))));
+  }
+  /* A line added: each field to its rule (costLineFault), refused with the
+     reason, never guessed. */
+  const f = (k, label, attrs = {}) => {
+    const fid = `${id}-${k}`;
+    return el('div', { class: `au-field cl-f cl-f-${k}` }, [el('label', { for: fid, class: 'au-label' }, label),
+      el('input', { class: 'input au-in', id: fid, autocomplete: 'off', ...attrs })]);
+  };
+  const kindSel = el('select', { class: 'select au-in cl-kind-sel', id: `${id}-kind` },
+    COST_LINE_KIND_IDS.map(k => el('option', { value: k, selected: k === 'quoted' ? '' : null }, COST_LINE_KINDS[k].option)));
+  const add = el('fieldset', { class: 'au-group cl-add', id: `${id}-addset` });
+  add.append(el('legend', { class: 'au-legend' }, 'Add a line'), el('div', { class: 'au-grid cl-grid' }, [
+    f('item', ptr('cl.item', 'Item'), { type: 'text', maxlength: String(COST_TEXT_MAX.item), placeholder: 'e.g. Kitchen cabinets' }),
+    f('amount', ptr('cl.amount', 'Amount (RM)'), { type: 'text', inputmode: 'decimal', placeholder: 'e.g. 12000' }),
+    el('div', { class: 'au-field cl-f cl-f-kind' }, [el('label', { for: `${id}-kind`, class: 'au-label' }, ptr('cl.kind', 'Kind')), kindSel]),
+    f('source', ptr('cl.source', 'Source — where it came from, in your words'), { type: 'text', maxlength: String(COST_TEXT_MAX.source), placeholder: 'e.g. Written quote ref. 123' }),
+    f('date', ptr('cl.date', 'Date'), { type: 'date' }),
+    f('includes', ptr('cl.includes', 'What it includes'), { type: 'text', maxlength: String(COST_TEXT_MAX.includes) }),
+    f('excludes', ptr('cl.excludes', 'What it excludes'), { type: 'text', maxlength: String(COST_TEXT_MAX.excludes) }),
+  ]));
+  const msg = el('p', { class: 'cl-msg metaline', id: `${id}-msg`, role: 'status', 'aria-live': 'polite' }, CL_SAID[id] || '');
+  add.append(el('div', { class: 'cl-acts' }, [el('button', { type: 'button', class: 'btn btn-ghost btn-sm cl-add-btn', id: `${id}-add`, onclick: () => {
+    const v = (k) => box.querySelector(`#${id}-${k}`)?.value ?? '';
+    const raw = String(v('amount')).trim();
+    const x = { item: v('item'), amount: /^\d+(\.\d{1,2})?$/.test(raw) ? Number(raw) : raw === '' ? null : NaN, kind: kindSel.value,
+      source: v('source'), date: v('date'), includes: v('includes'), excludes: v('excludes') };
+    const fault = x.amount === null ? 'it has no amount' : Number.isNaN(x.amount) ? `its amount “${raw.slice(0, 20)}” is not ringgit and sen, written 12000 or 12000.50` : costLineFault(x);
+    if (fault) { CL_SAID[id] = `Not added — ${fault}.`; msg.textContent = CL_SAID[id]; return; }
+    CL_SAID[id] = `Added “${costText(x.item)}”, ${clMoney(x.amount)}, ${COST_LINE_KINDS[x.kind].label}.`;
+    CL_OPEN.add(id);
+    write([...clStart(lines), x]);
+  } }, 'Add the line')]), msg);
+  body.append(add);
+  /* A cost schedule, imported as lines (item 4). */
+  body.append(costImportControl({ id, lines, write }));
+  body.append(el('p', { class: 'metaline cl-note' }, s.sample
+    ? 'A line added replaces the calculator’s sample figure. The total is the cost; each line keeps where it came from.'
+    : 'The lines’ total is the cost. Each keeps its source, its date and what it covers; the total carries the weakest line’s badge.'));
+  box.append(body);
+  return box;
+}
+
+/* ==========================================================================
+   THE COST-SCHEDULE IMPORT (the owner's approval of 10 Oct 2026, Track A,
+   item 4). A versioned JSON or CSV file of cost lines — item, amount,
+   currency (RM), source, date, includes, excludes, kind — read into an
+   improvement's lines (QT-03's structure), keeping each line's source and
+   date and where it came from (the file's name and row). A manual file
+   only: chosen by the reader, read in the page; nothing is fetched and
+   nothing is linked to any other system. Validated strictly: a file not in
+   the format, or of another version, is refused whole; a bad row is
+   refused with the reason and the rest imported; nothing is guessed (no
+   separators in an amount, no currency but RM, a quote names its source
+   and date). A line already among the lines — the same item, amount,
+   kind, source, date, includes and excludes — is skipped, so importing a
+   file twice does not double it. The format is published at
+   /data-sources#cost-schedule, with a synthetic example of each kind.
+   ========================================================================== */
+const COST_SCHEDULE = {
+  format: 'qt-cost-schedule', version: 1, currency: 'RM',
+  fields: ['item', 'amount', 'currency', 'source', 'date', 'includes', 'excludes', 'kind'],
+  maxRows: 200, maxBytes: 200 * 1024,
+  examples: { json: '/data/examples/cost-schedule-v1.json', csv: '/data/examples/cost-schedule-v1.csv' },
+};
+/* What each field takes, as /data-sources publishes it. */
+const COST_SCHEDULE_RULES = {
+  item: 'Required. What the line is, up to 80 characters.',
+  amount: 'Required. Ringgit, above nought, at most two decimal places, no separators or symbol: 12000 or 12000.50. In JSON a number.',
+  currency: 'Required. RM — the only currency the format takes.',
+  source: 'Where the figure came from, in your words, up to 120 characters. Required for a quoted line.',
+  date: 'A date written YYYY-MM-DD. Required for a quoted line.',
+  includes: 'What it covers, up to 200 characters. Optional.',
+  excludes: 'What it leaves out, up to 200 characters. Optional.',
+  kind: 'Required. quoted (a written quote), estimate (your own) or placeholder.',
+};
+/* A CSV of the format: its rows of cells, quotes as RFC 4180 has them
+   (a field in double quotes may hold commas, line breaks and "" for a
+   quote). Null where a quote is never closed. */
+function costCsvRows(text) {
+  const rows = []; let row = [], cell = '', q = false, line = 1, rowLine = 1;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') q = false;
+      else { if (c === '\n') line++; cell += c; }
+      continue;
+    }
+    if (c === '"' && cell === '') q = true;
+    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === '\r') continue;
+    else if (c === '\n') { row.push(cell); rows.push({ cells: row, line: rowLine }); row = []; cell = ''; line++; rowLine = line; }
+    else cell += c;
+  }
+  if (q) return null;
+  if (cell !== '' || row.length) { row.push(cell); rows.push({ cells: row, line: rowLine }); }
+  return rows;
+}
+/* One row of the format, read: a line, or the reason it is refused. */
+function costScheduleRow(rec, { json }) {
+  const extra = Object.keys(rec).filter(k => !COST_SCHEDULE.fields.includes(k));
+  if (extra.length) return { why: `it carries “${extra[0].slice(0, 30)}”, which the format does not have` };
+  const txt = (k) => (rec[k] == null ? '' : rec[k]);
+  for (const k of ['item', 'source', 'date', 'includes', 'excludes', 'kind', 'currency']) if (rec[k] != null && typeof rec[k] !== 'string') return { why: `its ${k} is not text` };
+  if (String(txt('currency')).trim() === '') return { why: 'it gives no currency: the format takes RM' };
+  if (String(txt('currency')).trim() !== COST_SCHEDULE.currency) return { why: `its currency is “${String(rec.currency).trim().slice(0, 12)}”: the format takes RM only` };
+  let amount;
+  if (json) {
+    if (typeof rec.amount !== 'number') return { why: rec.amount == null ? 'it has no amount' : 'its amount is not a number' };
+    amount = rec.amount;
+  } else {
+    const s = String(txt('amount')).trim();
+    if (!s) return { why: 'it has no amount' };
+    if (!/^\d+(\.\d{1,2})?$/.test(s)) return { why: `its amount “${s.slice(0, 20)}” is not ringgit and sen written 12000 or 12000.50 (no separators or symbol)` };
+    amount = Number(s);
+  }
+  const kind = String(txt('kind')).trim().toLowerCase();
+  if (!kind) return { why: 'it gives no kind: quoted, estimate or placeholder' };
+  const x = { item: txt('item'), amount, kind, source: txt('source'), date: String(txt('date')).trim(), includes: txt('includes'), excludes: txt('excludes') };
+  const fault = costLineFault(x);
+  if (fault) return { why: fault };
+  return { line: x };
+}
+/* The file, read: { ok: false, err } refused whole, or { ok: true, kind,
+   rows: [{ row, line }], refused: [{ row, why }] }. */
+function parseCostSchedule(text, name = '') {
+  const file = String(name || 'the file');
+  const ext = /\.json$/i.test(file) ? 'json' : /\.csv$/i.test(file) ? 'csv' : null;
+  if (!ext) return { ok: false, err: `“${file}” is neither a .json nor a .csv file: a cost schedule is one or the other` };
+  const body = String(text ?? '').replace(/^﻿/, '');
+  if (!body.trim()) return { ok: false, err: `“${file}” is empty` };
+  if (body.length > COST_SCHEDULE.maxBytes) return { ok: false, err: `“${file}” is over ${COST_SCHEDULE.maxBytes / 1024} KB` };
+  const rows = [], refused = [], seen = new Map();
+  const take = (row, rec, json) => {
+    const r = isRecord(rec) ? costScheduleRow(rec, { json }) : { why: 'it is not a record of the format’s fields' };
+    if (r.why) { refused.push({ row, why: r.why }); return; }
+    const fp = costLineFingerprint(r.line);
+    if (seen.has(fp)) { refused.push({ row, why: `the same line as ${seen.get(fp)}` }); return; }
+    seen.set(fp, row);
+    rows.push({ row, line: r.line });
+  };
+  if (ext === 'json') {
+    let doc;
+    try { doc = JSON.parse(body); } catch (e) { return { ok: false, err: `“${file}” is not JSON: ${String(e.message).split('\n')[0].slice(0, 80)}` }; }
+    if (!isRecord(doc) || doc.format !== COST_SCHEDULE.format) return { ok: false, err: `“${file}” is not a cost schedule: it does not say "format": "${COST_SCHEDULE.format}"` };
+    if (doc.version !== COST_SCHEDULE.version) return { ok: false, err: `“${file}” is version ${JSON.stringify(doc.version ?? null)} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    const extra = Object.keys(doc).filter(k => !['format', 'version', 'currency', 'title', 'lines'].includes(k));
+    if (extra.length) return { ok: false, err: `“${file}” carries “${extra[0].slice(0, 30)}”, which the format does not have` };
+    if (doc.currency != null && doc.currency !== COST_SCHEDULE.currency) return { ok: false, err: `“${file}” is in ${String(doc.currency).slice(0, 12)}: the format takes RM only` };
+    if (!Array.isArray(doc.lines) || !doc.lines.length) return { ok: false, err: `“${file}” holds no lines` };
+    if (doc.lines.length > COST_SCHEDULE.maxRows) return { ok: false, err: `“${file}” holds ${doc.lines.length} lines, over the ${COST_SCHEDULE.maxRows} the format takes` };
+    doc.lines.forEach((x, i) => take(`entry ${i + 1}`, x, true));
+  } else {
+    const all = costCsvRows(body);
+    if (!all) return { ok: false, err: `“${file}” opens a quoted field it never closes` };
+    const lines = all.filter(r => r.cells.some(c => c.trim() !== ''));
+    const head = lines[0]?.cells.map(c => c.trim()) || [];
+    while (head.length && head.at(-1) === '') head.pop();
+    if (head[0] !== COST_SCHEDULE.format || head.length !== 2) return { ok: false, err: `“${file}” does not begin with the line “${COST_SCHEDULE.format},${COST_SCHEDULE.version}”, which names the format and its version` };
+    if (head[1] !== String(COST_SCHEDULE.version)) return { ok: false, err: `“${file}” is version ${head[1]} of the format; this build reads version ${COST_SCHEDULE.version}` };
+    const cols = (lines[1]?.cells || []).map(c => c.trim().toLowerCase());
+    while (cols.length && cols.at(-1) === '') cols.pop();
+    const missing = COST_SCHEDULE.fields.filter(f => !cols.includes(f));
+    const unknown = cols.filter(c => !COST_SCHEDULE.fields.includes(c));
+    const twice = cols.filter((c, i) => cols.indexOf(c) !== i);
+    if (missing.length || unknown.length || twice.length) return { ok: false, err: `“${file}”’s second line is not the header the format names (${COST_SCHEDULE.fields.join(', ')}): ${[missing.length ? `${missing.join(', ')} missing` : null, unknown.length ? `“${unknown[0].slice(0, 30)}” not a field` : null, twice.length ? `“${twice[0]}” twice` : null].filter(Boolean).join('; ')}` };
+    const data = lines.slice(2);
+    if (!data.length) return { ok: false, err: `“${file}” holds no lines` };
+    if (data.length > COST_SCHEDULE.maxRows) return { ok: false, err: `“${file}” holds ${data.length} lines, over the ${COST_SCHEDULE.maxRows} the format takes` };
+    for (const r of data) {
+      const cells = r.cells.slice();
+      while (cells.length > cols.length && cells.at(-1).trim() === '') cells.pop();
+      if (cells.length !== cols.length) { refused.push({ row: `row ${r.line}`, why: `it has ${cells.length} cells where the header has ${cols.length}` }); continue; }
+      take(`row ${r.line}`, Object.fromEntries(cols.map((c, i) => [c, cells[i]])), false);
+    }
+  }
+  return { ok: true, kind: ext, file, rows, refused };
+}
+/* Into the lines a target holds: each new line kept with where it came
+   from; a line already among them skipped. */
+function costImportMerge(current, parsed) {
+  const have = new Set(current.map(costLineFingerprint));
+  const added = [], skipped = [...parsed.refused];
+  for (const r of parsed.rows) {
+    const fp = costLineFingerprint(r.line);
+    if (have.has(fp)) { skipped.push({ row: r.row, why: 'already among the lines' }); continue; }
+    have.add(fp);
+    added.push({ ...r.line, from: { file: parsed.file, version: COST_SCHEDULE.version, row: Number(String(r.row).replace(/\D/g, '')) || null } });
+  }
+  return { lines: [...current, ...added], added, skipped };
+}
+/* What an import did, in one sentence or two. */
+function costImportWords(parsed, merged) {
+  if (!parsed.ok) return `Nothing imported — ${parsed.err}.`;
+  const sum = merged.added.reduce((t, x) => t + x.amount, 0);
+  const skip = merged.skipped.slice(0, 8).map(x => `${x.row} — ${x.why}`).join('; ') + (merged.skipped.length > 8 ? `; and ${merged.skipped.length - 8} more` : '');
+  return merged.added.length
+    ? `Imported ${merged.added.length} line${merged.added.length === 1 ? '' : 's'} from “${parsed.file}” (${COST_SCHEDULE.format}, version ${COST_SCHEDULE.version}): ${clMoney(Math.round(sum * 100) / 100)}.${merged.skipped.length ? ` Skipped ${merged.skipped.length}: ${skip}.` : ''}`
+    : `Nothing imported from “${parsed.file}”${merged.skipped.length ? `. Skipped ${merged.skipped.length}: ${skip}.` : '.'}`;
+}
+/* The control, in the editor: a file the reader chooses, read here. */
+function costImportControl({ id, lines, write }) {
+  const fid = `${id}-file`;
+  const say = el('p', { class: 'cl-msg metaline cl-import-msg', id: `${id}-import-msg`, role: 'status', 'aria-live': 'polite' }, CL_SAID[`${id}-import`] || '');
+  const input = el('input', { type: 'file', class: 'input au-in cl-file', id: fid, accept: '.json,.csv,application/json,text/csv', onchange: async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const parsed = f.size > COST_SCHEDULE.maxBytes ? { ok: false, err: `“${f.name}” is over ${COST_SCHEDULE.maxBytes / 1024} KB` } : parseCostSchedule(await f.text(), f.name);
+    const merged = parsed.ok ? costImportMerge(clStart(lines), parsed) : null;
+    CL_SAID[`${id}-import`] = costImportWords(parsed, merged);
+    CL_OPEN.add(id);
+    if (merged?.added.length) write(merged.lines);
+    else say.textContent = CL_SAID[`${id}-import`];
+    e.target.value = '';
+  } });
+  return el('div', { class: 'au-field cl-import', id: `${id}-import` }, [
+    el('label', { for: fid, class: 'au-label' }, ptr('cl.import', 'Import a cost schedule — a .json or .csv file in the published format')),
+    /* In a box of the control's own height: a served page carries no file
+       field (prerender.mjs removes it), and the words under it must stand
+       where the drawn page puts them. */
+    el('span', { class: 'cl-file-box' }, input),
+    el('p', { class: 'metaline cl-import-note' }, 'Read in this page from the file you choose; nothing is fetched or sent.'),
+    el('a', { class: 'cl-import-link metaline', href: '/data-sources#cost-schedule' }, 'The format, and an example'),
+    say]);
+}
+
+/* THE FORMAT, PUBLISHED (/data-sources#cost-schedule): its name and
+   version, each field's rule, and the two synthetic examples to download. */
+function costScheduleCard() {
+  const card = el('section', { class: 'card cost-schedule', id: 'cost-schedule', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'cost-schedule-h' });
+  card.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'cost-schedule-h' }, `Cost schedule format, version ${COST_SCHEDULE.version}`),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'The file the property calculator and the Scenario Lab import as cost lines — renovation, refurbishment, an upgrade. A manual file only: you choose it, the page reads it, nothing is fetched and nothing is linked to any other system.'),
+  ])));
+  card.append(el('dl', { class: 'fee-book-dl cost-schedule-fields', 'aria-label': 'The fields of a cost line' },
+    COST_SCHEDULE.fields.flatMap(f => [el('dt', {}, el('code', {}, f)), el('dd', {}, COST_SCHEDULE_RULES[f])])));
+  card.append(el('p', { class: 'body cost-schedule-shape', style: 'font-size:13px' }, [
+    el('strong', {}, 'JSON: '), `an object { "format": "${COST_SCHEDULE.format}", "version": ${COST_SCHEDULE.version}, "currency": "RM", "lines": [ … ] }, a line an object of the fields above. `,
+    el('strong', {}, 'CSV: '), `the first line “${COST_SCHEDULE.format},${COST_SCHEDULE.version}”, the second the field names, then a line a row; a field holding a comma in double quotes. `,
+    `At most ${COST_SCHEDULE.maxRows} lines and ${COST_SCHEDULE.maxBytes / 1024} KB.`]));
+  card.append(el('p', { class: 'body', style: 'font-size:13px' }, 'Checked strictly: a file of another format or version is refused whole; a row that breaks a rule is refused with the reason and the others are imported; nothing is guessed. A line already among the lines is skipped, so a file imported twice is not counted twice. Each line keeps its source, its date and the file it came from.'));
+  card.append(el('p', { class: 'body cost-schedule-dl', style: 'font-size:13px' }, ['Examples, made up for the format — no real quotation, business or property: ',
+    el('a', { href: COST_SCHEDULE.examples.json, download: 'cost-schedule-v1.json', 'data-example': 'json' }, 'cost-schedule-v1.json'), ' · ',
+    el('a', { href: COST_SCHEDULE.examples.csv, download: 'cost-schedule-v1.csv', 'data-example': 'csv' }, 'cost-schedule-v1.csv'), '.']));
+  return card;
+}
+
+/* ==========================================================================
+   QT-06, ACTUAL AGAINST MODELLED (the owner's approval of 10 Oct 2026). On
+   a saved property the owner records what it actually did — rent received,
+   months vacant, costs paid — by month or by year of the hold, and sees it
+   beside what was modelled for the same period: the property as saved
+   (dealModel's own year of the hold — its rent after the vacancy
+   allowance, its running costs — prorated to the months), with the
+   difference. Before the loan, as the net yield is. A realised yield is
+   stated for a year of the hold only when all twelve of its months are
+   recorded, each with its rent and costs; a period not whole says so, and
+   no yield is stated for it. Kept only in this browser, under one key
+   (propertyActuals: { <property id>: { start, entries } }) that /privacy
+   names, Your data lists, exports and restores, and Clear removes with the
+   rest. Nothing is ranked, recommended or forecast.
+   ========================================================================== */
+const ACTUAL_FIGURES = ['rent', 'vacancy', 'costs'];
+const acMonthIndex = (s) => ndMonthIndex(s);
+const acThisMonth = () => localDay().slice(0, 7);
+/* Why a stored entry cannot be read, or null. */
+function actualEntryFault(e) {
+  if (!isRecord(e)) return 'an entry is not a record';
+  if (e.kind === 'month') { if (!ansMonth(e.period)) return `a month entry's period “${String(e.period).slice(0, 12)}” is not YYYY-MM`; }
+  else if (e.kind === 'year') { if (!Number.isInteger(e.period) || e.period < 1 || e.period > HOLD_YEARS_MAX) return 'a year entry is not a year of the hold'; }
+  else return 'an entry is neither a month nor a year';
+  if (!Number.isInteger(e.months) || e.months < 1 || e.months > 12 || (e.kind === 'month' && e.months !== 1)) return 'an entry covers no whole number of months';
+  for (const k of ACTUAL_FIGURES) if (e[k] != null && !(isNum(e[k]) && e[k] >= 0)) return `an entry's ${k} is not a figure of nought or more`;
+  if (!ACTUAL_FIGURES.some(k => isNum(e[k]))) return 'an entry records no figure';
+  return null;
+}
+/* The restore's rule for the key (STORE_SHAPES, 00-core.js). */
+function propertyActualsFault(v) {
+  if (!isRecord(v)) return 'is not a record';
+  for (const [id, r] of Object.entries(v)) {
+    if (!isRecord(r) || !Array.isArray(r.entries)) return `holds, for ${id.slice(0, 40)}, something other than a start month and a list of entries`;
+    if (r.start != null && !ansMonth(r.start)) return `holds, for ${id.slice(0, 40)}, a first month “${String(r.start).slice(0, 12)}” that is not YYYY-MM`;
+    const bad = r.entries.map(actualEntryFault).find(Boolean);
+    if (bad) return `holds, for ${id.slice(0, 40)}, ${bad}`;
+  }
+  return null;
+}
+const actualsAll = () => { const v = store.read('propertyActuals', {}); return isRecord(v) ? v : {}; };
+function actualsOf(id) {
+  const r = actualsAll()[id];
+  return { start: isRecord(r) && ansMonth(r.start) ? r.start : null,
+    entries: isRecord(r) && Array.isArray(r.entries) ? r.entries.filter(e => !actualEntryFault(e)) : [] };
+}
+/* A property's record written whole, or removed when it holds nothing. */
+function actualsWrite(id, rec) {
+  const all = { ...actualsAll() };
+  if (rec && (rec.start || rec.entries.length)) all[id] = { start: rec.start || null, entries: rec.entries }; else delete all[id];
+  return Object.keys(all).length ? store.write('propertyActuals', all) : (() => { try { localStorage.removeItem('vl.propertyActuals'); return true; } catch { return false; } })();
+}
+/* The year of the hold a period falls in, or why it has none. */
+function actualYearOf(e, start) {
+  if (e.kind === 'year') return { y: e.period };
+  if (!start) return { why: 'enter the first month of the hold first: a month is set beside the model’s year it falls in' };
+  const i = acMonthIndex(e.period) - acMonthIndex(start);
+  if (i < 0) return { why: `${ndMonthWords(e.period)} is before ${ndMonthWords(start)}, the first month of the hold` };
+  return { y: Math.floor(i / 12) + 1, month: i % 12 + 1 };
+}
+/* Whether an entry can be recorded beside the others: refused with the
+   reason, never guessed. Returns the reason, or null. */
+function actualRecordFault(rec, e, { holdYears, lets, now = acThisMonth() }) {
+  const shape = actualEntryFault(e);
+  if (shape) return shape.replace(/^an entry('s)?/, 'it').replace(/^a month entry's period/, 'the month').replace(/^a year entry/, 'the year');
+  if (!lets && (isNum(e.rent) || isNum(e.vacancy))) return 'a bare parcel earns no rent: record its costs only';
+  if (isNum(e.vacancy) && e.vacancy > e.months) return `${fmtNum(e.vacancy, 1)} months vacant is more than the ${e.months} month${e.months === 1 ? '' : 's'} it covers`;
+  if (e.kind === 'month' && acMonthIndex(e.period) > acMonthIndex(now)) return `${ndMonthWords(e.period)} has not begun: nothing has been received for it yet`;
+  const at = actualYearOf(e, rec.start);
+  if (at.why) return at.why;
+  if (at.y > holdYears) return `it falls in year ${at.y}, after the ${holdYears}-year hold modelled: nothing modelled to set it beside`;
+  const others = rec.entries.filter(x => !(x.kind === e.kind && x.period === e.period));
+  const clash = others.find(x => x.kind !== e.kind && actualYearOf(x, rec.start).y === at.y);
+  if (clash) return e.kind === 'year' ? `months of year ${at.y} are already recorded one by one: a year and its months would count twice` : `year ${at.y} is already recorded as a whole: a year and its months would count twice`;
+  return null;
+}
+/* Actual beside modelled, entry by entry and year by year. `m`: the
+   property as saved, modelled. */
+function actualsCompare(d, m, rec, { now = acThisMonth() } = {}) {
+  const lets = !!m.letsToTenant, price = num0(d.price);
+  const rows = rec.entries.map(e => {
+    const at = actualYearOf(e, rec.start);
+    const yr = at.y ? m.path?.[at.y - 1] : null;
+    const share = e.months / 12;
+    const modelled = !yr ? null : { rent: lets ? yr.rent * share : null, vacancy: lets ? num0(d.vacancyPct) / 100 * e.months : null, costs: yr.opex * share };
+    if (modelled) modelled.net = (lets ? modelled.rent : 0) - modelled.costs;
+    const actual = { rent: isNum(e.rent) ? e.rent : null, vacancy: isNum(e.vacancy) ? e.vacancy : null, costs: isNum(e.costs) ? e.costs : null };
+    actual.net = isNum(actual.costs) && (!lets || isNum(actual.rent)) ? (lets ? actual.rent : 0) - actual.costs : null;
+    const diff = Object.fromEntries(['rent', 'vacancy', 'costs', 'net'].map(k => [k, modelled && isNum(actual[k]) && isNum(modelled[k]) ? actual[k] - modelled[k] : null]));
+    const partial = e.kind === 'year' ? (e.months < 12 ? `${e.months} of 12 months` : null) : e.period === now ? 'the month is not over' : null;
+    return { e, y: at.y || null, month: at.month || null, why: at.why || null, months: e.months, modelled, actual, diff, partial };
+  }).sort((a, b) => (a.y || 99) - (b.y || 99) || (a.month || 0) - (b.month || 0));
+  const years = [...new Set(rows.filter(r => r.y).map(r => r.y))].map(y => {
+    const rs = rows.filter(r => r.y === y);
+    const months = rs.reduce((t, r) => t + r.months, 0);
+    const open = rs.some(r => r.e.kind === 'month' && r.partial);
+    const whole = months >= 12 && !open;
+    const allNet = rs.every(r => isNum(r.actual.net));
+    const net = allNet ? rs.reduce((t, r) => t + r.actual.net, 0) : null;
+    const modelledNet = rs.every(r => r.modelled) ? rs.reduce((t, r) => t + r.modelled.net, 0) : null;
+    const realised = whole && allNet && lets && price > 0 ? { net, yieldPct: net / price * 100 } : null;
+    return { y, months, whole, open, allNet, net, modelledNet, realised };
+  });
+  return { rows, years, lets, price };
+}
+/* A year's line, in words: a realised yield only for a whole year. */
+function actualYearWords(Y, { lets, price }) {
+  const vs = isNum(Y.net) && isNum(Y.modelledNet) ? `: net before the loan ${acSigned(Y.net)} against ${acSigned(Y.modelledNet)} modelled (${acSigned(Y.net - Y.modelledNet, true)})` : '';
+  if (Y.realised) return `Year ${Y.y} of the hold, all 12 months recorded${vs}. ${acSigned(Y.realised.net)} on the ${clMoney(price)} price is a realised net yield of ${fmtPct(Y.realised.yieldPct, 2)} for the year, before the loan — from the figures you recorded.`;
+  if (!lets) return `Year ${Y.y} of the hold, ${Y.months} of 12 months recorded${vs}. A bare parcel earns no rent: no yield is stated.`;
+  if (!Y.whole) return `Year ${Y.y} of the hold: ${Y.months} of 12 months recorded${Y.open ? ', one of them not over' : ''} — partial${vs}. No yield for the year is stated.`;
+  return `Year ${Y.y} of the hold: 12 months recorded, but not every one with its rent and its costs${vs}. No yield for the year is stated.`;
+}
+const acSigned = (v, plus = false) => (isNum(v) ? `${v < 0 ? '−' : plus && v > 0 ? '+' : ''}${clMoney(Math.abs(Math.round(v * 100) / 100))}` : '—');
+const acMonths = (v, plus = false) => (isNum(v) ? `${v < 0 ? '−' : plus && v > 0 ? '+' : ''}${fmtNum(Math.abs(v), Number.isInteger(Math.round(Math.abs(v) * 100) / 100) ? 0 : 2)} mo` : '—');
+const acPeriodWords = (r) => (r.e.kind === 'year' ? `Year ${r.e.period} of the hold${r.months < 12 ? `, ${r.months} months` : ''}` : `${ndMonthWords(r.e.period)}${r.y ? ` — year ${r.y}, month ${r.month} of the hold` : ''}`);
+
+/* THE CARD, in the Lab on a saved property (labDraw, 82-property-lab.js). */
+const AC_FORM = {};
+function labActualsCard(P, lab) {
+  const rec = pmFind(lab.model);
+  if (!rec) return null;
+  const d = pmInputsOf(rec), m = dealModel(d);
+  const lets = !!m.letsToTenant;
+  const pre = labId(P, 'ac');
+  const card = el('section', { class: 'card ls-section lab-ac', id: pre, 'aria-labelledby': `${pre}-h` });
+  card.append(el('h2', { class: 'h-card', id: `${pre}-h` }, 'Actual against modelled'));
+  card.append(el('p', { class: 'metaline lab-xr-lede' }, `What “${rec.name}” actually did, beside what was modelled for the same period — the property as saved, before the loan. Kept in this browser only. A period not whole says so, and no yield is stated for a year not fully recorded.`));
+  const ac = actualsOf(rec.id);
+  const form = AC_FORM[rec.id] ||= { kind: 'month' };
+  const f = (k, label, attrs = {}, cls = '') => el('div', { class: `au-field ac-f ac-f-${k}${cls}`, 'data-for': attrs['data-for'] || null, hidden: attrs.hidden ? '' : null }, [
+    el('label', { for: `${pre}-${k}`, class: 'au-label' }, label), el('input', { class: 'input au-in', id: `${pre}-${k}`, autocomplete: 'off', ...attrs, 'data-for': null, hidden: null })]);
+  const kindSel = el('select', { class: 'select au-in', id: `${pre}-kind`, onchange: (e) => {
+    form.kind = e.target.value;
+    box.querySelectorAll('[data-for]').forEach(n => { n.hidden = n.dataset.for !== form.kind; });
+  } }, [el('option', { value: 'month', selected: form.kind === 'month' ? '' : null }, 'A month'), el('option', { value: 'year', selected: form.kind === 'year' ? '' : null }, 'A year of the hold')]);
+  const box = el('fieldset', { class: 'au-group ac-form', id: `${pre}-form` });
+  box.append(el('legend', { class: 'au-legend' }, 'Record what it did'), el('div', { class: 'au-grid ac-grid' }, [
+    f('start', 'First month of the hold', { type: 'month', value: ac.start || '' }),
+    el('div', { class: 'au-field ac-f ac-f-kind' }, [el('label', { for: `${pre}-kind`, class: 'au-label' }, 'Recording'), kindSel]),
+    f('month', 'Month', { type: 'month', 'data-for': 'month', hidden: form.kind !== 'month' }),
+    f('year', 'Year of the hold', { type: 'number', min: '1', max: String(normHoldYears(d.holdYears)), step: '1', inputmode: 'numeric', 'data-for': 'year', hidden: form.kind !== 'year' }),
+    f('months', 'Months it covers', { type: 'number', min: '1', max: '12', step: '1', inputmode: 'numeric', value: '12', 'data-for': 'year', hidden: form.kind !== 'year' }),
+    lets ? f('rent', 'Rent received (RM)', { type: 'text', inputmode: 'decimal' }) : null,
+    lets ? f('vacancy', 'Months vacant', { type: 'text', inputmode: 'decimal' }) : null,
+    f('costs', 'Running costs paid (RM)', { type: 'text', inputmode: 'decimal' }),
+  ]));
+  box.querySelectorAll('[data-for]').forEach(n => { n.hidden = n.dataset.for !== form.kind; });
+  const msg = el('p', { class: 'cl-msg metaline', id: `${pre}-msg`, role: 'status', 'aria-live': 'polite' }, CL_SAID[pre] || '');
+  const redraw = (focus) => { for (const Q of [...LAB_PANELS]) if (Q.key === lab.key && Q.node.isConnected) labDraw(Q, focus); };
+  box.append(el('div', { class: 'cl-acts' }, [el('button', { type: 'button', class: 'btn btn-ghost btn-sm ac-record', id: `${pre}-record`, onclick: () => {
+    const v = (k) => String(box.querySelector(`#${pre}-${k}`)?.value ?? '').trim();
+    const num = (k) => { const s = v(k); return s === '' ? null : /^\d+(\.\d{1,2})?$/.test(s) ? Number(s) : NaN; };
+    const say = (t) => { CL_SAID[pre] = t; msg.textContent = t; };
+    const start = v('start');
+    if (start && !ansMonth(start)) return say(`Not recorded — the first month “${start}” is not a month written YYYY-MM.`);
+    const kind = kindSel.value;
+    const e = { kind, period: kind === 'month' ? v('month') : (/^\d{1,2}$/.test(v('year')) ? Number(v('year')) : NaN), months: kind === 'month' ? 1 : (/^\d{1,2}$/.test(v('months')) ? Number(v('months')) : NaN),
+      rent: lets ? num('rent') : null, vacancy: lets ? num('vacancy') : null, costs: num('costs'), at: new Date().toISOString() };
+    const bad = ACTUAL_FIGURES.find(k => Number.isNaN(e[k]));
+    if (bad) return say(`Not recorded — the ${bad === 'costs' ? 'costs' : bad === 'rent' ? 'rent' : 'months vacant'} “${v(bad)}” is not a figure written 1200 or 1200.50.`);
+    const next = { start: start || ac.start, entries: ac.entries };
+    const fault = actualRecordFault(next, e, { holdYears: normHoldYears(d.holdYears), lets });
+    if (fault) return say(`Not recorded — ${fault}.`);
+    const replaced = next.entries.some(x => x.kind === e.kind && x.period === e.period);
+    next.entries = [...next.entries.filter(x => !(x.kind === e.kind && x.period === e.period)), e];
+    if (!actualsWrite(rec.id, next)) return say(STORE_REFUSED);
+    CL_SAID[pre] = `${replaced ? 'Replaced' : 'Recorded'} ${kind === 'month' ? ndMonthWords(e.period) : `year ${e.period} of the hold`} — in this browser only.`;
+    redraw(`${pre}-record`);
+  } }, 'Record')]), msg);
+  card.append(box);
+  /* The entries, actual beside modelled. */
+  const cmp = actualsCompare(d, m, ac);
+  if (cmp.rows.length) {
+    const modelledKind = dealKind(d, m).kind === 'illustrative' ? 'illustrative' : 'modelled';
+    const diffKind = kindFirst(['yours', modelledKind]);
+    const list = el('div', { class: 'ac-list', id: `${pre}-list` });
+    list.append(el('div', { class: 'ac-row ac-head', 'aria-hidden': 'true' }, [el('span', {}, ''), el('span', { class: 'ac-h' }, ['Actual ', kindBadge('yours', { link: false })]),
+      el('span', { class: 'ac-h' }, ['Modelled ', kindBadge(modelledKind, { link: false })]), el('span', { class: 'ac-h' }, ['Difference ', kindBadge(diffKind, { link: false })])]));
+    cmp.rows.forEach((r, i) => {
+      const ent = el('div', { class: 'ac-entry', 'data-ac-entry': `${r.e.kind}:${r.e.period}`, role: 'group', 'aria-labelledby': `${pre}-e-${i}` });
+      ent.append(el('div', { class: 'ac-entry-hd' }, [el('p', { class: 'ac-period', id: `${pre}-e-${i}` }, [acPeriodWords(r), r.partial ? el('span', { class: 'ac-partial', 'data-ac-partial': '1' }, ` — partial: ${r.partial}`) : null]),
+        el('button', { type: 'button', class: 'btn btn-quiet btn-sm ac-del', id: `${pre}-del-${i}`, onclick: () => {
+          const now = actualsOf(rec.id);
+          if (!actualsWrite(rec.id, { start: now.start, entries: now.entries.filter(x => !(x.kind === r.e.kind && x.period === r.e.period)) })) { toast(STORE_REFUSED); return; }
+          CL_SAID[pre] = `Removed ${acPeriodWords(r)}.`;
+          redraw(`${pre}-record`);
+        } }, ['Remove', el('span', { class: 'sr-only' }, ` ${acPeriodWords(r)}`)])]));
+      const figs = [lets ? ['rent', 'Rent received', acSigned] : null, lets ? ['vacancy', 'Months vacant', acMonths] : null, ['costs', 'Running costs paid', acSigned], ['net', lets ? 'Net, before the loan' : 'Net cost', acSigned]].filter(Boolean);
+      for (const [k, label, fmt] of figs) ent.append(el('div', { class: 'ac-row', 'data-ac-fig': k }, [el('span', { class: 'ac-label' }, label),
+        el('span', { class: 'ac-v num', 'data-ac': 'actual', 'data-value': isNum(r.actual[k]) ? String(Math.round(r.actual[k] * 100) / 100) : '' }, [el('span', { class: 'sr-only' }, 'Actual: '), isNum(r.actual[k]) ? fmt(r.actual[k]) : 'not recorded']),
+        el('span', { class: 'ac-v num', 'data-ac': 'modelled', 'data-value': r.modelled && isNum(r.modelled[k]) ? String(Math.round(r.modelled[k] * 100) / 100) : '' }, [el('span', { class: 'sr-only' }, 'Modelled: '), r.modelled ? fmt(r.modelled[k]) : 'not modelled']),
+        el('span', { class: 'ac-v num', 'data-ac': 'diff', 'data-value': isNum(r.diff[k]) ? String(Math.round(r.diff[k] * 100) / 100) : '' }, [el('span', { class: 'sr-only' }, 'Difference: '), isNum(r.diff[k]) ? fmt(r.diff[k], true) : '—'])]));
+      if (r.why) ent.append(el('p', { class: 'metaline' }, `Not set beside the model: ${r.why}.`));
+      list.append(ent);
+    });
+    card.append(list);
+    card.append(el('ul', { class: 'ac-years', id: `${pre}-years` }, cmp.years.map(Y => el('li', { 'data-ac-year': String(Y.y), 'data-ac-realised': Y.realised ? fmtNum(Y.realised.yieldPct, 2) : '' }, actualYearWords(Y, cmp)))));
+    card.append(el('details', { class: 'pc-more ls-l3 au-more', id: `${pre}-how` }, [el('summary', { class: 'pc-more-sum' }, 'How actual is set against modelled'),
+      el('p', { class: 'pc-more-body au-note' }, 'Modelled is the calculator’s own year of the hold the period falls in, for the property as saved: the rent after its vacancy allowance, and the running costs, as a share of the year (one month is a twelfth). The difference is actual less modelled. Net is the rent less the running costs, before the loan, as the net yield is. A realised net yield is a year’s recorded net over the price, stated only when all twelve months of that year are recorded, each with its rent and its costs.')]));
+  } else card.append(el('p', { class: 'metaline', 'data-ac-none': '1' }, 'Nothing recorded yet. A month needs the first month of the hold, so it can be set beside the year of the model it falls in.'));
+  return card;
 }
 /* ==========================================================================
    QT TRADING INDEX — specification qt-trading-index-1.0.0, 9 August 2026
@@ -59920,7 +60814,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same

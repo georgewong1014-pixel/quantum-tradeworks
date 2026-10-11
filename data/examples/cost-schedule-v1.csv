@@ -1,0 +1,6 @@
+qt-cost-schedule,1
+item,amount,currency,source,date,includes,excludes,kind
+Kitchen cabinets,12000,RM,Written quote ref. EX-101 (synthetic example),2026-09-14,"carcasses, doors, worktop",appliances,quoted
+Bathroom retiling,6500.50,RM,Written quote ref. EX-102 (synthetic example),2026-09-20,"two bathrooms, tiles and labour",sanitary ware,quoted
+Painting,4800,RM,My own estimate (synthetic example),,walls and ceilings,,estimate
+Contingency,3000,RM,,,,,placeholder
