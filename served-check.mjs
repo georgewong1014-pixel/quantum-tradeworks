@@ -2888,6 +2888,52 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end cost-schedule ---- */
 
+/* ---- route-contracts ---- */
+/* THE PROPERTY ROUTES, AS SERVED (the 11 Oct 2026 audit, #4; learnProperty,
+   65-learn.js). /methodology/property read as a fetch reads it, before any
+   script: the states a missing figure reads as, each defined, and the
+   seven route-and-asset rows in order, each saying what it returns; the
+   rows a gate applies to say "Not for this asset" with the gate's words,
+   and the commercial and land rows name the fee lines not yet checked for
+   the class, linking the rulebook's class rules. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const ROWS = ['subsale-residential', 'subsale-commercial', 'auction', 'newdev-residential', 'newdev-commercial', 'land', 'newdev-land'];
+  const r = await get('/methodology/property');
+  const views = r.status === 200 ? all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views') : null;
+  const states = views ? all(views).find(n => attr(n, 'id') === 'property-states') : null;
+  const routes = views ? all(views).find(n => attr(n, 'id') === 'property-routes') : null;
+  if (r.status !== 200) p.push(`/methodology/property: ${described(r)}`);
+  else if (!states || !routes) p.push(`/methodology/property serves ${[!states && 'no section#property-states', !routes && 'no section#property-routes'].filter(Boolean).join(' and ')} in #views`);
+  else {
+    const dts = all(states).filter(n => n.tag === 'dt').map(n => sight(n));
+    said.states = dts.length;
+    for (const w of ['Unavailable', 'Not final', 'Not for this route', 'Not for this asset']) if (!dts.includes(w)) p.push(`the states do not define ${w}`);
+    if (!/never shown as nought or left blank/.test(sight(states))) p.push('the states do not say a missing figure is never nought or blank');
+    const rows = all(routes).filter(n => n.tag === 'li' && attr(n, 'data-route-contract'));
+    said.rows = rows.length;
+    const ids = rows.map(n => attr(n, 'data-route-contract'));
+    if (JSON.stringify(ids) !== JSON.stringify(ROWS)) p.push(`the rows are ${ids.join(', ')}`);
+    const row = (id) => rows.find(n => attr(n, 'data-route-contract') === id);
+    for (const n of rows) if (!all(n).some(x => x.tag === 'dt' && sight(x) === 'It returns')) p.push(`${attr(n, 'data-route-contract')} does not say what it returns`);
+    for (const id of ['newdev-commercial', 'land', 'newdev-land']) {
+      const t = row(id) ? sight(row(id)) : '';
+      if (!/Not for this asset/.test(t)) p.push(`${id} does not say what is not for this asset`);
+    }
+    for (const [id, cls] of [['subsale-commercial', 'commercial property'], ['auction', 'commercial property'], ['newdev-commercial', 'commercial property'], ['land', 'land']]) {
+      const n = row(id);
+      if (!n) continue;
+      if (!new RegExp(`Not yet checked for ${cls}, so not charged: [^.]+ \\(fee rulebook \\d+\\.\\d+\\.\\d+\\)`).test(sight(n))) p.push(`${id} does not name the fee lines not yet checked for ${cls}`);
+      if (!all(n).some(x => x.tag === 'a' && attr(x, 'href') === '/data-sources#fee-rulebook-class')) p.push(`${id} does not link the rulebook's class rules`);
+    }
+  }
+  judge(p, `/methodology/property serves the property routes before any script: ${said.states} states a missing figure reads as, ${said.rows} route-and-asset rows in order, each with what it returns; the gates and the fee lines not yet checked by class named, linking the rulebook`,
+    '/methodology/property does not serve the property routes');
+}
+/* ---- end route-contracts ---- */
+
 /* ---- backup-served ---- */
 /* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the
    workspace at /app say when this browser last exported, and what has

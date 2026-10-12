@@ -170,7 +170,10 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   ]));
   if (dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
     `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
-  if (notes.length) body.append(el('div', { class: 'pq-notes' }, notes));
+  /* Every route on every kind, written down (the 11 Oct 2026 audit, #4). */
+  notes.push(el('p', { class: 'pq-note', 'data-note': 'contracts' },
+    el('a', { href: '/methodology/property' }, 'What each route needs, returns and will not assume')));
+  body.append(el('div', { class: 'pq-notes' }, notes));
   return box;
 }
 

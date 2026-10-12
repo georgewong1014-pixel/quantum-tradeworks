@@ -1271,6 +1271,7 @@ const ROUTES = [
   { path: '/learn',               view: 'learn',     title: 'Learn' },
   { path: '/learn/glossary',      view: 'learn',     tab: 'glossary',  title: 'Glossary' },
   { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
+  { path: '/methodology/property', view: 'learn',   tab: 'property',  title: 'Property routes and assets' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
   { path: '/status',              view: 'status',    title: 'Build status' },
@@ -1318,6 +1319,7 @@ const META = {
   /* /Phase 3 — ops */
   learn:     'The methodology in public: the metric dictionary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
   'learn:glossary': 'The metric dictionary: each measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
+  'learn:property': 'What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.',
   'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
   'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what this build does not hold.',
   'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the research and advisory modes, the cases you record in this browser, and how a figure is reported against the exact item.',
