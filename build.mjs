@@ -347,7 +347,7 @@ export function mapCspProblems(vercel) {
   for (const [k, srcs] of Object.entries(now)) for (const s of srcs)
     if (!/^('self'|'none'|'unsafe-inline'|'sha256-[A-Za-z0-9+/=]+'|data:|blob:)$/.test(s)) out.push(`the policy's ${k} allows ${s}, which is not this site`);
   const norm = (d, k) => (d[k] || []).filter(s => !/^'sha256-/.test(s) && !/^'@CSP/.test(s));
-  for (const k of new Set([...Object.keys(now), ...Object.keys(was)])) {
+  for (const k of new Set([...Object.keys(now), ...Object.keys(was), ...Object.keys(CSP_MAP_ADDS)])) {
     const added = norm(now, k).filter(s => !norm(was, k).includes(s)), gone = norm(was, k).filter(s => !norm(now, k).includes(s));
     const want = CSP_MAP_ADDS[k] || [];
     if (gone.length) out.push(`the policy's ${k} no longer has ${gone.join(' ')}`);
