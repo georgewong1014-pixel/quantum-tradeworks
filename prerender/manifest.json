@@ -4896,7 +4896,7 @@
         ]
       },
       "inert": {
-        "buttons": 27,
+        "buttons": 30,
         "fields": 12,
         "choices": 26,
         "roles": 0,
@@ -4907,7 +4907,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "91326de57adf0bb9",
+      "digest": "193ffc1cb0617bec",
       "changed": "2026-10-12"
     },
     "pages/property/areas.html": {
@@ -4925,7 +4925,7 @@
         ]
       },
       "inert": {
-        "buttons": 59,
+        "buttons": 62,
         "fields": 4,
         "choices": 0,
         "roles": 0,
@@ -4936,7 +4936,7 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "793a1c608688e01a",
+      "digest": "11503811596d400b",
       "changed": "2026-10-12"
     },
     "pages/property/calculator.html": {
@@ -4954,7 +4954,7 @@
         ]
       },
       "inert": {
-        "buttons": 62,
+        "buttons": 65,
         "fields": 91,
         "choices": 26,
         "roles": 0,
@@ -4965,7 +4965,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "8e1a250cf2887a80",
+      "digest": "bb91b7c3c7bf42e4",
       "changed": "2026-10-12"
     },
     "pages/property/comparables.html": {
@@ -4983,7 +4983,7 @@
         ]
       },
       "inert": {
-        "buttons": 8,
+        "buttons": 11,
         "fields": 6,
         "choices": 8,
         "roles": 0,
@@ -4994,7 +4994,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bc1dee8a8204dcc1",
+      "digest": "a556eab43f983d8f",
       "changed": "2026-10-12"
     },
     "pages/property/lab.html": {
@@ -5012,7 +5012,7 @@
         ]
       },
       "inert": {
-        "buttons": 27,
+        "buttons": 30,
         "fields": 12,
         "choices": 26,
         "roles": 0,
@@ -5023,7 +5023,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2cb3ef8717eeeda7",
+      "digest": "ba035a7d101993a2",
       "changed": "2026-10-12"
     },
     "pages/property/models.html": {
@@ -5041,7 +5041,7 @@
         ]
       },
       "inert": {
-        "buttons": 4,
+        "buttons": 7,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -5052,7 +5052,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "688ed94c7657be34",
+      "digest": "58dd5b711774b9b0",
       "changed": "2026-10-12"
     },
     "pages/property/opportunities.html": {
@@ -5070,7 +5070,7 @@
         ]
       },
       "inert": {
-        "buttons": 3,
+        "buttons": 6,
         "fields": 8,
         "choices": 0,
         "roles": 0,
@@ -5081,7 +5081,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3f78346b8110b49a",
+      "digest": "49d089d47fc11447",
       "changed": "2026-10-12"
     },
     "pages/research.html": {

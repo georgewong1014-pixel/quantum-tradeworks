@@ -6887,6 +6887,7 @@ input.au-in[type="text"] { text-align: left; }
 .pf-li { display: flex; align-items: center; flex: none; }
 .pf-li + .pf-li::before { content: '›'; padding: 0 4px; color: var(--ink-3); font-size: var(--ls-support); line-height: 1; }
 .pf-step { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid transparent;
+  background: transparent; font-family: inherit; line-height: 1.2; cursor: pointer;
   font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
 .pf-step:hover { color: var(--ink); background: var(--surface-sunk); }
 .pf-step:active { transform: translateY(1px); }
@@ -66805,16 +66806,19 @@ function propertyFlowNode(view = State.view) {
   const ctx = pfContext();
   const onLab = view === 'propertyLab';
   const unsaved = ctx ? ctx.moves : 0;
+  /* Explore is a page — a link. Analyse, Compare and Save act on the work
+     this tab holds (the Lab's columns, moves and answers, in its memory): a
+     link to them would open a new tab without it, so each is a button, and
+     the line is no second strip of the tab row's links. */
   const step = (s) => {
     const save = s.id === 'save', toModels = save && !unsaved && !onLab;
-    const path = s.id === 'explore' ? pfExplore : toModels ? '/property/models' : save && onLab ? '/property/models' : ctx ? ctx.path : '/property/lab';
     const current = s.id === here;
-    return el('li', { class: 'pf-li' }, el('a', { class: `pf-step${current ? ' is-here' : ''}`, id: `pf-${s.id}`, href: href(path.replace(/\?$/, '')),
-      'aria-current': current ? 'step' : null, 'data-pf-step': s.id,
-      onclick: (e) => {
-        if (!pfPlain(e)) return;
-        e.preventDefault();
-        if (s.id === 'explore' || toModels) { navigate(path); return; }
+    const attrs = { class: `pf-step${current ? ' is-here' : ''}`, id: `pf-${s.id}`, 'aria-current': current ? 'step' : null, 'data-pf-step': s.id };
+    if (s.id === 'explore') return el('li', { class: 'pf-li' }, el('a', { ...attrs, href: href(pfExplore),
+      onclick: (e) => { if (!pfPlain(e)) return; e.preventDefault(); navigate(pfExplore); } }, s.label));
+    return el('li', { class: 'pf-li' }, el('button', { ...attrs, type: 'button',
+      onclick: () => {
+        if (toModels) { navigate('/property/models'); return; }
         /* On the Lab itself: the comparison, or its Save, where they are —
            and, with nothing to save there, the saved properties. */
         if (onLab) {
@@ -66834,8 +66838,8 @@ function propertyFlowNode(view = State.view) {
         el('span', { class: 'pf-ctx-what' }, ['In the Scenario Lab: ', el('strong', {}, ctx.name), ctx.other ? `, sliders on ${ctx.other}` : '', '.']), ' ',
         el('span', { class: 'pf-ctx-state', id: 'pf-unsaved', 'data-unsaved': String(unsaved) },
           unsaved ? `${unsaved} move${unsaved === 1 ? '' : 's'} not saved — kept in this tab until you save; lost on reload or close.` : 'Nothing there is unsaved.')]),
-      el('a', { class: 'btn btn-ghost btn-sm pf-resume', id: 'pf-resume', href: href(ctx.path.replace(/\?$/, '')),
-        onclick: (e) => { if (!pfPlain(e)) return; e.preventDefault(); pfToLab(ctx); } }, ['Resume in the Lab', el('span', { 'aria-hidden': 'true' }, ' →')]),
+      el('button', { type: 'button', class: 'btn btn-ghost btn-sm pf-resume', id: 'pf-resume', onclick: () => pfToLab(ctx) },
+        ['Resume in the Lab', el('span', { 'aria-hidden': 'true' }, ' →')]),
     ]));
   }
   return el('nav', { class: 'pf-flow', 'aria-label': 'Property: explore, analyse, compare, save', 'data-pf-view': view, 'data-pf-here': here }, kids);

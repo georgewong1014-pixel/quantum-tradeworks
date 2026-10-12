@@ -6818,6 +6818,7 @@ input.au-in[type="text"] { text-align: left; }
 .pf-li { display: flex; align-items: center; flex: none; }
 .pf-li + .pf-li::before { content: '›'; padding: 0 4px; color: var(--ink-3); font-size: var(--ls-support); line-height: 1; }
 .pf-step { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid transparent;
+  background: transparent; font-family: inherit; line-height: 1.2; cursor: pointer;
   font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
 .pf-step:hover { color: var(--ink); background: var(--surface-sunk); }
 .pf-step:active { transform: translateY(1px); }
