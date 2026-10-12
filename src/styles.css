@@ -3328,6 +3328,13 @@ th .kind-th { vertical-align: middle; }
 .fee-book-h3 { margin: var(--md) 0 var(--xs); font-size: var(--ls-support); font-weight: 600; }
 .fee-book-notes { margin: 0; padding-left: 1.2em; max-width: var(--ls-measure); font-size: var(--ls-support); line-height: 1.5; }
 .fee-book-notes li + li { margin-top: var(--xs); }
+/* /methodology/property: the states a missing figure reads as — the term
+   is what a reader looks up, so it leads; a long term wraps in its column
+   rather than pushing every definition across. */
+.fee-book-dl.pm-states { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: var(--xs) var(--md); }
+.fee-book-dl.pm-states dt { color: var(--ink); font-weight: 600; }
+.fee-book-dl.pm-states dd { color: var(--ink-2); }
+@media (max-width: 479.98px) { .fee-book-dl.pm-states { grid-template-columns: minmax(0, 1fr); gap: 0; } .fee-book-dl.pm-states dd { margin-bottom: var(--sm); } }
 @media (max-width: 479.98px) { .fee-book-dl { grid-template-columns: minmax(0, 1fr); gap: 0; } .fee-book-dl dd { margin-bottom: 6px; } .fee-book-cat { margin-left: 0; flex: 1 0 100%; } }
 
 /* The status badge's qualifier, wherever Property's badge is (D17): the

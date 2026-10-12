@@ -324,7 +324,7 @@ function learnProperty() {
     el('h2', { class: 'h-card', id: 'property-states-h' }, 'When a figure is missing'),
     el('p', { class: 'caption', style: 'margin-top:2px' }, 'A missing figure is never shown as nought or left blank. It reads as one of these, with its reason.'),
   ])));
-  states.append(el('dl', { class: 'fee-book-dl fee-book-key' }, PROPERTY_STATES.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)])));
+  states.append(el('dl', { class: 'fee-book-dl fee-book-key pm-states' }, PROPERTY_STATES.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)])));
   wrap.append(states);
 
   const rows = el('section', { class: 'card', id: 'property-routes', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'property-routes-h' });
@@ -340,7 +340,9 @@ function learnProperty() {
     const gate = r.gate ? ROUTE_ASSET_GATES[r.gate] : null;
     const facts = [
       ['You enter', r.enter], ['Optional', r.optional], ['It returns', r.returns], ['When it is missing', r.missing],
-      ['Not for this asset', gate ? `${gate.what[0].toUpperCase()}${gate.what.slice(1)}: ${gate.why}` : null],
+      /* The gate's own reason, less the clause that points at the calculator's
+         figures ("the figures below"), which are not on this page. */
+      ['Not for this asset', gate ? gate.why.replace(/: the figures below[^.]*\./, '.') : null],
       ['Fee lines', r.fees ? feeWords(r.fees) : null],
       ['Known limit', r.limit],
     ].filter(([, v]) => v);
