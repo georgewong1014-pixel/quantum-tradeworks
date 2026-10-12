@@ -3289,6 +3289,14 @@ th .kind-th { vertical-align: middle; }
 /* A tile's badge and its finer word on one line, the word giving way. */
 .lab-tile .kind-with, .pc-page .ls-card .kind-with { flex-wrap: nowrap; max-width: 100%; }
 .lab-tile .kind-fine, .pc-page .ls-card .kind-fine { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* On a phone the calculator's cards have the height (one section shows at a
+   time, 12 Oct 2026), and "Illustrative def…" said less than the word it
+   cut: the word wraps under its badge instead. The Lab's tiles keep the one
+   line — their height holds the first slider above the action bar. */
+@media (max-width: 639px) {
+  .pc-page .ls-card .kind-with { flex-wrap: wrap; }
+  .pc-page .ls-card .kind-fine { overflow: visible; text-overflow: clip; white-space: normal; }
+}
 /* A card's badge beside its title (cardHead's kind), and a stat tile's
    (statTile's kind) under its figure. */
 .card-hd-t { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
