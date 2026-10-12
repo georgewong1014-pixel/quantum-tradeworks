@@ -1,12 +1,12 @@
 {
   "kind": "quantum-tradeworks-journeys",
   "schema": 2,
-  "ranAt": "2026-10-12T13:47:32.737Z",
+  "ranAt": "2026-10-12T18:16:05.238Z",
   "url": "https://quantum-tradeworks.vercel.app",
-  "commit": "5d8e1ff6ddf8c7f41b00dce3ee199d68184fe725",
+  "commit": "35ce93c41a1fbb200239a6ad7de7fa802408a7da",
   "commitFrom": "the deployment event, and the site serves its build",
   "trigger": "deployment",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/38258136375",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/38289721075",
   "journeys": [
     {
       "id": "equities",
@@ -14,42 +14,42 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 5481,
+      "ms": 4835,
       "note": null,
       "steps": [
         {
           "name": "Open Equities Research",
-          "ms": 563,
+          "ms": 560,
           "status": "OK"
         },
         {
           "name": "One press on the Apple example: its filed revenue chart",
-          "ms": 743,
+          "ms": 702,
           "status": "OK"
         },
         {
           "name": "Search for “apple”",
-          "ms": 349,
+          "ms": 340,
           "status": "OK"
         },
         {
           "name": "Open Apple’s company page",
-          "ms": 260,
+          "ms": 254,
           "status": "OK"
         },
         {
           "name": "Financials: the filed statements, and where a figure came from",
-          "ms": 684,
+          "ms": 624,
           "status": "OK"
         },
         {
           "name": "Add to watchlist",
-          "ms": 271,
+          "ms": 255,
           "status": "OK"
         },
         {
           "name": "The watchlist lists it",
-          "ms": 229,
+          "ms": 231,
           "status": "OK"
         }
       ]
@@ -60,27 +60,27 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 2475,
+      "ms": 2433,
       "note": null,
       "steps": [
         {
           "name": "Open the screener",
-          "ms": 1040,
+          "ms": 996,
           "status": "OK"
         },
         {
           "name": "Templates: a price-based one says why it is off for filed companies",
-          "ms": 432,
+          "ms": 434,
           "status": "OK"
         },
         {
           "name": "Filter: return on equity of at least 20",
-          "ms": 542,
+          "ms": 538,
           "status": "OK"
         },
         {
           "name": "Open a result",
-          "ms": 262,
+          "ms": 250,
           "status": "OK"
         }
       ]
@@ -91,37 +91,37 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 3105,
+      "ms": 3089,
       "note": null,
       "steps": [
         {
           "name": "Open Compare",
-          "ms": 553,
+          "ms": 541,
           "status": "OK"
         },
         {
           "name": "Add AAPL and MSFT: a column each, from their SEC filings",
-          "ms": 425,
+          "ms": 436,
           "status": "OK"
         },
         {
           "name": "Save this comparison",
-          "ms": 243,
+          "ms": 234,
           "status": "OK"
         },
         {
           "name": "Clear the page’s selection",
-          "ms": 442,
+          "ms": 429,
           "status": "OK"
         },
         {
           "name": "The workspace lists it",
-          "ms": 222,
+          "ms": 228,
           "status": "OK"
         },
         {
           "name": "Open restores both columns",
-          "ms": 242,
+          "ms": 272,
           "status": "OK"
         }
       ]
@@ -132,42 +132,42 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 7158,
+      "ms": 6926,
       "note": null,
       "steps": [
         {
           "name": "Open the property calculator",
-          "ms": 1401,
+          "ms": 1433,
           "status": "OK"
         },
         {
           "name": "Enter a price, a rent and a loan",
-          "ms": 2417,
+          "ms": 2358,
           "status": "OK"
         },
         {
           "name": "Change the rent: the cash flow and the yield move",
-          "ms": 801,
+          "ms": 786,
           "status": "OK"
         },
         {
           "name": "Change the loan: the cash required moves",
-          "ms": 804,
+          "ms": 779,
           "status": "OK"
         },
         {
           "name": "Save the property",
-          "ms": 750,
+          "ms": 698,
           "status": "OK"
         },
         {
           "name": "It is listed with the saved properties",
-          "ms": 547,
+          "ms": 498,
           "status": "OK"
         },
         {
           "name": "Proposal hides the sale’s costs, proceeds and profit until unlocked",
-          "ms": 273,
+          "ms": 254,
           "status": "OK"
         }
       ]
@@ -178,17 +178,17 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 9651,
+      "ms": 9123,
       "note": null,
       "steps": [
         {
           "name": "Open /property: the Scenario Lab on the sample deal",
-          "ms": 1026,
+          "ms": 949,
           "status": "OK"
         },
         {
           "name": "Move the rent: the monthly position and the net yield follow, the repayment does not",
-          "ms": 791,
+          "ms": 769,
           "status": "OK"
         },
         {
@@ -198,27 +198,27 @@
         },
         {
           "name": "Compare by cash flow: A, then B",
-          "ms": 214,
+          "ms": 220,
           "status": "OK"
         },
         {
           "name": "Save the property, then B as a scenario",
-          "ms": 880,
+          "ms": 846,
           "status": "OK"
         },
         {
           "name": "It is listed with the saved properties",
-          "ms": 443,
+          "ms": 442,
           "status": "OK"
         },
         {
           "name": "Choose Commercial and Subsale, set a target: the price that makes it work is solved",
-          "ms": 2460,
+          "ms": 2298,
           "status": "OK"
         },
         {
           "name": "Choose Auction, enter the Proclamation’s terms: the effective cost is read",
-          "ms": 3506,
+          "ms": 3327,
           "status": "OK"
         }
       ]
@@ -229,32 +229,32 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 3832,
+      "ms": 3725,
       "note": null,
       "steps": [
         {
           "name": "Open the comparables register: the guided flow, an empty register",
-          "ms": 907,
+          "ms": 901,
           "status": "OK"
         },
         {
           "name": "Record a transaction price, step by step: its locality, source and date",
-          "ms": 1654,
+          "ms": 1629,
           "status": "OK"
         },
         {
           "name": "Use it in the Scenario Lab: it is named in the comparables",
-          "ms": 305,
+          "ms": 276,
           "status": "OK"
         },
         {
           "name": "Enter an asking price: the price gap names it with its source and date",
-          "ms": 552,
+          "ms": 544,
           "status": "OK"
         },
         {
           "name": "Choose Auction: the market value is the value it implies",
-          "ms": 251,
+          "ms": 253,
           "status": "OK"
         }
       ]
@@ -265,27 +265,27 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 4137,
+      "ms": 3952,
       "note": null,
       "steps": [
         {
           "name": "Open /property: the Scenario Lab on the sample deal",
-          "ms": 922,
+          "ms": 864,
           "status": "OK"
         },
         {
           "name": "Choose New development: the premium is Unavailable without a comparable",
-          "ms": 235,
+          "ms": 224,
           "status": "OK"
         },
         {
           "name": "Enter a completed comparable and the dates: the premium is read",
-          "ms": 2109,
+          "ms": 2049,
           "status": "OK"
         },
         {
           "name": "Apply the Form C template and space it to VP: construction interest is worked out",
-          "ms": 706,
+          "ms": 687,
           "status": "OK"
         }
       ]
@@ -296,27 +296,27 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 5833,
+      "ms": 5622,
       "note": null,
       "steps": [
         {
           "name": "Open /property: the Scenario Lab on the sample deal",
-          "ms": 948,
+          "ms": 929,
           "status": "OK"
         },
         {
           "name": "Choose Commercial — whole shoplot: sustainability and the reserve are Unavailable",
-          "ms": 485,
+          "ms": 462,
           "status": "OK"
         },
         {
           "name": "Enter the contract rent, its expiry and the model rent: the yield both ways",
-          "ms": 2091,
+          "ms": 2013,
           "status": "OK"
         },
         {
           "name": "Record an achieved rent and use it in the Lab",
-          "ms": 2155,
+          "ms": 2098,
           "status": "OK"
         },
         {
@@ -332,27 +332,27 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 6219,
+      "ms": 5555,
       "note": null,
       "steps": [
         {
           "name": "Open the Lab on a saved subsale condominium",
-          "ms": 1641,
+          "ms": 1533,
           "status": "OK"
         },
         {
           "name": "Add an auction condominium and a shoplot: each column on its own route",
-          "ms": 728,
+          "ms": 689,
           "status": "OK"
         },
         {
           "name": "Switch the lens: the columns stay A, B, C",
-          "ms": 919,
+          "ms": 883,
           "status": "OK"
         },
         {
           "name": "Save the comparison and reopen it",
-          "ms": 2768,
+          "ms": 2330,
           "status": "OK"
         }
       ]
@@ -363,27 +363,27 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 6404,
+      "ms": 6036,
       "note": null,
       "steps": [
         {
           "name": "Open the Lab on a saved property",
-          "ms": 1563,
+          "ms": 1419,
           "status": "OK"
         },
         {
           "name": "Enter Refurbish and Upgrade: the cost, the rent each adds, the months without rent",
-          "ms": 3742,
+          "ms": 3583,
           "status": "OK"
         },
         {
           "name": "Read the improvement payback",
-          "ms": 681,
+          "ms": 650,
           "status": "OK"
         },
         {
           "name": "Save the figures to the property",
-          "ms": 241,
+          "ms": 234,
           "status": "OK"
         }
       ]
@@ -394,32 +394,32 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 8422,
+      "ms": 8019,
       "note": null,
       "steps": [
         {
           "name": "Open the Lab on a saved property",
-          "ms": 1544,
+          "ms": 1488,
           "status": "OK"
         },
         {
           "name": "Enter cost lines with sources",
-          "ms": 4067,
+          "ms": 3935,
           "status": "OK"
         },
         {
           "name": "Open the report and see the four sections",
-          "ms": 600,
+          "ms": 553,
           "status": "OK"
         },
         {
           "name": "Record an actual and see the difference",
-          "ms": 1566,
+          "ms": 1466,
           "status": "OK"
         },
         {
           "name": "Import the synthetic schedule",
-          "ms": 481,
+          "ms": 455,
           "status": "OK"
         }
       ]
@@ -430,42 +430,42 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 7233,
+      "ms": 6911,
       "note": null,
       "steps": [
         {
           "name": "Save a property in the Scenario Lab",
-          "ms": 1868,
+          "ms": 1732,
           "status": "OK"
         },
         {
           "name": "Record an opportunity with its source and date",
-          "ms": 2544,
+          "ms": 2550,
           "status": "OK"
         },
         {
           "name": "Open it in the Scenario Lab: a column beside the saved property, its provenance with it",
-          "ms": 293,
+          "ms": 261,
           "status": "OK"
         },
         {
           "name": "Move its price and answer Auction: a what-if, nothing written",
-          "ms": 831,
+          "ms": 809,
           "status": "OK"
         },
         {
           "name": "Visit the comparables: the work in the Lab is named, not saved",
-          "ms": 241,
+          "ms": 226,
           "status": "OK"
         },
         {
           "name": "Resume in the Lab: the what-if intact",
-          "ms": 308,
+          "ms": 273,
           "status": "OK"
         },
         {
           "name": "Save it as a property: tied to the record, its provenance kept",
-          "ms": 982,
+          "ms": 928,
           "status": "OK"
         }
       ]
@@ -476,42 +476,42 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 3752,
+      "ms": 3775,
       "note": null,
       "steps": [
         {
           "name": "The dashboard shows the example on a generated series",
-          "ms": 897,
+          "ms": 1029,
           "status": "OK"
         },
         {
           "name": "Its replay holds the rule only at bar 66",
-          "ms": 551,
+          "ms": 537,
           "status": "OK"
         },
         {
           "name": "Open the setup builder",
-          "ms": 574,
+          "ms": 520,
           "status": "OK"
         },
         {
           "name": "Build a condition: price crosses above its 20-bar EMA, on AAPL",
-          "ms": 1107,
+          "ms": 1108,
           "status": "OK"
         },
         {
           "name": "Save the setup",
-          "ms": 224,
+          "ms": 218,
           "status": "OK"
         },
         {
           "name": "The setup’s page shows it",
-          "ms": 2,
+          "ms": 4,
           "status": "OK"
         },
         {
           "name": "Evaluate it: the page says there is no price history here",
-          "ms": 245,
+          "ms": 235,
           "status": "OK",
           "gated": "no prices ship"
         }
@@ -523,37 +523,37 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 5011,
+      "ms": 4624,
       "note": null,
       "steps": [
         {
           "name": "Open Apple’s company page",
-          "ms": 875,
+          "ms": 877,
           "status": "OK"
         },
         {
           "name": "Open My Dashboard: a first visit",
-          "ms": 540,
+          "ms": 607,
           "status": "OK"
         },
         {
           "name": "Its “Recently opened” row opens Apple",
-          "ms": 258,
+          "ms": 245,
           "status": "OK"
         },
         {
           "name": "Save a property of your own",
-          "ms": 2160,
+          "ms": 1852,
           "status": "OK"
         },
         {
           "name": "Open the homepage",
-          "ms": 460,
+          "ms": 414,
           "status": "OK"
         },
         {
           "name": "Press “Open workspace”: the reader’s work first",
-          "ms": 248,
+          "ms": 228,
           "status": "OK"
         },
         {
@@ -563,7 +563,7 @@
         },
         {
           "name": "Continue reopens it: the second press",
-          "ms": 320,
+          "ms": 278,
           "status": "OK"
         }
       ]
@@ -574,62 +574,62 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 9472,
+      "ms": 9359,
       "note": null,
       "steps": [
         {
           "name": "Open the Cash Wheel",
-          "ms": 931,
+          "ms": 1058,
           "status": "OK"
         },
         {
           "name": "Enter a contract: the obligation, the shortfall and the payoff at expiry",
-          "ms": 4201,
+          "ms": 4161,
           "status": "OK"
         },
         {
           "name": "Reserve the cash: the put reads cash-secured",
-          "ms": 531,
+          "ms": 527,
           "status": "OK"
         },
         {
           "name": "Open the Trading Index",
-          "ms": 679,
+          "ms": 544,
           "status": "OK"
         },
         {
           "name": "Load the §14 worked example: it returns 38, 35 and 77",
-          "ms": 228,
+          "ms": 216,
           "status": "OK"
         },
         {
           "name": "Record a stronger daily price structure: the trend regime rises and the change is logged",
-          "ms": 212,
+          "ms": 207,
           "status": "OK"
         },
         {
           "name": "Open Apple’s company page",
-          "ms": 457,
+          "ms": 417,
           "status": "OK"
         },
         {
           "name": "Reports lists the contract, the trend evidence and Apple",
-          "ms": 517,
+          "ms": 542,
           "status": "OK"
         },
         {
           "name": "The Cash Wheel’s decision record opens from Reports with the contract’s figures",
-          "ms": 232,
+          "ms": 229,
           "status": "OK"
         },
         {
           "name": "The Trading Index’s decision record opens from Reports with the evidence’s figures",
-          "ms": 661,
+          "ms": 659,
           "status": "OK"
         },
         {
           "name": "Apple’s research report opens from Reports",
-          "ms": 677,
+          "ms": 663,
           "status": "OK"
         }
       ]
@@ -640,47 +640,47 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 7579,
+      "ms": 7315,
       "note": null,
       "steps": [
         {
           "name": "Open the comparables register: empty",
-          "ms": 869,
+          "ms": 921,
           "status": "OK"
         },
         {
           "name": "Record a transaction and a rent: each listed with what it rests on",
-          "ms": 1026,
+          "ms": 1029,
           "status": "OK"
         },
         {
           "name": "Open the area screen: Kuching’s localities, each unrecorded one hollow",
-          "ms": 661,
+          "ms": 521,
           "status": "OK"
         },
         {
           "name": "Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow",
-          "ms": 1311,
+          "ms": 1260,
           "status": "OK"
         },
         {
           "name": "Shade by achieved rent: the rent recorded for Tabuan shades it",
-          "ms": 255,
+          "ms": 237,
           "status": "OK"
         },
         {
           "name": "Open the opportunity register: empty",
-          "ms": 512,
+          "ms": 491,
           "status": "OK"
         },
         {
           "name": "Record a property: it is listed with what is known and what is not",
-          "ms": 2320,
+          "ms": 2293,
           "status": "OK"
         },
         {
           "name": "It is still listed after a reload",
-          "ms": 462,
+          "ms": 445,
           "status": "OK"
         }
       ]
@@ -691,32 +691,32 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 7953,
+      "ms": 7755,
       "note": null,
       "steps": [
         {
           "name": "Open Tenaga’s investment case tab",
-          "ms": 993,
+          "ms": 905,
           "status": "OK"
         },
         {
           "name": "Start a case: it is listed, its condition checked against the latest data held",
-          "ms": 252,
+          "ms": 241,
           "status": "OK"
         },
         {
           "name": "Write the case in a sentence: kept after a reload",
-          "ms": 1346,
+          "ms": 1334,
           "status": "OK"
         },
         {
           "name": "My Alerts lists the case’s breached condition as research, with its source period",
-          "ms": 519,
+          "ms": 555,
           "status": "OK"
         },
         {
           "name": "Set a price threshold: crossed, and listed with its source once price moves are shown",
-          "ms": 1632,
+          "ms": 1582,
           "status": "OK"
         },
         {
@@ -727,7 +727,7 @@
         },
         {
           "name": "Add a holding: listed, its price return worked from its cost, its case marked written",
-          "ms": 2223,
+          "ms": 2216,
           "status": "OK"
         }
       ]
@@ -738,32 +738,32 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 4406,
+      "ms": 4289,
       "note": null,
       "steps": [
         {
           "name": "Open Your data & settings",
-          "ms": 893,
+          "ms": 980,
           "status": "OK"
         },
         {
           "name": "Paste closes: read, and listed once the page reloads",
-          "ms": 1195,
+          "ms": 1174,
           "status": "OK"
         },
         {
           "name": "Export: the prices, and everything you have made, carry the closes",
-          "ms": 435,
+          "ms": 434,
           "status": "OK"
         },
         {
           "name": "Open the scanner’s settings",
-          "ms": 628,
+          "ms": 515,
           "status": "OK"
         },
         {
           "name": "Change three scanner settings: each holds after a reload",
-          "ms": 1088,
+          "ms": 1073,
           "status": "OK"
         }
       ]
@@ -774,17 +774,17 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 5311,
+      "ms": 5337,
       "note": null,
       "steps": [
         {
           "name": "Save representative items",
-          "ms": 1857,
+          "ms": 1885,
           "status": "OK"
         },
         {
           "name": "Export everything: the file holds each item, and the page says when",
-          "ms": 943,
+          "ms": 958,
           "status": "OK"
         },
         {
@@ -794,12 +794,12 @@
         },
         {
           "name": "Import the file: each item back, once",
-          "ms": 961,
+          "ms": 974,
           "status": "OK"
         },
         {
           "name": "Import it again: nothing doubled",
-          "ms": 947,
+          "ms": 946,
           "status": "OK"
         }
       ]
@@ -810,32 +810,32 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 2835,
+      "ms": 2725,
       "note": null,
       "steps": [
         {
           "name": "Open the Scanner: its example at bar 66",
-          "ms": 817,
+          "ms": 816,
           "status": "OK"
         },
         {
           "name": "Replay to bar 65 by the keyboard: Held becomes Not held, each figure the series’",
-          "ms": 524,
+          "ms": 523,
           "status": "OK"
         },
         {
           "name": "Replay to bar 66 again: Not held becomes Held",
-          "ms": 156,
+          "ms": 155,
           "status": "OK"
         },
         {
           "name": "Replay to bars 60, 20 and 14: each condition reads what the series allows",
-          "ms": 10,
+          "ms": 8,
           "status": "OK"
         },
         {
           "name": "The how-it-works example replays the same",
-          "ms": 1158,
+          "ms": 1098,
           "status": "OK"
         }
       ]
@@ -846,167 +846,167 @@
       "status": "PASS",
       "failedStep": null,
       "route": null,
-      "ms": 31118,
+      "ms": 30177,
       "note": "31 calls to action pressed (32 steps: the page opened, then each call), each landing on a working page",
       "steps": [
         {
           "name": "Open My Dashboard",
-          "ms": 901,
+          "ms": 822,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Start research”",
-          "ms": 732,
-          "status": "OK"
-        },
-        {
-          "name": "Dashboard checklist “Create a watchlist”",
           "ms": 785,
           "status": "OK"
         },
         {
+          "name": "Dashboard checklist “Create a watchlist”",
+          "ms": 727,
+          "status": "OK"
+        },
+        {
           "name": "Dashboard checklist “Create a setup”",
-          "ms": 671,
+          "ms": 686,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Analyse a property”",
-          "ms": 725,
+          "ms": 730,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Set your preferences”",
-          "ms": 737,
+          "ms": 710,
           "status": "OK"
         },
         {
           "name": "Dashboard checklist “Not sure where to start?”",
-          "ms": 767,
+          "ms": 718,
           "status": "OK"
         },
         {
           "name": "The header’s “Open workspace”",
-          "ms": 668,
+          "ms": 658,
           "status": "OK"
         },
         {
           "name": "Homepage card “Research a company”",
-          "ms": 692,
+          "ms": 677,
           "status": "OK"
         },
         {
           "name": "Homepage card “Apple Inc.’s filed statements”",
-          "ms": 705,
+          "ms": 693,
           "status": "OK"
         },
         {
           "name": "Homepage card “Build my setups”",
-          "ms": 702,
+          "ms": 672,
           "status": "OK"
         },
         {
           "name": "Homepage card “Analyse a property”",
-          "ms": 930,
+          "ms": 771,
           "status": "OK"
         },
         {
           "name": "Homepage card “Try the Scenario Lab”",
-          "ms": 699,
+          "ms": 686,
           "status": "OK"
         },
         {
           "name": "/property-investing: “Open the Scenario Lab”",
-          "ms": 700,
+          "ms": 755,
           "status": "OK"
         },
         {
           "name": "Homepage Property card: moving the price moves its three figures",
-          "ms": 153,
+          "ms": 154,
           "status": "OK"
         },
         {
           "name": "Equities tab “Overview”",
-          "ms": 637,
+          "ms": 659,
           "status": "OK"
         },
         {
           "name": "Equities tab “Screener”",
-          "ms": 690,
+          "ms": 686,
           "status": "OK"
         },
         {
           "name": "Equities tab “Compare”",
-          "ms": 665,
+          "ms": 656,
           "status": "OK"
         },
         {
           "name": "Equities tab “Research queue”",
-          "ms": 784,
+          "ms": 743,
           "status": "OK"
         },
         {
           "name": "Equities tab “Sarawak watch”",
-          "ms": 751,
+          "ms": 865,
           "status": "OK"
         },
         {
           "name": "Equities tab “Cash Wheel”",
-          "ms": 661,
-          "status": "OK"
-        },
-        {
-          "name": "Property tab “My properties”",
-          "ms": 675,
-          "status": "OK"
-        },
-        {
-          "name": "Property tab “Calculator”",
-          "ms": 764,
-          "status": "OK"
-        },
-        {
-          "name": "Property tab “Scenario Lab”",
-          "ms": 678,
-          "status": "OK"
-        },
-        {
-          "name": "Property tab “Area screen”",
           "ms": 664,
           "status": "OK"
         },
         {
+          "name": "Property tab “My properties”",
+          "ms": 652,
+          "status": "OK"
+        },
+        {
+          "name": "Property tab “Calculator”",
+          "ms": 715,
+          "status": "OK"
+        },
+        {
+          "name": "Property tab “Scenario Lab”",
+          "ms": 674,
+          "status": "OK"
+        },
+        {
+          "name": "Property tab “Area screen”",
+          "ms": 655,
+          "status": "OK"
+        },
+        {
           "name": "Property tab “Comparables”",
-          "ms": 676,
+          "ms": 654,
           "status": "OK"
         },
         {
           "name": "Property tab “Opportunities”",
-          "ms": 643,
+          "ms": 653,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Dashboard”",
-          "ms": 646,
+          "ms": 667,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Setups”",
-          "ms": 752,
+          "ms": 719,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Watchlist scanner”",
-          "ms": 774,
+          "ms": 766,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Settings”",
-          "ms": 660,
+          "ms": 657,
           "status": "OK"
         },
         {
           "name": "Scanner tab “Trading Index”",
-          "ms": 665,
+          "ms": 661,
           "status": "OK"
         }
       ]
