@@ -4155,7 +4155,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1e59991df85238e7",
+      "digest": "42c03b144b1f4200",
       "changed": "2026-10-12"
     },
     "pages/decision-record.html": {
@@ -4878,8 +4878,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "87eeb3ccd4f83188",
-      "changed": "2026-10-11"
+      "digest": "d11f91a82023fe1c",
+      "changed": "2026-10-12"
     },
     "pages/property-investing.html": {
       "path": "/property-investing",
@@ -4963,7 +4963,36 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "11503811596d400b",
+      "digest": "e10148cd63df4a38",
+      "changed": "2026-10-12"
+    },
+    "pages/property/areas/map.html": {
+      "path": "/property/areas/map",
+      "view": "areaMap",
+      "state": "first draw",
+      "chrome": "app",
+      "h1": "Kuching scheme map",
+      "tabs": true,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": [
+          7
+        ]
+      },
+      "inert": {
+        "buttons": 86,
+        "fields": 1,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 1,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "f9d55b0f352071c2",
       "changed": "2026-10-12"
     },
     "pages/property/calculator.html": {
@@ -5253,7 +5282,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7d6953976a41ca18",
+      "digest": "2f0d815df1fadfa7",
       "changed": "2026-10-12"
     },
     "pages/terms.html": {
