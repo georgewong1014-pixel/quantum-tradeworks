@@ -70282,9 +70282,11 @@ async function kmDraw() {
     KM.theme = theme;
     const host = KM.box.querySelector('#km-canvas');
     const [w, s, e, n] = KM_DATA.bbox;
+    /* Opened on the placed schemes, all of them in view at any width. */
+    const lons = kmPlaced().map(x => x.centre[0]), lats = kmPlaced().map(x => x.centre[1]);
     const map = new ml.Map({
       container: host, style, attributionControl: false, maplibreLogo: false,
-      bounds: [[110.24, 1.44], [110.44, 1.62]], fitBoundsOptions: { padding: 12 },
+      bounds: [[Math.min(...lons) - 0.008, Math.min(...lats) - 0.008], [Math.max(...lons) + 0.008, Math.max(...lats) + 0.008]], fitBoundsOptions: { padding: 16 },
       minZoom: 10, maxZoom: 17.5, maxPitch: 60,
       maxBounds: [[w - 0.08, s - 0.07], [e + 0.08, n + 0.07]],
       cooperativeGestures: true, dragRotate: false, pitchWithRotate: false, touchPitch: false,
