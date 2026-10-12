@@ -2935,7 +2935,7 @@ const HOME_PAGE = read(HOME);
        development says what changed, and carries no known limit. */
     /* A row's fact by its term: the <dd> after the <dt> that says it. */
     const dd = (n, k) => { const dts = all(n).filter(x => x.tag === 'dt'), dds = all(n).filter(x => x.tag === 'dd'); const i = dts.findIndex(x => sight(x) === k); return i < 0 ? null : dds[i] || null; };
-    const said = (n, k) => { const x = n ? dd(n, k) : null; return x ? sight(x) : ''; };
+    const ddText = (n, k) => { const x = n ? dd(n, k) : null; return x ? sight(x) : ''; };
     for (const id of ['auction', 'newdev-residential', 'newdev-commercial']) {
       const n = row(id), legal = n ? dd(n, 'Legal fees') : null;
       if (!legal || !/Not decided by the Rules/.test(sight(legal)) || !all(legal).some(x => x.tag === 'a' && attr(x, 'href') === '/data-sources#fee-rulebook-route')) p.push(`${id} does not say how its purchase legal fees are priced, linking the rulebook's route readings`);
@@ -2944,8 +2944,8 @@ const HOME_PAGE = read(HOME);
     if (nd) {
       const facts = all(nd).filter(x => x.tag === 'dt').map(x => sight(x));
       if (facts.includes('Known limit')) p.push('newdev-residential still states a known limit');
-      if (!/count from vacant possession once both months are entered/.test(said(nd, 'What changed'))) p.push('newdev-residential does not say what changed');
-      if (!/timed from vacant possession/.test(said(nd, 'It returns'))) p.push('newdev-residential does not say its rate of return is timed from vacant possession');
+      if (!/count from vacant possession once both months are entered/.test(ddText(nd, 'What changed'))) p.push('newdev-residential does not say what changed');
+      if (!/timed from vacant possession/.test(ddText(nd, 'It returns'))) p.push('newdev-residential does not say its rate of return is timed from vacant possession');
     }
   }
   judge(p, `/methodology/property serves the property routes before any script: ${said.states} states a missing figure reads as, ${said.rows} route-and-asset rows in order, each with what it returns; the gates and the fee lines not yet checked by class named, linking the rulebook; the auction's and the new development's purchase legal fees "not decided by the Rules", linking its route readings; the new development timed from vacant possession, what changed said, no known limit`,
