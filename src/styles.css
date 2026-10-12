@@ -6951,7 +6951,6 @@ input.au-in[type="text"] { text-align: left; }
 .km-conf-named-feature { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
 .km-conf-lanes-named { background: var(--surface-2); color: var(--brand); border: 1px dashed color-mix(in srgb, var(--brand) 55%, transparent); }
 .km-acts { display: flex; flex-wrap: wrap; gap: var(--xs); margin-top: var(--xs); }
-.km-fig-table th, .km-fig-table td { vertical-align: top; }
 .km-find { display: grid; gap: 6px; max-width: 28rem; margin-bottom: var(--sm); }
 .km-find label { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
 .km-figs-say { margin: 0 0 var(--sm); }

@@ -328,22 +328,32 @@ function kmFilter(root = document.getElementById('km-list')) {
 /* A scheme chosen, from the map or the list: the panel says it, and focus
    goes to the panel's heading — from where Escape (or Close) returns it to
    the control that chose it. */
-function kmSelect(name, { from = null } = {}) {
+/* scroll: what is brought into view — the panel (a scheme chosen from the
+   list with no map to show it on), the map (shown on it), or nothing (a
+   scheme tapped on the map, the panel beside or under it). */
+function kmSelect(name, { from = null, scroll = 'panel' } = {}) {
   const was = KM.sel;
   KM.sel = name;
   if (name) KM.from = from || (document.activeElement && document.activeElement !== document.body ? document.activeElement.id : null);
   render();
   kmPaintSelection();
-  if (name) document.getElementById('km-panel-h')?.focus({ preventScroll: false });
-  else if (was) { const back = KM.from && document.getElementById(KM.from); (back || document.getElementById('km-panel-h'))?.focus(); KM.from = null; }
+  if (name) {
+    document.getElementById('km-panel-h')?.focus({ preventScroll: true });
+    const into = scroll === 'map' && KM.mode === 'map' ? KM.box : scroll === 'panel' ? document.getElementById('km-panel') : null;
+    into?.scrollIntoView({ block: 'nearest' });
+  } else if (was) {
+    /* Back where it was chosen: a list's button, or the map itself. */
+    const back = KM.from === 'km-map' ? KM.map?.getCanvas() : KM.from && document.getElementById(KM.from);
+    (back || document.getElementById('km-panel-h'))?.focus();
+    KM.from = null;
+  }
 }
 function kmShow(s, { focus = true } = {}) {
-  if (focus) kmSelect(s.scheme);
+  if (focus) kmSelect(s.scheme, { scroll: 'map' });
   if (KM.mode === 'map' && KM.map) {
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const zoom = s.radius >= 500 ? 14 : s.radius >= 300 ? 14.6 : 15.2;
     KM.map[reduce ? 'jumpTo' : 'easeTo']({ center: s.centre, zoom, ...(reduce ? {} : { duration: 600 }) });
-    if (focus) document.getElementById('km-box')?.scrollIntoView({ block: 'nearest' });
   }
 }
 
@@ -496,7 +506,7 @@ async function kmDraw() {
     /* A neighbourhood is chosen by a tap anywhere within 22px of it — the
        44px target the locality diagram's points have. */
     const hit = (pt) => map.queryRenderedFeatures([[pt.x - 22, pt.y - 22], [pt.x + 22, pt.y + 22]], { layers: ['km-fill', 'km-name'] });
-    map.on('click', (ev) => { const f = hit(ev.point)[0]; if (f) kmSelect(f.properties.name, { from: 'km-box' }); });
+    map.on('click', (ev) => { const f = hit(ev.point)[0]; if (f) kmSelect(f.properties.name, { from: 'km-map', scroll: 'none' }); });
     map.on('mousemove', (ev) => { map.getCanvas().style.cursor = hit(ev.point).length ? 'pointer' : ''; });
   } catch (err) {
     KM.map = null;

@@ -462,7 +462,7 @@ function stepPlaces({ osm, date }) {
         out.push({ ...rec, status: 'placed', method: 'osm-lanes', confidence: 'lanes-named',
           centre: c.map(r5), radius: Math.min(800, Math.max(300, Math.round((spread + 100) / 10) * 10)),
           evidence: { osm: ls.slice(0, 6).map(l => ({ id: l.osm, name: l.name, kind: 'road' })), lanes: ls.length,
-            said: `${ls.length} OpenStreetMap lane${ls.length === 1 ? '' : 's'} carr${ls.length === 1 ? 'ies' : 'y'} the scheme’s name (${[...new Set(ls.map(l => l.name))].slice(0, 3).map(x => `“${x}”`).join(', ')}${ls.length > 3 ? ' …' : ''}); the mark is the middle of those lanes, ${Math.round(spread)} m to the farthest.` },
+            said: `${ls.length} OpenStreetMap lane${ls.length === 1 ? '' : 's'} carr${ls.length === 1 ? 'ies' : 'y'} the scheme’s name (${[...new Set(ls.map(l => l.name))].slice(0, 3).map(x => `“${x}”`).join(', ')}${new Set(ls.map(l => l.name)).size > 3 ? ' …' : ''}); ${ls.length === 1 ? 'the mark is the middle of that lane.' : `the mark is the middle of those lanes, ${Math.round(spread)} m to the farthest.`}` },
           nearest: near(c) });
         continue;
       }

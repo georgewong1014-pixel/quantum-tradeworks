@@ -156,8 +156,8 @@
    "sha256": "643c73c7d0a5fcf260c072df2e6ec9699210aa883737c9dc24aad5caef354e33"
   },
   "data/map/kuching-schemes.json": {
-   "bytes": 83549,
-   "sha256": "a6de65439a4052aa27a847a50647155184909d62958e9822e3e9cac464a4b7cb"
+   "bytes": 83453,
+   "sha256": "0a79f8ac4f1bae244d880a7f38a550b40c514240a38e64f2e61abf808f0cd9c8"
   },
   "data/map/style-dark.json": {
    "bytes": 65597,
