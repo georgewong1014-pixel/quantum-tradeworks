@@ -262,7 +262,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
       : `Enter the asking price to set it against the ${pqMoney(g.value)} your ${g.comps.length === 1 ? 'comparable implies' : `${g.comps.length} comparables imply`}.`;
     cards.append(lsActionCard({ title: 'Price gap', line: missing, cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': '' },
       cta: enter ? lsCta('Enter them in the calculator', { path: enter, id: `${prefix}-pe-gap-go` })
-        : lsCta('Enter them', { id: `${prefix}-pe-gap-go`, onclick: () => { const n = document.getElementById('d-askingPrice'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus({ preventScroll: true }); } } }) }));
+        : lsCta('Enter them', { id: `${prefix}-pe-gap-go`, onclick: () => { const n = document.getElementById('d-askingPrice'); if (n) { pcShowFor(n); n.scrollIntoView({ block: 'center' }); n.focus({ preventScroll: true }); } } }) }));
   }
   /* The price that makes this work. */
   if (s.status === 'no-target') {
@@ -423,7 +423,7 @@ function pcPriceEvidence(d) {
   const gapDet = det('pc-pe-gap-ev', 'How the price gap is worked out', priceGapFormula(g));
   const solveDet = det('pc-pe-solve-ev', 'How the price is solved', priceSolveFormula(s, d));
   sec.append(priceEvidenceCards({ d, g, s, prefix: 'pc', gapWhy: () => lsOpenEvidence(gapDet), solveWhy: () => lsOpenEvidence(solveDet),
-    setTarget: () => { const r = document.getElementById('pc-q-target-monthly'); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
+    setTarget: () => { const r = document.getElementById('pc-q-target-monthly'); if (r) { pcShowFor(r); r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   sec.append(priceTargetControls({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
   if (s.status === 'solved' && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
     onclick: () => { d.price = s.price; markTouched(d, 'price'); saveDeal(); renderKeepFocus(); toast(`The purchase price is now ${pqMoney(s.price)} — every figure follows it.`); } },
@@ -974,7 +974,7 @@ function ndResults({ n, d, prefix, why = {} }) {
   if (!p) {
     box.append(lsActionCard({ title: 'What would justify the premium', line: 'Needs a completed comparable: the rent and the growth that would cover the premium are worked out from yours.',
       cls: 'nd-card nd-needed', attrs: { 'data-nd-fig': 'needed', 'data-status': 'no-comparable' },
-      cta: lsCta('Enter one', { id: `${prefix}-nd-needed-go`, onclick: () => { const x = document.getElementById(`${prefix}-nd-ndCompPrice`); if (x) { x.scrollIntoView({ block: 'center' }); x.focus({ preventScroll: true }); } } }) }));
+      cta: lsCta('Enter one', { id: `${prefix}-nd-needed-go`, onclick: () => { const x = document.getElementById(`${prefix}-nd-ndCompPrice`); if (x) { pcShowFor(x); x.scrollIntoView({ block: 'center' }); x.focus({ preventScroll: true }); } } }) }));
   } else {
     const figure = rn.status === 'solved' ? pqMoney(rn.rent) : rn.status === 'no-premium' ? 'No premium' : rn.status === 'pending' ? '…' : '—';
     const finding = rn.status === 'solved'
