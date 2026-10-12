@@ -513,7 +513,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
-      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due. Until you enter your lawyer’s quote, the legal costs are the fee rulebook’s purchase legal fees — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}), so the quote is the way to price it.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step, opts] of g.fields) {

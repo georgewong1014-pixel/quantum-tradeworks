@@ -3648,7 +3648,7 @@ VIEWS.property = () => {
       if (k === 'holdYears' && dealRoute(d) === 'newdev') {
         const t = ndTimingOf(d), hold = normHoldYears(d.holdYears);
         const why = t ? `Held ${hold} year${hold === 1 ? '' : 's'} from vacant possession: the sale falls ${ndYears(t.lead + hold)} years after signing.` : ndTimingWhy(d);
-        if (why) f.append(el('span', { class: 'metaline', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false', style: 'flex-basis:100%;margin-top:2px' }, why));
+        if (why) f.append(el('span', { class: 'a-note', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false' }, why));
       }
       rail.append(f);
       /* QT-03: the renovation itemised, each line with its source, date,
@@ -4504,7 +4504,7 @@ VIEWS.property = () => {
     exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
       'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
     if (ntm) exitCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Vacant possession is ${ntm.vpAt} months after signing, so these sales fall ${ndYears(ntm.lead + 5)} and ${ndYears(ntm.lead + 10)} years after it: the sale value is the price grown from signing, the gains tax counts from the SPA date, and the annualised figure and the rate of return are over the years from signing.`));
+      `Vacant possession is ${ntm.vpAt} months after signing, so these sales fall ${ndYears(ntm.lead + 5)} and ${ndYears(ntm.lead + 10)} years after signing: the sale value is the price grown from signing, the gains tax counts from the SPA date, and the annualised figure and the rate of return are over the years from signing.`));
     reportCards.push(exitCard);
 
     /* ---------- hold or sell, year by year ---------- */
