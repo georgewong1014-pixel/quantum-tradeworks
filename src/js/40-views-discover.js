@@ -2099,7 +2099,12 @@ function renderScreener() {
     const pickedCols = pickable.filter(c2 => picked.includes(c2.k));
     /* A measure on a card reads as the table's cell does — its figure, or
        "Unavailable" with the reason (no price, n/a, not reported…), never a
-       dash a reader could take for a zero. */
+       dash a reader could take for a zero.
+       The reason in words a phone shows without a hover: the table's short
+       "n/a" and "n/m" spelled out, and not applicable said of what the
+       company is — a bank's ROIC (the 11 Oct 2026 audit). */
+    const cardWhy = (st, r) => st.reason === 'not applicable' ? `not applicable to ${typePhrase(r.c?.type)}`
+      : st.reason === 'not meaningful' ? 'not meaningful' : st.label;
     const cardCell = (c2, r) => {
       const v = c2.get(r);
       const fld = FIELD_BY_K[c2.k] || FIELD_BY_K[SCORE_COL_FIELD[c2.k]];
@@ -2108,7 +2113,7 @@ function renderScreener() {
         return el('div', { class: 'scr-card-m' }, [
           el('div', { class: 'scr-card-l' }, c2.label),
           el('div', { class: 'num scr-card-v scr-card-na', title: st.text }, 'Unavailable'),
-          el('div', { class: 'scr-card-why' }, st.label),
+          el('div', { class: 'scr-card-why' }, cardWhy(st, r)),
         ]);
       }
       const shown = el('span', { html: c2.fmt(v, r) }).textContent.replace(/\s+/g, ' ').trim();
