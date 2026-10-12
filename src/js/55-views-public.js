@@ -352,7 +352,7 @@ const HIW_FLOW = {
   property: [
     ['Input', 'The purchase: price, financing, rent and costs. The calculator starts on illustrative defaults and marks each one until you replace it.'],
     ['Analysis', 'Instalment, fees, maintenance, vacancy, tax on the rent and exit costs, in one deal model shared by the calculator and its printed record.'],
-    ['Result', 'Cash to complete, safe cash, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
+    ['Result', 'Cash to complete, cash required with the reserve, monthly cash flow, break-even rent, yield and rate of return — each with its working.'],
     ['Save', 'Save the deal as a snapshot, record the property on the opportunity register, or print the decision record.'],
     ['Next', 'Test it against the comparables you have recorded and the area screen for its town.'],
   ],
@@ -447,7 +447,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [cashPartial(pm) ? 'Safe cash — partial' : pmShort(null) ? 'Safe cash so far' : 'Safe cash', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR')],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
@@ -491,10 +491,17 @@ function hiwTradingCard() {
    homepage's demo. A pick repaints only the panel, and focus stays on the
    pressed button: the whole page used to re-render under the reader's
    pointer, and the button that had focus was destroyed with it. */
+/* A filed bank first (the owner's decision of 11 Oct 2026; the claims
+   audit, F-05): the preview opened on Maybank's synthetic figures. JPMorgan
+   Chase and Apple from their filings, and one illustrative company, labelled
+   so, to show how a synthetic one is marked. The filers are in once the
+   filings land, so the page waits for them (UNIVERSE_VIEWS, below) and is
+   served drawn with them in; with the filings off, Tenaga alone is offered. */
 const HIW_PICKS = [
-  { id: 'MAYBANK', label: 'Maybank' }, { id: 'PBBANK', label: 'Public Bank' },
-  { id: 'TENAGA', label: 'Tenaga' }, { id: 'AAPL-SEC', label: 'Apple' },
+  { id: 'JPM-SEC', label: 'JPMorgan Chase' }, { id: 'AAPL-SEC', label: 'Apple' },
+  { id: 'TENAGA', label: 'Tenaga' },
 ];
+UNIVERSE_VIEWS.add('howItWorks');
 function hiwReportBody(r) {
   const out = [];
   /* The illustrative marker every other company surface carries. The panel
@@ -547,12 +554,21 @@ function hiwReportPreview() {
    page then invited the reader to calculate their own and see different
    numbers. The example is the calculator's default deal at the stated price
    and rent, run through the same dealModel the calculator uses. */
+/* ONE "CASH REQUIRED" (the claims audit of 11 Oct 2026, rank 2). This tile
+   read "Cash required upfront RM107,211 — deposit, fees, renovation": the
+   cash to complete and the renovation, with no reserve, where the homepage,
+   the Scenario Lab and /property-investing call the model's total WITH the
+   reserve "Cash required". Now it is that total — safeCashRequired, the
+   quantity the calculator and the Lab show under the name — its line names
+   the reserve, and a total short of a line says so as theirs do. */
 function hiwDealCheck() {
   const EX_PRICE = 550000, EX_RENT = 1900;
   const exm = dealModel({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence },
     checks: {}, price: EX_PRICE, rent: EX_RENT });
   const rm0 = (v) => isNum(v) ? fmtMoney(v, 'MYR', 0) : '—';
-  const upfront = isNum(exm.transactionCash) ? exm.transactionCash + (exm.improvementCash || 0) : null;
+  const cashLabel = cashPartial(exm) ? 'Cash required — partial' : (exm.missingCostLines || []).length ? 'Cash required so far' : 'Cash required';
+  const cashSub = isNum(exm.reserveCash) ? `deposit, fees, renovation and a ${exm.reserveMonths}-month reserve`
+    : 'deposit, fees and renovation — the reserve cannot be priced';
   const box = el('div', { class: 'hiw-example' });
   box.append(el('h4', { class: 'hiw-ex-t' }, 'A Sarawak property deal check'));
   box.append(el('p', { class: 'hiw-ex-b' }, `The calculator’s own model at ${rm0(EX_PRICE)} and ${rm0(EX_RENT)} a month.`));
@@ -564,7 +580,7 @@ function hiwDealCheck() {
       statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy',
         tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
       statTile('Break-even rent', rm0(exm.breakEvenRent), { sub: 'rent needed to cover every cost' }),
-      statTile('Cash required upfront', rm0(upfront), { sub: 'deposit, fees, renovation' }),
+      statTile(cashLabel, rm0(exm.safeCashRequired), { sub: cashSub }),
     ]),
     el('p', { class: 'metaline hiw-label', style: 'margin-top:var(--md)' },
       'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing, with no verified comparables behind it. Enter your own numbers to get your own answer.'),
@@ -1035,7 +1051,9 @@ const BACKUP_SAMPLE_ITEM = {
   registerLog: (e) => e?.actor === SAMPLE_ACTOR,
   savedWork: (w) => workIsSample(w),
 };
-const BACKUP_UNCOUNTED = new Set(['baseCcy']);
+/* Not counted either: how far the reader has got (furthestStep) is a
+   marker of their progress, not something they made. */
+const BACKUP_UNCOUNTED = new Set(['baseCcy', 'furthestStep']);
 /* A record kept with nothing in it is not an item. */
 const backupHolds = (k, v) => k === 'userData'
   ? Object.keys(v.series || {}).length > 0 || Object.keys(v.statements || {}).length > 0
@@ -1359,6 +1377,8 @@ VIEWS.userdata = () => {
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'The file never leaves your machine unless you send it. It is plain JSON — you can read it, and so can anyone you give it to.'));
   wrap.append(all);
+  /* How far you have got (D15c; furthestCard, 59-recent.js). */
+  wrap.append(furthestCard());
 
   /* ---------- paste ---------- */
   const add = el('div', { class: 'card' });
@@ -2007,6 +2027,7 @@ VIEWS.privacy = () => {
          [el('strong', {}, 'Your research: '), 'your watchlists and which watchlist is active; saved screens and the screener’s current filters; investment cases and the reviews you write of them; saved valuation runs, the valuation assumptions you edit, the required discount you set and the inputs you chose for the valuation sensitivity grid; saved comparisons and the companies you put in a comparison; portfolio holdings and the dividends you record against them; price alerts, and which alert types the feed shows; the companies you recently viewed, and which company reports you opened this month (counted against the plan’s monthly allowance); any prices or statement lines you paste in; the Cash Wheel plan and its legs; withholding-tax settings; and your trading-index observations.'],
          [el('strong', {}, 'Your property work: '), 'property inputs and the evidence and register records behind them, with the name or initials you give the register log; the property deal you had before opening a shared link; the prices and rents you record in the comparables register; the locality profiles and demand records you keep on the area screen; the borrower profile you enter for the loan-readiness check (income, commitments and credit conduct); your details for proposals — the name, agency, contact and logo a client proposal prints as yours (a client’s name is never kept); the Scenario Lab comparisons you save — which of your saved properties stands in each column, and the lens; the actual rent, vacancy and costs you record for a saved property, by month or by year of the hold; saved property candidates; Sarawak exposure records; the property reports you unlocked in the preview, and the included property reports you used this month.'],
          [el('strong', {}, 'The scanner: '), 'your scanner setups with every version of each, which scanner alerts you have read or archived, and your scanner notification and display preferences.'],
+         [el('strong', {}, 'Your progress: '), 'the furthest step you have reached in each product — opened it, worked on your own figures, saved what you made — and the day you reached it, shown on Your data & settings and counted by nothing.'],
          [el('strong', {}, 'Recent: '), 'the pages, tools and saved work you recently opened, and when you opened them and each company you viewed — at most twenty, which the search lists when nothing is typed in it; its “Clear recent” forgets them.'],
          [el('strong', {}, 'Records and settings: '), 'the data-error cases you record; saved-work snapshots; your answers to the launcher and onboarding questions, and whether you dismissed the introduction; which products’ Start here panels you have hidden; the plan you are previewing; when you last opened your dashboard, so it can count what is new since; when you last exported, with a fingerprint of each item the file held — never the item itself — so the page can say how many items you have saved since; a digest of what the pages read of all this — a short fingerprint of each item, never the item itself — so that a page this site sends already drawn is kept out of sight until your own is drawn, where yours differs; and display preferences — your theme and base currency, dashboard layout, table density, how much explanation to show, the language of the property pages, the currency the Compare and screener pages total in, the units for property rates, and whether filed SEC data is switched on.'],
        ]),

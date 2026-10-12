@@ -1221,7 +1221,7 @@ VIEWS.opportunities = () => {
     t.append(el('thead', {}, el('tr', {}, [el('th', { class: 'pin' }, ''), ...modelled.map(x => { const k = oppKind(x); return el('th', { class: 'num', style: 'white-space:normal;max-width:160px' }, [x.o.name, ' ', kindTh(k.kind, k.fine)]); })])));
     const rows = [
       ['Asking price', x => isNum(x.o.deal?.price) && x.o.deal.price > 0 ? fmtAmount(x.o.deal.price, 'MYR') : `not recorded — the calculator’s ${fmtAmount(x.d.price, 'MYR')} stands in`],
-      ['Safe cash required', x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
+      [cashRequiredLabel(...modelled.map(x => x.m)), x => isNum(x.m.safeCashRequired) ? fmtAmount(x.m.safeCashRequired, 'MYR') : '—'],
       ['Monthly position', x => isNum(x.m.cashflowMonthly) ? fmtAmount(x.m.cashflowMonthly, 'MYR') : '—'],
       ['Gross yield', x => isNum(x.m.grossYield) ? fmtPct(x.m.grossYield, 2) : 'n/a'],
       ['Net yield', x => isNum(x.m.netYield) ? fmtPct(x.m.netYield, 2) : 'n/a'],
@@ -1285,7 +1285,7 @@ VIEWS.opportunities = () => {
      ['Your negotiated price', isNum(o.negotiatedPrice) ? fmtAmount(o.negotiatedPrice, 'MYR') : 'none'],
      ['Bank valuation', isNum(o.deal.bankValuation) && o.deal.bankValuation > 0 ? fmtAmount(o.deal.bankValuation, 'MYR') : 'not obtained'],
      ['Registered valuer', isNum(o.valuerEstimate) ? fmtAmount(o.valuerEstimate, 'MYR') : 'not obtained'],
-     ['Safe cash required', isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : '—'],
+     [cashRequiredLabel(m), isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : '—'],
      ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—'],
      ['Property Financeability', isNum(finance.score) ? `${finance.score}/100` : `unscored — ${finance.gates.length} to verify`]]
       .forEach(([k, v]) => { pk.append(el('dt', {}, k)); pk.append(el('dd', {}, v)); });

@@ -2931,6 +2931,474 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end backup-served ---- */
 
+/* ---- claims-cash-required ---- */
+/* ONE DEFINITION OF "CASH REQUIRED" (the claims audit of 11 Oct 2026, rank
+   2: F-06, R-12). /how-it-works's deal check said "Cash required upfront
+   RM107,211 — deposit, fees, renovation", which left the reserve out, while
+   the homepage, the Scenario Lab and /property-investing call RM118,960
+   "Cash required" with the 3-month reserve in it: one name, two figures.
+   Held here on every served page, before any script: no tile reads "Cash
+   required upfront"; and /how-it-works's deal check carries one "Cash
+   required" tile (or its partial / so-far form) whose line names the
+   reserve. model-test holds its figure to the model's safeCashRequired,
+   the quantity the calculator and the Lab show under that name. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const got = await getAll(statics);
+  const upfront = [];
+  for (const path of statics) {
+    const body = got.get(path)?.body || '';
+    if (/Cash required upfront/i.test(body.replace(/<[^>]*>/g, ' '))) upfront.push(path);
+  }
+  if (upfront.length) p.push(`"Cash required upfront" is served on ${upfront.join(', ')} — the reserve left out of a figure every other page calls cash required with it`);
+  const said = {};
+  const hiw = got.get('/how-it-works');
+  if (!hiw || hiw.status !== 200) p.push(`/how-it-works: ${hiw?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(hiw.body);
+    const box = all(tree).find(n => has(n, 'hiw-example') && all(n).some(h => h.tag === 'h4' && sight(h) === 'A Sarawak property deal check'));
+    if (!box) p.push('/how-it-works serves no "A Sarawak property deal check" example');
+    else {
+      const tiles = all(box).filter(n => has(n, 'stat')).map(t => ({
+        label: sight(all(t).find(n => has(n, 'stat-label')) || { kids: [] }),
+        value: sight(all(t).find(n => has(n, 'stat-value')) || { kids: [] }),
+        sub: sight(all(t).find(n => has(n, 'stat-sub')) || { kids: [] }) }));
+      const cash = tiles.filter(t => /^Cash required\b/.test(t.label));
+      if (cash.length !== 1) p.push(`/how-it-works's deal check carries ${cash.length} "Cash required" tiles (${tiles.map(t => t.label).join(', ')}), not one`);
+      else {
+        Object.assign(said, cash[0]);
+        if (!/^Cash required(?: — partial| so far)?$/.test(cash[0].label)) p.push(`/how-it-works's deal check labels its cash "${cash[0].label}", not "Cash required" as the calculator and the Lab do`);
+        if (!/\breserve\b/.test(cash[0].sub)) p.push(`/how-it-works's deal check says its cash required is "${cash[0].sub}" — the reserve the Lab and the calculator count is not named`);
+        if (!/^RM[\d,]+$/.test(cash[0].value)) p.push(`/how-it-works's deal check prints its cash required as "${cash[0].value}"`);
+      }
+    }
+  }
+  judge(p, `one definition of cash required, as served (the claims audit, rank 2): no page serves "Cash required upfront"; /how-it-works's deal check reads "${said.label || '—'} ${said.value || '—'} — ${said.sub || '—'}"`,
+    'a served page calls a figure without the reserve cash required');
+}
+/* ---- end claims-cash-required ---- */
+
+/* ---- claims-meta ---- */
+/* ONE ACCURATE DESCRIPTION A PAGE (the claims audit of 11 Oct 2026, rank 3:
+   F-11, R-17–R-19). /learn, /learn/glossary, /methodology, /data-sources
+   and /corrections all carried the methodology's sentence; the value map
+   the screener's, which said "Screen Bursa Malaysia and US companies on …
+   valuation" (the Bursa figures are synthetic; no filed company carries a
+   price to value against); the calculator's said "a Malaysian property
+   purchase to its real monthly cash flow" on a Sarawak fee rulebook and
+   the reader's own figures. Held on what each address is served, before
+   any script:
+   1. no two canonical pages share a description (the addresses of one page
+      — /wheel and /us-options/wheel — are one page), and the audit's seven
+      pages each have their own, /learn's apart from /learn/glossary's;
+   2. the calculator's names Sarawak and the reader's own figures, and not
+      "Malaysian" or "real";
+   3. the screener's names the SEC-filed set and the illustrative one, and
+      promises no Bursa screen or valuation; the value map's says its
+      prices are sample prices or the reader's. */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const desc = (path) => headOf(got.get(path)?.body || '').description || '';
+  const canon = (path) => headOf(got.get(path)?.body || '').canonical || path;
+  const byDesc = new Map();
+  for (const path of statics) {
+    const d = desc(path);
+    if (!byDesc.has(d)) byDesc.set(d, new Map());
+    const m = byDesc.get(d); const c = canon(path);
+    if (!m.has(c)) m.set(c, []); m.get(c).push(path);
+  }
+  for (const [d, m] of byDesc) if (m.size > 1) p.push(`${m.size} pages share one description — ${[...m.values()].map(x => x[0]).join(', ')}: "${d.slice(0, 70)}…"`);
+  const AUDIT = ['/learn', '/learn/glossary', '/methodology', '/data-sources', '/corrections', '/discover/value-map', '/discover/screener', '/property/calculator'];
+  const mine = AUDIT.map(desc);
+  AUDIT.forEach((path, i) => { if (mine.indexOf(mine[i]) !== i) p.push(`${path} is served ${AUDIT[mine.indexOf(mine[i])]}'s description`); });
+  const calc = desc('/property/calculator');
+  if (!/\bSarawak\b/.test(calc) || !/\byour own figures\b/.test(calc)) p.push(`/property/calculator's description does not say Sarawak and your own figures: "${calc}"`);
+  if (/\bMalaysian\b|\breal\b/i.test(calc)) p.push(`/property/calculator's description still says "Malaysian" or "real": "${calc}"`);
+  const scr = desc('/discover/screener');
+  if (!/\bSEC-filed\b/.test(scr) || !/\billustrative\b/.test(scr)) p.push(`/discover/screener's description does not name the SEC-filed set and the illustrative one: "${scr}"`);
+  if (/Bursa Malaysia and US companies|\bvaluation\b/i.test(scr)) p.push(`/discover/screener's description promises a Bursa screen or a valuation: "${scr}"`);
+  const vm = desc('/discover/value-map');
+  if (!/\bsample prices?\b/.test(vm)) p.push(`/discover/value-map's description does not say whose prices it plots: "${vm}"`);
+  judge(p, `one accurate description a page (the claims audit, rank 3): ${byDesc.size} descriptions on ${statics.length} addresses, none shared by two pages; the calculator's "${calc.slice(0, 60)}…"; the screener's names the SEC-filed and the illustrative sets; the value map's its sample prices`,
+    'a meta description is shared by two pages, or claims what its page does not hold');
+}
+/* ---- end claims-meta ---- */
+
+
+/* ---- claims-methodology ---- */
+/* FILED COMPANIES LABELLED FILED ON /methodology (the claims audit of 11 Oct
+   2026, rank 4: F-02). The router table's Companies column was served as
+   the page's first draw, before the filings land: the illustrative
+   stand-ins a filer replaces as they load, so "AAPL · illustrative", "JPM ·
+   illustrative" — seventeen companies whose own pages say Filed. Held on
+   the served page, before any script:
+   1. its render is drawn with the filings in (the manifest's state);
+   2. no company filed in data/us.json is served as illustrative — neither
+      "TICKER · illustrative" nor under the table's "Illustrative:" lane;
+   3. the "SEC-filed:" lanes, row by row, name every filer in data/us.json
+      once, and nothing else. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, sight = B.sightText;
+  const US = new Set((JSON.parse(read('data/us.json')).results || []).map(r => String(r.id).toUpperCase()));
+  const manifest = JSON.parse(read('prerender/manifest.json'));
+  const state = manifest.pages?.['pages/methodology.html']?.state;
+  if (state !== 'filings in') p.push(`/methodology's render is its ${state || 'missing'} state, drawn before the filings land — not "filings in"`);
+  const r = (await getAll(['/methodology'])).get('/methodology');
+  const said = { filed: 0, illus: 0 };
+  if (!r || r.status !== 200) p.push(`/methodology: ${r?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(r.body);
+    const table = all(tree).find(n => n.tag === 'table' && all(n).some(h => h.tag === 'th' && sight(h) === 'Companies'));
+    if (!table) p.push('/methodology serves no router table with a Companies column');
+    else {
+      const filed = [];
+      for (const tr of all(table).filter(n => n.tag === 'tr')) {
+        const cells = all(tr).filter(n => n.tag === 'td' && n.parent === tr);
+        if (cells.length < 4) continue;
+        const text = sight(cells[3]);
+        for (const m of text.matchAll(/\b([A-Z][A-Z0-9.-]{0,9}) · illustrative\b/g)) if (US.has(m[1])) p.push(`/methodology: ${m[1]} is served "${m[0]}", where data/us.json holds it as filed`);
+        const lane = (name) => (new RegExp(`${name}:\\s*([^:]*?)(?=\\s+(?:SEC-filed|Personal research|Illustrative):|$)`).exec(text)?.[1] || '').split(/,\s*/).map(x => x.trim()).filter(Boolean);
+        const il = lane('Illustrative'), fl = lane('SEC-filed');
+        il.filter(t => US.has(t)).forEach(t => p.push(`/methodology: ${t} is served under "Illustrative:" in the ${sight(cells[0])} row, where data/us.json holds it as filed`));
+        fl.filter(t => !US.has(t)).forEach(t => p.push(`/methodology: ${t} is served under "SEC-filed:" in the ${sight(cells[0])} row, and data/us.json holds no such filer`));
+        filed.push(...fl); said.illus += il.length;
+      }
+      said.filed = filed.length;
+      const missing = [...US].filter(t => !filed.includes(t)), twice = filed.filter((t, i) => filed.indexOf(t) !== i);
+      if (missing.length) p.push(`/methodology's router table names ${filed.length} SEC-filed companies; data/us.json's ${missing.length} others are not under any "SEC-filed:" lane (${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ' …' : ''})`);
+      if (twice.length) p.push(`/methodology names ${twice.join(', ')} twice`);
+    }
+  }
+  judge(p, `/methodology serves each company under the label its own page wears (the claims audit, rank 4): drawn with the filings in, ${said.filed} SEC-filed — every filer in data/us.json, once — and ${said.illus} illustrative, none of them a filer`,
+    '/methodology labels a filed company illustrative, or leaves a filer out');
+}
+/* ---- end claims-methodology ---- */
+
+
+/* ---- claims-point-in-time ---- */
+/* WHAT IS POLICY AND WHAT IS THIS BUILD (the claims audit of 11 Oct 2026,
+   rank 5: F-07, R-09). /data-sources' point-in-time card said "Amended
+   filings create a new version; history is never overwritten", and the
+   same page, under Absent by design, "a restatement overwrites rather than
+   branches". Held on the served page: no sentence says history is never
+   overwritten; the card names the production policy and this build's
+   state, each as such; and its restatement row says what this build does. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, sight = B.sightText, has = B.hasClass;
+  const r = (await getAll(['/data-sources'])).get('/data-sources');
+  const said = {};
+  if (!r || r.status !== 200) p.push(`/data-sources: ${r?.status || 'no answer'}, not 200`);
+  else {
+    const text = pageText(r.body);
+    if (/history is never overwritten/i.test(text)) p.push('/data-sources still says "history is never overwritten", beside "a restatement overwrites rather than branches"');
+    const tree = B.htmlTree(r.body);
+    const card = all(tree).find(n => has(n, 'card') && all(n).some(h => /^h\d$/.test(h.tag) && sight(h) === 'Point-in-time policy'));
+    if (!card) p.push('/data-sources serves no "Point-in-time policy" card');
+    else {
+      const t = sight(card);
+      said.card = t;
+      if (!/\bproduction\b/i.test(t) || !/\bthis build\b/i.test(t)) p.push(`the point-in-time card does not say which is the production policy and which is this build: "${t.slice(0, 160)}…"`);
+      const dts = all(card).filter(n => n.tag === 'dt'), row = dts.find(d => sight(d) === 'Restatement link');
+      const dd = row ? row.parent.kids.slice(row.parent.kids.indexOf(row) + 1).find(k => k.tag === 'dd') : null;
+      said.row = dd ? sight(dd) : null;
+      if (!said.row) p.push('the point-in-time card has no "Restatement link" row');
+      else if (!/\bthis build\b/i.test(said.row) || !/\boverwrite/i.test(said.row)) p.push(`the restatement row does not say what this build does: "${said.row}"`);
+    }
+  }
+  judge(p, `/data-sources says what is policy and what is this build (the claims audit, rank 5): no "history is never overwritten"; Restatement link — "${said.row || '—'}"`,
+    '/data-sources contradicts itself on point-in-time history');
+}
+/* ---- end claims-point-in-time ---- */
+
+
+/* ---- claims-wording ---- */
+/* THE TRUTHFUL-WORDING BATCH, AS SERVED (the claims audit of 11 Oct 2026,
+   rank 6). Each phrase the audit found claiming more than its page holds,
+   held out of every served page (and every description), and its
+   replacement held where it stands — a part a page family, each added
+   with its fix:
+   6a  the Sarawak watch: "Companies with material exposure to the Sarawak
+       economy" (F-08, R-21), where the page says the exposure is not
+       identified, is "Bursa companies that operate in Sarawak"; and a
+       listing code "resolved against a live quote", an authoring-time
+       check that read as a live feed, is "checked once against a
+       published quote when the list was made". */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const text = (path) => pageText(got.get(path)?.body || '');
+  const desc = (path) => headOf(got.get(path)?.body || '').description || '';
+  const said = [];
+  const gone = (re, what) => { const at = statics.filter(path => re.test(text(path)) || re.test(desc(path))); if (at.length) p.push(`${what} is still served on ${at.join(', ')}`); };
+  const here = (path, re, what) => { if (!re.test(text(path))) p.push(`${path} does not serve ${what}`); };
+  /* 6a */
+  gone(/material exposure to the Sarawak economy/i, '"material exposure to the Sarawak economy"');
+  gone(/resolved against a live quote/i, '"resolved against a live quote"');
+  {
+    const h1 = pageText((/<h1\b[^>]*>([\s\S]*?)<\/h1>/.exec(got.get('/discover/sarawak')?.body || '') || [])[1] || '');
+    if (h1 !== 'Bursa companies that operate in Sarawak') p.push(`/discover/sarawak's h1 reads "${h1}"`);
+    here('/discover/sarawak', /checked once against a published quote when the list was made/, 'how the listing codes were checked');
+    here('/research', /Sarawak Economy Watch Bursa companies that operate in Sarawak\./, 'the Sarawak watch\'s lens as "Bursa companies that operate in Sarawak"');
+    said.push(`/discover/sarawak "${h1}"`);
+  }
+  /* 6b — the Shariah and PN17 flags (F-09, R-22): "carried from the
+     source", where the source is the hand-authored illustrative set. The
+     screener's two templates and /data-sources' Present list say where the
+     flags come from, and that no regulator's list was checked. */
+  gone(/carried from the source/i, 'the Shariah flag "carried from the source"');
+  here('/discover/screener', /Only companies flagged Shariah-compliant in the illustrative set\. Its flags were authored for that set — not checked against the Securities Commission’s list of Shariah-compliant securities/, 'the Shariah template saying its flags were authored for the illustrative set');
+  here('/discover/screener', /Removes companies flagged PN17 or GN3 \(Bursa’s financial-distress classifications\) in the illustrative set — flags authored for that set, not checked against Bursa’s lists/, 'the PN17 template saying where its flags come from');
+  here('/data-sources', /PN17 flags for the Malaysian set — authored for the illustrative set, not checked against the Securities Commission’s or Bursa’s lists/, 'the flags\' provenance under Present');
+  said.push('the Shariah and PN17 flags "authored for the illustrative set"');
+  /* 6c — /welcome (F-18, R-28): "Research Bursa companies — Malaysian
+     listed companies" with no word that the figures are illustrative, and
+     "Monitor my existing portfolio — Track what you already hold", where
+     nothing on this site monitors anything without prices. */
+  gone(/Monitor my existing portfolio|Track what you already hold/, '"Monitor my existing portfolio — Track what you already hold"');
+  here('/welcome', /Research Bursa companies An illustrative set — synthetic figures, not filed statements/, 'the Bursa option qualified as an illustrative set');
+  here('/welcome', /Record my portfolio What you hold, valued where a price is held or you supply one/, '"Record my portfolio — What you hold, valued where a price is held or you supply one"');
+  said.push('/welcome "An illustrative set — synthetic figures" and "Record my portfolio"');
+  /* 6d — the Value Map's "As of" (F-19, R-29): "Latest reported period,
+     current price", on a page whose every plotted company is on a sample
+     price or a close the reader supplied. */
+  gone(/Latest reported period, current price/, '"Latest reported period, current price"');
+  here('/discover/value-map', /Latest reported period, sample price \(or the close you supplied\)\./, 'its As of line "Latest reported period, sample price (or the close you supplied)."');
+  said.push('/discover/value-map "sample price (or the close you supplied)"');
+  /* 6e — the calculator (F-16, R-13–R-15): a comparison with other tools no
+     one surveyed and a "true" acquisition cost while some fee lines are
+     estimates; a sensitivity ranking that said what is "worth paying for";
+     and the renovation's recovery at exit, an input the reader sets,
+     worded as what a buyer "will pay" — in English, Malay and Chinese. */
+  gone(/Most property tools show you what things sold for/, '"Most property tools show you what things sold for"');
+  gone(/true acquisition cost/, '"true acquisition cost"');
+  gone(/worth paying for/, 'the sensitivity\'s "worth paying for"');
+  gone(/a buyer will pay for at exit/, '"a buyer will pay for at exit"');
+  here('/property/calculator', /This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter\./, 'what the calculator models, without a comparison or "true"');
+  here('/property/calculator', /The ones at the top move the result most; firmer evidence there \(a valuation, a rental appraisal\) narrows the range most\. The ones at the bottom move it least\./, 'the sensitivity\'s ranking as what moves the result');
+  here('/property/calculator', /Share of the renovation you assume a buyer pays for at exit \(%\)/, 'the renovation recovery as an assumption');
+  {
+    const row = /'in\.renoValueRecoveryPct':\{([^}]*)\}/.exec(read('src/js/70-property.js'))?.[1] || '';
+    if (!/en:'Share of the renovation you assume a buyer pays for at exit \(%\)'/.test(row) || !/andaikan/.test(row) || !/假设/.test(row) || /akan dibayar|愿为/.test(row))
+      p.push(`the calculator's Malay and Chinese labels for the renovation recovery do not say it is an assumption: {${row.slice(0, 200)}}`);
+  }
+  said.push('/property/calculator "compares the result with the equity return you enter", "move the result most", "you assume a buyer pays" (en, ms, zh)');
+  /* 6f — the Learn lede (F-15, R-10): "Every formula, weight, anchor range
+     and limitation used anywhere in this prototype is published here" on
+     the five Learn pages — a completeness guarantee no check holds (the
+     valuation's risk-free rates and equity risk premiums are not
+     published). */
+  gone(/used anywhere in this prototype is published here/, 'the Learn lede\'s "Every formula … used anywhere in this prototype is published here"');
+  for (const path of ['/learn', '/learn/glossary', '/methodology', '/data-sources', '/corrections'])
+    here(path, /The formulas, weights, anchor ranges and limitations are published here; one that is missing is a gap to report — Report an error, under Corrections & model changes, records it\./, 'the Learn lede without its completeness guarantee');
+  said.push('the Learn lede "one that is missing is a gap to report"');
+  /* ---- parts above ---- */
+  judge(p, `the truthful wording, as served (the claims audit, rank 6): ${said.join('; ')}`,
+    'a served page still claims more than it holds');
+}
+/* ---- end claims-wording ---- */
+
+
+/* ---- claims-status-splits ---- */
+/* THE TOOLS' MODEL AND DATA ON TWO LINES (the claims audit of 11 Oct 2026,
+   rank 7: F-12; D17's way, which N2d served for Property). The US Options
+   Cash Wheel and the Sarawak comparables register wore "Live" under "What
+   proves each Live badge" and sat in the register's "Data Gated" group;
+   the scanner was "Beta" on its cards and "Data Gated" in the register —
+   two status words for one tool, explained only for Property. Each of the
+   three register rows now says, before any script:
+   1. "Model: <its tool's badge> — <its journey's last recorded result>":
+      the badge the registry gives the tool (TOOLS, 35-ui.js) and,
+      exactly, journeysServed(record).proof(journey, step) of the record
+      this same site serves;
+   2. "Data: Data Gated — <what is gated>", the register's own label. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const rec = await fetch(`${BASE}/health/journeys.json?fetch=${Date.now()}`, { signal: AbortSignal.timeout(30000) }).then(r => r.json()).catch(e => ({ unreadable: e.message }));
+  const want = journeysServed(rec);
+  const WANT = {
+    'US Options Cash Wheel': { badge: 'Live', journey: 'records', step: 'Enter a contract: the obligation, the shortfall and the payoff at expiry', data: /^Data: Data Gated — no authorised option-chain data/ },
+    'Sarawak comparables register': { badge: 'Live', journey: 'registers', step: 'Record a transaction and a rent: each listed with what it rests on', data: /^Data: Data Gated — it ships empty/ },
+    'Trade-setup scanner': { badge: 'Beta', journey: 'scanner', step: 'Its replay holds the rule only at bar 66', data: /^Data: Data Gated — no price history ships with this site/ },
+  };
+  const status = (await getAll(['/status'])).get('/status');
+  const said = [];
+  if (!status || status.status !== 200) p.push(`/status: ${status?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(status.body);
+    const rows = all(tree).filter(n => n.tag === 'tr');
+    for (const [name, w] of Object.entries(WANT)) {
+      const tr = rows.find(r => all(r).some(n => n.tag === 'div' && sight(n) === name));
+      if (!tr) { p.push(`/status serves no register row "${name}"`); continue; }
+      const split = all(tr).find(n => n.tag === 'dl' && has(n, 'status-split'));
+      if (!split) { p.push(`/status: "${name}" serves no Model / Data lines`); continue; }
+      const line = (k) => all(split).find(n => has(n, 'status-split-row') && attr(n, 'data-split') === k);
+      const model = line('model'), data = line('data');
+      const mt = model ? sight(model) : '', dt = data ? sight(data) : '';
+      if (!model || !new RegExp(`^Model: ${w.badge} — `).test(mt)) p.push(`/status: "${name}" does not read "Model: ${w.badge} — …": "${mt.slice(0, 90)}"`);
+      const slot = model ? all(model).find(n => has(n, 'proof-result')) : null;
+      if (!slot) p.push(`/status: "${name}"'s model line serves no recorded result`);
+      else {
+        if (attr(slot, 'data-proof-journey') !== w.journey) p.push(`/status: "${name}"'s model line is ${attr(slot, 'data-proof-journey')}'s journey, not ${w.journey}'s`);
+        const inner = /<span class="proof-result"[^>]*>([\s\S]*?)<\/span><\/dd>/.exec(status.body.slice(status.body.indexOf(name)))?.[1];
+        if (typeof want.proof === 'function' && inner !== want.proof(w.journey, w.step)) p.push(`/status: "${name}"'s last result is not the record's: served "${(inner || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90)}"`);
+      }
+      if (!data || !w.data.test(dt)) p.push(`/status: "${name}" does not read "Data: Data Gated — …" as written: "${dt.slice(0, 120)}"`);
+      said.push(`${name}: "${mt.slice(0, 40)}…" / "${dt.slice(0, 50)}…"`);
+    }
+  }
+  judge(p, `/status serves the Cash Wheel, the comparables register and the scanner each on two lines (the claims audit, rank 7): ${said.join('; ')}`,
+    '/status does not say what a tool\'s badge and its Data Gated rest on');
+}
+/* ---- end claims-status-splits ---- */
+
+
+/* ---- claims-filed-defaults ---- */
+/* FILED COMPANIES AS THE DEFAULTS (the owner's decision of 11 Oct 2026; the
+   claims audit, rank 13: F-05). /how-it-works's report preview opened on
+   Maybank and /compare's first visit compared MAYBANK with PBBANK —
+   synthetic figures on real banks' names, the example the owner kept out
+   on 7 Oct. Held on what a first visit is served:
+   1. /how-it-works is drawn with the filings in, and its report preview
+      opens on JPMorgan Chase, from its filed statements; no pick is Maybank;
+   2. /compare opens on Apple and Microsoft, both filed, and on no Bursa
+      bank. (A reader's saved comparison stays theirs: the default is only
+      what store.read falls back to.) */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const manifest = JSON.parse(read('prerender/manifest.json'));
+  const got = await getAll(['/how-it-works', '/compare']);
+  const said = {};
+  const hiw = got.get('/how-it-works');
+  if (manifest.pages?.['pages/how-it-works.html']?.state !== 'filings in') p.push(`/how-it-works's render is its ${manifest.pages?.['pages/how-it-works.html']?.state || 'missing'} state — drawn before the filed statements it opens on could land`);
+  if (!hiw || hiw.status !== 200) p.push(`/how-it-works: ${hiw?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(hiw.body);
+    const seg = all(tree).find(n => has(n, 'hiw-seg'));
+    const picks = seg ? all(seg).filter(n => attr(n, 'data-inert') === 'button' || n.tag === 'button').map(n => ({ label: sight(n), on: attr(n, 'data-on') !== null || attr(n, 'aria-pressed') === 'true' })) : [];
+    said.picks = picks.map(x => `${x.label}${x.on ? ' (open)' : ''}`).join(', ');
+    const on = picks.find(x => x.on);
+    if (!on || on.label !== 'JPMorgan Chase') p.push(`/how-it-works's report preview opens on ${on ? `"${on.label}"` : 'no pick'}, not JPMorgan Chase (picks: ${said.picks || 'none'})`);
+    if (picks.some(x => /Maybank/i.test(x.label))) p.push(`/how-it-works still offers Maybank as an example (picks: ${said.picks})`);
+    const panel = all(tree).find(n => has(n, 'hiw-panel') && all(n).some(x => has(x, 'hiw-label')));
+    const label = panel ? sight(all(panel).find(x => has(x, 'hiw-label'))) : '';
+    said.label = label;
+    if (!/^JPMorgan Chase & Co\.?: from audited statements filed with the SEC\.$/i.test(label)) p.push(`/how-it-works's preview reads "${label.slice(0, 120)}", not JPMorgan Chase's filed statements`);
+  }
+  const cmp = got.get('/compare');
+  if (!cmp || cmp.status !== 200) p.push(`/compare: ${cmp?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(cmp.body);
+    const chosen = all(tree).filter(n => /^cmp-chip-/.test(attr(n, 'id') || '') && attr(n, 'data-on') !== null).map(n => sight(n));
+    said.compare = chosen.join(', ');
+    if (chosen.length !== 2 || !chosen.some(x => /^AAPL\b/.test(x)) || !chosen.some(x => /^MSFT\b/.test(x))) p.push(`/compare's first visit compares ${said.compare || 'nothing'}, not Apple and Microsoft`);
+    if (chosen.some(x => /MAYBANK|PBBANK/.test(x))) p.push(`/compare's first visit still compares a Bursa bank (${said.compare})`);
+  }
+  judge(p, `filed companies as the defaults (the owner's decision of 11 Oct 2026): /how-it-works opens on JPMorgan Chase — "${said.label || '—'}" (picks ${said.picks || '—'}); /compare opens on ${said.compare || '—'}`,
+    'a first visit opens on Maybank, or on a pair that is not Apple and Microsoft');
+}
+/* ---- end claims-filed-defaults ---- */
+
+
+/* ---- claims-cash-required-name ---- */
+/* "CASH REQUIRED (WITH A 3-MONTH RESERVE)" (the owner's decision of 11 Oct
+   2026; the claims audit, rank 9: F-06, R-11). The calculator, the client
+   proposal, the decision record, the opportunity register and the property
+   dock called the model's total "Safe cash (required)", and the cash chart
+   said "to be safe": "safe" promised a safety the figure is not — the cash
+   to complete, the renovation and set-up, and the reserve. Held on every
+   page served: no "safe cash" and no "to be safe"; the calculator and the
+   decision record say "Cash required (with a 3-month reserve)" on the
+   sample, whose reserve is three months. */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const at = statics.filter(path => /\bsafe cash\b|\bto be safe\b|\bbeing safe\b/i.test(pageText(got.get(path)?.body || '')));
+  if (at.length) p.push(`"safe cash" or "to be safe" is still served on ${at.join(', ')}`);
+  for (const path of ['/property/calculator', '/decision-record'])
+    if (!/Cash required \(with a 3-month reserve\)/.test(pageText(got.get(path)?.body || ''))) p.push(`${path} does not serve "Cash required (with a 3-month reserve)"`);
+  judge(p, `"Cash required (with a 3-month reserve)", not "safe cash" (the owner's decision of 11 Oct 2026): no page serves "safe cash" or "to be safe"; /property/calculator and /decision-record say it as approved`,
+    'a served page still calls the cash required "safe"');
+}
+/* ---- end claims-cash-required-name ---- */
+
+
+/* ---- claims-business-planning ---- */
+/* "BUSINESS PLANNING IS NEXT." (the owner's decision of 11 Oct 2026; the
+   claims audit, rank 20: R-20). The footer of every page and the site
+   root's description, og: and twitter: tags promised a next release no plan
+   or date is behind. They say "planned, not yet scheduled" — from
+   POSITIONING, typed once (wording-check) — and Business Intelligence is
+   still "Coming soon" as text on / and /how-it-works, never a link (held by
+   the homepage block above). Held on every page served: no "is next", and
+   the footer's line and the root's description say it as approved. */
+{
+  const p = [];
+  const got = await getAll(statics);
+  const next = statics.filter(path => /Business planning is next/i.test(got.get(path)?.body || ''));
+  if (next.length) p.push(`"Business planning is next." is served on ${next.length} page(s): ${next.slice(0, 6).join(', ')}${next.length > 6 ? ' …' : ''}`);
+  const foot = (/<p class="body foot-desc">([^<]*)<\/p>/.exec(got.get('/about')?.body || '') || [])[1]?.replace(/&amp;/g, '&') || '';
+  const desc = headOf(got.get('/')?.body || '').description || '';
+  if (!/Business planning: planned, not yet scheduled\./.test(foot)) p.push(`the footer's line reads "${foot}"`);
+  if (!/Business planning: planned, not yet scheduled\./.test(desc)) p.push(`/'s description reads "${desc}"`);
+  judge(p, `business planning "planned, not yet scheduled" (the owner's decision of 11 Oct 2026): no page says it "is next"; the footer reads "${foot}"`,
+    'a page still says business planning is next');
+}
+/* ---- end claims-business-planning ---- */
+
+
+/* ---- furthest-step-served ---- */
+/* THE FURTHEST STEP, SERVED (the owner's decision D15c, 7 Oct 2026; the
+   claims audit, rank 15). A record of how far the reader has got in each
+   product, kept in this browser and never sent:
+   - /my/data serves its card as a fresh visitor's: each product "Not
+     started", no step and no date;
+   - its render read the record (furthestStep in data-served-reads), so a
+     reader who holds one waits for their own (FIRST_SCRIPT, build.mjs);
+   - /privacy names it, and says the list it is in is never sent. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const got = await getAll(['/my/data', '/privacy']);
+  const said = [];
+  const r = got.get('/my/data');
+  if (!r || r.status !== 200) p.push(`/my/data: ${r?.status || 'no answer'}, not 200`);
+  else {
+    const tree = B.htmlTree(r.body);
+    const card = all(tree).find(n => attr(n, 'data-furthest') !== null);
+    if (!card) p.push('/my/data serves no furthest-step card');
+    else {
+      const rows = all(card).filter(n => attr(n, 'data-furthest-product') !== null);
+      if (rows.length !== 3) p.push(`/my/data's furthest-step card serves ${rows.length} products, not 3`);
+      rows.forEach(n => {
+        const t = sight(n);
+        if (attr(n, 'data-furthest-n') !== '0' || !/^Not started · first step: /.test(t) || /\d/.test(t)) p.push(`/my/data serves ${attr(n, 'data-furthest-product')} as "${t}" to a fresh visitor`);
+        said.push(`${attr(n, 'data-furthest-product')} "${t}"`);
+      });
+      if (!/never sent anywhere/.test(sight(card))) p.push('/my/data\'s furthest-step card does not say the record is never sent');
+    }
+    const html = all(tree).find(n => n.tag === 'html');
+    if (!/(^|\s)furthestStep:/.test(attr(html, 'data-served-reads') || '')) p.push('/my/data\'s render did not read the furthest-step record (no furthestStep in data-served-reads)');
+  }
+  const pv = pageText(got.get('/privacy')?.body || '');
+  if (!/the furthest step you have reached in each product/.test(pv)) p.push('/privacy does not name the furthest-step record');
+  judge(p, `the furthest step, served (D15c): /my/data ${said.join(', ')}, its render reading the record; /privacy names it`,
+    'the furthest-step record is not served as a fresh visitor\'s, or not named on /privacy');
+}
+/* ---- end furthest-step-served ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

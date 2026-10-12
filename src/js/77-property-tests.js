@@ -325,10 +325,10 @@ function propertyIpsAnswers(d, m, g) {
   A.push(m.reserveComputable === false
     ? ipsAnswer('capital', 'unknown',
         'The loan’s instalment could not be computed from the entered tenure, so neither can the reserve that has to cover it, '
-        + 'nor what it takes to complete and stay safe.')
+        + 'nor the cash required with it.')
     : safe > 0
     ? ipsAnswer('capital', meets ? 'pass' : 'partial',
-        `${fmtMoney(safe, 'MYR', 0)} to complete and be safe, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
+        `${fmtMoney(safe, 'MYR', 0)} required to complete, renovate and hold the reserve, of which ${fmtMoney(reserve, 'MYR', 0)} is the reserve`
         + (reserve > 0 ? ` — ${months} month${months === 1 ? '' : 's'} of instalment and owner-paid running costs. ` : '. ')
         /* This gate's own threshold, stated as such — the IPS text carries no
            reserve period, so it must not be quoted for one. */

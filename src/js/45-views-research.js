@@ -715,6 +715,9 @@ const RESEARCH_TABS = [
 /* Where a company lists, said honestly. The illustrative and personal sets
    name their exchange; a filer's is in the SEC submissions record, which the
    ingest now reads but the shipped statements predate. */
+/* Where the Malaysian set's Shariah and PN17 flags come from (the claims
+   audit of 11 Oct 2026, R-22): only an illustrative company carries one. */
+const FLAG_PROVENANCE = 'Authored for the illustrative set — not checked against the Securities Commission’s list of Shariah-compliant securities or Bursa’s PN17 and GN3 lists.';
 const EXCH_UNKNOWN = 'SEC companyfacts carries no listing venue. The ingest records it from the filer’s submissions record, and it appears here once data/us.json is regenerated.';
 const listingOf = (c) => (c.cik && !c.exchKnown ? 'an exchange not recorded in this dataset' : c.exch);
 
@@ -963,7 +966,7 @@ VIEWS.researchHome = () => {
     ['Banks', 'Deposit takers, on measures that fit a bank balance sheet.', '/discover/screener?template=my-banks', viaTemplate('my-banks'), 'illustrative', 'The lens screens the illustrative Malaysian set'],
     ['REITs', 'Property trusts, on distribution and gearing.', '/discover/screener?template=my-reits', viaTemplate('my-reits'), 'illustrative', 'The lens screens the illustrative Malaysian set'],
     ['Dividend research', 'Payout covered by cash rather than borrowing.', '/discover/screener?template=div-cover', viaTemplate('div-cover'), 'illustrative', 'Its yield needs a price, and only the illustrative companies carry one'],
-    ['Sarawak Economy Watch', 'Companies with material exposure to the Sarawak economy. Descriptive, not a preference.', '/discover/sarawak', null],
+    ['Sarawak Economy Watch', 'Bursa companies that operate in Sarawak. Descriptive, not a preference.', '/discover/sarawak', null],
   ];
   /* The press sets the screen up, then goes to the screener itself: the
      address's parameter is for a link opened anew, and applied twice it
@@ -1052,9 +1055,10 @@ VIEWS.research = () => {
        the same string for a Malaysian company and rendering both put
        "Materials Materials" in the header. One fact, shown once. */
     c.industry && c.industry !== c.sector ? el('span', { class: 'chip' }, c.industry) : null,
-    c.flags.shariah === true ? el('span', { class: 'chip chip-my' }, 'Shariah-compliant') : null,
+    /* Where the flags come from, on hover (the claims audit, R-22). */
+    c.flags.shariah === true ? el('span', { class: 'chip chip-my', title: FLAG_PROVENANCE }, 'Shariah-compliant') : null,
     c.flags.idx ? el('span', { class: 'chip' }, c.flags.idx) : null,
-    c.flags.pn17 ? sevChip('critical', 'PN17') : null,
+    c.flags.pn17 ? Object.assign(sevChip('critical', 'PN17'), { title: FLAG_PROVENANCE }) : null,
   ]));
   idBlock.append(el('h1', { style: 'font-size:24px;letter-spacing:-.02em' }, c.name));
   idBlock.append(el('p', { class: 'body', style: 'margin-top:6px;font-size:13px' }, c.desc));

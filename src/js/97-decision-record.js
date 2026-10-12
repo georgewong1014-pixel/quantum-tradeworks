@@ -95,7 +95,7 @@ function decisionRecordProperty() {
   const figs = el('div', { class: 'dr-figs' });
   [['Cash to complete', isNum(m.cashStillRequiredToComplete) ? fmtMoney(m.cashStillRequiredToComplete, 'MYR', 0) : null,
      shortOf(['acquisition', 'financing'])],
-   ['Safe cash', isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
+   [cashRequiredLabel(m), isNum(m.safeCashRequired) ? fmtMoney(m.safeCashRequired, 'MYR', 0) : null, shortOf(null)],
    ['Monthly position', isNum(m.cashflowMonthly) ? fmtMoney(m.cashflowMonthly, 'MYR', 0) : null],
    ['Break-even rent', isNum(m.breakEvenRent) ? fmtMoney(m.breakEvenRent, 'MYR', 0) : null],
    ['Rate of return', isNum(m.irrPct) ? fmtPct(m.irrPct, 1) : null],
@@ -111,7 +111,7 @@ function decisionRecordProperty() {
   if (unpriced.length) out.append(el('p', { class: 'dr-warn' },
     `${cashPartial(m) ? `Cash required — ${cashPartial(m).words}. ` : ''}Not the full amount. ${unpriced.length === 1 ? 'One cost line has' : `${unpriced.length} cost lines have`} no value — `
     + `${unpriced.map(x => x.label.toLowerCase()).join(', ')} — so `
-    + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the safe cash are' : 'the safe cash is'} `
+    + `${shortOf(['acquisition', 'financing']).length ? 'the cash to complete and the cash required are' : 'the cash required is'} `
     + `short by whatever ${unpriced.length === 1 ? 'it comes' : 'they come'} to. `
     + `${unpriced.length === 1 ? 'It is' : 'They are'} unpriced rather than zero, and this tool will not guess.`));
 

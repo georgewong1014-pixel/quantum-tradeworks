@@ -1133,11 +1133,14 @@ const POSITIONING = {
   kicker: 'Research · Monitor · Model · Plan',
   /* The hero's lede under the held h1 (D5): with it, 14 words. */
   lede: 'Companies, market setups and property, in one workspace.',
-  /* The footer's line on every page. */
-  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next.',
+  /* The footer's line on every page. Business planning is "planned, not
+     yet scheduled" (the owner's decision of 11 Oct 2026; the claims audit,
+     R-20): "is next" promised a release no plan or date is behind.
+     Business Intelligence stays "Coming soon" as text, never a link. */
+  oneLiner: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled.',
   /* The site root's description, og:description and twitter:description:
      the one-liner and what the site will not do. */
-  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning is next. Research only — no recommendations.',
+  description: 'A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled. Research only — no recommendations.',
 };
 
 const ROUTES = [
@@ -1284,12 +1287,20 @@ const META = {
   propertyInvesting: 'Work out a Sarawak property purchase on your own figures: the cash required, with stamp duty and legal fees from a cited fee rulebook, the monthly cash flow, and up to three scenarios side by side. Not a valuation, not advice.',
   howItWorks: 'How each product works — what you put in, what it works out, what you can save and what to do next — what Live, Beta, Demo and Coming soon mean, and worked examples computed by the products’ own models.',
   researchQueue: 'The Equities research queue: market context, data freshness, what changed in the reported data, your watchlist and the largest gaps between an illustrative company’s sample price and its model estimate — each company labelled filed or illustrative, with nothing recommended.',
-  discover:  'Screen Bursa Malaysia and US companies on quality, financial strength and valuation — every filter and every metric explained.',
+  /* ONE DESCRIPTION A PAGE, TRUE TO IT (the claims audit of 11 Oct 2026,
+     rank 3: F-11, R-17–R-19). The screener's said "Screen Bursa Malaysia
+     and US companies on … valuation" — the Bursa figures are synthetic and
+     no filed company carries a price to value against — and the value map
+     wore it too. A tab of a view with a page of its own takes the line
+     keyed view:tab (metaOf, below): the Learn hub's five pages all carried
+     the methodology's sentence. */
+  discover:  'Screen the SEC-filed US companies on quality, returns on capital and financial strength, each filter and measure explained — and an illustrative Malaysian set, labelled as such. A measure that needs a price is blank where none is held.',
+  'discover:radar': 'The Quality vs Value Map: each company placed by business quality against the gap between its price and its base-case model estimate — which needs a price: the illustrative set on sample prices, and any company whose close you supplied.',
   research:  'A company report where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
-  sarawak: 'Companies with material exposure to the Sarawak economy. Inclusion is descriptive and does not indicate preference.',
+  sarawak: 'Bursa companies that operate in Sarawak, and what you record about them. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
-  property:  'Model a Malaysian property purchase to its real monthly cash flow, break-even rent and cash required upfront.',
+  property:  'Model a Sarawak property purchase from your own figures: the monthly cash flow, the break-even rent and the cash required, each fee line from a cited fee rulebook and marked verified or estimated. Not a valuation, not advice.',
   propertyModels: 'The properties you have saved in this browser, each with its inputs and its scenarios. Open one and the calculator edits it.',
   propertyProposal: 'A saved property set out for a client: who prepared it and for whom, the cost of buying it, the loan, the rent and the cash flow, its scenarios side by side and a sale at the end of the hold. A preview, printed or saved as PDF through your browser.',
   tradingIndex: 'A multi-timeframe trend reading and a test of your own first-tranche rules, from chart evidence you record yourself.',
@@ -1303,7 +1314,11 @@ const META = {
   scannerAdminJobs:     'Every run the scanner worker recorded on this machine, with status, duration and errors, and the log of controls.',
   scannerAdminDelivery: 'Which delivery channels exist for scanner alerts — in-app only — and why email, Telegram and push are not configured.',
   /* /Phase 3 — ops */
-  learn:     'How the metrics are defined, how the models are chosen, and what the data does and does not cover.',
+  learn:     'The methodology in public: the metric dictionary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
+  'learn:glossary': 'The metric dictionary: each measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
+  'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
+  'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what this build does not hold.',
+  'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the research and advisory modes, the cases you record in this browser, and how a figure is reported against the exact item.',
   plans:     'Proposed plans and prices for Quantum Tradeworks research and property reports — not on sale yet: nothing can be bought and no payment is taken.',
   /* Every other view fell back to the marketing sentence above, so a shared
      link to the privacy policy or a watchlist previewed as the landing page.
@@ -1334,6 +1349,9 @@ const META = {
   privacy:     'What this build stores, where it stores it and what leaves your device — no cookies, no accounts — and a draft PDPA 2010 notice.',
   terms:       'Draft terms for this build: a research tool, not advice, with illustrative data, no warranty and nothing for sale; governed by Malaysian law.',
 };
+/* A route's line: its tab's own (view:tab) where the tab is a page of its
+   own, else its view's. build.mjs evaluates it with setDocumentMeta. */
+const metaOf = (route, fallback = META.marketing) => (route?.tab && META[`${route.view}:${route.tab}`]) || META[route?.view] || fallback;
 
 /* The app is mounted at the domain root in production, but served from a
    subdirectory in some local setups. Deriving the base once keeps every
@@ -1443,7 +1461,7 @@ function setDocumentMeta(route) {
     : (route?.title || 'Not found');
   if (!holdHead) {
     document.title = route?.path === '/' ? route.title : `${name} · Quantum Tradeworks`;
-    const desc = co && route.view === 'research' ? companyMetaDescription(co.c, META.research) : (META[route?.view] || META.marketing);
+    const desc = co && route.view === 'research' ? companyMetaDescription(co.c, META.research) : metaOf(route);
     let tag = document.querySelector('meta[name="description"]');
     if (!tag) { tag = document.createElement('meta'); tag.setAttribute('name', 'description'); document.head.append(tag); }
     tag.setAttribute('content', desc);
@@ -2739,6 +2757,22 @@ const UNIVERSE_VIEWS = new Set([
      once the company is in. */
   ...SCANNER_VIEWS,
 ]);
+/* A TAB THAT WAITS (the claims audit of 11 Oct 2026, rank 4: F-02). The
+   methodology's router table names the companies routed to each model
+   pack. Drawn before the filings land, it listed the illustrative
+   stand-ins a filer replaces as they load — "AAPL · illustrative", "JPM ·
+   illustrative", seventeen companies whose own pages say Filed — and that
+   first draw was what /methodology served. So that one tab of Learn waits
+   for the filings as the views above do, and is served drawn with them in;
+   the other four read no company and draw at once. Every "does this page
+   wait" asks viewWaits, here and in prerender.mjs and coverage-frames.mjs. */
+const UNIVERSE_TABS = { learn: ['models'] };
+function viewWaits(view = State.view) {
+  if (UNIVERSE_VIEWS.has(view)) return true;
+  if (view !== State.view || !UNIVERSE_TABS[view]) return false;
+  const tab = view === 'learn' ? ((typeof LEARN_TAB_ALIAS !== 'undefined' && LEARN_TAB_ALIAS[State.learnTab]) || State.learnTab) : null;
+  return UNIVERSE_TABS[view].includes(tab);
+}
 
 function bootSkeleton() {
   /* A screen tall, so the footer waits below the fold with the page. The
@@ -2896,6 +2930,8 @@ const SERVED_READ = {
   /* When this browser last exported (the backup line on /my/data and /app,
      backupHealth): the record, as kept. */
   lastExport: () => store.read('lastExport', null),
+  /* How far the reader has got (/my/data; furthestRead, 59-recent.js). */
+  furthestStep: () => store.read('furthestStep', null),
 };
 /* Whether this browser keeps a key at all ('kept.deal'), where a page lists
    what is kept rather than drawing from it: /my/data writes a row for each
@@ -2937,7 +2973,7 @@ const SERVED_READS = {
      key the export carries (PORTABLE_KEYS) but the base currency, which it
      does not count (BACKUP_UNCOUNTED), so each is named. */
   home: [...new Set(['onboarding', 'watchlists', 'portfolios', 'theses', 'priceAlerts', 'recentCompanies', 'savedScreens', 'savedWork',
-    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy'), 'lastExport'])],
+    'comparisons', 'runs', 'reviews', 'scanSetups', 'deal', ...PORTABLE_KEYS.map(x => x.k).filter(k => k !== 'baseCcy' && k !== 'furthestStep'), 'lastExport'])],
   /* /research/queue: the cards' arrangement, the active list, the
      differences between price and model estimate (a price typed in), the
      plan's limits, the currency. */
@@ -3074,8 +3110,21 @@ const SERVED_READS = {
   userdata: ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections',
     'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData', 'priceAlerts', 'dividendsReceived', 'wht',
     'baseCcy', 'savedScreens', 'savedWork', 'reviews', 'runs', 'borrowerProfile', 'proposalDetails', 'sarawakExposure', 'valuation',
-    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+    'comparisons', 'labComparisons', 'propertyActuals', 'scanSetups', 'scanAlertState', 'scanPrefs', 'startHereAll', 'lastExport', 'furthestStep', ...PORTABLE_KEYS.map(x => `kept.${x.k}`)],
+  /* /how-it-works, which waits for the filings so that its report preview
+     opens on a filed company (HIW_PICKS, 55-views-public.js): the
+     calculator's deal its "Your calculator, as it stands" card reads. */
+  howItWorks: ['deal'],
+  /* /methodology, the one tab of Learn that waits (UNIVERSE_TABS): the
+     router table reads the universe and nothing this browser keeps. Keyed
+     view:tab (servedKeyOf), so Learn's other tabs, which do not wait, are
+     served as before. */
+  'learn:models': [],
 };
+/* The SERVED_READS row of the page on screen: a view's, or — for a tab
+   that waits (UNIVERSE_TABS) — that tab's. */
+const servedKeyOf = (view) => (!UNIVERSE_VIEWS.has(view) && UNIVERSE_TABS[view] && viewWaits(view)
+  ? `${view}:${view === 'learn' ? ((typeof LEARN_TAB_ALIAS !== 'undefined' && LEARN_TAB_ALIAS[State.learnTab]) || State.learnTab) : ''}` : view);
 /* What the page holds in memory of each name this browser keeps, where a
    name's value is drawn from that copy rather than read from storage afresh
    (keepServedReads, below): a digest is kept only while the copy is what
@@ -3105,7 +3154,7 @@ const servedHash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i+
 /* What a draw of this view reads now, as "name:digest …"; null for a view
    that names nothing (its served page never stands). */
 function servedFrom(view = State.view) {
-  const names = SERVED_READS[view];
+  const names = SERVED_READS[servedKeyOf(view)];
   if (!names) return null;
   return [...SERVED_READS_ALL, ...names].map(n => {
     let v;
@@ -3608,7 +3657,7 @@ function drawPage(samePage) {
      render's read (SERVED_READS, servedIsReaders). */
   /* Kept out of sight by the head's script (FIRST_SCRIPT, build.mjs) and
      this reader's after all: shown, standing. */
-  if (onServedPage() && realPending && UNIVERSE_VIEWS.has(State.view) && servedIsReaders()) { servedShown(); servedWaiting(true); return; }
+  if (onServedPage() && realPending && viewWaits() && servedIsReaders()) { servedShown(); servedWaiting(true); return; }
   /* The served page is replaced here, whether it stood or not (servedAt):
      not an entrance either way. */
   const served = overServedPage();
@@ -3621,15 +3670,15 @@ function drawPage(samePage) {
      something as it draws (the dashboard notes the visit). A page that does
      not wait says it too (2026-10-04): its render's is what the head's script
      holds a reader to (FIRST_SCRIPT, build.mjs). */
-  const waits = UNIVERSE_VIEWS.has(State.view);
+  const waits = viewWaits();
   const drawnFrom = waits ? (!realPending ? servedFrom() : null) : servedFrom();
-  const node = (realPending && UNIVERSE_VIEWS.has(State.view))
+  const node = (realPending && viewWaits())
     ? bootSkeleton()
     : (VIEWS[State.view] ? VIEWS[State.view]() : el('div', {}, 'Not found'));
   /* A surface the capability register marks feature-flagged says so on the
      page, from the register row itself (80-registers.js). Not on the
      skeleton: there is no surface yet to describe. */
-  if (!(realPending && UNIVERSE_VIEWS.has(State.view))) {
+  if (!(realPending && viewWaits())) {
     mountFlagNotice(node, State.view, State.researchTab);
     /* And a tool that is delayed or unavailable here says why on its own
        page (TOOLS, toolState). */
@@ -3676,7 +3725,7 @@ function drawPage(samePage) {
      below it, and there is no page below a skeleton yet. */
   document.querySelectorAll('.dock').forEach(n => n.remove());
   dockSizer?.disconnect();
-  const dockSpec = (!realPending || !UNIVERSE_VIEWS.has(State.view)) ? DOCKS[State.view]?.() : null;
+  const dockSpec = (!realPending || !viewWaits()) ? DOCKS[State.view]?.() : null;
   if (dockSpec) {
     /* Still at body level, but BEFORE the footer rather than after it. Tab
        order follows the DOM, so appended last the dock's one action was the

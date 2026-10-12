@@ -2193,6 +2193,19 @@ function cashPartial(m) {
     words: `partial: excludes ${feeList(labels)} — not yet checked for ${FEE_CLASS_WORD[cls]}`,
     short: `partial — ${g.length} line${g.length === 1 ? '' : 's'} not checked for ${cls === 'land' ? 'land' : 'commercial'}` };
 }
+/* "CASH REQUIRED (WITH A 3-MONTH RESERVE)" (the owner's decision of 11 Oct
+   2026; the claims audit, rank 9: F-06, R-11). It was "Safe cash
+   required", and "safe" promised a safety the figure is not: it is the cash
+   to complete, the renovation and set-up, and the reserve the reader
+   chose to hold — the total the Scenario Lab, the homepage and
+   /property-investing call "Cash required". The months are the deal's own
+   (3 unless the reader changes them); a table of several deals whose
+   reserves differ says "the reserve". Where a figure is short of a line it
+   says "— partial" or "so far" after this, as before. */
+function cashRequiredLabel(...models) {
+  const months = [...new Set(models.map(m => m?.reserveMonths).filter(isNum))];
+  return months.length === 1 ? `Cash required (with a ${months[0]}-month reserve)` : 'Cash required (with the reserve)';
+}
 
 /* What the rulebook still needs, so it can be reported rather than discovered. */
 const feeLinesWith = (...provenances) => Object.entries(FEE_TABLE.lines)
@@ -3358,7 +3371,9 @@ const PROPERTY_I18N = {
   'in.renovation':{ en:'Renovation and furnishing (RM)', ms:'Ubah suai dan perabot (RM)', zh:'装修与家具 (RM)' },
   'in.bookingDepositPaid':{ en:'Booking deposit already paid (RM)', ms:'Deposit tempahan yang telah dibayar (RM)', zh:'已付订金 (RM)' },
   'in.renoRentUpliftPct':{ en:'Share of the rent that depends on the renovation (%)', ms:'Bahagian sewa yang bergantung pada ubah suai (%)', zh:'取决于装修的租金比例 (%)' },
-  'in.renoValueRecoveryPct':{ en:'Share of the renovation a buyer will pay for at exit (%)', ms:'Bahagian kos ubah suai yang akan dibayar pembeli semasa jualan (%)', zh:'出售时买家愿为装修支付的比例 (%)' },
+  /* An assumption the reader sets, worded as one in each language (the
+     claims audit of 11 Oct 2026, R-15). */
+  'in.renoValueRecoveryPct':{ en:'Share of the renovation you assume a buyer pays for at exit (%)', ms:'Bahagian kos ubah suai yang anda andaikan dibayar oleh pembeli semasa jualan (%)', zh:'您假设出售时买家为装修支付的比例 (%)' },
   /* The cost lines' fields (QT-03) and the schedule import, in the rail. */
   'cl.item':{ en:'Item', ms:'Butiran', zh:'项目' },
   'cl.amount':{ en:'Amount (RM)', ms:'Amaun (RM)', zh:'金额 (RM)' },

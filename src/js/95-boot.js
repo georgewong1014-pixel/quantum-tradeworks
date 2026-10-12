@@ -174,14 +174,14 @@ function searchPageIndex() {
   [{ label: 'Home', path: '/', icon: 'grid' }, { label: 'How it works', path: '/how-it-works', icon: 'info' }, { label: 'Pricing', path: '/pricing', icon: 'tag' },
     ...RESOURCES.map(r => ({ label: r.label, path: r.path, icon: r.group === 'method' ? 'book' : 'doc', in: 'Resources' }))].forEach(r => {
     if (byPath.has(r.path) || !searchOpens(r.path)) return;
-    add({ label: r.label, in: r.in || 'Page', note: META[matchRoute(r.path).view] || '', path: r.path, icon: r.icon, product: null, tool: null, aka: [] });
+    add({ label: r.label, in: r.in || 'Page', note: metaOf(matchRoute(r.path), ''), path: r.path, icon: r.icon, product: null, tool: null, aka: [] });
   });
   [...APP_NAV_WORKSPACE, ...APP_NAV_FOOT].forEach(n => { const r = byPath.get(n.path); if (r) alsoCalled(r, n.label); });
   ROUTES.forEach(rt => {
     if (rt.alias || rt.path.includes(':') || !VIEWS[rt.view]) return;
     const have = byPath.get(rt.path) || byCanon.get(searchCanonical(rt.path));
     if (have) { alsoCalled(have, rt.title); return; }
-    add({ label: rt.title, in: 'Page', note: META[rt.view] || '', path: rt.path, icon: 'doc', product: null, tool: null, aka: [] });
+    add({ label: rt.title, in: 'Page', note: metaOf(rt, ''), path: rt.path, icon: 'doc', product: null, tool: null, aka: [] });
   });
   return rows;
 }
@@ -201,7 +201,7 @@ function searchPageAt(path, index = searchPageIndex()) {
   }
   if (rt.path.includes(':')) return null;
   const base = index.find(r => r.path === p) || index.find(r => r.path && searchCanonical(r.path) === searchCanonical(p))
-    || { label: rt.title, in: 'Page', note: META[rt.view] || '', path: p, icon: 'doc', product: null, tool: null, aka: [] };
+    || { label: rt.title, in: 'Page', note: metaOf(rt, ''), path: p, icon: 'doc', product: null, tool: null, aka: [] };
   const tab = new URLSearchParams(q).get('tab');
   const tabs = rt.view === 'learn' ? LEARN_TABS : rt.view === 'discover' ? DISCOVER_TABS : null;
   const said = tabs && tab ? tabs.find(t => t.id === ((rt.view === 'learn' && LEARN_TAB_ALIAS[tab]) || tab))?.label : null;
@@ -815,7 +815,7 @@ const DOCKS = {
     const short = (m.missingCostLines || []).length > 0;
     return {
       figs: [
-        { label: cashPartial(m) ? 'Safe cash — partial' : short ? 'Safe cash so far' : 'Safe cash', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
+        { label: cashPartial(m) ? 'Cash required — partial' : short ? 'Cash required so far' : 'Cash required', value: isNum(m.safeCashRequired) ? fmtAmount(m.safeCashRequired, 'MYR') : null },
         { label: 'Monthly position', value: isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : null,
           tone: isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : '--ok-text' },
         { label: g.verdict || 'Grade', value: g.grade },

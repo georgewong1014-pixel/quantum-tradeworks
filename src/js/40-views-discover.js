@@ -1240,10 +1240,14 @@ const SCREEN_TEMPLATES = [
     untestable:[ICOV_UNTESTABLE(3)],
     apply: (s) => { s.universe='MY'; s.sectors=['Industrials','Utilities']; s.crit = { ndEbit:{max:4} }; s.cols = ['ndEbit','icov','om','rev5','roic','pe']; } },
   { id:'shariah', name:'Shariah-compliant universe',
-    why:'Only companies flagged Shariah-compliant in this dataset. The flag is carried from the source, not assessed here.',
+    /* The flags were "carried from the source"; the source is the hand-
+       authored illustrative set, and a Shariah status or a PN17
+       classification of a real, named company is a regulator's to state
+       (the claims audit of 11 Oct 2026, rank 6; F-09, R-22). */
+    why:'Only companies flagged Shariah-compliant in the illustrative set. Its flags were authored for that set — not checked against the Securities Commission’s list of Shariah-compliant securities — and not assessed here.',
     apply: (s) => { s.universe='MY'; s.local = { ...s.local, shariahOnly:true }; s.cols = ['roic','om','ndEbit','dy','pe','fcfy']; } },
   { id:'no-pn17', name:'Excluding PN17 and GN3',
-    why:'Removes companies under Bursa financial-distress classifications. This is an exclusion, not an endorsement of what remains.',
+    why:'Removes companies flagged PN17 or GN3 (Bursa’s financial-distress classifications) in the illustrative set — flags authored for that set, not checked against Bursa’s lists. An exclusion, not an endorsement of what remains.',
     apply: (s) => { s.universe='MY'; s.local = { ...s.local, excludePn17:true }; s.cols = ['roic','ndEbit','icov','om','dy','pe']; } },
 ];
 
@@ -3240,7 +3244,10 @@ function renderRadar() {
   timeRow.append(yiChip);
   timeRow.append(el('span', { class: 'metaline' },
     rr.yi === YEARS.length - 1
-      ? 'Latest reported period, current price.'
+      /* "current price" read as an observed one; what is plotted is a
+         sample price or a close the reader supplied (the claims audit of
+         11 Oct 2026, rank 6; F-19, R-29). */
+      ? 'Latest reported period, sample price (or the close you supplied).'
       : `Statements truncated to FY${YEARS[rr.yi]}, priced from the illustrative set's sample series for that year — the same models re-run, not today's answer replotted. Filed companies carry no sample series and drop out of past snapshots.`));
   bar.append(timeRow);
   wrap.append(bar);

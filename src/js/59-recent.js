@@ -177,7 +177,7 @@ function recentOnScreen(route) {
    box should take them back to where they were, not reopen it. */
 function recentHere() {
   const v = State.view;
-  if (!v || v === 'notfound' || (realPending && UNIVERSE_VIEWS.has(v))) return null;
+  if (!v || v === 'notfound' || (realPending && viewWaits(v))) return null;
   const route = matchRoute(location.pathname);
   return route && VIEWS[route.view] ? recentOnScreen(route) : null;
 }
@@ -190,7 +190,7 @@ let recentSeenAt = null;
 let recentOpening = null;
 function recentOnPage() {
   const v = State.view;
-  if (!v || v === 'notfound' || (realPending && UNIVERSE_VIEWS.has(v))) return;
+  if (!v || v === 'notfound' || (realPending && viewWaits(v))) return;
   const route = matchRoute(location.pathname);
   if (!route || !VIEWS[route.view]) return;
   const opening = recentOpening;
@@ -213,6 +213,100 @@ const recentWatch = new MutationObserver(() => {
   try { recentOnPage(); } catch (e) { console.warn('recent: this page was not noted —', e.message); }
 });
 recentWatch.observe(viewRoot, { childList: true });
+
+/* ==========================================================================
+   THE FURTHEST STEP, IN THIS BROWSER (the owner's decision D15c, 7 Oct 2026;
+   the claims audit of 11 Oct 2026, rank 15)
+
+   No measurement: no analytics, nothing sent, no count across readers. What
+   the owner chose instead is a record the reader keeps — how far they have
+   got in each product, in three steps: opened it, worked on their own
+   figures, saved what they made — so a reader can see, and show in a
+   session they choose to have, where they stopped. It is one key in this
+   browser's local storage (furthestStep), shown on Your data & settings,
+   named on /privacy, carried by "Export everything" and the backup, and
+   forgotten when this browser's storage for the site is cleared.
+
+   Each step is read from what the page already holds — the view on screen,
+   the deal's own figures, the saved work — after each draw, as Recent is
+   (recentWatch, above), and only a further step is written: the record
+   keeps the furthest step reached and the day it was reached, never a
+   history and never a time of day. A step the reader later undoes (a
+   saved property deleted) stays reached: it was.
+   ========================================================================== */
+const FURTHEST_KEY = 'furthestStep';
+const FURTHEST_STEPS = {
+  equities: [
+    ['Opened a company report', () => State.view === 'research' && !!State.ticker && typeof BY_ID !== 'undefined' && BY_ID.has(State.ticker)],
+    ['Compared companies side by side', () => State.view === 'compare'],
+    ['Saved a comparison, a case or a watchlist of your own', () => (store.read('comparisons', []) || []).length > 0
+      || (State.theses || []).some(t => t && !SEEDED_THESIS_IDS.includes(t.id))
+      || (State.watchlists || []).some(w => w && !isSeededWL(w) && (w.ids || []).length > 0)],
+  ],
+  scanner: [
+    ['Opened the scanner', () => SCANNER_VIEWS.includes(State.view)],
+    ['Opened the setup builder', () => State.view === 'scannerSetupNew' || State.view === 'scannerSetupEdit'],
+    ['Saved a setup', () => Object.keys(scanStoreRead().setups || {}).length > 0],
+  ],
+  property: [
+    ['Opened the Scenario Lab or the calculator', () => State.view === 'property' || State.view === 'propertyLab'],
+    ['Entered your own price and rent', () => !!(State.deal?.touched?.price && State.deal?.touched?.rent)],
+    ['Saved a property', () => loadWork().some(w => w?.kind === 'property' && !workIsSample(w))],
+  ],
+};
+/* The record as this module writes it, whatever storage holds: a product
+   this build does not know, a step out of range or a day that is not one
+   is dropped, entry by entry. */
+function furthestRead() {
+  const raw = store.read(FURTHEST_KEY, null);
+  const out = {};
+  const p = isRecord(raw) && isRecord(raw.products) ? raw.products : {};
+  for (const [id, steps] of Object.entries(FURTHEST_STEPS)) {
+    const e = p[id];
+    if (isRecord(e) && Number.isInteger(e.n) && e.n >= 1 && e.n <= steps.length && typeof e.on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.on)) out[id] = { n: e.n, on: e.on };
+  }
+  return out;
+}
+/* The reader's calendar day, as the backup line's is (en-CA is YYYY-MM-DD). */
+const furthestToday = () => new Date().toLocaleDateString('en-CA');
+function furthestNote() {
+  const v = State.view;
+  if (!v || v === 'notfound' || (realPending && viewWaits(v))) return;
+  const have = furthestRead();
+  let changed = false;
+  for (const [id, steps] of Object.entries(FURTHEST_STEPS)) {
+    let n = 0;
+    steps.forEach(([, reached], i) => { try { if (reached()) n = i + 1; } catch { /* a step its page cannot read yet */ } });
+    if (n > (have[id]?.n || 0)) { have[id] = { n, on: furthestToday() }; changed = true; }
+  }
+  if (changed) store.write(FURTHEST_KEY, { v: 1, products: have });
+}
+const furthestWatch = new MutationObserver(() => {
+  try { furthestNote(); } catch (e) { console.warn('furthest step: not noted —', e.message); }
+});
+furthestWatch.observe(viewRoot, { childList: true });
+
+/* Your data & settings: the record, each product's furthest step of three,
+   and when each was reached. Served as a fresh visitor's (nothing reached);
+   the page's render reads the key (SERVED_READS.userdata, 35-ui.js), so a
+   reader who has one waits for their own. */
+function furthestCard() {
+  const rec = furthestRead();
+  const card = el('div', { class: 'card', id: 'furthest-step', 'data-furthest': '' });
+  card.append(cardHead('How far you have got',
+    'The furthest step you have reached in each product, kept in this browser to show you where you stopped. It is never sent anywhere, and nothing counts it.'));
+  const kv = el('dl', { class: 'kv', style: 'margin-top:var(--md)' });
+  for (const [id, steps] of Object.entries(FURTHEST_STEPS)) {
+    const p = typeof productById === 'function' ? productById(id) : null;
+    const e = rec[id];
+    kv.append(el('dt', {}, p?.name || id));
+    kv.append(el('dd', { 'data-furthest-product': id, 'data-furthest-n': String(e?.n || 0) },
+      e ? `${e.n} of ${steps.length}: ${steps[e.n - 1][0]} · ${new Date(`${e.on}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : `Not started · first step: ${steps[0][0].charAt(0).toLowerCase()}${steps[0][0].slice(1)}`));
+  }
+  card.append(kv);
+  return card;
+}
 
 /* Open a saved item from the search, noted as the item. Where opening it
    draws a page, the note is taken there; where it opens a drawer on the

@@ -632,7 +632,7 @@ function cpKeyFigures(d, m, cash) {
   return el('div', { class: 'cp-figs' }, [
     fig('Cash to complete', 'cashStillRequiredToComplete', cash.complete,
       shortComplete ? 'So far — a cost line is not priced' : cash.paid > 0 ? ['On completion day, after ', cpFig('cashAlreadyPaid', cpMoney(cash.paid)), ' paid at offer'] : 'Paid out on completion day'),
-    fig(cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', 'safeCashRequired', cash.safe,
+    fig(cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), 'safeCashRequired', cash.safe,
       cashPartial(m) ? `Partial — ${cashPartial(m).n} line${cashPartial(m).n === 1 ? '' : 's'} not yet checked for ${FEE_CLASS_WORD[cashPartial(m).cls]}` : short ? 'So far — a cost line is not priced' : 'With the renovation and the reserve'),
     fig('Monthly instalment', 'instalment', m.instalment,
       !(m.loan > 0) ? 'No loan: the price is paid without one'
@@ -746,7 +746,7 @@ function cpAcquisitionSection(d, m, cash) {
       lets ? 'Spent after completion, before it can earn: renovation, furnishing and deposits.' : 'Spent after completion: renovation, furnishing and deposits.'],
     ['Cash to keep untouched', isNum(cash.reserve) ? cpFig('reserveCash', cpMoney(cash.reserve)) : el('span', { class: 'cp-unpriced' }, 'not priced'),
       `${cpPlural(m.reserveMonths, 'month')} of instalment and owner-paid running costs, held in the owner’s account rather than spent.`],
-    ['Safe cash required', cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
+    [cashRequiredLabel(m), cpFig('safeCashRequired', cpMoney(cash.safe)), missing.length ? 'Everything priced so far — short by the lines named above.' : 'Everything together: the cash that decides whether the purchase can be carried.'],
   ]));
   return s;
 }
@@ -863,7 +863,7 @@ function cpScenariosSection(rec, picks) {
     line('Monthly instalment', 'instalment', m => m.instalment),
     line('Monthly position', 'cashflowMonthly', m => m.cashflowMonthly),
     line('Cash to complete', 'cashStillRequiredToComplete', (m, c) => c.complete),
-    line('Safe cash required', 'safeCashRequired', (m, c) => c.safe),
+    line(cashRequiredLabel(...models), 'safeCashRequired', (m, c) => c.safe),
     line('Net yield', 'netYield', m => m.netYield, v => (isNum(v) ? fmtPct(v, 2) : '—')),
     line('Break-even rent', 'breakEvenRent', m => m.breakEvenRent),
   ]));

@@ -2150,7 +2150,11 @@ VIEWS.sarawak = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   /* The one head every product page wears (pageHead, 36-layouts.js); the
      watch's own name is its tab in the header above. */
-  wrap.append(pageHead({ title: 'Companies with material exposure to the Sarawak economy',
+  /* "Material exposure" was a finding the page itself says it has not
+     made ("The names are identified. The exposure is not."): the title
+     says what is identified (the claims audit of 11 Oct 2026, rank 6;
+     F-08, R-21). */
+  wrap.append(pageHead({ title: 'Bursa companies that operate in Sarawak',
     lede: 'The Bursa companies that operate in Sarawak, and what you record about them.',
     note: 'Inclusion is descriptive and does not indicate preference. This is a research collection, not a recommended-stock list, and nothing here is ordered by merit.' }));
 
@@ -2161,7 +2165,7 @@ VIEWS.sarawak = () => {
   why.append(cardHead('What is here, and what is not',
     'The names are identified. The exposure is not.'));
   why.append(el('p', { class: 'body', style: 'font-size:13px' },
-    'Which companies operate in Sarawak is checkable, and they are listed below — each listing code resolved against a live quote and the returned company name checked against the one recorded here. What share of a company’s order book is state contracts, which concessions it depends on, how concentrated its state customer base is: none of that is carried by any source this product can reach.'));
+    'Which companies operate in Sarawak is checkable, and they are listed below — each listing code checked once against a published quote when the list was made, and the company name returned checked against the one recorded here. What share of a company’s order book is state contracts, which concessions it depends on, how concentrated its state customer base is: none of that is carried by any source this product can reach.'));
   why.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
     'So the two are kept apart. Identifying a company is not researching it, and a list of familiar names with pre-filled exposure fields would look like the second while only being the first. The fields stay empty until someone fills them from a document they have read.'));
   why.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
@@ -2192,7 +2196,7 @@ VIEWS.sarawak = () => {
   if (flagged.length) {
     const roster = el('div', { class: 'card' });
     roster.append(cardHead(`Companies operating in Sarawak — ${flagged.length} identified`,
-      'Listing codes resolved against a live quote and checked against the company name. Ordered by listing code, not by merit.'));
+      'Listing codes checked once against a published quote when the list was made, and against the company name. Ordered by listing code, not by merit.'));
     const rw = el('div', { class: 'tablewrap' });
     const rt = el('table', { class: 'dt' });
     rt.append(el('thead', {}, el('tr', {}, ['Code', 'Company', 'Suggested theme', 'Closes held',
@@ -2551,7 +2555,10 @@ VIEWS.property = () => {
   wrap.append(pageHead({ title: 'Turn a property into a financial model', lede: 'What owning this property would do to your cash, from the figures you enter.' }));
   wrap.append(el('details', { class: 'pc-more pc-more-page' }, [
     el('summary', { class: 'pc-more-sum' }, 'What this calculator models'),
-    el('p', { class: 'pc-more-body' }, 'Most property tools show you what things sold for. This models true acquisition cost, financing, vacancy, maintenance, exit costs and tax — then compares the result against putting the same money into equities.')]));
+    /* No comparison with other tools (none was surveyed) and no "true"
+       cost, while some fee lines are estimates (the claims audit of 11
+       Oct 2026, rank 6; F-16, R-13). */
+    el('p', { class: 'pc-more-body' }, 'This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter.')]));
 
   /* The regulated claim leads and is never hidden at any width: in Malaysia an
      official valuation requires a registered valuer, and this is not one. The
@@ -2634,7 +2641,7 @@ VIEWS.property = () => {
     /* Partial on a commercial property or land (the fee rulebook 1.2.0):
        the lines not yet checked for the class are named, never a
        full-looking figure. */
-    safe: [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', fmtAmount(m.safeCashRequired, 'MYR'),
+    safe: [cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), fmtAmount(m.safeCashRequired, 'MYR'),
       (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
         : unpricedLines.length
         ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
@@ -2748,7 +2755,7 @@ VIEWS.property = () => {
   if (isNum(m.transactionCash) && m.transactionCash > 0) {
     const wf = el('details', { class: 'pc-more' });
     wf.append(el('summary', { class: 'pc-more-sum' },
-      `Where ${fmtAmount(m.safeCashRequired, 'MYR')} of safe cash goes`));
+      `Where the ${fmtAmount(m.safeCashRequired, 'MYR')} of cash required goes`));
     /* The cost groups already include the improvement costs and the reserve.
        Two further rows for them counted both twice, so the parts of RM130.1k
        added to RM165.1k and every bar was drawn against the wrong total. */
@@ -3009,7 +3016,7 @@ VIEWS.property = () => {
   const lets = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
   const acq = propertySection('acquisition', {
     provide: 'where the property is, what it is — its type, class, title and size — the purchase price, any bank or valuer estimate, the booking deposit already paid, the renovation and the months of reserve you mean to hold.',
-    calculates: 'the cash to complete and every cost line under it — the deposit, stamp duties, legal fees and any valuation gap — the price per unit of area, and the safe cash required once the renovation and the reserve are counted.' });
+    calculates: 'the cash to complete and every cost line under it — the deposit, stamp duties, legal fees and any valuation gap — the price per unit of area, and the cash required once the renovation and the reserve are counted.' });
   const fnc = propertySection('financing', {
     provide: 'the deposit, the loan interest rate and its tenure; any flat-rate or loan-insurance quote you were given; and, only if you choose, your own income, debts and credit record.',
     calculates: 'the loan and the value it is lent against, the monthly instalment, the loan at a 70, 80 and 90% margin of finance, what the quotes cost, and whether the borrower and the property can each be financed.' });
@@ -3440,7 +3447,7 @@ VIEWS.property = () => {
       ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
       ['renovation', 'Renovation and furnishing (RM)', 500],
       ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
-      ['renoValueRecoveryPct', 'Share of the renovation a buyer will pay for at exit (%)', 10],
+      ['renoValueRecoveryPct', 'Share of the renovation you assume a buyer pays for at exit (%)', 10],
     ]],
     [fnc, 'Loan', [
       ['downPct', 'Deposit (%)', 1],
@@ -3718,7 +3725,7 @@ VIEWS.property = () => {
      ledger, and the cash to hold back. */
   const buyCard = el('div', { class: 'card ls-section' });
   buyCard.append(cardHead('What buying it takes',
-    'The cash to complete, where every ringgit of it goes, and the safe cash required once the renovation and the reserve are counted.', null, DKF));
+    'The cash to complete, where every ringgit of it goes, and the cash required once the renovation and the reserve are counted.', null, DKF));
 
   const unitCard = el('div', { class: 'render-block', style: 'margin-top:var(--lg)' });
   unitCard.append(el('h4', { style: 'font-size:var(--ls-body);font-weight:var(--weight-semibold);margin:0' },
@@ -3792,13 +3799,13 @@ VIEWS.property = () => {
       text]);
     wf.append(el('div', { style: 'display:flex;flex-wrap:wrap;gap:var(--md);margin:6px 0 var(--md)' }, [
       swatch('--seq-6', 'Needed to complete the purchase'),
-      swatch('--seq-4', 'Needed afterwards, to be safe'),
+      swatch('--seq-4', 'Needed afterwards: renovation and the reserve'),
     ]));
     const wfHost = el('div');
     wf.append(wfHost);
     cashWaterfall(wfHost, m);
     wf.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-      'Completing and being safe are different amounts of money. The table below itemises every line in each group.'));
+      'The cash to complete and the cash required with the reserve are different amounts. The table below itemises every line in each group.'));
     buyCard.append(wf);
   }
 
@@ -3987,7 +3994,7 @@ VIEWS.property = () => {
    ['Cash to keep untouched', m.reserveCash, isNum(m.reserveCash)
      ? `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs. Not paid to anyone — it stays in your account.`
      : `${m.reserveMonths} month${m.reserveMonths === 1 ? '' : 's'} of instalment and owner-paid running costs — not priced, because the loan’s instalment could not be computed from the entered tenure.`],
-   [cashPartial(m) ? 'Safe cash required — partial' : 'Safe cash required', m.safeCashRequired, cashPartial(m)
+   [cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), m.safeCashRequired, cashPartial(m)
      ? `Everything priced, including what is already paid — ${cashPartial(m).words}. The real figure is higher by whatever those come to.`
      : (m.missingCostLines || []).length
      ? 'Everything priced so far, including what is already paid. It is short by the unpriced lines the ledger above names, so the real figure is higher.'
@@ -4433,7 +4440,7 @@ VIEWS.property = () => {
          ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
          ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
          ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
-         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} safe cash instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
+         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} cash required instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
         ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel ls-fig' }, statTile(k, v, { sub }))));
         card.append(g);
         card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },

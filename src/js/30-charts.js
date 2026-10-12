@@ -297,7 +297,7 @@ function cashWaterfall(container, m) {
       'aria-label': `Cash needed to buy, built up in ${groups.length} groups totalling `
         + `${fmtMoney(total, 'MYR')}. ` + (twoTier
           ? `${fmtMoney(toComplete, 'MYR')} of that is needed to complete the purchase; `
-            + `${fmtMoney(total - toComplete, 'MYR')} is needed afterwards to be safe.`
+            + `${fmtMoney(total - toComplete, 'MYR')} is needed afterwards: the renovation and set-up, and the reserve.`
           : '') });
 
     let run = 0;
@@ -330,7 +330,7 @@ function cashWaterfall(container, m) {
 
     /* The summary bar: the same total, split where completion ends. */
     const sy = groups.length * rowH + 6;
-    g.append(sv('text', { x: 0, y: sy + 12, class: 'dl', fill: 'var(--ink)' }, 'Total cash to be safe'));
+    g.append(sv('text', { x: 0, y: sy + 12, class: 'dl', fill: 'var(--ink)' }, 'Cash required, with the reserve'));
     g.append(sv('text', { x: w, y: sy + 12, class: 'dl', fill: 'var(--ink)',
       'text-anchor': 'end' }, fmtAmount(total, 'MYR')));
     if (twoTier) {
@@ -350,7 +350,7 @@ function cashWaterfall(container, m) {
   container.append(tableTwin('Show the table view',
     ['Group', 'Amount', twoTier ? 'When it is needed' : 'Unpriced lines'],
     groups.map((g2, i) => [g2.label, fmtMoney(g2.value, 'MYR', 0),
-      twoTier ? (i <= splitAfter ? 'To complete the purchase' : 'Afterwards, to be safe')
+      twoTier ? (i <= splitAfter ? 'To complete the purchase' : 'Afterwards: renovation and the reserve')
               : (g2.unpriced ? `${g2.unpriced} line(s) not priced` : '—')])
       .concat([['Total', fmtMoney(total, 'MYR', 0), twoTier ? `${fmtMoney(toComplete, 'MYR', 0)} of it to complete` : '']])));
 }

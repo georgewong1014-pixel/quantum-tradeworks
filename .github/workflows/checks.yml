@@ -207,6 +207,21 @@ jobs:
       - name: no banned claim wording
         run: node wording-check.mjs
 
+      # FLAGGED FOR REVIEW, NEVER A FAILURE (the claims audit of 11 Oct 2026,
+      # rank 17). claims-review.mjs lists what a person should read: absolute
+      # claims no check supports, returns, accuracy or "risk-free", advice-
+      # shaped verbs, a modelled figure worded as an expectation, and two
+      # pages that disagree — less the sentences reviewed and kept in
+      # claims-reviewed.json. Most categorical sentences here are true and
+      # deliberate, so it informs and does not block: it exits 0 whatever it
+      # finds, and this step may not fail the job even if the review itself
+      # cannot run (exit 2: an input missing). Its fixture self-test first.
+      - name: claims to review (informational)
+        continue-on-error: true
+        run: |
+          node claims-review.mjs --self-test
+          node claims-review.mjs
+
       # The extraction must still reconcile to the published Sarawak totals.
       - name: NAPIC extract reconciles
         run: |

@@ -92,7 +92,12 @@ const State = {
      contradicted each other on first load. The stored value is clamped on
      read as well, further down, so an existing saved set of three cannot
      reintroduce the contradiction after a downgrade. */
-  compare: store.read('compare', ['MAYBANK', 'PBBANK']),
+  /* A first visit compares two filed companies (the owner's decision of 11
+     Oct 2026; the claims audit, F-05): Maybank and Public Bank were
+     synthetic figures on real banks' names. Only the fallback: a reader's
+     saved comparison is read as it is. The filers' own ids, so the filings'
+     arrival renames nothing a first visit holds. */
+  compare: store.read('compare', ['AAPL-SEC', 'MSFT-SEC']),
   valuation: {},
 
   /* Multiple watchlists and portfolios. The single-list shape used earlier is

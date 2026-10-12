@@ -359,6 +359,7 @@ export function clientRouter(origin) {
     cut(UI, '35-ui.js', 'const POSITIONING = {', '\n};'),
     cut(UI, '35-ui.js', 'const ROUTES = [', '\n];'),
     cut(UI, '35-ui.js', 'const META = {', '\n};'),
+    cut(UI, '35-ui.js', 'const metaOf = ', ';\n'),
     ...additions,
     cut(DISCOVER, '40-views-discover.js', 'const DISCOVER_TABS = [', '\n];'),
     cut(LEARN, '65-learn.js', 'const LEARN_TAB_ALIAS = ', ';\n'),

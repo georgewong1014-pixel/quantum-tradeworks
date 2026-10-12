@@ -34,7 +34,11 @@ VIEWS.learn = () => {
     el('p', { class: 'eyebrow' }, 'Learn · Methodology, in public'),
     el('h1', {}, tabLabel),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
-      'If a number cannot be explained, it should not be shown. Every formula, weight, anchor range and limitation used anywhere in this prototype is published here.'),
+      /* "Every … used anywhere … is published here" was a completeness
+         guarantee no check holds — the valuation's risk-free rates and
+         equity risk premiums are not published (the claims audit of 11 Oct
+         2026, rank 6; F-15, R-10). */
+      'If a number cannot be explained, it should not be shown. The formulas, weights, anchor ranges and limitations are published here; one that is missing is a gap to report — Report an error, under Corrections & model changes, records it.'),
   ])));
 
   /* Through the address. Four of the five tabs are pages in their own right
@@ -181,6 +185,21 @@ function learnModels() {
      row's companies sat off-screen, so the Bank to Early-stage rows read as if
      no company were routed to them. */
   const MEMBERS = 'text-align:left;white-space:normal;min-width:220px';
+  /* EACH COMPANY UNDER THE LABEL ITS OWN PAGE WEARS (the claims audit of 11
+     Oct 2026, rank 4: F-02). The cell marked only the illustrative half,
+     " · illustrative" after a ticker, and was served as drawn before the
+     filings landed — when the stand-ins a filer replaces were still here —
+     so seventeen filers read illustrative. The tab now waits for the
+     filings (UNIVERSE_TABS, 35-ui.js), and the cell names both halves, a
+     lane each: SEC-filed, personal research where the owner's lane is
+     loaded, illustrative. */
+  const LANES = [['SEC-filed', (c) => c.real && !c.personal, FILED_TITLE], ['Personal research', (c) => c.real && c.personal, PERSONAL_TITLE],
+    ['Illustrative', (c) => !c.real, ILLUS_TITLE]];
+  const lanes = (members) => {
+    const out = LANES.map(([name, of, title]) => [name, title, members.filter(m => of(m.c)).map(m => m.c.tk)]).filter(([, , tks]) => tks.length);
+    return out.length ? out.map(([name, title, tks], i) => el('p', { class: 'router-lane', 'data-lane': name.toLowerCase(), style: i ? 'margin-top:4px' : null },
+      [el('b', { title }, `${name}:`), ` ${tks.join(', ')}`])) : '—';
+  };
   t.append(el('thead', {}, el('tr', {}, ['Company type', 'Primary model', 'Secondary checks', 'Companies'].map((h, i) => el('th', i === 3 ? { style: MEMBERS } : {}, h)))));
   /* Every type routeModel handles, and the pack from routeModel itself. The
      table used to list seven types and take each pack from the first company
@@ -198,7 +217,7 @@ function learnModels() {
       el('td', { class: 'ident' }, label),
       el('td', { style: 'text-align:left;white-space:normal;max-width:200px' }, pack?.name || '—'),
       el('td', { style: 'text-align:left;white-space:normal;max-width:260px', class: 'caption' }, pack?.secondary.join(' · ') || '—'),
-      el('td', { style: MEMBERS }, members.map(m => m.c.tk + illusText(m.c)).join(', ') || '—'),
+      el('td', { style: MEMBERS }, lanes(members)),
     ]);
   })));
   tw.append(t); intro.append(tw);
@@ -372,15 +391,21 @@ function learnData() {
   lic.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, lt));
   wrap.append(lic);
 
+  /* POLICY, AND THIS BUILD (the claims audit of 11 Oct 2026, rank 5: F-07,
+     R-09). The card stated the policy as fact — "Amended filings create a
+     new version; history is never overwritten" — above "Absent by design",
+     which says a restatement here overwrites rather than branches. The
+     policy is what a production build must do; this build does not, and
+     each is said as which it is. */
   const pit = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
-  pit.append(cardHead('Point-in-time policy', 'Screens and backtests must query what was known on the selected date, not the latest corrected database. Without this, historical results are not credible.'));
+  pit.append(cardHead('Point-in-time policy', 'The policy a production build has to meet: screens and backtests query what was known on the selected date, not the latest corrected database — without it, historical results are not credible. This build does not meet it yet: it holds one version of each period, and of the times below it carries only the day the SEC statements were retrieved.'));
   const kv = el('dl', { class: 'kv' });
   [['Source event time', 'When the company published it'],
    ['Provider receipt time', 'When the vendor made it available'],
    ['Ingestion time', 'When the platform stored it'],
    ['Calculation time', 'When the derived metric was computed'],
    ['Effective availability time', 'The timestamp a point-in-time query uses'],
-   ['Restatement link', 'Amended filings create a new version; history is never overwritten']]
+   ['Restatement link', 'Production policy: an amended filing is kept as a new version beside the one it amends. This build: one version of each period, so a restatement overwrites it — see Absent by design, below']]
    .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', { style: 'text-align:left' }, v)); });
   pit.append(kv);
   wrap.append(pit);
@@ -394,7 +419,7 @@ function learnData() {
   [covText(k => `${k.us} US companies and ${k.my} Bursa companies`),
    'Up to ten fiscal years for each SEC-filed company — as many as it has filed in XBRL, and a few carry fewer; five authored years for each illustrative one, extended to ten by a labelled reconstruction — every ratio derived live',
    'Bank, REIT, cyclical, growth and holding-company model packs',
-   'Shariah status, board category and PN17 flags for the Malaysian set'].forEach(x => hl.append(coverageCell('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
+   'Shariah status, board category and PN17 flags for the Malaysian set — authored for the illustrative set, not checked against the Securities Commission’s or Bursa’s lists'].forEach(x => hl.append(coverageCell('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   have.append(hl); g.append(have);
   const lack = el('div');
   lack.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Absent by design'));

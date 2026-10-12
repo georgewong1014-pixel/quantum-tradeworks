@@ -697,6 +697,35 @@ function statusPropertySection() {
   return box;
 }
 
+/* A TOOL'S MODEL AND ITS DATA, ON TWO LINES (the claims audit of 11 Oct
+   2026, rank 7: F-12; D17's way, as statusPropertySection says it for
+   Property). The US Options Cash Wheel and the Sarawak comparables register
+   wear Live under "What proves each Live badge" and sit in the register's
+   Data Gated group; the scanner wears Beta on its cards and Data Gated here.
+   Each is one tool with two words because the two words are about two
+   things — what the tool does with what you enter, and the data it would
+   need to do more — and its register row says which is which:
+     Model: the tool's own badge (toolBadge, from TOOLS) — its journey's last
+       recorded result, the proof slot the build serves from the committed
+       record and the page draws from the same record (proofResultNode), so
+       served and drawn are one text and take the same lines;
+     Data: Data Gated — what is gated, as the register's row says it. */
+function registerSplitNode(c) {
+  const t = typeof toolById === 'function' ? toolById(c.split.tool) : null;
+  const proof = c.split.proof || t?.proof || null;
+  const gated = FEATURE_STATUS.find(s => s.id === 'data-gated');
+  return el('dl', { class: 'status-split status-split-tool', 'data-split-of': c.split.tool }, [
+    el('div', { class: 'status-split-row', 'data-split': 'model' }, [
+      el('dt', {}, 'Model:'),
+      el('dd', {}, [t ? toolBadge(t) : null, ' — ', proof ? proofResultNode(proof.journey, proof.step) : el('span', {}, PROOF_UNPROVEN)]),
+    ]),
+    el('div', { class: 'status-split-row', 'data-split': 'data' }, [
+      el('dt', {}, 'Data:'),
+      el('dd', {}, [el('span', { class: 'chip status-gated', title: gated?.note || null }, gated?.label || 'Data Gated'), ` — ${c.split.data}`]),
+    ]),
+  ]);
+}
+
 function healthSection() {
   healthStart();
   const card = el('section', { class: 'card', id: 'health', 'aria-labelledby': 'health-h' });

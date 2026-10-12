@@ -1753,7 +1753,7 @@ details.explain > summary:focus-visible { outline: 2px solid var(--brand); outli
   table.dt.status-dt tr:last-child { border-bottom: 0; }
   /* The path is the row's one link; on its own line it can take a finger.
      44px wide as well as tall: "/status" measured 42px and "/learn" 36px. */
-  table.dt.status-dt td a { display: inline-block; padding: 12px 0; min-width: 44px; }
+  table.dt.status-dt td a:not(.journey-line-link) { display: inline-block; padding: 12px 0; min-width: 44px; }
 }
 
 .pillbar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-sunk); }
@@ -5531,6 +5531,9 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    its baseline and its height. */
 @media (pointer: coarse), (max-width: 768px) {
   .journeys-log, .journey-line-link { padding: 15px 6px; margin: 0 -6px; }
+  /* In the register's smaller type (a tool's Model line in its row,
+     registerSplitNode, 91-health.js) 15px left the link 43px tall. */
+  .status-split-tool .journey-line-link { padding-block: 16px; }
 }
 /* An empty list takes no room, served or drawn. */
 #views[data-served] ul.journeys-list[data-now=""]:empty::before { content: none; }

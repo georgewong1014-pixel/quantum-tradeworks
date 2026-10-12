@@ -7468,10 +7468,10 @@ try {
     })()`);
     const p = [];
     const f = (list, k) => (list || []).find(x => x.k === k || x.k.startsWith(k));
-    const safeShort = f(r.short.figs, 'Safe cash'), safeWhole = f(r.whole.figs, 'Safe cash');
+    const safeShort = f(r.short.figs, 'Cash required'), safeWhole = f(r.whole.figs, 'Cash required');
     if (!r.short.missing || !r.short.strip) p.push(`tenure 0 no longer leaves a line unpriced (${r.short.missing}) — this check needs another way in`);
-    if (safeShort?.k !== 'Safe cash so far') p.push(`tenure 0: the dock reads "${safeShort?.v} ${safeShort?.k}" under a capstrip reading "So far"`);
-    if (r.whole.missing || safeWhole?.k !== 'Safe cash') p.push(`tenure 35: the dock reads "${safeWhole?.k}" with ${r.whole.missing} line(s) unpriced`);
+    if (safeShort?.k !== 'Cash required so far') p.push(`tenure 0: the dock reads "${safeShort?.v} ${safeShort?.k}" under a capstrip reading "So far"`);
+    if (r.whole.missing || safeWhole?.k !== 'Cash required') p.push(`tenure 35: the dock reads "${safeWhole?.k}" with ${r.whole.missing} line(s) unpriced`);
     for (const [name, list] of [['adjusted, unverified', r.adjusted], ['no contracts', r.noContracts]]) {
       const buf = f(list, 'Cash buffer');
       if (buf?.v !== '—' || buf?.tone) p.push(`${name}: Cash buffer "${buf?.v}" ${buf?.tone}`);
@@ -7481,7 +7481,7 @@ try {
     const bWorst = f(r.blank, 'Worst case at zero');
     if (bWorst?.v !== '—' || bWorst?.tone) p.push(`blank contract: Worst case at zero "${bWorst?.v}" ${bWorst?.tone}`);
     if (p.length) fail('bugfix5 shell: the dock shows a short safe cash as whole, or a cash buffer against an obligation the page does not compute', p);
-    else ok('bugfix5 shell: the dock reads "Safe cash so far" while a cost line is unpriced, withholds the Cash Wheel buffer until there is an obligation, and tones no withheld figure');
+    else ok('bugfix5 shell: the dock reads "Cash required so far" while a cost line is unpriced, withholds the Cash Wheel buffer until there is an obligation, and tones no withheld figure');
   }
   /* The deal and the wheel are put back, and the page reloaded from them. */
   await evaluate(`(() => { const keep = JSON.parse(${JSON.stringify(bf5Saved)});
@@ -8788,18 +8788,21 @@ try {
       const obsNow = await at();
       (obsNow.at === obsWas.at && Math.abs(obsNow.top - obsWas.top) <= 2 ? kept : lost).push(`"What you observed" ${obsWas.top}px down → after the data lands ${said(obsNow)}`);
 
-      /* V9 — a box that holds focus because it scrolls (the methodology's
-         table of company types, whose figures the filings change) keeps it
-         when the filings land. At 390: since fixwave: shell (SHELL-05) the
-         table wraps inside its card at 1440, and a box that does not scroll
-         takes no focus. */
+      /* V9 — a box that holds focus because it scrolls keeps it when the
+         filings land and the page is drawn again. At 390: a box that does
+         not scroll takes no focus. It was the methodology's table of
+         company types; that tab now waits for the filings (UNIVERSE_TABS,
+         35-ui.js; the claims audit of 11 Oct 2026, rank 4), so it is not
+         drawn until they land and nothing redraws under the reader there.
+         /data-sources is drawn at once and again when they land, and its
+         source hierarchy scrolls at 390. */
       await view(390, 844);
-      await open('/methodology', /us\.json/, `[...document.querySelectorAll('#main .tablewrap')].some(t => /Company type/.test(t.textContent))`);
-      const box = await evaluate(`(() => { const t = [...document.querySelectorAll('#main .tablewrap')].find(t => /Company type/.test(t.textContent));
+      await open('/data-sources', /us\.json/, `[...document.querySelectorAll('#main .tablewrap')].some(t => /Used for/.test(t.textContent))`);
+      const box = await evaluate(`(() => { const t = [...document.querySelectorAll('#main .tablewrap')].find(t => /Used for/.test(t.textContent));
         t.scrollIntoView({ block: 'center' }); t.focus({ preventScroll: true }); return document.activeElement === t; })()`);
-      await release('/methodology');
-      const onBox = await evaluate(`(() => { const a = document.activeElement; return a.matches?.('.tablewrap') && /Company type/.test(a.textContent) ? 'the company-type table' : a === document.body ? 'BODY' : a.id || a.tagName; })()`);
-      (box && onBox === 'the company-type table' ? kept : lost).push(`the company-type table's scroller → ${onBox}`);
+      await release('/data-sources');
+      const onBox = await evaluate(`(() => { const a = document.activeElement; return a.matches?.('.tablewrap') && /Used for/.test(a.textContent) ? 'the source-hierarchy table' : a === document.body ? 'BODY' : a.id || a.tagName; })()`);
+      (box && onBox === 'the source-hierarchy table' ? kept : lost).push(`the source-hierarchy table's scroller → ${onBox}`);
       await view(1440, 900);
 
       /* V10 — /decision-record is the record from the first paint, not
@@ -9605,7 +9608,7 @@ try {
         const r = await evaluate(`(async () => { ${W}
           const doc = (data) => ({ format: 'quantum-tradeworks/user-data', version: 1, exportedAt: '2026-09-29T00:00:00Z', data });
           const LISTS = ['portfolios', 'theses', 'watchlists', 'observations', 'registerLog', 'corrections', 'opportunities', 'wheelLegs', 'priceAlerts', 'dividendsReceived', 'savedScreens', 'savedWork', 'runs', 'sarawakExposure', 'comparisons', 'labComparisons'];
-          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails', 'propertyActuals'];
+          const MAPS = ['areaProfiles', 'demand', 'deal', 'wheelPlan', 'qttiPlan', 'manualPrices', 'userData', 'wht', 'reviews', 'borrowerProfile', 'valuation', 'scanSetups', 'scanAlertState', 'scanPrefs', 'proposalDetails', 'propertyActuals', 'furthestStep'];
           const bad = [];
           const accepted = (k, v) => { const x = importEverything(doc({ [k]: v })); return x.ok && x.incoming.includes(k); };
           LISTS.forEach(k => { if (accepted(k, { id: 'x' })) bad.push(k + ' as a record'); if (accepted(k, [1, 'x'])) bad.push(k + ' as a list of non-records'); });
@@ -9636,7 +9639,7 @@ try {
         const BAD1 = { portfolios: { name: 'x', holdings: [] }, theses: { id: 't' }, priceAlerts: { id: 'x' }, watchlists: {}, observations: {}, savedWork: {}, runs: {},
           dividendsReceived: {}, registerLog: {}, comparisons: {}, labComparisons: {}, savedScreens: {}, corrections: {}, sarawakExposure: {}, opportunities: {}, wheelLegs: {},
           deal: [], wheelPlan: [], qttiPlan: [], reviews: [], valuation: [], areaProfiles: [], demand: [], manualPrices: [], userData: [], wht: [],
-          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], propertyActuals: [], registerActor: 5, baseCcy: 'EUR' };
+          scanSetups: [], scanAlertState: [], scanPrefs: [], borrowerProfile: [], proposalDetails: [], propertyActuals: [], furthestStep: [], registerActor: 5, baseCcy: 'EUR' };
         const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons', 'labComparisons',
           'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
         BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
@@ -10788,6 +10791,7 @@ try {
       requiredDiscount: /required discount/, reviews: /reviews you write/, runs: /saved valuation runs/, sarawakExposure: /Sarawak exposure records/,
       savedScreens: /saved screens/, savedWork: /saved-work snapshots/, scanAlertState: /scanner alerts you have read or archived/, startHere: /Start here panels you have hidden/,
       servedReads: /a digest of what the pages read/, lastExport: /when you last exported, with a fingerprint of each item/,
+      furthestStep: /the furthest step you have reached in each product/,
       scanPrefs: /scanner notification and display preferences/, scanSetups: /scanner setups with every version/, screen: /screener’s current filters/,
       screenCcy: /currency the Compare and screener pages total in/, sensAxes: /valuation sensitivity grid/, theme: /theme/, theses: /investment cases/,
       valuation: /valuation assumptions you edit/, watchlist: /watchlists/, watchlists: /watchlists/, wheelLegs: /Cash Wheel plan and its legs/,
@@ -10817,6 +10821,73 @@ try {
     else ok(`audit content C2–C5: Terms and Privacy open "Draft — not yet reviewed by a lawyer"; the entity, address, contact email and domain are dashed "To be supplied" markers on all four trust pages; Privacy names all ${keys.size} stored keys, no cookies (none set by any response), ${r.tag ? 'the analytics tag as it is' : 'no analytics'}, and the PDPA 2010 notice in ten parts with the Bahasa Malaysia version to be supplied; Terms cover the service and Malaysian law; About claims no legal conclusion; Contact's Report a data error opens and says it sends nothing`);
   }
   /* ---- end audit: content ---- */
+  /* ---- furthest-step ---- */
+  /* THE FURTHEST STEP, KEPT HERE AND NEVER SENT (the owner's decision D15c,
+     7 Oct 2026; the claims audit, rank 15). A fresh browser has reached no
+     step; opening the calculator is the property's first, the reader's own
+     price and rent its second, a saved property its third — each the
+     furthest, with the day; /my/data says so; "Export everything" carries
+     the record and a restore takes it back; the backup line does not count
+     it as an item of the reader's; and nothing is asked of any other
+     address while it is kept. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const kept = { step: localStorage.getItem('vl.furthestStep'), deal: localStorage.getItem('vl.deal'), work: localStorage.getItem('vl.savedWork') };
+      const keptDeal = JSON.parse(JSON.stringify(State.deal));
+      const before = performance.getEntriesByType('resource').length;
+      const rows = () => [...document.querySelectorAll('#views [data-furthest-product]')].map(n => [n.dataset.furthestProduct, n.dataset.furthestN, n.textContent]);
+      const out = {};
+      let made = null;
+      try {
+        localStorage.removeItem('vl.furthestStep');
+        navigate('/my/data'); await w(200);
+        out.fresh = rows();
+        navigate('/property/calculator'); await w(250);
+        out.opened = furthestRead().property || null;
+        State.deal.price = 512345; State.deal.rent = 2345; markTouched(State.deal, 'price'); markTouched(State.deal, 'rent'); saveDeal(); render(); await w(250);
+        out.own = furthestRead().property || null;
+        const n0 = loadWork().length;
+        saveActiveProperty({ name: 'Furthest step check' }); render(); await w(250);
+        made = loadWork().slice(n0).find(x => x.kind === 'property')?.id || null;
+        out.saved = furthestRead().property || null;
+        navigate('/my/data'); await w(250);
+        out.after = rows();
+        out.today = new Date().toLocaleDateString('en-CA');
+        const doc = exportEverything();
+        out.exported = doc.data.furthestStep || null;
+        localStorage.removeItem('vl.furthestStep');
+        const back = importEverything(doc);
+        out.restorable = back.ok && back.incoming.includes('furthestStep');
+        if (back.ok) back.apply();
+        out.restored = furthestRead().property || null;
+        out.printed = backupPrints().some(p => p.startsWith('furthestStep:'));
+        out.away = performance.getEntriesByType('resource').slice(before).map(e => e.name).filter(u => !u.startsWith(location.origin));
+      } finally {
+        if (made) deletePropertyModel(made);
+        if (kept.work === null) localStorage.removeItem('vl.savedWork'); else localStorage.setItem('vl.savedWork', kept.work);
+        if (kept.step === null) localStorage.removeItem('vl.furthestStep'); else localStorage.setItem('vl.furthestStep', kept.step);
+        State.deal = keptDeal; saveDeal();
+        if (kept.deal === null) localStorage.removeItem('vl.deal'); else localStorage.setItem('vl.deal', kept.deal);
+        navigate('/'); await w(100);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (!Array.isArray(r.fresh) || r.fresh.length !== 3 || r.fresh.some(x => x[1] !== '0' || !/^Not started · first step: /.test(x[2]))) p.push(`a fresh browser's /my/data: ${JSON.stringify(r.fresh)}`);
+    if (r.opened?.n !== 1 || r.opened?.on !== r.today) p.push(`opening the calculator: ${JSON.stringify(r.opened)}, not step 1 today (${r.today})`);
+    if (r.own?.n !== 2) p.push(`the reader's own price and rent: ${JSON.stringify(r.own)}, not step 2`);
+    if (r.saved?.n !== 3) p.push(`a saved property: ${JSON.stringify(r.saved)}, not step 3`);
+    const prop = (r.after || []).find(x => x[0] === 'property');
+    if (!prop || prop[1] !== '3' || !/^3 of 3: Saved a property · \d{1,2} [A-Z][a-z]{2} \d{4}$/.test(prop[2])) p.push(`/my/data after: ${JSON.stringify(r.after)}`);
+    if (r.exported?.products?.property?.n !== 3) p.push(`"Export everything" carries ${JSON.stringify(r.exported)}`);
+    if (!r.restorable || r.restored?.n !== 3) p.push(`a restore: restorable ${r.restorable}, restored ${JSON.stringify(r.restored)}`);
+    if (r.printed) p.push('the backup line counts the furthest step as an item of the reader\'s');
+    if (r.away?.length) p.push(`asked another address while kept: ${r.away.slice(0, 3).join(', ')}`);
+    if (p.length) fail('furthest step (D15c): the record is not kept, shown, carried and restored as the furthest step reached, here only', p);
+    else ok(`furthest step (D15c): a fresh browser has reached none; the calculator opened, the reader's own price and rent, and a saved property are the property's steps 1, 2 and 3, each with the day; /my/data reads "${prop[2]}"; Export everything carries it and a restore takes it back; the backup line does not count it; nothing asked of another address`);
+  }
+  /* ---- end furthest-step ---- */
   /* ---- audit: verify ---- */
   /* THE PROPERTY REPORT'S OFFER IS NOT A SALE EITHER. With the content
      owner's plan prompt merged, the calculator's full-report offer read
