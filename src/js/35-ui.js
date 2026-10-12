@@ -323,7 +323,9 @@ function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.dataset.show = '1';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.dataset.show = '0', 2600);
+  /* Long enough to read: a long one (a save that says where it went) stays
+     up to eight seconds. */
+  toastTimer = setTimeout(() => t.dataset.show = '0', Math.min(8000, Math.max(2600, String(msg).length * 40)));
 }
 
 /* --------------------------------------------------------------- routing */

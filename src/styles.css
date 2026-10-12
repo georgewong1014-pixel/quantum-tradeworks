@@ -1366,6 +1366,10 @@ table.dt tbody tr:hover .pin { background: color-mix(in srgb, var(--brand) 5%, v
   padding: 10px 16px; border-radius: var(--r-md); font-size: 13px; font-weight:500;
   box-shadow: var(--lift-3); opacity: 0; pointer-events: none;
   transition: opacity 240ms ease, transform 240ms ease;
+  /* Placed from the middle, a toast shrank to half the screen: on a phone a
+     long one stood as a narrow column over the card it was about (the 11 Oct
+     2026 audit). Its own width, up to the screen less the gutters. */
+  width: max-content; max-width: min(560px, calc(100vw - 32px));
 }
 .toast[data-show="1"] { opacity: 1; transform: translate(-50%, 0); }
 
@@ -2690,7 +2694,7 @@ a.pp-row:active { transform: translateY(1px); }
   }
   .navscrim { display: none; }
   :root[data-chrome="app"] .dock { left: var(--sidebar-w); }
-  :root[data-chrome="app"] .toast { left: calc(50% + var(--sidebar-w) / 2); }
+  :root[data-chrome="app"] .toast { left: calc(50% + var(--sidebar-w) / 2); max-width: min(560px, calc(100vw - var(--sidebar-w) - 32px)); }
   :root[data-chrome="app"] .modal { left: calc(50% + var(--sidebar-w) / 2); }
   /* The company strip stuck 1px above the edge (the measure less the old
      bar's border); with no bar it rests on the edge. */
