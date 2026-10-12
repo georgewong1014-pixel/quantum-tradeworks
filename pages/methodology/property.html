@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" data-chrome="public" data-served data-served-reads="realData:4db211e5 corrections:741638a5">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script data-first-paint>(function () {
+var d = document.documentElement, s = null;
+try { s = window.localStorage; } catch (e) { s = null; }
+function raw(k) { try { return s ? s.getItem('vl.' + k) : null; } catch (e) { return null; } }
+function val(k) { try { return JSON.parse(raw(k)); } catch (e) { return null; } }
+var theme = val('theme');
+if (theme === 'dark' || theme === 'light') d.setAttribute('data-theme', theme);
+var reads = d.getAttribute('data-served-reads');
+if (!reads) return;
+function hash(t) { var h = 0x811c9dc5; for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return ('0000000' + (h >>> 0).toString(16)).slice(-8); }
+var kept = val('servedReads'), own = kept && kept.v === 1 && kept.d && typeof kept.d === 'object' ? kept.d : {};
+var list = reads.split(' ');
+for (var i = 0; i < list.length; i++) {
+  var at = list[i].indexOf(':'), name = list[i].slice(0, at), was = list[i].slice(at + 1), mine;
+  if (name === 'ownerMachine') mine = !/^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
+  else if (name === 'baseCcy') {
+    var c = val('baseCcy'), tz = '';
+    if (typeof c !== 'string') {
+      try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { tz = ''; }
+      c = (function defaultCcy(tz, langs) {
+  return tz === 'Asia/Kuala_Lumpur' || tz === 'Asia/Kuching' || /-MY\b/i.test(langs) ? 'MYR' : 'USD';
+})(tz, [navigator.language].concat(navigator.languages || []).join(' '));
+    }
+    mine = c === was;
+  } else if (name === 'startHere') { var h = val('startHere'); mine = !(h && typeof h === 'object' && h[was]); }
+  else if (name === 'startHereAll') { var a = val('startHere'), any = false; if (a && typeof a === 'object' && !Array.isArray(a)) for (var k in a) if (a[k]) any = true; mine = !any; }
+  else if (name.slice(0, 5) === 'kept.') mine = raw(name.slice(5)) === null;
+  else { var r = raw(name), e = own[name]; mine = r === null || (!!e && e[0] === hash(r) && e[1] === was); }
+  if (!mine) { d.setAttribute('data-served-hidden', ''); break; }
+}
+if (!d.hasAttribute('data-served-hidden')) return;
+function served() { var v = document.getElementById('views'); return !!v && v.hasAttribute('data-served'); }
+function app(u) { return /\/assets\/app\.[0-9a-f]+\.js(?:[?#]|$)/.test(String(u || '')); }
+function show() { d.removeAttribute('data-served-hidden'); }
+addEventListener('error', function (e) {
+  var t = e.target;
+  if ((t && t.tagName === 'SCRIPT' ? app(t.src) : app(e.filename)) && served()) show();
+}, true);
+setTimeout(function () { if (d.hasAttribute('data-served') && served()) show(); }, 8000);
+})();</script>
+<title>Property routes and assets · Quantum Tradeworks</title>
+<meta name="description" content="What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#2764E7">
+<link rel="canonical" href="https://quantum-tradeworks.vercel.app/methodology/property">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Quantum Tradeworks">
+<meta property="og:url" content="https://quantum-tradeworks.vercel.app/methodology/property">
+<meta property="og:title" content="Property routes and assets · Quantum Tradeworks">
+<meta property="og:description" content="What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.">
+<meta property="og:image" content="https://quantum-tradeworks.vercel.app/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Quantum Tradeworks — evidence-led equity and property research for Malaysian investors.">
+<meta property="og:locale" content="en_MY">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Property routes and assets · Quantum Tradeworks">
+<meta name="twitter:description" content="What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.">
+<meta name="twitter:image" content="https://quantum-tradeworks.vercel.app/og.png">
+
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="stylesheet" href="/assets/app.ea5e64fabbb5.css">
+<script src="/assets/app.58ef76cd7695.js" defer></script>
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+
+
+
+<header class="topbar pubbar" id="pubbar">
+  <div class="bar-in">
+    <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100" role="img">
+          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
+                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
+          <g fill="var(--logo-teal)">
+            <rect x="30" y="30" width="11" height="11" rx="3"/>
+            <rect x="30" y="45" width="11" height="11" rx="3"/>
+          </g>
+          <g fill="var(--logo-amber)">
+            <rect x="47" y="38" width="11" height="11" rx="3"/>
+            <rect x="60" y="38" width="11" height="11" rx="3"/>
+            <rect x="47" y="51" width="11" height="11" rx="3"/>
+            <rect x="60" y="51" width="11" height="11" rx="3"/>
+          </g>
+          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
+                stroke-width="13" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-name">Quantum <span>Tradeworks</span></span>
+    </a>
+
+    <nav class="pubnav" id="pubnav" aria-label="Primary"><ul class="pubnav-list"><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuProductsBtn" aria-expanded="false" aria-controls="menuProducts">Products<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-products" id="menuProducts" hidden=""><ul class="pp-list"><li><a href="/research" data-path="/research" class="pp-row pub-acc-equities" data-product="equities" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Equities Research</span><span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></span><span class="pp-blurb">Financial statements, ratios and valuation models.</span></span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="pp-row pub-acc-scanner" data-product="scanner" aria-description="Beta: Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Quantum Scanner</span><span class="status-badge status-beta" title="Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.">Beta</span></span><span class="pp-blurb">Your own rules, checked against each daily close in your price history, with a record of every match.</span></span></a></li><li><a href="/property" data-path="/property" class="pp-row pub-acc-property" data-product="property" aria-description="Live: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders."><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Property Intelligence</span><span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q">Your figures, sample to start</span></span></span><span class="pp-blurb">Financing, cash flow, rental yield and ROI.</span></span></a></li><li><div class="pp-row pp-row-off" data-product="business"><span class="pp-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex:none"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span><span class="pp-body"><span class="pp-head"><span class="pp-name">Business Intelligence</span><span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span><span class="pp-blurb">Cash flow, profitability and financing scenarios.</span></span></div></li></ul><p class="pp-foot"><a href="/how-it-works" data-path="/how-it-works" class="pp-foot-link">What Live, Beta and Coming soon mean</a></p></div></li><li><a href="/how-it-works" data-path="/how-it-works" class="publink" data-pub="howItWorks">How it works</a></li><li><a href="/pricing" data-path="/pricing" class="publink" data-pub="plans">Pricing</a></li><li class="pubmenu"><button type="button" class="publink pubmenu-btn" id="menuResourcesBtn" aria-expanded="false" aria-controls="menuResources">Resources<span class="pub-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none"><path d="m6 9 6 6 6-6"/></svg></span></button><div class="pubpanel pubpanel-resources" id="menuResources" hidden=""><div class="rs-group"><p class="rs-label" id="menu-rs-method">Method and data</p><ul class="rs-list" aria-labelledby="menu-rs-method"><li><a href="/methodology" data-path="/methodology" class="rs-link">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources" class="rs-link">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary" class="rs-link">Glossary</a></li><li><a href="/learn" data-path="/learn" class="rs-link">Learn</a></li><li><a href="/corrections" data-path="/corrections" class="rs-link">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries" class="rs-link">What this product will not do</a></li></ul></div><div class="rs-group"><p class="rs-label" id="menu-rs-company">This build and its terms</p><ul class="rs-list" aria-labelledby="menu-rs-company"><li><a href="/status" data-path="/status" class="rs-link">Build status</a></li><li><a href="/about" data-path="/about" class="rs-link">About</a></li><li><a href="/contact" data-path="/contact" class="rs-link">Contact</a></li><li><a href="/privacy" data-path="/privacy" class="rs-link">Privacy</a></li><li><a href="/terms" data-path="/terms" class="rs-link">Terms</a></li></ul></div></div></li></ul></nav>
+
+    <div class="bar-actions">
+      <button type="button" class="iconbtn pub-theme" id="themeToggle" data-theme-toggle aria-label="Switch colour theme" title="Switch colour theme">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <a class="btn btn-primary pub-cta" href="/app" data-path="/app">Open<span class="pub-cta-more"> workspace</span></a>
+      <button type="button" class="iconbtn pub-menubtn" id="pubMenuBtn" aria-expanded="false" aria-controls="pubSheet" aria-label="Menu">
+        <svg class="ico-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        <svg class="ico-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+  <nav class="pubsheet" id="pubSheet" aria-label="Primary" hidden></nav>
+</header>
+<div class="pubscrim" id="pubScrim" hidden></div>
+<div class="disclosure" role="region" aria-label="Disclosure">
+  <details class="disclosure-d" id="disclosure">
+    <summary class="disclosure-in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <span class="disclosure-line"><span id="disclosureText"><strong>Beta preview.</strong> Do not use figures here for investment decisions.</span> <span id="disclosureFacts">· SEC-filed and illustrative data, labelled · No licensed prices</span> <span class="disclosure-more">Details</span></span>
+    </summary>
+    <div class="disclosure-body">
+      <p id="disclosureBreakdown">Some companies carry illustrative figures that are synthetic and do not represent real financials.</p>
+      <p class="disclosure-mode"><span class="chip chip-brand">Research mode</span> — factual and analytical outputs only. No advice · No recommendations.</p>
+      <p class="disclosure-links"><a href="/data-sources" data-path="/data-sources">Data sources</a><span aria-hidden="true"> · </span><a href="/how-it-works#hiw-status">What the labels mean</a></p>
+    </div>
+  </details>
+</div>
+
+<main id="main">
+  <div class="ptabs-host" id="productTabs" hidden></div>
+  <div id="views" data-served="/methodology/property"><section class="view" data-active="1" data-drawn-from="realData:4db211e5 ownerMachine:0b069958 corrections:741638a5" data-redrawn="1"><div class="shell"><div><div class="page-hd"><div><p class="eyebrow">Learn · Methodology, in public</p><h1>Property routes and assets</h1><p class="body-lg" style="margin-top:8px">If a number cannot be explained, it should not be shown. The formulas, weights, anchor ranges and limitations are published here; one that is missing is a gap to report — Report an error, under Corrections &amp; model changes, records it.</p></div></div><div class="subnav" aria-label="Methodology sections" style="margin-bottom:var(--lg)"><span data-inert="button">Metric dictionary</span><span data-inert="button">Scoring architecture</span><span data-inert="button">Valuation model router</span><span data-inert="button" data-on="">Property routes and assets</span><span data-inert="button">Data, rights &amp; point-in-time</span><span data-inert="button">Corrections &amp; model changes</span></div><div><div class="card" style="margin-bottom:var(--md)"><div class="card-hd"><div><h3 class="h-card" aria-level="2">Each purchase route, for each kind of property</h3><p class="caption" style="margin-top:2px;max-width:60ch">What the property calculator needs from you, what it returns and what it will not assume — for a subsale, an auction and a new development, on a residential unit, a commercial unit and land. Every figure is arithmetic on your own inputs, your registers or the fee rulebook. None is a market figure, and nothing is ranked.</p></div></div><p class="metaline">Each row is held in the test suite to answers worked by hand from these rules — never read back from the calculator — and the suite runs before every release.</p></div><section class="card" id="property-states" style="margin-bottom:var(--md)" aria-labelledby="property-states-h"><div class="card-hd"><div><h2 class="h-card" id="property-states-h">When a figure is missing</h2><p class="caption" style="margin-top:2px">A missing figure is never shown as nought or left blank. It reads as one of these, with its reason.</p></div></div><dl class="fee-book-dl fee-book-key pm-states"><dt>Unavailable</dt><dd>An input it needs is not entered. The page names the input.</dd><dt>Not final</dt><dd>An auction figure while any of the six checks is open.</dd><dt>Not for this route</dt><dd>A figure of another purchase route.</dd><dt>Not for this asset</dt><dd>A quantity the property does not have — land’s rent, yield and debt-service cover — or a route not written for it.</dd><dt>Not yet checked for commercial property (or land)</dt><dd>A fee line whose rule differs by class. It carries no amount, and the cash required is a partial total that names it.</dd></dl></section><section class="card" id="property-routes" style="margin-bottom:var(--md)" aria-labelledby="property-routes-h"><div class="card-hd"><div><h2 class="h-card" id="property-routes-h">The routes, one by one</h2></div></div><ul class="fee-book-list"><li class="fee-book-line" id="route-subsale-residential" data-route-contract="subsale-residential"><p class="fee-book-name"><strong>Subsale · Residential</strong></p><p class="metaline">The default, and every deal saved before the routes existed.</p><dl class="fee-book-dl"><dt>You enter</dt><dd>The price, the down payment, the loan’s rate and tenure, the rent, and the running costs — the sample’s, marked Illustrative, until you change them.</dd><dt>Optional</dt><dd>The asking price; comparables named from your register; a tenancy and its rent; condition and age; charges the sale passes to you; a target for the monthly position or the net yield; a valuation; a booking deposit already paid; mortgage protection, left out unless you include it or enter a quote.</dd><dt>It returns</dt><dd>The cash required, every fee line with its kind; the monthly position, before tax on the rent; the net yield; the break-even rent and occupancy; the value less the loan at the sale; the rate of return; the gap between the asking price and your comparables; and the highest price that meets your target.</dd><dt>When it is missing</dt><dd>With no tenure the loan has no schedule, so the instalment, the reserve and every figure resting on them are Unavailable. With no comparables named, or no asking price, there is no price gap.</dd></dl></li><li class="fee-book-line" id="route-subsale-commercial" data-route-contract="subsale-commercial"><p class="fee-book-name"><strong>Subsale · Commercial</strong></p><p class="metaline">A shop, an office or any other commercial subtype.</p><dl class="fee-book-dl"><dt>You enter</dt><dd>As a residential subsale, and the tenancy: tenanted, vacant or not known — for a tenanted unit, its contract rent and lease expiry.</dd><dt>Optional</dt><dd>The asking rent; achieved rents named from your register; fit-out for a re-let; rent-free months still to run; a service charge the tenant pays you; escalation, deposit, tenant, frontage, floor and parking, recorded without a figure.</dd><dt>It returns</dt><dd>The net yield at the contract rent and at your model rent; the contract rent against the achieved rents you named — highest, lowest and median; the four rents kept apart, never blended; the cash over the rest of the lease, its effective yield and average monthly position; and the reserve and effective yield if the unit stands empty 3, 6, 12 or 18 months from the expiry.</dd><dt>When it is missing</dt><dd>A vacant unit has no contract-rent figures. Without the contract rent or the expiry, the rest of the lease is Unavailable and names the one missing.</dd><dt>Fee lines</dt><dd>Not yet checked for commercial property, so not charged: Loan legal fees; Searches and the firm’s disbursements; Utility and management deposits; Mortgage protection (MRTA/MLTA) (fee rulebook 1.2.0). <a href="/data-sources#fee-rulebook-class">Each line, and why</a></dd></dl></li><li class="fee-book-line" id="route-auction" data-route-contract="auction"><p class="fee-book-name"><strong>Auction · Residential or commercial</strong></p><p class="metaline">The same model for both.</p><dl class="fee-book-dl"><dt>You enter</dt><dd>The winning bid you expect. For the true discount, a comparable — typed with its source and date, or named from your register. For the deposit at risk, the deposit’s per cent, what it is a share of (the reserve or the bid) and the days to pay the balance: never assumed.</dd><dt>Optional</dt><dd>The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under the market value.</dd><dt>It returns</dt><dd>The steps from the market value to the bid and on to the effective acquisition cost; the true discount — the market value less the effective cost, as a share of the market value; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.</dd><dt>When it is missing</dt><dd>Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no market value is Unavailable.</dd><dt>Fee lines</dt><dd>Not yet checked for commercial property, so not charged: Loan legal fees; Searches and the firm’s disbursements; Utility and management deposits; Mortgage protection (MRTA/MLTA) (fee rulebook 1.2.0). <a href="/data-sources#fee-rulebook-class">Each line, and why</a></dd></dl></li><li class="fee-book-line" id="route-newdev-residential" data-route-contract="newdev-residential"><p class="fee-book-name"><strong>New development · Residential</strong></p><dl class="fee-book-dl"><dt>You enter</dt><dd>The SPA price. For the premium, a completed comparable. For the interest during construction: your schedule of progressive drawdown — stages adding to 100%, each with its month after signing — the SPA month, the month of vacant possession and a loan.</dd><dt>Optional</dt><dd>Developer rebates and incentives, taken off the cash required; the rent and occupancy at completion; furnishing; a completion delay in whole months.</dd><dt>It returns</dt><dd>The premium over the comparable; the interest during construction, a line of the cash required; the monthly position from vacant possession; exit values three, five and ten years after it — modelled on your growth assumption, not a forecast; the rent and the yearly growth that would justify the premium; and what a delay adds.</dd><dt>When it is missing</dt><dd>The interest during construction is Unavailable until the schedule, its months and both dates are entered. Sarawak’s prescribed stage percentages are offered as a template, never applied for you. Without a comparable there is no premium and no exit value.</dd><dt>Known limit</dt><dd>The calculator’s rate of return and its holding period still count from the purchase, not from vacant possession.</dd></dl></li><li class="fee-book-line" id="route-newdev-commercial" data-route-contract="newdev-commercial"><p class="fee-book-name"><strong>New development · Commercial</strong></p><dl class="fee-book-dl"><dt>You enter</dt><dd>As a residential new development, on your own schedule.</dd><dt>It returns</dt><dd>As a residential new development.</dd><dt>Not for this asset</dt><dd>Sarawak’s prescribed stages and its 18-month defect liability are those of the sale and purchase forms for housing accommodation (the 2014 Regulations). They are not offered or stated for a commercial unit: its SPA sets its own stages and terms — enter yours.</dd><dt>Fee lines</dt><dd>Not yet checked for commercial property, so not charged: Loan legal fees; Searches and the firm’s disbursements; Utility and management deposits; Mortgage protection (MRTA/MLTA) (fee rulebook 1.2.0). <a href="/data-sources#fee-rulebook-class">Each line, and why</a></dd></dl></li><li class="fee-book-line" id="route-land" data-route-contract="land"><p class="fee-book-name"><strong>Subsale or auction · Land</strong></p><p class="metaline">A bare parcel.</p><dl class="fee-book-dl"><dt>You enter</dt><dd>As the route asks, less everything a tenancy would need: land has no rent, vacancy, net operating income, yield, debt-service cover, break-even rent or empty months, and each reads “not a quantity this asset has”.</dd><dt>It returns</dt><dd>The monthly position — the instalment and the costs a parcel does carry: assessment, quit rent and insurance; the price gap against land sales, by land area. A yield target is not applicable.</dd><dt>Not for this asset</dt><dd>A bare parcel has no strata body, so there are no maintenance or sinking-fund arrears to pass on.</dd><dt>Fee lines</dt><dd>Not yet checked for land, so not charged: Valuation fee; Searches and the firm’s disbursements; Utility and management deposits; Mortgage protection (MRTA/MLTA) (fee rulebook 1.2.0). <a href="/data-sources#fee-rulebook-class">Each line, and why</a></dd></dl></li><li class="fee-book-line" id="route-newdev-land" data-route-contract="newdev-land"><p class="fee-book-name"><strong>New development · Land</strong></p><dl class="fee-book-dl"><dt>It returns</dt><dd>Nothing of the route runs: no premium, no interest during construction, no rebate and no exit values. The cash required is the subsale’s, and the page says Not for this asset.</dd><dt>Not for this asset</dt><dd>The developer premium model prices a building bought off plan — stages of construction, vacant possession, a completed unit to set the premium against. A bare parcel has none of these, so it is not run for land.</dd></dl></li></ul><p class="metaline">A quotation you enter — your lawyer’s, a mortgage protection premium — stands for any kind of property. No commercial or land rate is made up. <a href="/property/calculator">Open the calculator</a></p></section></div></div></div></section></div>
+  <p class="sr-only" id="liveStatus" role="status" aria-live="polite"></p>
+</main>
+<header class="topbar appbar" id="appbar" hidden data-served-away="hidden">
+  <div class="bar-in">
+    <button type="button" class="iconbtn" id="navOpen" aria-expanded="false" aria-controls="sidebar" aria-label="Open the menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100" role="img">
+          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
+                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
+          <g fill="var(--logo-teal)">
+            <rect x="30" y="30" width="11" height="11" rx="3"/>
+            <rect x="30" y="45" width="11" height="11" rx="3"/>
+          </g>
+          <g fill="var(--logo-amber)">
+            <rect x="47" y="38" width="11" height="11" rx="3"/>
+            <rect x="60" y="38" width="11" height="11" rx="3"/>
+            <rect x="47" y="51" width="11" height="11" rx="3"/>
+            <rect x="60" y="51" width="11" height="11" rx="3"/>
+          </g>
+          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
+                stroke-width="13" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-name">Quantum <span>Tradeworks</span></span>
+    </a>
+    <button type="button" class="searchbtn appbar-search" data-open-search aria-label="Search companies, pages and tools, and your saved work">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <span class="appbar-search-label">Search</span>
+    </button>
+  </div>
+</header>
+<aside class="sidebar" id="sidebar" aria-label="Workspace" hidden data-served-away="hidden">
+  <div class="sb-top">
+    <a class="brand" href="/" data-path="/" aria-label="Quantum Tradeworks home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 100 100" role="img">
+          <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
+                stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
+          <g fill="var(--logo-teal)">
+            <rect x="30" y="30" width="11" height="11" rx="3"/>
+            <rect x="30" y="45" width="11" height="11" rx="3"/>
+          </g>
+          <g fill="var(--logo-amber)">
+            <rect x="47" y="38" width="11" height="11" rx="3"/>
+            <rect x="60" y="38" width="11" height="11" rx="3"/>
+            <rect x="47" y="51" width="11" height="11" rx="3"/>
+            <rect x="60" y="51" width="11" height="11" rx="3"/>
+          </g>
+          <path d="M63 67 L81 85" fill="none" stroke="var(--logo-teal)"
+                stroke-width="13" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="brand-name">Quantum <span>Tradeworks</span></span>
+    </a>
+    <button type="button" class="iconbtn sb-close" id="navClose" aria-label="Close the menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <button type="button" class="searchbtn sb-search" id="openSearch" data-open-search aria-label="Search companies, pages and tools, and your saved work">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex:none"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <span class="searchbtn-label" id="searchLabel">Search</span>
+    <span class="kbd" aria-hidden="true">/</span>
+  </button>
+  <nav class="sb-nav" id="appnav" aria-label="Primary"></nav>
+  <div class="sb-foot">
+    <button type="button" class="sb-link sb-theme" data-theme-toggle aria-label="Switch colour theme">
+      <svg class="sb-ico" data-theme-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <span class="sb-label-text" data-theme-label>Theme</span>
+    </button>
+  </div>
+</aside>
+<div class="navscrim" id="navScrim" hidden></div>
+
+<footer class="footer">
+  <div class="shell">
+    <div class="footer-grid">
+      <div class="foot-brand">
+          <span class="brand-mark" aria-hidden="true" style="width:46px;height:46px">
+            <svg viewBox="0 0 100 100" role="img">
+              <path d="M69.1 80.5 A36 36 0 1 1 84.2 61.1" fill="none"
+                    stroke="var(--logo-blue)" stroke-width="11.5" stroke-linecap="round"/>
+              <g fill="var(--logo-teal)">
+                <rect x="38" y="24" width="9" height="9" rx="2.6"/>
+                <rect x="30" y="33.5" width="9" height="9" rx="2.6"/>
+                <rect x="22" y="43" width="9" height="9" rx="2.6"/>
+                <rect x="22" y="52.5" width="9" height="9" rx="2.6"/>
+              </g>
+              <g fill="var(--logo-amber)">
+                <rect x="47" y="33.5" width="9" height="9" rx="2.6"/>
+                <rect x="57.5" y="33.5" width="9" height="9" rx="2.6"/>
+                <rect x="47" y="43" width="9" height="9" rx="2.6"/>
+                <rect x="57.5" y="43" width="9" height="9" rx="2.6"/>
+                <rect x="47" y="52.5" width="9" height="9" rx="2.6"/>
+                <rect x="57.5" y="52.5" width="9" height="9" rx="2.6"/>
+              </g>
+              <path d="M64 68 L81 85" fill="none" stroke="var(--logo-teal)"
+                    stroke-width="12.5" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <div class="foot-brand-body">
+            <span class="brand-name">Quantum <span>Tradeworks</span></span>
+            <span class="brand-tagline" style="display:block">Research <i>·</i> Monitor <i class="amber">·</i> Model <i>·</i> Plan</span>
+            <p class="body foot-desc">A financial decision workspace: research a company, build your own setups, model a property. Business planning: planned, not yet scheduled.</p>
+            <div class="row row-wrap" style="margin-top:var(--md);gap:6px">
+              <span class="chip chip-us">United States</span>
+              <span class="chip chip-my">Bursa Malaysia</span>
+            </div>
+          </div>
+      </div>
+      <div>
+        <h2>Products</h2>
+        <ul id="footProducts"><li><a href="/research" data-path="/research" class="foot-product" aria-description="Beta: Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Equities Research<span class="status-badge status-beta" title="Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.">Beta</span></a></li><li><a href="/app/scanner" data-path="/app/scanner" class="foot-product" aria-description="Beta: Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.">Quantum Scanner<span class="status-badge status-beta" title="Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.">Beta</span></a></li><li><a href="/property" data-path="/property" class="foot-product" aria-description="Live: Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Property Intelligence<span class="pbadge" data-badge-of="property"><span class="status-badge status-live" title="Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.">Live</span><span class="pbadge-q">Your figures, sample to start</span></span></a></li><li><span class="foot-product foot-product-off">Business Intelligence<span class="status-badge status-soon" title="Not built yet — nothing to open.">Coming soon</span></span></li></ul>
+      </div>
+      <div>
+        <h2>Resources</h2>
+        <ul id="footResources"><li><a href="/methodology" data-path="/methodology">Methodology</a></li><li><a href="/data-sources" data-path="/data-sources">Data sources</a></li><li><a href="/learn/glossary" data-path="/learn/glossary">Glossary</a></li><li><a href="/learn" data-path="/learn">Learn</a></li><li><a href="/corrections" data-path="/corrections">Corrections</a></li><li><a href="/learn/product-boundaries" data-path="/learn/product-boundaries">What this product will not do</a></li><li><a href="/status" data-path="/status">Build status</a></li><li><a href="/property-investing" data-path="/property-investing">Property investing in Sarawak</a></li><li><button type="button" class="linklike" data-action="report-error">Report a data error</button></li></ul>
+      </div>
+      <div>
+        <h2>Company</h2>
+        <ul>
+          <li><a href="/about" data-path="/about">About</a></li>
+          <li><a href="/contact" data-path="/contact">Contact</a></li>
+          <li><a href="/pricing" data-path="/pricing">Plans &amp; pricing</a></li>
+          <li><a href="/privacy" data-path="/privacy">Privacy</a></li>
+          <li><a href="/terms" data-path="/terms">Terms</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer-legal">
+      Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability
+      assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell
+      any security. Financial figures come from <strong>two different places and are labelled on every page</strong>: statements filed with
+      the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked
+      illustrative, which are synthetic and created for interface demonstration. <strong>No market-data licence is in place for either exchange.</strong> A filed company therefore carries no
+      price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as
+      unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and
+      is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed
+      market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act
+      before launch.
+    </p>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim"></div>
+
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden>
+  <div class="drawer-hd">
+    <h2 class="h-card" id="drawerTitle">Details</h2>
+    <span class="spacer"></span>
+    <button class="iconbtn" data-close-drawer aria-label="Close panel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="drawer-bd" id="drawerBody"></div>
+</aside>
+
+<div class="modal search-modal" id="searchModal" role="dialog" aria-modal="true" aria-label="Search" hidden>
+  <div class="search-head">
+    <svg class="search-head-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input class="input search-input" id="searchInput" aria-label="Search companies, pages and tools, and your saved work" aria-describedby="searchHint" aria-controls="searchResults" placeholder="Companies, pages, saved work…" autocomplete="off" spellcheck="false">
+    <span class="kbd search-esc" aria-hidden="true"></span>
+    <button type="button" class="iconbtn search-close" id="closeSearch" aria-label="Close search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div id="searchResults" class="search-results"></div>
+  <div class="search-keys" aria-hidden="true"></div>
+  <p class="sr-only" id="searchHint"></p>
+  <p class="sr-only" id="searchStatus" role="status" aria-live="polite"></p>
+</div>
+
+<div class="viztip" id="viztip" role="status" aria-live="polite"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

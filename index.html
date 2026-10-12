@@ -3397,6 +3397,13 @@ th .kind-th { vertical-align: middle; }
 .fee-book-h3 { margin: var(--md) 0 var(--xs); font-size: var(--ls-support); font-weight: 600; }
 .fee-book-notes { margin: 0; padding-left: 1.2em; max-width: var(--ls-measure); font-size: var(--ls-support); line-height: 1.5; }
 .fee-book-notes li + li { margin-top: var(--xs); }
+/* /methodology/property: the states a missing figure reads as — the term
+   is what a reader looks up, so it leads; a long term wraps in its column
+   rather than pushing every definition across. */
+.fee-book-dl.pm-states { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); gap: var(--xs) var(--md); }
+.fee-book-dl.pm-states dt { color: var(--ink); font-weight: 600; }
+.fee-book-dl.pm-states dd { color: var(--ink-2); }
+@media (max-width: 479.98px) { .fee-book-dl.pm-states { grid-template-columns: minmax(0, 1fr); gap: 0; } .fee-book-dl.pm-states dd { margin-bottom: var(--sm); } }
 @media (max-width: 479.98px) { .fee-book-dl { grid-template-columns: minmax(0, 1fr); gap: 0; } .fee-book-dl dd { margin-bottom: 6px; } .fee-book-cat { margin-left: 0; flex: 1 0 100%; } }
 
 /* The status badge's qualifier, wherever Property's badge is (D17): the
@@ -20524,6 +20531,7 @@ const ROUTES = [
   { path: '/learn',               view: 'learn',     title: 'Learn' },
   { path: '/learn/glossary',      view: 'learn',     tab: 'glossary',  title: 'Glossary' },
   { path: '/methodology',         view: 'learn',     tab: 'models',    title: 'Methodology' },
+  { path: '/methodology/property', view: 'learn',   tab: 'property',  title: 'Property routes and assets' },
   { path: '/data-sources',        view: 'learn',     tab: 'data',      title: 'Data sources' },
   { path: '/learn/product-boundaries', view: 'boundaries', title: 'What this product will not do' },
   { path: '/status',              view: 'status',    title: 'Build status' },
@@ -20571,6 +20579,7 @@ const META = {
   /* /Phase 3 — ops */
   learn:     'The methodology in public: the metric dictionary, the scoring architecture, the valuation model router, the data and its rights, and the corrections log — each a tab of this page.',
   'learn:glossary': 'The metric dictionary: each measure defined once, with its formula, the statement lines it reads, its unit and period and what happens when a figure is missing — and the measures blocked because the stored statements lack a line.',
+  'learn:property': 'What the property calculator needs, returns and will not assume for each purchase route — subsale, auction and new development — on residential, commercial and land: the states a missing figure reads as, the gates and the fee lines not yet checked by class.',
   'learn:models': 'How each company type is routed to a valuation model pack — bank, insurer, REIT, cyclical, growth, subscription software, holding company and the rest — with each pack’s secondary checks and its published limitations.',
   'learn:data': 'Where each figure comes from and what may be done with it: the source hierarchy, the badge words, the property fee rulebook with each line’s rule and checked date, the NAPIC licence position, the point-in-time policy and what this build does not hold.',
   'learn:trust': 'The corrections log — what was wrong and what changed, most recent first — the research and advisory modes, the cases you record in this browser, and how a figure is reported against the exact item.',
@@ -23569,10 +23578,10 @@ function lsAlertCard({ text, sub = null, cta, cls = '', attrs = {} }) {
   ]);
 }
 /* INSIGHT: a finding, its figure, and "See why →" into the evidence. */
-function lsInsightCard({ figure, finding, sub = null, cta, cls = '', attrs = {}, label = null }) {
+function lsInsightCard({ figure, finding, sub = null, cta, badge = null, cls = '', attrs = {}, label = null }) {
   cta.classList.add('ls-card-cta');
   return el('div', { ...attrs, class: `ls-card${cls ? ` ${cls}` : ''}`, 'data-card': 'insight' }, [
-    label ? el('p', { class: 'ls-card-hd' }, el('span', { class: 'ls-card-label' }, label)) : null,
+    label ? el('p', { class: 'ls-card-hd' }, [el('span', { class: 'ls-card-label' }, label), badge ? ' ' : null, badge]) : null,
     el('div', { class: 'ls-card-row' }, [figure, el('div', { class: 'ls-card-body' }, [finding, sub])]),
     cta,
   ]);
@@ -38441,6 +38450,7 @@ const LEARN_TABS = [
   { id:'dictionary', label:'Metric dictionary' },
   { id:'scoring',    label:'Scoring architecture' },
   { id:'models',     label:'Valuation model router' },
+  { id:'property',   label:'Property routes and assets' },
   { id:'data',       label:'Data, rights & point-in-time' },
   { id:'trust',      label:'Corrections & model changes' },
 ];
@@ -38453,7 +38463,7 @@ VIEWS.learn = () => {
      page rendered its header, its tab strip and nothing else. Resolved before
      the strip is built so the correct tab is also the one highlighted, and
      aliased rather than renamed because these URLs are already in the wild. */
-  const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, data: learnData, trust: learnTrust };
+  const panels = { dictionary: learnDictionary, scoring: learnScoring, models: learnModels, property: learnProperty, data: learnData, trust: learnTrust };
   if (!panels[State.learnTab]) State.learnTab = LEARN_TAB_ALIAS[State.learnTab] || 'dictionary';
   /* The heading names the tab on screen. Five Resources links open this
      page — Methodology, Data sources, Glossary, Learn, Corrections — and every
@@ -38686,6 +38696,104 @@ function learnModels() {
     gl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   guards.append(gl);
   wrap.append(guards);
+  return wrap;
+}
+
+/* PROPERTY ROUTES AND ASSETS (the 11 Oct 2026 audit, #4): the mode
+   contracts of the validation pass, in plain words. Each purchase route on
+   each kind of property — what the calculator needs, what it returns, and
+   what it will not assume — held in model-test.mjs (val-contracts V1–V6,
+   val-fee-gates G1–G4) to answers worked by hand. The gates are read from
+   ROUTE_ASSET_GATES and the fee lines from the rulebook's class rules, so
+   this page cannot word either apart from the calculator. One entry a row,
+   as the fee rulebook is: a phone reads it as cards, never a sideways
+   scroll. */
+const PROPERTY_CONTRACTS = [
+  { id: 'subsale-residential', route: 'Subsale', asset: 'Residential', note: 'The default, and every deal saved before the routes existed.',
+    enter: 'The price, the down payment, the loan’s rate and tenure, the rent, and the running costs — the sample’s, marked Illustrative, until you change them.',
+    optional: 'The asking price; comparables named from your register; a tenancy and its rent; condition and age; charges the sale passes to you; a target for the monthly position or the net yield; a valuation; a booking deposit already paid; mortgage protection, left out unless you include it or enter a quote.',
+    returns: 'The cash required, every fee line with its kind; the monthly position, before tax on the rent; the net yield; the break-even rent and occupancy; the value less the loan at the sale; the rate of return; the gap between the asking price and your comparables; and the highest price that meets your target.',
+    missing: 'With no tenure the loan has no schedule, so the instalment, the reserve and every figure resting on them are Unavailable. With no comparables named, or no asking price, there is no price gap.' },
+  { id: 'subsale-commercial', route: 'Subsale', asset: 'Commercial', note: 'A shop, an office or any other commercial subtype.',
+    enter: 'As a residential subsale, and the tenancy: tenanted, vacant or not known — for a tenanted unit, its contract rent and lease expiry.',
+    optional: 'The asking rent; achieved rents named from your register; fit-out for a re-let; rent-free months still to run; a service charge the tenant pays you; escalation, deposit, tenant, frontage, floor and parking, recorded without a figure.',
+    returns: 'The net yield at the contract rent and at your model rent; the contract rent against the achieved rents you named — highest, lowest and median; the four rents kept apart, never blended; the cash over the rest of the lease, its effective yield and average monthly position; and the reserve and effective yield if the unit stands empty 3, 6, 12 or 18 months from the expiry.',
+    missing: 'A vacant unit has no contract-rent figures. Without the contract rent or the expiry, the rest of the lease is Unavailable and names the one missing.',
+    fees: 'commercial' },
+  { id: 'auction', route: 'Auction', asset: 'Residential or commercial', note: 'The same model for both.',
+    enter: 'The winning bid you expect. For the true discount, a comparable — typed with its source and date, or named from your register. For the deposit at risk, the deposit’s per cent, what it is a share of (the reserve or the bid) and the days to pay the balance: never assumed.',
+    optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under the market value.',
+    returns: 'The steps from the market value to the bid and on to the effective acquisition cost; the true discount — the market value less the effective cost, as a share of the market value; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
+    missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no market value is Unavailable.',
+    fees: 'commercial' },
+  { id: 'newdev-residential', route: 'New development', asset: 'Residential',
+    enter: 'The SPA price. For the premium, a completed comparable. For the interest during construction: your schedule of progressive drawdown — stages adding to 100%, each with its month after signing — the SPA month, the month of vacant possession and a loan.',
+    optional: 'Developer rebates and incentives, taken off the cash required; the rent and occupancy at completion; furnishing; a completion delay in whole months.',
+    returns: 'The premium over the comparable; the interest during construction, a line of the cash required; the monthly position from vacant possession; exit values three, five and ten years after it — modelled on your growth assumption, not a forecast; the rent and the yearly growth that would justify the premium; and what a delay adds.',
+    missing: 'The interest during construction is Unavailable until the schedule, its months and both dates are entered. Sarawak’s prescribed stage percentages are offered as a template, never applied for you. Without a comparable there is no premium and no exit value.',
+    limit: 'The calculator’s rate of return and its holding period still count from the purchase, not from vacant possession.' },
+  { id: 'newdev-commercial', route: 'New development', asset: 'Commercial', gate: 'newdev|commercial',
+    enter: 'As a residential new development, on your own schedule.',
+    returns: 'As a residential new development.',
+    fees: 'commercial' },
+  { id: 'land', route: 'Subsale or auction', asset: 'Land', note: 'A bare parcel.',
+    enter: 'As the route asks, less everything a tenancy would need: land has no rent, vacancy, net operating income, yield, debt-service cover, break-even rent or empty months, and each reads “not a quantity this asset has”.',
+    returns: 'The monthly position — the instalment and the costs a parcel does carry: assessment, quit rent and insurance; the price gap against land sales, by land area. A yield target is not applicable.',
+    gate: 'auction|land', fees: 'land' },
+  { id: 'newdev-land', route: 'New development', asset: 'Land', gate: 'newdev|land',
+    returns: 'Nothing of the route runs: no premium, no interest during construction, no rebate and no exit values. The cash required is the subsale’s, and the page says Not for this asset.' },
+];
+const PROPERTY_STATES = [
+  ['Unavailable', 'An input it needs is not entered. The page names the input.'],
+  ['Not final', 'An auction figure while any of the six checks is open.'],
+  ['Not for this route', 'A figure of another purchase route.'],
+  ['Not for this asset', 'A quantity the property does not have — land’s rent, yield and debt-service cover — or a route not written for it.'],
+  ['Not yet checked for commercial property (or land)', 'A fee line whose rule differs by class. It carries no amount, and the cash required is a partial total that names it.'],
+];
+function learnProperty() {
+  const wrap = el('div');
+  const intro = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
+  intro.append(cardHead('Each purchase route, for each kind of property',
+    'What the property calculator needs from you, what it returns and what it will not assume — for a subsale, an auction and a new development, on a residential unit, a commercial unit and land. Every figure is arithmetic on your own inputs, your registers or the fee rulebook. None is a market figure, and nothing is ranked.'));
+  intro.append(el('p', { class: 'metaline' }, 'Each row is held in the test suite to answers worked by hand from these rules — never read back from the calculator — and the suite runs before every release.'));
+  wrap.append(intro);
+
+  const states = el('section', { class: 'card', id: 'property-states', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'property-states-h' });
+  states.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'property-states-h' }, 'When a figure is missing'),
+    el('p', { class: 'caption', style: 'margin-top:2px' }, 'A missing figure is never shown as nought or left blank. It reads as one of these, with its reason.'),
+  ])));
+  states.append(el('dl', { class: 'fee-book-dl fee-book-key pm-states' }, PROPERTY_STATES.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)])));
+  wrap.append(states);
+
+  const rows = el('section', { class: 'card', id: 'property-routes', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'property-routes-h' });
+  rows.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'property-routes-h' }, 'The routes, one by one'),
+  ])));
+  const feeWords = (cls) => {
+    const lines = feeGatedFor(cls).map(x => x.title);
+    return lines.length ? [`Not yet checked for ${cls === 'land' ? 'land' : 'commercial property'}, so not charged: ${lines.join('; ')} (fee rulebook ${FEE_TABLE.version}). `,
+      el('a', { href: '/data-sources#fee-rulebook-class' }, 'Each line, and why')] : null;
+  };
+  rows.append(el('ul', { class: 'fee-book-list' }, PROPERTY_CONTRACTS.map(r => {
+    const gate = r.gate ? ROUTE_ASSET_GATES[r.gate] : null;
+    const facts = [
+      ['You enter', r.enter], ['Optional', r.optional], ['It returns', r.returns], ['When it is missing', r.missing],
+      /* The gate's own reason, less the clause that points at the calculator's
+         figures ("the figures below"), which are not on this page. */
+      ['Not for this asset', gate ? gate.why.replace(/: the figures below[^.]*\./, '.') : null],
+      ['Fee lines', r.fees ? feeWords(r.fees) : null],
+      ['Known limit', r.limit],
+    ].filter(([, v]) => v);
+    return el('li', { class: 'fee-book-line', id: `route-${r.id}`, 'data-route-contract': r.id }, [
+      el('p', { class: 'fee-book-name' }, [el('strong', {}, `${r.route} · ${r.asset}`)]),
+      r.note ? el('p', { class: 'metaline' }, r.note) : null,
+      el('dl', { class: 'fee-book-dl' }, facts.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)])),
+    ]);
+  })));
+  rows.append(el('p', { class: 'metaline' }, ['A quotation you enter — your lawyer’s, a mortgage protection premium — stands for any kind of property. No commercial or land rate is made up. ',
+    el('a', { href: '/property/calculator' }, 'Open the calculator')]));
+  wrap.append(rows);
   return wrap;
 }
 
@@ -58401,7 +58509,10 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   ]));
   if (dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
     `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
-  if (notes.length) body.append(el('div', { class: 'pq-notes' }, notes));
+  /* Every route on every kind, written down (the 11 Oct 2026 audit, #4). */
+  notes.push(el('p', { class: 'pq-note', 'data-note': 'contracts' },
+    el('a', { href: '/methodology/property' }, 'What each route needs, returns and will not assume')));
+  body.append(el('div', { class: 'pq-notes' }, notes));
   return box;
 }
 
@@ -58482,7 +58593,11 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
   /* The price gap. */
   if (g.status === 'ok') {
     const w = priceGapWords(g);
+    /* Its kind (D6): the weakest of the asking price and the comparables
+       named — each as the reader recorded it (samples are never named). */
+    const gapKind = kindFirst([KIND_OF_EVIDENCE[d?.evidence?.askingPrice || 'user'] || 'yours', ...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours')]) || 'yours';
     cards.append(lsInsightCard({ label: 'Price gap', cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': String(g.askingGap.amount) },
+      badge: auBadge(gapKind, 'your asking price and the comparables you named'),
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`, g.askingComps?.length ? ` ${pqAskingWords(g)}` : '']),
@@ -58504,7 +58619,10 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
       cta: lsCta('Set a target', { id: `${prefix}-pe-target-go`, onclick: setTarget }) }));
   } else {
     const w = priceSolveWords(s, d);
+    /* Solved on the whole deal: its weakest input, and the model's step. */
+    const solveKind = dealKind(d, null, { also: ['modelled'] });
     cards.append(lsInsightCard({ label: 'The price that makes this work', cls: 'pe-card pe-solve',
+      badge: auBadge(solveKind.kind, solveKind.fine),
       attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' ? String(s.price) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
@@ -59214,7 +59332,8 @@ function ndResults({ n, d, prefix, why = {} }) {
         : rn.status === 'pending' ? 'Working out the rent that covers the premium.' : (rn.why || 'Not computable for these inputs.');
     const sub = gn.status === 'solved' ? `Or values growing ${fmtNum(gn.pct, 1)}% a year, for a completed unit worth ${pqMoney(n.comp)} to be worth the ${pqMoney(n.paid)} you pay by vacant possession, ${fmtNum(gn.years, 1)} years after signing.`
       : gn.status === 'no-dates' ? 'The growth that would cover it needs the SPA month and the month of vacant possession.' : null;
-    box.append(lsInsightCard({ label: 'What would justify the premium', cls: 'nd-card nd-needed', attrs: { 'data-nd-fig': 'needed', 'data-status': rn.status, 'data-value': rn.status === 'solved' ? String(rn.rent) : '', 'data-growth': gn.status === 'solved' ? String(auR4(gn.pct)) : '' },
+    box.append(lsInsightCard({ label: 'What would justify the premium', cls: 'nd-card nd-needed',
+      badge: auBadge(n.rentKind === 'illustrative' ? 'illustrative' : 'modelled', 'solved on your assumptions'),attrs: { 'data-nd-fig': 'needed', 'data-status': rn.status, 'data-value': rn.status === 'solved' ? String(rn.rent) : '', 'data-growth': gn.status === 'solved' ? String(auR4(gn.pct)) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, figure), finding: el('p', { class: 'ls-card-title' }, finding), sub: sub ? el('p', { class: 'ls-card-sub' }, sub) : null,
       cta: lsCta('See why', { id: `${prefix}-nd-needed-why`, onclick: why.needed, sr: ' this rent and growth would cover the premium' }) }));
   }
@@ -59614,7 +59733,10 @@ function cmResults({ c, d, prefix, why = {}, toRents = null }) {
       cta: lsCta('Name them', { id: `${prefix}-cm-sustain-go`, onclick: toRents }) }));
   } else {
     const a = c.sustain.status === 'ok' ? c.sustain.contract : c.sustain.model;
+    /* The weaker of the achieved rents and the rent set against them. */
+    const rentKind = (id) => c.rents.find(r => r.id === id)?.kind || 'unavailable';
     box.append(lsInsightCard({ label: 'Rent sustainability', cls: 'cm-card cm-sustain',
+      badge: auBadge(kindFirst([rentKind('observed'), rentKind(c.sustain.status === 'ok' ? 'contract' : 'model')]), 'the achieved rents you named'),
       attrs: { 'data-cm-fig': 'sustain', 'data-status': c.sustain.status, 'data-lo': a ? String(auR4(a.lo)) : '', 'data-hi': a ? String(auR4(a.hi)) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure), finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,

@@ -4115,7 +4115,7 @@
         "appnav": []
       },
       "inert": {
-        "buttons": 6,
+        "buttons": 7,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -4126,8 +4126,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4eba85d486e2280d",
-      "changed": "2026-10-11"
+      "digest": "f1dc8d7c1d4b4830",
+      "changed": "2026-10-12"
     },
     "pages/data-sources.html": {
       "path": "/data-sources",
@@ -4144,7 +4144,7 @@
         "appnav": []
       },
       "inert": {
-        "buttons": 5,
+        "buttons": 6,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -4155,8 +4155,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d1ce709bd14f79c2",
-      "changed": "2026-10-11"
+      "digest": "5812f04a57ba2d2a",
+      "changed": "2026-10-12"
     },
     "pages/decision-record.html": {
       "path": "/decision-record",
@@ -4347,7 +4347,7 @@
         "appnav": []
       },
       "inert": {
-        "buttons": 50,
+        "buttons": 51,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -4358,8 +4358,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3a8252514317cef",
-      "changed": "2026-10-11"
+      "digest": "b0093c81499f7158",
+      "changed": "2026-10-12"
     },
     "pages/learn/glossary.html": {
       "path": "/learn/glossary",
@@ -4376,7 +4376,7 @@
         "appnav": []
       },
       "inert": {
-        "buttons": 50,
+        "buttons": 51,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -4387,8 +4387,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c3a8252514317cef",
-      "changed": "2026-10-11"
+      "digest": "b0093c81499f7158",
+      "changed": "2026-10-12"
     },
     "pages/learn/product-boundaries.html": {
       "path": "/learn/product-boundaries",
@@ -4463,7 +4463,7 @@
         "appnav": []
       },
       "inert": {
-        "buttons": 5,
+        "buttons": 6,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -4474,8 +4474,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "45fbb38fbcd27615",
-      "changed": "2026-10-11"
+      "digest": "9574b91662a59f2d",
+      "changed": "2026-10-12"
     },
     "pages/methodology/ips.html": {
       "path": "/methodology/ips",
@@ -4503,6 +4503,33 @@
       },
       "digest": "0c08d38b87385152",
       "changed": "2026-10-03"
+    },
+    "pages/methodology/property.html": {
+      "path": "/methodology/property",
+      "view": "learn",
+      "state": "first draw",
+      "chrome": "public",
+      "h1": "Property routes and assets",
+      "tabs": false,
+      "nav": {
+        "pubnav": [],
+        "resources": null,
+        "appnav": []
+      },
+      "inert": {
+        "buttons": 6,
+        "fields": 0,
+        "choices": 0,
+        "roles": 0,
+        "forms": 0,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
+        "emptyDetails": 0
+      },
+      "digest": "305f621b3df47446",
+      "changed": "2026-10-12"
     },
     "pages/my/alerts.html": {
       "path": "/my/alerts",
@@ -4907,7 +4934,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "193ffc1cb0617bec",
+      "digest": "2277e4e63d3a33c8",
       "changed": "2026-10-12"
     },
     "pages/property/areas.html": {
@@ -4965,7 +4992,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "39d01d720b4cca62",
+      "digest": "3e6797cb0f96523a",
       "changed": "2026-10-12"
     },
     "pages/property/comparables.html": {
@@ -5023,7 +5050,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ba035a7d101993a2",
+      "digest": "ed514c372df55090",
       "changed": "2026-10-12"
     },
     "pages/property/models.html": {
