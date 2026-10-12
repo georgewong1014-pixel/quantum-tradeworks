@@ -87,7 +87,10 @@ const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=s
                    tiles over the sliders (N3, D18). */
                 '/property',
                 /* The property landing for search (10 Oct 2026). */
-                '/property-investing'];
+                '/property-investing',
+                /* The Kuching scheme map (12 Oct 2026): its list of 268
+                   schemes and the box its map is drawn in. */
+                '/property/areas/map'];
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -4904,6 +4907,103 @@ for (const w of [360, 390]) {
   else console.log(`ok   calc-words: /property/calculator on a first visit — ${said.join('; ')} (bounds ${BOUND[1440]} at 1440, ${BOUND[390]} at 390); on a phone (360, 390, 430, both fonts) the four metric cards with their badges, Acquisition alone and "Next: Financing", the bar's Analyse · Compare · Save (Compare shows Scenarios alone), the district, the per-unit figures and the ledger closed drawers with 44px summaries (the ledger opened, cards); the strip, "Not a valuation", the regulated claim, "not a real listing", Illustrative, the unverified lines and the ledger's Placeholder in sight, and a shophouse's partial cash required; at 1440 every section and every drawer's content standing`);
 }
 /* ---- end calc-words ---- */
+
+/* ---- kuching-map ---- */
+/* THE KUCHING SCHEME MAP ON A PHONE (the owner's decision of 12 Oct 2026;
+   92-kuching-map.js). /property/areas/map at 360×640, 390×844 and 430×932,
+   in the page's font and in Verdana (CI's Linux sans is as wide), on a
+   first visit, as a reader asking for reduced motion has it — the locality
+   diagram in the map's place:
+     - nothing scrolls sideways;
+     - every control of the page's own — the views' links, 2D and Tilt, the
+       box's "Draw the map" and its attribution link, the diagram's points,
+       the list's field and every "Show on the map" and "Open the Scenario
+       Lab" button, and with a scheme shown the panel's — is a 44px target on
+       both axes (a kind badge's target is its ::after, 44px tall: the
+       stylesheet's own rule);
+     - the box holds its height: the same box before the script draws
+       anything into it and with the diagram drawn (nothing below it moves).
+   And where the browser draws no WebGL2 at all (getContext('webgl2') null,
+   no reduced motion asked), at 390: the locality diagram drawn in the
+   map's place, the box saying it is because the browser cannot draw the
+   interactive map, the list and the attribution there. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const until = async (expr, ms = 20000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await ev(`!!(${expr})`)) return true; } catch { /* booting */ } await sleep(200); } return false; };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const DRAWN = `typeof KM !== 'undefined' && KM.mode === 'fallback' && !!document.querySelector('#km-canvas svg[data-city="kuching"]') && typeof napicDoc === 'function' && !!napicDoc('Kuching')`;
+  const MEASURE = `(async () => {
+    await document.fonts.ready; await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const page = document.querySelector('.km-page');
+    const shown = (n) => n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden' && !n.closest('[hidden]');
+    const name = (n) => (n.id ? '#' + n.id : n.tagName.toLowerCase() + (n.getAttribute('class') ? '.' + n.getAttribute('class').trim().split(/\\s+/)[0] : '')) + ' “' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '”';
+    const small = [];
+    let n = 0;
+    for (const c of page ? page.querySelectorAll('a[href], button, input, select, summary, [role="button"]') : []) {
+      if (!shown(c)) continue;
+      n++;
+      let b = c.getBoundingClientRect();
+      if (c.matches('a.kind-badge')) { const a = getComputedStyle(c, '::after'); b = { width: b.width, height: b.height + 2 * Math.max(0, -parseFloat(a.top) || 0) }; }
+      if (b.width < 43.5 || b.height < 43.5) small.push(name(c) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    }
+    const box = document.getElementById('km-box')?.getBoundingClientRect();
+    return { over: document.documentElement.scrollWidth - innerWidth, n, small, boxH: box ? Math.round(box.height) : null, mode: KM.mode, why: KM.why };
+  })()`;
+  try {
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+      await send('Page.navigate', { url: BASE + '/privacy' }, sessionId); await sleep(600); await forget();
+      await send('Page.navigate', { url: BASE + '/property/areas/map' }, sessionId);
+      if (!await until(`!!document.getElementById('km-box')`)) { fails.push(`${at}: the map page never showed its box`); continue; }
+      const servedH = await ev(`Math.round(document.getElementById('km-box').getBoundingClientRect().height)`);
+      if (!await until(DRAWN, 30000)) { fails.push(`${at}: the locality diagram was never drawn in the map's place (mode ${await ev('typeof KM !== "undefined" ? KM.mode : "none"').catch(() => '?')})`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.id = 'km-face'; s.textContent = '*{font-family:Verdana, sans-serif !important}'; document.head.append(s); return true; })()`);
+      let v = await ev(MEASURE);
+      if (v.over > 1) fails.push(`${at}: the page scrolls sideways by ${v.over}px`);
+      if (v.small.length) fails.push(`${at}: ${v.small.length} of ${v.n} controls under 44px: ${v.small.slice(0, 4).join('; ')}`);
+      if (servedH !== v.boxH) fails.push(`${at}: the map's box was ${servedH}px before the diagram and ${v.boxH}px with it`);
+      /* A scheme shown: the panel's controls too. */
+      await ev(`(() => { const b = document.querySelector('.km-group-placed .km-acts button'); b?.click(); return !!b; })()`);
+      if (!await until(`typeof KM !== 'undefined' && !!KM.sel && document.activeElement?.id === 'km-panel-h'`, 5000)) fails.push(`${at}: "Show on the map" did not show the scheme in the panel`);
+      v = await ev(MEASURE);
+      if (v.over > 1) fails.push(`${at}, a scheme shown: the page scrolls sideways by ${v.over}px`);
+      if (v.small.length) fails.push(`${at}, a scheme shown: ${v.small.length} of ${v.n} controls under 44px: ${v.small.slice(0, 4).join('; ')}`);
+      said.push(`${at} ${v.n} controls`);
+    }
+    /* No WebGL2 at all, no reduced motion asked. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] }, sessionId);
+    const nogl = await send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => { const g = HTMLCanvasElement.prototype.getContext; HTMLCanvasElement.prototype.getContext = function (k, ...a) { return /^webgl/.test(k) ? null : g.call(this, k, ...a); }; })();` }, sessionId);
+    try {
+      await send('Page.navigate', { url: BASE + '/privacy' }, sessionId); await sleep(600); await forget();
+      await send('Page.navigate', { url: BASE + '/property/areas/map' }, sessionId);
+      if (!await until(DRAWN, 30000)) fails.push(`390 with no WebGL2: the locality diagram was never drawn in the map's place (mode ${await ev('typeof KM !== "undefined" ? KM.mode + " " + KM.why : "none"').catch(() => '?')})`);
+      else {
+        const r = await ev(`({ why: KM.why, say: document.getElementById('km-say')?.textContent || '', items: document.querySelectorAll('#km-list .km-item').length, credit: !!document.querySelector('#km-box .km-attrib a[href="https://www.openstreetmap.org/copyright"]'),
+          canvas: !!document.querySelector('#km-canvas canvas'), vendor: performance.getEntriesByType('resource').some(e => /\\/vendor\\//.test(e.name)) })`);
+        if (r.why !== 'webgl' || !/cannot draw the interactive map/.test(r.say) || !/WebGL2/.test(r.say)) fails.push(`390 with no WebGL2: the box says “${r.say}” (${r.why}), not that the browser cannot draw the interactive map`);
+        if (r.canvas || r.vendor) fails.push(`390 with no WebGL2: MapLibre was ${r.vendor ? 'loaded' : 'started'} all the same`);
+        if (!r.items || !r.credit) fails.push(`390 with no WebGL2: ${r.items} schemes listed, attribution ${r.credit ? 'there' : 'missing'}`);
+        said.push('no WebGL2: the diagram, saying why, MapLibre not loaded');
+      }
+    } finally { await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: nogl.result?.identifier }, sessionId).catch(() => {}); }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL kuching-map — the Kuching scheme map on a phone: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   kuching-map: /property/areas/map at 360, 390 and 430, in the page's font and in Verdana, the locality diagram in the map's place — nothing sideways, every control of the page a 44px target (${said.slice(0, 6).join(', ')}), the panel's too with a scheme shown, the box one height before and after; and with no WebGL2 at all (${said[6] || '—'})`);
+}
+/* ---- end kuching-map ---- */
 
 
 } catch (e) {
