@@ -832,6 +832,13 @@ function ndInputs({ d, prefix, answer, evidence = null, extra = {}, where = {} }
   box.append(group('developer', 'From the developer', [el('div', { class: 'au-grid' }, [
     field('ndRebates', 'Rebates and incentives (RM)', input('ndRebates', { type: 'number', min: '0', step: '500', inputmode: 'decimal', class: 'input au-in num' })),
   ])]));
+  /* The purchase legal fees, as the reader's lawyer quotes them (the fee
+     rulebook 1.3.0): which of Sarawak's rules prices them turns on the
+     lawyer's engagement, so a quote takes the place of the rulebook's line. */
+  box.append(group('legal', 'From your lawyer', [el('div', { class: 'au-grid' }, [
+    field('ndLegal', 'Purchase legal fees — your lawyer’s quote (RM)', input('ndLegal', { type: 'number', min: '0', step: '100', inputmode: 'decimal', class: 'input au-in num' }),
+      d.ndLegal == null ? 'unavailable' : 'quoted', d.ndLegal == null ? 'not entered — the rulebook’s purchase legal fees stand' : 'your lawyer’s quotation, in place of the rulebook’s line'),
+  ])]));
   /* At completion: the model's own rent, vacancy and furnishing, named here
      as the assumptions they are on this route. */
   const letting = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
@@ -935,8 +942,19 @@ function ndExitFigure(n, prefix) {
   }
   fig.append(list);
   if (isNum(n.paid) && vals.length) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }),
-    `The upright line on each bar is the ${pqMoney(n.paid)} you pay. The bars are the completed comparable’s ${pqMoney(n.comp)} grown ${fmtNum(n.growth, 1)}% a year — your assumption.`]));
+    `The upright line on each bar is the ${pqMoney(n.paid)} you pay. The bars are the completed comparable’s ${pqMoney(n.comp)} grown ${fmtNum(n.growth, 1)}% a year from signing — your assumption; the calculator’s sale grows the price you pay the same way.`]));
   return fig;
+}
+
+/* HOW THE RATE OF RETURN IS TIMED ON THIS ROUTE (the 12 Oct 2026 audit,
+   #3; ndTimingOf, 75-property-grade.js): from vacant possession once both
+   months are entered — said with its moments — and, until then, why not. */
+function ndTimingLine(d, prefix) {
+  const t = ndTimingOf(d), hold = normHoldYears(d?.holdYears);
+  const words = t
+    ? `The rate of return is timed from vacant possession: the cash required leaves at signing, the interest during construction with it; no rent and no instalment come before vacant possession, ${t.vpAt} months after signing; and a sale ${hold} year${hold === 1 ? '' : 's'} after it falls ${ndYears(t.lead + hold)} years after signing — the price grown from signing at ${fmtNum(num0(d.apprecPct), 1)}% a year, as these exit values grow the comparable. Gains tax counts its holding period from the SPA date.`
+    : ndTimingWhy(d);
+  return words ? el('p', { class: 'metaline nd-timing', id: `${prefix}-nd-timing`, 'data-timed': t ? 'true' : 'false' }, words) : null;
 }
 
 /* THE FIGURES: L1 and L2, and the route's defect liability. `why` holds
@@ -981,6 +999,9 @@ function ndResults({ n, d, prefix, why = {} }) {
       : 'A class with no tenancy: the instalment and the running costs, with the loan fully released.') : 'The loan has no schedule of repayments.' }));
   box.append(ctx);
   box.append(ndExitFigure(n, prefix));
+  /* How the calculator's rate of return is timed on this route. */
+  const timing = ndTimingLine(d, prefix);
+  if (timing) box.append(timing);
   /* What would justify the premium. */
   const rn = n.rentNeeded, gn = n.growthNeeded;
   if (!p) {
@@ -1040,7 +1061,8 @@ function ndExitFormula(n) {
   return `Exit value = the completed comparable ${pqMoney(n.comp)} × (1 + ${fmtNum(n.growth, 1)}%) ^ years from the SPA month: `
     + `${n.exits.map(x => `VP+${x.n}, ${fmtNum(x.years, 2)} years → ${pqMoney(x.value)}`).join('; ')}. `
     + `${n.delay ? `Vacant possession is taken ${n.build.vpAt} months after signing — the ${n.delay}-month delay you entered included — so each horizon is counted from then. ` : ''}`
-    + 'The growth is your appreciation assumption — Modelled, and not a forecast: another rate gives another figure. The comparable is taken as the value at the SPA month, whatever its own date. Not a valuation.';
+    + 'The growth is your appreciation assumption — Modelled, and not a forecast: another rate gives another figure. The comparable is taken as the value at the SPA month, whatever its own date. '
+    + 'One rule for every value of this route: it grows from the SPA month. The calculator’s sale, and so its rate of return, grows the price you pay the same way; the gap between the two is the premium, grown. Not a valuation.';
 }
 function ndNeededFormula(n) {
   const rn = n.rentNeeded, gn = n.growthNeeded;

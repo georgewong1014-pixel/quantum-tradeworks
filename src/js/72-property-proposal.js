@@ -452,6 +452,7 @@ const CP_IN = {
   auctionChecks: (v) => (Array.isArray(v) && v.length ? `${v.length} of ${AUCTION_CHECK_IDS.length} ticked` : 'None ticked'),
   /* The developer premium model's answers (P4): a figure not entered says so. */
   ndCompPrice: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'Not entered'), ndRebates: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
+  ndLegal: (v) => (v == null ? 'Not entered' : cpMoneyIn(v)),
   ndCompSource: (v) => (v ? String(v) : 'Not entered'), ndCompDate: (v) => (v ? String(v) : 'Not entered'),
   ndSpaMonth: (v) => ndMonthWords(v), ndVpMonth: (v) => ndMonthWords(v),
   ndSchedule: (v) => { const st = parseNdSchedule(v), t = ndTemplateOf(st); return st ? `${st.length} stage${st.length === 1 ? '' : 's'}${t ? `, Sarawak’s ${t.form} template` : ''}` : 'Not entered'; },
@@ -887,7 +888,10 @@ function cpScenariosSection(rec, picks) {
    ten rows to anyone, the net proceeds and the profit included. */
 const CP_EXIT_LOCKED = 'In the full analysis — preview in the calculator; nothing is on sale';
 function cpExitSection(d, m, paid = false) {
-  const s = cpSection('exit', `If it is sold after ${cpPlural(d.holdYears, 'year')}`);
+  /* On a timed new development, the sale is so many years after vacant
+     possession (ndTimingOf, 75-property-grade.js), and named so. */
+  const soldWhen = m.ndTiming ? `If it is sold ${cpPlural(d.holdYears, 'year')} after vacant possession` : `If it is sold after ${cpPlural(d.holdYears, 'year')}`;
+  const s = cpSection('exit', soldWhen);
   /* A deduction carries its minus — except one that prints as nothing: a
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
@@ -895,13 +899,13 @@ function cpExitSection(d, m, paid = false) {
   const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
   if (!paid) {
     const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
-    s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+    s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [
       cpRow(label('valueLessLoanAtExit'), isNum(m.valueLessLoanAtExit) ? cpFig('valueLessLoanAtExit', cpMoney(m.valueLessLoanAtExit))
         : el('span', { class: 'cp-unpriced', 'data-cp': 'valueLessLoanAtExit' }, 'Not computed — the loan has no schedule')),
       cpRow(label('irrPct'), rate()),
     ], { cls: 'cp-exit cp-exit-free' }));
     s.append(el('p', { class: 'cp-note cp-exit-locked', 'data-cp-locked': 'exit' }, CP_EXIT_LOCKED));
-  } else s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+  } else s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [
     cpRow('Sale value', cpFig('exitValue', cpMoney(m.exitValue))),
     cpRow('Loan outstanding', less('outstanding', m.outstanding)),
     cpRow('Agent commission', less('agentFee', m.agentFee)),
@@ -1082,7 +1086,7 @@ function cpSplitItems(d, m, cash, paid = false) {
   }
   /* Gains tax is the full report's (the owner's paywall rule, 3 Oct 2026:
      cpExitSection): named only where the report is unlocked. */
-  if (paid && num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
+  if (paid && (m.ndTiming ? m.ndTiming.saleYears : num0(d.holdYears)) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', m.ndTiming ? `Gains tax on a sale ${d.holdYears} years after vacant possession` : `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
   return out;
 }
 const cpList2 = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);

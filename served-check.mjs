@@ -2928,11 +2928,75 @@ const HOME_PAGE = read(HOME);
       if (!new RegExp(`Not yet checked for ${cls}, so not charged: [^.]+ \\(fee rulebook \\d+\\.\\d+\\.\\d+\\)`).test(sight(n))) p.push(`${id} does not name the fee lines not yet checked for ${cls}`);
       if (!all(n).some(x => x.tag === 'a' && attr(x, 'href') === '/data-sources#fee-rulebook-class')) p.push(`${id} does not link the rulebook's class rules`);
     }
+    /* The purchase legal fees by route (fee rulebook 1.3.0), and the new
+       development timed from vacant possession (the 12 Oct 2026 audit,
+       #3): the auction and new-development rows say the rules do not
+       decide them and link the rulebook's route readings; the new
+       development says what changed, and carries no known limit. */
+    /* A row's fact by its term: the <dd> after the <dt> that says it. */
+    const dd = (n, k) => { const dts = all(n).filter(x => x.tag === 'dt'), dds = all(n).filter(x => x.tag === 'dd'); const i = dts.findIndex(x => sight(x) === k); return i < 0 ? null : dds[i] || null; };
+    const said = (n, k) => { const x = n ? dd(n, k) : null; return x ? sight(x) : ''; };
+    for (const id of ['auction', 'newdev-residential', 'newdev-commercial']) {
+      const n = row(id), legal = n ? dd(n, 'Legal fees') : null;
+      if (!legal || !/Not decided by the Rules/.test(sight(legal)) || !all(legal).some(x => x.tag === 'a' && attr(x, 'href') === '/data-sources#fee-rulebook-route')) p.push(`${id} does not say how its purchase legal fees are priced, linking the rulebook's route readings`);
+    }
+    const nd = row('newdev-residential');
+    if (nd) {
+      const facts = all(nd).filter(x => x.tag === 'dt').map(x => sight(x));
+      if (facts.includes('Known limit')) p.push('newdev-residential still states a known limit');
+      if (!/count from vacant possession once both months are entered/.test(said(nd, 'What changed'))) p.push('newdev-residential does not say what changed');
+      if (!/timed from vacant possession/.test(said(nd, 'It returns'))) p.push('newdev-residential does not say its rate of return is timed from vacant possession');
+    }
   }
-  judge(p, `/methodology/property serves the property routes before any script: ${said.states} states a missing figure reads as, ${said.rows} route-and-asset rows in order, each with what it returns; the gates and the fee lines not yet checked by class named, linking the rulebook`,
+  judge(p, `/methodology/property serves the property routes before any script: ${said.states} states a missing figure reads as, ${said.rows} route-and-asset rows in order, each with what it returns; the gates and the fee lines not yet checked by class named, linking the rulebook; the auction's and the new development's purchase legal fees "not decided by the Rules", linking its route readings; the new development timed from vacant possession, what changed said, no known limit`,
     '/methodology/property does not serve the property routes');
 }
 /* ---- end route-contracts ---- */
+
+/* ---- property-accuracy-served ---- */
+/* THE PROPERTY ACCURACY BATCH, AS SERVED (the 12 Oct 2026 audit, #3):
+   - /property and /property/lab serve the Lab's seven chain rows, each with
+     its kind badge in its summary (D6 on the chain) — the sample's figures,
+     so Illustrative, as its tiles;
+   - /data-sources serves the fee rulebook at 1.3.0 with its purchase legal
+     fees by route: the subsale's assumption, and the auction and the new
+     development not decided by the Rules, each said with its reason and the
+     gazette it was read in.
+   Fails on 35ce93c4: no badge on a chain row, the rulebook at 1.2.0 with no
+   route readings. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const got = await getAll(['/property', '/property/lab', '/data-sources']);
+  for (const path of ['/property', '/property/lab']) {
+    const r = got.get(path);
+    if (!r || r.status !== 200) { p.push(`${path}: ${r ? described(r) : 'not fetched'}`); continue; }
+    const views = all(B.htmlTree(r.body)).find(n => attr(n, 'id') === 'views');
+    const rows = views ? all(views).filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')) : [];
+    const kinds = rows.map(n => { const s = all(n).find(x => x.tag === 'summary'); const b = s ? all(s).find(x => attr(x, 'data-kind-badge')) : null; return [attr(n, 'data-row'), b ? attr(b, 'data-kind-badge') : null, b ? sight(b) : null]; });
+    said[path] = kinds.length;
+    if (kinds.length !== 7) p.push(`${path} serves ${kinds.length} chain rows, not seven`);
+    for (const [row, kind, word] of kinds) if (kind !== 'illustrative' || word !== 'Illustrative') p.push(`${path}: the ${row} row serves ${kind ? `a ${kind} badge ("${word}")` : 'no kind badge'}, not the sample's Illustrative`);
+  }
+  const ds = got.get('/data-sources');
+  if (!ds || ds.status !== 200) p.push(`/data-sources: ${ds ? described(ds) : 'not fetched'}`);
+  else {
+    const tree = all(B.htmlTree(ds.body));
+    const book = tree.find(n => attr(n, 'id') === 'fee-rulebook');
+    const text = book ? sight(book) : '';
+    if (!/Version 1\.3\.0, checked 13 Oct 2026/.test(text)) p.push('/data-sources does not serve the fee rulebook at version 1.3.0, checked 13 Oct 2026');
+    const routes = book ? all(book).filter(n => attr(n, 'data-fee-route')).map(n => [attr(n, 'data-fee-route'), attr(n, 'data-status'), sight(n)]) : [];
+    said.routes = routes.length;
+    if (JSON.stringify(routes.map(x => [x[0], x[1]])) !== '[["subsale","assumed"],["auction","not-decided"],["newdev","not-decided"]]') p.push(`/data-sources serves the route readings ${JSON.stringify(routes.map(x => [x[0], x[1]]))}`);
+    for (const [id, , t] of routes) if (id !== 'subsale' && (!/your lawyer’s quote/.test(t) || !/rule 1’s full scale/.test(t))) p.push(`/data-sources: the ${id} reading does not say the line stands at rule 1's full scale and the quote takes its place`);
+    if (!book || !all(book).some(n => n.tag === 'a' && /L\.N\.%20348/.test(attr(n, 'href') || '') && /Advocates’ Remuneration \(Amendment\) Rules, 2022/.test(sight(n)))) p.push('/data-sources: the route readings do not name the gazette they were read in');
+    if (!/Purchase legal fees on a purchase at auction/.test(text) || !/Purchase legal fees on a purchase from a developer/.test(text)) p.push('/data-sources: what could not be verified does not name the auction\'s and the developer\'s purchase legal fees');
+  }
+  judge(p, `the property accuracy batch as served: /property and /property/lab each serve ${said['/property'] ?? 0} and ${said['/property/lab'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.3.0 with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
+    'the chain rows or the rulebook\'s route readings are not served');
+}
+/* ---- end property-accuracy-served ---- */
 
 /* ---- backup-served ---- */
 /* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the

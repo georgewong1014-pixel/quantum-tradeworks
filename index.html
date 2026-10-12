@@ -5388,8 +5388,23 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-val { font-size: var(--ls-body); line-height: 19px; font-weight: 700; color: var(--ink); white-space: nowrap; }
 .lab-val.neg { color: var(--dn-text); }
 .lab-delta { font-size: var(--ls-meta); line-height: 14px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
-.lab-row-note { grid-column: 1; grid-row: 2; padding-left: 12px; font-size: var(--ls-meta); line-height: 15px; color: var(--ink-3); }
+/* The row's second line: its kind (D6), then its note. */
+.lab-row-sub { grid-column: 1; grid-row: 2; position: relative; min-width: 0; padding-left: 12px; font-size: var(--ls-meta); line-height: 15px; color: var(--ink-3); }
+.lab-row-note { font-size: var(--ls-meta); line-height: 15px; color: var(--ink-3); }
 .lab-row-note:empty { display: none; }
+/* THE ROW'S KIND (D6 on the chain): the system's badge, at the note's own
+   15px line, so a row with no note grows by nothing (its label and the
+   figure's two lines are taller) and the line it leads keeps its height. */
+.kind-badge.lab-row-kind { height: 15px; padding: 0 6px 0 5px; gap: 4px; margin-right: 6px; vertical-align: top; line-height: 13px; }
+/* UNDER 380PX, ITS SHAPE: a word badge on a 360px phone pushed the last of
+   the seven results off the one screen the Lab keeps there (mobile.mjs,
+   scenario-lab-verify: 21px spare in a wide sans). The shape stands at the
+   end of the row's last line, beside the figure, in room every row has;
+   the word stays its name for a screen reader and its title. */
+@media (max-width: 379px) {
+  .kind-badge.lab-row-kind { position: absolute; right: 0; bottom: 1px; margin: 0; padding: 0; width: 13px; height: 13px; justify-content: center; border: 0; background: none; }
+  .lab-row-kind .lab-row-kind-w { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 .lab-row-body { padding: 0 0 10px 12px; }
 .lab-formula { font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); max-width: 70ch; }
 .lab-help { margin-top: 6px; }
@@ -38725,17 +38740,18 @@ const PROPERTY_CONTRACTS = [
     optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under the market value.',
     returns: 'The steps from the market value to the bid and on to the effective acquisition cost; the true discount — the market value less the effective cost, as a share of the market value; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
     missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no market value is Unavailable.',
-    fees: 'commercial' },
+    fees: 'commercial', legal: 'auction' },
   { id: 'newdev-residential', route: 'New development', asset: 'Residential',
     enter: 'The SPA price. For the premium, a completed comparable. For the interest during construction: your schedule of progressive drawdown — stages adding to 100%, each with its month after signing — the SPA month, the month of vacant possession and a loan.',
-    optional: 'Developer rebates and incentives, taken off the cash required; the rent and occupancy at completion; furnishing; a completion delay in whole months.',
-    returns: 'The premium over the comparable; the interest during construction, a line of the cash required; the monthly position from vacant possession; exit values three, five and ten years after it — modelled on your growth assumption, not a forecast; the rent and the yearly growth that would justify the premium; and what a delay adds.',
-    missing: 'The interest during construction is Unavailable until the schedule, its months and both dates are entered. Sarawak’s prescribed stage percentages are offered as a template, never applied for you. Without a comparable there is no premium and no exit value.',
-    limit: 'The calculator’s rate of return and its holding period still count from the purchase, not from vacant possession.' },
+    optional: 'Developer rebates and incentives, taken off the cash required; your lawyer’s quote for the purchase legal fees, in place of the fee rulebook’s; the rent and occupancy at completion; furnishing; a completion delay in whole months.',
+    returns: 'The premium over the comparable; the interest during construction, a line of the cash required; the monthly position from vacant possession; with the SPA month and the month of vacant possession entered, the rate of return timed from vacant possession — the cash required leaves at signing, no rent and no instalment come before the keys, the holding period you enter counts from them, the sale falls that many years after them at the price grown from signing, and its gains tax counts from the SPA date; exit values three, five and ten years after it — modelled on your growth assumption, not a forecast; the rent and the yearly growth that would justify the premium; and what a delay adds.',
+    missing: 'The interest during construction is Unavailable until the schedule, its months and both dates are entered. Without both months the rate of return and the holding period count from signing, as though the property were let at once, and the calculator says so. Sarawak’s prescribed stage percentages are offered as a template, never applied for you. Without a comparable there is no premium and no exit value.',
+    changed: 'Until 13 October 2026 the calculator’s rate of return and its holding period counted from the purchase, as though the property were let on signing. They now count from vacant possession once both months are entered.',
+    legal: 'newdev' },
   { id: 'newdev-commercial', route: 'New development', asset: 'Commercial', gate: 'newdev|commercial',
     enter: 'As a residential new development, on your own schedule.',
-    returns: 'As a residential new development.',
-    fees: 'commercial' },
+    returns: 'As a residential new development, the rate of return timed from vacant possession the same way.',
+    fees: 'commercial', legal: 'newdev' },
   { id: 'land', route: 'Subsale or auction', asset: 'Land', note: 'A bare parcel.',
     enter: 'As the route asks, less everything a tenancy would need: land has no rent, vacancy, net operating income, yield, debt-service cover, break-even rent or empty months, and each reads “not a quantity this asset has”.',
     returns: 'The monthly position — the instalment and the costs a parcel does carry: assessment, quit rent and insurance; the price gap against land sales, by land area. A yield target is not applicable.',
@@ -38783,6 +38799,10 @@ function learnProperty() {
          figures ("the figures below"), which are not on this page. */
       ['Not for this asset', gate ? gate.why.replace(/: the figures below[^.]*\./, '.') : null],
       ['Fee lines', r.fees ? feeWords(r.fees) : null],
+      /* Which of Sarawak's rules prices the route's purchase legal fees, as
+         the rulebook read them (FEE_TABLE.routeRules, 1.3.0). */
+      ['Legal fees', r.legal ? [`${FEE_TABLE.routeRules.routes[r.legal].charged} `, el('a', { href: '/data-sources#fee-rulebook-route' }, 'Why, rule by rule')] : null],
+      ['What changed', r.changed],
       ['Known limit', r.limit],
     ].filter(([, v]) => v);
     return el('li', { class: 'fee-book-line', id: `route-${r.id}`, 'data-route-contract': r.id }, [
@@ -40193,8 +40213,12 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    it prices the SPA, the loan and the transfer on the SPA price. A legal
    fee the developer pays, a cash rebate or another incentive is the
    reader's to enter, as one figure, and comes off the cash required. */
-const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
-const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price; your lawyer’s quote for the legal and search costs, once entered, takes the place of its purchase legal fees — an auction has no SPA. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
+/* Each also says which of Sarawak's rules prices its purchase legal fees,
+   as the rulebook read them (FEE_TABLE.routeRules, 1.3.0): not decided by
+   the route, so the rulebook's line stands and the reader's lawyer's quote
+   takes its place once entered. */
+const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. Its purchase legal fees are rule 1’s full scale; Sarawak’s rules charge three-quarters where your lawyer acts on the SPA alone, or the transfer alone (rules 2 and 3), so which applies turns on your lawyer’s engagement and is not decided here — enter your lawyer’s quote and it takes the rulebook’s place. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
+const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price. Its purchase legal fees are rule 1’s full scale, which presumes an SPA; Sarawak’s rules do not settle the purchaser’s advocate’s share at auction (rules 3 and 13(b)), so it is not decided here — your lawyer’s quote for the legal and search costs, once entered, takes its place. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
   : null);
@@ -41033,6 +41057,10 @@ const DEAL_ANSWER_FIELDS = {
   ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
   ndSchedule: ansSchedule,
   ndRebates: ansSum,
+  /* The reader's lawyer's quote for the purchase legal fees on a developer
+     purchase (the fee rulebook 1.3.0): in place of the rulebook's line, as
+     the auction's quote is. */
+  ndLegal: ansSum,
   /* Completion delay (the validation pass, audit #4): whole months past
      the expected vacant possession — it extends the construction interest
      and moves the first month of rent. Not entered, no delay. */
@@ -41569,8 +41597,8 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.2.0',
-  checkedOn: '2026-10-10',
+  version: '1.3.0',
+  checkedOn: '2026-10-13',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
@@ -41600,6 +41628,8 @@ const FEE_TABLE = {
   /* What changed, version by version: a reader of /data-sources who sees
      the figures move is owed the reason. Newest first. */
   changelog: [
+    { version: '1.3.0', date: '2026-10-13',
+      what: 'Purchase legal fees by purchase route, read in the gazette (Swk. L.N. (F) 348 of 2022, the First Schedule’s rules 1–4 and 13). For a purchase at auction and a purchase from a developer, the Rules do not settle the purchaser’s advocate’s share by the route alone: it turns on the instruments the advocate handles — an SPA and the transfer, the SPA alone, the transfer alone — and, at auction, rule 13 prices the seller’s side and names the purchaser’s only for several lots bought under one title. So no amount changes: the line stays at rule 1’s full scale, each route says why on its page and below, and your lawyer’s quote takes its place once entered — on a new development as well as at auction now. No rate is made up.' },
     { version: '1.2.0', date: '2026-10-10',
       what: 'Lines whose rule differs by property class, and has not been checked for the class, are no longer charged on a commercial property or on land: they read “Unavailable — not yet checked for commercial property” (or land), and the cash required for those classes is a partial total that names them. Commercial: the loan legal fees (rule 7 prices the charge alone; a commercial financing commonly takes further security priced per instrument), the service tax charged on them, the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. Land: the valuation fee and its service tax (the scale’s item is for a valuation on an improved-value basis), the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. The transfer and loan stamp duties, the charge’s stamp, registration and the purchase legal fees stay for every class: their rules do not turn on the class (each line’s source says why). A quotation you enter stands for any class. No rate is made up for either class; residential figures are unchanged.' },
     { version: '1.1.0', date: '2026-10-09',
@@ -41881,6 +41911,40 @@ const FEE_TABLE = {
     },
   },
 
+  /* WHICH OF SARAWAK'S RULES PRICES THE PURCHASE LEGAL FEES ON EACH ROUTE
+     (1.3.0; the 12 Oct 2026 audit, #3). Read in the gazette on 13 Oct 2026:
+     the First Schedule of Swk. L.N. (F) 348 of 2022 and its rules. A
+     route's own rule is applied only where the text decides it; where it
+     does not, no amount changes — the line stays at rule 1's full scale,
+     the route's page says why (feeRouteReading), and the reader's lawyer's
+     quote, once entered, takes its place. Kept beside the lines, not in
+     them, so every deal's ledger is the object it was. `status`:
+       assumed     — the line's own assumption, unchanged since 1.0.0;
+       not-decided — read, and the text does not settle it by the route. */
+  routeRules: {
+    checkedOn: '2026-10-13',
+    line: 'purchaseLegal',
+    source: { title: 'Advocates’ Remuneration (Amendment) Rules, 2022 (Swk. L.N. (F) 348), the First Schedule and its rules — Sarawak Government Gazette, Part II, 20 December 2022',
+              url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_Issue%20No.%2083_L.N.%20348%20Advocates%20Rules.pdf',
+              citation: 'Swk. L.N. (F) 348 of 2022, First Schedule, rules 1–5, 12, 13 and 14' },
+    routes: {
+      subsale: { status: 'assumed', label: 'Subsale',
+        charged: 'Rule 1’s full scale on the price — the line’s own assumption: a sale and purchase agreement, and the memorandum of transfer that completes it.',
+        why: 'Rule 1: where the transaction includes the sale and purchase agreement and the memorandum of transfer to complete the sale, the purchaser’s advocate charges the full scale. Where it is the agreement alone, or the transfer alone, three-quarters (rules 2 and 3).' },
+      auction: { status: 'not-decided', label: 'Auction',
+        charged: 'Not decided by the Rules: rule 1’s full scale on the bid stands until you enter your lawyer’s quote, which takes its place.',
+        why: 'Rule 13 prices a sale by public auction for the advocate who puts the property up for sale. Its paragraph (b) names the purchaser’s advocate’s fee only where several lots under one title are bought by one purchaser with one transfer — the full scale on their aggregate price — and does not say whose is the one-half of scale it charges on each lot otherwise. Rules 1 and 2 presume a sale and purchase agreement, which an auction does not have, and rule 3 charges three-quarters for a memorandum of transfer alone. Which instrument passes title to the purchaser on a chargee’s sale under the Land Code was not read. So the purchaser’s share is not decided.' },
+      newdev: { status: 'not-decided', label: 'New development',
+        charged: 'Not decided by the Rules: rule 1’s full scale on the SPA price stands until you enter your lawyer’s quote, which takes its place.',
+        why: 'A developer’s sale and purchase agreement is signed before the strata or individual title issues, and the memorandum of transfer follows when it does. Rule 1 charges the full scale where the transaction includes the agreement and the transfer that completes the sale; rule 2 three-quarters where it is the agreement alone; rule 3 three-quarters for the transfer alone, or for a deed of assignment before a title issues. Which applies turns on what your lawyer is engaged for and when the title issues, not on the route, so it is not decided. Rule 14 forbids any discount, a developer’s scheme included: a legal fee the developer pays for you is a rebate, entered as one.' },
+    },
+    /* Decided by the text, and applied to nothing here: it turns on a fact
+       the tool does not ask. */
+    held: [
+      { rule: 'Rule 12', what: 'Where the transaction involves a housing estate of 25 units or more, one-half of the applicable scale if the consideration or amount secured is under RM100,000. Not applied: the tool does not ask how many units the estate has.' },
+    ],
+  },
+
   /* Verified rules held for reference and applied to nothing here: the
      property data is Sarawak's. */
   reference: {
@@ -41925,6 +41989,8 @@ const FEE_TABLE = {
     { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
     { what: 'That the Solicitors’ Remuneration Order 2023 reaches only Peninsular Malaysia', why: 'inferred from the Legal Profession Act 1976, s. 2 and from Sarawak and Sabah having their own scales; no extending order was found, and its absence cannot be proven.' },
     { what: 'Sabah’s advocates’ scale', why: 'a separate Advocates’ Remuneration Rules 1988 (G.N.S. 17 of 1988) exists; its bands were not checked, and no property here is in Sabah.' },
+    { what: 'Purchase legal fees on a purchase at auction', why: 'Sarawak’s Rules do not settle the purchaser’s advocate’s share at auction: rule 13(b) names it only for several lots bought under one title, rules 1 and 2 presume a sale and purchase agreement, and rule 3 charges three-quarters for a transfer alone; the instrument a chargee’s sale under the Land Code passes title by was not read. The line stays at rule 1’s full scale on the bid; your lawyer’s quote takes its place (1.3.0).' },
+    { what: 'Purchase legal fees on a purchase from a developer', why: 'whether rule 1’s full scale or rule 2’s and rule 3’s three-quarters applies turns on what your lawyer is engaged for — the SPA and the transfer, or the SPA now and the transfer when the title issues — not on the route. The line stays at rule 1’s full scale; your lawyer’s quote takes its place (1.3.0). Rule 12’s half scale for a housing estate of 25 units or more, under RM100,000, is held and not applied.' },
     { what: 'Lines whose rule differs by property class, for a commercial property or land', why: 'the security a commercial lender takes, a commercial purchase’s searches, commercial and land deposits, and the valuation of a bare parcel were not checked: those lines are not charged for the class (1.2.0) and the cash required is partial, naming them — see “Commercial property and land” above.' },
     { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
   ],
@@ -42186,6 +42252,19 @@ function feeRulebookCard() {
     el('p', { class: 'fee-book-name' }, el('strong', {}, FEE_TABLE.lines[id].label)),
     el('dl', { class: 'fee-book-dl' }, [el('dt', {}, 'Commercial'), el('dd', {}, word(id, 'commercial')), el('dt', {}, 'Land'), el('dd', {}, word(id, 'land'))]),
     el('p', { class: 'metaline' }, cr.lines[id].why)]))));
+  /* BY PURCHASE ROUTE (1.3.0): which of Sarawak's rules prices the
+     purchase legal fees on each route, as read in the gazette — decided,
+     or not, and why. */
+  const rr = FEE_TABLE.routeRules;
+  card.append(el('h3', { class: 'fee-book-h3', id: 'fee-rulebook-route' }, 'Purchase legal fees by purchase route'));
+  card.append(el('p', { class: 'metaline' }, [`Sarawak’s rules decide the purchaser’s advocate’s share by the instruments the advocate handles, not by the route. A route’s own share is applied only where the text decides it; where it does not, the line stays at rule 1’s full scale and your lawyer’s quote, once entered, takes its place. Read in the gazette, checked ${feeDay(rr.checkedOn)}: `,
+    el('a', { href: rr.source.url, target: '_blank', rel: 'noopener noreferrer' }, rr.source.title), el('span', { class: 'fee-book-cite' }, ` (${rr.source.citation})`), '.']));
+  const routeWord = { assumed: 'Charged: the line’s assumption', 'not-decided': 'Not decided by the Rules — the line stands; your quote replaces it' };
+  card.append(el('ul', { class: 'fee-book-list fee-book-route' }, Object.entries(rr.routes).map(([id, r]) => el('li', { class: 'fee-book-line', 'data-fee-route': id, 'data-status': r.status }, [
+    el('p', { class: 'fee-book-name' }, [el('strong', {}, r.label), el('span', { class: 'fee-book-cat' }, routeWord[r.status] || r.status)]),
+    el('p', { class: 'metaline' }, r.charged),
+    el('p', { class: 'metaline' }, r.why)]))));
+  if ((rr.held || []).length) card.append(el('ul', { class: 'fee-book-notes' }, rr.held.map(x => el('li', { 'data-fee-held': x.rule }, [el('strong', {}, x.rule), ` — ${x.what}`]))));
   /* Verified, and applied to nothing here: another jurisdiction's rule. */
   const refs = Object.entries(FEE_TABLE.reference || {});
   if (refs.length) {
@@ -42255,6 +42334,21 @@ const RPGT_SCHEDULE = {
   reviewOwner: null, nextReviewDue: null,
   note: 'Rates are set by Schedule 5 and amended at Budget. Confirm the current schedule, '
       + 'the disposer category that applies, and any exemption order in force before relying on this.',
+
+  /* WHEN THE HOLDING PERIOD STARTS (the 12 Oct 2026 audit, #3), read in the
+     Act itself. A purchase under an SPA is acquired on the SPA's date —
+     for a new development, years before vacant possession — so a timed new
+     development's holding period runs from the SPA month (ndTimingOf,
+     75-property-grade.js), not from the keys. The rates above stay marked
+     unverified; this rule is not a rate. */
+  acquisitionDate: {
+    rule: 'A disposal under a written agreement takes place on the date of the agreement, and the acquirer’s acquisition on the same date — so a purchase under an SPA is acquired on the SPA’s date.',
+    citation: 'Real Property Gains Tax Act 1976 (Act 169), Schedule 2, paragraph 15(1)(a) and 15(2)',
+    source: 'Laws of Malaysia, Act 169, the Attorney General’s Chambers’ updated text as at 1 January 2025 (an updated text, not the authentic reprint)',
+    sourceUrl: 'https://lom.agc.gov.my/ilims/upload/portal/akta/outputaktap/1982253_BI/Act%20169%20(Online%202025).pdf',
+    checkedOn: '2026-10-13',
+    note: 'Paragraph 16: a contract whose disposal needs the approval of the Government or a State Government dates from that approval instead. A conditional contract otherwise dates from when it was made.',
+  },
 
   /* Rate by completed years between acquisition and disposal. The final entry
      applies to every later year.
@@ -42347,8 +42441,11 @@ function rpgtCharge({ disposalPrice, acquisitionPrice, acquisitionCosts = 0,
 
   return {
     rate, chargeableGain, relief, taxable, tax, rawGain, allowable, category: c, categoryId,
+    /* A holding period of whole years reads as it always has; a part year
+       (a timed new development: 2.5 years to VP and 10 held, 12.5) as it
+       is, not rounded up to a year it has not reached. */
     why: rate === 0
-      ? `Held ${Math.ceil(num0(holdYears))} years, which reaches the nil rate for ${c.who}.`
+      ? `Held ${Number.isInteger(num0(holdYears)) ? Math.ceil(num0(holdYears)) : +num0(holdYears).toFixed(2)} years, which reaches the nil rate for ${c.who}.`
       : c.individual
         ? `${fmtPct(rate, 0)} on the gain after allowable costs, less the exemption of ${fmtAmount(relief, 'MYR')}.`
         : `${fmtPct(rate, 0)} on the gain after allowable costs. No individual exemption applies to ${c.who}.`,
@@ -44765,6 +44862,7 @@ const PM_FIELD_WORDS = {
   /* The developer premium model's answers (P4). */
   ndCompPrice: 'Completed comparable price (RM)', ndCompSource: 'Completed comparable — where it came from', ndCompDate: 'Completed comparable — its date',
   ndSpaMonth: 'SPA signed (month)', ndVpMonth: 'Vacant possession expected (month)', ndSchedule: 'Progressive drawdown schedule', ndRebates: 'Developer rebates and incentives (RM)',
+  ndLegal: 'Purchase legal fees — your lawyer’s quote (RM)',
   /* The commercial models' answers (P5). */
   cmAskingRent: 'Asking rent (RM a month)', rentComparableIds: 'Achieved rents named', cmLeaseExpiry: 'Lease expiry (month)',
   cmEscalation: 'Escalation', cmDeposit: 'Deposit held (months of rent)', cmFitOut: 'Fit-out for a re-let (RM)', cmTenant: 'Current tenant',
@@ -45546,6 +45644,7 @@ const CP_IN = {
   auctionChecks: (v) => (Array.isArray(v) && v.length ? `${v.length} of ${AUCTION_CHECK_IDS.length} ticked` : 'None ticked'),
   /* The developer premium model's answers (P4): a figure not entered says so. */
   ndCompPrice: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'Not entered'), ndRebates: (v) => (num0(v) > 0 ? cpMoneyIn(v) : 'None entered'),
+  ndLegal: (v) => (v == null ? 'Not entered' : cpMoneyIn(v)),
   ndCompSource: (v) => (v ? String(v) : 'Not entered'), ndCompDate: (v) => (v ? String(v) : 'Not entered'),
   ndSpaMonth: (v) => ndMonthWords(v), ndVpMonth: (v) => ndMonthWords(v),
   ndSchedule: (v) => { const st = parseNdSchedule(v), t = ndTemplateOf(st); return st ? `${st.length} stage${st.length === 1 ? '' : 's'}${t ? `, Sarawak’s ${t.form} template` : ''}` : 'Not entered'; },
@@ -45981,7 +46080,10 @@ function cpScenariosSection(rec, picks) {
    ten rows to anyone, the net proceeds and the profit included. */
 const CP_EXIT_LOCKED = 'In the full analysis — preview in the calculator; nothing is on sale';
 function cpExitSection(d, m, paid = false) {
-  const s = cpSection('exit', `If it is sold after ${cpPlural(d.holdYears, 'year')}`);
+  /* On a timed new development, the sale is so many years after vacant
+     possession (ndTimingOf, 75-property-grade.js), and named so. */
+  const soldWhen = m.ndTiming ? `If it is sold ${cpPlural(d.holdYears, 'year')} after vacant possession` : `If it is sold after ${cpPlural(d.holdYears, 'year')}`;
+  const s = cpSection('exit', soldWhen);
   /* A deduction carries its minus — except one that prints as nothing: a
      gains tax of nil read "−RM0", a sign on a zero. */
   const less = (key, v) => cpFig(key, !isNum(v) ? '—' : cpMoney(v) === 'RM0' ? 'RM0' : `−${cpMoney(v)}`, { 'data-cp-sign': '-' });
@@ -45989,13 +46091,13 @@ function cpExitSection(d, m, paid = false) {
   const rate = () => (isNum(m.irrPct) ? cpFig('irrPct', fmtPct(m.irrPct, 2)) : el('span', { class: 'cp-unpriced', 'data-cp': 'irrPct' }, 'No rate'));
   if (!paid) {
     const label = (key) => LAB_FIGURES.find(f => f.key === key).label(d);
-    s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+    s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [
       cpRow(label('valueLessLoanAtExit'), isNum(m.valueLessLoanAtExit) ? cpFig('valueLessLoanAtExit', cpMoney(m.valueLessLoanAtExit))
         : el('span', { class: 'cp-unpriced', 'data-cp': 'valueLessLoanAtExit' }, 'Not computed — the loan has no schedule')),
       cpRow(label('irrPct'), rate()),
     ], { cls: 'cp-exit cp-exit-free' }));
     s.append(el('p', { class: 'cp-note cp-exit-locked', 'data-cp-locked': 'exit' }, CP_EXIT_LOCKED));
-  } else s.append(cpTable(`If it is sold after ${d.holdYears} years`, null, [
+  } else s.append(cpTable(m.ndTiming ? soldWhen : `If it is sold after ${d.holdYears} years`, null, [
     cpRow('Sale value', cpFig('exitValue', cpMoney(m.exitValue))),
     cpRow('Loan outstanding', less('outstanding', m.outstanding)),
     cpRow('Agent commission', less('agentFee', m.agentFee)),
@@ -46176,7 +46278,7 @@ function cpSplitItems(d, m, cash, paid = false) {
   }
   /* Gains tax is the full report's (the owner's paywall rule, 3 Oct 2026:
      cpExitSection): named only where the report is unlocked. */
-  if (paid && num0(d.holdYears) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
+  if (paid && (m.ndTiming ? m.ndTiming.saleYears : num0(d.holdYears)) <= 5 && isNum(m.rpgt) && m.rpgt > 0) put('risks', m.ndTiming ? `Gains tax on a sale ${d.holdYears} years after vacant possession` : `Gains tax on a sale in year ${d.holdYears}`, cpMoney(m.rpgt), sample.size ? 'illustrative' : 'modelled', `At ${m.rpgtPct}%, on the sale as modelled.`, 'tax');
   return out;
 }
 const cpList2 = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
@@ -46626,8 +46728,15 @@ function landRiskPanel(city, area, { compact = false } = {}) {
 
    Returns null, with a reason, when no rate exists. A deal that never returns
    its capital has no internal rate of return; printing a large negative number
-   there implies a precision the arithmetic does not have. */
-function npvAt(rate, flows) {
+   there implies a precision the arithmetic does not have.
+
+   UNEVEN TIMING (the 12 Oct 2026 audit, #3). `times`, when given, is each
+   flow's moment in years from the first — fractional where it falls between
+   years: a new development's equity leaves at signing and its first rent
+   comes a year after vacant possession, 2.5 years later on a 30-month build
+   (dealModel's flowTimes). Without it a flow's index is its year, exactly
+   as before: the same arithmetic, so every untimed deal is the deal it was. */
+function npvAt(rate, flows, times = null) {
   let v = 0;
   for (let t = 0; t < flows.length; t++) {
     /* A flow that is not a number makes the value unknown, not smaller. It
@@ -46636,14 +46745,18 @@ function npvAt(rate, flows) {
        at nothing: "−RM121,754, falls short of the alternative you named",
        beside a rate of return rightly withheld for the same flows. */
     if (!isNum(flows[t])) return null;
-    v += flows[t] / Math.pow(1 + rate, t);
+    v += flows[t] / Math.pow(1 + rate, times ? times[t] : t);
   }
   return v;
 }
 
-function irrOf(flows) {
+function irrOf(flows, times = null) {
   if (!Array.isArray(flows) || flows.length < 2) return { rate: null, why: 'Not enough periods to compute a rate.' };
   if (!flows.every(isNum)) return { rate: null, why: 'A period is missing a cash flow.' };
+  /* A moment for every flow, or none: a schedule that does not match the
+     flows cannot be discounted. */
+  if (times != null && (!Array.isArray(times) || times.length !== flows.length || !times.every(isNum)))
+    return { rate: null, why: 'The cash flows and their moments do not match.' };
 
   /* DESCARTES, AND WHY IT IS REPORTED RATHER THAN IGNORED.
      One sign change gives one rate. More than one can give several, all of them
@@ -46678,7 +46791,7 @@ function irrOf(flows) {
 
   const LO = -0.9999, HI = 10;      /* −99.99% to +1000% a year */
   let lo = LO, hi = HI;
-  let fLo = npvAt(lo, flows), fHi = npvAt(hi, flows);
+  let fLo = npvAt(lo, flows, times), fHi = npvAt(hi, flows, times);
   if (!isFinite(fLo) || !isFinite(fHi)) return { rate: null, signChanges, why: 'The cash flows do not resolve to a finite value.' };
   if (Math.sign(fLo) === Math.sign(fHi)) {
     /* THE SAME SIGN AT BOTH ENDS IS NOT THE SAME AS NO RATE. With two sign
@@ -46694,11 +46807,11 @@ function irrOf(flows) {
       let a = LO, fa = fLo;
       for (let i = 1; i <= 400; i++) {
         const b = (1 + LO) * Math.pow((1 + HI) / (1 + LO), i / 400) - 1;
-        const fb = npvAt(b, flows);
+        const fb = npvAt(b, flows, times);
         if (isFinite(fa) && isFinite(fb) && Math.sign(fa) !== Math.sign(fb)) {
           let l = a, h = b, fl = fa;
           for (let k = 0; k < 200 && (h - l) > 1e-10; k++) {
-            const mid = (l + h) / 2, fm = npvAt(mid, flows);
+            const mid = (l + h) / 2, fm = npvAt(mid, flows, times);
             if (Math.sign(fm) === Math.sign(fl)) { l = mid; fl = fm; } else h = mid;
           }
           roots.push((l + h) / 2 * 100);
@@ -46715,7 +46828,7 @@ function irrOf(flows) {
 
   for (let i = 0; i < 300; i++) {
     const mid = (lo + hi) / 2;
-    const f = npvAt(mid, flows);
+    const f = npvAt(mid, flows, times);
     if (Math.abs(f) < 1e-6 || (hi - lo) < 1e-9) return { rate: mid * 100, signChanges, why: null };
     if (Math.sign(f) === Math.sign(fLo)) { lo = mid; fLo = f; } else { hi = mid; }
   }
@@ -46840,10 +46953,14 @@ function returnsAndTaxPanel(d, m) {
 
   /* ---- the rate ---- */
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
+  /* A timed new development (ndTimingOf): held from vacant possession, the
+     money committed at signing — the years named both ways. */
+  const nt = m.ndTiming;
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Internal rate of return',
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
-        ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`
+        ? (nt ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed at signing; held ${d.holdYears} years from vacant possession, sold ${ndYears(nt.saleYears)} years after signing`
+          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`)
         : (m.irrWhy || 'Not computable') })));
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
@@ -46858,6 +46975,12 @@ function returnsAndTaxPanel(d, m) {
         : m.hurdlePct > 0 ? 'The cash flows could not be computed, so neither can their value'
         : 'Enter the return your capital could earn elsewhere' })));
   card.append(g);
+  /* How the flows are timed on a new development — or why they are not. */
+  if (nt) card.append(el('p', { class: 'metaline pc-nd-timing', id: 'pc-returns-timing', 'data-timed': 'true', style: 'margin-top:var(--sm)' },
+    `Timed from vacant possession, ${nt.vpAt} months after signing${nt.delay ? `, the ${nt.delay}-month delay you entered included` : ''}: the ${fmtMoney(m.equityOut, 'MYR', 0)} of cash required leaves at signing — the deposit, the fees, any furnishing, the reserve and any interest during construction, all counted then, so the rate is a little lower than if each were counted when it falls. `
+    + `No rent and no instalment before vacant possession; each year’s cash a year after it, ${ndYears(nt.lead + 1)} to ${ndYears(nt.saleYears)} years after signing, with the sale and the reserve back in the last. `
+    + `The annualised multiple and the value against the alternative are over the same ${ndYears(nt.saleYears)} years.`));
+  else if (ndTimingWhy(d)) card.append(el('p', { class: 'metaline pc-nd-timing', id: 'pc-returns-timing', 'data-timed': 'false', style: 'margin-top:var(--sm)' }, ndTimingWhy(d)));
 
   if (isNum(m.irrPct) && isNum(m.annualisedMultiplePct)) {
     const gap = m.annualisedMultiplePct - m.irrPct;
@@ -46903,7 +47026,7 @@ function returnsAndTaxPanel(d, m) {
   if (m.rpgtResult) {
     const rr = m.rpgtResult;
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Selling in year ${d.holdYears}: ${rr.why} `
+      `${nt ? `Selling ${d.holdYears} years after vacant possession, ${ndYears(nt.saleYears)} years after the SPA` : `Selling in year ${d.holdYears}`}: ${rr.why} `
       + (rr.tax > 0
           ? `That is ${fmtMoney(rr.tax, 'MYR', 0)} on a gain of ${fmtMoney(rr.chargeableGain, 'MYR', 0)} after ${fmtMoney(rr.allowable, 'MYR', 0)} of allowable costs.`
           : 'Nothing is charged on this scenario.')));
@@ -46913,6 +47036,14 @@ function returnsAndTaxPanel(d, m) {
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current '
       + 'schedule or any exemption order in force. Confirm before relying on the figure.'));
+    /* Where the holding period starts, read in the Act: said where it
+       matters, a purchase signed years before its keys. */
+    if (nt) {
+      const a = RPGT_SCHEDULE.acquisitionDate;
+      card.append(el('p', { class: 'metaline', id: 'pc-rpgt-from', style: 'margin-top:6px' }, [
+        `The holding period counts from the SPA date: ${a.rule.charAt(0).toLowerCase()}${a.rule.slice(1)} `,
+        el('a', { href: a.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, a.citation), ` — ${a.source}, read ${feeDay(a.checkedOn)}. ${a.note}`]));
+    }
   }
 
   /* ---- the rate the reader pays ---- */
@@ -47653,9 +47784,21 @@ function dealModel(d) {
      as theirs, as an MRTA quote is. Not entered, the rulebook's line stands. */
   const auctionRoute = dealRoute(d) === 'auction';
   const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
+  /* THE NEW-DEVELOPMENT ROUTE'S OWN QUOTE (the fee rulebook 1.3.0): which
+     of Sarawak's rules 1–3 prices a developer purchase turns on what the
+     reader's lawyer is engaged for — the SPA and the transfer that
+     completes it, or the SPA alone with the transfer later — not on the
+     route (FEE_TABLE.routeRules), so the reader's lawyer's quote, once
+     entered, takes the place of the rulebook's purchase legal fees, as the
+     auction's does. Not entered, the rulebook's line stands. Not for land
+     (ROUTE_ASSET_GATES 'newdev|land'). */
+  const ndLegalQuote = !auctionRoute && dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land' && isNum(d.ndLegal) && d.ndLegal >= 0 ? d.ndLegal : null;
   const purchaseLegalR = legalQuote != null
     ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
+    : ndLegalQuote != null
+    ? { id: 'ndLegal', amount: ndLegalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Purchase legal fees — your lawyer’s quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+        note: 'Your lawyer’s quote for the developer purchase: the SPA and the transfer, as your lawyer is engaged for them. In place of the rulebook’s purchase legal fees, which charge rule 1’s full scale.' }
     : feeGate(resolveFee('purchaseLegal', { price: d.price }), feeClass);
   const loanLegalR = feeGate(resolveFee('loanLegal', { loan }), feeClass);
   /* What the auction passes to the buyer, as the reader entered it: each a
@@ -47683,6 +47826,12 @@ function dealModel(d) {
   const newDevRoute = dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land';
   const ndBuild = newDevRoute ? ndConstruction(d, loan) : null;
   const ndRebate = newDevRoute && isNum(d.ndRebates) && d.ndRebates > 0 ? d.ndRebates : 0;
+  /* Timed from vacant possession once both months are entered (ndTimingOf,
+     below): `lead` is the years from signing to VP, and a year of the hold
+     is that many years from signing plus the year. Null on every other
+     deal, and then every moment is the year it always was. */
+  const ndTime = newDevRoute ? ndTimingOf(d) : null;
+  const fromSigning = (y) => (ndTime ? ndTime.lead + y : y);
   const valuationR = feeGate(resolveFee('valuationFee', { price: d.price }), feeClass);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
@@ -47994,7 +48143,9 @@ function dealModel(d) {
      assumption (nothing recovered) presented as none. It is an input now,
      defaulting to the old behaviour. */
   const renoRecovered = num0(d.renovation) * num0(d.renoValueRecoveryPct) / 100;
-  const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, y) + renoRecovered;
+  /* On a timed new development the price grows from signing, so a sale y
+     years after VP is grown for the years to VP and y more (ndTimingOf). */
+  const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, fromSigning(y)) + renoRecovered;
   const exitValue = exitValueAt(d.holdYears);
   const outstanding = balanceAt(d.holdYears * 12);
   const agentFee = exitValue * num0(d.agentPct) / 100;
@@ -48005,11 +48156,13 @@ function dealModel(d) {
   /* Renovation that is still reflected in the property at disposal is an
      allowable enhancement cost. Leaving it out overstated the gain by whatever
      was spent improving the asset. */
+  /* The gains tax's holding period runs from the acquisition — on a timed
+     new development, the SPA date (RPGT_SCHEDULE.acquisitionDate). */
   const rpgtResult = rpgtCharge({
     disposalPrice: exitValue, acquisitionPrice: d.price,
     acquisitionCosts: duty + legal, disposalCosts: agentFee + exitLegal,
     enhancementCosts: num0(d.renovation),
-    holdYears: d.holdYears, categoryId: d.disposerCategory,
+    holdYears: fromSigning(d.holdYears), categoryId: d.disposerCategory,
   });
   const gain = rpgtResult.chargeableGain;
   const rpgt = rpgtResult.tax;
@@ -48090,8 +48243,10 @@ function dealModel(d) {
   /* Kept, renamed, and no longer presented as a rate of return: it is the
      annualised multiple, which is a much cruder statement. The real internal
      rate is computed below, once the committed equity is known. */
+  /* Over the years the money is committed: from signing, on a timed new
+     development. */
   const annualisedMultiplePct = isNum(multiple) && multiple > 0
-    ? (Math.pow(multiple, 1 / d.holdYears) - 1) * 100 : null;
+    ? (Math.pow(multiple, 1 / fromSigning(d.holdYears)) - 1) * 100 : null;
 
   /* ---- stress tests ---------------------------------------------------- */
   /* Each re-runs the monthly position with one assumption moved, because the
@@ -48180,7 +48335,7 @@ function dealModel(d) {
       disposalPrice: val, acquisitionPrice: d.price,
       acquisitionCosts: duty + legal, disposalCosts: agent + lg,
       enhancementCosts: num0(d.renovation),
-      holdYears: yrs, categoryId: d.disposerCategory,
+      holdYears: fromSigning(yrs), categoryId: d.disposerCategory,
     });
     const tax = rc.tax;
     const net = debtUnknown ? null : val - bal - agent - lg - tax - carry;
@@ -48193,7 +48348,7 @@ function dealModel(d) {
     return { yrs, value: val, outstanding: bal, agentFee: agent, exitLegal: lg, carry,
              rpgtPct: rc.rate, rpgtRelief: rc.relief, rpgt: tax, sellingCosts: debtUnknown ? null : agent + lg + tax + carry,
              net, cumCash: cum, cumCashPreTax: cumPre, profit,
-             annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / yrs) - 1) * 100 : null };
+             annualised: isNum(mult) && mult > 0 ? (Math.pow(mult, 1 / fromSigning(yrs)) - 1) * 100 : null };
   };
   const exits = [5, 10].map(exitAt);
 
@@ -48309,7 +48464,12 @@ function dealModel(d) {
        an unknown cash flow into a known nought and gave the IRR a number. */
     flows.push(isNum(p.cf) ? p.cf + (last ? netExitProceeds + num0(reserveCash) : 0) : null);
   });
-  const irrResult = irrOf(flows);
+  /* Each flow's moment in years from signing, on a timed new development:
+     the equity at 0, a year of the hold at VP + that year. Null otherwise,
+     and a flow's index is its year, as it always was. */
+  const timesFor = (fl) => (ndTime ? fl.map((_, i) => (i === 0 ? 0 : fromSigning(i))) : null);
+  const flowTimes = timesFor(flows);
+  const irrResult = irrOf(flows, flowTimes);
   const irrPct = irrResult.rate;
 
   /* HOLD OR SELL, YEAR BY YEAR. The same flows the rate of return above is
@@ -48328,7 +48488,7 @@ function dealModel(d) {
     if (!cfs.every(isNum) || !isNum(e.net)) return { rate: null, why: 'The loan’s instalment could not be computed, so neither can the cash flows.' };
     const fl = [-equityOut, ...cfs];
     fl[fl.length - 1] += e.net + num0(reserveCash);
-    return irrOf(fl);
+    return irrOf(fl, timesFor(fl));
   };
   /* One row per year of the hold, which normHoldYears keeps to thirty — so
      the final row is always the model's own case. */
@@ -48349,8 +48509,10 @@ function dealModel(d) {
      it describe the same capital. It grew the cash before the reserve, while
      the card printed the rate on the cash after it. The property's profit is
      the same on either base: the reserve goes in and comes back out. */
+  /* Over the same years: from signing to the sale, on a timed new
+     development. */
   const equity = exits.map(e => {
-    const grown = equityOut * Math.pow(1 + num0(d.equityReturnPct) / 100, e.yrs);
+    const grown = equityOut * Math.pow(1 + num0(d.equityReturnPct) / 100, fromSigning(e.yrs));
     const profit = grown - equityOut;
     return { yrs: e.yrs, committed: equityOut, value: grown, profit, propertyProfit: e.profit,
              annualised: num0(d.equityReturnPct), vsProperty: isNum(e.profit) ? e.profit - profit : null };
@@ -48359,7 +48521,7 @@ function dealModel(d) {
      already collected for the opportunity-cost comparison and never used for
      this. Positive means the deal beats that alternative after tax. */
   const hurdlePct = num0(d.equityReturnPct);
-  const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows) : null;
+  const npvAtHurdle = hurdlePct > 0 ? npvAt(hurdlePct / 100, flows, flowTimes) : null;
 
   /* THE LEDGER BY KIND (the fee rulebook 1.1.0; the owner's decision of 9
      Oct 2026): every priced line of the cash required in one of the five
@@ -48428,7 +48590,13 @@ function dealModel(d) {
               at the sale. Neither is called equity, for the reason at
               yearFlow. */
            valueLessLoanAtExit: debtUnknown ? null : exitValue - outstanding,
-           priceGrowthAtExit: exitValue - renoRecovered - d.price };
+           priceGrowthAtExit: exitValue - renoRecovered - d.price,
+           /* The timing, on a timed new development only — a key no other
+              deal carries, so every other deal's result is the object it
+              was (P1 R1's fingerprints). `saleYears`: the sale's moment,
+              and the gains tax's holding period, in years from signing;
+              `flowTimes`: each flow's moment, beside `flows`. */
+           ...(ndTime ? { ndTiming: { ...ndTime, saleYears: fromSigning(d.holdYears), flowTimes } } : {}) };
 }
 
 /* The calculator's "Monthly commitment": what the owner funds from their
@@ -48726,6 +48894,56 @@ function auctionBidCeiling(d, a = auctionModel(d)) {
    completed unit's value reaches the price paid by VP.
    Defect liability is a feature of the route (NEWDEV_DLP), never a figure. */
 const ndMonthsBetween = (a, b) => { const i = ndMonthIndex(a), j = ndMonthIndex(b); return i == null || j == null ? null : j - i; };
+/* THE NEW DEVELOPMENT, TIMED FROM VACANT POSSESSION (the 12 Oct 2026
+   audit, #3, P0 — property cost accuracy). With the SPA month and the
+   month of vacant possession entered (VP after signing), the calculator's
+   rate of return, its holding period, the sale and the gains tax follow
+   the route instead of a purchase let on signing:
+   - the cash required leaves at signing, t = 0 — all of it: the deposit,
+     the fees, the furnishing paid at VP, the reserve and the interest
+     during construction (paid over the build, counted at signing: the
+     rate is a little lower than if each were counted when it falls);
+   - no rent and no instalment before VP: the loan's amortising instalment
+     and the rent begin at VP, the interest during construction having
+     covered the drawdown before it;
+   - the holding period the reader enters counts FROM VP, so a year of the
+     hold is a year after VP and its cash arrives at VP + that year;
+   - the sale falls at VP + the hold. Its value is the price grown at the
+     reader's rate FROM SIGNING — one rule with the premium model's exit
+     values (newDevModel: the completed comparable grown from signing), so
+     the two grow the same years; the calculator grows the price paid, the
+     premium model the comparable, and the gap is the premium, grown;
+   - the gains tax counts its holding period from the SPA date: a disposal
+     under a written agreement takes place on the agreement's date, and
+     the acquirer's acquisition on the same date (RPGT_SCHEDULE.
+     acquisitionDate: Schedule 2, paragraph 15);
+   - every rate is worked on the flows at those moments (irrOf's `times`).
+   The completion delay entered moves VP, and so everything after it. Not
+   timed — null — on any other route, for land (the route is not run for a
+   bare parcel: ROUTE_ASSET_GATES 'newdev|land'), or without both months:
+   then the deal is the deal it was, byte for byte, and the page says why
+   (ndTimingWhy). */
+function ndTimingOf(d) {
+  if (dealRoute(d) !== 'newdev' || propertyClassOf(d) === 'land') return null;
+  const vpMonths = ndMonthsBetween(d?.ndSpaMonth, d?.ndVpMonth);
+  if (!(vpMonths > 0)) return null;
+  const delay = isNum(d?.ndDelayMonths) && d.ndDelayMonths > 0 ? d.ndDelayMonths : 0;
+  const vpAt = vpMonths + delay;
+  return { spaMonth: d.ndSpaMonth, vpMonth: d.ndVpMonth, vpMonths, delay, vpAt, lead: vpAt / 12 };
+}
+/* Why a new development's figures are not timed from VP — null where they
+   are, or where the route is not a new development. */
+function ndTimingWhy(d) {
+  if (dealRoute(d) !== 'newdev') return null;
+  if (propertyClassOf(d) === 'land') return 'New development is not run for a bare parcel, so the holding period and the rate of return count from the purchase, as for a subsale.';
+  if (ndTimingOf(d)) return null;
+  const spa = ndMonthIndex(d?.ndSpaMonth) != null, vp = ndMonthIndex(d?.ndVpMonth) != null;
+  const need = !spa && !vp ? 'the SPA month and the month of vacant possession are' : !spa ? 'the SPA month is' : !vp ? 'the month of vacant possession is' : null;
+  return need ? `Counted from signing, as though let at once: ${need} not entered. Enter both to count the holding period and the rate of return from vacant possession.`
+    : 'Counted from signing, as though let at once: the month of vacant possession is not after the SPA month.';
+}
+/* Years as a figure: 12, 12.5, 2.25. */
+const ndYears = (y) => `${+Number(y).toFixed(2)}`;
 function ndConstruction(d, loan) {
   const stages = parseNdSchedule(d?.ndSchedule);
   const template = ndTemplateOf(stages);
@@ -49104,10 +49322,12 @@ function propertyRiskFlags(d, m) {
     n:`You have assumed ${fmtPct(d.vacancyPct, 0)} vacancy against roughly ${fmtPct(m.proj.vacancyPct, 0)} observed in ${m.proj.area}.` });
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
-  if (d.holdYears <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
+  /* By the gains tax's own holding period: on a timed new development it
+     runs from the SPA date, years before the hold begins (ndTimingOf). */
+  if ((m.ndTiming ? m.ndTiming.saleYears : d.holdYears) <= 5) out.push({ sev:'warning', t:'Real property gains tax applies at this holding period',
     /* The category as a sentence names it. Lower-casing the short label
        printed "charged at 30% for citizen or pr" — `who` exists for this. */
-    n:`Selling in year ${d.holdYears} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.who}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
+    n:`${m.ndTiming ? `Selling ${d.holdYears} years after vacant possession, ${ndYears(m.ndTiming.saleYears)} years after the SPA,` : `Selling in year ${d.holdYears}`} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.who}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
   if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a
@@ -50568,6 +50788,13 @@ VIEWS.property = () => {
       if (inputIsSeeded(d, k))
         f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
           'Illustrative default — not yours, and not from any market'));
+      /* On a new development, where the holding period counts from — the
+         keys once both months are entered (ndTimingOf), signing until then. */
+      if (k === 'holdYears' && dealRoute(d) === 'newdev') {
+        const t = ndTimingOf(d), hold = normHoldYears(d.holdYears);
+        const why = t ? `Held ${hold} year${hold === 1 ? '' : 's'} from vacant possession: the sale falls ${ndYears(t.lead + hold)} years after signing.` : ndTimingWhy(d);
+        if (why) f.append(el('span', { class: 'metaline', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false', style: 'flex-basis:100%;margin-top:2px' }, why));
+      }
       rail.append(f);
       /* QT-03: the renovation itemised, each line with its source, date,
          what it covers and its kind; the total the weakest line's badge. */
@@ -51383,10 +51610,13 @@ VIEWS.property = () => {
   } else {
     /* ---------- exits and the alternative ---------- */
     const exitCard = el('div', { class: 'card ls-section', id: 'property-report-full' });
-    exitCard.append(cardHead('Selling in year 5 and year 10',
+    /* A timed new development sells years after vacant possession, and is
+       named so (ndTimingOf). */
+    const ntm = m.ndTiming;
+    exitCard.append(cardHead(ntm ? 'Selling 5 and 10 years after vacant possession' : 'Selling in year 5 and year 10',
       'Exit costs modelled in full: agent commission, legal, real property gains tax, and the months the property is carried unlet while it sells.', null, DK));
     const exTable = el('table', { class: 'dt' });
-    exTable.append(el('thead', {}, el('tr', {}, ['', 'Sell in year 5', 'Sell in year 10'].map((h, i) =>
+    exTable.append(el('thead', {}, el('tr', {}, ['', ntm ? 'Sell at VP+5' : 'Sell in year 5', ntm ? 'Sell at VP+10' : 'Sell in year 10'].map((h, i) =>
       el('th', { class: i ? 'num' : '' }, h)))));
     const exBody = el('tbody');
     const exRows = [
@@ -51418,19 +51648,21 @@ VIEWS.property = () => {
 
     exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
       'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
+    if (ntm) exitCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
+      `Vacant possession is ${ntm.vpAt} months after signing, so these sales fall ${ndYears(ntm.lead + 5)} and ${ndYears(ntm.lead + 10)} years after it: the sale value is the price grown from signing, the gains tax counts from the SPA date, and the annualised figure and the rate of return are over the years from signing.`));
     reportCards.push(exitCard);
 
     /* ---------- hold or sell, year by year ---------- */
     {
       const hs = m.holdVsSell || [];
       const card = el('div', { class: 'card ls-section' });
-      card.append(cardHead('If you sold in year…',
+      card.append(cardHead(ntm ? 'If you sold, years after vacant possession…' : 'If you sold in year…',
         'Every possible exit inside the holding period: what the sale returns, what the rent has produced by then, and the rate of return of the whole hold if it ended there.', null, DK));
       const rated = hs.filter(e => isNum(e.irrPct));
       const host = el('div', { style: 'width:100%' });
       card.append(host);
       const t = el('table', { class: 'dt' });
-      t.append(el('thead', {}, el('tr', {}, ['Year', 'Sale value', 'Loan outstanding', 'RPGT', 'Net proceeds', 'Rental cash to date', 'Rate of return'].map((h, i) =>
+      t.append(el('thead', {}, el('tr', {}, [ntm ? 'Years after VP' : 'Year', 'Sale value', 'Loan outstanding', 'RPGT', 'Net proceeds', 'Rental cash to date', 'Rate of return'].map((h, i) =>
         el('th', { class: i ? 'num' : '' }, h)))));
       const tb = el('tbody');
       hs.forEach(e => tb.append(el('tr', {}, [
@@ -51452,7 +51684,7 @@ VIEWS.property = () => {
         + 'That is arithmetic on the entered figures — the appreciation rate, the gains-tax band for the year, and how much of the loan is left — and not a view on when to sell. '
         + `Rental cash is ${m.taxComputed ? 'after' : 'before'} tax on the rent.`));
       reportCards.push(card);
-      if (rated.length) columnChart(host, { cats: hs.map(e => `Y${e.yrs}`), series: [{ key:'irr', label:'Rate of return if sold that year', values: hs.map(e => isNum(e.irrPct) ? e.irrPct : null), varName:'--s1' }], fmt: v => fmtPct(v, 1), title: 'Rate of return by exit year' });
+      if (rated.length) columnChart(host, { cats: hs.map(e => ntm ? `VP+${e.yrs}` : `Y${e.yrs}`), series: [{ key:'irr', label:'Rate of return if sold that year', values: hs.map(e => isNum(e.irrPct) ? e.irrPct : null), varName:'--s1' }], fmt: v => fmtPct(v, 1), title: 'Rate of return by exit year' });
     }
 
     /* ---------- what the renovation returns ---------- */
@@ -51556,13 +51788,13 @@ VIEWS.property = () => {
 
     /* scenario path */
     const sc2 = el('div', { class: 'card ls-section' });
-    sc2.append(cardHead(`${d.holdYears}-year scenario`,
-      `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.`, null, DK));
+    sc2.append(cardHead(ntm ? `${d.holdYears}-year scenario from vacant possession` : `${d.holdYears}-year scenario`,
+      `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.${ntm ? ` Each year is a year after vacant possession, ${ntm.vpAt} months after signing; the value grows from signing.` : ''}`, null, DK));
     const stw = el('div', { class: 'tablewrap' });
     const st = el('table', { class: 'dt' });
-    st.append(el('thead', {}, el('tr', {}, ['Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
+    st.append(el('thead', {}, el('tr', {}, [ntm ? 'Year after VP' : 'Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
     st.append(el('tbody', {}, m.path.map(p2 => el('tr', {}, [
-      el('td', { class: 'ident' }, `Year ${p2.y}`),
+      el('td', { class: 'ident' }, ntm ? `VP+${p2.y}` : `Year ${p2.y}`),
       el('td', {}, fmtAmount(p2.rent, 'MYR')), el('td', {}, fmtAmount(p2.opex, 'MYR')),
       el('td', {}, fmtAmount(p2.debt, 'MYR')),
       el('td', { class: signClass(p2.cf) }, fmtAmount(p2.cf, 'MYR')),
@@ -51576,7 +51808,7 @@ VIEWS.property = () => {
     /* equity comparison — the cross-asset point of the whole product */
     const eq2 = el('div', { class: 'card ls-section' });
     eq2.append(cardHead('The same cash in equities',
-      `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${d.holdYears} years to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`, null, DK));
+      `What ${fmtAmount(m.equityOut, 'MYR')} would have to compound at over ${ntm ? `${ndYears(ntm.saleYears)} years — from signing to a sale ${d.holdYears} years after vacant possession —` : `${d.holdYears} years`} to match this property scenario. This is the comparison a spreadsheet in one app and a portfolio in another never lets you make.`, null, DK));
     /* The real rate, not the annualised multiple. Comparing a property against
        a compounding alternative on a figure that ignores timing was the least
        defensible place the old approximation appeared. */
@@ -51603,7 +51835,7 @@ VIEWS.property = () => {
        the equity return they entered, applied to the same capital. */
     const etw = el('div', { class: 'tablewrap' });
     const et = el('table', { class: 'dt' });
-    et.append(el('thead', {}, el('tr', {}, ['', ...m.equity.map(q => `Year ${q.yrs}`)].map((h, i) => el('th', { class: i ? 'num' : '' }, h)))));
+    et.append(el('thead', {}, el('tr', {}, ['', ...m.equity.map(q => ntm ? `VP+${q.yrs}` : `Year ${q.yrs}`)].map((h, i) => el('th', { class: i ? 'num' : '' }, h)))));
     et.append(el('tbody', {}, [
       ['The same cash at your equity return', q => fmtAmount(q.value, 'MYR')],
       ['Profit in equities', q => fmtAmount(q.profit, 'MYR')],
@@ -54777,6 +55009,10 @@ const LAB_NOT_APPLY = { rent: 'A parcel has no tenancy, so nothing uses a rent.'
    formatters — never from a figure the lab worked out. `help` is a
    METRIC_HELP key (00-core.js). Global: the client proposal will read it. */
 const labWhose = (d, k) => (isTouched(d, k) ? 'your assumption' : 'sample assumption — chosen by nobody');
+/* When the sale falls, in a row's words: "year 10" — or, on a new
+   development timed from vacant possession (ndTimingOf, 75-property-
+   grade.js), "10 years after VP". */
+const labSaleWhen = (d) => { const n = normHoldYears(d?.holdYears); return d && ndTimingOf(d) ? `${n} year${n === 1 ? '' : 's'} after VP` : `year ${n}`; };
 const LAB_FIGURES = [
   { key: 'instalment', label: () => 'Monthly repayment', fmt: 'money0', help: 'propInstalment',
     read: (m) => m.instalment,
@@ -54837,21 +55073,28 @@ const LAB_FIGURES = [
       ? (m.letsToTenant === false ? 'Not a quantity this asset has: there is no rent to fill.' : 'Not computable: the loan’s annual cost is unknown, or there is no rent to divide by.')
       : `(${labMoney(m.fixedOperatingCosts)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct(m.variableCostRate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
         + (m.breakEvenOccupancy > 100 ? ' Above 100% the property cannot cover its costs at this rent however full it is.' : '')) },
-  { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
+  { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, ${labSaleWhen(d)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
     read: (m) => m.valueLessLoanAtExit,
     note: (m) => (isNum(m.valueLessLoanAtExit) ? null : 'Not computable — the loan has no schedule'),
     formula: (d, m) => {
-      const n = normHoldYears(d.holdYears);
-      return `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
+      const n = normHoldYears(d.holdYears), t = m.ndTiming;
+      /* Timed from VP: the price grows from signing, the years to VP and
+         the hold (ndTimingOf). */
+      return t
+        ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed ${n} year${n === 1 ? '' : 's'} into its repayments, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
+        : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
     } },
-  { key: 'irrPct', label: (d) => `If sold in year ${normHoldYears(d?.holdYears)}`, fmt: 'pct2', help: 'propIrr',
+  { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
     read: (m) => m.irrPct,
     note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed` : (m.irrWhy || 'Not computable')),
     formula: (d, m) => {
-      const n = normHoldYears(d.holdYears), rr = m.rpgtResult;
-      return (isNum(m.irrPct) ? `The rate of return that sets every year’s cash flow after tax, and a sale in year ${n}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `
+      const n = normHoldYears(d.holdYears), rr = m.rpgtResult, t = m.ndTiming;
+      const sale = t ? `a sale ${n} year${n === 1 ? '' : 's'} after vacant possession` : `a sale in year ${n}`;
+      return (isNum(m.irrPct) ? (t
+          ? `The rate of return that sets every year’s cash flow after tax from vacant possession, ${t.vpAt} months after signing, and ${sale} — ${ndYears(t.saleYears)} years after signing — against the ${labMoney(m.equityOut)} committed at signing (the reserve comes back at the sale). No rent and no instalment come before vacant possession. The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth from signing — ${labWhose(d, 'apprecPct')}. `
+          : `The rate of return that sets every year’s cash flow after tax, and ${sale}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `)
         : `No rate of return: ${m.irrWhy || 'the flows do not give one'}. `)
-        + (rr ? `Selling in year ${n}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
+        + (rr ? `${t ? `Selling ${n} year${n === 1 ? '' : 's'} after vacant possession, ${ndYears(t.saleYears)} years after the SPA — gains tax counts from the SPA date` : `Selling in year ${n}`}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
           + 'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current schedule or any exemption order in force. Confirm before relying on the figure.' : '');
     } },
 ];
@@ -55655,6 +55898,13 @@ function labIdentityAct(P, lab) {
    any figure it is worked from is still the tool's seeded one, else the
    weakest evidence among them — and the next step. */
 const LAB_TILE_RESTS = {
+  /* The two chain rows no tile shows (D6 on the chain, the 12 Oct 2026
+     audit): the repayment rests on the loan — the price, the deposit, the
+     rate and the tenure; the break-even occupancy on those, the rent it
+     fills and the running costs it covers (the vacancy is what it solves
+     for, so it is not among them). */
+  instalment: ['price', 'downPct', 'ratePct', 'tenureYears'],
+  breakEvenOccupancy: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'maintenance'],
   safeCashRequired: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'],
   cashflowMonthly: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'],
   netYield: ['price', 'rent', 'vacancyPct', 'maintenance'],
@@ -55668,7 +55918,7 @@ const LAB_TILE_RESTS = {
    their order, and nothing is ranked. */
 const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
 /* A tile's label where the chain's is a sentence long. */
-const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)}` };
+const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, ${labSaleWhen(d)}` };
 const LAB_TILE_NOTE = { valueLessLoanAtExit: (m) => (isNum(m.valueLessLoanAtExit) ? 'before selling costs' : null) };
 function labTileKind(d, rests) {
   const keys = rests.filter(k => propertyInputApplies(d, k));
@@ -55690,6 +55940,25 @@ const labTag = (kind, { fees = false } = {}) => {
        is not one (the definitions are in its title, and on /data-sources). */
     { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind }, link: false });
 };
+/* A CHAIN ROW'S KIND (D6 on the chain; the 12 Oct 2026 audit): the tiles'
+   rule, row by row — the weakest figure the row rests on (labTileKind,
+   LAB_TILE_RESTS) as its badge (KIND_OF_EVIDENCE), the cash required
+   Placeholder while fee lines nobody has checked are in it (labTag's
+   `fees`) — and Unavailable where the row shows no figure, its note saying
+   why. { k, fine }: the badge and the words its title names. */
+function labRowKind(d, m, key, v) {
+  if (!d || !m) return { k: 'unavailable', fine: 'Needs a purchase price' };
+  if (!isNum(v)) return { k: 'unavailable', fine: 'No figure — the row says why' };
+  const ev = labTileKind(d, LAB_TILE_RESTS[key] || evidenceDriversFor(d));
+  const base = KIND_OF_EVIDENCE[ev.kind] || 'unavailable';
+  const k = key === 'safeCashRequired' && m.unconfirmedCost > 0 ? kindFirst([base, 'placeholder']) : base;
+  return { k, fine: k === base ? ev.words : 'Fee lines unchecked' };
+}
+/* The row's badge: the system's kind badge (kindBadge), its word in a span
+   of its own so a paint can write it, and no link — inside a row's
+   <summary>, which is the row's 44px target. */
+const labRowBadge = () => el('span', { class: 'kind-badge kind-unavailable lab-row-kind', 'data-kind-badge': 'unavailable', title: KIND_BADGES.unavailable.note },
+  [el('span', { class: 'kind-shape', 'aria-hidden': 'true' }), el('span', { class: 'lab-row-kind-w' }, KIND_BADGES.unavailable.word)]);
 /* A deal's result, as cardHead's badge: { kind, fine } — the weakest input
    it rests on (all of the deal's, or `rests`), Placeholder where `fees`
    and the cash carries fee lines nobody has checked, and `also` (the
@@ -56488,19 +56757,22 @@ function labChain(P, lab, col) {
     const deltaEar = el('span', { class: 'sr-only' }, '');
     const note = el('span', { class: 'lab-row-note' }, '');
     const label = el('span', { class: 'lab-row-label' }, f.label(d));
-    const sum = el('summary', { class: 'lab-sum' }, [label, el('span', { class: 'lab-row-fig' }, [value, el('span', { class: 'lab-delta' }, [deltaEye, deltaEar])]), note]);
+    /* The row's kind, leading its second line (D6): written by the paint. */
+    const kind = labRowBadge();
+    const sum = el('summary', { class: 'lab-sum' }, [label, el('span', { class: 'lab-row-fig' }, [value, el('span', { class: 'lab-delta' }, [deltaEye, deltaEar])]),
+      el('span', { class: 'lab-row-sub' }, [kind, note])]);
     det.append(sum);
     const body = el('div', { class: 'lab-row-body' });
     const formula = el('p', { class: 'lab-formula' }, '');
     body.append(formula);
     const paidBox = f.key === 'irrPct' ? el('div', { class: 'lab-paid' }) : null;
     if (paidBox) body.append(paidBox);
-    body.append(el('p', { class: 'lab-help' }, [metricLabel(f.help, `What ${f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/^if sold/, 'the rate of return if sold')} means`)]));
+    body.append(el('p', { class: 'lab-help' }, [metricLabel(f.help, `What ${f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/\bvp\b/g, 'VP').replace(/^if sold/, 'the rate of return if sold')} means`)]));
     const where = labWhereEntered(lab, col, f.key);
     if (where) { body.append(where); (P.els.where ||= []).push(where); }
     det.append(body);
     list.append(det);
-    P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det };
+    P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det, kind, kindWord: kind.lastChild };
     /* A row's formula is written while it is open, and when it opens. */
     det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
     /* From 1440px, in the evidence drawer beside the figures instead
@@ -56630,7 +56902,7 @@ function labShowFormula(P, key) {
   if (P.els.how) P.els.how.node.open = true;
   labPaintPanel(P);
   const f = LAB_FIGURES.find(x => x.key === key);
-  if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase()} is worked out, in the evidence beside the figures.`);
+  if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase().replace(/\bvp\b/g, 'VP')} is worked out, in the evidence beside the figures.`);
 }
 /* THE SYSTEM'S ALERT CARD: how many of the figures behind these results
    are still the tool's, and where they are reviewed — the calculator's
@@ -56738,7 +57010,7 @@ function labMetricView(metric, lab) {
       parts: r => [{ part: 'price', value: num0(r.d.price), label: 'price' }, { part: 'priceGrowthAtExit', value: r.m.priceGrowthAtExit, label: 'growth on the price' },
         { part: 'renoRecovered', value: r.m.renoRecovered, label: 'renovation recovered' }],
       ticks: r => [{ value: r.m.valueLessLoanAtExit, label: 'value less loan' }],
-      note: r => `at ${fmtNum(num0(r.d.apprecPct), 1)}% a year for ${labYears(normHoldYears(r.d.holdYears))} — ${labWhose(r.d, 'apprecPct')}`,
+      note: r => `at ${fmtNum(num0(r.d.apprecPct), 1)}% a year for ${r.m?.ndTiming ? `${ndYears(r.m.ndTiming.saleYears)} years from signing` : labYears(normHoldYears(r.d.holdYears))} — ${labWhose(r.d, 'apprecPct')}`,
       table: { form: 'stacked', title: 'Value at the sale: the price, the growth on it and the renovation recovered, with value less loan marked' } }));
     vm.words.push('Each bar, from nought: the price, then the growth on it (the stronger shade), then the renovation recovered (outlined); the mark is value less loan.');
     const live = rows.filter(r => r.m);
@@ -57445,7 +57717,7 @@ const LAB_XR_ROWS = [
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.netYield }).kind, sub: isNum(f.m.grossYield) ? `gross ${fmtPct(f.m.grossYield, 2)}` : '' }) },
   { id: 'vll', label: 'Value less loan at the sale', cell: (f) => (isNum(f.m.valueLessLoanAtExit)
       ? { value: f.m.valueLessLoanAtExit, text: labMoney(f.m.valueLessLoanAtExit), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.valueLessLoanAtExit }).kind,
-          sub: `year ${normHoldYears(f.d.holdYears)}, before selling costs` }
+          sub: `${labSaleWhen(f.d)}, before selling costs` }
       : labXrUnavailable('the loan has no schedule of repayments')) },
   { id: 'priceGap', label: 'Price gap', only: 'subsale', cell: (f) => {
       const g = f.gap;
@@ -57524,7 +57796,7 @@ function labXrCell(r, f) {
 const LAB_XR_CHARTS = {
   monthly: { title: 'Monthly position, about nought', form: 'diverging', read: (f) => f.m.cashflowMonthly, fmt: (v) => labMoney(v) },
   vll: { title: 'Value less loan at the sale, before selling costs', form: 'bars', read: (f) => f.m.valueLessLoanAtExit, fmt: (v) => labMoney(v),
-    note: (f) => `year ${normHoldYears(f.d.holdYears)}` },
+    note: (f) => labSaleWhen(f.d) },
   occupancy: { title: 'Break-even occupancy, against 100%', form: 'against-line', refs: [100], read: (f) => (f.letting ? f.m.breakEvenOccupancy : null), fmt: (v) => fmtPct(v, 1),
     na: (f) => (f.letting ? null : 'Not for this asset') },
   cash: { title: 'Cash required: to complete, renovation and set-up, and the reserve', form: 'stacked', read: (f) => f.m.safeCashRequired, fmt: (v) => labMoney(v),
@@ -58068,6 +58340,20 @@ function labPaintPanel(P, { initial = false } = {}) {
     labText(ce.deltaEye, empty ? '' : dl ? dl.mark : '');
     labText(ce.deltaEar, empty ? '' : dl ? (dl.same ? 'unchanged' : `${dl.words} ${bl.label}`) : '');
     labText(ce.note, empty ? 'Needs a purchase price' : m ? (f.note(m, d) || '') : '');
+    /* The row's kind, by the tiles' rule (labRowKind): written only when it
+       changes — a drag's frames leave it alone unless a figure goes
+       missing or the fee lines' state turns. */
+    if (ce.kind) {
+      const rk = labRowKind(empty ? null : d, m, f.key, v);
+      const at = `${rk.k}|${rk.fine}`;
+      if (ce.kindAt !== at) {
+        ce.kindAt = at;
+        labAttr(ce.kind, 'class', `kind-badge kind-${rk.k} lab-row-kind`);
+        labAttr(ce.kind, 'data-kind-badge', rk.k);
+        labAttr(ce.kind, 'title', `${rk.fine} — ${KIND_BADGES[rk.k].note}`);
+        labText(ce.kindWord, KIND_BADGES[rk.k].word);
+      }
+    }
     /* Formulas of closed rows wait until they open, except in the page's
        first draw — served whole, with no script to open them. */
     if (initial || ce.det.open) labText(ce.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
@@ -58133,7 +58419,7 @@ function labPaintPanel(P, { initial = false } = {}) {
          name can carry a comma ("value less loan, year 10"). The report's
          two figures join them where it is unlocked. */
       const moved = (f) => LAB_FORMATS[f.fmt](f.read(m, d)) !== LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs));
-      const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase());
+      const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/\bvp\b/g, 'VP'));
       if (labPaid(d)) LAB_PAID.forEach(f => { if (LAB_FORMATS[f.fmt](m[f.key]) !== LAB_FORMATS[f.fmt](ref[f.key])) movedRows.push(f.label.toLowerCase()); });
       s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the seven'}.`;
       /* WHAT RENOVATION DOES NOT MOVE, said and nothing more. "Renovation
@@ -59171,6 +59457,13 @@ function ndInputs({ d, prefix, answer, evidence = null, extra = {}, where = {} }
   box.append(group('developer', 'From the developer', [el('div', { class: 'au-grid' }, [
     field('ndRebates', 'Rebates and incentives (RM)', input('ndRebates', { type: 'number', min: '0', step: '500', inputmode: 'decimal', class: 'input au-in num' })),
   ])]));
+  /* The purchase legal fees, as the reader's lawyer quotes them (the fee
+     rulebook 1.3.0): which of Sarawak's rules prices them turns on the
+     lawyer's engagement, so a quote takes the place of the rulebook's line. */
+  box.append(group('legal', 'From your lawyer', [el('div', { class: 'au-grid' }, [
+    field('ndLegal', 'Purchase legal fees — your lawyer’s quote (RM)', input('ndLegal', { type: 'number', min: '0', step: '100', inputmode: 'decimal', class: 'input au-in num' }),
+      d.ndLegal == null ? 'unavailable' : 'quoted', d.ndLegal == null ? 'not entered — the rulebook’s purchase legal fees stand' : 'your lawyer’s quotation, in place of the rulebook’s line'),
+  ])]));
   /* At completion: the model's own rent, vacancy and furnishing, named here
      as the assumptions they are on this route. */
   const letting = PROPERTY_CLASSES[propertyClassOf(d)].letsToTenant;
@@ -59274,8 +59567,19 @@ function ndExitFigure(n, prefix) {
   }
   fig.append(list);
   if (isNum(n.paid) && vals.length) fig.append(el('p', { class: 'au-wf-key' }, [el('span', { class: 'au-wf-key-mv', 'aria-hidden': 'true' }),
-    `The upright line on each bar is the ${pqMoney(n.paid)} you pay. The bars are the completed comparable’s ${pqMoney(n.comp)} grown ${fmtNum(n.growth, 1)}% a year — your assumption.`]));
+    `The upright line on each bar is the ${pqMoney(n.paid)} you pay. The bars are the completed comparable’s ${pqMoney(n.comp)} grown ${fmtNum(n.growth, 1)}% a year from signing — your assumption; the calculator’s sale grows the price you pay the same way.`]));
   return fig;
+}
+
+/* HOW THE RATE OF RETURN IS TIMED ON THIS ROUTE (the 12 Oct 2026 audit,
+   #3; ndTimingOf, 75-property-grade.js): from vacant possession once both
+   months are entered — said with its moments — and, until then, why not. */
+function ndTimingLine(d, prefix) {
+  const t = ndTimingOf(d), hold = normHoldYears(d?.holdYears);
+  const words = t
+    ? `The rate of return is timed from vacant possession: the cash required leaves at signing, the interest during construction with it; no rent and no instalment come before vacant possession, ${t.vpAt} months after signing; and a sale ${hold} year${hold === 1 ? '' : 's'} after it falls ${ndYears(t.lead + hold)} years after signing — the price grown from signing at ${fmtNum(num0(d.apprecPct), 1)}% a year, as these exit values grow the comparable. Gains tax counts its holding period from the SPA date.`
+    : ndTimingWhy(d);
+  return words ? el('p', { class: 'metaline nd-timing', id: `${prefix}-nd-timing`, 'data-timed': t ? 'true' : 'false' }, words) : null;
 }
 
 /* THE FIGURES: L1 and L2, and the route's defect liability. `why` holds
@@ -59320,6 +59624,9 @@ function ndResults({ n, d, prefix, why = {} }) {
       : 'A class with no tenancy: the instalment and the running costs, with the loan fully released.') : 'The loan has no schedule of repayments.' }));
   box.append(ctx);
   box.append(ndExitFigure(n, prefix));
+  /* How the calculator's rate of return is timed on this route. */
+  const timing = ndTimingLine(d, prefix);
+  if (timing) box.append(timing);
   /* What would justify the premium. */
   const rn = n.rentNeeded, gn = n.growthNeeded;
   if (!p) {
@@ -59379,7 +59686,8 @@ function ndExitFormula(n) {
   return `Exit value = the completed comparable ${pqMoney(n.comp)} × (1 + ${fmtNum(n.growth, 1)}%) ^ years from the SPA month: `
     + `${n.exits.map(x => `VP+${x.n}, ${fmtNum(x.years, 2)} years → ${pqMoney(x.value)}`).join('; ')}. `
     + `${n.delay ? `Vacant possession is taken ${n.build.vpAt} months after signing — the ${n.delay}-month delay you entered included — so each horizon is counted from then. ` : ''}`
-    + 'The growth is your appreciation assumption — Modelled, and not a forecast: another rate gives another figure. The comparable is taken as the value at the SPA month, whatever its own date. Not a valuation.';
+    + 'The growth is your appreciation assumption — Modelled, and not a forecast: another rate gives another figure. The comparable is taken as the value at the SPA month, whatever its own date. '
+    + 'One rule for every value of this route: it grows from the SPA month. The calculator’s sale, and so its rate of return, grows the price you pay the same way; the gap between the two is the premium, grown. Not a valuation.';
 }
 function ndNeededFormula(n) {
   const rn = n.rentNeeded, gn = n.growthNeeded;
