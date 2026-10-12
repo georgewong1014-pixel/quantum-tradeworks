@@ -12362,7 +12362,9 @@ function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.dataset.show = '1';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.dataset.show = '0', 2600);
+  /* Long enough to read: a long one (a save that says where it went) stays
+     up to eight seconds. */
+  toastTimer = setTimeout(() => t.dataset.show = '0', Math.min(8000, Math.max(2600, String(msg).length * 40)));
 }
 
 /* --------------------------------------------------------------- routing */
@@ -18677,7 +18679,12 @@ function renderScreener() {
     const pickedCols = pickable.filter(c2 => picked.includes(c2.k));
     /* A measure on a card reads as the table's cell does — its figure, or
        "Unavailable" with the reason (no price, n/a, not reported…), never a
-       dash a reader could take for a zero. */
+       dash a reader could take for a zero.
+       The reason in words a phone shows without a hover: the table's short
+       "n/a" and "n/m" spelled out, and not applicable said of what the
+       company is — a bank's ROIC (the 11 Oct 2026 audit). */
+    const cardWhy = (st, r) => st.reason === 'not applicable' ? `not applicable to ${typePhrase(r.c?.type)}`
+      : st.reason === 'not meaningful' ? 'not meaningful' : st.label;
     const cardCell = (c2, r) => {
       const v = c2.get(r);
       const fld = FIELD_BY_K[c2.k] || FIELD_BY_K[SCORE_COL_FIELD[c2.k]];
@@ -18686,7 +18693,7 @@ function renderScreener() {
         return el('div', { class: 'scr-card-m' }, [
           el('div', { class: 'scr-card-l' }, c2.label),
           el('div', { class: 'num scr-card-v scr-card-na', title: st.text }, 'Unavailable'),
-          el('div', { class: 'scr-card-why' }, st.label),
+          el('div', { class: 'scr-card-why' }, cardWhy(st, r)),
         ]);
       }
       const shown = el('span', { html: c2.fmt(v, r) }).textContent.replace(/\s+/g, ' ').trim();
@@ -28044,15 +28051,18 @@ const HELD_IS_SAMPLE = {
    whole exports ("Export everything", "Download a backup") record, in this
    browser, when a file was handed over and a print of each item it held;
    the line on /my/data and on the workspace (/app) says "Last exported:
-   <date> — N items saved since", or "Never exported". An item is one record
+   <date> — N changes since", or "Never exported". An item is one record
    of a list the export carries, or one record or setting kept whole — never
    a sample (the rules /my/data counts them apart by, HELD_SAMPLES), and
-   never an empty record. Saved since is new or changed since that export:
+   never an empty record. A change is an item new or changed since that export:
    an item whose print the export did not hold. The base currency is left
    out: kept as its default it is not something the reader made. No count
    at all is said where there is nothing of the reader's, so a fresh
    visitor's page reads "Never exported" and no figure (served-check). The
-   date is the reader's own calendar day, in one fixed form (en-GB). */
+   date is the reader's own calendar day, in one fixed form (en-GB). The count
+   after an export is of changes, not of saved work: a setting changed is
+   one, and the page's Saved work card may still read none yet (the 11 Oct
+   2026 audit). */
 const BACKUP_SAMPLE_ITEM = {
   portfolios: (p) => SEEDED_PF_IDS.includes(p?.id) || (p?.id === 'pf-user' && !(p.holdings || []).length),
   theses: (t) => SEEDED_THESIS_IDS.includes(t?.id),
@@ -28109,7 +28119,7 @@ function backupLine({ compact = false } = {}) {
   const state = !h.at ? 'never' : h.since ? 'behind' : 'current';
   const head = h.at ? `${compact ? 'last exported' : 'Last exported:'} ${backupDay(h.at)}` : compact ? 'never exported' : 'Never exported';
   const tail = !h.at ? (h.own ? `${items(h.own)} of yours ${h.own === 1 ? 'is' : 'are'} only in this browser` : null)
-    : h.since ? `${items(h.since)} saved since` : 'nothing saved since';
+    : h.since ? `${h.since} change${h.since === 1 ? '' : 's'} since` : 'no changes since';
   const p = el('p', { class: compact ? 'caption dash-backup' : 'metaline backup-line', 'data-backup-line': '', 'data-backup-state': state }, [
     compact ? 'Backup: ' : null, el('strong', {}, head), tail ? ` — ${tail}` : null, compact ? '. ' : null]);
   if (compact) p.append(myDashLink('/my/data', { class: 'dash-inline' }, h.at ? 'Export again' : 'Export from Your data & settings'));
@@ -28199,7 +28209,7 @@ VIEWS.userdata = () => {
   const bk = el('div', { class: 'card' });
   bk.append(cardHead('Back up everything in this browser',
     'One file with every calculation, saved deal, watchlist, screen and correction case this browser holds. There is no server copy, so this file is the only copy.'));
-  /* When a file last left this browser, and what has been saved since
+  /* When a file last left this browser, and what has changed since
      (backupHealth): kept in sight, never a modal. */
   bk.append(backupLine());
 
