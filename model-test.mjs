@@ -128,6 +128,14 @@ try {
   const send = (method, params = {}, sid) => new Promise(res => {
     const n = ++id; pending.set(n, res); ws.send(JSON.stringify({ id: n, method, params, sessionId: sid }));
   });
+  /* ---- unsaved-prompt ---- */
+  /* The Scenario Lab asks before a page holding what-ifs not saved is left
+     (beforeunload, 88-property-flow.js; the 11 Oct audit, #8): answered
+     "leave", as a reader moving on does — unanswered, the navigation waits
+     on it for ever. Nothing else is answered here. */
+  ws.addEventListener('message', (e) => { const m = JSON.parse(e.data);
+    if (m.method === 'Page.javascriptDialogOpening' && m.params?.type === 'beforeunload') send('Page.handleJavaScriptDialog', { accept: true }, m.sessionId).catch(() => {}); });
+  /* ---- end unsaved-prompt ---- */
 
   const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
   const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });

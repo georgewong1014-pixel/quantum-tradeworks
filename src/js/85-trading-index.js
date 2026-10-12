@@ -1253,6 +1253,7 @@ VIEWS.opportunities = () => {
   }
 
   /* The register itself. Newest first — an explicit, stated order. */
+  const inLab = pfContext();
   list.forEach((o, i) => {
     const { d: md, m, grade, finance } = modelled[i];
     /* Where it is modelled, said where it differs from what was recorded: a
@@ -1292,6 +1293,9 @@ VIEWS.opportunities = () => {
       /* The card's figures' kind (D6). */
       (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
       tiedRec ? el('span', { class: 'chip chip-brand', 'data-tied': tiedRec.id }, `Saved as a property: “${tiedRec.name}”`) : null,
+      /* Shown in the Scenario Lab's work now (the property flow, #8). */
+      (() => { const c = inLab?.lab.cols.find(x => x.prop === `opp:${o.id}` || (tiedRec && (x.prop === `pm:${tiedRec.id}` || inLab.lab.model === tiedRec.id && !x.prop)));
+        return c ? el('span', { class: 'chip', 'data-in-lab': c.key }, `In the Scenario Lab — column ${c.key}`) : null; })(),
     ]));
     /* WHERE IT CAME FROM, IN SIGHT (#7): the source, the date it is from
        and the day it was recorded — what a Lab column, a comparison and a

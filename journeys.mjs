@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, scanner, return, records, registers, cases, settings, backup, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, scanner, return, records, registers, cases, settings, backup, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -2181,6 +2181,129 @@ const JOURNEYS = [
             cols: LAB[labSubject].cols.map(c => [c.work.rfUpgradeCost, c.work.rfUpgradeBasis]), src: LAB[labSubject].cols[0].work.rfUpgradeLines[0].source })`));
           if (!/^Imported 4 lines from “cost-schedule-v1\.csv”/.test(r.msg) || r.cols.some(c => c[0] !== 26300.5 || c[1] !== 'placeholder') || !/EX-101/.test(r.src)) throw new StepError(`the import reads ${JSON.stringify(r)}`);
         } finally { await rm(dir, { recursive: true, force: true }); }
+      });
+    },
+  },
+  {
+    /* THE PROPERTY FLOW (the 11 Oct 2026 daily audit, #7 and #8, owner-
+       approved 12 Oct): a property saved in the Lab; a real property
+       recorded in the opportunity register with where it was found and the
+       date that source is from; opened in the Scenario Lab as a column
+       beside the saved one, its provenance with it, compared across routes
+       (P6); a price moved and Auction answered on it — what-ifs, nothing
+       written; the comparables visited, where the work is named, not saved;
+       resumed from there with the what-ifs intact; and saved: a property
+       tied to the record, its source and dates kept. Every step reads what
+       is stored: nothing is written before Save. */
+    id: 'property-flow', name: 'Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved',
+    outcomes: ['Record an opportunity with its source and date', 'Open it in the Scenario Lab: a column beside the saved property, its provenance with it',
+      'Move its price and answer Auction: a what-if, nothing written', 'Visit the comparables: the work in the Lab is named, not saved',
+      'Resume in the Lab: the what-if intact', 'Save it as a property: tied to the record, its provenance kept'],
+    async run(j, tab) {
+      const NAME = 'Journey flow residences';
+      const SRC = 'Journey check — agent listing ref. JF-7';
+      const DATED = '2026-10-01';
+      let oppId = null, savedId = null;
+      const KEYS = ['savedWork', 'deal', 'opportunities', 'labComparisons', 'dealBeforeLink'];
+      const snap = () => tab.eval(`JSON.stringify(${JSON.stringify(KEYS)}.map(k => localStorage.getItem('vl.' + k)))`);
+      const cols = `LAB[labSubject].cols.map(c => c.key + ':' + c.source).join(',')`;
+      const colB = `LAB[labSubject].cols.find(c => c.key === 'B')`;
+      await step(j, tab, 'Save a property in the Scenario Lab', BUDGET.load + BUDGET.action * 3, async () => {
+        await tab.goto('/property');
+        await tab.expect(`State.view === 'propertyLab' && !!document.getElementById('lab-id-save')`, 'the Lab offers no Save for the sample deal');
+        await tab.click(`document.getElementById('lab-id-save')`, 'Save this property');
+        await tab.expect(`!!document.getElementById('lab-property-name')`, 'Save asked for no name');
+        await tab.fill(`document.getElementById('lab-property-name')`, 'Journey flow condo', 'Name this property');
+        await tab.click(`document.getElementById('lab-name-save')`, 'Save');
+        await tab.expect(`pmAll().length === 1 && /^m:/.test(labSubject || '')`, async () => `Save kept ${await tab.eval('pmAll().length')} properties, the Lab on ${await tab.eval('labSubject')}`);
+        savedId = await tab.eval(`pmAll()[0].id`);
+      });
+      await step(j, tab, 'Record an opportunity with its source and date', BUDGET.load + BUDGET.action * 4, async () => {
+        await tab.click(`document.getElementById('pf-explore')`, 'Explore — the property flow');
+        await tab.expect(`State.view === 'opportunities' && !!document.getElementById('opp-add')`, async () => `Explore opened ${await tab.eval('State.view')}, not the opportunity register`);
+        const before = await snap();
+        await tab.fill(`document.getElementById('opp-new-name')`, NAME, 'Project or address');
+        await tab.choose(`document.getElementById('opp-new-city')`, 'kuching', 'City');
+        await tab.choose(`document.getElementById('opp-new-district')`, 'Tabuan', 'Area or district');
+        await tab.choose(`document.getElementById('opp-new-type')`, 'Condominium', 'Property type');
+        await tab.fill(`document.getElementById('opp-new-askingPrice')`, '450000', 'Asking price');
+        await tab.fill(`document.getElementById('opp-new-sqft')`, '1100', 'Built-up area');
+        await tab.fill(`document.getElementById('opp-new-source')`, SRC, 'Where you found it');
+        await tab.eval(`(() => { const d = document.getElementById('opp-new-sourceDate'); d.value = ${JSON.stringify(DATED)}; d.dispatchEvent(new Event('change', { bubbles: true })); return d.value; })()`);
+        if (await snap() !== before) throw new StepError('filling the form wrote to storage before Add');
+        await tab.click(`document.getElementById('opp-add')`, 'Add to register');
+        await tab.expect(`(document.getElementById('opp-0-name')?.textContent || '').trim() === ${JSON.stringify(NAME)}`, `“${NAME}” is not listed in the register`, 4000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ o: State.opportunities[0], prov: document.getElementById('opp-0-prov')?.textContent || '' })`));
+        oppId = r.o.id;
+        if (r.o.source !== SRC || r.o.sourceDate !== DATED || !/^\d{4}-\d{2}-\d{2}$/.test(r.o.capturedAt || '')) throw new StepError(`the record keeps ${JSON.stringify({ source: r.o.source, sourceDate: r.o.sourceDate, capturedAt: r.o.capturedAt })}`);
+        const want = `Source: ${SRC} · dated ${DATED} · recorded ${r.o.capturedAt}`;
+        if (r.prov !== want) throw new StepError(`its card reads “${r.prov}”, not “${want}”`);
+      });
+      let before = null;
+      await step(j, tab, 'Open it in the Scenario Lab: a column beside the saved property, its provenance with it', BUDGET.load + BUDGET.action, async () => {
+        before = await snap();
+        await tab.click(`document.getElementById('opp-0-lab')`, 'Open in the Scenario Lab');
+        await tab.expect(`State.view === 'propertyLab' && labSubject === ${JSON.stringify('m:' + savedId)} && ${cols} === ${JSON.stringify(`A:base,B:opp:${oppId}`)} && !!document.getElementById('lab-xr')`,
+          async () => `the Lab opened ${await tab.eval(`State.view + ' ' + labSubject + ' ' + (LAB[labSubject] ? ${cols} : '')`)}${await tab.eval(`document.getElementById('lab-xr') ? '' : ', no comparison across routes'`)}`, 6000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ active: LAB[labSubject].active, prov: [...document.querySelectorAll('.lab-xr-prov[data-prov="B"], .lab-col-prov[data-prov="B"]')].map(n => n.textContent),
+          head: document.querySelector('#lab-xr-grid .lab-xr-colhd[data-col="B"] .lab-xr-colname')?.textContent || '' })`));
+        if (r.active !== 'B') throw new StepError(`the sliders move ${r.active}, not B`);
+        if (r.prov.length !== 2 || r.prov.some(t => !t.includes(`Source: ${SRC} · dated ${DATED}`))) throw new StepError(`B's provenance reads ${JSON.stringify(r.prov)}`);
+        if (!r.head.includes(NAME)) throw new StepError(`the comparison's B is “${r.head}”`);
+        if (await snap() !== before) throw new StepError('opening it in the Lab wrote to storage');
+      });
+      await step(j, tab, 'Move its price and answer Auction: a what-if, nothing written', BUDGET.action * 5, async () => {
+        await tab.fill(`document.getElementById('lab-n-price')`, '430000', 'Purchase price — B', { commit: true });
+        await tab.expect(`${colB}?.work.price === 430000`, async () => `B's price is ${await tab.eval(`${colB}?.work.price`)} after typing 430000`);
+        await tab.eval(`(document.activeElement && document.activeElement !== document.body && document.activeElement.blur(), true)`);
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
+        await tab.expect(`dealRoute(${colB}.work) === 'auction' && dealRoute(LAB[labSubject].cols[0].work) === 'subsale'`,
+          async () => `B is ${await tab.eval(`dealRoute(${colB}.work)`)} and A ${await tab.eval(`dealRoute(LAB[labSubject].cols[0].work)`)} — Auction answered for B alone`);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ moves: labMoveCount(${colB}), price: ${colB}.work.price, ra: document.querySelector('#lab-xr-grid .lab-xr-colhd[data-col="B"] .lab-xr-ra')?.textContent || '' })`));
+        if (r.moves < 2 || r.price !== 430000 || !/^Auction · Residential/.test(r.ra)) throw new StepError(`B holds ${JSON.stringify(r)}`);
+        if (await snap() !== before) throw new StepError('a move or an answer wrote to storage before Save');
+      });
+      await step(j, tab, 'Visit the comparables: the work in the Lab is named, not saved', BUDGET.load, async () => {
+        await tab.click(`[...document.querySelectorAll('#productTabs a')].find(a => /^Comparables/.test(a.textContent.trim()))`, 'Comparables — the product tabs');
+        await tab.expect(`State.view === 'comparables' && !!document.getElementById('pf-ctx')`, async () => `the comparables opened ${await tab.eval('State.view')} with ${await tab.eval(`document.getElementById('pf-ctx') ? 'the work named' : 'no word of the work in the Lab'`)}`);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ text: (document.getElementById('pf-ctx')?.textContent || '').replace(/\\s+/g, ' '), n: Number(document.getElementById('pf-unsaved')?.dataset.unsaved || 0),
+          here: document.querySelector('.pf-step[aria-current="step"]')?.dataset.pfStep || null, town: document.getElementById('ef-town')?.value, area: document.getElementById('ef-area')?.value })`));
+        if (!r.text.includes('“Journey flow condo”') || !r.text.includes(`B — ${NAME}`) || r.n < 2 || !/not saved — kept in this tab until you save/.test(r.text)) throw new StepError(`the work is named “${r.text.slice(0, 220)}” (${r.n} moves)`);
+        if (r.here !== 'explore') throw new StepError(`the flow marks ${r.here}, not Explore`);
+        if (r.town !== 'kuching' || r.area !== 'Tabuan') throw new StepError(`the guided flow starts at ${r.area}, ${r.town}, not where B is (Tabuan, Kuching)`);
+        if (await snap() !== before) throw new StepError('leaving the Lab wrote to storage');
+      });
+      await step(j, tab, 'Resume in the Lab: the what-if intact', BUDGET.load, async () => {
+        await tab.click(`document.getElementById('pf-resume')`, 'Resume in the Lab');
+        await tab.expect(`State.view === 'propertyLab' && labSubject === ${JSON.stringify('m:' + savedId)} && ${cols} === ${JSON.stringify(`A:base,B:opp:${oppId}`)}`,
+          async () => `resumed on ${await tab.eval(`State.view + ' ' + labSubject + ' ' + (LAB[labSubject] ? ${cols} : '')`)}`, 6000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ active: LAB[labSubject].active, price: ${colB}.work.price, route: dealRoute(${colB}.work), moves: labMoveCount(${colB}),
+          box: document.getElementById('lab-n-price')?.value || null, au: !!document.getElementById('lab-au') })`));
+        if (r.active !== 'B' || r.price !== 430000 || r.route !== 'auction' || r.moves < 2 || r.box !== '430000' || !r.au) throw new StepError(`back in the Lab B holds ${JSON.stringify(r)}`);
+        if (await snap() !== before) throw new StepError('resuming wrote to storage');
+      });
+      await step(j, tab, 'Save it as a property: tied to the record, its provenance kept', BUDGET.action * 4 + BUDGET.load, async () => {
+        await tab.expect(`/^Save B as a property/.test(document.getElementById('lab-id-save')?.textContent || '')`, async () => `the Lab's Save reads “${await tab.eval(`document.getElementById('lab-id-save')?.textContent || 'nothing'`)}”`);
+        await tab.click(`document.getElementById('lab-id-save')`, 'Save B as a property');
+        await tab.expect(`!!document.getElementById('lab-property-name')`, 'Save asked for no name');
+        await tab.click(`document.getElementById('lab-name-save')`, 'Save');
+        await tab.expect(`pmAll().length === 2`, async () => `Save kept ${await tab.eval('pmAll().length')} properties, not 2`);
+        const r = JSON.parse(await tab.eval(`(() => { const rec = pmAll().find(x => x.id !== ${JSON.stringify(savedId)}); const d = pmInputsOf(rec);
+          return JSON.stringify({ id: rec.id, source: rec.source, price: d.price, route: dealRoute(d), col: ${colB}.source, moves: labMoveCount(${colB}) }); })()`));
+        const s = r.source || {};
+        if (s.kind !== 'opportunity' || s.id !== oppId || s.ref !== SRC || s.dated !== DATED || !/^\d{4}-\d{2}-\d{2}$/.test(s.recordedAt || '')) throw new StepError(`the property's source is ${JSON.stringify(s)}`);
+        if (r.price !== 430000 || r.route !== 'auction') throw new StepError(`the property holds ${r.price} by ${r.route}, not the what-if (430000, auction)`);
+        if (r.col !== `pm:${r.id}` || r.moves) throw new StepError(`B is ${r.col} with ${r.moves} moves — not the saved property`);
+        /* Explore goes back to the explore page last visited — the comparables. */
+        await tab.click(`document.getElementById('pf-explore')`, 'Explore — the property flow');
+        await tab.expect(`State.view === 'comparables'`, async () => `Explore opened ${await tab.eval('State.view')}, not the comparables last visited`);
+        await tab.click(`[...document.querySelectorAll('#productTabs a')].find(a => /^Opportunities/.test(a.textContent.trim()))`, 'Opportunities — the product tabs');
+        await tab.expect(`State.view === 'opportunities'`, 'the tab did not open the register');
+        const c = JSON.parse(await tab.eval(`JSON.stringify({ chip: document.querySelector('#views [data-tied]')?.textContent || '', inLab: document.querySelector('#views [data-in-lab]')?.dataset.inLab || null,
+          state: document.getElementById('pf-unsaved')?.dataset.unsaved ?? null })`));
+        if (!/^Saved as a property: “Journey flow residences”$/.test(c.chip) || c.inLab !== 'B' || c.state !== '0') throw new StepError(`the register reads ${JSON.stringify(c)}`);
       });
     },
   },

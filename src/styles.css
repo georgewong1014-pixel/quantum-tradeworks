@@ -6805,3 +6805,47 @@ input.au-in[type="text"] { text-align: left; }
   .ac-record, .ac-del { display: inline-flex; align-items: center; }
 }
 /* ---- end actuals ---- */
+
+/* ---- property-flow ---- */
+/* THE PROPERTY FLOW (the 11 Oct audit, #8; 88-property-flow.js): above every
+   Property page, Explore → Analyse → Compare → Save, the page's own step
+   marked; and on the pages that are not the Lab, the work the Lab holds with
+   "Resume in the Lab". One line of steps at every width; under 640px 44px
+   chips that scroll, and not on the Lab or the calculator, whose action bar
+   carries Analyse · Compare · Save there. */
+.pf-flow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--lg); margin: 0 0 var(--md); min-width: 0; }
+.pf-steps { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.pf-li { display: flex; align-items: center; flex: none; }
+.pf-li + .pf-li::before { content: '›'; padding: 0 4px; color: var(--ink-3); font-size: var(--ls-support); line-height: 1; }
+.pf-step { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid transparent;
+  font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+.pf-step:hover { color: var(--ink); background: var(--surface-sunk); }
+.pf-step:active { transform: translateY(1px); }
+.pf-step:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pf-step.is-here { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 42%, transparent); }
+/* The work the Lab holds: its own line under the steps, the resume beside
+   it; bronze-edged while it holds moves not saved. */
+.pf-ctx { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--md); min-width: 0;
+  padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); }
+.pf-ctx.is-unsaved { border-left-color: var(--bronze); }
+.pf-ctx-text { flex: 1 1 24rem; min-width: 0; max-width: 70ch; margin: 0; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
+.pf-ctx-text strong { color: var(--ink); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.pf-ctx.is-unsaved .pf-ctx-state { color: var(--bronze); font-weight: var(--weight-semibold); }
+.pf-resume { flex: none; white-space: nowrap; }
+/* On the Lab from 1440px the steps stand at the top right, beside the
+   journey line and the page's head, not above them: its first slider stays
+   on the first screen (n3-first-view). The Lab draws no work's line of its
+   own, so nothing else is beside them. */
+@media (min-width: 1440px) {
+  .pf-flow[data-pf-view="propertyLab"] { display: block; margin: 0; }
+  .pf-flow[data-pf-view="propertyLab"] > .pf-steps { float: right; margin: 0 0 var(--xs) var(--lg); }
+}
+@media (max-width: 639.98px) {
+  .pf-flow { gap: var(--xs); }
+  .pf-steps { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .pf-steps::-webkit-scrollbar { display: none; }
+  .pf-step { min-height: 44px; padding: 0 14px; }
+  .pf-resume { min-height: 44px; }
+  .pf-flow[data-pf-view="propertyLab"], .pf-flow[data-pf-view="property"] .pf-steps { display: none; }
+}
+/* ---- end property-flow ---- */

@@ -6874,6 +6874,50 @@ input.au-in[type="text"] { text-align: left; }
   .ac-record, .ac-del { display: inline-flex; align-items: center; }
 }
 /* ---- end actuals ---- */
+
+/* ---- property-flow ---- */
+/* THE PROPERTY FLOW (the 11 Oct audit, #8; 88-property-flow.js): above every
+   Property page, Explore → Analyse → Compare → Save, the page's own step
+   marked; and on the pages that are not the Lab, the work the Lab holds with
+   "Resume in the Lab". One line of steps at every width; under 640px 44px
+   chips that scroll, and not on the Lab or the calculator, whose action bar
+   carries Analyse · Compare · Save there. */
+.pf-flow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--lg); margin: 0 0 var(--md); min-width: 0; }
+.pf-steps { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.pf-li { display: flex; align-items: center; flex: none; }
+.pf-li + .pf-li::before { content: '›'; padding: 0 4px; color: var(--ink-3); font-size: var(--ls-support); line-height: 1; }
+.pf-step { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid transparent;
+  font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+.pf-step:hover { color: var(--ink); background: var(--surface-sunk); }
+.pf-step:active { transform: translateY(1px); }
+.pf-step:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pf-step.is-here { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 42%, transparent); }
+/* The work the Lab holds: its own line under the steps, the resume beside
+   it; bronze-edged while it holds moves not saved. */
+.pf-ctx { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--md); min-width: 0;
+  padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); }
+.pf-ctx.is-unsaved { border-left-color: var(--bronze); }
+.pf-ctx-text { flex: 1 1 24rem; min-width: 0; max-width: 70ch; margin: 0; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
+.pf-ctx-text strong { color: var(--ink); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.pf-ctx.is-unsaved .pf-ctx-state { color: var(--bronze); font-weight: var(--weight-semibold); }
+.pf-resume { flex: none; white-space: nowrap; }
+/* On the Lab from 1440px the steps stand at the top right, beside the
+   journey line and the page's head, not above them: its first slider stays
+   on the first screen (n3-first-view). The Lab draws no work's line of its
+   own, so nothing else is beside them. */
+@media (min-width: 1440px) {
+  .pf-flow[data-pf-view="propertyLab"] { display: block; margin: 0; }
+  .pf-flow[data-pf-view="propertyLab"] > .pf-steps { float: right; margin: 0 0 var(--xs) var(--lg); }
+}
+@media (max-width: 639.98px) {
+  .pf-flow { gap: var(--xs); }
+  .pf-steps { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .pf-steps::-webkit-scrollbar { display: none; }
+  .pf-step { min-height: 44px; padding: 0 14px; }
+  .pf-resume { min-height: 44px; }
+  .pf-flow[data-pf-view="propertyLab"], .pf-flow[data-pf-view="property"] .pf-steps { display: none; }
+}
+/* ---- end property-flow ---- */
 </style>
 </head>
 <body>
@@ -22854,8 +22898,12 @@ function drawPage(samePage) {
      36-layouts.js). */
   /* ls-view: a page on the layout system, its journey line and Start here
      with it (37-layout-system.js; styles.css, layout-system). */
+  /* And first, on a Property page, the property flow — Explore → Analyse →
+     Compare → Save — with the work the Scenario Lab holds (the 11 Oct
+     audit, #8; 88-property-flow.js). Not over the skeleton. */
+  const flow = !(realPending && viewWaits()) ? propertyFlowNode() : null;
   const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
-    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [journeyLineNode(), startHereNode(), node]));
+    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [flow, journeyLineNode(), startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);
@@ -55031,16 +55079,23 @@ function labArrive() {
    page is the lab. Variants and moves are not in it: a link opens the saved
    columns, never a reader's unsaved what-ifs. */
 let labAddressTimer = 0;
-function labWriteAddress(lab) {
-  if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
-  const q = new URLSearchParams(location.search);
+/* A subject's query as the lab's address names it — its saved columns, the
+   comparison and the lens — on the parameters `from` holds besides. The
+   property flow's links back to the lab are made of it too
+   (88-property-flow.js). */
+function labQueryOf(lab, from = '') {
+  const q = new URLSearchParams(from);
   ['model', 'cols', 'by', 'lens', 'compare'].forEach(k => q.delete(k));
   if (lab.model) { q.set('model', lab.model); const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
   /* Beside the calculator's deal: the other properties' columns (P6). */
   else { const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
   if (lab.metric && lab.metric !== 'yield') q.set('by', lab.metric);
   if (lab.lens && lab.lens !== LAB_LENS_DEFAULT) q.set('lens', lab.lens);
-  const s = q.toString().replace(/%2C/g, ',').replace(/%3A/g, ':').replace(/%2F/g, '/');
+  return q.toString().replace(/%2C/g, ',').replace(/%3A/g, ':').replace(/%2F/g, '/');
+}
+function labWriteAddress(lab) {
+  if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
+  const s = labQueryOf(lab, location.search);
   const next = location.pathname + (s ? `?${s}` : '');
   if (next === location.pathname + location.search) return;
   history.replaceState(history.state, '', next);
@@ -55843,15 +55898,27 @@ function labBarActions() {
   const s = labBarSave();
   return [
     { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', path: '/property/calculator', aria: 'Analyse this property in the calculator' },
-    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => {
-      const P = labPagePanel();
-      /* Columns of other properties: their comparison across routes, at
-         its lens (P6); else A, B and C side by side. */
-      const r = P && (P.node.querySelector(`input[name="${labId(P, 'lens')}"]:checked`) || P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`));
-      if (r) lsGoTo(r.closest('.lab-xr, .lab-cmp-card'), r);
-    } },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => labGoTo('compare') },
     { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
   ];
+}
+/* Where the bar's Compare, and the property flow's Compare and Save
+   (88-property-flow.js), take the reader on the lab's page: the
+   comparison — across routes at its lens where the columns are of other
+   properties (P6), else A, B and C side by side — or the identity line's
+   Save, in sight and given the keyboard. */
+function labGoTo(what) {
+  const P = labPagePanel();
+  if (!P) return false;
+  if (what === 'compare') {
+    const r = P.node.querySelector(`input[name="${labId(P, 'lens')}"]:checked`) || P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
+    if (r) { lsGoTo(r.closest('.lab-xr, .lab-cmp-card'), r); return true; }
+  }
+  if (what === 'save') {
+    const b = document.getElementById(labId(P, 'id-save'));
+    if (b) { lsGoTo(b.closest('.lab-identity') || b, b); return true; }
+  }
+  return false;
 }
 function labBarSync() {
   const s = labBarSave();
@@ -57982,6 +58049,10 @@ VIEWS.propertyLab = () => {
      guided evidence flow): named once the page is up, as an answer. */
   const pend = State.labUseComparable;
   if (pend) { State.labUseComparable = null; setTimeout(() => labUseComparable(pend), 0); }
+  /* The property flow's Compare or Save, from another page (88-property-
+     flow.js): the comparison or the Save, once the page is up. */
+  const go = State.labGoTo;
+  if (go) { State.labGoTo = null; setTimeout(() => labGoTo(go), 0); }
   return wrap;
 };
 /* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of
@@ -61272,6 +61343,7 @@ VIEWS.opportunities = () => {
   }
 
   /* The register itself. Newest first — an explicit, stated order. */
+  const inLab = pfContext();
   list.forEach((o, i) => {
     const { d: md, m, grade, finance } = modelled[i];
     /* Where it is modelled, said where it differs from what was recorded: a
@@ -61311,6 +61383,9 @@ VIEWS.opportunities = () => {
       /* The card's figures' kind (D6). */
       (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
       tiedRec ? el('span', { class: 'chip chip-brand', 'data-tied': tiedRec.id }, `Saved as a property: “${tiedRec.name}”`) : null,
+      /* Shown in the Scenario Lab's work now (the property flow, #8). */
+      (() => { const c = inLab?.lab.cols.find(x => x.prop === `opp:${o.id}` || (tiedRec && (x.prop === `pm:${tiedRec.id}` || inLab.lab.model === tiedRec.id && !x.prop)));
+        return c ? el('span', { class: 'chip', 'data-in-lab': c.key }, `In the Scenario Lab — column ${c.key}`) : null; })(),
     ]));
     /* WHERE IT CAME FROM, IN SIGHT (#7): the source, the date it is from
        and the day it was recorded — what a Lab column, a comparison and a
@@ -66623,6 +66698,156 @@ VIEWS.scannerAdminDelivery = () => {
   return wrap;
 };
 /* ==========================================================================
+   THE PROPERTY FLOW — EXPLORE → ANALYSE → COMPARE → SAVE (the 11 Oct 2026
+   daily audit, #8, owner-approved 12 Oct 2026)
+   --------------------------------------------------------------------------
+   Property's tools were five separate pages — the Scenario Lab, the
+   calculator, the area screen, the comparables and the opportunity
+   register — and nothing carried the property a reader was working on from
+   one to the next: a record opened from the register, a column moved in the
+   Lab, a route answered for it, were all on the Lab's page alone, and the
+   tab row's "Scenario Lab" opened whatever the calculator held.
+
+   ONE LINE OF STEPS, ON EVERY PROPERTY PAGE, at the top of the page:
+     Explore   the area screen, the comparables, the opportunity register
+               (the one last visited)
+     Analyse   the Scenario Lab — on the work it holds — and the calculator
+     Compare   the Lab's comparison: across routes and assets (P6) where the
+               columns are of more than one property, else A, B and C
+     Save      the Lab's Save while it holds what-ifs not saved; else
+               My properties, where what is saved is listed
+   the step of the page on screen marked (aria-current="step"). And on any
+   Property page but the Lab, the work the Lab holds — its property, the
+   column the sliders move where that is another property's, how many moves
+   are not saved — with "Resume in the Lab": the same subject, its columns,
+   its moves and its answers, as this tab holds them (labResume, read by
+   labArrive before the address).
+
+   NOTHING IS WRITTEN BEFORE SAVE (the owner's rule). The work is the Lab's
+   own state in this tab's memory (LAB, 82-property-lab.js) — no store key,
+   no session storage, no address of moves — so it lasts as long as the
+   tab, and the reader is told so where it could be lost:
+     - here, "N moves not saved — kept in this tab until you save; lost on
+       reload or close";
+     - by the browser's own prompt when the tab is reloaded, closed or left
+       for another site with moves not saved (beforeunload);
+     - before a register record replaces a column holding moves
+       (labAddOpportunity's confirm).
+   Nothing is ranked and no figure is shown here: the flow names steps and
+   a property, never a result.
+
+   ON A PHONE (under 640px) the Lab and the calculator carry the last three
+   steps in their action bar — Analyse · Compare · Save (the layout
+   system) — so the line of steps stands on the other Property pages only,
+   as one line of 44px chips; the calculator keeps the work's line where the
+   Lab holds moves not saved. Every rule is the window's (styles.css,
+   property-flow): the page served before the script is the page drawn.
+   ========================================================================== */
+const PF_STEPS = [
+  { id: 'explore', label: 'Explore' },
+  { id: 'analyse', label: 'Analyse' },
+  { id: 'compare', label: 'Compare' },
+  { id: 'save', label: 'Save' },
+];
+const PF_STEP_OF = { areas: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
+const PF_EXPLORE_PATH = { areas: '/property/areas', comparables: '/property/comparables', opportunities: '/property/opportunities' };
+/* The explore page last visited, this tab: where Explore goes back to. */
+let pfExplore = '/property/opportunities';
+
+/* WHAT THE LAB HOLDS NOT SAVED, in moves: every column's (an answer is a
+   move of each column it moves) and the figures a lab copy was copied with. */
+function labUnsavedOf(lab) {
+  if (!lab) return 0;
+  return lab.cols.reduce((n, c) => n + labMoveCount(c) + (c.source === 'variant' ? Object.keys(c.inherited || {}).length : 0), 0);
+}
+const labUnsavedAll = () => Object.values(LAB).reduce((n, lab) => n + labUnsavedOf(lab), 0);
+
+/* THE WORK IN THE LAB, as the other Property pages name it: its property,
+   the column the sliders move where that is another property's, the moves
+   not saved, and the lab's address for it. Null until the Lab has been
+   opened in this tab. */
+function pfContext() {
+  const lab = labSubject && LAB[labSubject];
+  if (!lab) return null;
+  const rec = lab.model ? pmFind(lab.model) : null;
+  if (lab.model && !rec) return null;
+  const name = rec ? `“${rec.name}”` : propertyStatus(State.deal).kind === 'sample' ? 'the sample deal' : 'the deal on the calculator';
+  const act = lab.cols.find(c => c.key === lab.active);
+  const q = labQueryOf(lab);
+  return { lab, name, other: act?.prop ? `${act.key} — ${act.name}` : null, moves: labUnsavedOf(lab), path: `/property/lab${q ? `?${q}` : '?'}` };
+}
+/* Where the work's property is: the column the sliders move. */
+function pfPlace() {
+  const lab = labSubject && LAB[labSubject];
+  const col = lab && lab.cols.find(c => c.key === lab.active);
+  return col?.work?.city ? { city: col.work.city, district: col.work.district || null } : null;
+}
+/* To the Lab, on its work (labResume): the columns, their moves and the
+   answers given, as they were — then, for Compare or Save, that place. */
+function pfToLab(ctx, goTo = null) {
+  if (ctx) State.labResume = ctx.lab.key;
+  State.labGoTo = goTo;
+  navigate(ctx ? ctx.path : '/property/lab?');
+}
+/* "Use it in the Scenario Lab" and the like from another Property page: the
+   work the Lab holds, where it holds one; else /property, as before. */
+function pfResumeLab() {
+  const ctx = pfContext();
+  if (ctx) pfToLab(ctx); else navigate('/property');
+}
+
+const pfPlain = (e) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button);
+/* THE LINE, drawn above every Property page (drawPage, 35-ui.js). */
+function propertyFlowNode(view = State.view) {
+  const here = PF_STEP_OF[view];
+  if (!here) return null;
+  if (here === 'explore') pfExplore = PF_EXPLORE_PATH[view];
+  const ctx = pfContext();
+  const onLab = view === 'propertyLab';
+  const unsaved = ctx ? ctx.moves : 0;
+  const step = (s) => {
+    const save = s.id === 'save', toModels = save && !unsaved && !onLab;
+    const path = s.id === 'explore' ? pfExplore : toModels ? '/property/models' : save && onLab ? '/property/models' : ctx ? ctx.path : '/property/lab';
+    const current = s.id === here;
+    return el('li', { class: 'pf-li' }, el('a', { class: `pf-step${current ? ' is-here' : ''}`, id: `pf-${s.id}`, href: href(path.replace(/\?$/, '')),
+      'aria-current': current ? 'step' : null, 'data-pf-step': s.id,
+      onclick: (e) => {
+        if (!pfPlain(e)) return;
+        e.preventDefault();
+        if (s.id === 'explore' || toModels) { navigate(path); return; }
+        /* On the Lab itself: the comparison, or its Save, where they are —
+           and, with nothing to save there, the saved properties. */
+        if (onLab) {
+          if (s.id === 'analyse') { const t = document.getElementById('lab-root'); if (t) lsGoTo(t.closest('.lab-page') || t); return; }
+          if (labGoTo(s.id === 'compare' ? 'compare' : 'save')) return;
+          if (save) { navigate('/property/models'); return; }
+        }
+        pfToLab(ctx, s.id === 'compare' ? 'compare' : save ? 'save' : null);
+      } }, s.label));
+  };
+  const kids = [el('ol', { class: 'pf-steps' }, PF_STEPS.map(step))];
+  /* The work, on any Property page but the Lab's own — on the calculator
+     and My properties only while it holds moves not saved. */
+  if (ctx && !onLab && (here === 'explore' || unsaved)) {
+    kids.push(el('div', { class: `pf-ctx${unsaved ? ' is-unsaved' : ''}`, id: 'pf-ctx' }, [
+      el('p', { class: 'pf-ctx-text' }, [
+        el('span', { class: 'pf-ctx-what' }, ['In the Scenario Lab: ', el('strong', {}, ctx.name), ctx.other ? `, sliders on ${ctx.other}` : '', '.']), ' ',
+        el('span', { class: 'pf-ctx-state', id: 'pf-unsaved', 'data-unsaved': String(unsaved) },
+          unsaved ? `${unsaved} move${unsaved === 1 ? '' : 's'} not saved — kept in this tab until you save; lost on reload or close.` : 'Nothing there is unsaved.')]),
+      el('a', { class: 'btn btn-ghost btn-sm pf-resume', id: 'pf-resume', href: href(ctx.path.replace(/\?$/, '')),
+        onclick: (e) => { if (!pfPlain(e)) return; e.preventDefault(); pfToLab(ctx); } }, ['Resume in the Lab', el('span', { 'aria-hidden': 'true' }, ' →')]),
+    ]));
+  }
+  return el('nav', { class: 'pf-flow', 'aria-label': 'Property: explore, analyse, compare, save', 'data-pf-view': view, 'data-pf-here': here }, kids);
+}
+
+/* THE BROWSER'S OWN PROMPT, where the work would be lost: a reload, a closed
+   tab, another site — never a move between this site's pages, which keeps
+   it. Only while the Lab holds moves not saved. */
+addEventListener('beforeunload', (e) => {
+  if (labUnsavedAll() > 0) { e.preventDefault(); e.returnValue = ''; }
+});
+/* ==========================================================================
    SARAWAK COMPARABLES REGISTER
 
    It ships empty, and that is the honest state rather than an unfinished one.
@@ -67191,8 +67416,12 @@ const EF_PRICE = new Set(['sold-price', 'ask-price']);
 function efState() {
   const S = (State.evidenceFlow ||= {});
   if (!S.draft) {
-    const city = S.city || State.deal?.city || 'kuching';
-    S.draft = { city, area: S.area || (city === State.deal?.city ? State.deal?.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
+    /* Where the property being worked on is: the Scenario Lab's, where it
+       holds one (the property flow, #8 — 88-property-flow.js), else the
+       calculator's deal. */
+    const at = pfPlace() || State.deal || {};
+    const city = S.city || at.city || 'kuching';
+    S.draft = { city, area: S.area || (city === at.city ? at.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
       srcKind: '', src: '', date: '', kind: '', value: '', sqft: '', checked: '' };
   }
   return S;
@@ -67311,7 +67540,7 @@ function evidenceFlowDone(o) {
       ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
-      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
       /* EVIDENCE → OPPORTUNITY (the 11 Oct audit, #7): an asking price is a
          property somebody is selling. "Record it as an opportunity" begins
          the register's form with its amount, its town and locality, its
@@ -67330,7 +67559,7 @@ function evidenceFlowDone(o) {
        and summarised on the area screen as before. */
     box.append(el('p', { class: 'metaline' }, 'Use it in a scenario: it is named among the Scenario Lab’s observed comparable rents, which a commercial property’s rent is set against — with its source and date, as a what-if until you save. The area screen summarises it by locality, achieved and asking apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [
-      el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use', onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use', onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
       el('a', { class: 'btn btn-ghost', id: 'ef-area-go', href: href('/property/areas'),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')]));
   } else {
@@ -68442,7 +68671,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same

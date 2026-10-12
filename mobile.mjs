@@ -129,6 +129,14 @@ ws.addEventListener('message', (e) => { const m = JSON.parse(e.data);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
 const send = (method, params = {}, sessionId) => new Promise(res => {
   const n = ++id; pending.set(n, res); ws.send(JSON.stringify({ id: n, method, params, sessionId })); });
+/* ---- unsaved-prompt ---- */
+/* The Scenario Lab asks before a page holding what-ifs not saved is left
+   (beforeunload, 88-property-flow.js; the 11 Oct audit, #8): answered
+   "leave", as a reader moving on does — unanswered, the navigation waits
+   on it for ever. Nothing else is answered here. */
+ws.addEventListener('message', (e) => { const m = JSON.parse(e.data);
+  if (m.method === 'Page.javascriptDialogOpening' && m.params?.type === 'beforeunload') send('Page.handleJavaScriptDialog', { accept: true }, m.sessionId).catch(() => {}); });
+/* ---- end unsaved-prompt ---- */
 
 const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
 const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -3989,15 +3997,19 @@ for (const w of [360, 390]) {
    <main> — a run of text whose element is rendered (checkVisibility, with
    opacity and visibility), not inside .sr-only, a clipped 1px box or a
    closed <details> (its <summary> counts), with a box of its own:
-     - before the first slider: at most 180 at 1440 and 138 at 390;
-       measured 174 and 131 (189 and 145 on 58dbc0b4). The margin, six or
+     - before the first slider: at most 184 at 1440 and 138 at 390;
+       measured 178 and 131 (189 and 145 on 58dbc0b4). The margin, six or
        seven words, is what the lines that are not the Lab's may vary by —
        the journey's line above the page (its state, its date, its commit)
        and a property's name — and no more: one sentence of explanation
-       put back above the slider fails it;
-     - in all of <main>: at most 570 at 1440 and 485 at 390; measured 549
+       put back above the slider fails it. (180 until 12 Oct 2026, measured
+       174: the property flow's four steps — Explore, Analyse, Compare,
+       Save, the 11 Oct audit's #8 — stand above the page at 1440 and not
+       on a phone, so 1440's bounds rose by those four words, the margin
+       kept);
+     - in all of <main>: at most 574 at 1440 and 485 at 390; measured 553
        and 466 (799 and 608 on 58dbc0b4), the margin the same lines' and
-       a district's name;
+       a district's name (570, measured 549, before the flow's four words);
    and the layout system's levels on a phone (390, and 360 and 430):
      - two figures lead: the first two tiles are the decision's (L1), side
        by side on the tiles' first line; the context's figure and the next
@@ -4038,7 +4050,7 @@ for (const w of [360, 390]) {
   };
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
-  const BOUND = { 1440: { before: 180, all: 570 }, 390: { before: 138, all: 485 } };
+  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 138, all: 485 } };
   /* What the eye can see, as a reader who opens nothing does. */
   const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
       const p = n.nodeType === 3 ? n.parentElement : n;
@@ -4166,7 +4178,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 180/570 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- home-3a ---- */
@@ -4635,6 +4647,70 @@ for (const w of [360, 390]) {
   else console.log(`ok   property-investing: ${PATH} at 360, 390 and 430, in the page's font and in Verdana, drawn and with the script off (${said.pages} pages) — nothing scrolls sideways or runs past the window; all ${said.targets} controls drawn 44px each way; "Open the Scenario Lab" on the first screen with the disclosure beside it`);
 }
 /* ---- end property-investing ---- */
+
+/* ---- pu-flow ---- */
+/* THE PROPERTY FLOW, LAID OUT (the 11 Oct 2026 daily audit, #8; 88-property-
+   flow.js). Explore → Analyse → Compare → Save above every Property page:
+     - at 360×640, 390×844 and 430×932, in the page's font and in Verdana,
+       on the opportunity register: its four steps one line of 44px chips,
+       Explore marked the step, nothing scrolling sideways; on the Lab
+       (/property) the line not drawn — the Lab's action bar carries
+       Analyse · Compare · Save there, and its first slider stays on the
+       first screen;
+     - at 1440×900 on the Lab: the four steps in sight, Analyse marked.
+   Fails on 5a75a923, where there is no flow. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const steps = `(async () => { await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const steps = [...document.querySelectorAll('#views .pf-flow .pf-step')].filter(n => n.getClientRects().length).map(n => { const b = n.getBoundingClientRect(); return { t: n.textContent.trim(), top: Math.round(b.top), h: Math.round(b.height), cur: n.getAttribute('aria-current') }; });
+    return { steps, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; })()`;
+  try {
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      await load('/property/opportunities');
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(steps);
+      if (r.over > 0) fails.push(`${at} /property/opportunities: the page scrolls ${r.over}px sideways`);
+      if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Compare Save') fails.push(`${at} /property/opportunities: the flow reads ${JSON.stringify(r.steps.map(s => s.t))}`);
+      if (new Set(r.steps.map(s => s.top)).size > 1) fails.push(`${at} /property/opportunities: the flow's steps take more than one line`);
+      r.steps.forEach(s => { if (s.h < 43.5) fails.push(`${at} /property/opportunities: "${s.t}" is ${s.h}px tall, not a 44px target`); });
+      if (r.steps.find(s => s.cur === 'step')?.t !== 'Explore') fails.push(`${at} /property/opportunities: the flow marks ${r.steps.find(s => s.cur === 'step')?.t || 'no step'}, not Explore`);
+      await load('/property');
+      const lab = await ev(`[...document.querySelectorAll('#views .pf-flow')].filter(n => n.getClientRects().length).length`);
+      if (lab) fails.push(`${at} /property: the property flow is drawn over the Lab (its bar carries Analyse · Compare · Save)`);
+      said.push(at);
+    }
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await load('/privacy'); await forget();
+    await load('/property');
+    const r = await ev(steps);
+    if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Compare Save' || r.steps.find(s => s.cur === 'step')?.t !== 'Analyse') fails.push(`1440 /property: the flow reads ${JSON.stringify(r.steps)}`);
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL pu-flow — the property flow laid out (the 11 Oct audit, #8): ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   pu-flow: on the opportunity register at ${said.join(', ')} the flow's four steps one line of 44px chips, Explore marked, nothing sideways; not drawn over the Lab on a phone; at 1440 on the Lab, Analyse marked`);
+}
+/* ---- end pu-flow ---- */
 
 
 } catch (e) {

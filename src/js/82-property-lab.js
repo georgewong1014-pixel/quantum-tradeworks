@@ -655,16 +655,23 @@ function labArrive() {
    page is the lab. Variants and moves are not in it: a link opens the saved
    columns, never a reader's unsaved what-ifs. */
 let labAddressTimer = 0;
-function labWriteAddress(lab) {
-  if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
-  const q = new URLSearchParams(location.search);
+/* A subject's query as the lab's address names it — its saved columns, the
+   comparison and the lens — on the parameters `from` holds besides. The
+   property flow's links back to the lab are made of it too
+   (88-property-flow.js). */
+function labQueryOf(lab, from = '') {
+  const q = new URLSearchParams(from);
   ['model', 'cols', 'by', 'lens', 'compare'].forEach(k => q.delete(k));
   if (lab.model) { q.set('model', lab.model); const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
   /* Beside the calculator's deal: the other properties' columns (P6). */
   else { const ids = labSavedIds(lab); if (ids.length) q.set('cols', ids.join(',')); }
   if (lab.metric && lab.metric !== 'yield') q.set('by', lab.metric);
   if (lab.lens && lab.lens !== LAB_LENS_DEFAULT) q.set('lens', lab.lens);
-  const s = q.toString().replace(/%2C/g, ',').replace(/%3A/g, ':').replace(/%2F/g, '/');
+  return q.toString().replace(/%2C/g, ',').replace(/%3A/g, ':').replace(/%2F/g, '/');
+}
+function labWriteAddress(lab) {
+  if (State.view !== 'propertyLab' || labSubject !== lab.key) return;
+  const s = labQueryOf(lab, location.search);
   const next = location.pathname + (s ? `?${s}` : '');
   if (next === location.pathname + location.search) return;
   history.replaceState(history.state, '', next);
@@ -1467,15 +1474,27 @@ function labBarActions() {
   const s = labBarSave();
   return [
     { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', path: '/property/calculator', aria: 'Analyse this property in the calculator' },
-    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => {
-      const P = labPagePanel();
-      /* Columns of other properties: their comparison across routes, at
-         its lens (P6); else A, B and C side by side. */
-      const r = P && (P.node.querySelector(`input[name="${labId(P, 'lens')}"]:checked`) || P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`));
-      if (r) lsGoTo(r.closest('.lab-xr, .lab-cmp-card'), r);
-    } },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare A, B and C', onclick: () => labGoTo('compare') },
     { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, aria: s.aria, disabled: s.disabled, said: () => labBarSave().said, onclick: () => labBarSave().run?.() },
   ];
+}
+/* Where the bar's Compare, and the property flow's Compare and Save
+   (88-property-flow.js), take the reader on the lab's page: the
+   comparison — across routes at its lens where the columns are of other
+   properties (P6), else A, B and C side by side — or the identity line's
+   Save, in sight and given the keyboard. */
+function labGoTo(what) {
+  const P = labPagePanel();
+  if (!P) return false;
+  if (what === 'compare') {
+    const r = P.node.querySelector(`input[name="${labId(P, 'lens')}"]:checked`) || P.node.querySelector(`input[name="${labId(P, 'by')}"]:checked`);
+    if (r) { lsGoTo(r.closest('.lab-xr, .lab-cmp-card'), r); return true; }
+  }
+  if (what === 'save') {
+    const b = document.getElementById(labId(P, 'id-save'));
+    if (b) { lsGoTo(b.closest('.lab-identity') || b, b); return true; }
+  }
+  return false;
 }
 function labBarSync() {
   const s = labBarSave();
@@ -3606,6 +3625,10 @@ VIEWS.propertyLab = () => {
      guided evidence flow): named once the page is up, as an answer. */
   const pend = State.labUseComparable;
   if (pend) { State.labUseComparable = null; setTimeout(() => labUseComparable(pend), 0); }
+  /* The property flow's Compare or Save, from another page (88-property-
+     flow.js): the comparison or the Save, once the page is up. */
+  const go = State.labGoTo;
+  if (go) { State.labGoTo = null; setTimeout(() => labGoTo(go), 0); }
   return wrap;
 };
 /* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of
