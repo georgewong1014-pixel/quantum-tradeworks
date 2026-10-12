@@ -3102,6 +3102,10 @@ VIEWS.property = () => {
   distField.append(distSel);
   loc.append(distField);
 
+  /* THE DISTRICT, EXPLORED — what moves demand, the map, the reader's own
+     records and the household income — one drawer on a phone (L3, #6): the
+     district chosen above is the input; this is what is known around it. */
+  const explore = [];
   /* What actually moves demand in the selected city. Prompts, not adjustments:
      the model changes nothing on the strength of these, because a tool that
      silently marked Miri rents down for the oil cycle would be forecasting. */
@@ -3114,7 +3118,7 @@ VIEWS.property = () => {
     fx.append(chips);
     fx.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
       'These change nothing in the model. They are the questions a local buyer would ask, and the ones the numbers below cannot answer on their own.'));
-    loc.append(fx);
+    explore.push(fx);
   }
 
   /* Where the areas sit relative to each other, plus what the district earns.
@@ -3313,7 +3317,8 @@ VIEWS.property = () => {
     if (aff) mapWrap.append(el('div', { style: 'margin-top:12px' }, aff));
     else mapWrap.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
       'District household income is not loaded. It is cached locally by ingest/sarawak-geo.mjs and is not published with the site while its licence is unconfirmed.'));
-    loc.append(mapWrap);
+    explore.push(mapWrap);
+    loc.append(pcL3('district', `${d.district}: what moves demand, the map and your records`, explore));
   }
 
   const typeField = el('div', { class: 'field', style: 'margin-top:10px' });
@@ -3675,6 +3680,8 @@ VIEWS.property = () => {
         onclick: () => {
           const input = document.querySelector(`#d-${f.k}`);
           if (!input) return;
+          /* Its section chosen first: on a phone one section shows (#6). */
+          pcShowFor(input);
           input.closest('.assumption')?.scrollIntoView({ block: 'center' });
           input.focus(); input.select?.();
         } }, 'Go to it'));
@@ -3751,7 +3758,8 @@ VIEWS.property = () => {
   ug2.append(unitTile('Maintenance, monthly', m.maintPsf, 'sqm', 2, 'Service charge per m² per month'));
   unitCard.append(ug2);
   unitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, POINT_DEFINITION));
-  buyCard.append(unitCard);
+  /* Per unit of area: on a phone a drawer (L3, #6). */
+  buyCard.append(pcL3('unit', 'Per unit: floor area, land and maintenance', unitCard));
 
   /* The two rent tiles above, drawn against each other. One series, so no
      legend — the title names it and both marks are directly labelled. */
@@ -3916,7 +3924,14 @@ VIEWS.property = () => {
       `Fees and duties from the fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. Research, not advice: confirm each with the lender, the solicitor and the authority. `,
       el('a', { href: href('/data-sources#fee-rulebook') }, 'Every line’s source →')])]));
   lsTableCards(cashT, { id: 'pc-cost-table' });
-  cash.append(el('div', { class: 'tablewrap' }, cashT));
+  /* The ledger, line by line: on a phone a drawer (L3, #6) — its total
+     and what rests on unverified lines stay in sight on the one-page
+     answer's Cash required, and in the four figures under it. */
+  /* Its summary keeps the lines' kind in sight: Placeholder while any line
+     rests on an estimate or an unknown rule. */
+  cash.append(pcL3('ledger', ['Every line of the cash, with its source',
+    ...(m.unconfirmedCost > 0 ? [' ', kindBadge('placeholder', { fine: 'lines resting on an estimate or an unknown rule', link: false })] : [])],
+    el('div', { class: 'tablewrap' }, cashT)));
 
   /* ---- financing basis (specification 29.2) ---------------------------- */
   const fin = el('div', { style: 'margin-top:var(--md);padding-top:var(--md);border-top:1px solid var(--line)' });
@@ -4607,10 +4622,12 @@ VIEWS.property = () => {
   /* ---------- the page, assembled ---------- */
   wrap.append(summaryCard);
   acq.outputs.append(buyCard, dealRoute(d) === 'auction' ? pcAuction(d) : dealRoute(d) === 'newdev' ? pcNewDev(d) : pcPriceEvidence(d));
-  fnc.outputs.append(loanCard, finCard, choicesPanel);
+  /* Methodology and the long tables, drawers on a phone (L3, #6). */
+  fnc.outputs.append(loanCard, finCard, pcL3('choices', 'The two quotes that are easy to misread', choicesPanel));
   rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
-  scn.outputs.append(propertyScenariosPanel(d), sensPanel, stressCard, returnsPanel);
-  rpt.outputs.append(checkCard, gatesPanel, demandCard, envCard, ev, ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
+  scn.outputs.append(propertyScenariosPanel(d), pcL3('sens', 'What actually decides this: each input moved', sensPanel), stressCard,
+    pcL3('returns', 'Return, and tax on the rent, year by year', returnsPanel));
+  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };

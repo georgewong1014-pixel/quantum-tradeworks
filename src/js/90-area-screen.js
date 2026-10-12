@@ -567,8 +567,12 @@ const EF_PRICE = new Set(['sold-price', 'ask-price']);
 function efState() {
   const S = (State.evidenceFlow ||= {});
   if (!S.draft) {
-    const city = S.city || State.deal?.city || 'kuching';
-    S.draft = { city, area: S.area || (city === State.deal?.city ? State.deal?.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
+    /* Where the property being worked on is: the Scenario Lab's, where it
+       holds one (the property flow, #8 — 88-property-flow.js), else the
+       calculator's deal. */
+    const at = pfPlace() || State.deal || {};
+    const city = S.city || at.city || 'kuching';
+    S.draft = { city, area: S.area || (city === at.city ? at.district : null) || (SARAWAK_CITIES.find(c => c.id === city)?.districts || [])[0] || '',
       srcKind: '', src: '', date: '', kind: '', value: '', sqft: '', checked: '' };
   }
   return S;
@@ -686,15 +690,27 @@ function evidenceFlowDone(o) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
       ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
-    box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
-      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+    box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
+      onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
+      /* EVIDENCE → OPPORTUNITY (the 11 Oct audit, #7): an asking price is a
+         property somebody is selling. "Record it as an opportunity" begins
+         the register's form with its amount, its town and locality, its
+         source and its date — nothing written until Add, and the record
+         itself unchanged: still the reader's own at the locality's level,
+         never a verified building transaction. */
+      o.kind === 'ask-price' ? el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-opp', onclick: () => {
+        oppDraft = { name: '', city: o.city, district: listedDistrict(o.city, o.area) || '', type: 'Condominium', source: o.sourceRef || '',
+          sourceDate: o.date || '', askingPrice: o.value, sqft: num0(o.sqft) > 0 ? o.sqft : 0, fromObs: o.id };
+        navigate('/property/opportunities');
+        setTimeout(() => { const n = document.getElementById('opp-new-name'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus({ preventScroll: true }); } }, 0);
+      } }, 'Record it as an opportunity') : null]));
   } else if (o.kind === 'let-rent') {
     /* An achieved rent (P5): named in the Scenario Lab's observed
        comparable rents, which a commercial property's rent is set against —
        and summarised on the area screen as before. */
     box.append(el('p', { class: 'metaline' }, 'Use it in a scenario: it is named among the Scenario Lab’s observed comparable rents, which a commercial property’s rent is set against — with its source and date, as a what-if until you save. The area screen summarises it by locality, achieved and asking apart.'));
     box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [
-      el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use', onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use', onclick: () => { State.labUseComparable = o.id; pfResumeLab(); } }, 'Use it in the Scenario Lab'),
       el('a', { class: 'btn btn-ghost', id: 'ef-area-go', href: href('/property/areas'),
         onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); State.areaScreen.city = o.city; navigate('/property/areas'); } }, 'See it on the area screen')]));
   } else {

@@ -6649,6 +6649,12 @@ input.au-in[type="text"] { text-align: left; }
 .lab-xr-colhd.is-active { outline: 2px solid var(--brand); outline-offset: -1px; }
 .lab-xr-colname { font-size: var(--ls-support); line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
 .lab-xr-ra { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+/* A register record's provenance under its column's name (#7): the source,
+   the date it is from, the day recorded — the record's words, never wrapped
+   inside a word but at any point of a long reference. */
+.lab-xr-prov { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lab-col-prov { flex: 1 1 100%; min-width: 0; font-size: var(--ls-meta); line-height: 16px; overflow-wrap: anywhere; }
+.opp-prov, .opp-from-obs { overflow-wrap: anywhere; max-width: 70ch; }
 .lab-xr-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding: 6px 8px;
   border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
 /* A figure a column's route or asset has not: said, outlined, never a figure. */
@@ -6800,3 +6806,86 @@ input.au-in[type="text"] { text-align: left; }
   .ac-record, .ac-del { display: inline-flex; align-items: center; }
 }
 /* ---- end actuals ---- */
+
+/* ---- property-flow ---- */
+/* THE PROPERTY FLOW (the 11 Oct audit, #8; 88-property-flow.js): above every
+   Property page, Explore → Analyse → Compare → Save, the page's own step
+   marked; and on the pages that are not the Lab, the work the Lab holds with
+   "Resume in the Lab". One line of steps at every width; under 640px 44px
+   chips that scroll, and not on the Lab or the calculator, whose action bar
+   carries Analyse · Compare · Save there. */
+.pf-flow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--lg); margin: 0 0 var(--md); min-width: 0; }
+.pf-steps { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.pf-li { display: flex; align-items: center; flex: none; }
+.pf-li + .pf-li::before { content: '›'; padding: 0 4px; color: var(--ink-3); font-size: var(--ls-support); line-height: 1; }
+.pf-step { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid transparent;
+  background: transparent; font-family: inherit; line-height: 1.2; cursor: pointer;
+  font-size: var(--ls-support); font-weight: var(--weight-semibold); color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+.pf-step:hover { color: var(--ink); background: var(--surface-sunk); }
+.pf-step:active { transform: translateY(1px); }
+.pf-step:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.pf-step.is-here { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 42%, transparent); }
+/* The work the Lab holds: its own line under the steps, the resume beside
+   it; bronze-edged while it holds moves not saved. */
+.pf-ctx { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--md); min-width: 0;
+  padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); }
+.pf-ctx.is-unsaved { border-left-color: var(--bronze); }
+.pf-ctx-text { flex: 1 1 24rem; min-width: 0; max-width: 70ch; margin: 0; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
+.pf-ctx-text strong { color: var(--ink); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.pf-ctx.is-unsaved .pf-ctx-state { color: var(--bronze); font-weight: var(--weight-semibold); }
+.pf-resume { flex: none; white-space: nowrap; }
+/* On the Lab from 1440px the steps stand at the top right, beside the
+   journey line and the page's head, not above them: its first slider stays
+   on the first screen (n3-first-view). The Lab draws no work's line of its
+   own, so nothing else is beside them. */
+@media (min-width: 1440px) {
+  .pf-flow[data-pf-view="propertyLab"] { display: block; margin: 0; }
+  .pf-flow[data-pf-view="propertyLab"] > .pf-steps { float: right; margin: 0 0 var(--xs) var(--lg); }
+}
+@media (max-width: 639.98px) {
+  .pf-flow { gap: var(--xs); }
+  .pf-steps { width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .pf-steps::-webkit-scrollbar { display: none; }
+  .pf-step { min-height: 44px; padding: 0 14px; }
+  .pf-resume { min-height: 44px; }
+  .pf-flow[data-pf-view="propertyLab"], .pf-flow[data-pf-view="property"] .pf-steps { display: none; }
+}
+/* ---- end property-flow ---- */
+
+/* ---- calc-density ---- */
+/* THE CALCULATOR ON A PHONE (the 11 Oct audit, #6; 71-property-models.js,
+   pcActivate and pcL3): under 640px the one-page answer's figures, the one
+   section the index has chosen and the action bar; methodology and long
+   tables drawers (L3). From 640px every section and every drawer's content
+   stands as before, the drawers' summaries out of sight. The rules are the
+   window's, so the page served before the script is laid out as drawn. */
+/* From 640px out of sight and out of reach, never display: none — the page
+   is served as drawn at 1280px, and what is not displayed there is not
+   served (prerender), so a phone with no script would lose it. */
+.pc-sec-next { visibility: hidden; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pc-l3m { min-width: 0; }
+@media (min-width: 640px) {
+  /* Open by the window, not the script: the content of a closed drawer
+     shown, its summary out of sight. A browser without ::details-content
+     keeps the drawer, summary and all. */
+  @supports selector(::details-content) {
+    details.pc-l3m > summary.pc-l3m-sum { visibility: hidden; position: absolute; width: 1px; height: 1px; min-height: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    details.pc-l3m::details-content { content-visibility: visible; display: contents; }
+  }
+}
+@media (max-width: 639.98px) {
+  .pc-page .pc-sec:not(.is-on) { display: none; }
+  /* No script: an anchor followed shows its section. */
+  .pc-page:has(.pc-sec:target) .pc-sec:not(:target) { display: none; }
+  .pc-page .pc-sec:target { display: block; }
+  .pc-index-link.is-on { color: var(--brand); }
+  .pc-index-link.is-on::after { transform: scaleX(1); }
+  .pc-sec-next { visibility: visible; position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal;
+    display: flex; justify-content: flex-end; margin: var(--lg) 0 0; }
+  .pc-sec-next-go { min-height: 44px; }
+  details.pc-l3m { margin-top: var(--sm); padding: 2px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+  details.pc-l3m[open] { padding-bottom: 10px; }
+  details.pc-l3m > .pc-l3m-sum { min-height: 44px; width: 100%; flex-wrap: nowrap; font-weight: var(--weight-semibold); color: var(--ink); }
+  details.pc-l3m[open] > .pc-l3m-sum::before { transform: rotate(90deg); }
+}
+/* ---- end calc-density ---- */

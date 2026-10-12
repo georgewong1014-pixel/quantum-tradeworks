@@ -511,10 +511,12 @@ function openOpportunityProperty(o, modelled) {
     });
     saveOpportunities();
   }
-  const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+  const tied = oppTied(o);
   if (tied) return openPropertyModel(tied.id);
   const at = new Date().toISOString();
-  const rec = pmNewRecord(modelled, o.name, at, { source: { kind: 'opportunity', id: o.id, name: o.name } });
+  /* Tied to the record with its provenance: where it was found, the date
+     the source is from and the day it was recorded (oppSourceOf). */
+  const rec = pmNewRecord(modelled, o.name, at, { source: oppSourceOf(o) });
   const refused = store.failed;
   if (!persistWork([rec, ...loadWork()]) || store.failed !== refused) { toast(STORE_REFUSED); return false; }
   const kept = propertyLoad(pmInputsOf(rec), { modelId: rec.id });
@@ -651,6 +653,49 @@ const PC_SECTIONS = [
   { id: 'report',      label: 'Report' },
 ];
 const PC_CONTRACT_OPEN = new Set();
+/* ON A PHONE, ONE SECTION AT A TIME (the 11 Oct 2026 daily audit, #6,
+   owner-approved 12 Oct). The calculator served about 6,200 words in some
+   36,000px at 390px: every section, its methodology and its long tables one
+   under another. Under 640px it is now the four figures (the one-page
+   answer's metric cards), the one section the index has chosen, and the
+   action bar — Analyse · Compare · Save. The index is the chooser: a chip
+   a section, the chosen one marked (is-on); "Next: …" ends each section.
+   The section chosen is this tab's (PC_ACTIVE), kept through a redraw,
+   and Acquisition on arrival. From 640px every section stands as before:
+   the rule is the window's (styles.css, pc-one), so the page served before
+   the script is laid out as the page it draws, and a reader with no script
+   reaches a section by its anchor (:target). Whatever takes the reader to
+   a control — a field's address (#d-price), the review queue's "Go to it",
+   Compare — chooses its section first (pcShowFor). */
+let PC_ACTIVE = 'acquisition';
+function pcActivate(id) {
+  if (!PC_SECTIONS.some(s => s.id === id)) return false;
+  PC_ACTIVE = id;
+  document.querySelectorAll('.pc-page .pc-sec').forEach(n => n.classList.toggle('is-on', n.id === id));
+  document.querySelectorAll('.pc-index-link').forEach(a => a.classList.toggle('is-on', a.dataset.sec === id));
+  pcMarkCurrent();
+  /* An anchor followed with no script (:target) chooses no more once the
+     script has chosen. */
+  if (PC_SECTIONS.some(s => `#${s.id}` === location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+  return true;
+}
+/* The section a control is in, chosen: before it is scrolled to or given
+   the keyboard, which a section out of sight could not take. */
+function pcShowFor(node) {
+  const sec = node?.closest?.('.pc-sec');
+  if (sec && !sec.classList.contains('is-on')) pcActivate(sec.id);
+}
+/* L3 ON A PHONE (#6): methodology and a long table, a drawer under 640px —
+   its summary says what is in it — and from 640px simply there, its summary
+   out of sight, as before (styles.css: details::details-content). Open
+   across a redraw once opened. */
+const PC_L3_OPEN = new Set();
+function pcL3(key, summary, kids) {
+  const d = el('details', { class: 'pc-l3m', 'data-l3': key, open: PC_L3_OPEN.has(key) ? '' : null },
+    [el('summary', { class: 'pc-more-sum pc-l3m-sum' }, summary), ...[].concat(kids).filter(Boolean)]);
+  d.addEventListener('toggle', () => { if (d.open) PC_L3_OPEN.add(key); else PC_L3_OPEN.delete(key); });
+  return d;
+}
 function propertySection(id, { provide, calculates }) {
   const i = PC_SECTIONS.findIndex(s => s.id === id);
   const s = PC_SECTIONS[i];
@@ -666,13 +711,19 @@ function propertySection(id, { provide, calculates }) {
     el('p', { class: 'pc-contract' }, [el('span', { class: 'pc-contract-k' }, 'Quantum calculates: '), calculates]),
   ]);
   contract.addEventListener('toggle', () => { if (contract.open) PC_CONTRACT_OPEN.add(id); else PC_CONTRACT_OPEN.delete(id); });
-  const node = el('section', { class: 'pc-sec', id, 'aria-labelledby': `pc-h-${id}` }, [
+  /* On a phone, the way on: the next section, chosen (#6). Out of sight
+     from 640px, where every section stands. */
+  const next = PC_SECTIONS[i + 1];
+  const node = el('section', { class: `pc-sec${id === PC_ACTIVE ? ' is-on' : ''}`, id, 'aria-labelledby': `pc-h-${id}` }, [
     el('header', { class: 'pc-sec-hd' }, [
       el('p', { class: 'eyebrow' }, `${i + 1} of ${PC_SECTIONS.length}`),
       el('h2', { class: 'h-section', id: `pc-h-${id}`, tabindex: '-1' }, s.label),
       contract,
     ]),
     el('div', { class: 'studio-layout pc-sec-body' }, [inputs, outputs]),
+    next ? el('p', { class: 'pc-sec-next' }, el('a', { class: 'btn btn-ghost pc-sec-next-go', href: `#${next.id}`, id: `pc-next-${id}`,
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); goToPropertySection(next.id); } },
+      [`Next: ${next.label}`, el('span', { 'aria-hidden': 'true' }, ' →')])) : null,
   ]);
   return { node, inputs, outputs };
 }
@@ -683,6 +734,7 @@ function propertySection(id, { provide, calculates }) {
 function goToPropertySection(id, { focus = null, instant = false } = {}) {
   const sec = document.getElementById(id);
   if (!sec) return false;
+  pcActivate(id);
   const named = focus && document.querySelector(focus);
   const target = named || document.getElementById(`pc-h-${id}`);
   (named || sec).scrollIntoView({ block: 'start', ...(instant ? { behavior: 'instant' } : {}) });
@@ -693,7 +745,7 @@ function goToPropertySection(id, { focus = null, instant = false } = {}) {
 function propertySectionIndex() {
   const nav = el('nav', { class: 'pc-index', 'aria-label': 'Calculator sections' });
   nav.append(el('ol', { class: 'pc-index-list' }, PC_SECTIONS.map(s => el('li', {},
-    el('a', { class: 'pc-index-link', href: `#${s.id}`, data: { sec: s.id },
+    el('a', { class: `pc-index-link${s.id === PC_ACTIVE ? ' is-on' : ''}`, href: `#${s.id}`, data: { sec: s.id },
       /* The address is the deal, and a hash in it would be dropped by the next
          edit anyway: the link scrolls. A modified click opens the section's
          own address, which lands on it (propertyArrivalSection). */
@@ -712,6 +764,9 @@ function pcMarkCurrent() {
     const n = document.getElementById(s.id);
     if (n && n.getBoundingClientRect().top <= edge) here = s.id;
   }
+  /* On a phone the one section shown is the one chosen (#6), wherever the
+     page is scrolled. */
+  if (lsPhone()) here = PC_ACTIVE;
   nav.querySelectorAll('.pc-index-link').forEach(a => {
     if (a.dataset.sec === here) a.setAttribute('aria-current', 'location'); else a.removeAttribute('aria-current');
   });
@@ -760,6 +815,7 @@ function propertyArrivalSection() {
     if (id === 'review') {
       const det = document.getElementById('pc-review-list');
       if (!det) return;
+      pcShowFor(det);
       det.open = true;
       document.getElementById('review')?.scrollIntoView({ block: 'start', behavior: 'instant' });
       det.querySelector('summary')?.focus({ preventScroll: true });
@@ -768,6 +824,7 @@ function propertyArrivalSection() {
     if (PC_FIELD_HASH.test(id)) {
       const field = document.getElementById(id);
       if (!field) return;
+      pcShowFor(field);
       (field.closest('.assumption') || field).scrollIntoView({ block: 'center', behavior: 'instant' });
       field.focus({ preventScroll: true });
       field.select?.();
@@ -1122,6 +1179,8 @@ VIEWS.propertyModels = () => {
         ]),
         el('strong', {}, rec.name),
         el('span', { class: 'metaline' }, `${pmPlace(d)} · ${d.propertyType || 'Property'}`),
+        /* Saved from the register: the record's provenance, kept (#7). */
+        rec.source?.kind === 'opportunity' ? el('span', { class: 'metaline pm-prov' }, oppProvenanceWords(rec.source)) : null,
       ]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Price'), el('span', { class: 'num' }, f.price)]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),

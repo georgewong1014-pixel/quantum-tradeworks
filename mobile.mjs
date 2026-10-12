@@ -129,6 +129,14 @@ ws.addEventListener('message', (e) => { const m = JSON.parse(e.data);
   if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
 const send = (method, params = {}, sessionId) => new Promise(res => {
   const n = ++id; pending.set(n, res); ws.send(JSON.stringify({ id: n, method, params, sessionId })); });
+/* ---- unsaved-prompt ---- */
+/* The Scenario Lab asks before a page holding what-ifs not saved is left
+   (beforeunload, 88-property-flow.js; the 11 Oct audit, #8): answered
+   "leave", as a reader moving on does — unanswered, the navigation waits
+   on it for ever. Nothing else is answered here. */
+ws.addEventListener('message', (e) => { const m = JSON.parse(e.data);
+  if (m.method === 'Page.javascriptDialogOpening' && m.params?.type === 'beforeunload') send('Page.handleJavaScriptDialog', { accept: true }, m.sessionId).catch(() => {}); });
+/* ---- end unsaved-prompt ---- */
 
 const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
 const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -596,6 +604,8 @@ for (const [route, heads] of [
   await sleep(800);
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
     document.querySelectorAll('#views details').forEach(d => { d.open = true; });
+    /* On a phone the calculator shows one section at a time (the 11 Oct audit, #6): every one shown, as a reader choosing each in turn sees it. */
+    document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
     const heads = ${JSON.stringify(heads)};
     const seen = [], cut = [];
     document.querySelectorAll('#views table.dt').forEach(t => {
@@ -724,6 +734,8 @@ for (const [route, heads] of [
   await sleep(800);
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
     document.querySelectorAll('#views details').forEach(d => { d.open = true; });
+    /* On a phone the calculator shows one section at a time (the 11 Oct audit, #6): every one shown, as a reader choosing each in turn sees it. */
+    document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
     const heads = ${JSON.stringify(heads)};
     const seen = [], cut = [];
     document.querySelectorAll('#views table.dt').forEach(t => {
@@ -1228,6 +1240,11 @@ for (const w of [360, 390]) {
      service charge (RM/month)", is 270px against the 1440 rail's 200px). */
   {
     const CLIPPED = `(() => {
+      /* On a phone the calculator shows one section at a time and its
+         district's records are a drawer (the 11 Oct audit, #6): each shown,
+         as a reader choosing them does, before the controls are measured. */
+      document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
+      document.querySelectorAll('#views details.pc-l3m').forEach(d => { d.open = true; });
       const span = document.createElement('span'); span.style.cssText = 'position:absolute;left:-9999px;visibility:hidden;white-space:pre'; document.body.append(span);
       const width = (s, t) => { const cs = getComputedStyle(s); span.style.font = cs.font; span.style.letterSpacing = cs.letterSpacing; span.textContent = t; return span.getBoundingClientRect().width; };
       const room = (s) => { const cs = getComputedStyle(s); return s.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - (cs.appearance === 'none' ? 0 : 20); };
@@ -1399,6 +1416,13 @@ for (const w of [360, 390]) {
       await send('Page.navigate', { url: BASE + p }, sessionId);
       for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
       await sleep(900);
+      /* On a phone the calculator shows one section at a time and its
+         methodology as drawers (the 11 Oct audit, #6): each shown, as a
+         reader choosing them does, and laid out — the shell makes its
+         stops then — before its boxes are counted. */
+      if (p === '/property/calculator') await ev(`(async () => { document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
+        document.querySelectorAll('#views details.pc-l3m').forEach(d => { d.open = true; });
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))); return true; })()`);
       const r = await ev(MEASURE);
       if (!r || r.error) { fails.push(`${w} ${p}: ${r?.error || 'not measured'}`); continue; }
       total += r.stops.length;
@@ -1413,11 +1437,21 @@ for (const w of [360, 390]) {
     await send('Page.navigate', { url: BASE + '/property/calculator' }, sessionId);
     for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
     await sleep(900);
-    const prep = await ev(`(() => {
+    const prep = await ev(`(async () => {
       const shown = (n) => (n.checkVisibility ? n.checkVisibility() : n.getClientRects().length > 0);
       const TAB = 'a[href], area[href], button, input:not([type="hidden"]), select, textarea, summary, iframe, [contenteditable]:not([contenteditable="false"]), [tabindex]';
       const tabbable = (n) => n.matches(TAB) && n.tabIndex >= 0 && !n.disabled && shown(n);
-      const box = [...document.querySelectorAll('main [role="region"][tabindex="0"]')].find(n => n.scrollWidth > n.clientWidth + 13 && shown(n) && ![...n.querySelectorAll(TAB)].some(tabbable));
+      const find = () => [...document.querySelectorAll('main [role="region"][tabindex="0"]')].find(n => n.scrollWidth > n.clientWidth + 13 && shown(n) && ![...n.querySelectorAll(TAB)].some(tabbable));
+      let box = find();
+      /* On a phone the calculator shows one section at a time (the 11 Oct
+         audit, #6): each chosen in turn, as a reader does, until one holds
+         such a box — the shell makes it a stop once it is laid out. */
+      for (const s of (typeof PC_SECTIONS !== 'undefined' ? PC_SECTIONS : [])) {
+        if (box) break;
+        pcActivate(s.id);
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+        box = find();
+      }
       if (!box) return { error: 'no scroll box that is a Tab stop by itself on the calculator at 390' };
       const order = [...document.querySelectorAll(TAB)].filter(tabbable);
       const before = order[order.indexOf(box) - 1];
@@ -2682,7 +2716,8 @@ for (const w of [360, 390]) {
     await load('/property/calculator');
     await ev(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'Mobile link' }); pmAddScenario(rec.id, { rent: 2100, touched: { rent: true } }, 'Rent 2100'); return true; })()`);
     await load('/property/calculator');
-    const link = await ev(`(() => { const a = document.getElementById('pm-sc-lab'); if (!a) return null; const b = a.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; })()`);
+    /* Its section — Scenarios — chosen first, as on a phone a reader does (#6). */
+    const link = await ev(`(() => { const a = document.getElementById('pm-sc-lab'); if (!a) return null; if (typeof pcShowFor === 'function') pcShowFor(a); const b = a.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; })()`);
     said.link = link;
     if (!link) fails.push('390: the calculator draws no "Open these in the Scenario Lab"');
     else if (link[0] < 43.5 || link[1] < 43.5) fails.push(`390: "Open these in the Scenario Lab" is ${link[0]}×${link[1]}px`);
@@ -3003,7 +3038,12 @@ for (const w of [360, 390]) {
           out.rows = rows.map(([name, sel]) => { const n = document.querySelector(sel); if (!shown(n)) return [name, null];
             const tops = [...n.children].filter(shown).map(c => Math.round(c.getBoundingClientRect().top));
             return [name, { lines: new Set(tops.map(t => Math.round(t / 6))).size, spread: tops.length ? Math.max(...tops) - Math.min(...tops) : 0, n: tops.length }]; });
-          /* Tables the system calls cards. */
+          /* Tables the system calls cards. On a phone the calculator shows
+             one section at a time and its ledger is a drawer (the 11 Oct
+             audit, #6): each section shown and the ledger opened, as a
+             reader choosing them does, before they are read. */
+          document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
+          document.querySelectorAll('#views details.pc-l3m').forEach(d => { d.open = true; });
           const tables = [...document.querySelectorAll('#views table')].filter(t => shown(t) && !t.closest('details:not([open])')).filter(t => /Margin of finance/.test(t.querySelector('thead')?.textContent || '') || /Total initial cash/.test(t.textContent));
           out.tables = tables.map(t => { const wrap = t.closest('.tablewrap') || t.parentElement; const rowsShown = [...t.querySelectorAll('tbody tr')].filter(shown);
             return { name: /Margin of finance/.test(t.textContent) ? 'financing scenarios' : 'cost breakdown', display: getComputedStyle(t).display,
@@ -3323,7 +3363,7 @@ for (const w of [360, 390]) {
           const top = await ev(read(sec));
           if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
         }
-        await ev(`(() => { const s = document.getElementById('${sec}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
         const r = await ev(read(sec));
         if (r.none) { fails.push(`${at}: no auction section (#${sec}) for a deal answered Auction`); continue; }
@@ -3423,7 +3463,7 @@ for (const w of [360, 390]) {
           const top = await ev(read(sec));
           if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
         }
-        await ev(`(() => { const s = document.getElementById('${sec}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
         const r = await ev(read(sec));
         if (r.none) { fails.push(`${at}: no developer premium section (#${sec}) for a deal answered New development`); continue; }
@@ -3530,7 +3570,7 @@ for (const w of [360, 390]) {
           const top = await ev(read(sec));
           if (w === 390 && (!top.slider || !top.bar || top.slider.t < 0 || top.slider.b > top.bar.t)) fails.push(`${at}: the first slider ${top.slider ? `(${top.slider.t}–${top.slider.b}px)` : '(none)'} is not whole above the action bar ${top.bar ? `(from ${top.bar.t}px)` : '(none)'} on the first screen`);
         }
-        await ev(`(() => { const s = document.getElementById('${sec}'); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
+        await ev(`(() => { const s = document.getElementById('${sec}'); /* its calculator section chosen first, as a reader does on a phone (#6) */ if (s && typeof pcShowFor === 'function') pcShowFor(s); if (s) s.scrollIntoView({ block: 'start', behavior: 'instant' }); return true; })()`);
         await sleep(200);
         const r = await ev(read(sec));
         if (r.none) { fails.push(`${at}: no commercial section (#${sec}) for a deal answered Commercial`); continue; }
@@ -3989,15 +4029,19 @@ for (const w of [360, 390]) {
    <main> — a run of text whose element is rendered (checkVisibility, with
    opacity and visibility), not inside .sr-only, a clipped 1px box or a
    closed <details> (its <summary> counts), with a box of its own:
-     - before the first slider: at most 180 at 1440 and 138 at 390;
-       measured 174 and 131 (189 and 145 on 58dbc0b4). The margin, six or
+     - before the first slider: at most 184 at 1440 and 138 at 390;
+       measured 178 and 131 (189 and 145 on 58dbc0b4). The margin, six or
        seven words, is what the lines that are not the Lab's may vary by —
        the journey's line above the page (its state, its date, its commit)
        and a property's name — and no more: one sentence of explanation
-       put back above the slider fails it;
-     - in all of <main>: at most 570 at 1440 and 485 at 390; measured 549
+       put back above the slider fails it. (180 until 12 Oct 2026, measured
+       174: the property flow's four steps — Explore, Analyse, Compare,
+       Save, the 11 Oct audit's #8 — stand above the page at 1440 and not
+       on a phone, so 1440's bounds rose by those four words, the margin
+       kept);
+     - in all of <main>: at most 574 at 1440 and 485 at 390; measured 553
        and 466 (799 and 608 on 58dbc0b4), the margin the same lines' and
-       a district's name;
+       a district's name (570, measured 549, before the flow's four words);
    and the layout system's levels on a phone (390, and 360 and 430):
      - two figures lead: the first two tiles are the decision's (L1), side
        by side on the tiles' first line; the context's figure and the next
@@ -4038,7 +4082,7 @@ for (const w of [360, 390]) {
   };
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
-  const BOUND = { 1440: { before: 180, all: 570 }, 390: { before: 138, all: 485 } };
+  const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 138, all: 485 } };
   /* What the eye can see, as a reader who opens nothing does. */
   const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
       const p = n.nodeType === 3 ? n.parentElement : n;
@@ -4166,7 +4210,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 180/570 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- home-3a ---- */
@@ -4635,6 +4679,231 @@ for (const w of [360, 390]) {
   else console.log(`ok   property-investing: ${PATH} at 360, 390 and 430, in the page's font and in Verdana, drawn and with the script off (${said.pages} pages) — nothing scrolls sideways or runs past the window; all ${said.targets} controls drawn 44px each way; "Open the Scenario Lab" on the first screen with the disclosure beside it`);
 }
 /* ---- end property-investing ---- */
+
+/* ---- pu-flow ---- */
+/* THE PROPERTY FLOW, LAID OUT (the 11 Oct 2026 daily audit, #8; 88-property-
+   flow.js). Explore → Analyse → Compare → Save above every Property page:
+     - at 360×640, 390×844 and 430×932, in the page's font and in Verdana,
+       on the opportunity register: its four steps one line of 44px chips,
+       Explore marked the step, nothing scrolling sideways; on the Lab
+       (/property) the line not drawn — the Lab's action bar carries
+       Analyse · Compare · Save there, and its first slider stays on the
+       first screen;
+     - at 1440×900 on the Lab: the four steps in sight, Analyse marked.
+   Fails on 5a75a923, where there is no flow. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const steps = `(async () => { await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const steps = [...document.querySelectorAll('#views .pf-flow .pf-step')].filter(n => n.getClientRects().length).map(n => { const b = n.getBoundingClientRect(); return { t: n.textContent.trim(), top: Math.round(b.top), h: Math.round(b.height), cur: n.getAttribute('aria-current') }; });
+    return { steps, over: document.documentElement.scrollWidth - document.documentElement.clientWidth }; })()`;
+  try {
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      await load('/property/opportunities');
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(steps);
+      if (r.over > 0) fails.push(`${at} /property/opportunities: the page scrolls ${r.over}px sideways`);
+      if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Compare Save') fails.push(`${at} /property/opportunities: the flow reads ${JSON.stringify(r.steps.map(s => s.t))}`);
+      if (new Set(r.steps.map(s => s.top)).size > 1) fails.push(`${at} /property/opportunities: the flow's steps take more than one line`);
+      r.steps.forEach(s => { if (s.h < 43.5) fails.push(`${at} /property/opportunities: "${s.t}" is ${s.h}px tall, not a 44px target`); });
+      if (r.steps.find(s => s.cur === 'step')?.t !== 'Explore') fails.push(`${at} /property/opportunities: the flow marks ${r.steps.find(s => s.cur === 'step')?.t || 'no step'}, not Explore`);
+      await load('/property');
+      const lab = await ev(`[...document.querySelectorAll('#views .pf-flow')].filter(n => n.getClientRects().length).length`);
+      if (lab) fails.push(`${at} /property: the property flow is drawn over the Lab (its bar carries Analyse · Compare · Save)`);
+      said.push(at);
+    }
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await load('/privacy'); await forget();
+    await load('/property');
+    const r = await ev(steps);
+    if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Compare Save' || r.steps.find(s => s.cur === 'step')?.t !== 'Analyse') fails.push(`1440 /property: the flow reads ${JSON.stringify(r.steps)}`);
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL pu-flow — the property flow laid out (the 11 Oct audit, #8): ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   pu-flow: on the opportunity register at ${said.join(', ')} the flow's four steps one line of 44px chips, Explore marked, nothing sideways; not drawn over the Lab on a phone; at 1440 on the Lab, Analyse marked`);
+}
+/* ---- end pu-flow ---- */
+
+/* ---- calc-words ---- */
+/* THE CALCULATOR, SAID IN LESS ON A PHONE (the 11 Oct 2026 daily audit, #6,
+   owner-approved 12 Oct). /property/calculator on a first visit, counting
+   the words a reader can see in <main> as lab-words counts them (a run of
+   text whose element is rendered, not .sr-only, not a clipped 1px box, not
+   in a closed <details> — its <summary> counts):
+     - at 390×844: at most 1,150 words, in the page's font and in Verdana;
+       measured 1,117 in 9,130px (6,206 in 35,734px on 5a75a923). The
+       margin, 33 words, is what a district's name, a town's demand chips'
+       wording and a figure's may vary by — not one paragraph put back;
+     - at 1440×900: at most 6,300 — the desktop keeps its layout; measured
+       6,275 (6,271 on 5a75a923: the four more are the property flow's
+       steps, #8);
+   and the layout a phone gets, at 360×640, 390×844 and 430×932 in the
+   page's font and in Verdana:
+     - the one-page answer's four metric cards, each with its kind badge in
+       sight; then ONE section — Acquisition on arrival, its chip chosen in
+       the index — and "Next: Financing", a 44px target; the action bar's
+       Analyse · Compare · Save; choosing Scenarios (Compare) shows it alone;
+     - the methodology and the long tables drawers (L3: details.pc-l3m),
+       closed, each summary a 44px target; opened, the ledger stands as
+       cards (the layout system's tables-become-cards);
+     - the disclosures that stay in sight do, nothing opened: the status
+       strip's "Beta preview.", "Not a valuation", "Not an official property
+       valuation", "not a real listing", "Illustrative" on every metric card,
+       the cash required's "unverified" lines and the ledger drawer's
+       Placeholder badge (its lines resting on estimates) — and, a shophouse
+       answered
+       Commercial, "Cash required — partial" with the lines it excludes;
+     - nothing scrolls sideways;
+   and from 1440 every section stands, no drawer's summary is in sight and
+   each drawer's content is (the desktop's layout, unchanged).
+   Fails on 5a75a923: 6,206 words at 390, every section and table standing,
+   no drawer. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const BOUND = { 1440: 6300, 390: 1150 };
+  const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
+      const p = n.nodeType === 3 ? n.parentElement : n;
+      if (!p || p.closest('.sr-only, script, style, template, svg')) return false;
+      if (!p.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
+      for (let a = p; a && a !== root.parentElement; a = a.parentElement) {
+        const b = a.getBoundingClientRect(), cs = getComputedStyle(a);
+        if ((b.width <= 1 || b.height <= 1) && cs.overflow !== 'visible') return false;
+      }
+      const r = document.createRange(); r.selectNodeContents(n);
+      return [...r.getClientRects()].some(x => x.width > 1 && x.height > 1);
+    };
+    const words = (s) => s.split(/\\s+/).filter(t => /[\\p{L}\\p{N}]/u.test(t));
+    const seenText = (root) => { const out = []; const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); for (let n = tw.nextNode(); n; n = tw.nextNode()) if (seen(n)) out.push(n.data); return out.join(' ').replace(/\\s+/g, ' '); };`;
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    ${SEEN}
+    const main = document.querySelector('main') || document.body;
+    let all = 0;
+    const tw = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) if (seen(n)) all += words(n.data).length;
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { const b = n.getBoundingClientRect(); return { h: Math.round(b.height), w: Math.round(b.width) }; };
+    const cards = [...document.querySelectorAll('#pc-answer .pc-answers [data-card="metric"]')].filter(shown).map(c => ({ label: (c.querySelector('.stat-label')?.textContent || '').trim(), text: seenText(c),
+      badge: (() => { const b = c.querySelector('[data-kind-badge]'); return b && seen(b.lastChild || b) ? b.textContent.trim() : null; })() }));
+    const secs = [...document.querySelectorAll('.pc-page .pc-sec')].filter(shown).map(s => s.id);
+    const chip = document.querySelector('.pc-index-link.is-on')?.dataset.sec || null;
+    const l3 = [...document.querySelectorAll('.pc-page details.pc-l3m')].map(d => ({ key: d.dataset.l3, open: d.open, sum: shown(d.querySelector(':scope > summary')) ? box(d.querySelector(':scope > summary')) : null,
+      body: [...d.children].filter(c => c.tagName !== 'SUMMARY').some(c => shown(c) && c.checkVisibility({ contentVisibilityAuto: true }) && c.getBoundingClientRect().height > 0), sec: d.closest('.pc-sec')?.id || null }));
+    const next = [...document.querySelectorAll('.pc-sec-next-go')].filter(shown).map(a => ({ t: a.textContent.trim(), ...box(a) }));
+    const bar = [...document.querySelectorAll('body > .dock .ls-actbar .ls-act')].filter(shown).map(a => a.textContent.trim());
+    const flow = document.querySelector('#views .pf-flow');
+    return { all, secs, chip, cards, l3, next, bar, flowSteps: flow ? [...flow.querySelectorAll('.pf-step')].filter(shown).length : 0,
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth, height: document.documentElement.scrollHeight,
+      strip: (() => { const s = document.getElementById('disclosureText'); return s ? seenText(s) : ''; })(), page: seenText(main) };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[1440, 900], [390, 844], [360, 640], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      await load('/privacy'); await forget();
+      const view = await load('/property/calculator');
+      if (view !== 'property') { fails.push(`${at}: /property/calculator opened ${view}`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(read);
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      const bound = BOUND[w];
+      if (bound) {
+        if (r.all > bound) fails.push(`${at}: ${r.all} words in sight in <main>, more than ${bound}`);
+        said.push(`${at}: ${r.all} words, ${r.height}px`);
+      }
+      /* The disclosures in sight, nothing opened. */
+      const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.page, 'Not a valuation', 'the chip'], [r.page, 'Not an official property valuation', 'the regulated claim'],
+        [r.page, 'not a real listing', 'the sample\'s status'], [r.cards.find(c => /^Cash required/.test(c.label))?.text || '', 'unverified', 'the cash required\'s unverified lines'],
+        [r.page, 'Placeholder', 'the Placeholder kind of the lines resting on estimates']];
+      for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
+      if (r.cards.length !== 4) fails.push(`${at}: ${r.cards.length} metric cards in sight, not the one-page answer's four`);
+      r.cards.forEach(c => { if (!c.badge || !/^Illustrative/.test(c.badge)) fails.push(`${at}: the "${c.label}" card shows ${c.badge ? `"${c.badge}"` : 'no kind badge'}, not Illustrative`); });
+      if (w >= 640) {
+        if (r.secs.length !== 5) fails.push(`${at}: ${r.secs.length} sections stand (${r.secs.join(', ')}), not all five — the desktop keeps its layout`);
+        const sums = r.l3.filter(x => x.sum), hid = r.l3.filter(x => !x.body);
+        if (sums.length) fails.push(`${at}: drawer summaries in sight on a desk (${sums.map(x => x.key).join(', ')})`);
+        if (hid.length) fails.push(`${at}: drawers' content out of sight on a desk (${hid.map(x => x.key).join(', ')})`);
+        if (r.next.length) fails.push(`${at}: "Next" links in sight on a desk`);
+        continue;
+      }
+      /* A phone: the figures, one section, the bar. */
+      if (JSON.stringify(r.secs) !== '["acquisition"]' || r.chip !== 'acquisition') fails.push(`${at}: the sections shown are ${JSON.stringify(r.secs)} with ${r.chip} chosen, not Acquisition alone`);
+      if (r.bar.length !== 3 || !/^Analyse/.test(r.bar[0]) || !/^Compare/.test(r.bar[1]) || !/^Save/.test(r.bar[2])) fails.push(`${at}: the action bar reads ${JSON.stringify(r.bar)}`);
+      if (r.next.length !== 1 || !/^Next: Financing/.test(r.next[0].t) || r.next[0].h < 43.5) fails.push(`${at}: the way on is ${JSON.stringify(r.next)}, not one 44px "Next: Financing"`);
+      const here = r.l3.filter(x => !x.sec || x.sec === 'acquisition');
+      if (here.length < 3) fails.push(`${at}: ${here.length} drawers in the answer and Acquisition, not the district's, the per-unit figures' and the ledger's`);
+      here.forEach(x => { if (x.open || x.body) fails.push(`${at}: the "${x.key}" drawer stands open`); if (!x.sum || x.sum.h < 43.5) fails.push(`${at}: the "${x.key}" drawer's summary is ${x.sum ? `${x.sum.h}px` : 'not in sight'}, not a 44px target`); });
+      if (r.flowSteps) fails.push(`${at}: the property flow's steps are drawn over the calculator (its bar carries them)`);
+      /* Compare chooses Scenarios, and the ledger opened stands as cards. */
+      const c = await ev(`(async () => { const fr = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        document.getElementById('ls-act-compare')?.click(); await fr();
+        const secs = [...document.querySelectorAll('.pc-page .pc-sec')].filter(s => s.getClientRects().length).map(s => s.id);
+        goToPropertySection('acquisition', { instant: true }); await fr();
+        const d = document.querySelector('details.pc-l3m[data-l3="ledger"]'); if (d) d.open = true; await fr();
+        const t = document.getElementById('pc-cost-table'), wrap = t?.closest('.tablewrap');
+        const out = { secs, shown: !!t && t.getClientRects().length > 0, display: t ? getComputedStyle(t).display : null, sideways: wrap ? wrap.scrollWidth - wrap.clientWidth : null };
+        if (d) d.open = false; window.scrollTo(0, 0); return out; })()`);
+      if (JSON.stringify(c.secs) !== '["scenarios"]') fails.push(`${at}: Compare shows ${JSON.stringify(c.secs)}, not Scenarios alone`);
+      if (!c.shown || c.display === 'table' || c.sideways > 1) fails.push(`${at}: the ledger opened is ${c.shown ? `${c.display}, ${c.sideways}px sideways` : 'not in sight'} — not cards`);
+    }
+    /* A partial cash required, in sight on a phone. */
+    for (const [w, h] of [[390, 844]]) {
+      const at = `${w}×${h} a shophouse`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      await load('/property/calculator?type=shophouse');
+      const r = await ev(`(async () => { ${SEEN} await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const c = [...document.querySelectorAll('#pc-answer .pc-answers [data-card="metric"]')].find(x => /^Cash required/.test(x.querySelector('.stat-label')?.textContent || ''));
+        return c ? seenText(c) : null; })()`);
+      if (!r || !/Cash required[^—]*— partial/.test(r) || !/not yet checked for commercial property/i.test(r)) fails.push(`${at}: the cash required card reads “${(r || 'nothing').slice(0, 160)}” — not the partial wording with the lines it excludes`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL calc-words — the calculator on a phone (the 11 Oct audit, #6): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   calc-words: /property/calculator on a first visit — ${said.join('; ')} (bounds ${BOUND[1440]} at 1440, ${BOUND[390]} at 390); on a phone (360, 390, 430, both fonts) the four metric cards with their badges, Acquisition alone and "Next: Financing", the bar's Analyse · Compare · Save (Compare shows Scenarios alone), the district, the per-unit figures and the ledger closed drawers with 44px summaries (the ledger opened, cards); the strip, "Not a valuation", the regulated claim, "not a real listing", Illustrative, the unverified lines and the ledger's Placeholder in sight, and a shophouse's partial cash required; at 1440 every section and every drawer's content standing`);
+}
+/* ---- end calc-words ---- */
 
 
 } catch (e) {

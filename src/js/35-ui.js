@@ -3696,8 +3696,12 @@ function drawPage(samePage) {
      36-layouts.js). */
   /* ls-view: a page on the layout system, its journey line and Start here
      with it (37-layout-system.js; styles.css, layout-system). */
+  /* And first, on a Property page, the property flow — Explore → Analyse →
+     Compare → Save — with the work the Scenario Lab holds (the 11 Oct
+     audit, #8; 88-property-flow.js). Not over the skeleton. */
+  const flow = !(realPending && viewWaits()) ? propertyFlowNode() : null;
   const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
-    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [journeyLineNode(), startHereNode(), node]));
+    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [flow, journeyLineNode(), startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);
