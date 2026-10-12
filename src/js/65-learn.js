@@ -371,6 +371,31 @@ function learnData() {
   nap.append(nx);
   wrap.append(nap);
 
+  /* THE KUCHING MAP'S OWN FILES (the owner's decision of 12 Oct 2026;
+     MAP_DATA_SOURCES, 19-data-licence.js): what the map at
+     /property/areas/map is drawn from, under what terms — the full
+     statement of the attribution in its corner. */
+  const mp = el('section', { class: 'card', id: 'map-data', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'map-data-h' });
+  mp.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'map-data-h' }, 'The Kuching map’s own files'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, 'The Kuching scheme map is drawn from files this site serves itself — no tile server, font server or account. Its map data is OpenStreetMap’s, © OpenStreetMap contributors, under the Open Database Licence.'),
+  ])));
+  const mt = el('table', { class: 'dt' });
+  mt.append(el('thead', {}, el('tr', {}, ['What', 'From', 'Terms'].map(h => el('th', { style: 'text-align:left' }, h)))));
+  mt.append(el('tbody', {}, MAP_DATA_SOURCES.map(m => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left;white-space:normal' }, m.name),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, m.from),
+    el('td', { style: 'text-align:left;white-space:normal' }, [
+      m.licence ? el('span', { class: 'chip', title: LICENCE_BY_ID[m.licence].note }, LICENCE_BY_ID[m.licence].label) : el('span', { class: 'chip' }, 'Open-source code'),
+      el('span', { class: 'caption', style: 'display:block;margin-top:4px' }, m.terms),
+    ]),
+  ]))));
+  mp.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, mt));
+  mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, [
+    'OpenStreetMap’s copyright and licence: ', el('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener noreferrer' }, 'openstreetmap.org/copyright'),
+    '. NAPIC’s figures are not part of the map: they stay in its list, under each scheme, as on the area screen.']));
+  wrap.append(mp);
+
   /* The licence ladder itself, because it is new and orthogonal to the evidence
      ladder a reader already knows. */
   const lic = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });

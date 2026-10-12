@@ -3629,6 +3629,17 @@ VIEWS.propertyLab = () => {
      flow.js): the comparison or the Save, once the page is up. */
   const go = State.labGoTo;
   if (go) { State.labGoTo = null; setTimeout(() => labGoTo(go), 0); }
+  /* A placed scheme of the Kuching map, opened here (92-kuching-map.js): the
+     active column moved to the listed locality nearest it — a what-if of
+     that column, as any move here, nothing written until Save. */
+  const place = State.labPlace;
+  if (place) {
+    State.labPlace = null;
+    setTimeout(() => {
+      const r = labOpen({ kind: 'place', city: place.city, district: place.district });
+      if (r.ok) toast(`${place.scheme}: the column is now in ${r.district}, ${townName(place.city)} — the listed locality nearest the scheme, a what-if until you save.`);
+    }, 0);
+  }
   return wrap;
 };
 /* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of

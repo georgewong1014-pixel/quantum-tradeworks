@@ -152,6 +152,8 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { journeysServed, ISLAND_PAGES, RECORD_FILE, ROOT_PAGES, JOURNEY_NAMES } from './journeys.mjs';
 import { checksServed, checksProblem, CHECKS_FILE, SUITES as CHECK_SUITES } from './checks-record.mjs';
+import { mapAssetProblems, MANIFEST_FILE as MAP_MANIFEST, SCHEMES_FILE as MAP_SCHEMES, HEIGHTS_FILE as MAP_HEIGHTS, STYLE_FILES as MAP_STYLES,
+  VENDOR_ML, VENDOR_PM, MAP_BBOX } from './map-assets.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const src = (...p) => join(ROOT, 'src', ...p);
@@ -185,6 +187,9 @@ const CHECK_SUITES_MARKER = '/*@INJECT:checkSuites*/ null';
 /* Where the homepage's filed example goes into the app (55-views-public.js;
    homeFiled, below). */
 const HOME_FILED_MARKER = '/*@INJECT:homeFiled*/ null';
+/* Where the Kuching map's schemes and its files' addresses go into the app
+   (92-kuching-map.js; kuchingMapData, below). */
+const KUCHING_MAP_MARKER = '/*@INJECT:kuchingMap*/ null';
 const CSP_MARKER = '@CSP_HASH';
 /* The first-paint script's hash (BEFORE THE FIRST PAINT, below). */
 const CSP_FIRST_MARKER = '@CSP_FIRST_HASH';
@@ -201,7 +206,12 @@ const APP_FILES_MARKER = '@APP_FILES';
    are git-ignored, exist only on the reader's own machine, and publishing a hash
    of them in a public repo would leak a fingerprint of licensed data. They keep
    plain URLs and no-store, which is what fetchJson falls back to. */
-const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json'];
+const VERSIONED = ['us.json', 'instruments.json', 'sarawak-geo.json',
+  /* The Kuching map's style, light and dark, and the buildings OpenStreetMap
+     records a height for (map-assets.mjs): asked for by the map page alone.
+     Its tile file, glyphs and sprites are named by what they hold (a build's
+     date, a commit), so they need no ?v=. */
+  ...Object.values(MAP_STYLES).map(f => f.slice('data/'.length)), MAP_HEIGHTS.slice('data/'.length)];
 
 /* The committed files, and then each NAPIC division file the build writes
    (napicSlices), hashed as written: the page asks for those by the same
@@ -283,6 +293,79 @@ export function napicProblems(slices, text) {
     rows += doc.benchmarks.length;
   }
   if (rows !== src.benchmarks.length) out.push(`the division files hold ${rows} benchmark rows, where ${NAPIC_SOURCE} holds ${src.benchmarks.length}`);
+  return out;
+}
+
+/* ─── THE KUCHING MAP, STAMPED INTO THE PAGE (the owner's decision of
+   12 Oct 2026) ──────────────────────────────────────────────────────────────
+   The map page is served with its list — every Kuching residential scheme
+   in NAPIC's extract, where it is placed and on what evidence — so the list
+   is in the app, read from data/map/kuching-schemes.json here, as the
+   homepage's filed example is (homeFiled). What the page reads of each
+   scheme and nothing else: a placed one's position, radius, method,
+   confidence, evidence and nearest listed locality; one not placed, its
+   reason. The review notes on the weak matches are the owner's sheet's
+   (map-assets.mjs --review), not the page's. No figure is among them:
+   schemeProblems (map-assets.mjs) fails a record that holds one. And the
+   map's files by their addresses on this site, from data/map/manifest.json. */
+const dayOf = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${Number(m[3])} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]} ${m[1]}` : null;
+};
+export function kuchingMapData(root = ROOT) {
+  const man = JSON.parse(readFileSync(join(root, MAP_MANIFEST), 'utf8'));
+  const doc = JSON.parse(readFileSync(join(root, MAP_SCHEMES), 'utf8'));
+  const heights = JSON.parse(readFileSync(join(root, MAP_HEIGHTS), 'utf8'));
+  return {
+    bbox: MAP_BBOX, build: man.tiles.build, tileAsOf: dayOf(man.tiles.osmAsOf), osmAsOf: dayOf(doc.osm.asOf), period: doc.period,
+    vendor: { maplibre: VENDOR_ML, pmtiles: `${VENDOR_PM}/pmtiles.js` },
+    styles: Object.fromEntries(Object.entries(MAP_STYLES).map(([k, f]) => [k, f.slice('data/'.length)])),
+    heights: { file: MAP_HEIGHTS.slice('data/'.length), count: heights.features.length },
+    tally: doc.tally,
+    schemes: doc.schemes.map(s => (s.status === 'placed'
+      ? { scheme: s.scheme, status: s.status, method: s.method, confidence: s.confidence, centre: s.centre, radius: s.radius,
+        said: s.evidence.said, osm: s.evidence.osm.map(o => o.id).slice(0, 3), nearest: s.nearest }
+      : { scheme: s.scheme, status: s.status, ...(s.reason ? { reason: s.reason } : {}) })),
+  };
+}
+/* THE MAP'S POLICY (the owner's decision of 12 Oct 2026). Every
+   Content-Security-Policy vercel.json sends is one text (the pages', and the
+   vendored code's, which governs MapLibre's worker); it names no origin but
+   this site's — 'self', and data: and blob: for images, which name no other
+   site — and set against the policy the site had before the map, it adds
+   exactly worker-src 'self' and blob: in img-src: connect-src stays 'self'. */
+export const CSP_BEFORE_MAP = "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'";
+export const CSP_MAP_ADDS = { 'img-src': ['blob:'], 'worker-src': ["'self'"] };
+export const cspDirectives = (v) => Object.fromEntries(String(v).split(';').map(s => s.trim()).filter(Boolean).map(s => { const [k, ...r] = s.split(/\s+/); return [k, r]; }));
+export function mapCspProblems(vercel) {
+  const cfg = typeof vercel === 'string' ? JSON.parse(vercel) : vercel;
+  const out = [];
+  const csps = (cfg.headers || []).flatMap(g => g.headers.filter(h => h.key === 'Content-Security-Policy').map(h => [g.source, h.value]));
+  if (!csps.length) return ['vercel.json sends no Content-Security-Policy'];
+  if (new Set(csps.map(([, v]) => v)).size !== 1) out.push(`vercel.json sends ${new Set(csps.map(([, v]) => v)).size} different policies (${csps.map(([s]) => s).join(', ')}), not one`);
+  const now = cspDirectives(csps[0][1]), was = cspDirectives(CSP_BEFORE_MAP);
+  for (const [k, srcs] of Object.entries(now)) for (const s of srcs)
+    if (!/^('self'|'none'|'unsafe-inline'|'sha256-[A-Za-z0-9+/=]+'|data:|blob:)$/.test(s)) out.push(`the policy's ${k} allows ${s}, which is not this site`);
+  const norm = (d, k) => (d[k] || []).filter(s => !/^'sha256-/.test(s) && !/^'@CSP/.test(s));
+  for (const k of new Set([...Object.keys(now), ...Object.keys(was)])) {
+    const added = norm(now, k).filter(s => !norm(was, k).includes(s)), gone = norm(was, k).filter(s => !norm(now, k).includes(s));
+    const want = CSP_MAP_ADDS[k] || [];
+    if (gone.length) out.push(`the policy's ${k} no longer has ${gone.join(' ')}`);
+    if (added.join(' ') !== want.join(' ')) out.push(`the policy's ${k} adds ${added.join(' ') || 'nothing'} to what it had before the map, where the map adds ${want.join(' ') || 'nothing'}`);
+  }
+  if ((now['connect-src'] || []).join(' ') !== "'self'") out.push(`the policy's connect-src is ${(now['connect-src'] || []).join(' ')}, not 'self'`);
+  /* And the vendored code under a rule of its own, sent the policy, cached
+     for its year — and the pages' rule leaves it out. */
+  const vend = (cfg.headers || []).find(g => g.source === '/vendor/(.*)');
+  if (!vend) out.push('vercel.json has no rule for /vendor/(.*)');
+  else {
+    const h = Object.fromEntries(vend.headers.map(x => [x.key, x.value]));
+    if (h['Cache-Control'] !== 'public, max-age=31536000, immutable') out.push(`/vendor/ is cached "${h['Cache-Control']}", not for a year: its folders are named by version`);
+    if (!h['Content-Security-Policy']) out.push('/vendor/ is sent no Content-Security-Policy, and MapLibre\'s worker takes its policy from its own response');
+    if (h['X-Content-Type-Options'] !== 'nosniff') out.push('/vendor/ is not sent nosniff');
+  }
+  const pages = (cfg.headers || []).find(g => /^\/\(\(\?!data\//.test(g.source));
+  if (!pages || !/vendor\//.test(pages.source)) out.push('the pages\' rule does not leave /vendor/ out, so two rules would set its headers');
   return out;
 }
 
@@ -1463,6 +1546,8 @@ export function build({ bare = false } = {}) {
   js = js.replace(CHECK_SUITES_MARKER, () => JSON.stringify(CHECK_SUITES.map(s => ({ id: s.id, name: s.name, kind: s.kind }))));
   if (js.split(HOME_FILED_MARKER).length !== 2) throw new Error('src/js must carry the homepage\'s filed-example marker exactly once (55-views-public.js)');
   js = js.replace(HOME_FILED_MARKER, () => JSON.stringify(homeFiled(plan)));
+  if (js.split(KUCHING_MAP_MARKER).length !== 2) throw new Error('src/js must carry the Kuching map\'s marker exactly once (92-kuching-map.js)');
+  js = js.replace(KUCHING_MAP_MARKER, () => JSON.stringify(kuchingMapData()));
 
   /* One stylesheet and one script, where linked() looks for them: the page's
      own markup must not carry a second of either, which linked() would take
@@ -1610,7 +1695,11 @@ export function build({ bare = false } = {}) {
         ? Object.fromEntries(Object.entries(v).filter(([k]) => !k.startsWith('$comment')).map(([k, x]) => [k, stripComments(x)]))
         : v);
   if (!cfgTemplate.includes(CSP_FIRST_MARKER)) throw new Error('vercel template lost its first-paint CSP marker');
-  const parsed = JSON.parse(cfgTemplate.replace(CSP_MARKER, () => cspHash).replace(CSP_FIRST_MARKER, () => firstHash()));
+  /* Every policy the template carries: the pages', and since the Kuching map
+     (12 Oct 2026) the same policy on the map's vendored code (MapLibre's
+     worker is governed by its own response's policy). One policy, so the
+     two are held to be the same text (mapCspProblems). */
+  const parsed = JSON.parse(cfgTemplate.split(CSP_MARKER).join(cspHash).split(CSP_FIRST_MARKER).join(firstHash()));
   if (parsed.rewrites !== REWRITES_MARKER) throw new Error(`vercel template's "rewrites" must be "${REWRITES_MARKER}" — the build writes them from ROUTES`);
   parsed.rewrites = rewrites;
   /* Each filed company's id, to its own page (companyIdRedirects). */
@@ -2451,6 +2540,9 @@ if (process.argv[1] && process.argv[1].endsWith('build.mjs')) {
   /* D6: the kind badges' mapping, and no metric card without its badge. */
   const kindMapped = kindProblems(), metricCards = bare ? { problems: [], cards: 0 } : metricBadgeProblems([['index.html', html], ...pages]);
   const problems = [...servingProblems(built), ...napicProblems(napic, napicText), ...sourceControls(), ...mapShapeProblems(), ...layoutSystemProblems(), ...(sitemap ? sitemap.problems : []),
+    /* The Kuching map's files against their manifest, its style's
+       addresses, its schemes' evidence (map-assets.mjs), and its policy. */
+    ...mapAssetProblems(ROOT).map(x => `the Kuching map: ${x}`), ...mapCspProblems(vercel).map(x => `the Kuching map: ${x}`),
     ...kindMapped, ...(bare ? [] : metricCards.problems), ...feeRulebookProblems(), ...viewsLateProblems([[NOT_FOUND, notFound], ...pages]), ...(homeBudget ? homeBudget.problems.map(x => `/ (${HOME}), its budgets (plan 3.6): ${x}`) : []),
     ...(researchCheck ? researchCheck.problems.map(x => `/research (${RESEARCH_PAGE}), its front page (N7): ${x}`) : [])];
   /* The company pages, and the route pages beside them. */

@@ -67,8 +67,10 @@ function loadNapic(division) {
     } catch { /* absent is a normal state and the panel says so */ }
     entry.state = entry.doc ? 'done' : 'failed';
     napicStatus.ok = !!entry.doc;
-    /* The panel is drawn on the area screen only; it said "loading" there. */
-    if (State.view === 'areas') render();
+    /* The panel is drawn on the area screen; it said "loading" there. And
+       the Kuching scheme map draws each scheme's rows from its division's
+       file (92-kuching-map.js). */
+    if (State.view === 'areas' || State.view === 'areaMap') render();
     return entry.doc;
   })();
   return entry.ready;

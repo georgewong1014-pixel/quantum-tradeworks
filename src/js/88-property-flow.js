@@ -50,8 +50,8 @@ const PF_STEPS = [
   { id: 'compare', label: 'Compare' },
   { id: 'save', label: 'Save' },
 ];
-const PF_STEP_OF = { areas: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
-const PF_EXPLORE_PATH = { areas: '/property/areas', comparables: '/property/comparables', opportunities: '/property/opportunities' };
+const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
+const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
 /* The explore page last visited, this tab: where Explore goes back to. */
 let pfExplore = '/property/opportunities';
 

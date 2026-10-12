@@ -6888,3 +6888,99 @@ input.au-in[type="text"] { text-align: left; }
   details.pc-l3m[open] > .pc-l3m-sum::before { transform: rotate(90deg); }
 }
 /* ---- end calc-density ---- */
+/* ---- kuching-map ---- */
+/* THE KUCHING SCHEME MAP (92-kuching-map.js; the owner's decision of
+   12 Oct 2026). Tokens only; the page is the area screen's second view.
+   THE BOX HOLDS ITS HEIGHT. The page is served before its map is drawn
+   (prerender.mjs), and the map, the locality diagram that stands in for it
+   or the words saying which, are each drawn inside this box: its height is
+   the window's, never its content's, so nothing under it moves when the
+   map comes. What it says while it loads stands over it (.km-say), and the
+   attribution sits in its corner whatever is drawn. The mode is read off
+   what the box holds (:has), never a class the script sets: the served
+   page carries what the render had. */
+.km-page { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.km-views .segmented a[aria-current="page"] { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--lift-1); }
+.km-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md); align-items: start; }
+@media (min-width: 1280px) { .km-layout { grid-template-columns: minmax(0, 1fr) 340px; } }
+.km-card { min-width: 0; }
+.km-card .card-hd { align-items: center; }
+.km-tools button:disabled { opacity: .5; cursor: not-allowed; }
+.km-box { position: relative; height: 420px; border-radius: var(--r-md); overflow: hidden; background: var(--surface-sunk);
+  border: 1px solid var(--line); isolation: isolate; }
+@media (min-width: 640px) { .km-box { height: 460px; } }
+@media (min-width: 1024px) { .km-box { height: 520px; } }
+/* Two classes: MapLibre's own stylesheet makes its container
+   position: relative (.maplibregl-map), loaded after this one. */
+.km-box > .km-canvas { position: absolute; inset: 0; }
+/* The locality diagram in its place: what the box says stands above it, not
+   over it, and the diagram is drawn to the height left (kmFallback). */
+.km-box:has(> .km-canvas svg) { display: flex; flex-direction: column; }
+.km-box:has(> .km-canvas svg) > .km-say { position: relative; inset: auto; flex: none; margin: var(--sm) var(--sm) 0; box-shadow: none; background: var(--surface); }
+.km-box:has(> .km-canvas svg) > .km-canvas { position: relative; inset: auto; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 26px; }
+@media (pointer: coarse), (max-width: 768px) { .km-box:has(> .km-canvas svg) > .km-canvas { margin-bottom: 44px; } }
+.km-canvas .maplibregl-canvas:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.km-say { position: absolute; left: var(--sm); right: var(--sm); top: var(--sm); z-index: 2; margin: 0; max-width: 62ch;
+  padding: 10px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: var(--lift-1); font-size: var(--text-sm); line-height: 1.5; color: var(--ink-2); }
+.km-say[hidden] { display: none; }
+.km-say .btn { display: flex; width: fit-content; margin-top: var(--xs); }
+.km-attrib { position: absolute; right: 0; bottom: 0; z-index: 2; margin: 0; padding: 3px 8px; border-top-left-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--surface) 88%, transparent); font-size: 12px; line-height: 18px; color: var(--ink-2); }
+.km-attrib a { color: inherit; }
+@media (pointer: coarse), (max-width: 768px) {
+  /* The attribution's one link, a finger's size where a finger is. */
+  .km-attrib a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+.km-legend { display: flex; flex-wrap: wrap; gap: var(--xs) var(--lg); margin-top: var(--sm); }
+.km-key { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-2); }
+.km-swatch { width: 18px; height: 12px; flex: none; border-radius: 4px; border: 2px solid var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.km-swatch-dash { border-style: dashed; }
+.km-note { margin-top: var(--xs); max-width: 70ch; }
+.km-panel { min-width: 0; display: flex; flex-direction: column; gap: var(--xs); }
+.km-panel h3:focus { outline: none; }
+.km-panel h3:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: var(--r-xs); }
+.km-panel-lede { margin: 0; font-size: var(--text-body); }
+.km-panel-sub { margin-top: var(--sm); }
+.km-tally { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px var(--md); margin: var(--xs) 0 0; font-size: var(--text-sm); }
+.km-tally dt { color: var(--ink-2); }
+.km-tally dd { margin: 0; font-weight: 600; text-align: right; }
+.km-chips { margin: 0; }
+.km-conf { white-space: normal; height: auto; min-height: 22px; }
+.km-conf-named-feature { background: var(--brand-wash); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 24%, transparent); }
+.km-conf-lanes-named { background: var(--surface-2); color: var(--brand); border: 1px dashed color-mix(in srgb, var(--brand) 55%, transparent); }
+.km-acts { display: flex; flex-wrap: wrap; gap: var(--xs); margin-top: var(--xs); }
+.km-fig-table th, .km-fig-table td { vertical-align: top; }
+.km-find { display: grid; gap: 6px; max-width: 28rem; margin-bottom: var(--sm); }
+.km-find label { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
+.km-figs-say { margin: 0 0 var(--sm); }
+.km-group { margin-top: var(--lg); }
+.km-group[hidden] { display: none; }
+.km-group-h { margin: 0 0 6px; font-size: var(--text-lead); font-weight: 600; color: var(--ink); }
+.km-items { list-style: none; margin: var(--xs) 0 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.km-item { padding: var(--sm) 0; border-top: 1px solid var(--grid); min-width: 0; }
+.km-item[hidden] { display: none; }
+.km-item.is-sel { background: color-mix(in srgb, var(--brand) 6%, transparent); box-shadow: inset 3px 0 0 var(--brand); padding-left: var(--sm); }
+.km-item-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px var(--sm); }
+.km-name { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.km-ev { margin-top: 4px; max-width: 70ch; }
+.km-figs { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.km-fig { font-size: var(--text-sm); line-height: 1.5; color: var(--ink-2); max-width: 70ch; }
+.km-fig-range { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* The schemes not placed: their names in columns on a desk, each with its
+   figures under it; one column on a phone. */
+@media (min-width: 900px) {
+  .km-group:not(.km-group-placed) .km-items { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--lg); }
+}
+@media (min-width: 1280px) {
+  .km-group:not(.km-group-placed) .km-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* MapLibre's own controls, in the page's colours and at a finger's size
+   where a finger is. */
+.km-canvas .maplibregl-ctrl-group { background: var(--surface-2); box-shadow: var(--lift-1); }
+.km-canvas .maplibregl-ctrl-group button { width: 36px; height: 36px; }
+@media (pointer: coarse), (max-width: 768px) { .km-canvas .maplibregl-ctrl-group button { width: 44px; height: 44px; } }
+:root[data-theme="dark"] .km-canvas .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .km-canvas .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); } }
+/* ---- end kuching-map ---- */
