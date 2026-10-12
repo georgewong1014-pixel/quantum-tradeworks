@@ -62738,7 +62738,7 @@ function kmPanel() {
     const c = KM_CONF[s.confidence];
     panel.append(el('p', { class: 'km-chips' }, [el('span', { class: `chip km-conf km-conf-${s.confidence}`, title: c.said }, c.label)]));
     panel.append(el('p', { class: 'metaline' }, s.said));
-    panel.append(el('p', { class: 'metaline' }, `Drawn ${s.radius} m round its evidence: a neighbourhood, not a building. OpenStreetMap ${s.osm.join(', ')}.`));
+    panel.append(el('p', { class: 'metaline' }, `Drawn as a circle ${s.radius} m round its evidence: it marks where the scheme is, not one building or lot. OpenStreetMap ${s.osm.join(', ')}.`));
   } else panel.append(el('p', { class: 'metaline' }, [el('strong', {}, KM_NOT[kmReason(s)].label), ' — ', KM_NOT[kmReason(s)].said]));
   panel.append(el('div', { class: 'card-hd-t km-panel-sub' }, [el('h4', { class: 'eyebrow' }, `NAPIC ${KM_DATA.period}, under this name`), kindBadge('filed', { fine: `NAPIC ${KM_DATA.period}` })]));
   panel.append(kmFigures(s.scheme, { change: true }) || el('p', { class: 'metaline' }, 'Loading NAPIC’s Kuching file…'));
