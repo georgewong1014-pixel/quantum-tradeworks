@@ -1,5 +1,5 @@
 {
-  "$comment": "Sentences claims-review.mjs flags that a person has reviewed and kept, by the hash of their normalised text (hashOf, claims-review.mjs). A changed word changes the hash, and the sentence is flagged again. Seeded on 12 Oct 2026 with truthful categorical sentences — mechanics, definitions, formulas, headings — and none of the counsel items (grade names, Risk grade, DCA eligibility), the sample thesis or the pricing rows the owner kept, which stay flagged.",
+  "$comment": "Sentences claims-review.mjs flags that a person has reviewed and kept, by the hash of their normalised text (hashOf, claims-review.mjs). A changed word changes the hash, and the sentence is flagged again. Seeded on 12 Oct 2026 with truthful categorical sentences — mechanics, definitions, formulas, headings — and none of the counsel items (grade names, Risk grade, DCA eligibility), the sample thesis or the pricing rows the owner kept, which stay flagged. Confirmed by the owner on 12 Oct 2026, as it stands.",
   "reviewed": [
     {
       "hash": "341e73287816818e",
@@ -7,7 +7,7 @@
       "file": "prerender/app/equities/compare.html",
       "family": "absolute",
       "reason": "The compare table shows the gross yield beside every net one (a rule of the table).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -16,7 +16,7 @@
       "file": "prerender/app/equities/compare.html",
       "family": "absolute",
       "reason": "How the comparison chooses its measures across business models.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -25,7 +25,7 @@
       "file": "prerender/app/scanner.html",
       "family": "absolute",
       "reason": "The scanner worker records a bar once (scanner-test); \"safe\" as in idempotent, not a promise about money.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -34,7 +34,7 @@
       "file": "prerender/app/scanner/alerts.html",
       "family": "absolute",
       "reason": "The page reads the worker’s record file and never writes it.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -43,7 +43,7 @@
       "file": "prerender/data-sources.html",
       "family": "absolute",
       "reason": "Section heading; every metric card carries its kind badge (served-check d6-kind-badges).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -52,7 +52,7 @@
       "file": "prerender/data-sources.html",
       "family": "absolute",
       "reason": "The definition of the Derived kind.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -61,7 +61,7 @@
       "file": "prerender/data-sources.html",
       "family": "absolute",
       "reason": "A cited fact of the fee rulebook (\"certain\" means some, not certainty).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -70,7 +70,7 @@
       "file": "prerender/discover/screener.html",
       "family": "absolute",
       "reason": "What the coverage floor does.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -79,7 +79,7 @@
       "file": "prerender/how-it-works.html",
       "family": "absolute",
       "reason": "Heading: the three built products share one workspace.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -88,7 +88,7 @@
       "file": "prerender/learn/trading-index.html",
       "family": "absolute",
       "reason": "The Trading Index method: an unread input stays a neutral 50.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -97,7 +97,7 @@
       "file": "prerender/learn/trading-index.html",
       "family": "absolute",
       "reason": "A checklist item the reader ticks, not a claim.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -106,7 +106,7 @@
       "file": "prerender/my/data.html",
       "family": "absolute",
       "reason": "Nothing is stored on a server (/privacy; no backend).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -115,7 +115,7 @@
       "file": "prerender/my/portfolio.html",
       "family": "absolute",
       "reason": "Holdings in two currencies are kept apart.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -124,7 +124,7 @@
       "file": "prerender/property/calculator.html",
       "family": "absolute",
       "reason": "Own-use explanation in the calculator; no claim about a figure.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -133,7 +133,7 @@
       "file": "prerender/property/comparables.html",
       "family": "absolute",
       "reason": "Comparables are recorded by locality and never shown as verified transactions (owner rule).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -142,7 +142,7 @@
       "file": "prerender/property/comparables.html",
       "family": "absolute",
       "reason": "A computed check line (the register replays its log).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -151,7 +151,7 @@
       "file": "prerender/status.html",
       "family": "absolute",
       "reason": "Personal-lane statements are not exported (the CSV excludes them).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -160,7 +160,7 @@
       "file": "prerender/status.html",
       "family": "absolute",
       "reason": "What the data-health page shows.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -169,7 +169,7 @@
       "file": "prerender/privacy.html",
       "family": "absolute",
       "reason": "The privacy list of what this browser keeps (a client’s name is never kept — true of the code).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -178,7 +178,7 @@
       "file": "prerender/status.html",
       "family": "accuracy",
       "reason": "Status heading: what proves a Live badge (D15).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -187,7 +187,7 @@
       "file": "prerender/status.html",
       "family": "accuracy",
       "reason": "The definition of a proven Live badge (served-check live-proof).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -196,7 +196,7 @@
       "file": "prerender/status.html",
       "family": "accuracy",
       "reason": "The count of proven badges, from the registry.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -205,7 +205,7 @@
       "file": "src/js/91-health.js",
       "family": "accuracy",
       "reason": "What a journey proves — the path, not the figures.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -214,7 +214,7 @@
       "file": "src/js/91-health.js",
       "family": "accuracy",
       "reason": "The proven-badge heading as the page draws it.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -223,7 +223,7 @@
       "file": "src/js/83-property-decision.js",
       "family": "accuracy",
       "reason": "\"True discount\" is the auction mode’s defined formula, written out beside it.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -232,7 +232,7 @@
       "file": "prerender/my/wheel.html",
       "family": "market-price",
       "reason": "A risk statement the reader ticks: the market price may fall below the strike.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -241,7 +241,7 @@
       "file": "src/js/80-registers.js",
       "family": "market-price",
       "reason": "The same risk statement, as the register writes it.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -250,7 +250,7 @@
       "file": "src/js/13-metrics.js",
       "family": "market-price",
       "reason": "The P/E formula’s definition.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -259,7 +259,7 @@
       "file": "src/js/13-metrics.js",
       "family": "market-price",
       "reason": "The P/B formula’s definition.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -268,7 +268,7 @@
       "file": "src/js/13-metrics.js",
       "family": "market-price",
       "reason": "The FCF yield formula’s definition.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -277,7 +277,7 @@
       "file": "src/js/13-metrics.js",
       "family": "market-price",
       "reason": "The dividend yield formula’s definition.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -286,7 +286,7 @@
       "file": "prerender/corrections.html",
       "family": "rating",
       "reason": "Product boundaries: listed under what this product will not do.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -295,7 +295,7 @@
       "file": "prerender/corrections.html",
       "family": "suitability",
       "reason": "Listed under Licensed advisory mode, which this build does not run.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -304,7 +304,7 @@
       "file": "src/js/65-learn.js",
       "family": "suitability",
       "reason": "The same, as written in the source.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -313,7 +313,7 @@
       "file": "prerender/discover/screener.html",
       "family": "suitability",
       "reason": "Screener filter group: which companies a screen can include (market and coverage).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -322,7 +322,7 @@
       "file": "prerender/learn/product-boundaries.html",
       "family": "suitability",
       "reason": "Product boundaries: \"possible later, after legal review\" — not offered.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -331,7 +331,7 @@
       "file": "prerender/methodology/ips.html",
       "family": "suitability",
       "reason": "The IPS section name (instrument eligibility under the policy).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -340,7 +340,7 @@
       "file": "prerender/my/wheel.html",
       "family": "suitability",
       "reason": "Cash eligible as the put’s collateral.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -349,7 +349,7 @@
       "file": "prerender/status.html",
       "family": "suitability",
       "reason": "Says what is not built and why.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -358,7 +358,7 @@
       "file": "prerender/discover/value-map.html",
       "family": "suitability",
       "reason": "The value map legend: how many companies can be plotted (a price is needed).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -367,7 +367,7 @@
       "file": "src/js/40-views-discover.js",
       "family": "suitability",
       "reason": "How many companies the value map can plot (they need a price).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -376,7 +376,7 @@
       "file": "src/js/73-land-risk.js",
       "family": "suitability",
       "reason": "Land: the transfer eligibility of a title.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -385,7 +385,7 @@
       "file": "src/js/75-property-grade.js",
       "family": "suitability",
       "reason": "Land: the transfer eligibility of a title, unverified.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -394,7 +394,7 @@
       "file": "prerender/property/calculator.html",
       "family": "valuation-verdict",
       "reason": "Arithmetic: a lower flat rate on the same loan costs less.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -403,7 +403,7 @@
       "file": "src/js/76-financing-choices.js",
       "family": "valuation-verdict",
       "reason": "The same sentence’s end, in the source.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -412,7 +412,7 @@
       "file": "src/js/13-metrics.js",
       "family": "valuation-verdict",
       "reason": "Why trailing multiples mislead on cyclicals — an explanation, no company named.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -421,7 +421,7 @@
       "file": "prerender/learn/trading-index.html",
       "family": "will-outcome",
       "reason": "The Trading Index worked example’s published outputs (§14; the records journey checks them).",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     },
     {
@@ -430,7 +430,7 @@
       "file": "prerender/corrections.html",
       "family": "absolute",
       "reason": "A corrections-log entry: what was wrong, dated.",
-      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — for the owner to confirm",
+      "reviewer": "claims-audit batch (agent), 12 Oct 2026 — confirmed by the owner, 12 Oct 2026",
       "date": "2026-10-12"
     }
   ]
