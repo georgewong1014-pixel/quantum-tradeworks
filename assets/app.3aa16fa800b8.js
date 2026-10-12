@@ -43557,7 +43557,7 @@ VIEWS.property = () => {
       if (k === 'holdYears' && dealRoute(d) === 'newdev') {
         const t = ndTimingOf(d), hold = normHoldYears(d.holdYears);
         const why = t ? `Held ${hold} year${hold === 1 ? '' : 's'} from vacant possession: the sale falls ${ndYears(t.lead + hold)} years after signing.` : ndTimingWhy(d);
-        if (why) f.append(el('span', { class: 'metaline', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false', style: 'flex-basis:100%;margin-top:2px' }, why));
+        if (why) f.append(el('span', { class: 'a-note', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false' }, why));
       }
       rail.append(f);
       /* QT-03: the renovation itemised, each line with its source, date,
@@ -44413,7 +44413,7 @@ VIEWS.property = () => {
     exitCard.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
       'Exit costs include the months the property is carried unlet while it sells — a real cost in a Sarawak secondary market, and one most calculators leave out.'));
     if (ntm) exitCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Vacant possession is ${ntm.vpAt} months after signing, so these sales fall ${ndYears(ntm.lead + 5)} and ${ndYears(ntm.lead + 10)} years after it: the sale value is the price grown from signing, the gains tax counts from the SPA date, and the annualised figure and the rate of return are over the years from signing.`));
+      `Vacant possession is ${ntm.vpAt} months after signing, so these sales fall ${ndYears(ntm.lead + 5)} and ${ndYears(ntm.lead + 10)} years after signing: the sale value is the price grown from signing, the gains tax counts from the SPA date, and the annualised figure and the rate of return are over the years from signing.`));
     reportCards.push(exitCard);
 
     /* ---------- hold or sell, year by year ---------- */
@@ -51902,7 +51902,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
-      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due.`
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due. Until you enter your lawyer’s quote, the legal costs are the fee rulebook’s purchase legal fees — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}), so the quote is the way to price it.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step, opts] of g.fields) {
