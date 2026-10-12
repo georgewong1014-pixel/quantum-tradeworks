@@ -4213,6 +4213,103 @@ for (const w of [360, 390]) {
   else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
+/* ---- lab-row-kinds ---- */
+/* THE CHAIN ROWS' KIND BADGES, LAID OUT (D6 on the chain; the 12 Oct 2026
+   audit; labRowBadge, 82-property-lab.js; .lab-row-kind, styles.css).
+   /property on a first visit, in the page's font and in Verdana:
+     - at 390×844, 430×932 and 1440×900 every one of the seven rows shows
+       its badge with its word in sight, inside the row's first column and
+       clear of the figure's; no figure wraps to a second line; nothing
+       scrolls sideways;
+     - at 360×640, where the Lab keeps its slider and all seven results on
+       one screen, the badge is its shape, in sight and named by its word
+       for a screen reader, clear of the row's words and its figure — and
+       it costs the rows nothing: each row is the height it is with the
+       badges taken out.
+   Fails on 35ce93c4, where the rows carry no badge. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const lines = (n) => { if (!n || !n.firstChild) return 0; const r = document.createRange(); r.selectNodeContents(n); return new Set([...r.getClientRects()].filter(q => q.width > 1).map(q => Math.round(q.top))).size; };
+    const box = (n) => { const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width, h: b.height }; };
+    const hit = (a, b) => a.l < b.r - 0.5 && b.l < a.r - 0.5 && a.t < b.b - 0.5 && b.t < a.b - 0.5;
+    const textBoxes = (n) => { if (!n || !n.firstChild || !n.getClientRects().length) return []; const r = document.createRange(); r.selectNodeContents(n); return [...r.getClientRects()].filter(q => q.width > 1).map(q => ({ l: q.left, r: q.right, t: q.top, b: q.bottom })); };
+    const rows = [...document.querySelectorAll('#lab-root .lab-row')].map(row => {
+      const sum = row.querySelector('summary'), badge = sum.querySelector('.lab-row-kind'), word = badge?.querySelector('.lab-row-kind-w');
+      const label = sum.querySelector('.lab-row-label'), note = sum.querySelector('.lab-row-note'), fig = sum.querySelector('.lab-row-fig'), val = sum.querySelector('[data-lab]');
+      const bb = badge ? box(badge) : null, fb = box(fig);
+      const shape = badge?.querySelector('.kind-shape');
+      return { row: row.dataset.row, h: Math.round(box(sum).h), badge: !!badge, kind: badge?.dataset.kindBadge || null, name: (word?.textContent || '').trim(),
+        wordShown: !!word && word.getBoundingClientRect().width > 1 && word.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
+        shapeShown: !!shape && shape.getBoundingClientRect().width > 1 && badge.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }),
+        inRow: !!bb && bb.l >= box(sum).l - 0.5 && bb.r <= fb.l + 0.5 && bb.t >= box(sum).t - 0.5 && bb.b <= box(sum).b + 0.5,
+        overText: !!bb && [...textBoxes(label), ...textBoxes(note)].some(q => hit(bb, q)),
+        valLines: lines(val) };
+    });
+    return { rows, over: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[390, 844], [430, 932], [1440, 900], [360, 640]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      await load('/privacy'); await forget();
+      if (await load('/property') !== 'propertyLab') { fails.push(`${at}: /property did not open the Lab`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(read);
+      if (r.rows.length !== 7) fails.push(`${at}: ${r.rows.length} chain rows, not seven`);
+      for (const x of r.rows) {
+        if (!x.badge || !x.kind) { fails.push(`${at}: ${x.row} carries no kind badge`); continue; }
+        /* The sample's figures: every row Illustrative, by its word. */
+        if (x.kind !== 'illustrative' || x.name !== 'Illustrative') fails.push(`${at}: ${x.row}'s badge is ${x.kind} ("${x.name}"), not the sample's Illustrative`);
+        if (x.valLines !== 1) fails.push(`${at}: ${x.row}'s figure is on ${x.valLines} lines`);
+        if (!x.inRow) fails.push(`${at}: ${x.row}'s badge stands outside the row's first column`);
+        if (w >= 380 && !x.wordShown) fails.push(`${at}: ${x.row}'s badge word is not in sight`);
+        if (w < 380) {
+          if (x.wordShown) fails.push(`${at}: ${x.row}'s badge shows its word, where only its shape fits`);
+          if (!x.shapeShown) fails.push(`${at}: ${x.row}'s badge shape is not in sight`);
+          if (x.overText) fails.push(`${at}: ${x.row}'s badge stands over the row's words`);
+        }
+      }
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      /* What the badges cost the rows at 360: nothing. */
+      if (w < 380) {
+        const bare = await ev(`(async () => { const s = document.createElement('style'); s.id = 'no-kinds'; s.textContent = '#lab-root .lab-row-kind{display:none !important}'; document.head.append(s);
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const hs = [...document.querySelectorAll('#lab-root .lab-row > summary')].map(n => Math.round(n.getBoundingClientRect().height)); s.remove(); return hs; })()`);
+        const withK = r.rows.map(x => x.h);
+        if (JSON.stringify(bare) !== JSON.stringify(withK)) fails.push(`${at}: the rows are ${withK.join('/')}px with their badges and ${bare.join('/')}px without`);
+      }
+      said.push(`${at}: ${r.rows.map(x => x.h).join('/')}px`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL lab-row-kinds — the Lab's chain rows and their kind badges: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   lab-row-kinds: every chain row carries its kind badge — its word in sight inside the first column at 390, 430 and 1440, no figure on a second line, nothing sideways; at 360×640 its shape alone, named, clear of the row's words, and the rows the heights they are without it (${said.join('; ')})`);
+}
+/* ---- end lab-row-kinds ---- */
+
 /* ---- home-3a ---- */
 /* THE HOMEPAGE CLEANUP, AS DRAWN (plan Phase 3A and 3B; the owner's
    decisions D5, D17, D21 and D22) — the plan's [browser] lines, in the page's

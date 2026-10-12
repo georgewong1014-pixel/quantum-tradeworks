@@ -343,8 +343,12 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    it prices the SPA, the loan and the transfer on the SPA price. A legal
    fee the developer pays, a cash rebate or another incentive is the
    reader's to enter, as one figure, and comes off the cash required. */
-const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
-const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price; your lawyer’s quote for the legal and search costs, once entered, takes the place of its purchase legal fees — an auction has no SPA. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
+/* Each also says which of Sarawak's rules prices its purchase legal fees,
+   as the rulebook read them (FEE_TABLE.routeRules, 1.3.0): not decided by
+   the route, so the rulebook's line stands and the reader's lawyer's quote
+   takes its place once entered. */
+const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. Its purchase legal fees are rule 1’s full scale; Sarawak’s rules charge three-quarters where your lawyer acts on the SPA alone, or the transfer alone (rules 2 and 3), so which applies turns on your lawyer’s engagement and is not decided here — enter your lawyer’s quote and it takes the rulebook’s place. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
+const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price. Its purchase legal fees are rule 1’s full scale, which presumes an SPA; Sarawak’s rules do not settle the purchaser’s advocate’s share at auction (rules 3 and 13(b)), so it is not decided here — your lawyer’s quote for the legal and search costs, once entered, takes its place. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
   : null);
@@ -1183,6 +1187,10 @@ const DEAL_ANSWER_FIELDS = {
   ndSpaMonth: ansMonth, ndVpMonth: ansMonth,
   ndSchedule: ansSchedule,
   ndRebates: ansSum,
+  /* The reader's lawyer's quote for the purchase legal fees on a developer
+     purchase (the fee rulebook 1.3.0): in place of the rulebook's line, as
+     the auction's quote is. */
+  ndLegal: ansSum,
   /* Completion delay (the validation pass, audit #4): whole months past
      the expected vacant possession — it extends the construction interest
      and moves the first month of rent. Not entered, no delay. */
@@ -1719,8 +1727,8 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.2.0',
-  checkedOn: '2026-10-10',
+  version: '1.3.0',
+  checkedOn: '2026-10-13',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
@@ -1750,6 +1758,8 @@ const FEE_TABLE = {
   /* What changed, version by version: a reader of /data-sources who sees
      the figures move is owed the reason. Newest first. */
   changelog: [
+    { version: '1.3.0', date: '2026-10-13',
+      what: 'Purchase legal fees by purchase route, read in the gazette (Swk. L.N. (F) 348 of 2022, the First Schedule’s rules 1–4 and 13). For a purchase at auction and a purchase from a developer, the Rules do not settle the purchaser’s advocate’s share by the route alone: it turns on the instruments the advocate handles — an SPA and the transfer, the SPA alone, the transfer alone — and, at auction, rule 13 prices the seller’s side and names the purchaser’s only for several lots bought under one title. So no amount changes: the line stays at rule 1’s full scale, each route says why on its page and below, and your lawyer’s quote takes its place once entered — on a new development as well as at auction now. No rate is made up.' },
     { version: '1.2.0', date: '2026-10-10',
       what: 'Lines whose rule differs by property class, and has not been checked for the class, are no longer charged on a commercial property or on land: they read “Unavailable — not yet checked for commercial property” (or land), and the cash required for those classes is a partial total that names them. Commercial: the loan legal fees (rule 7 prices the charge alone; a commercial financing commonly takes further security priced per instrument), the service tax charged on them, the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. Land: the valuation fee and its service tax (the scale’s item is for a valuation on an improved-value basis), the searches and disbursements estimate and the utility and management deposits estimate, and mortgage protection at the estimate. The transfer and loan stamp duties, the charge’s stamp, registration and the purchase legal fees stay for every class: their rules do not turn on the class (each line’s source says why). A quotation you enter stands for any class. No rate is made up for either class; residential figures are unchanged.' },
     { version: '1.1.0', date: '2026-10-09',
@@ -2031,6 +2041,40 @@ const FEE_TABLE = {
     },
   },
 
+  /* WHICH OF SARAWAK'S RULES PRICES THE PURCHASE LEGAL FEES ON EACH ROUTE
+     (1.3.0; the 12 Oct 2026 audit, #3). Read in the gazette on 13 Oct 2026:
+     the First Schedule of Swk. L.N. (F) 348 of 2022 and its rules. A
+     route's own rule is applied only where the text decides it; where it
+     does not, no amount changes — the line stays at rule 1's full scale,
+     the route's page says why (feeRouteReading), and the reader's lawyer's
+     quote, once entered, takes its place. Kept beside the lines, not in
+     them, so every deal's ledger is the object it was. `status`:
+       assumed     — the line's own assumption, unchanged since 1.0.0;
+       not-decided — read, and the text does not settle it by the route. */
+  routeRules: {
+    checkedOn: '2026-10-13',
+    line: 'purchaseLegal',
+    source: { title: 'Advocates’ Remuneration (Amendment) Rules, 2022 (Swk. L.N. (F) 348), the First Schedule and its rules — Sarawak Government Gazette, Part II, 20 December 2022',
+              url: 'https://lawnet.sarawak.gov.my/lawnet_file/Subsidiary/SUB_Issue%20No.%2083_L.N.%20348%20Advocates%20Rules.pdf',
+              citation: 'Swk. L.N. (F) 348 of 2022, First Schedule, rules 1–5, 12, 13 and 14' },
+    routes: {
+      subsale: { status: 'assumed', label: 'Subsale',
+        charged: 'Rule 1’s full scale on the price — the line’s own assumption: a sale and purchase agreement, and the memorandum of transfer that completes it.',
+        why: 'Rule 1: where the transaction includes the sale and purchase agreement and the memorandum of transfer to complete the sale, the purchaser’s advocate charges the full scale. Where it is the agreement alone, or the transfer alone, three-quarters (rules 2 and 3).' },
+      auction: { status: 'not-decided', label: 'Auction',
+        charged: 'Not decided by the Rules: rule 1’s full scale on the bid stands until you enter your lawyer’s quote, which takes its place.',
+        why: 'Rule 13 prices a sale by public auction for the advocate who puts the property up for sale. Its paragraph (b) names the purchaser’s advocate’s fee only where several lots under one title are bought by one purchaser with one transfer — the full scale on their aggregate price — and does not say whose is the one-half of scale it charges on each lot otherwise. Rules 1 and 2 presume a sale and purchase agreement, which an auction does not have, and rule 3 charges three-quarters for a memorandum of transfer alone. Which instrument passes title to the purchaser on a chargee’s sale under the Land Code was not read. So the purchaser’s share is not decided.' },
+      newdev: { status: 'not-decided', label: 'New development',
+        charged: 'Not decided by the Rules: rule 1’s full scale on the SPA price stands until you enter your lawyer’s quote, which takes its place.',
+        why: 'A developer’s sale and purchase agreement is signed before the strata or individual title issues, and the memorandum of transfer follows when it does. Rule 1 charges the full scale where the transaction includes the agreement and the transfer that completes the sale; rule 2 three-quarters where it is the agreement alone; rule 3 three-quarters for the transfer alone, or for a deed of assignment before a title issues. Which applies turns on what your lawyer is engaged for and when the title issues, not on the route, so it is not decided. Rule 14 forbids any discount, a developer’s scheme included: a legal fee the developer pays for you is a rebate, entered as one.' },
+    },
+    /* Decided by the text, and applied to nothing here: it turns on a fact
+       the tool does not ask. */
+    held: [
+      { rule: 'Rule 12', what: 'Where the transaction involves a housing estate of 25 units or more, one-half of the applicable scale if the consideration or amount secured is under RM100,000. Not applied: the tool does not ask how many units the estate has.' },
+    ],
+  },
+
   /* Verified rules held for reference and applied to nothing here: the
      property data is Sarawak's. */
   reference: {
@@ -2075,6 +2119,8 @@ const FEE_TABLE = {
     { what: 'The 8% transfer duty for non-citizens (Act 874), and the first-home exemption’s 2025 amendment orders', why: 'read in a third-party copy of the Act and in the Malaysian Bar’s circular, not in the gazette itself. Neither is applied.' },
     { what: 'That the Solicitors’ Remuneration Order 2023 reaches only Peninsular Malaysia', why: 'inferred from the Legal Profession Act 1976, s. 2 and from Sarawak and Sabah having their own scales; no extending order was found, and its absence cannot be proven.' },
     { what: 'Sabah’s advocates’ scale', why: 'a separate Advocates’ Remuneration Rules 1988 (G.N.S. 17 of 1988) exists; its bands were not checked, and no property here is in Sabah.' },
+    { what: 'Purchase legal fees on a purchase at auction', why: 'Sarawak’s Rules do not settle the purchaser’s advocate’s share at auction: rule 13(b) names it only for several lots bought under one title, rules 1 and 2 presume a sale and purchase agreement, and rule 3 charges three-quarters for a transfer alone; the instrument a chargee’s sale under the Land Code passes title by was not read. The line stays at rule 1’s full scale on the bid; your lawyer’s quote takes its place (1.3.0).' },
+    { what: 'Purchase legal fees on a purchase from a developer', why: 'whether rule 1’s full scale or rule 2’s and rule 3’s three-quarters applies turns on what your lawyer is engaged for — the SPA and the transfer, or the SPA now and the transfer when the title issues — not on the route. The line stays at rule 1’s full scale; your lawyer’s quote takes its place (1.3.0). Rule 12’s half scale for a housing estate of 25 units or more, under RM100,000, is held and not applied.' },
     { what: 'Lines whose rule differs by property class, for a commercial property or land', why: 'the security a commercial lender takes, a commercial purchase’s searches, commercial and land deposits, and the valuation of a bare parcel were not checked: those lines are not charged for the class (1.2.0) and the cash required is partial, naming them — see “Commercial property and land” above.' },
     { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
   ],
@@ -2336,6 +2382,19 @@ function feeRulebookCard() {
     el('p', { class: 'fee-book-name' }, el('strong', {}, FEE_TABLE.lines[id].label)),
     el('dl', { class: 'fee-book-dl' }, [el('dt', {}, 'Commercial'), el('dd', {}, word(id, 'commercial')), el('dt', {}, 'Land'), el('dd', {}, word(id, 'land'))]),
     el('p', { class: 'metaline' }, cr.lines[id].why)]))));
+  /* BY PURCHASE ROUTE (1.3.0): which of Sarawak's rules prices the
+     purchase legal fees on each route, as read in the gazette — decided,
+     or not, and why. */
+  const rr = FEE_TABLE.routeRules;
+  card.append(el('h3', { class: 'fee-book-h3', id: 'fee-rulebook-route' }, 'Purchase legal fees by purchase route'));
+  card.append(el('p', { class: 'metaline' }, [`Sarawak’s rules decide the purchaser’s advocate’s share by the instruments the advocate handles, not by the route. A route’s own share is applied only where the text decides it; where it does not, the line stays at rule 1’s full scale and your lawyer’s quote, once entered, takes its place. Read in the gazette, checked ${feeDay(rr.checkedOn)}: `,
+    el('a', { href: rr.source.url, target: '_blank', rel: 'noopener noreferrer' }, rr.source.title), el('span', { class: 'fee-book-cite' }, ` (${rr.source.citation})`), '.']));
+  const routeWord = { assumed: 'Charged: the line’s assumption', 'not-decided': 'Not decided by the Rules — the line stands; your quote replaces it' };
+  card.append(el('ul', { class: 'fee-book-list fee-book-route' }, Object.entries(rr.routes).map(([id, r]) => el('li', { class: 'fee-book-line', 'data-fee-route': id, 'data-status': r.status }, [
+    el('p', { class: 'fee-book-name' }, [el('strong', {}, r.label), el('span', { class: 'fee-book-cat' }, routeWord[r.status] || r.status)]),
+    el('p', { class: 'metaline' }, r.charged),
+    el('p', { class: 'metaline' }, r.why)]))));
+  if ((rr.held || []).length) card.append(el('ul', { class: 'fee-book-notes' }, rr.held.map(x => el('li', { 'data-fee-held': x.rule }, [el('strong', {}, x.rule), ` — ${x.what}`]))));
   /* Verified, and applied to nothing here: another jurisdiction's rule. */
   const refs = Object.entries(FEE_TABLE.reference || {});
   if (refs.length) {
@@ -2405,6 +2464,21 @@ const RPGT_SCHEDULE = {
   reviewOwner: null, nextReviewDue: null,
   note: 'Rates are set by Schedule 5 and amended at Budget. Confirm the current schedule, '
       + 'the disposer category that applies, and any exemption order in force before relying on this.',
+
+  /* WHEN THE HOLDING PERIOD STARTS (the 12 Oct 2026 audit, #3), read in the
+     Act itself. A purchase under an SPA is acquired on the SPA's date —
+     for a new development, years before vacant possession — so a timed new
+     development's holding period runs from the SPA month (ndTimingOf,
+     75-property-grade.js), not from the keys. The rates above stay marked
+     unverified; this rule is not a rate. */
+  acquisitionDate: {
+    rule: 'A disposal under a written agreement takes place on the date of the agreement, and the acquirer’s acquisition on the same date — so a purchase under an SPA is acquired on the SPA’s date.',
+    citation: 'Real Property Gains Tax Act 1976 (Act 169), Schedule 2, paragraph 15(1)(a) and 15(2)',
+    source: 'Laws of Malaysia, Act 169, the Attorney General’s Chambers’ updated text as at 1 January 2025 (an updated text, not the authentic reprint)',
+    sourceUrl: 'https://lom.agc.gov.my/ilims/upload/portal/akta/outputaktap/1982253_BI/Act%20169%20(Online%202025).pdf',
+    checkedOn: '2026-10-13',
+    note: 'Paragraph 16: a contract whose disposal needs the approval of the Government or a State Government dates from that approval instead. A conditional contract otherwise dates from when it was made.',
+  },
 
   /* Rate by completed years between acquisition and disposal. The final entry
      applies to every later year.
@@ -2497,8 +2571,11 @@ function rpgtCharge({ disposalPrice, acquisitionPrice, acquisitionCosts = 0,
 
   return {
     rate, chargeableGain, relief, taxable, tax, rawGain, allowable, category: c, categoryId,
+    /* A holding period of whole years reads as it always has; a part year
+       (a timed new development: 2.5 years to VP and 10 held, 12.5) as it
+       is, not rounded up to a year it has not reached. */
     why: rate === 0
-      ? `Held ${Math.ceil(num0(holdYears))} years, which reaches the nil rate for ${c.who}.`
+      ? `Held ${Number.isInteger(num0(holdYears)) ? Math.ceil(num0(holdYears)) : +num0(holdYears).toFixed(2)} years, which reaches the nil rate for ${c.who}.`
       : c.individual
         ? `${fmtPct(rate, 0)} on the gain after allowable costs, less the exemption of ${fmtAmount(relief, 'MYR')}.`
         : `${fmtPct(rate, 0)} on the gain after allowable costs. No individual exemption applies to ${c.who}.`,

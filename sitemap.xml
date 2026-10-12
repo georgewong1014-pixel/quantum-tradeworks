@@ -30,7 +30,7 @@
   <url><loc>https://quantum-tradeworks.vercel.app/property/calculator</loc><lastmod>2026-10-12</lastmod><priority>0.8</priority></url>
   <!-- The property landing for search: what the property tools do and do
        not do, the Lab's figure and the sample's cost stack. -->
-  <url><loc>https://quantum-tradeworks.vercel.app/property-investing</loc><lastmod>2026-10-10</lastmod><priority>0.8</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/property-investing</loc><lastmod>2026-10-12</lastmod><priority>0.8</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/property/opportunities</loc><lastmod>2026-10-12</lastmod><priority>0.6</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/property/comparables</loc><lastmod>2026-10-12</lastmod><priority>0.6</priority></url>
 
@@ -47,7 +47,7 @@
   <url><loc>https://quantum-tradeworks.vercel.app/learn/product-boundaries</loc><lastmod>2026-10-11</lastmod><priority>0.6</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/data-sources</loc><lastmod>2026-10-12</lastmod><priority>0.7</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/corrections</loc><lastmod>2026-10-12</lastmod><priority>0.5</priority></url>
-  <url><loc>https://quantum-tradeworks.vercel.app/status</loc><lastmod>2026-10-11</lastmod><priority>0.5</priority></url>
+  <url><loc>https://quantum-tradeworks.vercel.app/status</loc><lastmod>2026-10-12</lastmod><priority>0.5</priority></url>
 
   <url><loc>https://quantum-tradeworks.vercel.app/pricing</loc><lastmod>2026-10-11</lastmod><priority>0.6</priority></url>
   <url><loc>https://quantum-tradeworks.vercel.app/about</loc><lastmod>2026-10-11</lastmod><priority>0.6</priority></url>

@@ -286,17 +286,18 @@ const PROPERTY_CONTRACTS = [
     optional: 'The reserve price; arrears passed to you — maintenance and sinking fund, quit rent, assessment, utilities, each only if entered; repairs; the cost and months of getting possession; your lawyer’s quote; a financing buffer; holding months; the six checks; and a bid ceiling, as an all-in cost of your own or a margin under the market value.',
     returns: 'The steps from the market value to the bid and on to the effective acquisition cost; the true discount — the market value less the effective cost, as a share of the market value; the deposit at risk, with the balance and the cash beyond the loan; and the highest whole-ringgit bid whose effective cost stays at or under your ceiling.',
     missing: 'Every auction figure reads Not final while any of the six checks is open. A cost not entered is “not entered, not counted”, and named beside the effective cost and the ceiling. A margin ceiling with no market value is Unavailable.',
-    fees: 'commercial' },
+    fees: 'commercial', legal: 'auction' },
   { id: 'newdev-residential', route: 'New development', asset: 'Residential',
     enter: 'The SPA price. For the premium, a completed comparable. For the interest during construction: your schedule of progressive drawdown — stages adding to 100%, each with its month after signing — the SPA month, the month of vacant possession and a loan.',
-    optional: 'Developer rebates and incentives, taken off the cash required; the rent and occupancy at completion; furnishing; a completion delay in whole months.',
-    returns: 'The premium over the comparable; the interest during construction, a line of the cash required; the monthly position from vacant possession; exit values three, five and ten years after it — modelled on your growth assumption, not a forecast; the rent and the yearly growth that would justify the premium; and what a delay adds.',
-    missing: 'The interest during construction is Unavailable until the schedule, its months and both dates are entered. Sarawak’s prescribed stage percentages are offered as a template, never applied for you. Without a comparable there is no premium and no exit value.',
-    limit: 'The calculator’s rate of return and its holding period still count from the purchase, not from vacant possession.' },
+    optional: 'Developer rebates and incentives, taken off the cash required; your lawyer’s quote for the purchase legal fees, in place of the fee rulebook’s; the rent and occupancy at completion; furnishing; a completion delay in whole months.',
+    returns: 'The premium over the comparable; the interest during construction, a line of the cash required; the monthly position from vacant possession; with the SPA month and the month of vacant possession entered, the rate of return timed from vacant possession — the cash required leaves at signing, no rent and no instalment come before the keys, the holding period you enter counts from them, the sale falls that many years after them at the price grown from signing, and its gains tax counts from the SPA date; exit values three, five and ten years after it — modelled on your growth assumption, not a forecast; the rent and the yearly growth that would justify the premium; and what a delay adds.',
+    missing: 'The interest during construction is Unavailable until the schedule, its months and both dates are entered. Without both months the rate of return and the holding period count from signing, as though the property were let at once, and the calculator says so. Sarawak’s prescribed stage percentages are offered as a template, never applied for you. Without a comparable there is no premium and no exit value.',
+    changed: 'Until 13 October 2026 the calculator’s rate of return and its holding period counted from the purchase, as though the property were let on signing. They now count from vacant possession once both months are entered.',
+    legal: 'newdev' },
   { id: 'newdev-commercial', route: 'New development', asset: 'Commercial', gate: 'newdev|commercial',
     enter: 'As a residential new development, on your own schedule.',
-    returns: 'As a residential new development.',
-    fees: 'commercial' },
+    returns: 'As a residential new development, the rate of return timed from vacant possession the same way.',
+    fees: 'commercial', legal: 'newdev' },
   { id: 'land', route: 'Subsale or auction', asset: 'Land', note: 'A bare parcel.',
     enter: 'As the route asks, less everything a tenancy would need: land has no rent, vacancy, net operating income, yield, debt-service cover, break-even rent or empty months, and each reads “not a quantity this asset has”.',
     returns: 'The monthly position — the instalment and the costs a parcel does carry: assessment, quit rent and insurance; the price gap against land sales, by land area. A yield target is not applicable.',
@@ -344,6 +345,10 @@ function learnProperty() {
          figures ("the figures below"), which are not on this page. */
       ['Not for this asset', gate ? gate.why.replace(/: the figures below[^.]*\./, '.') : null],
       ['Fee lines', r.fees ? feeWords(r.fees) : null],
+      /* Which of Sarawak's rules prices the route's purchase legal fees, as
+         the rulebook read them (FEE_TABLE.routeRules, 1.3.0). */
+      ['Legal fees', r.legal ? [`${FEE_TABLE.routeRules.routes[r.legal].charged} `, el('a', { href: '/data-sources#fee-rulebook-route' }, 'Why, rule by rule')] : null],
+      ['What changed', r.changed],
       ['Known limit', r.limit],
     ].filter(([, v]) => v);
     return el('li', { class: 'fee-book-line', id: `route-${r.id}`, 'data-route-contract': r.id }, [

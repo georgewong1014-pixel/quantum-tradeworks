@@ -538,8 +538,9 @@ try {
     if (!/^\d+\.\d+\.\d+$/.test(r.version) || r.version === '0.1.0') p.push(`the rulebook's version is ${r.version}`);
     /* 1.2.0: the owner's decision of 10 Oct 2026 (audit #4) gates the lines
        not checked for commercial property and land; 1.1.0 (9 Oct) stays in
-       the changelog beneath it. */
-    if (r.version !== '1.2.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.1.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]} — the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
+       the changelog beneath it. 1.3.0 (13 Oct, the 12 Oct audit's #3) reads
+       the purchase legal fees by route over both (val G5). */
+    if (r.version !== '1.3.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.2.0' || r.changelog[2] !== '1.1.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]}, ${r.changelog[2]} — 13 Oct's route readings are 1.3.0, over 10 Oct's 1.2.0 and 9 Oct's 1.1.0; the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
     if (JSON.stringify(r.kinds) !== JSON.stringify(['statutory', 'professional', 'quotation', 'optional', 'estimate'])) p.push(`the ledger's kinds are ${JSON.stringify(r.kinds)}, not the owner's five in order`);
     if (r.cats.some(c => !r.kinds.includes(c))) p.push(`a line's category is none of the five: ${JSON.stringify(r.cats)}`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.checkedOn || '')) p.push(`the rulebook's checked date is ${r.checkedOn}`);
@@ -7236,7 +7237,11 @@ try {
           fingerprints hold for the residential deals).
      G4 — drawn: the calculator's "Safe cash required — partial" and its
           ledger, the Lab's tile, the comparison's cell, the rulebook's
-          version, changelog and class table on /data-sources. */
+          version (1.3.0 since the route readings, G5), 1.2.0's changelog
+          line and the class table on /data-sources.
+     G5 — purchase legal fees by route (1.3.0): not decided by Sarawak's
+          rules, so no amount changes; a lawyer's quote takes the line's
+          place on a new development, as at auction. */
   {
     const gtry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
     const G_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
@@ -7329,7 +7334,7 @@ try {
         navigate('/property'); await w(900);
         const tile = document.querySelector('.lab-tile[data-tile="safeCashRequired"]')?.textContent?.replace(/\\s+/g, ' ') || null;
         navigate('/data-sources'); await w(900);
-        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.2.0') || false,
+        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.3.0') || false,
           log: document.querySelector('[data-fee-version="1.2.0"]')?.textContent || null,
           cls: Object.fromEntries([...document.querySelectorAll('[data-fee-class-line]')].map(n => [n.dataset.feeClassLine, [n.dataset.commercial, n.dataset.land]])) };
         State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
@@ -7340,16 +7345,343 @@ try {
       if (!/Total initial cash — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
       if (r.dock && !/Cash required — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
       if (!/Cash required — partial/.test(r.tile || '') || !/partial — 4 lines not checked for commercial/.test(r.tile || '')) p.push(`the Lab's tile reads "${r.tile}"`);
-      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.2.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
+      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.3.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
       const want = { transferStampDuty: ['same', 'same'], loanStampDuty: ['same', 'same'], chargeStampDuty: ['same', 'same'], registration: ['same', 'same'], purchaseLegal: ['same', 'same'],
         loanLegal: ['gated', 'same'], professionalServiceTax: ['follows', 'follows'], valuationFee: ['same', 'gated'], valuationServiceTax: ['follows', 'follows'],
         disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
       if (JSON.stringify(r.book.cls) !== JSON.stringify(want)) p.push(`the class table: ${JSON.stringify(r.book.cls)}`);
       if (p.length) fail('val G4: drawn — partial wherever the cash required is shown', p);
-      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Total initial cash — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.2.0, its changelog and the class table line by line');
+      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Total initial cash — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.3.0, 1.2.0\'s changelog line and the class table line by line');
+    });
+
+    /* G5 — PURCHASE LEGAL FEES BY ROUTE (the fee rulebook 1.3.0; the 12 Oct
+       2026 audit, #3; FEE_TABLE.routeRules). Sarawak's rules, read in the
+       gazette (Swk. L.N. (F) 348 of 2022, rules 1–4 and 13), do not decide
+       the purchaser's advocate's share by the route alone — so no amount
+       changes: an auction and a new development with no quote are charged
+       rule 1's full scale, as before; the reader's lawyer's quote takes its
+       place, now on a new development too (ndLegal), and stands only there.
+       By hand on fixture F: the quote 5,000 in place of 3,400; the service
+       tax 8% × (5,000 + 3,900 loan legal) = 712 in place of 584; the cash
+       required 63,302 − 3,400 + 5,000 − 584 + 712 = RM65,030. Fails on
+       35ce93c4: 1.2.0, no route readings, and no quote on a new
+       development. */
+    await gtry('val G5: purchase legal fees by route — not decided by the rules, the quote in their place', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${G_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+        const one = (d) => { const m = dealModel(d), l = lines(m); return { cash: m.safeCashRequired, pl: l.purchaseLegal?.v ?? null, q: l.ndLegal?.v ?? null, aq: l.auctionLegal?.v ?? null, st: l.professionalServiceTax?.v ?? null,
+          kind: (() => { const it = m.costGroups.flatMap(g => g.items).find(x => x[2]?.id === 'ndLegal'); return it ? [feeKindBadge(it[2], it[1]), feeKindOf(it[2]), it[0]] : null; })() }; };
+        const out = { nd: one(F({ route: 'newdev' })), au: one(F({ route: 'auction' })), ndq: one(F({ route: 'newdev', ndLegal: 5000 })), subq: one(F({ ndLegal: 5000 })),
+          landq: one(L({ route: 'newdev', ndLegal: 1000 })), auq: one(F({ route: 'auction', ndLegal: 5000 })),
+          version: FEE_TABLE.version, routes: Object.fromEntries(Object.entries(FEE_TABLE.routeRules?.routes || {}).map(([k, x]) => [k, x.status])),
+          unverified: (FEE_TABLE.unverified || []).map(x => x.what).filter(x => /Purchase legal fees/.test(x)), log: FEE_TABLE.changelog[0]?.version,
+          notes: { nd: newDevFeeNote(), au: auctionFeeNote() } };
+        const keep = { deal: State.deal };
+        navigate('/data-sources'); await w(900);
+        out.book = [...document.querySelectorAll('#fee-rulebook [data-fee-route]')].map(n => [n.dataset.feeRoute, n.dataset.status]);
+        out.cite = txt(document.querySelector('#fee-rulebook-route + p'));
+        navigate('/methodology/property'); await w(900);
+        out.meth = ['auction', 'newdev-residential', 'newdev-commercial'].map(id => { const row = document.getElementById('route-' + id); const dt = [...(row?.querySelectorAll('dt') || [])].find(n => txt(n) === 'Legal fees');
+          return [id, txt(dt?.nextElementSibling), !!dt?.nextElementSibling?.querySelector('a[href="/data-sources#fee-rulebook-route"]')]; });
+        State.deal = F({ route: 'newdev', ndLegal: 5000 }); saveDeal(); navigate('/property/calculator'); await w(800);
+        out.field = { kind: document.querySelector('#pc-nd-inputs [data-nd="ndLegal"]')?.dataset.kind || null, value: document.getElementById('pc-nd-ndLegal')?.value || null };
+        out.ledger = [...document.querySelectorAll('.pc-cost-table tr')].map(n => txt(n)).find(t => /your lawyer’s quote/.test(t)) || null;
+        State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
+        return JSON.stringify(out); })()`));
+      const p = [];
+      if (!near(r.nd.pl, 3400) || !near(r.nd.cash, 63302) || !near(r.au.pl, 3400) || !near(r.au.cash, 63302)) p.push(`no quote: new development ${JSON.stringify(r.nd)}, auction ${JSON.stringify(r.au)} — by hand rule 1's 3,400 and 63,302, unchanged`);
+      if (!near(r.ndq.q, 5000) || r.ndq.pl !== null || !near(r.ndq.st, 712) || !near(r.ndq.cash, 65030) || JSON.stringify(r.ndq.kind) !== '["quoted","quotation","Purchase legal fees — your lawyer’s quote"]') p.push(`a new development with a RM5,000 quote: ${JSON.stringify(r.ndq)} — by hand 5,000 Quoted, 712 of tax, 65,030`);
+      if (r.subq.q !== null || !near(r.subq.cash, 63302) || r.auq.q !== null || !near(r.auq.cash, 63302)) p.push(`the quote on a subsale or an auction: ${JSON.stringify([r.subq, r.auq])} — it is the new development's, so unchanged`);
+      if (r.landq.q !== null || !near(r.landq.cash, 308226)) p.push(`the quote on land answered New development: ${JSON.stringify(r.landq)} — the route is not run for a parcel, 308,226 as G2`);
+      if (r.version !== '1.3.0' || r.log !== '1.3.0' || JSON.stringify(r.routes) !== '{"subsale":"assumed","auction":"not-decided","newdev":"not-decided"}' || r.unverified.length !== 2) p.push(`the rulebook: ${JSON.stringify({ v: r.version, log: r.log, routes: r.routes, unverified: r.unverified })}`);
+      if (!/rules 2 and 3/.test(r.notes.nd) || !/your lawyer’s quote/.test(r.notes.nd) || !/13\(b\)/.test(r.notes.au) || !/not decided here/.test(r.notes.au)) p.push(`the routes' fee notes: ${JSON.stringify(r.notes)}`);
+      if (JSON.stringify(r.book) !== '[["subsale","assumed"],["auction","not-decided"],["newdev","not-decided"]]' || !/Swk\. L\.N\. \(F\) 348 of 2022, First Schedule, rules 1–5, 12, 13 and 14/.test(r.cite)) p.push(`/data-sources: ${JSON.stringify(r.book)}, "${r.cite.slice(0, 160)}"`);
+      if (r.meth.some(([, t, a]) => !/Not decided by the Rules/.test(t) || !a)) p.push(`/methodology/property's legal fees: ${JSON.stringify(r.meth)}`);
+      if (r.field.kind !== 'quoted' || r.field.value !== '5000' || !/Quoted/.test(r.ledger || '') || !/RM5\.0k$|RM5,000$/.test(r.ledger || '')) p.push(`the calculator: the field ${JSON.stringify(r.field)}, the ledger "${r.ledger}"`);
+      if (p.length) fail('val G5: purchase legal fees by route — not decided by the rules, the quote in their place', p);
+      else ok('val G5: an auction and a new development with no quote are charged rule 1\'s full scale as before (3,400; RM63,302) — the rules do not decide them by the route, and rulebook 1.3.0 says so in its route readings, its unverified list, each route\'s fee note, /data-sources and /methodology/property; a RM5,000 lawyer\'s quote on a new development takes the line\'s place, Quoted (RM712 of tax, RM65,030 by hand), and stands nowhere else — not on a subsale, an auction or land');
     });
   }
   /* ---- end val-fee-gates ---- */
+
+  /* ---- nd-timing ---- */
+  /* A NEW DEVELOPMENT TIMED FROM VACANT POSSESSION (the 12 Oct 2026 audit,
+     #3, P0 — property cost accuracy; ndTimingOf, 75-property-grade.js;
+     irrOf's `times`, 74-property-returns.js). The handoff's
+     results/mode-contracts.md, V4 "timed from VP", holds the contract; the
+     answers here were worked from it by hand (the working is beside each,
+     and an independent calculator — its own net present value and its own
+     bisection, reading nothing of the app — found the three rates), never
+     read back from the model. Fixture F as a new development, every cost
+     that would blur the arithmetic at nought: RM400,000, 10% down, 0% over
+     30 years (RM1,000 a month), RM2,000 rent with no costs, no vacancy and
+     no rent growth, no agent and no months to sell (the RM500 minimum legal
+     fee on the sale stands), 3% growth, a 10-year hold; SPA 2026-01, VP
+     2028-01 — 24 months. Its cash required is V1's RM63,302: no schedule is
+     entered, so no construction interest.
+     T1 — the moments: the equity at signing, each year of the hold a year
+          after VP (3 to 12 years from signing), the sale 12 years after.
+     T2 — the sale: the price grown from signing, 400,000 × 1.03^12 =
+          570,304.354738; owed after 10 years of repayments from VP,
+          240,000; net 329,804.354738 (gains tax nil: 12 years from the
+          SPA date); the last flow 12,000 + 329,804.354738 + the 3,000
+          reserve back.
+     T3 — the rate: 21.76952194% a year on those moments, against
+          28.43930171% for the same deal untimed (a subsale); the published
+          flows at their published moments discount to nought at it; the
+          hold-or-sell table's last row is it, its first (a sale a year
+          after VP, 3 years from the SPA: 30% gains tax, RM4,857.24 on a
+          RM26,190.80 gain) 15.97092512%.
+     T4 — gains tax from the SPA date: held 2 years after VP is 4 years
+          after the SPA, the 4th year's 20%: (450,203.524 − 400,000 −
+          10,400 − 500 = 39,303.524 − the 10,000 exemption) × 20% =
+          RM5,860.7048 — where untimed it was the 2nd year's 30% on 13,460
+          less 10,000: RM1,038.
+     T5 — the completion delay: 6 months late, VP 30 months after signing
+          — every moment half a year later, the sale 12.5 years from
+          signing at 400,000 × 1.03^12.5 = 578,795.705534, the rate
+          20.67842084%, held "12.5 years" for the gains tax.
+     T6 — the same years everywhere: the annualised multiple over the 12
+          years from signing, (120,000 + 329,804.354738) ÷ 60,302 =
+          7.45919463 → 18.22908494%; the same cash in equities at 7% to
+          VP+5 and VP+10 grows 7 and 12 years: 101,649.1790 and
+          142,568.2320.
+     T7 — nothing else moves, byte for byte: a new development with one
+          month, with VP not after the SPA, on land with both months, and a
+          subsale carrying both months print the subsale's model.
+     T8 — drawn: the calculator's return panel, holding period, gains tax
+          and route section say "from vacant possession" with the moments,
+          and the untimed deal says why; the Lab's row reads "If sold 10
+          years after VP"; /methodology/property's new-development row says
+          what changed and has no known limit.
+     Each fails on 35ce93c4, where the route counted from signing. */
+  {
+    const ttry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const T_SEED = `const EV = { price:'user', rent:'user', maintenance:'user', vacancyPct:'user', apprecPct:'user', sqft:'user', titleType:'user' };
+      const TOUCH = Object.fromEntries(['price','rent','maintenance','vacancyPct','apprecPct','sqft','downPct','ratePct','tenureYears','holdYears'].map(k => [k, true]));
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...EV }, checks: {}, touched: { ...TOUCH },
+        price: 400000, downPct: 10, ratePct: 0, tenureYears: 30, rent: 2000, vacancyPct: 0, maintenance: 0, sinkingFund: 0, assessment: 0, quitRent: 0, insurance: 0,
+        mgmtPct: 0, repairReservePct: 0, selfManaged: true, renovation: 0, reserveMonths: 3, apprecPct: 3, ...x });
+      const T = (x = {}) => F({ route: 'newdev', ndSpaMonth: '2026-01', ndVpMonth: '2028-01', rentGrowthPct: 0, sellMonths: 0, agentPct: 0, exitLegalPct: 0, holdYears: 10, ...x });
+      const sub = (d) => { const x = { ...d }; delete x.route; return x; };`;
+    const near = (a, b, tol = 1e-6) => typeof a === 'number' && Math.abs(a - b) <= tol;
+
+    await ttry('nd-timing T1–T3: the moments, the sale and the rate, timed from vacant possession', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${T_SEED}
+        const m = dealModel(T()), u = dealModel(sub(T()));
+        const nt = m.ndTiming || null;
+        /* The definition: the published flows, at the published moments, discount to nought at the published rate. */
+        const zero = nt && isNum(m.irrPct) ? m.flows.reduce((s, v, i) => s + v / Math.pow(1 + m.irrPct / 100, nt.flowTimes[i]), 0) : null;
+        return JSON.stringify({ cash: m.safeCashRequired, nt: nt && { vpAt: nt.vpAt, lead: nt.lead, sale: nt.saleYears, times: nt.flowTimes }, flows: m.flows,
+          exit: m.exitValue, owed: m.outstanding, net: m.netExitProceeds, rpgt: m.rpgt, why: m.rpgtResult.why, irr: m.irrPct, untimed: u.irrPct, uTiming: 'ndTiming' in u,
+          zero, last: m.holdVsSell.at(-1).irrPct, first: { irr: m.holdVsSell[0].irrPct, rpgt: m.holdVsSell[0].rpgt, pct: m.holdVsSell[0].rpgtPct } }); })()`));
+      const p = [];
+      if (!near(r.cash, 63302, 0.005)) p.push(`cash required ${r.cash}, by hand 63,302`);
+      if (!r.nt || r.nt.vpAt !== 24 || r.nt.lead !== 2 || r.nt.sale !== 12 || JSON.stringify(r.nt.times) !== '[0,3,4,5,6,7,8,9,10,11,12]') p.push(`the moments ${JSON.stringify(r.nt)} — by hand VP 24 months, the flows at 0 and 3…12 years, the sale at 12`);
+      if (r.uTiming) p.push('the same deal as a subsale carries a timing');
+      if (!near(r.exit, 570304.354738, 1e-5) || r.owed !== 240000 || !near(r.net, 329804.354738, 1e-5) || r.rpgt !== 0 || !/^Held 12 years/.test(r.why)) p.push(`the sale: value ${r.exit}, owed ${r.owed}, net ${r.net}, gains tax ${r.rpgt} ("${r.why}") — by hand 570,304.354738, 240,000, 329,804.354738, nil after 12 years`);
+      const want = [-63302, ...Array(9).fill(12000), 344804.354738];
+      if (r.flows.length !== 11 || r.flows.some((v, i) => !near(v, want[i], 1e-5))) p.push(`the flows ${JSON.stringify(r.flows)} — by hand ${JSON.stringify(want)}`);
+      if (!near(r.irr, 21.76952194, 1e-6)) p.push(`the rate of return ${r.irr}% — by hand 21.76952194%`);
+      if (!near(r.untimed, 28.43930171, 1e-6)) p.push(`untimed, ${r.untimed}% — by hand 28.43930171%`);
+      if (!(Math.abs(r.zero) < 1e-4)) p.push(`the flows at their moments discount to ${r.zero} at the published rate, not nought`);
+      if (r.last !== r.irr) p.push(`the hold-or-sell table's last row is ${r.last}%, not the rate ${r.irr}%`);
+      if (!near(r.first.irr, 15.97092512, 1e-6) || !near(r.first.rpgt, 4857.24, 0.005) || r.first.pct !== 30) p.push(`a sale a year after VP: ${JSON.stringify(r.first)} — by hand 15.97092512%, RM4,857.24 of gains tax at 30%`);
+      if (p.length) fail('nd-timing T1–T3: the moments, the sale and the rate, timed from vacant possession', p);
+      else ok(`nd-timing T1–T3: fixture F bought off plan, VP 24 months after signing — the RM63,302 at signing, RM12,000 a year at 3…11 years and RM344,804.35 at 12 (the price grown 12 years to RM570,304.35, RM240,000 owed after 10 years of repayments, no gains tax) give 21.76952194% a year by hand, where untimed they gave 28.43930171%; the flows discount to nought at it, the hold-or-sell table ends on it and begins at 15.97092512% (a sale a year after VP, 30% gains tax)`);
+    });
+
+    await ttry('nd-timing T4–T6: gains tax from the SPA date, the delay, the same years everywhere', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${T_SEED}
+        const h2 = dealModel(T({ holdYears: 2 })), h2u = dealModel(sub(T({ holdYears: 2 })));
+        const late = dealModel(T({ ndDelayMonths: 6 })), m = dealModel(T());
+        return JSON.stringify({ h2: { rpgt: h2.rpgt, pct: h2.rpgtPct, exit: h2.exitValue, sale: h2.ndTiming?.saleYears }, h2u: { rpgt: h2u.rpgt, pct: h2u.rpgtPct },
+          late: { vpAt: late.ndTiming?.vpAt, times: late.ndTiming?.flowTimes, sale: late.ndTiming?.saleYears, exit: late.exitValue, irr: late.irrPct, why: late.rpgtResult.why },
+          ann: m.annualisedMultiplePct, equity: m.equity.map(e => [e.yrs, e.value]) }); })()`));
+      const p = [];
+      if (r.h2.sale !== 4 || r.h2.pct !== 20 || !near(r.h2.exit, 450203.524, 1e-6) || !near(r.h2.rpgt, 5860.7048, 1e-6)) p.push(`held 2 years after VP: ${JSON.stringify(r.h2)} — by hand 4 years from the SPA, 20%, RM5,860.7048 on a RM450,203.524 sale`);
+      if (r.h2u.pct !== 30 || !near(r.h2u.rpgt, 1038, 1e-6)) p.push(`untimed: ${JSON.stringify(r.h2u)} — by hand 30%, RM1,038`);
+      if (r.late.vpAt !== 30 || r.late.sale !== 12.5 || JSON.stringify(r.late.times) !== '[0,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10.5,11.5,12.5]') p.push(`six months late: ${JSON.stringify(r.late)} — by hand VP at 30 months, the flows at 3.5…12.5 years`);
+      if (!near(r.late.exit, 578795.705534, 1e-5) || !near(r.late.irr, 20.67842084, 1e-6) || !/^Held 12\.5 years/.test(r.late.why)) p.push(`six months late: the sale ${r.late.exit}, the rate ${r.late.irr}%, "${r.late.why}" — by hand 578,795.705534, 20.67842084%, held 12.5 years`);
+      if (!near(r.ann, 18.22908494, 1e-6)) p.push(`the annualised multiple ${r.ann}% — by hand 18.22908494% over the 12 years from signing`);
+      if (JSON.stringify(r.equity.map(e => e[0])) !== '[5,10]' || !near(r.equity[0][1], 101649.1790, 1e-3) || !near(r.equity[1][1], 142568.2320, 1e-3)) p.push(`the same cash in equities: ${JSON.stringify(r.equity)} — by hand 101,649.1790 (7 years) and 142,568.2320 (12 years)`);
+      if (p.length) fail('nd-timing T4–T6: gains tax from the SPA date, the delay, the same years everywhere', p);
+      else ok('nd-timing T4–T6: held 2 years after VP is 4 years after the SPA — 20% gains tax, RM5,860.70 (untimed, 30% and RM1,038); six months of delay move every moment half a year (the sale 12.5 years after signing, RM578,795.71, 20.67842084%, "held 12.5 years"); the annualised multiple (18.22908494%) and the same cash in equities (RM101,649.18 and RM142,568.23) are over the years from signing');
+    });
+
+    await ttry('nd-timing T7: nothing else moves, byte for byte', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${T_SEED}
+        const print = (d) => JSON.stringify(dealModel(d));
+        const L = (x) => F({ propertyType: 'Land', price: 300000, downPct: 100, landSqft: 4000, sqft: 0, quitRent: 1200, ...x });
+        const cases = {
+          'SPA month only': T({ ndVpMonth: undefined }),
+          'VP month only': T({ ndSpaMonth: undefined }),
+          'VP not after the SPA': T({ ndVpMonth: '2026-01' }),
+          'land, both months': L({ route: 'newdev', ndSpaMonth: '2026-01', ndVpMonth: '2028-01' }),
+          'a subsale with both months': sub(T()),
+          'an auction with both months': T({ route: 'auction' }),
+        };
+        return JSON.stringify(Object.fromEntries(Object.entries(cases).map(([k, d]) => [k, { same: print(d) === print(sub(d)), timing: 'ndTiming' in dealModel(d), why: ndTimingWhy(d) }]))); })()`));
+      const p = [];
+      for (const [k, x] of Object.entries(r)) if (!x.same || x.timing) p.push(`${k}: ${x.same ? 'the subsale’s figures' : 'not the subsale’s figures'}${x.timing ? ', with a timing' : ''}`);
+      if (!/not entered/.test(r['SPA month only'].why || '') || !/not after the SPA month/.test(r['VP not after the SPA'].why || '') || !/bare parcel/.test(r['land, both months'].why || '') || r['a subsale with both months'].why !== null) p.push(`why it is not timed: ${JSON.stringify(Object.fromEntries(Object.entries(r).map(([k, x]) => [k, x.why])))}`);
+      if (p.length) fail('nd-timing T7: nothing else moves, byte for byte', p);
+      else ok('nd-timing T7: a new development with one month, with VP not after the SPA, or on land, and a subsale or an auction carrying both months, print the subsale\'s model byte for byte with no timing — and the untimed new development says why ("not entered", "not after the SPA month", "a bare parcel")');
+    });
+
+    await ttry('nd-timing T8: drawn — from vacant possession, and why not', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${T_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+        const keep = { deal: State.deal, stored: store.read('deal', null), bought: State.propertyReportsBought };
+        const read = () => ({ returns: txt(document.getElementById('pc-returns-timing')), timed: document.getElementById('pc-returns-timing')?.dataset.timed || null,
+          irrSub: [...document.querySelectorAll('.ls-fig')].map(n => txt(n)).find(t => /^Internal rate of return/.test(t)) || null,
+          hold: txt(document.getElementById('d-holdYears-from')), rpgt: txt(document.getElementById('pc-rpgt-from')), nd: txt(document.getElementById('pc-nd-timing')),
+          exits: [...document.querySelectorAll('#views .card')].map(n => txt(n.querySelector('h2,h3'))).filter(t => /^Selling/.test(t)) });
+        State.propertyReportsBought = [...State.propertyReportsBought, PROPERTY_DEFAULT_DEAL.projectId];
+        State.deal = T(); saveDeal(); navigate('/property/calculator'); await w(700);
+        const timed = read();
+        State.deal = T({ ndVpMonth: undefined }); delete State.deal.ndVpMonth; saveDeal(); render(); await w(500);
+        const untimed = read();
+        navigate('/methodology/property'); await w(800);
+        const row = document.getElementById('route-newdev-residential');
+        const facts = row ? [...row.querySelectorAll('dt')].map(n => txt(n)) : [];
+        const dd = (k) => txt([...(row?.querySelectorAll('dt') || [])].find(n => txt(n) === k)?.nextElementSibling);
+        const meth = { facts, changed: dd('What changed'), returns: dd('It returns') };
+        /* The Lab from a fresh load, as a reader arrives: its columns are
+           this tab's what-ifs until then. */
+        State.propertyReportsBought = keep.bought;
+        State.deal = T(); saveDeal();
+        return JSON.stringify({ timed, untimed, meth, stored: keep.stored }); })()`));
+      await send('Page.navigate', { url: `${BASE}/property/lab` }, sessionId);
+      for (const t0 = Date.now(); Date.now() - t0 < 30000; await sleep(100)) {
+        const q = await send('Runtime.evaluate', { expression: `typeof propertyPagesSettled === 'function' && propertyPagesSettled() && State.view === 'propertyLab' && !!document.querySelector('#lab-root .lab-row')`, returnByValue: true }, sessionId);
+        if (q.result?.result?.value === true) break;
+      }
+      await sleep(400);
+      r.lab = JSON.parse(await evaluate(`(() => { const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+        return JSON.stringify({ label: txt(document.querySelector('#lab-root .lab-row[data-row="irrPct"] .lab-row-label')), vll: txt(document.querySelector('#lab-root .lab-row[data-row="valueLessLoanAtExit"] .lab-row-label')) }); })()`));
+      await evaluate(`(() => { const k = ${JSON.stringify(r.stored)}; if (k) { State.deal = k; store.write('deal', k); } else localStorage.removeItem('vl.deal'); navigate('/property/calculator'); return true; })()`);
+      await sleep(400);
+      const p = [], t = r.timed, u = r.untimed;
+      if (t.timed !== 'true' || !/Timed from vacant possession, 24 months after signing/.test(t.returns) || !/3 to 12 years after signing/.test(t.returns)) p.push(`the return panel: "${t.returns}"`);
+      if (!/committed at signing; held 10 years from vacant possession, sold 12 years after signing/.test(t.irrSub || '')) p.push(`the rate's tile: "${t.irrSub}"`);
+      if (!/^Held 10 years from vacant possession: the sale falls 12 years after signing\.$/.test(t.hold)) p.push(`the holding period: "${t.hold}"`);
+      if (!/counts from the SPA date/.test(t.rpgt) || !/Schedule 2, paragraph 15\(1\)\(a\) and 15\(2\)/.test(t.rpgt)) p.push(`the gains tax: "${t.rpgt}"`);
+      if (!/timed from vacant possession/.test(t.nd) || !/24 months after signing/.test(t.nd) || !/12 years after signing/.test(t.nd)) p.push(`the route's section: "${t.nd}"`);
+      if (JSON.stringify(t.exits) !== '["Selling 5 and 10 years after vacant possession"]') p.push(`the exits card: ${JSON.stringify(t.exits)}`);
+      if (u.timed !== 'false' || !/the month of vacant possession is not entered/.test(u.returns) || !/the month of vacant possession is not entered/.test(u.hold) || u.rpgt || !/not entered/.test(u.nd)) p.push(`without the VP month: ${JSON.stringify(u)}`);
+      if (JSON.stringify(u.exits) !== '["Selling in year 5 and year 10"]') p.push(`without the VP month the exits card: ${JSON.stringify(u.exits)}`);
+      if (r.lab.label !== 'If sold 10 years after VP' || r.lab.vll !== 'Value less loan, 10 years after VP (before selling costs)') p.push(`the Lab's rows: ${JSON.stringify(r.lab)}`);
+      if (r.meth.facts.includes('Known limit') || !r.meth.facts.includes('What changed') || !/count from vacant possession once both months are entered/.test(r.meth.changed || '') || !/timed from vacant possession/.test(r.meth.returns || '')) p.push(`/methodology/property's new-development row: ${JSON.stringify(r.meth)}`);
+      if (p.length) fail('nd-timing T8: drawn — from vacant possession, and why not', p);
+      else ok(`nd-timing T8: the calculator says "${t.hold}", the rate's tile "${t.irrSub.replace(/^Internal rate of return\s*[−\d.,]+%\s*/, '').slice(0, 100)}", the return panel and the route's section the moments, the gains tax its paragraph 15 and the exits "Selling 5 and 10 years after vacant possession"; without the VP month it says "${u.hold.slice(0, 70)}…"; the Lab reads "${r.lab.label}"; /methodology/property's new-development row says what changed, with no known limit`);
+    });
+  }
+  /* ---- end nd-timing ---- */
+
+  /* ---- lab-row-kinds ---- */
+  /* THE LAB'S CHAIN ROWS CARRY THEIR KIND (D6 on the chain; the 12 Oct 2026
+     audit; labRowKind, labPaintPanel, 82-property-lab.js). Seven rows, each
+     with the system's kind badge, by the tiles' rule (labTileKind on
+     LAB_TILE_RESTS, extended with the repayment and the break-even
+     occupancy): the weakest figure the row rests on; the cash required
+     Placeholder while unchecked fee lines are in it, as its tile; and
+     Unavailable where the row shows no figure.
+     K1 — the sample: all seven Illustrative, and each tile's badge its
+          row's.
+     K2 — the reader's figures: the cash required Placeholder ("Fee lines
+          unchecked"), the other six Yours; each tile's badge its row's.
+     K3 — no figure, no kind: a loan with no tenure makes the repayment
+          Unavailable; a bare parcel its net yield and break-even occupancy.
+     K4 — cheap per frame: twelve frames of the price slider write no badge
+          (a MutationObserver on the seven hears nothing) while the figures
+          move; the rent typed to nought turns the break-even occupancy
+          Unavailable, that badge alone.
+     Each fails on 35ce93c4, where the rows carry no badge. */
+  {
+    const ktry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const kLoad = async (deal) => {
+      await evaluate(`(() => { const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, modelId: null, scenarioId: null, ...${JSON.stringify(deal)} };
+        localStorage.setItem('vl.deal', JSON.stringify(d)); localStorage.removeItem('vl.dealBeforeLink'); return true; })()`);
+      await send('Page.navigate', { url: `${BASE}/property/lab` }, sessionId);
+      await sleep(300);
+      for (const t = Date.now(); Date.now() - t < 30000; await sleep(100)) {
+        const r = await send('Runtime.evaluate', { expression: `typeof propertyPagesSettled === 'function' && propertyPagesSettled() && State.view === 'propertyLab' && !!document.querySelector('#lab-root .lab-row')`, returnByValue: true }, sessionId);
+        if (r.result?.result?.value === true) break;
+      }
+      await sleep(400);
+    };
+    const KREAD = `(() => {
+      const rows = Object.fromEntries([...document.querySelectorAll('#lab-root .lab-row')].map(n => { const b = n.querySelector('summary [data-kind-badge]'); return [n.dataset.row, b ? { k: b.dataset.kindBadge, word: b.textContent.trim(), title: b.title } : null]; }));
+      const tiles = Object.fromEntries([...document.querySelectorAll('#views .lab-tile[data-tile]')].filter(n => n.dataset.tile !== 'next').map(n => [n.dataset.tile, n.querySelector('[data-kind-badge]')?.dataset.kindBadge || null]));
+      return JSON.stringify({ rows, tiles });
+    })()`;
+    const MINE = { touched: Object.fromEntries(['price', 'rent', 'maintenance', 'sqft', 'downPct', 'ratePct', 'tenureYears', 'vacancyPct', 'apprecPct', 'holdYears'].map(k => [k, true])),
+      evidence: { price: 'user', rent: 'user', maintenance: 'user', sqft: 'user', vacancyPct: 'user', apprecPct: 'user', titleType: 'user' }, userStarted: true };
+    const KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly', 'netYield', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct'];
+    const keep = await evaluate(`JSON.stringify({ deal: localStorage.getItem('vl.deal'), before: localStorage.getItem('vl.dealBeforeLink') })`);
+
+    await ktry('lab-row-kinds K1–K2: each row its kind, by the tiles\' rule', async () => {
+      await kLoad({});
+      const s = JSON.parse(await evaluate(KREAD));
+      await kLoad(MINE);
+      const y = JSON.parse(await evaluate(KREAD));
+      const p = [];
+      if (JSON.stringify(Object.keys(s.rows)) !== JSON.stringify(KEYS)) p.push(`the rows: ${Object.keys(s.rows).join(', ')}`);
+      for (const k of KEYS) if (s.rows[k]?.k !== 'illustrative' || s.rows[k]?.word !== 'Illustrative') p.push(`the sample's ${k}: ${JSON.stringify(s.rows[k])}, not Illustrative`);
+      for (const k of KEYS) { const want = k === 'safeCashRequired' ? 'placeholder' : 'yours'; if (y.rows[k]?.k !== want) p.push(`the reader's ${k}: ${JSON.stringify(y.rows[k])}, not ${want}`); }
+      if (!/^Fee lines unchecked — /.test(y.rows.safeCashRequired?.title || '')) p.push(`the cash required's title: "${y.rows.safeCashRequired?.title}"`);
+      for (const [label, x] of [['the sample', s], ['the reader\'s figures', y]]) for (const [k, kind] of Object.entries(x.tiles)) if (x.rows[k] && x.rows[k].k !== kind) p.push(`${label}: the ${k} tile is ${kind}, its row ${x.rows[k].k}`);
+      if (Object.keys(s.tiles).length < 3) p.push(`only ${Object.keys(s.tiles).length} tiles read`);
+      if (p.length) fail('lab-row-kinds K1–K2: each row its kind, by the tiles\' rule', p);
+      else ok(`lab-row-kinds K1–K2: the seven rows carry their kind — Illustrative on the sample; on the reader's figures the cash required Placeholder ("${y.rows.safeCashRequired.title.slice(0, 40)}…") and the other six Yours — and each of the ${Object.keys(s.tiles).length} tiles' badges is its row's`);
+    });
+
+    await ktry('lab-row-kinds K3: no figure, no kind', async () => {
+      await kLoad({ ...MINE, tenureYears: 0 });
+      const t0 = JSON.parse(await evaluate(KREAD));
+      await kLoad({ ...MINE, propertyType: 'Land', landSqft: 4000, sqft: 0 });
+      const land = JSON.parse(await evaluate(KREAD));
+      const p = [];
+      if (t0.rows.instalment?.k !== 'unavailable' || t0.rows.cashflowMonthly?.k !== 'unavailable') p.push(`a loan with no tenure: repayment ${JSON.stringify(t0.rows.instalment)}, monthly position ${JSON.stringify(t0.rows.cashflowMonthly)}`);
+      if (t0.rows.netYield?.k !== 'yours') p.push(`a loan with no tenure leaves the net yield ${JSON.stringify(t0.rows.netYield)}`);
+      if (land.rows.netYield?.k !== 'unavailable' || land.rows.breakEvenOccupancy?.k !== 'unavailable' || land.rows.instalment?.k === 'unavailable') p.push(`a bare parcel: ${JSON.stringify(land.rows)}`);
+      if (p.length) fail('lab-row-kinds K3: no figure, no kind', p);
+      else ok('lab-row-kinds K3: with no tenure the repayment and the monthly position read Unavailable (the net yield stays Yours); on a bare parcel the net yield and the break-even occupancy read Unavailable');
+    });
+
+    await ktry('lab-row-kinds K4: written only when a kind changes', async () => {
+      await kLoad(MINE);
+      const r = JSON.parse(await evaluate(`(async () => {
+        const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const badges = [...document.querySelectorAll('#lab-root .lab-row summary [data-kind-badge]')];
+        let heard = [];
+        const ob = new MutationObserver(ms => { heard.push(...ms.map(m => (m.target.closest?.('.lab-row') || m.target.parentElement?.closest('.lab-row'))?.dataset.row + ':' + m.type)); });
+        badges.forEach(b => ob.observe(b, { attributes: true, childList: true, characterData: true, subtree: true }));
+        const range = document.getElementById('lab-r-price');
+        const v0 = Number(range.value), step = Number(range.step) || 1000, moved = [];
+        for (let i = 1; i <= 12; i++) { range.value = String(v0 - i * step); range.dispatchEvent(new Event('input', { bubbles: true })); await frame(); moved.push(document.querySelector('#lab-root [data-lab="instalment"]').textContent); }
+        ob.takeRecords(); const drag = heard.length; heard = [];
+        const box = document.getElementById('lab-n-rent'); box.value = '0'; box.dispatchEvent(new Event('change', { bubbles: true })); await frame(); await frame();
+        heard.push(...ob.takeRecords().map(m => (m.target.closest?.('.lab-row') || m.target.parentElement?.closest('.lab-row'))?.dataset.row + ':' + m.type));
+        ob.disconnect();
+        const be = document.querySelector('#lab-root .lab-row[data-row="breakEvenOccupancy"] summary [data-kind-badge]');
+        return JSON.stringify({ drag, figures: new Set(moved).size, after: [...new Set(heard.map(h => h.split(':')[0]))], be: be?.dataset.kindBadge, word: be?.textContent.trim() }); })()`));
+      const p = [];
+      if (r.drag !== 0) p.push(`twelve frames of the price slider wrote the badges ${r.drag} time(s)`);
+      if (r.figures < 10) p.push(`the repayment moved through only ${r.figures} figures`);
+      if (r.be !== 'unavailable' || r.word !== 'Unavailable') p.push(`the rent at nought: break-even occupancy is ${r.be} ("${r.word}")`);
+      if (r.after.some(k => k !== 'breakEvenOccupancy')) p.push(`the rent at nought rewrote the badges of ${r.after.join(', ')}`);
+      if (p.length) fail('lab-row-kinds K4: written only when a kind changes', p);
+      else ok(`lab-row-kinds K4: twelve frames of the price slider moved the repayment through ${r.figures} figures and wrote no badge; the rent typed to nought turned the break-even occupancy Unavailable — that badge alone was written`);
+    });
+    await evaluate(`(() => { const k = ${keep}; if (k.deal === null) localStorage.removeItem('vl.deal'); else localStorage.setItem('vl.deal', k.deal); if (k.before === null) localStorage.removeItem('vl.dealBeforeLink'); else localStorage.setItem('vl.dealBeforeLink', k.before); return true; })()`);
+    await send('Page.navigate', { url: `${BASE}/property/calculator` }, sessionId);
+    await sleep(800);
+  }
+  /* ---- end lab-row-kinds ---- */
 
   /* ---- refurb ---- */
   /* REFURBISH OR NOT (the owner's approval of 10 Oct 2026; refurbModel,

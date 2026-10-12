@@ -5319,8 +5319,23 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 .lab-val { font-size: var(--ls-body); line-height: 19px; font-weight: 700; color: var(--ink); white-space: nowrap; }
 .lab-val.neg { color: var(--dn-text); }
 .lab-delta { font-size: var(--ls-meta); line-height: 14px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
-.lab-row-note { grid-column: 1; grid-row: 2; padding-left: 12px; font-size: var(--ls-meta); line-height: 15px; color: var(--ink-3); }
+/* The row's second line: its kind (D6), then its note. */
+.lab-row-sub { grid-column: 1; grid-row: 2; position: relative; min-width: 0; padding-left: 12px; font-size: var(--ls-meta); line-height: 15px; color: var(--ink-3); }
+.lab-row-note { font-size: var(--ls-meta); line-height: 15px; color: var(--ink-3); }
 .lab-row-note:empty { display: none; }
+/* THE ROW'S KIND (D6 on the chain): the system's badge, at the note's own
+   15px line, so a row with no note grows by nothing (its label and the
+   figure's two lines are taller) and the line it leads keeps its height. */
+.kind-badge.lab-row-kind { height: 15px; padding: 0 6px 0 5px; gap: 4px; margin-right: 6px; vertical-align: top; line-height: 13px; }
+/* UNDER 380PX, ITS SHAPE: a word badge on a 360px phone pushed the last of
+   the seven results off the one screen the Lab keeps there (mobile.mjs,
+   scenario-lab-verify: 21px spare in a wide sans). The shape stands at the
+   end of the row's last line, beside the figure, in room every row has;
+   the word stays its name for a screen reader and its title. */
+@media (max-width: 379px) {
+  .kind-badge.lab-row-kind { position: absolute; right: 0; bottom: 1px; margin: 0; padding: 0; width: 13px; height: 13px; justify-content: center; border: 0; background: none; }
+  .lab-row-kind .lab-row-kind-w { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 .lab-row-body { padding: 0 0 10px 12px; }
 .lab-formula { font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); max-width: 70ch; }
 .lab-help { margin-top: 6px; }

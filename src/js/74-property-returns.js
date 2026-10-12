@@ -28,8 +28,15 @@
 
    Returns null, with a reason, when no rate exists. A deal that never returns
    its capital has no internal rate of return; printing a large negative number
-   there implies a precision the arithmetic does not have. */
-function npvAt(rate, flows) {
+   there implies a precision the arithmetic does not have.
+
+   UNEVEN TIMING (the 12 Oct 2026 audit, #3). `times`, when given, is each
+   flow's moment in years from the first — fractional where it falls between
+   years: a new development's equity leaves at signing and its first rent
+   comes a year after vacant possession, 2.5 years later on a 30-month build
+   (dealModel's flowTimes). Without it a flow's index is its year, exactly
+   as before: the same arithmetic, so every untimed deal is the deal it was. */
+function npvAt(rate, flows, times = null) {
   let v = 0;
   for (let t = 0; t < flows.length; t++) {
     /* A flow that is not a number makes the value unknown, not smaller. It
@@ -38,14 +45,18 @@ function npvAt(rate, flows) {
        at nothing: "−RM121,754, falls short of the alternative you named",
        beside a rate of return rightly withheld for the same flows. */
     if (!isNum(flows[t])) return null;
-    v += flows[t] / Math.pow(1 + rate, t);
+    v += flows[t] / Math.pow(1 + rate, times ? times[t] : t);
   }
   return v;
 }
 
-function irrOf(flows) {
+function irrOf(flows, times = null) {
   if (!Array.isArray(flows) || flows.length < 2) return { rate: null, why: 'Not enough periods to compute a rate.' };
   if (!flows.every(isNum)) return { rate: null, why: 'A period is missing a cash flow.' };
+  /* A moment for every flow, or none: a schedule that does not match the
+     flows cannot be discounted. */
+  if (times != null && (!Array.isArray(times) || times.length !== flows.length || !times.every(isNum)))
+    return { rate: null, why: 'The cash flows and their moments do not match.' };
 
   /* DESCARTES, AND WHY IT IS REPORTED RATHER THAN IGNORED.
      One sign change gives one rate. More than one can give several, all of them
@@ -80,7 +91,7 @@ function irrOf(flows) {
 
   const LO = -0.9999, HI = 10;      /* −99.99% to +1000% a year */
   let lo = LO, hi = HI;
-  let fLo = npvAt(lo, flows), fHi = npvAt(hi, flows);
+  let fLo = npvAt(lo, flows, times), fHi = npvAt(hi, flows, times);
   if (!isFinite(fLo) || !isFinite(fHi)) return { rate: null, signChanges, why: 'The cash flows do not resolve to a finite value.' };
   if (Math.sign(fLo) === Math.sign(fHi)) {
     /* THE SAME SIGN AT BOTH ENDS IS NOT THE SAME AS NO RATE. With two sign
@@ -96,11 +107,11 @@ function irrOf(flows) {
       let a = LO, fa = fLo;
       for (let i = 1; i <= 400; i++) {
         const b = (1 + LO) * Math.pow((1 + HI) / (1 + LO), i / 400) - 1;
-        const fb = npvAt(b, flows);
+        const fb = npvAt(b, flows, times);
         if (isFinite(fa) && isFinite(fb) && Math.sign(fa) !== Math.sign(fb)) {
           let l = a, h = b, fl = fa;
           for (let k = 0; k < 200 && (h - l) > 1e-10; k++) {
-            const mid = (l + h) / 2, fm = npvAt(mid, flows);
+            const mid = (l + h) / 2, fm = npvAt(mid, flows, times);
             if (Math.sign(fm) === Math.sign(fl)) { l = mid; fl = fm; } else h = mid;
           }
           roots.push((l + h) / 2 * 100);
@@ -117,7 +128,7 @@ function irrOf(flows) {
 
   for (let i = 0; i < 300; i++) {
     const mid = (lo + hi) / 2;
-    const f = npvAt(mid, flows);
+    const f = npvAt(mid, flows, times);
     if (Math.abs(f) < 1e-6 || (hi - lo) < 1e-9) return { rate: mid * 100, signChanges, why: null };
     if (Math.sign(f) === Math.sign(fLo)) { lo = mid; fLo = f; } else { hi = mid; }
   }
@@ -242,10 +253,14 @@ function returnsAndTaxPanel(d, m) {
 
   /* ---- the rate ---- */
   const g = el('div', { class: 'grid g-3', style: 'margin-top:var(--md)' });
+  /* A timed new development (ndTimingOf): held from vacant possession, the
+     money committed at signing — the years named both ways. */
+  const nt = m.ndTiming;
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Internal rate of return',
     isNum(m.irrPct) ? fmtPct(m.irrPct, 2) : '—',
     { sub: isNum(m.irrPct)
-        ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`
+        ? (nt ? `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed at signing; held ${d.holdYears} years from vacant possession, sold ${ndYears(nt.saleYears)} years after signing`
+          : `On ${fmtMoney(m.equityOut, 'MYR', 0)} committed, over ${d.holdYears} years`)
         : (m.irrWhy || 'Not computable') })));
   g.append(el('div', { class: 'panel ls-fig' }, statTile('Annualised multiple',
     isNum(m.annualisedMultiplePct) ? fmtPct(m.annualisedMultiplePct, 2) : '—',
@@ -260,6 +275,12 @@ function returnsAndTaxPanel(d, m) {
         : m.hurdlePct > 0 ? 'The cash flows could not be computed, so neither can their value'
         : 'Enter the return your capital could earn elsewhere' })));
   card.append(g);
+  /* How the flows are timed on a new development — or why they are not. */
+  if (nt) card.append(el('p', { class: 'metaline pc-nd-timing', id: 'pc-returns-timing', 'data-timed': 'true', style: 'margin-top:var(--sm)' },
+    `Timed from vacant possession, ${nt.vpAt} months after signing${nt.delay ? `, the ${nt.delay}-month delay you entered included` : ''}: the ${fmtMoney(m.equityOut, 'MYR', 0)} of cash required leaves at signing — the deposit, the fees, any furnishing, the reserve and any interest during construction, all counted then, so the rate is a little lower than if each were counted when it falls. `
+    + `No rent and no instalment before vacant possession; each year’s cash a year after it, ${ndYears(nt.lead + 1)} to ${ndYears(nt.saleYears)} years after signing, with the sale and the reserve back in the last. `
+    + `The annualised multiple and the value against the alternative are over the same ${ndYears(nt.saleYears)} years.`));
+  else if (ndTimingWhy(d)) card.append(el('p', { class: 'metaline pc-nd-timing', id: 'pc-returns-timing', 'data-timed': 'false', style: 'margin-top:var(--sm)' }, ndTimingWhy(d)));
 
   if (isNum(m.irrPct) && isNum(m.annualisedMultiplePct)) {
     const gap = m.annualisedMultiplePct - m.irrPct;
@@ -305,7 +326,7 @@ function returnsAndTaxPanel(d, m) {
   if (m.rpgtResult) {
     const rr = m.rpgtResult;
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `Selling in year ${d.holdYears}: ${rr.why} `
+      `${nt ? `Selling ${d.holdYears} years after vacant possession, ${ndYears(nt.saleYears)} years after the SPA` : `Selling in year ${d.holdYears}`}: ${rr.why} `
       + (rr.tax > 0
           ? `That is ${fmtMoney(rr.tax, 'MYR', 0)} on a gain of ${fmtMoney(rr.chargeableGain, 'MYR', 0)} after ${fmtMoney(rr.allowable, 'MYR', 0)} of allowable costs.`
           : 'Nothing is charged on this scenario.')));
@@ -315,6 +336,14 @@ function returnsAndTaxPanel(d, m) {
     card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
       'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current '
       + 'schedule or any exemption order in force. Confirm before relying on the figure.'));
+    /* Where the holding period starts, read in the Act: said where it
+       matters, a purchase signed years before its keys. */
+    if (nt) {
+      const a = RPGT_SCHEDULE.acquisitionDate;
+      card.append(el('p', { class: 'metaline', id: 'pc-rpgt-from', style: 'margin-top:6px' }, [
+        `The holding period counts from the SPA date: ${a.rule.charAt(0).toLowerCase()}${a.rule.slice(1)} `,
+        el('a', { href: a.sourceUrl, target: '_blank', rel: 'noopener noreferrer' }, a.citation), ` — ${a.source}, read ${feeDay(a.checkedOn)}. ${a.note}`]));
+    }
   }
 
   /* ---- the rate the reader pays ---- */

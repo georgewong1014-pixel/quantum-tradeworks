@@ -4155,7 +4155,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5812f04a57ba2d2a",
+      "digest": "1e59991df85238e7",
       "changed": "2026-10-12"
     },
     "pages/decision-record.html": {
@@ -4528,7 +4528,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "305f621b3df47446",
+      "digest": "4044cc5b0de65190",
       "changed": "2026-10-12"
     },
     "pages/my/alerts.html": {
@@ -4905,8 +4905,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3606005d0423dd48",
-      "changed": "2026-10-10"
+      "digest": "ea9e3b4163a6c8c9",
+      "changed": "2026-10-12"
     },
     "pages/property.html": {
       "path": "/property",
@@ -4934,7 +4934,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "193ffc1cb0617bec",
+      "digest": "1bdf03bc77e9731b",
       "changed": "2026-10-12"
     },
     "pages/property/areas.html": {
@@ -4992,7 +4992,7 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "3e6797cb0f96523a",
+      "digest": "64f8ce038c7b9d31",
       "changed": "2026-10-12"
     },
     "pages/property/comparables.html": {
@@ -5050,7 +5050,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "ba035a7d101993a2",
+      "digest": "63a0e728f93e8263",
       "changed": "2026-10-12"
     },
     "pages/property/models.html": {
@@ -5253,8 +5253,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "065bb81186390161",
-      "changed": "2026-10-11"
+      "digest": "7d6953976a41ca18",
+      "changed": "2026-10-12"
     },
     "pages/terms.html": {
       "path": "/terms",

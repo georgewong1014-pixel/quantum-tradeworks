@@ -112,6 +112,10 @@ const LAB_NOT_APPLY = { rent: 'A parcel has no tenancy, so nothing uses a rent.'
    formatters — never from a figure the lab worked out. `help` is a
    METRIC_HELP key (00-core.js). Global: the client proposal will read it. */
 const labWhose = (d, k) => (isTouched(d, k) ? 'your assumption' : 'sample assumption — chosen by nobody');
+/* When the sale falls, in a row's words: "year 10" — or, on a new
+   development timed from vacant possession (ndTimingOf, 75-property-
+   grade.js), "10 years after VP". */
+const labSaleWhen = (d) => { const n = normHoldYears(d?.holdYears); return d && ndTimingOf(d) ? `${n} year${n === 1 ? '' : 's'} after VP` : `year ${n}`; };
 const LAB_FIGURES = [
   { key: 'instalment', label: () => 'Monthly repayment', fmt: 'money0', help: 'propInstalment',
     read: (m) => m.instalment,
@@ -172,21 +176,28 @@ const LAB_FIGURES = [
       ? (m.letsToTenant === false ? 'Not a quantity this asset has: there is no rent to fill.' : 'Not computable: the loan’s annual cost is unknown, or there is no rent to divide by.')
       : `(${labMoney(m.fixedOperatingCosts)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct(m.variableCostRate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
         + (m.breakEvenOccupancy > 100 ? ' Above 100% the property cannot cover its costs at this rent however full it is.' : '')) },
-  { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
+  { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, ${labSaleWhen(d)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
     read: (m) => m.valueLessLoanAtExit,
     note: (m) => (isNum(m.valueLessLoanAtExit) ? null : 'Not computable — the loan has no schedule'),
     formula: (d, m) => {
-      const n = normHoldYears(d.holdYears);
-      return `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
+      const n = normHoldYears(d.holdYears), t = m.ndTiming;
+      /* Timed from VP: the price grows from signing, the years to VP and
+         the hold (ndTimingOf). */
+      return t
+        ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed ${n} year${n === 1 ? '' : 's'} into its repayments, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
+        : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
     } },
-  { key: 'irrPct', label: (d) => `If sold in year ${normHoldYears(d?.holdYears)}`, fmt: 'pct2', help: 'propIrr',
+  { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
     read: (m) => m.irrPct,
     note: (m, d) => (isNum(m.irrPct) ? `rate of return on ${labMoney(m.equityOut)} committed` : (m.irrWhy || 'Not computable')),
     formula: (d, m) => {
-      const n = normHoldYears(d.holdYears), rr = m.rpgtResult;
-      return (isNum(m.irrPct) ? `The rate of return that sets every year’s cash flow after tax, and a sale in year ${n}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `
+      const n = normHoldYears(d.holdYears), rr = m.rpgtResult, t = m.ndTiming;
+      const sale = t ? `a sale ${n} year${n === 1 ? '' : 's'} after vacant possession` : `a sale in year ${n}`;
+      return (isNum(m.irrPct) ? (t
+          ? `The rate of return that sets every year’s cash flow after tax from vacant possession, ${t.vpAt} months after signing, and ${sale} — ${ndYears(t.saleYears)} years after signing — against the ${labMoney(m.equityOut)} committed at signing (the reserve comes back at the sale). No rent and no instalment come before vacant possession. The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth from signing — ${labWhose(d, 'apprecPct')}. `
+          : `The rate of return that sets every year’s cash flow after tax, and ${sale}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `)
         : `No rate of return: ${m.irrWhy || 'the flows do not give one'}. `)
-        + (rr ? `Selling in year ${n}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
+        + (rr ? `${t ? `Selling ${n} year${n === 1 ? '' : 's'} after vacant possession, ${ndYears(t.saleYears)} years after the SPA — gains tax counts from the SPA date` : `Selling in year ${n}`}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
           + 'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current schedule or any exemption order in force. Confirm before relying on the figure.' : '');
     } },
 ];
@@ -990,6 +1001,13 @@ function labIdentityAct(P, lab) {
    any figure it is worked from is still the tool's seeded one, else the
    weakest evidence among them — and the next step. */
 const LAB_TILE_RESTS = {
+  /* The two chain rows no tile shows (D6 on the chain, the 12 Oct 2026
+     audit): the repayment rests on the loan — the price, the deposit, the
+     rate and the tenure; the break-even occupancy on those, the rent it
+     fills and the running costs it covers (the vacancy is what it solves
+     for, so it is not among them). */
+  instalment: ['price', 'downPct', 'ratePct', 'tenureYears'],
+  breakEvenOccupancy: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'maintenance'],
   safeCashRequired: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'],
   cashflowMonthly: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'],
   netYield: ['price', 'rent', 'vacancyPct', 'maintenance'],
@@ -1003,7 +1021,7 @@ const LAB_TILE_RESTS = {
    their order, and nothing is ranked. */
 const labTileSet = (d) => dealObjective(d).tiles.map((key, i) => ({ key, level: i < 2 ? 1 : 2, rests: LAB_TILE_RESTS[key] }));
 /* A tile's label where the chain's is a sentence long. */
-const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, year ${normHoldYears(d?.holdYears)}` };
+const LAB_TILE_LABEL = { valueLessLoanAtExit: (d) => `Value less loan, ${labSaleWhen(d)}` };
 const LAB_TILE_NOTE = { valueLessLoanAtExit: (m) => (isNum(m.valueLessLoanAtExit) ? 'before selling costs' : null) };
 function labTileKind(d, rests) {
   const keys = rests.filter(k => propertyInputApplies(d, k));
@@ -1025,6 +1043,25 @@ const labTag = (kind, { fees = false } = {}) => {
        is not one (the definitions are in its title, and on /data-sources). */
     { cls: `lab-tile-kind ls-badge${kind.kind === 'illustrative_default' ? ' is-default' : ''}`, attrs: { 'data-kind': kind.kind }, link: false });
 };
+/* A CHAIN ROW'S KIND (D6 on the chain; the 12 Oct 2026 audit): the tiles'
+   rule, row by row — the weakest figure the row rests on (labTileKind,
+   LAB_TILE_RESTS) as its badge (KIND_OF_EVIDENCE), the cash required
+   Placeholder while fee lines nobody has checked are in it (labTag's
+   `fees`) — and Unavailable where the row shows no figure, its note saying
+   why. { k, fine }: the badge and the words its title names. */
+function labRowKind(d, m, key, v) {
+  if (!d || !m) return { k: 'unavailable', fine: 'Needs a purchase price' };
+  if (!isNum(v)) return { k: 'unavailable', fine: 'No figure — the row says why' };
+  const ev = labTileKind(d, LAB_TILE_RESTS[key] || evidenceDriversFor(d));
+  const base = KIND_OF_EVIDENCE[ev.kind] || 'unavailable';
+  const k = key === 'safeCashRequired' && m.unconfirmedCost > 0 ? kindFirst([base, 'placeholder']) : base;
+  return { k, fine: k === base ? ev.words : 'Fee lines unchecked' };
+}
+/* The row's badge: the system's kind badge (kindBadge), its word in a span
+   of its own so a paint can write it, and no link — inside a row's
+   <summary>, which is the row's 44px target. */
+const labRowBadge = () => el('span', { class: 'kind-badge kind-unavailable lab-row-kind', 'data-kind-badge': 'unavailable', title: KIND_BADGES.unavailable.note },
+  [el('span', { class: 'kind-shape', 'aria-hidden': 'true' }), el('span', { class: 'lab-row-kind-w' }, KIND_BADGES.unavailable.word)]);
 /* A deal's result, as cardHead's badge: { kind, fine } — the weakest input
    it rests on (all of the deal's, or `rests`), Placeholder where `fees`
    and the cash carries fee lines nobody has checked, and `also` (the
@@ -1823,19 +1860,22 @@ function labChain(P, lab, col) {
     const deltaEar = el('span', { class: 'sr-only' }, '');
     const note = el('span', { class: 'lab-row-note' }, '');
     const label = el('span', { class: 'lab-row-label' }, f.label(d));
-    const sum = el('summary', { class: 'lab-sum' }, [label, el('span', { class: 'lab-row-fig' }, [value, el('span', { class: 'lab-delta' }, [deltaEye, deltaEar])]), note]);
+    /* The row's kind, leading its second line (D6): written by the paint. */
+    const kind = labRowBadge();
+    const sum = el('summary', { class: 'lab-sum' }, [label, el('span', { class: 'lab-row-fig' }, [value, el('span', { class: 'lab-delta' }, [deltaEye, deltaEar])]),
+      el('span', { class: 'lab-row-sub' }, [kind, note])]);
     det.append(sum);
     const body = el('div', { class: 'lab-row-body' });
     const formula = el('p', { class: 'lab-formula' }, '');
     body.append(formula);
     const paidBox = f.key === 'irrPct' ? el('div', { class: 'lab-paid' }) : null;
     if (paidBox) body.append(paidBox);
-    body.append(el('p', { class: 'lab-help' }, [metricLabel(f.help, `What ${f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/^if sold/, 'the rate of return if sold')} means`)]));
+    body.append(el('p', { class: 'lab-help' }, [metricLabel(f.help, `What ${f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/\bvp\b/g, 'VP').replace(/^if sold/, 'the rate of return if sold')} means`)]));
     const where = labWhereEntered(lab, col, f.key);
     if (where) { body.append(where); (P.els.where ||= []).push(where); }
     det.append(body);
     list.append(det);
-    P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det };
+    P.els.chain[f.key] = { value, deltaEye, deltaEar, note, label, formula, fmt: f.fmt, paidBox, sum, det, kind, kindWord: kind.lastChild };
     /* A row's formula is written while it is open, and when it opens. */
     det.addEventListener('toggle', () => { if (det.open) labPaintPanel(P); });
     /* From 1440px, in the evidence drawer beside the figures instead
@@ -1965,7 +2005,7 @@ function labShowFormula(P, key) {
   if (P.els.how) P.els.how.node.open = true;
   labPaintPanel(P);
   const f = LAB_FIGURES.find(x => x.key === key);
-  if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase()} is worked out, in the evidence beside the figures.`);
+  if (f) liveSay(`How ${f.label(labActive(LAB[P.key]).work).toLowerCase().replace(/\bvp\b/g, 'VP')} is worked out, in the evidence beside the figures.`);
 }
 /* THE SYSTEM'S ALERT CARD: how many of the figures behind these results
    are still the tool's, and where they are reviewed — the calculator's
@@ -2073,7 +2113,7 @@ function labMetricView(metric, lab) {
       parts: r => [{ part: 'price', value: num0(r.d.price), label: 'price' }, { part: 'priceGrowthAtExit', value: r.m.priceGrowthAtExit, label: 'growth on the price' },
         { part: 'renoRecovered', value: r.m.renoRecovered, label: 'renovation recovered' }],
       ticks: r => [{ value: r.m.valueLessLoanAtExit, label: 'value less loan' }],
-      note: r => `at ${fmtNum(num0(r.d.apprecPct), 1)}% a year for ${labYears(normHoldYears(r.d.holdYears))} — ${labWhose(r.d, 'apprecPct')}`,
+      note: r => `at ${fmtNum(num0(r.d.apprecPct), 1)}% a year for ${r.m?.ndTiming ? `${ndYears(r.m.ndTiming.saleYears)} years from signing` : labYears(normHoldYears(r.d.holdYears))} — ${labWhose(r.d, 'apprecPct')}`,
       table: { form: 'stacked', title: 'Value at the sale: the price, the growth on it and the renovation recovered, with value less loan marked' } }));
     vm.words.push('Each bar, from nought: the price, then the growth on it (the stronger shade), then the renovation recovered (outlined); the mark is value less loan.');
     const live = rows.filter(r => r.m);
@@ -2780,7 +2820,7 @@ const LAB_XR_ROWS = [
       kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.netYield }).kind, sub: isNum(f.m.grossYield) ? `gross ${fmtPct(f.m.grossYield, 2)}` : '' }) },
   { id: 'vll', label: 'Value less loan at the sale', cell: (f) => (isNum(f.m.valueLessLoanAtExit)
       ? { value: f.m.valueLessLoanAtExit, text: labMoney(f.m.valueLessLoanAtExit), kind: dealKind(f.d, f.m, { rests: LAB_TILE_RESTS.valueLessLoanAtExit }).kind,
-          sub: `year ${normHoldYears(f.d.holdYears)}, before selling costs` }
+          sub: `${labSaleWhen(f.d)}, before selling costs` }
       : labXrUnavailable('the loan has no schedule of repayments')) },
   { id: 'priceGap', label: 'Price gap', only: 'subsale', cell: (f) => {
       const g = f.gap;
@@ -2859,7 +2899,7 @@ function labXrCell(r, f) {
 const LAB_XR_CHARTS = {
   monthly: { title: 'Monthly position, about nought', form: 'diverging', read: (f) => f.m.cashflowMonthly, fmt: (v) => labMoney(v) },
   vll: { title: 'Value less loan at the sale, before selling costs', form: 'bars', read: (f) => f.m.valueLessLoanAtExit, fmt: (v) => labMoney(v),
-    note: (f) => `year ${normHoldYears(f.d.holdYears)}` },
+    note: (f) => labSaleWhen(f.d) },
   occupancy: { title: 'Break-even occupancy, against 100%', form: 'against-line', refs: [100], read: (f) => (f.letting ? f.m.breakEvenOccupancy : null), fmt: (v) => fmtPct(v, 1),
     na: (f) => (f.letting ? null : 'Not for this asset') },
   cash: { title: 'Cash required: to complete, renovation and set-up, and the reserve', form: 'stacked', read: (f) => f.m.safeCashRequired, fmt: (v) => labMoney(v),
@@ -3403,6 +3443,20 @@ function labPaintPanel(P, { initial = false } = {}) {
     labText(ce.deltaEye, empty ? '' : dl ? dl.mark : '');
     labText(ce.deltaEar, empty ? '' : dl ? (dl.same ? 'unchanged' : `${dl.words} ${bl.label}`) : '');
     labText(ce.note, empty ? 'Needs a purchase price' : m ? (f.note(m, d) || '') : '');
+    /* The row's kind, by the tiles' rule (labRowKind): written only when it
+       changes — a drag's frames leave it alone unless a figure goes
+       missing or the fee lines' state turns. */
+    if (ce.kind) {
+      const rk = labRowKind(empty ? null : d, m, f.key, v);
+      const at = `${rk.k}|${rk.fine}`;
+      if (ce.kindAt !== at) {
+        ce.kindAt = at;
+        labAttr(ce.kind, 'class', `kind-badge kind-${rk.k} lab-row-kind`);
+        labAttr(ce.kind, 'data-kind-badge', rk.k);
+        labAttr(ce.kind, 'title', `${rk.fine} — ${KIND_BADGES[rk.k].note}`);
+        labText(ce.kindWord, KIND_BADGES[rk.k].word);
+      }
+    }
     /* Formulas of closed rows wait until they open, except in the page's
        first draw — served whole, with no script to open them. */
     if (initial || ce.det.open) labText(ce.formula, empty ? 'Needs a purchase price: the model cannot price a purchase with no price, so this column runs nothing until one is typed.' : m ? f.formula(d, m) : '');
@@ -3468,7 +3522,7 @@ function labPaintPanel(P, { initial = false } = {}) {
          name can carry a comma ("value less loan, year 10"). The report's
          two figures join them where it is unlocked. */
       const moved = (f) => LAB_FORMATS[f.fmt](f.read(m, d)) !== LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs));
-      const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase());
+      const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/\bvp\b/g, 'VP'));
       if (labPaid(d)) LAB_PAID.forEach(f => { if (LAB_FORMATS[f.fmt](m[f.key]) !== LAB_FORMATS[f.fmt](ref[f.key])) movedRows.push(f.label.toLowerCase()); });
       s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the seven'}.`;
       /* WHAT RENOVATION DOES NOT MOVE, said and nothing more. "Renovation
