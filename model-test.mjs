@@ -2547,8 +2547,11 @@ try {
       await sleep(40);
     };
     const DESC = `((a) => !a || a === document.body ? 'BODY' : a.id === 'main' ? 'MAIN' : (a.id || a.tagName + ':' + (a.getAttribute('aria-label') || a.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 40)))`;
+    /* A stop is drawn and not visibility: hidden, which no Tab reaches —
+       the calculator's phone-only "Next: …" links stand out of sight that
+       way from 640px (the 11 Oct audit, #6). */
     const STOPS = `[...document.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]')]
-      .filter(n => n.tabIndex >= 0 && n.getClientRects().length && !n.closest('[inert]'))`;
+      .filter(n => n.tabIndex >= 0 && n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden' && !n.closest('[inert]'))`;
     await evaluate(`(() => { window.__T.fw = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator'); return true; })()`);
     await sleep(700);
     const p = [];
