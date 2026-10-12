@@ -160,20 +160,53 @@
     },
     {
       "$comment": [
+        "THE MAP'S VENDORED CODE (the Kuching map, 12 Oct 2026; map-assets.mjs):",
+        "MapLibre GL JS and the pmtiles reader, each in a folder named by its",
+        "version (vendor/maplibre-gl-<v>/, vendor/pmtiles-<v>/), so a file there",
+        "never changes under its address and a browser may keep it for a year.",
+        "Loaded by the map page only, from this site (script-src 'self').",
+        "MapLibre's worker is a module file of its own here, and a worker's",
+        "policy is its own response's: the pages' policy is sent with it, so the",
+        "worker too may ask this site for its files and nothing else. No",
+        "content type is said: the folder holds .mjs, .js and .css, each typed",
+        "by the host as itself (Vercel sends .mjs as JavaScript); nosniff holds",
+        "the browser to it. Each header from this rule alone: the pages' rule",
+        "below leaves vendor/ out."
+      ],
+      "source": "/vendor/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+        },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "$comment": [
         "The app shell carries its own version, so it must always be revalidated.",
         "no-store rather than must-revalidate: a stale shell paired with a new",
         "data manifest is the one combination that renders wrong numbers, and",
         "the file is a single 1.3MB gzip-compressible response on a CDN edge.",
-        "Every address but data/ and the two app files above, which the build",
-        "names in the lookahead: each header of each response comes from one",
-        "rule, whatever order the host applies overlapping rules in."
+        "Every address but data/, vendor/ and the two app files above, which",
+        "the build names in the lookahead: each header of each response comes",
+        "from one rule, whatever order the host applies overlapping rules in.",
+        "",
+        "THE MAP'S TWO ADDITIONS (the owner's decision of 12 Oct 2026, as the",
+        "feasibility study set them out), and nothing else: worker-src 'self',",
+        "for MapLibre's worker, a module file on this site; and blob: in",
+        "img-src, the in-memory pictures MapLibre makes of the map's own",
+        "sprites as it decodes them (a blob: address names memory, never",
+        "another site). connect-src stays 'self': the tiles (byte ranges of",
+        "one file), the style, the glyphs and the sprites are all this site's."
       ],
-      "source": "/((?!data/@APP_FILES).*)",
+      "source": "/((?!data/|vendor/@APP_FILES).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache" },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' '@CSP_HASH' '@CSP_FIRST_HASH'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },

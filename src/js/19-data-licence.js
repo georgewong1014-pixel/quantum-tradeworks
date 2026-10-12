@@ -43,7 +43,7 @@ const DATA_LICENCES = [
 
   { id: 'open-attrib', label: 'Open, with attribution', rank: 3,
     show: true, export: true, publish: true,
-    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap geocoding sits here, under ODbL.' },
+    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap’s data sits here, under ODbL: the locality geocoding, and the Kuching map — its basemap, its scheme positions and its recorded building heights.' },
 
   /* Not exported. The row said it was, beside the data-sources page's own
      sentence that licence-pending records are "excluded from export and never
@@ -122,6 +122,24 @@ const SARAWAK_TRANSACTION_SOURCES = [
     use: 'Secondary cross-check.',
     licence: 'restricted',
     position: 'Terms permit analytics for internal use and prohibit constructing or redistributing a database.' },
+];
+
+/* ---- THE KUCHING MAP'S OWN FILES, AND WHAT EACH MAY BE (12 Oct 2026) ------
+   The map at /property/areas/map is drawn from this site's files only
+   (map-assets.mjs makes them; data/map/manifest.json records each one's
+   source and hash). Published on the data-sources page, so the attribution
+   the map carries in its corner has its full statement one link away. */
+const MAP_DATA_SOURCES = [
+  { name: 'The basemap of Greater Kuching', from: 'OpenStreetMap, as a Protomaps basemap extract (data/tiles/kuching-<date>.pmtiles)',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
+  { name: 'Where a NAPIC scheme is placed', from: 'OpenStreetMap names — a residential area, a place or a building named as the scheme, or lanes carrying its name — matched once, on a developer’s machine',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors. A few hundred names and positions, each with the object it rests on.' },
+  { name: 'The heights a tilted map raises', from: 'OpenStreetMap’s height tag on a building, in metres; nothing estimated',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
+  { name: 'The map’s drawing code', from: 'MapLibre GL JS and the pmtiles reader (with fflate inside it), served from this site',
+    licence: null, terms: 'BSD-3-Clause (MapLibre, pmtiles), MIT (fflate) — open-source code, not data' },
+  { name: 'Its style, lettering and symbols', from: 'A style made with @protomaps/basemaps, Noto Sans glyphs and Protomaps’ sprites, served from this site',
+    licence: null, terms: 'BSD-3-Clause (the style’s code; its design CC0), SIL Open Font License 1.1 (the glyphs), MIT (the sprites) — open-source, not data' },
 ];
 
 /* The questions that have to be answered before record-level NAPIC data can be

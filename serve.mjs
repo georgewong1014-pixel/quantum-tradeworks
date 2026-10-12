@@ -151,6 +151,11 @@ const MIME = {
   /* The cost-schedule example (data/examples/), as Vercel types it. */
   '.csv': 'text/csv; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
+  /* The Kuching map's own files (map-assets.mjs): its glyphs, and the tile
+     archive, which has no registered type — Vercel sends both as bytes. */
+  '.pbf': 'application/x-protobuf',
+  '.pmtiles': 'application/octet-stream',
+  '.md': 'text/markdown; charset=utf-8',
 };
 
 /* .vercelignore: the files the deployment leaves out (plan item 1.2 — the
@@ -291,10 +296,40 @@ async function handle(req, res) {
 
   try {
     const body = await readFile(file);
+    /* BYTE RANGES, AS VERCEL ANSWERS THEM (the Kuching map, 12 Oct 2026).
+       The map reads its one tile archive in pieces — a Range request per
+       directory and per tile (pmtiles) — and Vercel answers a file's range
+       206 Partial Content with Accept-Ranges: bytes (measured on production
+       by the feasibility study). Here too, or the map's archive is a 4.9MB
+       download per tile and the reader refuses it. One range per request,
+       as pmtiles asks; a range past the end is 416. */
+    const range = status === 200 ? /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range || '').trim()) : null;
+    if (range && (range[1] !== '' || range[2] !== '')) {
+      const size = body.length;
+      const start = range[1] === '' ? Math.max(0, size - Number(range[2])) : Number(range[1]);
+      const end = range[1] === '' || range[2] === '' ? size - 1 : Math.min(size - 1, Number(range[2]));
+      if (!(start <= end) || start >= size) {
+        res.writeHead(416, { 'content-range': `bytes */${size}`, 'content-type': 'text/plain; charset=utf-8', ...configuredHeaders(path) });
+        res.end();
+        return;
+      }
+      const part = body.subarray(start, end + 1);
+      res.writeHead(206, {
+        'content-type': MIME[extname(file).toLowerCase()] || 'application/octet-stream',
+        'cache-control': 'no-cache, no-store, must-revalidate',
+        'accept-ranges': 'bytes',
+        'content-range': `bytes ${start}-${end}/${size}`,
+        'content-length': part.length,
+        ...configuredHeaders(path),
+      });
+      res.end(req.method === 'HEAD' ? undefined : part);
+      return;
+    }
     res.writeHead(status, {
       'content-type': MIME[extname(file).toLowerCase()] || 'application/octet-stream',
       'cache-control': 'no-cache, no-store, must-revalidate',
       'content-length': body.length,
+      ...(status === 200 ? { 'accept-ranges': 'bytes' } : {}),
       ...configuredHeaders(path),
     });
     res.end(req.method === 'HEAD' ? undefined : body);

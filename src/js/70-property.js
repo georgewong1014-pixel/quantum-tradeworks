@@ -2630,7 +2630,7 @@ async function loadSarawakLayers() {
   geoLoadState = sarawakGeo ? 'done' : 'failed';
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
-  if (State.view === 'property' || State.view === 'areas') render();
+  if (State.view === 'property' || State.view === 'areas' || State.view === 'areaMap') render();
 }
 
 /* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
@@ -3137,7 +3137,11 @@ function cityMapHold(cityId, waiting) {
     el('p', { class: 'caption map-hold-say',
       'data-now': 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.' }, waiting));
 }
-function cityMap(cityId, selectedArea, onPick, paint) {
+/* label: what the diagram is said to be where it stands for something else
+   — the Kuching scheme map's fallback (92-kuching-map.js), under which no
+   table of localities is listed; maxH: the room it has there, a box of the
+   map's fixed height under a line of words (its points keep their 44px). */
+function cityMap(cityId, selectedArea, onPick, paint, { label = null, maxH = null } = {}) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
   const host = el('div', { style: 'width:100%' });
@@ -3152,7 +3156,8 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     const focusBack = held && host.contains(held) && held.dataset?.area ? held.dataset.area
       : cityMapFocus && cityMapFocus.city === cityId ? cityMapFocus.name : null;
     cityMapFocus = null;
-    const { pad, maxH: MAXH, minH } = CITY_MAP_BOX;
+    const { pad, minH } = CITY_MAP_BOX;
+    const MAXH = maxH ? Math.max(minH, Math.min(CITY_MAP_BOX.maxH, maxH)) : CITY_MAP_BOX.maxH;
     const { kx, x0, x1, y0, y1, spanX, spanY } = cityMapSpan(areas);
     /* One scale for both axes — a map with two is not a map — with the height
        following from the data rather than a chosen ratio, so a city that is
@@ -3188,7 +3193,7 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('tabindex', '0');
     svg.classList.add('chart-focusable');
     svg.setAttribute('aria-label',
-      `Relative positions of ${areas.length} areas in ${city.name}. The table below lists the same information.`);
+      label || `Relative positions of ${areas.length} areas in ${city.name}. The table below lists the same information.`);
 
     const mk = (n, attrs = {}) => { const e = document.createElementNS(NS, n);
       for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };

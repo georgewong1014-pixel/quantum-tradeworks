@@ -125,6 +125,11 @@ const CAPABILITY_REGISTER = [
      caption says it has no basemap, road or boundary. */
   { name:'Locality diagram and area observations', status:'maintenance', path:'/property/areas',
     now:'8 locality points per town, relative positions with per-point match confidence (ODbL); no basemap, no scheme or building positions.' },
+  /* The area screen's second view (the owner's decision of 12 Oct 2026;
+     92-kuching-map.js): a preview, positions only. */
+  { name:'Kuching scheme map', status:'beta', path:'/property/areas/map',
+    now:'Greater Kuching drawn from this site’s own map files (OpenStreetMap, ODbL), with the NAPIC residential schemes an OpenStreetMap name places, each with its evidence and how sure it is; NAPIC’s ranges stay in the list beside it.',
+    gate:'Most schemes are not placed: OpenStreetMap names them only in part or not at all, and a weak match waits on review. No figure is drawn on the map; a scheme is a neighbourhood, never a building; heights only where OpenStreetMap records one.' },
   { name:'Discover and screener', status:'maintenance', path:'/discover/screener',
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
   /* The explorer and the brief's paths were a row of their own in the brief

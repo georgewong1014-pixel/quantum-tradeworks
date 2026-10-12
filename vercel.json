@@ -185,6 +185,10 @@
       "destination": "/pages/property/areas.html"
     },
     {
+      "source": "/property/areas/map",
+      "destination": "/pages/property/areas/map.html"
+    },
+    {
       "source": "/property/lab",
       "destination": "/pages/property/lab.html"
     },
@@ -1510,7 +1514,7 @@
       ]
     },
     {
-      "source": "/assets/app.3aa16fa800b8.js",
+      "source": "/assets/app.5eda5bf6a5a3.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1527,7 +1531,7 @@
       ]
     },
     {
-      "source": "/assets/app.263682fd73f1.css",
+      "source": "/assets/app.d609ba71fa63.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1544,7 +1548,24 @@
       ]
     },
     {
-      "source": "/((?!data/|assets/app\\.3aa16fa800b8\\.js$|assets/app\\.263682fd73f1\\.css$).*)",
+      "source": "/vendor/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-Xtpb9qWjGajDIo4h7HKpDhDt4D2GAY0fFVw7NPoyYk4=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/((?!data/|vendor/|assets/app\\.5eda5bf6a5a3\\.js$|assets/app\\.d609ba71fa63\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1552,7 +1573,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-OqFvqAC4Yn29MgIuf0DMLr2n8ovPdydMcZ9e6TkwGcQ=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-Xtpb9qWjGajDIo4h7HKpDhDt4D2GAY0fFVw7NPoyYk4=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",

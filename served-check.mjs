@@ -3534,6 +3534,194 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end pu-provenance-served ---- */
 
+/* ---- kuching-map ---- */
+/* THE KUCHING SCHEME MAP, AS SERVED (the owner's decision of 12 Oct 2026;
+   92-kuching-map.js, map-assets.mjs). A fetch that runs no script reads:
+   1. /property/areas/map served 200 with its own head and h1, and the area
+      screen's two views linked from both pages;
+   2. its list twin whole: every Kuching residential scheme in
+      data/map/kuching-schemes.json, once — each placed one with its
+      placement confidence (one of the map's two labels) and its evidence,
+      word for word, and the not placed under their reasons; and no NAPIC
+      figure in the served page (they come with the script, under each
+      scheme, and are never on the map);
+   3. the map's box with its attribution: "© OpenStreetMap contributors",
+      linked to openstreetmap.org/copyright;
+   4. no other site anywhere the map is made of: nothing the page loads, its
+      stylesheet's url()s, MapLibre's stylesheet, the style (every address a
+      path on this site, and its glyphs and sprites served from them), the
+      map's own code in the app (src/js/92-kuching-map.js) and the vendored
+      code (only the addresses reviewed in map-assets.mjs, none of which is
+      fetched) — the one off-site address in the page is the attribution's
+      link;
+   5. the policy every address is sent: one text, naming no origin but this
+      site's, and against the policy before the map exactly worker-src
+      'self' and blob: images added (connect-src 'self'); the vendored files
+      served with it, as JavaScript or CSS, nosniff, cached for their year;
+   6. the tile file content-named (kuching-<YYYYMMDD>.pmtiles, as the
+      manifest records), under 10MB, and answered in byte ranges (206);
+   7. no figure in any feature the map draws: kmFeatures (the drawn layers'
+      data, evaluated from the source over the placed schemes) holds a
+      scheme's name, method and confidence and nothing else. */
+{
+  const p = [], said = {};
+  const B = await import('./build.mjs');
+  const M = await import('./map-assets.mjs');
+  const all = B.allOf, attr = B.attrOf, cls = B.hasClass, sight = B.sightText;
+  const PATH = '/property/areas/map';
+  const doc = JSON.parse(read(M.SCHEMES_FILE));
+  const man = JSON.parse(read(M.MANIFEST_FILE));
+  const got = await getAll([PATH, '/property/areas']);
+  const r = got.get(PATH);
+  if (r.status !== 200) p.push(`${PATH}: ${described(r)}`);
+  else {
+    const head = headOf(r.body), want = expectHead(PATH);
+    for (const k of ['title', 'description', 'canonical']) if (head[k] !== want[k]) p.push(`${PATH}: its ${k} is ${JSON.stringify(head[k])}, not the router's ${JSON.stringify(want[k])}`);
+    const tree = B.htmlTree(r.body);
+    const views = all(tree).find(n => attr(n, 'id') === 'views');
+    const vt = views ? sight(views) : '';
+    const h1 = views ? all(views).filter(n => n.tag === 'h1') : [];
+    said.h1 = h1.length ? sight(h1[0]).trim() : null;
+    if (h1.length !== 1 || said.h1 !== 'Kuching scheme map') p.push(`${PATH}: #views serves ${h1.length} h1 ("${said.h1}"), not its own one`);
+    /* 2. The list twin. */
+    const items = views ? all(views).filter(n => cls(n, 'km-item')) : [];
+    said.items = items.length;
+    const byName = new Map(items.map(n => [attr(n, 'data-scheme')?.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'), n]));
+    if (items.length !== doc.schemes.length || byName.size !== doc.schemes.length) p.push(`${PATH}: the list serves ${items.length} schemes (${byName.size} names), where ${M.SCHEMES_FILE} holds ${doc.schemes.length}`);
+    const LABELS = { 'named-feature': 'Named in OpenStreetMap', 'lanes-named': 'Its lanes carry the name' };
+    let placed = 0;
+    for (const s of doc.schemes) {
+      const n = byName.get(s.scheme);
+      if (!n) { p.push(`${PATH}: the list does not serve “${s.scheme}”`); continue; }
+      const chip = all(n).find(x => cls(x, 'km-conf'));
+      const ev = all(n).find(x => cls(x, 'km-ev'));
+      if (s.status === 'placed') {
+        placed++;
+        if (!chip || sight(chip).trim() !== LABELS[s.confidence]) p.push(`${PATH}: placed “${s.scheme}” is served with ${chip ? `the label “${sight(chip).trim()}”` : 'no placement-confidence label'}, not “${LABELS[s.confidence]}”`);
+        if (!ev || sight(ev).replace(/\s+/g, ' ').trim() !== s.evidence.said) p.push(`${PATH}: placed “${s.scheme}” is served without its evidence (“${s.evidence.said.slice(0, 60)}…”)`);
+      } else if (chip) p.push(`${PATH}: “${s.scheme}” is not placed and is served with a placement label`);
+      const group = (() => { for (let c = n.parent; c; c = c.parent) if (cls(c, 'km-group')) return (B.classOf(c).match(/km-group-([a-z-]+)/) || [])[1]; return null; })();
+      const wantGroup = s.status === 'placed' ? 'placed' : s.status === 'not-a-place' ? 'not-a-place' : s.reason;
+      if (group !== wantGroup) p.push(`${PATH}: “${s.scheme}” is served under ${group || 'no group'}, not ${wantGroup}`);
+    }
+    said.placed = placed;
+    for (const [g, words] of [['weak', 'Not placed'], ['none', 'Not placed'], ['street', 'Not placed']]) {
+      const sec = all(views || tree).find(n => cls(n, `km-group-${g}`));
+      if (doc.schemes.some(s => s.reason === g) && (!sec || !sight(sec).includes(words))) p.push(`${PATH}: the not-placed group “${g}” is not served as “${words} …”`);
+    }
+    const figure = vt.match(/RM\s?\d[\d,]*/);
+    if (figure) p.push(`${PATH}: the served page holds a figure (“${figure[0]}”) — NAPIC's ranges come with the script, under each scheme, and none is on the map`);
+    /* 3. The attribution. */
+    const box = all(views || tree).find(n => attr(n, 'id') === 'km-box');
+    const credit = box ? all(box).find(n => cls(n, 'km-attrib')) : null;
+    const link = credit ? all(credit).find(n => n.tag === 'a') : null;
+    said.credit = credit ? sight(credit).replace(/\s+/g, ' ').trim() : null;
+    if (!box) p.push(`${PATH}: serves no map box (#km-box)`);
+    if (!credit || said.credit !== '© OpenStreetMap contributors' || attr(link, 'href') !== 'https://www.openstreetmap.org/copyright') p.push(`${PATH}: the map's attribution is ${said.credit ? `“${said.credit}”` : 'not served'}${link ? ` linked to ${attr(link, 'href')}` : ''}, not “© OpenStreetMap contributors” linked to https://www.openstreetmap.org/copyright`);
+    /* 4. No other site: what the page loads, and its anchors. */
+    const loads = [...r.body.matchAll(/<(?:script|img|iframe|source|video|audio|embed|track)\b[^>]*\b(?:src|srcset|poster)="([^"]*)"|<link\b[^>]*\bhref="([^"]*)"|url\(\s*['"]?([^'")]+)/gi)].map(m => m[1] || m[2] || m[3]);
+    const offLoads = loads.filter(u => /^(https?:)?\/\//i.test(u) && !u.startsWith(ORIGIN));
+    if (offLoads.length) p.push(`${PATH}: the page loads from another site: ${offLoads.join(', ')}`);
+    const viewsHtml = r.body.slice(r.body.indexOf('<div id="views"'), r.body.indexOf('<div class="disclosure"'));
+    const offLinks = [...viewsHtml.matchAll(/\bhref="((?:https?:)?\/\/[^"]+)"/g)].map(m => m[1]).filter(u => u !== 'https://www.openstreetmap.org/copyright' && !u.startsWith(ORIGIN));
+    if (offLinks.length) p.push(`${PATH}: #views links off the site beyond the attribution: ${offLinks.join(', ')}`);
+    const cssHref = (r.body.match(/<link rel="stylesheet" href="([^"]+)"/) || [])[1];
+    const css = cssHref ? (await get(cssHref)).body : '';
+    const cssOff = [...css.matchAll(/url\(\s*['"]?((?:https?:)?\/\/[^'")]+)|@import\s+(?:url\()?['"]?((?:https?:)?\/\/[^'")]+)/gi)].map(m => m[1] || m[2]);
+    if (!css) p.push(`${PATH}: its stylesheet ${cssHref} could not be read`);
+    if (cssOff.length) p.push(`the app's stylesheet loads from another site: ${cssOff.join(', ')}`);
+    const mlCss = await get(`/${M.VENDOR_ML}/maplibre-gl.css`);
+    const mlOff = [...mlCss.body.matchAll(/url\(\s*['"]?((?:https?:)?\/\/[^'")]+)/gi)].map(m => m[1]);
+    if (mlCss.status !== 200 || mlOff.length) p.push(`/${M.VENDOR_ML}/maplibre-gl.css: ${mlCss.status !== 200 ? described(mlCss) : `loads from another site: ${mlOff.join(', ')}`}`);
+    const mod = read('src/js/92-kuching-map.js');
+    const modUrls = M.urlsIn(mod).filter(u => u !== 'https://www.openstreetmap.org/copyright');
+    if (modUrls.length) p.push(`src/js/92-kuching-map.js names another site: ${modUrls.join(', ')}`);
+    for (const [f, allowed] of Object.entries(M.VENDOR_URLS)) {
+      const v = await get(`/${f}`);
+      if (v.status !== 200) { p.push(`/${f}: ${described(v)}`); continue; }
+      const extra = M.urlsIn(v.body).filter(u => !allowed.includes(u));
+      if (extra.length) p.push(`/${f} names ${extra.join(', ')}, not reviewed as never fetched (VENDOR_URLS, map-assets.mjs)`);
+      if (/\.(m?js)$/.test(f) && !/javascript/.test(v.type)) p.push(`/${f} is served as ${v.type}, not JavaScript (a module and a module worker refuse it)`);
+      if (/\.css$/.test(f) && !/text\/css/.test(v.type)) p.push(`/${f} is served as ${v.type}, not CSS`);
+      if (v.headers.get('cache-control') !== 'public, max-age=31536000, immutable') p.push(`/${f} is cached "${v.headers.get('cache-control')}", not for its year`);
+      if (v.headers.get('x-content-type-options') !== 'nosniff') p.push(`/${f} is not served nosniff`);
+      if (!v.headers.get('content-security-policy')) p.push(`/${f} is served no Content-Security-Policy (MapLibre's worker takes its policy from its own response)`);
+    }
+    /* The style, as the page asks for it, and the glyphs and sprites it names. */
+    for (const [flavor, f] of Object.entries(M.STYLE_FILES)) {
+      const v = DATA_VERSIONS[f.slice('data/'.length)];
+      if (!v) { p.push(`${f} has no version stamped in the app (DATA_VERSIONS)`); continue; }
+      const sr = await get(`/${f}?v=${v}`);
+      if (sr.status !== 200) { p.push(`/${f}: ${described(sr)}`); continue; }
+      let style = null;
+      try { style = JSON.parse(sr.body); } catch { p.push(`/${f} is not JSON`); continue; }
+      p.push(...M.styleProblems(style, { root: null, label: `/${f}`, tile: man.tiles.file, flavor }));
+      const glyph = style.glyphs.replace('{fontstack}', encodeURIComponent('Noto Sans Regular')).replace('{range}', '0-255');
+      for (const u of [glyph, `${style.sprite}.json`, `${style.sprite}.png`, `${style.sprite}@2x.json`, `${style.sprite}@2x.png`]) {
+        const g = await get(u);
+        if (g.status !== 200) p.push(`${u}, which /${f} names, is ${described(g)}`);
+      }
+      said.style = (said.style || 0) + 1;
+    }
+  }
+  /* 1b. The area screen links its two views. */
+  const ar = got.get('/property/areas');
+  for (const [at, res] of [[PATH, r], ['/property/areas', ar]]) {
+    const nav = /<nav class="km-views"[^>]*>([\s\S]*?)<\/nav>/.exec(res?.body || '')?.[1] || '';
+    if (!/href="\/property\/areas"[^>]*>Localities</.test(nav) || !/href="\/property\/areas\/map"[^>]*>Kuching scheme map</.test(nav)) p.push(`${at}: does not serve the area screen's two views as links (Localities, Kuching scheme map)`);
+  }
+  /* 5. The policy. */
+  const cspOf = (res) => res?.headers?.get('content-security-policy') || '';
+  const tileRel = man.tiles.file;
+  const sample = await getAll([`/${M.VENDOR_ML}/maplibre-gl-worker.mjs`]);
+  const policies = [cspOf(r), cspOf(ar), cspOf(sample.get(`/${M.VENDOR_ML}/maplibre-gl-worker.mjs`))];
+  if (policies.some(x => !x) || new Set(policies).size !== 1) p.push(`the map page, the area screen and MapLibre's worker are not sent one policy (${new Set(policies).size} different)`);
+  else {
+    const cfg = { headers: [{ source: PATH, headers: [{ key: 'Content-Security-Policy', value: policies[0] }] }, ...VERCEL.headers.filter(g => g.source === '/vendor/(.*)' || /^\/\(\(\?!data\//.test(g.source))] };
+    p.push(...B.mapCspProblems(cfg));
+    said.csp = Object.entries(B.CSP_MAP_ADDS).map(([k, v]) => `${k} +${v.join(' ')}`).join(', ');
+  }
+  /* 6. The tile file: its name, its size, its ranges. */
+  if (!/^data\/tiles\/kuching-\d{8}\.pmtiles$/.test(tileRel || '')) p.push(`the manifest's tile file ${tileRel} is not named kuching-<YYYYMMDD>.pmtiles`);
+  try {
+    const t = await fetch(`${BASE}/${tileRel}`, { headers: { Range: 'bytes=0-126' }, signal: AbortSignal.timeout(30000) });
+    const range = t.headers.get('content-range') || '';
+    const size = Number((range.match(/\/(\d+)$/) || [])[1]);
+    const body = Buffer.from(await t.arrayBuffer());
+    said.tile = `${tileRel}, ${(size / 1048576).toFixed(2)}MB`;
+    if (t.status !== 206) p.push(`/${tileRel} answered a byte range ${t.status}, not 206 — the map reads its tiles in ranges`);
+    if (!(size > 0) || size >= M.TILE_LIMIT) p.push(`/${tileRel} is ${size} bytes, not under 10MB`);
+    if (size !== man.files[tileRel]?.bytes) p.push(`/${tileRel} is ${size} bytes, where the manifest records ${man.files[tileRel]?.bytes}`);
+    if (body.subarray(0, 7).toString('latin1') !== 'PMTiles') p.push(`/${tileRel} does not start as a PMTiles archive`);
+    if (t.headers.get('cache-control') !== 'public, max-age=31536000, immutable') p.push(`/${tileRel} is cached "${t.headers.get('cache-control')}"`);
+  } catch (e) { p.push(`/${tileRel}: ${e.message}`); }
+  /* 7. No figure in the drawn layers' data. */
+  {
+    const src = read('src/js/92-kuching-map.js');
+    const at = src.indexOf('\nfunction kmFeatures(');
+    const end = src.indexOf('\n}\n', at);
+    const placedSchemes = B.kuchingMapData().schemes.filter(s => s.status === 'placed');
+    const vm = await import('node:vm');
+    const f = at < 0 ? null : vm.runInNewContext(`(${src.slice(at + 1, end + 2).replace(/^function kmFeatures\(schemes = kmPlaced\(\)\)/, 'function (schemes)')})`, {});
+    if (!f) p.push('src/js/92-kuching-map.js has no kmFeatures, the drawn layers\' data');
+    else {
+      const out = f(placedSchemes);
+      const feats = [...out.areas.features, ...out.points.features];
+      said.features = feats.length;
+      if (out.areas.features.length !== placedSchemes.length) p.push(`kmFeatures draws ${out.areas.features.length} areas for ${placedSchemes.length} placed schemes`);
+      for (const ft of feats) {
+        const keys = Object.keys(ft.properties).sort().join(',');
+        if (keys !== 'confidence,i,method,name') p.push(`a drawn feature carries ${keys}, not only its name, method and confidence`);
+        const text = JSON.stringify({ ...ft.properties, i: undefined });
+        if (/RM\s?\d|\d{1,3}(,\d{3})+|\bprice\b|\brent\b|observation/i.test(text)) p.push(`a drawn feature holds a figure: ${text}`);
+      }
+    }
+  }
+  judge(p, `${PATH} is served its own page (h1 "${said.h1}") with its list twin — ${said.items} schemes, ${said.placed} placed each with its confidence label and evidence, the rest under their reasons, no figure in the page — and the attribution "${said.credit}" linked to openstreetmap.org/copyright; no other site in the page, its stylesheet, MapLibre's, the ${said.style || 0} styles (glyphs and sprites served from their own paths), the map's code or the vendored code; one policy, adding only ${said.csp || '—'}; the tile file ${said.tile || '—'} answered in ranges; the ${said.features || 0} drawn features hold no figure`,
+    'the Kuching scheme map is not served as it must be: its list, its attribution, its files on this site alone, its policy or its tile file');
+}
+/* ---- end kuching-map ---- */
+
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);

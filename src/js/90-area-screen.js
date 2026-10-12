@@ -38,6 +38,9 @@ VIEWS.areas = () => {
   wrap.append(pageHead({ title: 'Area screen', lede: 'Localities in one town, shaded by what you have recorded about them.',
     note: 'Flood exposure is entered from a source you name; rents, vacancy and prices come from the comparables register. Nothing here is modelled, inferred or bought in — an area with '
       + 'no record is drawn hollow, because an unexamined area must never look like a safe one.' }));
+  /* Its two views (the owner's decision of 12 Oct 2026): these localities,
+     and the Kuching scheme map (92-kuching-map.js). */
+  wrap.append(areaViewsNav('areas'));
 
   const city = SARAWAK_CITIES.find(c => c.id === S.city) || SARAWAK_CITIES[0];
   const geoAreas = sarawakGeo?.cities?.[S.city]?.areas || {};

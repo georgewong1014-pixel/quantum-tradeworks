@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, scanner, return, records, registers, cases, settings, backup, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, map, scanner, return, records, registers, cases, settings, backup, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -2307,6 +2307,96 @@ const JOURNEYS = [
       });
     },
   },
+  {
+    /* ---- map ---- */
+    /* THE KUCHING SCHEME MAP (the owner's decision of 12 Oct 2026;
+       92-kuching-map.js). A fresh browser opens /property/areas/map: the
+       map, or — where the browser draws no WebGL2 on graphics hardware, as
+       a headless runner with no GPU — the locality diagram in its place,
+       saying why; the list of every scheme either way, and the attribution.
+       What the map draws holds no figure: each drawn feature a scheme's
+       name, method and confidence, and, the map drawn, every source and
+       layer on it. A placed scheme found in the list by its name, with its
+       confidence label, its evidence and NAPIC's rows under it (a single
+       observation said as one); shown, the panel names it and Escape gives
+       focus back; and opened in the Scenario Lab: the Lab's column moved to
+       the listed locality nearest it, a what-if — the calculator's deal and
+       the saved work unchanged. Nothing here depends on the clock, the time
+       zone, the locale or the font. */
+    id: 'map', name: 'Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab',
+    outcomes: ['Open the Kuching scheme map: the map or the locality diagram in its place, the list and the attribution',
+      'What the map draws holds no figure', 'Find a placed scheme in the list: its confidence, its evidence and NAPIC’s rows',
+      'Open the Scenario Lab from it: the column on the nearest listed locality, nothing written'],
+    async run(j, tab) {
+      let pick = null;
+      await step(j, tab, 'Open the Kuching scheme map: the map or the locality diagram in its place, the list and the attribution', BUDGET.load * 2, async () => {
+        await tab.goto('/property/areas/map');
+        await tab.expect(`State.view === 'areaMap' && typeof KM !== 'undefined'`, 'the map page did not open');
+        await tab.expect(`KM.mode === 'map' || (KM.mode === 'fallback' && !!document.querySelector('#km-canvas svg[data-city="kuching"]'))`,
+          async () => `the map neither drew nor fell back to the locality diagram: mode ${await tab.eval('KM.mode')}, “${await tab.eval(`document.getElementById('km-say')?.textContent || ''`)}”`, 30000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ mode: KM.mode, why: KM.why, say: document.getElementById('km-say')?.textContent || '',
+          items: document.querySelectorAll('#km-list .km-item').length, schemes: KM_DATA.schemes.length,
+          credit: (document.querySelector('#km-box .km-attrib')?.textContent || '').replace(/\\s+/g, ' ').trim(),
+          link: document.querySelector('#km-box .km-attrib a')?.getAttribute('href') || null })`));
+        if (r.items !== r.schemes || r.items < 100) throw new StepError(`the list holds ${r.items} schemes, where the map knows ${r.schemes}`);
+        if (r.credit !== '© OpenStreetMap contributors' || r.link !== 'https://www.openstreetmap.org/copyright') throw new StepError(`the map's attribution reads “${r.credit}” linked to ${r.link}`);
+        /* The fallback said honestly: why the diagram is drawn instead. */
+        if (r.mode === 'fallback' && !(r.why === 'webgl' ? /WebGL2/.test(r.say) : r.why === 'reduce' ? /reduced motion/.test(r.say) : /could not be drawn/.test(r.say)))
+          throw new StepError(`the diagram is drawn in the map's place (${r.why}) and the box says “${r.say}”`);
+        /* Which way it went, for the run's log (not the record). */
+        if (process.env.JOURNEY_VERBOSE) console.log(`          map: ${r.mode === 'map' ? 'drawn with WebGL2' : `the locality diagram in its place (${r.why})`}`);
+      });
+      await step(j, tab, 'What the map draws holds no figure', BUDGET.action, async () => {
+        const r = JSON.parse(await tab.eval(`(() => { const out = [];
+          const scan = (feats, where) => feats.forEach(f => { const p = { ...f.properties }; const keys = Object.keys(p).sort().join(',');
+            if (keys !== 'confidence,i,method,name') out.push(where + ': ' + keys); delete p.i;
+            if (/RM\\s?\\d|\\d{1,3}(,\\d{3})+|price|rent|observation/i.test(JSON.stringify(p))) out.push(where + ': ' + JSON.stringify(p)); });
+          const f = kmFeatures(); scan(f.areas.features, 'areas'); scan(f.points.features, 'points');
+          let layers = 0;
+          if (KM.mode === 'map' && KM.map) {
+            const style = KM.map.getStyle();
+            for (const [id, s] of Object.entries(style.sources)) if (id.startsWith('km-') && id !== 'km-heights' && s.data && typeof s.data === 'object') scan(s.data.features || [], id);
+            for (const l of style.layers.filter(l => l.id.startsWith('km-'))) { layers++; const tf = JSON.stringify(l.layout?.['text-field'] ?? null);
+              if (tf !== 'null' && tf !== JSON.stringify(['get', 'name'])) out.push(l.id + ' writes ' + tf); }
+          }
+          return JSON.stringify({ out, n: f.areas.features.length, layers }); })()`));
+        if (r.out.length) throw new StepError(`a drawn feature or layer carries more than a position: ${r.out.slice(0, 3).join(' | ')}`);
+        if (!r.n) throw new StepError('the map draws no placed scheme');
+      });
+      await step(j, tab, 'Find a placed scheme in the list: its confidence, its evidence and NAPIC’s rows', BUDGET.action * 3, async () => {
+        await tab.expect(`!!napicDoc('Kuching')`, 'NAPIC’s Kuching file never loaded', 20000);
+        pick = JSON.parse(await tab.eval(`JSON.stringify((() => { const s = KM_DATA.schemes.find(x => x.status === 'placed' && kmRowsOf(x.scheme).some(b => b.sampleSize === 1)) || KM_DATA.schemes.find(x => x.status === 'placed');
+          return { name: s.scheme, id: kmIdOf(s), near: s.nearest.name, said: s.said, single: kmRowsOf(s.scheme).some(b => b.sampleSize === 1) }; })())`));
+        await tab.fill(`document.getElementById('km-find')`, pick.name, 'Find a scheme');
+        await tab.expect(`(() => { const li = document.getElementById(${JSON.stringify(pick.id)}); return !!li && !li.hidden && [...document.querySelectorAll('#km-list .km-item')].filter(x => !x.hidden).length < KM_DATA.schemes.length; })()`,
+          'typing its name did not narrow the list to it');
+        const r = JSON.parse(await tab.eval(`(() => { const li = document.getElementById(${JSON.stringify(pick.id)});
+          return JSON.stringify({ chip: li.querySelector('.km-conf')?.textContent || '', ev: (li.querySelector('.km-ev')?.textContent || '').replace(/\\s+/g, ' ').trim(),
+            figs: [...li.querySelectorAll('.km-fig')].map(x => x.textContent.replace(/\\s+/g, ' ').trim()) }); })()`));
+        if (!/^(Named in OpenStreetMap|Its lanes carry the name)$/.test(r.chip)) throw new StepError(`“${pick.name}” carries the label “${r.chip}”, not a placement confidence`);
+        if (r.ev !== pick.said) throw new StepError(`“${pick.name}” is listed with the evidence “${r.ev.slice(0, 120)}”`);
+        if (!r.figs.length || !r.figs.every(t => /RM[\d,]+/.test(t))) throw new StepError(`NAPIC’s rows under “${pick.name}” read ${JSON.stringify(r.figs)}`);
+        if (pick.single && !r.figs.some(t => /1 observation in NAPIC’s H1 2025 sample/.test(t))) throw new StepError(`a single observation under “${pick.name}” is not said as one: ${JSON.stringify(r.figs)}`);
+        /* Shown: the panel names it, and Escape hands focus back. */
+        await tab.click(`document.getElementById(${JSON.stringify(`${pick.id}-show`)})`, `Show ${pick.name} on the map`);
+        await tab.expect(`KM.sel === ${JSON.stringify(pick.name)} && document.getElementById('km-panel-h')?.textContent === ${JSON.stringify(pick.name)} && document.activeElement?.id === 'km-panel-h'`,
+          async () => `the panel reads “${await tab.eval(`document.getElementById('km-panel-h')?.textContent`)}” with focus on ${await tab.eval('document.activeElement?.id || document.activeElement?.tagName')}`);
+        await tab.key('Escape');
+        await tab.expect(`KM.sel === null && document.activeElement?.id === ${JSON.stringify(`${pick.id}-show`)}`,
+          async () => `Escape left ${await tab.eval('KM.sel')} chosen, focus on ${await tab.eval('document.activeElement?.id || document.activeElement?.tagName')}`);
+      });
+      await step(j, tab, 'Open the Scenario Lab from it: the column on the nearest listed locality, nothing written', BUDGET.load + BUDGET.action, async () => {
+        const before = await tab.eval(`JSON.stringify([store.read('deal', null), store.read('savedWork', null), pmAll().length])`);
+        await tab.click(`document.getElementById(${JSON.stringify(`${pick.id}-lab`)})`, `Open the Scenario Lab on ${pick.near}`);
+        await tab.expect(`State.view === 'propertyLab' && typeof labSubject !== 'undefined' && !!LAB[labSubject] && labActive(LAB[labSubject]).work.district === ${JSON.stringify(pick.near)}`,
+          async () => `the Lab opened ${await tab.eval(`State.view === 'propertyLab' && LAB[labSubject] ? labActive(LAB[labSubject]).work.city + ' / ' + labActive(LAB[labSubject]).work.district : State.view`)}, not ${pick.near}`, 8000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ city: labActive(LAB[labSubject]).work.city, moves: labMoveCount(labActive(LAB[labSubject])) })`));
+        if (r.city !== 'kuching' || !(r.moves >= 1)) throw new StepError(`the Lab's column is in ${r.city} with ${r.moves} moves — the place should be a what-if`);
+        if (await tab.eval(`JSON.stringify([store.read('deal', null), store.read('savedWork', null), pmAll().length])`) !== before) throw new StepError('opening the scheme in the Lab wrote to the calculator’s deal or the saved work');
+      });
+    },
+  },
+  /* ---- end map ---- */
   {
     id: 'scanner', name: 'Scanner: build, save and evaluate a setup',
     /* Not the evaluate step: on the live site it passes by checking a

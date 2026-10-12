@@ -567,7 +567,7 @@ const TOOLS = [
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
-  { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
+  { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
     action: { label: 'Screen a town', path: '/property/areas' } },
@@ -1246,6 +1246,9 @@ const ROUTES = [
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
+  /* The area screen's second view: Kuching on a map of this site's own
+     files, the NAPIC schemes OpenStreetMap places on it (92-kuching-map.js). */
+  { path: '/property/areas/map',  view: 'areaMap',     title: 'Kuching scheme map' },
   /* The Scenario Lab (82-property-lab.js). Its ?model=, ?cols= and ?by= are
      read by the view itself, on arrival; no row of their own. */
   { path: '/property/lab',        view: 'propertyLab', title: 'Scenario Lab' },
@@ -1341,6 +1344,7 @@ const META = {
   propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
+  areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
   boundaries:  'What this product will not do, and why each of those absences is deliberate.',
   status:      'What is built, what is gated, and what is holding it.',
@@ -1946,7 +1950,7 @@ const SECTION_OF = {
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
-  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', propertyLab: 'property',
+  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', areaMap: 'property', propertyLab: 'property',
   propertyModels: 'property',
   /* A document of one saved property, not a tool of its own: Property's
      page with no tab current, as the decision record is. */
@@ -3056,6 +3060,9 @@ const SERVED_READS = {
      (P6). */
   propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons', 'propertyActuals'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
+  /* /property/areas/map: the schemes are the build's and the map the tab's;
+     the product's Start here panel is the one thing the reader's own. */
+  areaMap: ['startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
   tradingIndex: ['qttiPlan', 'savedWork', 'startHere'],
