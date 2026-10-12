@@ -19,7 +19,7 @@
 
    Files absent from this table are the licensed lane. They are git-ignored, they
    exist only on the reader's own machine, and they keep no-store. */
-const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"eb4d3e181987","sarawak-geo.json":"455742df447a","napic-h1-2025/betong.json":"11438103dd46","napic-h1-2025/bintulu.json":"bceb9666c79b","napic-h1-2025/kapit.json":"bc739c614958","napic-h1-2025/kuching.json":"abf25611ccca","napic-h1-2025/limbang.json":"9d49316c40cd","napic-h1-2025/miri.json":"8cd1b3334ae7","napic-h1-2025/mukah.json":"ce61c3969ee2","napic-h1-2025/samarahan.json":"b2a6af50ead8","napic-h1-2025/sarikei.json":"f1526a4e2977","napic-h1-2025/serian.json":"e9689e2a16bd","napic-h1-2025/sibu.json":"b12b30df8fc0","napic-h1-2025/sri-aman.json":"655ce5aaa079"};
+const DATA_VERSIONS = {"us.json":"a6357561dc5f","instruments.json":"eb4d3e181987","sarawak-geo.json":"455742df447a","map/style-light.json":"54dc229f0caa","map/style-dark.json":"4cb45334991f","map/kuching-heights.json":"643c73c7d0a5","napic-h1-2025/betong.json":"11438103dd46","napic-h1-2025/bintulu.json":"bceb9666c79b","napic-h1-2025/kapit.json":"bc739c614958","napic-h1-2025/kuching.json":"abf25611ccca","napic-h1-2025/limbang.json":"9d49316c40cd","napic-h1-2025/miri.json":"8cd1b3334ae7","napic-h1-2025/mukah.json":"ce61c3969ee2","napic-h1-2025/samarahan.json":"b2a6af50ead8","napic-h1-2025/sarikei.json":"f1526a4e2977","napic-h1-2025/serian.json":"e9689e2a16bd","napic-h1-2025/sibu.json":"b12b30df8fc0","napic-h1-2025/sri-aman.json":"655ce5aaa079"};
 
 /* ------------------------------------------------------------------ utils */
 const $  = (sel, root = document) => root.querySelector(sel);
@@ -3742,7 +3742,7 @@ const DATA_LICENCES = [
 
   { id: 'open-attrib', label: 'Open, with attribution', rank: 3,
     show: true, export: true, publish: true,
-    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap geocoding sits here, under ODbL.' },
+    note: 'Redistributable under an open licence provided the attribution travels with it. OpenStreetMap’s data sits here, under ODbL: the locality geocoding, and the Kuching map — its basemap, its scheme positions and its recorded building heights.' },
 
   /* Not exported. The row said it was, beside the data-sources page's own
      sentence that licence-pending records are "excluded from export and never
@@ -3821,6 +3821,24 @@ const SARAWAK_TRANSACTION_SOURCES = [
     use: 'Secondary cross-check.',
     licence: 'restricted',
     position: 'Terms permit analytics for internal use and prohibit constructing or redistributing a database.' },
+];
+
+/* ---- THE KUCHING MAP'S OWN FILES, AND WHAT EACH MAY BE (12 Oct 2026) ------
+   The map at /property/areas/map is drawn from this site's files only
+   (map-assets.mjs makes them; data/map/manifest.json records each one's
+   source and hash). Published on the data-sources page, so the attribution
+   the map carries in its corner has its full statement one link away. */
+const MAP_DATA_SOURCES = [
+  { name: 'The basemap of Greater Kuching', from: 'OpenStreetMap, as a Protomaps basemap extract (data/tiles/kuching-<date>.pmtiles)',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
+  { name: 'Where a NAPIC scheme is placed', from: 'OpenStreetMap names — a residential area, a place or a building named as the scheme, or lanes carrying its name — matched once, on a developer’s machine',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors. A few hundred names and positions, each with the object it rests on.' },
+  { name: 'The heights a tilted map raises', from: 'OpenStreetMap’s height tag on a building, in metres; nothing estimated',
+    licence: 'open-attrib', terms: 'ODbL 1.0 — © OpenStreetMap contributors' },
+  { name: 'The map’s drawing code', from: 'MapLibre GL JS and the pmtiles reader (with fflate inside it), served from this site',
+    licence: null, terms: 'BSD-3-Clause (MapLibre, pmtiles), MIT (fflate) — open-source code, not data' },
+  { name: 'Its style, lettering and symbols', from: 'A style made with @protomaps/basemaps, Noto Sans glyphs and Protomaps’ sprites, served from this site',
+    licence: null, terms: 'BSD-3-Clause (the style’s code; its design CC0), SIL Open Font License 1.1 (the glyphs), MIT (the sprites) — open-source, not data' },
 ];
 
 /* The questions that have to be answered before record-level NAPIC data can be
@@ -12604,7 +12622,7 @@ const TOOLS = [
   { id: 'lab', product: 'property', label: 'Scenario Lab', path: '/property/lab', views: ['propertyLab'], tab: true,
     status: 'beta', statusNote: 'Move price, deposit, rate, rent and renovation and every result is worked out again by the calculator’s own model; scenarios, not forecasts, and nothing ranked.',
     action: { label: 'Open the Scenario Lab', path: '/property/lab' } },
-  { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas'], tab: true,
+  { id: 'areas', product: 'property', label: 'Area screen', path: '/property/areas', views: ['areas', 'areaMap'], tab: true,
     status: 'live', statusNote: 'The localities of one town, shaded by what you have recorded about them; an area with no record is drawn hollow.',
     proof: { journey: 'registers', step: 'Record Tabuan’s flood exposure: its point is shaded, an unrecorded one stays hollow' },
     action: { label: 'Screen a town', path: '/property/areas' } },
@@ -13283,6 +13301,9 @@ const ROUTES = [
   { path: '/property/opportunities', view: 'opportunities', title: 'Opportunity register' },
   { path: '/property/comparables', view: 'comparables', title: 'Sarawak comparables register' },
   { path: '/property/areas',      view: 'areas',       title: 'Area screen' },
+  /* The area screen's second view: Kuching on a map of this site's own
+     files, the NAPIC schemes OpenStreetMap places on it (92-kuching-map.js). */
+  { path: '/property/areas/map',  view: 'areaMap',     title: 'Kuching scheme map' },
   /* The Scenario Lab (82-property-lab.js). Its ?model=, ?cols= and ?by= are
      read by the view itself, on arrival; no row of their own. */
   { path: '/property/lab',        view: 'propertyLab', title: 'Scenario Lab' },
@@ -13376,6 +13397,7 @@ const META = {
   propertyLab: 'Move five inputs and watch the repayment, cash required, cash flow, yield, break-even occupancy, value less loan and the rate of return follow, for up to three scenarios side by side. Arithmetic on your figures — not advice, not a valuation.',
   comparables: 'Sarawak transacted prices and achieved rents you have recorded, with what each one rests on.',
   areas:       'Localities in one town, shaded by what you have recorded about them. An area with no record is drawn hollow.',
+  areaMap:     'Kuching on a map made of this site’s own files, with the NAPIC housing schemes OpenStreetMap names placed on it — positions only, each with its evidence; NAPIC’s ranges stay in the list.',
   wheel:       'A cash-secured put and covered call cycle modelled from figures you enter — no chain data, no recommended contract.',
   boundaries:  'What this product will not do, and why each of those absences is deliberate.',
   status:      'What is built, what is gated, and what is holding it.',
@@ -13981,7 +14003,7 @@ const SECTION_OF = {
   userdata: 'userdata', plans: 'plans',
   researchHome: 'equities', research: 'equities', researchReport: 'equities', researchQueue: 'equities',
   discover: 'equities', compare: 'equities', sarawak: 'equities', wheel: 'equities',
-  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', propertyLab: 'property',
+  property: 'property', opportunities: 'property', comparables: 'property', areas: 'property', areaMap: 'property', propertyLab: 'property',
   propertyModels: 'property',
   /* A document of one saved property, not a tool of its own: Property's
      page with no tab current, as the decision record is. */
@@ -15091,6 +15113,9 @@ const SERVED_READS = {
      (P6). */
   propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons', 'propertyActuals'],
   areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
+  /* /property/areas/map: the schemes are the build's and the map the tab's;
+     the product's Start here panel is the one thing the reader's own. */
+  areaMap: ['startHere'],
   comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
   opportunities: ['opportunities', 'startHere'],
   tradingIndex: ['qttiPlan', 'savedWork', 'startHere'],
@@ -29047,7 +29072,7 @@ VIEWS.privacy = () => {
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
-        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
+        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, and its drawing code, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
         tp('Each request reaches the company that hosts this site, Vercel, carrying what every web request carries: your IP address, your browser’s name and version, and the address requested. This build does not read or keep those requests; what the host records about them, and for how long, is governed by the host’s own terms.'),
         tp('Some pages keep what is on screen in their address, so that a copied link reproduces it. The property calculator writes the deal’s figures there — the price, the rent and the other inputs you changed, never the borrower profile. An address reaches the host only when a page is loaded with it: a reload, or a link someone opens.'),
         tagged
@@ -31576,6 +31601,31 @@ function learnData() {
   ].forEach(x => nx.append(el('li', {}, x)));
   nap.append(nx);
   wrap.append(nap);
+
+  /* THE KUCHING MAP'S OWN FILES (the owner's decision of 12 Oct 2026;
+     MAP_DATA_SOURCES, 19-data-licence.js): what the map at
+     /property/areas/map is drawn from, under what terms — the full
+     statement of the attribution in its corner. */
+  const mp = el('section', { class: 'card', id: 'map-data', style: 'margin-bottom:var(--md)', 'aria-labelledby': 'map-data-h' });
+  mp.append(el('div', { class: 'card-hd' }, el('div', {}, [
+    el('h2', { class: 'h-card', id: 'map-data-h' }, 'The Kuching map’s own files'),
+    el('p', { class: 'caption', style: 'margin-top:2px;max-width:60ch' }, 'The Kuching scheme map is drawn from files this site serves itself — no tile server, font server or account. Its map data is OpenStreetMap’s, © OpenStreetMap contributors, under the Open Database Licence.'),
+  ])));
+  const mt = el('table', { class: 'dt' });
+  mt.append(el('thead', {}, el('tr', {}, ['What', 'From', 'Terms'].map(h => el('th', { style: 'text-align:left' }, h)))));
+  mt.append(el('tbody', {}, MAP_DATA_SOURCES.map(m => el('tr', {}, [
+    el('th', { scope: 'row', style: 'text-align:left;white-space:normal' }, m.name),
+    el('td', { class: 'caption', style: 'text-align:left;white-space:normal' }, m.from),
+    el('td', { style: 'text-align:left;white-space:normal' }, [
+      m.licence ? el('span', { class: 'chip', title: LICENCE_BY_ID[m.licence].note }, LICENCE_BY_ID[m.licence].label) : el('span', { class: 'chip' }, 'Open-source code'),
+      el('span', { class: 'caption', style: 'display:block;margin-top:4px' }, m.terms),
+    ]),
+  ]))));
+  mp.append(el('div', { class: 'tablewrap', style: 'margin-top:var(--md)' }, mt));
+  mp.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, [
+    'OpenStreetMap’s copyright and licence: ', el('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener noreferrer' }, 'openstreetmap.org/copyright'),
+    '. NAPIC’s figures are not part of the map: they stay in its list, under each scheme, as on the area screen.']));
+  wrap.append(mp);
 
   /* The licence ladder itself, because it is new and orthogonal to the evidence
      ladder a reader already knows. */
@@ -35071,7 +35121,7 @@ async function loadSarawakLayers() {
   geoLoadState = sarawakGeo ? 'done' : 'failed';
   /* Both views that draw localities, or the second one paints an empty map
      forever: the fetch resolves, the flag flips, and nothing asks again. */
-  if (State.view === 'property' || State.view === 'areas') render();
+  if (State.view === 'property' || State.view === 'areas' || State.view === 'areaMap') render();
 }
 
 /* THE CONTROL IN USE SURVIVES A REDRAW THE READER DID NOT ASK FOR.
@@ -35578,7 +35628,11 @@ function cityMapHold(cityId, waiting) {
     el('p', { class: 'caption map-hold-say',
       'data-now': 'The map is drawn by this page’s script, from the locality positions it loads; the table below is the same without it.' }, waiting));
 }
-function cityMap(cityId, selectedArea, onPick, paint) {
+/* label: what the diagram is said to be where it stands for something else
+   — the Kuching scheme map's fallback (92-kuching-map.js), under which no
+   table of localities is listed; maxH: the room it has there, a box of the
+   map's fixed height under a line of words (its points keep their 44px). */
+function cityMap(cityId, selectedArea, onPick, paint, { label = null, maxH = null } = {}) {
   const city = sarawakGeo?.cities?.[cityId];
   const areas = Object.entries(city?.areas || {});
   const host = el('div', { style: 'width:100%' });
@@ -35593,7 +35647,8 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     const focusBack = held && host.contains(held) && held.dataset?.area ? held.dataset.area
       : cityMapFocus && cityMapFocus.city === cityId ? cityMapFocus.name : null;
     cityMapFocus = null;
-    const { pad, maxH: MAXH, minH } = CITY_MAP_BOX;
+    const { pad, minH } = CITY_MAP_BOX;
+    const MAXH = maxH ? Math.max(minH, Math.min(CITY_MAP_BOX.maxH, maxH)) : CITY_MAP_BOX.maxH;
     const { kx, x0, x1, y0, y1, spanX, spanY } = cityMapSpan(areas);
     /* One scale for both axes — a map with two is not a map — with the height
        following from the data rather than a chosen ratio, so a city that is
@@ -35629,7 +35684,7 @@ function cityMap(cityId, selectedArea, onPick, paint) {
     svg.setAttribute('tabindex', '0');
     svg.classList.add('chart-focusable');
     svg.setAttribute('aria-label',
-      `Relative positions of ${areas.length} areas in ${city.name}. The table below lists the same information.`);
+      label || `Relative positions of ${areas.length} areas in ${city.name}. The table below lists the same information.`);
 
     const mk = (n, attrs = {}) => { const e = document.createElementNS(NS, n);
       for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
@@ -45917,6 +45972,11 @@ const CAPABILITY_REGISTER = [
      caption says it has no basemap, road or boundary. */
   { name:'Locality diagram and area observations', status:'maintenance', path:'/property/areas',
     now:'8 locality points per town, relative positions with per-point match confidence (ODbL); no basemap, no scheme or building positions.' },
+  /* The area screen's second view (the owner's decision of 12 Oct 2026;
+     92-kuching-map.js): a preview, positions only. */
+  { name:'Kuching scheme map', status:'beta', path:'/property/areas/map',
+    now:'Greater Kuching drawn from this site’s own map files (OpenStreetMap, ODbL), with the NAPIC residential schemes an OpenStreetMap name places, each with its evidence and how sure it is; NAPIC’s ranges stay in the list beside it.',
+    gate:'Most schemes are not placed: OpenStreetMap names them only in part or not at all, and a weak match waits on review. No figure is drawn on the map; a scheme is a neighbourhood, never a building; heights only where OpenStreetMap records one.' },
   { name:'Discover and screener', status:'maintenance', path:'/discover/screener',
     now:'Reproducible filters, cohort medians and a reporting-currency selector.' },
   /* The explorer and the brief's paths were a row of their own in the brief
@@ -47145,8 +47205,10 @@ function loadNapic(division) {
     } catch { /* absent is a normal state and the panel says so */ }
     entry.state = entry.doc ? 'done' : 'failed';
     napicStatus.ok = !!entry.doc;
-    /* The panel is drawn on the area screen only; it said "loading" there. */
-    if (State.view === 'areas') render();
+    /* The panel is drawn on the area screen; it said "loading" there. And
+       the Kuching scheme map draws each scheme's rows from its division's
+       file (92-kuching-map.js). */
+    if (State.view === 'areas' || State.view === 'areaMap') render();
     return entry.doc;
   })();
   return entry.ready;
@@ -50962,6 +51024,17 @@ VIEWS.propertyLab = () => {
      flow.js): the comparison or the Save, once the page is up. */
   const go = State.labGoTo;
   if (go) { State.labGoTo = null; setTimeout(() => labGoTo(go), 0); }
+  /* A placed scheme of the Kuching map, opened here (92-kuching-map.js): the
+     active column moved to the listed locality nearest it — a what-if of
+     that column, as any move here, nothing written until Save. */
+  const place = State.labPlace;
+  if (place) {
+    State.labPlace = null;
+    setTimeout(() => {
+      const r = labOpen({ kind: 'place', city: place.city, district: place.district });
+      if (r.ok) toast(`${place.scheme}: the column is now in ${r.district}, ${townName(place.city)} — the listed locality nearest the scheme, a what-if until you save.`);
+    }, 0);
+  }
   return wrap;
 };
 /* "USE IT IN A SCENARIO" (the guided evidence flow, the owner's decision of
@@ -59658,8 +59731,8 @@ const PF_STEPS = [
   { id: 'compare', label: 'Compare' },
   { id: 'save', label: 'Save' },
 ];
-const PF_STEP_OF = { areas: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
-const PF_EXPLORE_PATH = { areas: '/property/areas', comparables: '/property/comparables', opportunities: '/property/opportunities' };
+const PF_STEP_OF = { areas: 'explore', areaMap: 'explore', comparables: 'explore', opportunities: 'explore', propertyLab: 'analyse', property: 'analyse', propertyModels: 'save' };
+const PF_EXPLORE_PATH = { areas: '/property/areas', areaMap: '/property/areas/map', comparables: '/property/comparables', opportunities: '/property/opportunities' };
 /* The explore page last visited, this tab: where Explore goes back to. */
 let pfExplore = '/property/opportunities';
 
@@ -59799,6 +59872,9 @@ VIEWS.areas = () => {
   wrap.append(pageHead({ title: 'Area screen', lede: 'Localities in one town, shaded by what you have recorded about them.',
     note: 'Flood exposure is entered from a source you name; rents, vacancy and prices come from the comparables register. Nothing here is modelled, inferred or bought in — an area with '
       + 'no record is drawn hollow, because an unexamined area must never look like a safe one.' }));
+  /* Its two views (the owner's decision of 12 Oct 2026): these localities,
+     and the Kuching scheme map (92-kuching-map.js). */
+  wrap.append(areaViewsNav('areas'));
 
   const city = SARAWAK_CITIES.find(c => c.id === S.city) || SARAWAK_CITIES[0];
   const geoAreas = sarawakGeo?.cities?.[S.city]?.areas || {};
@@ -61583,7 +61659,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same
@@ -62426,6 +62502,554 @@ function healthSection() {
   requestAnimationFrame(healthPaint);
   return card;
 }
+/* ==========================================================================
+   THE KUCHING SCHEME MAP — /property/areas/map (the owner's decision of
+   12 Oct 2026; the feasibility study of 3 Oct, kuching-map-feasibility.md)
+   --------------------------------------------------------------------------
+   A second view of the area screen: Greater Kuching on a map drawn from this
+   site's own files, and on it the NAPIC housing schemes OpenStreetMap lets
+   us place. What it is, and what it refuses to be:
+
+   EVERY FILE IS THIS SITE'S. The basemap is one Protomaps extract of Greater
+   Kuching (data/tiles/kuching-<date>.pmtiles, OpenStreetMap data), read in
+   byte ranges; the style, the glyphs and the sprites are under data/map/;
+   MapLibre GL JS and the pmtiles reader are vendored under vendor/ and
+   loaded by this page only, when the map is drawn (map-assets.mjs makes and
+   records all of them). A reader's browser asks this site for the map and
+   nothing else: the policy it is served with (vercel.json) adds only
+   worker-src 'self' and blob: images, and connect-src stays 'self'.
+
+   POSITIONS, NEVER PRICES. A scheme is placed only on an exact OpenStreetMap
+   name — a residential area, a place or a building named as NAPIC names
+   the scheme — or on lanes carrying its name, and it is drawn at the scale
+   of that evidence: a neighbourhood round the named area or the lanes,
+   never a pin on a house. Each placed scheme says how it was placed (its
+   confidence) and on what (its evidence). Nothing on the map carries a
+   figure: NAPIC's observed ranges stay in the list, under each scheme,
+   where a single observation says it is one ("1 observation in NAPIC's
+   H1 2025 sample") — D7's rule until JPPH answers. A scheme with only a
+   partial match, or none, is listed as not placed, with its figures, and
+   none is guessed (the owner reviews the weak ones from a sheet).
+
+   2D FIRST. Tilting raises only the buildings OpenStreetMap records a
+   height for (data/map/kuching-heights.json); every other building is
+   drawn flat, and the legend says flat does not mean single-storey.
+
+   THE LIST IS THE PRIMARY PATH. The map is a canvas a screen reader cannot
+   read and a keyboard can only pan, so the list beside it carries every
+   scheme — its position, its evidence, its figures — with "Show on the
+   map" and, for a placed scheme, "Open the Scenario Lab" on the listed
+   Kuching locality nearest it: a what-if of the Lab's column, nothing
+   written until Save (labOpen, 82-property-lab.js).
+
+   THE FALLBACK IS THE LOCALITY DIAGRAM (cityMap, 70-property.js): drawn
+   where the browser offers no WebGL2 (or only a software renderer), and
+   where the reader asks their device for reduced motion or reduced data —
+   with a button to draw the interactive map all the same.
+
+   SERVED AS DRAWN. The page is served as its first draw (prerender.mjs):
+   the map's box, its attribution, the legend, the panel and the list. The
+   map is drawn into the box after the script — the box keeps its height
+   (styles.css, kuching-map), and what it says while it loads is the tab's,
+   now (data-now). NAPIC's figures arrive with the division's file and are
+   drawn under each scheme then; they are never in the served page.
+   ========================================================================== */
+/* What the build stamps in (build.mjs, kuchingMapData): the schemes and
+   where each is placed, from data/map/kuching-schemes.json, and the map's
+   files by their addresses on this site. */
+const KM_DATA = {"bbox":[110.18,1.35,110.48,1.66],"build":"20261012","tileAsOf":"12 Oct 2026","osmAsOf":"12 Oct 2026","period":"H1 2025","vendor":{"maplibre":"vendor/maplibre-gl-6.11.2","pmtiles":"vendor/pmtiles-4.5.0/pmtiles.js"},"styles":{"light":"map/style-light.json","dark":"map/style-dark.json"},"heights":{"file":"map/kuching-heights.json","count":78},"tally":{"placed":39,"not-a-place":3,"not-placed:none":168,"not-placed:weak":52,"not-placed:street":6},"schemes":[{"scheme":"Ava Grove","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.31361,1.5382],"radius":240,"said":"OpenStreetMap names a residential area “Ava Grove” (way/1314569880).","osm":["way/1314569880"],"nearest":{"name":"City centre","km":4.3}},{"scheme":"Desa Wira","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.30293,1.50526],"radius":800,"said":"34 OpenStreetMap lanes carry the scheme’s name (“Lorong Desa Wira 17A2”, “Lorong Desa Wira 9”, “Lorong Desa Wira 5E” …); the mark is the middle of those lanes, 1018 m to the farthest.","osm":["way/172044744","way/172044754","way/829877536"],"nearest":{"name":"Batu Kawa","km":3.9}},{"scheme":"Gala Residences","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.35409,1.51126],"radius":150,"said":"OpenStreetMap names a building “Gala Residences” (way/1238779810).","osm":["way/1238779810"],"nearest":{"name":"Stutong","km":3}},{"scheme":"Hua Joo Park","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.33798,1.51579],"radius":420,"said":"12 OpenStreetMap lanes carry the scheme’s name (“Lorong Hua Joo Park 6”, “Lorong Hua Joo Park 8A1”, “Lorong Hua Joo Park 8A” …); the mark is the middle of those lanes, 324 m to the farthest.","osm":["way/172047012","way/172047030","way/172047047"],"nearest":{"name":"Stutong","km":4.8}},{"scheme":"Kampung Bintawa","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.38327,1.56872],"radius":400,"said":"OpenStreetMap names a residential area “Kampung Bintawa” (way/1536915247).","osm":["way/1536915247"],"nearest":{"name":"Petra Jaya","km":3.6}},{"scheme":"Kampung Cemerlang","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.35086,1.50034],"radius":300,"said":"2 OpenStreetMap lanes carry the scheme’s name (“Lorong Kampung Cemerlang 1”, “Lorong Kampung Cemerlang 9”); the mark is the middle of those lanes, 118 m to the farthest.","osm":["way/274929014","way/274929082"],"nearest":{"name":"Stutong","km":3.3}},{"scheme":"Kampung Haji Baki","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.32032,1.47373],"radius":300,"said":"OpenStreetMap names a village “Kampung Haji Baki” (node/13889785391), and 1 more feature of that name within 1 km.","osm":["node/13889785391","node/13889785391"],"nearest":{"name":"Batu Kawa","km":7.1}},{"scheme":"Kampung Pinang Jawa","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.31175,1.5536],"radius":800,"said":"10 OpenStreetMap lanes carry the scheme’s name (“Jalan Pinang Jawa”, “Lorong Pinang Jawa 6”, “Lorong Pinang Jawa 5”); the mark is the middle of those lanes, 810 m to the farthest.","osm":["way/171961729","way/637592639","way/637592640"],"nearest":{"name":"City centre","km":3.8}},{"scheme":"Kampung Rantau Panjang","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.26932,1.50255],"radius":300,"said":"1 OpenStreetMap lane carries the scheme’s name (“Jalan Kampung Rantau Panjang”); the mark is the middle of that lane.","osm":["way/256956381"],"nearest":{"name":"Batu Kawa","km":1}},{"scheme":"Kampung Semariang Batu","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.32855,1.60162],"radius":320,"said":"3 OpenStreetMap lanes carry the scheme’s name (“Lorong Semariang Batu 2A”, “Jalan Semariang Batu”, “Lorong Semariang Batu 2B”); the mark is the middle of those lanes, 224 m to the farthest.","osm":["way/172031513","way/172031534","way/172031783"],"nearest":{"name":"Petra Jaya","km":4.2}},{"scheme":"Kampung Siol Kandis","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.35919,1.57468],"radius":340,"said":"2 OpenStreetMap lanes carry the scheme’s name (“Jalan Kampung Siol Kandis”); the mark is the middle of those lanes, 237 m to the farthest.","osm":["way/129613880","way/739569822"],"nearest":{"name":"Petra Jaya","km":1}},{"scheme":"Kuching City Mall","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.30312,1.49697],"radius":800,"said":"12 OpenStreetMap lanes carry the scheme’s name (“Jalan Kuching City Mall West”, “Lorong Kuching City Mall 2”, “Lorong Kuching City Mall 4” …); the mark is the middle of those lanes, 719 m to the farthest.","osm":["way/540969671","way/641558187","way/831376563"],"nearest":{"name":"Batu Kawa","km":4.2}},{"scheme":"Matang Jaya","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.29913,1.57882],"radius":800,"said":"56 OpenStreetMap lanes carry the scheme’s name (“Jalan Matang Jaya”, “Lorong Matang Jaya 9B2”, “Lorong Matang Jaya 2A2” …); the mark is the middle of those lanes, 820 m to the farthest.","osm":["way/172038672","way/1364411326","way/172038689"],"nearest":{"name":"Matang","km":5.4}},{"scheme":"My Residence","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.31368,1.49837],"radius":330,"said":"6 OpenStreetMap lanes carry the scheme’s name (“Lorong My Residence 8”, “Lorong My Residence 3”, “Lorong My Residence 4” …); the mark is the middle of those lanes, 234 m to the farthest.","osm":["way/172044720","way/172044896","way/172044939"],"nearest":{"name":"Batu Kawa","km":5.2}},{"scheme":"Poh Kwong Park","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.32907,1.53945],"radius":300,"said":"1 OpenStreetMap lane carries the scheme’s name (“Jalan Poh Kwong Park”); the mark is the middle of that lane.","osm":["way/72558832"],"nearest":{"name":"City centre","km":2.9}},{"scheme":"Residensi Bintawa Riverfront (PR1MA Bintawa)","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.37481,1.57272],"radius":270,"said":"OpenStreetMap names a residential area “Residensi Bintawa Riverfront” (way/1536915245), and 1 more feature of that name within 1 km.","osm":["node/14000663511","way/1536915245"],"nearest":{"name":"Petra Jaya","km":2.6}},{"scheme":"Riverbank Suites","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.35184,1.55851],"radius":150,"said":"OpenStreetMap names a building “Riverbank Suites” (way/244904728).","osm":["way/244904728"],"nearest":{"name":"City centre","km":0.7}},{"scheme":"Rose Garden","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.333,1.52149],"radius":300,"said":"1 OpenStreetMap lane carries the scheme’s name (“Jalan Rose Garden”); the mark is the middle of that lane.","osm":["way/172039177"],"nearest":{"name":"City centre","km":4.5}},{"scheme":"RPR Batu Kawa","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.31877,1.51943],"radius":720,"said":"22 OpenStreetMap lanes carry the scheme’s name (“Jalan RPR Batu Kawa”, “Lorong RPR Batu Kawa 26”, “Lorong RPR Batu Kawa 6” …); the mark is the middle of those lanes, 619 m to the farthest.","osm":["way/172038678","way/172038700","way/172038727"],"nearest":{"name":"City centre","km":5.4}},{"scheme":"Semaba Park","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.32092,1.48294],"radius":300,"said":"2 OpenStreetMap lanes carry the scheme’s name (“Lorong Semaba Park 7”, “Lorong Semaba Park 3”); the mark is the middle of those lanes, 53 m to the farthest.","osm":["way/629975441","way/629975601"],"nearest":{"name":"Batu Kawa","km":6.6}},{"scheme":"Seng Goon Garden","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.33607,1.51137],"radius":300,"said":"1 OpenStreetMap lane carries the scheme’s name (“Jalan Seng Goon Garden”); the mark is the middle of that lane.","osm":["way/462691693"],"nearest":{"name":"Stutong","km":4.9}},{"scheme":"Tabuan Dayak","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.36142,1.52528],"radius":610,"said":"19 OpenStreetMap lanes carry the scheme’s name (“Jalan Tabuan Dayak”, “Lorong Tabuan Dayak 10”, “Lorong Tabuan Dayak 2” …); the mark is the middle of those lanes, 509 m to the farthest.","osm":["way/172025459","way/644880242","way/644880243"],"nearest":{"name":"Stutong","km":3.1}},{"scheme":"Tabuan Park","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.38808,1.5346],"radius":340,"said":"16 OpenStreetMap lanes carry the scheme’s name (“Lorong Tabuan Park 2B”, “Lorong Tabuan Park 2C”, “Lorong Tabuan Park 2A2” …); the mark is the middle of those lanes, 244 m to the farthest.","osm":["way/172028160","way/172028175","way/172028193"],"nearest":{"name":"Tabuan","km":1.8}},{"scheme":"Tabuan Tranquility","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.39104,1.52355],"radius":750,"said":"3 OpenStreetMap lanes carry the scheme’s name (“Jalan Tabuan Tranquility”, “Lorong Tabuan Tranquility 9B”); the mark is the middle of those lanes, 645 m to the farthest.","osm":["way/437403742","way/669370105","way/462705956"],"nearest":{"name":"Tabuan","km":0.5}},{"scheme":"Taman Heng Guan","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.2713,1.57124],"radius":250,"said":"OpenStreetMap names a residential area “Taman Heng Guan” (way/1393601705).","osm":["way/1393601705"],"nearest":{"name":"Matang","km":2.4}},{"scheme":"Taman Hillside","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.24197,1.57515],"radius":300,"said":"OpenStreetMap names a neighbourhood “Taman Hillside” (node/13854932425).","osm":["node/13854932425"],"nearest":{"name":"Matang","km":1}},{"scheme":"Taman Hui Sing","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.34437,1.51174],"radius":670,"said":"29 OpenStreetMap lanes carry the scheme’s name (“Bulatan Taman Hui Sing”, “Jalan Taman Hui Sing”, “Lorong Taman Hui Sing 7” …); the mark is the middle of those lanes, 567 m to the farthest.","osm":["way/68024679","way/68024681","way/637472255"],"nearest":{"name":"Stutong","km":4}},{"scheme":"Taman Lee Ling","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.30128,1.57119],"radius":450,"said":"15 OpenStreetMap lanes carry the scheme’s name (“Lorong Lee Ling 3”, “Lorong Lee Ling 4”, “Lorong Lee Ling 1D” …); the mark is the middle of those lanes, 349 m to the farthest.","osm":["way/172038731","way/172038793","way/172038806"],"nearest":{"name":"City centre","km":5.1}},{"scheme":"Taman Matang Bersinar","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.28169,1.57579],"radius":150,"said":"OpenStreetMap names a residential area “Taman Matang Bersinar” (way/1393601699).","osm":["way/1393601699"],"nearest":{"name":"Matang","km":3.5}},{"scheme":"Taman Matang Jaya","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.29913,1.57882],"radius":800,"said":"56 OpenStreetMap lanes carry the scheme’s name (“Jalan Matang Jaya”, “Lorong Matang Jaya 9B2”, “Lorong Matang Jaya 2A2” …); the mark is the middle of those lanes, 820 m to the farthest.","osm":["way/172038672","way/1364411326","way/172038689"],"nearest":{"name":"Matang","km":5.4}},{"scheme":"Taman Muara Tabuan","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.39598,1.524],"radius":510,"said":"24 OpenStreetMap lanes carry the scheme’s name (“Lorong Muara Tabuan 2”, “Lorong Muara Tabuan 4B”, “Lorong Muara Tabuan 4C” …); the mark is the middle of those lanes, 410 m to the farthest.","osm":["way/172052320","way/462706789","way/172052324"],"nearest":{"name":"Tabuan","km":0.8}},{"scheme":"Taman Palma Indah","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.23731,1.58739],"radius":800,"said":"6 OpenStreetMap lanes carry the scheme’s name (“Jalan Palma Indah”, “Lorong Palma Indah 1”, “Lorong Palma Indah 10B” …); the mark is the middle of those lanes, 738 m to the farthest.","osm":["way/397747905","way/637472422","way/397747957"],"nearest":{"name":"Matang","km":1.9}},{"scheme":"Taman Riverview","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.37826,1.57295],"radius":240,"said":"OpenStreetMap names a residential area “Taman Riverview” (way/1536915246), and 1 more feature of that name within 1 km.","osm":["node/14000663535","way/1536915246"],"nearest":{"name":"Petra Jaya","km":3}},{"scheme":"Taman Stutong Indah","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.38449,1.51991],"radius":300,"said":"OpenStreetMap names a locality “Taman Stutong Indah” (node/2097460050).","osm":["node/2097460050"],"nearest":{"name":"Tabuan","km":0.8}},{"scheme":"Taman Suria Jaya","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.27059,1.57525],"radius":300,"said":"OpenStreetMap names a residential area “Taman Suria Jaya” (way/1393601701).","osm":["way/1393601701"],"nearest":{"name":"Matang","km":2.2}},{"scheme":"Taman Syn Syn","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.30507,1.57331],"radius":300,"said":"3 OpenStreetMap lanes carry the scheme’s name (“Lorong Taman Syn Syn 1B1”, “Lorong Taman Syn Syn 1A”, “Lorong Taman Syn Syn 2”); the mark is the middle of those lanes, 121 m to the farthest.","osm":["way/349683895","way/349683896","way/349683900"],"nearest":{"name":"City centre","km":4.7}},{"scheme":"Taman Yen Yen","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.29679,1.57088],"radius":420,"said":"14 OpenStreetMap lanes carry the scheme’s name (“Lorong Taman Yen Yen 1C”, “Lorong Taman Yen Yen 2A4”, “Lorong Taman Yen Yen 2A2” …); the mark is the middle of those lanes, 319 m to the farthest.","osm":["way/172038692","way/172038784","way/172038786"],"nearest":{"name":"Matang","km":5.2}},{"scheme":"The Podium","status":"placed","method":"osm-named","confidence":"named-feature","centre":[110.33598,1.52839],"radius":160,"said":"OpenStreetMap names a building “The Podium” (way/560629409).","osm":["way/560629409"],"nearest":{"name":"City centre","km":3.6}},{"scheme":"Three Hills Park","status":"placed","method":"osm-lanes","confidence":"lanes-named","centre":[110.37231,1.54654],"radius":560,"said":"7 OpenStreetMap lanes carry the scheme’s name (“Lorong Three Hills Park 2”, “Jalan Three Hills Park”, “Lorong Three Hills Park 14” …); the mark is the middle of those lanes, 458 m to the farthest.","osm":["way/171966656","way/171966668","way/1362528674"],"nearest":{"name":"City centre","km":3.3}},{"scheme":"1st Floor","status":"not-a-place"},{"scheme":"2nd Floor","status":"not-a-place"},{"scheme":"3rd Floor","status":"not-a-place"},{"scheme":"72 Residences","status":"not-placed","reason":"none"},{"scheme":"Aik Ho Park","status":"not-placed","reason":"none"},{"scheme":"Alyvia Residence @ The Northbank","status":"not-placed","reason":"none"},{"scheme":"Aurora Height","status":"not-placed","reason":"none"},{"scheme":"Bawang Height's","status":"not-placed","reason":"weak"},{"scheme":"Beverly Height's","status":"not-placed","reason":"weak"},{"scheme":"Bong Chin Terrace","status":"not-placed","reason":"none"},{"scheme":"Borneo Samariang Garden","status":"not-placed","reason":"none"},{"scheme":"Borneo Samariang Resort City","status":"not-placed","reason":"none"},{"scheme":"Bowood Garden","status":"not-placed","reason":"weak"},{"scheme":"Central Avenue","status":"not-placed","reason":"none"},{"scheme":"Country Hill","status":"not-placed","reason":"none"},{"scheme":"D-Everglades","status":"not-placed","reason":"none"},{"scheme":"D-Everglades 2","status":"not-placed","reason":"none"},{"scheme":"D'Infinia Residences","status":"not-placed","reason":"none"},{"scheme":"D'Jewel","status":"not-placed","reason":"none"},{"scheme":"De Summit","status":"not-placed","reason":"weak"},{"scheme":"De Summit Condominium","status":"not-placed","reason":"weak"},{"scheme":"Demak Baru","status":"not-placed","reason":"none"},{"scheme":"Eden height's Condominiums","status":"not-placed","reason":"none"},{"scheme":"Eden Heights","status":"not-placed","reason":"none"},{"scheme":"Esco Ville","status":"not-placed","reason":"none"},{"scheme":"Everbright Jaya","status":"not-placed","reason":"none"},{"scheme":"Evergreen Height's","status":"not-placed","reason":"weak"},{"scheme":"Fair Hill Park","status":"not-placed","reason":"none"},{"scheme":"Fine Residence","status":"not-placed","reason":"none"},{"scheme":"Fulton Park","status":"not-placed","reason":"none"},{"scheme":"Gala City Apartment","status":"not-placed","reason":"none"},{"scheme":"Genesis Walk","status":"not-placed","reason":"none"},{"scheme":"Golden Palm","status":"not-placed","reason":"none"},{"scheme":"Green Height's","status":"not-placed","reason":"weak"},{"scheme":"Greenville Villa","status":"not-placed","reason":"none"},{"scheme":"Hartana Apartment","status":"not-placed","reason":"none"},{"scheme":"Haziiq Jaya","status":"not-placed","reason":"none"},{"scheme":"Height Drive P1","status":"not-placed","reason":"none"},{"scheme":"Heights Drive","status":"not-placed","reason":"none"},{"scheme":"Highfield","status":"not-placed","reason":"weak"},{"scheme":"Highfields","status":"not-placed","reason":"none"},{"scheme":"HK Square","status":"not-placed","reason":"none"},{"scheme":"Hui Sing Height's","status":"not-placed","reason":"weak"},{"scheme":"Hwong Hwa Garden","status":"not-placed","reason":"none"},{"scheme":"Inspire Height's Condominium","status":"not-placed","reason":"weak"},{"scheme":"Jalan Batu Kawa","status":"not-placed","reason":"street"},{"scheme":"Jalan Crookshank","status":"not-placed","reason":"street"},{"scheme":"Jalan Dogan","status":"not-placed","reason":"street"},{"scheme":"Jalan Foochow No. 1","status":"not-placed","reason":"none"},{"scheme":"Jalan Santubong","status":"not-placed","reason":"none"},{"scheme":"Jalan Simpang Tiga","status":"not-placed","reason":"street"},{"scheme":"Jalan Sungai Maong Tengah","status":"not-placed","reason":"street"},{"scheme":"Jalan Tabuan","status":"not-placed","reason":"street"},{"scheme":"Jazz Suites @ Vivacity","status":"not-placed","reason":"none"},{"scheme":"Jesselton Heights","status":"not-placed","reason":"none"},{"scheme":"Kampung Astana Lot","status":"not-placed","reason":"none"},{"scheme":"Kampung Bajo","status":"not-placed","reason":"none"},{"scheme":"Kampung Bobak Sejinjang","status":"not-placed","reason":"none"},{"scheme":"Kampung Buntal","status":"not-placed","reason":"none"},{"scheme":"Kampung Demak Baru Fasa 1","status":"not-placed","reason":"none"},{"scheme":"Kampung Kudei","status":"not-placed","reason":"weak"},{"scheme":"Kampung Santubong","status":"not-placed","reason":"none"},{"scheme":"Kampung Selang Ulu","status":"not-placed","reason":"none"},{"scheme":"Kampung Stunggang Melayu","status":"not-placed","reason":"none"},{"scheme":"Kampung Tanjung Senibong","status":"not-placed","reason":"none"},{"scheme":"Kampung Tupong Tengah","status":"not-placed","reason":"none"},{"scheme":"Kasuma Resort","status":"not-placed","reason":"none"},{"scheme":"Kensho Residence Townhouse","status":"not-placed","reason":"none"},{"scheme":"Kenyalang Park","status":"not-placed","reason":"weak"},{"scheme":"Kitang Height's","status":"not-placed","reason":"weak"},{"scheme":"Kitang Heights","status":"not-placed","reason":"weak"},{"scheme":"KTS Village","status":"not-placed","reason":"none"},{"scheme":"Kuching Riverine Resort","status":"not-placed","reason":"none"},{"scheme":"Lake Side","status":"not-placed","reason":"none"},{"scheme":"Lee Ling Villa","status":"not-placed","reason":"none"},{"scheme":"Liberty Grove","status":"not-placed","reason":"none"},{"scheme":"Lotak Villas","status":"not-placed","reason":"none"},{"scheme":"Malihah Jaya","status":"not-placed","reason":"weak"},{"scheme":"Matang Fifty One","status":"not-placed","reason":"none"},{"scheme":"Matang Villa","status":"not-placed","reason":"weak"},{"scheme":"MJC - Batu Kawa New Township","status":"not-placed","reason":"none"},{"scheme":"MJC - Courtyard Sanctuary Apartment","status":"not-placed","reason":"none"},{"scheme":"MJC Courtyard Sanctuary","status":"not-placed","reason":"none"},{"scheme":"MJC Shop / Apartment","status":"not-placed","reason":"none"},{"scheme":"MJC Sky Villa","status":"not-placed","reason":"none"},{"scheme":"MJC Upper Sanctuary","status":"not-placed","reason":"none"},{"scheme":"MJC-BKNT (Papillon)","status":"not-placed","reason":"none"},{"scheme":"MJC-Mutiara","status":"not-placed","reason":"none"},{"scheme":"MJC-Skyvilla Condominium","status":"not-placed","reason":"none"},{"scheme":"Moyan Height","status":"not-placed","reason":"weak"},{"scheme":"Moyan Jaya 2","status":"not-placed","reason":"none"},{"scheme":"Moyan Link","status":"not-placed","reason":"none"},{"scheme":"Mutiara Damai","status":"not-placed","reason":"none"},{"scheme":"Nu Ryegates","status":"not-placed","reason":"none"},{"scheme":"P'Residence","status":"not-placed","reason":"none"},{"scheme":"Palm Residence","status":"not-placed","reason":"none"},{"scheme":"Perumahan Sungai Maong","status":"not-placed","reason":"weak"},{"scheme":"Petra Jaya","status":"not-placed","reason":"weak"},{"scheme":"Pine View Residence","status":"not-placed","reason":"none"},{"scheme":"Pine Villa Garden Homes","status":"not-placed","reason":"none"},{"scheme":"PPR Batu Gong, Siburan","status":"not-placed","reason":"none"},{"scheme":"PRIMA @ Bintawa Riverfront","status":"not-placed","reason":"none"},{"scheme":"PRIMA Homes @ Matang","status":"not-placed","reason":"none"},{"scheme":"PRIMA Premier @ Matang","status":"not-placed","reason":"none"},{"scheme":"Prsitana Garden","status":"not-placed","reason":"none"},{"scheme":"Puteri Park","status":"not-placed","reason":"weak"},{"scheme":"Raintree Residences","status":"not-placed","reason":"none"},{"scheme":"Rock View Estate","status":"not-placed","reason":"none"},{"scheme":"Roxy Apartment","status":"not-placed","reason":"none"},{"scheme":"Royal Richmond Gold","status":"not-placed","reason":"none"},{"scheme":"RPR Arang/Taman Flora Indah","status":"not-placed","reason":"none"},{"scheme":"RPR Astana","status":"not-placed","reason":"weak"},{"scheme":"RPR Bandar Baru Samariang","status":"not-placed","reason":"none"},{"scheme":"RPR Batu 12","status":"not-placed","reason":"none"},{"scheme":"RPR Jalan Arang","status":"not-placed","reason":"weak"},{"scheme":"RPR Landeh/ Taman Sri Permai","status":"not-placed","reason":"none"},{"scheme":"RPR Matang Malihah","status":"not-placed","reason":"none"},{"scheme":"RPR Matang Malihah II","status":"not-placed","reason":"none"},{"scheme":"RPR Stutong","status":"not-placed","reason":"weak"},{"scheme":"Samajaya Apartment","status":"not-placed","reason":"none"},{"scheme":"Samariang Aman","status":"not-placed","reason":"none"},{"scheme":"Samariang Aman 2","status":"not-placed","reason":"none"},{"scheme":"Sapphire On The Park","status":"not-placed","reason":"none"},{"scheme":"Saville Suites","status":"not-placed","reason":"none"},{"scheme":"Sentosa Apartment","status":"not-placed","reason":"weak"},{"scheme":"Serapi Terrace","status":"not-placed","reason":"none"},{"scheme":"Sin Hai Min 10","status":"not-placed","reason":"none"},{"scheme":"Sin Hai Min Garden","status":"not-placed","reason":"none"},{"scheme":"Sin Juak Garden","status":"not-placed","reason":"none"},{"scheme":"Sourabaya Heights","status":"not-placed","reason":"weak"},{"scheme":"Spring Fields","status":"not-placed","reason":"none"},{"scheme":"Stacks 128 Apartment","status":"not-placed","reason":"weak"},{"scheme":"Starhill","status":"not-placed","reason":"none"},{"scheme":"Stevenson Height","status":"not-placed","reason":"none"},{"scheme":"Stutong Height's Apartment","status":"not-placed","reason":"none"},{"scheme":"Stutong Heights","status":"not-placed","reason":"weak"},{"scheme":"Stutong Indah","status":"not-placed","reason":"weak"},{"scheme":"Stutong Jaya","status":"not-placed","reason":"none"},{"scheme":"Stutong Tiarra","status":"not-placed","reason":"none"},{"scheme":"Sumber Alam Sanctuary","status":"not-placed","reason":"none"},{"scheme":"Sunny Hill Garden","status":"not-placed","reason":"none"},{"scheme":"Sunny Park","status":"not-placed","reason":"none"},{"scheme":"Swee Joo Park","status":"not-placed","reason":"none"},{"scheme":"Synergy Square","status":"not-placed","reason":"weak"},{"scheme":"Synergy Square (Matang Jaya)","status":"not-placed","reason":"weak"},{"scheme":"Tabuan Desa","status":"not-placed","reason":"none"},{"scheme":"Tabuan Height's","status":"not-placed","reason":"weak"},{"scheme":"Tabuan Heights","status":"not-placed","reason":"weak"},{"scheme":"Tabuan Jaya","status":"not-placed","reason":"weak"},{"scheme":"Tabuan Jaya Baru 2","status":"not-placed","reason":"none"},{"scheme":"Tabuan Laru","status":"not-placed","reason":"none"},{"scheme":"Tabuan Laru Height","status":"not-placed","reason":"none"},{"scheme":"Tabuan Residence","status":"not-placed","reason":"weak"},{"scheme":"Taiton Bazaar","status":"not-placed","reason":"none"},{"scheme":"Taman Alamanda Indah","status":"not-placed","reason":"none"},{"scheme":"Taman BDC","status":"not-placed","reason":"none"},{"scheme":"Taman Bunga Mawar","status":"not-placed","reason":"none"},{"scheme":"Taman Cahaya Indah","status":"not-placed","reason":"none"},{"scheme":"Taman Daya","status":"not-placed","reason":"none"},{"scheme":"Taman Desa Bumiko","status":"not-placed","reason":"none"},{"scheme":"Taman Desa Guru","status":"not-placed","reason":"none"},{"scheme":"Taman Dusun Bayu","status":"not-placed","reason":"none"},{"scheme":"Taman Dusun Indah","status":"not-placed","reason":"weak"},{"scheme":"Taman Ensyn (Stapok)","status":"not-placed","reason":"none"},{"scheme":"Taman Genesis","status":"not-placed","reason":"weak"},{"scheme":"Taman Gita Jaya","status":"not-placed","reason":"none"},{"scheme":"Taman Green View","status":"not-placed","reason":"none"},{"scheme":"Taman Haji Leman","status":"not-placed","reason":"none"},{"scheme":"Taman Hwa Ling","status":"not-placed","reason":"none"},{"scheme":"Taman Indah","status":"not-placed","reason":"weak"},{"scheme":"Taman Indah Landeh","status":"not-placed","reason":"weak"},{"scheme":"Taman Janting","status":"not-placed","reason":"weak"},{"scheme":"Taman Kenny Hills","status":"not-placed","reason":"none"},{"scheme":"Taman Kuap","status":"not-placed","reason":"weak"},{"scheme":"Taman Kwong Thiong","status":"not-placed","reason":"none"},{"scheme":"Taman Landeh","status":"not-placed","reason":"weak"},{"scheme":"Taman Malihah","status":"not-placed","reason":"none"},{"scheme":"Taman Mas Permata","status":"not-placed","reason":"none"},{"scheme":"Taman Mega Juta","status":"not-placed","reason":"none"},{"scheme":"Taman Pah Tah","status":"not-placed","reason":"none"},{"scheme":"Taman Penrissen Batu 11","status":"not-placed","reason":"none"},{"scheme":"Taman Petronesa 1","status":"not-placed","reason":"none"},{"scheme":"Taman Puteri","status":"not-placed","reason":"weak"},{"scheme":"Taman Satria Jaya","status":"not-placed","reason":"none"},{"scheme":"Taman Sejoli","status":"not-placed","reason":"none"},{"scheme":"Taman Sendayan Indah","status":"not-placed","reason":"none"},{"scheme":"Taman Sepakat Jaya","status":"not-placed","reason":"weak"},{"scheme":"Taman Song","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Jaya (Matang Batu 9)","status":"not-placed","reason":"weak"},{"scheme":"Taman Sri Jaya (RPR Batu 9)","status":"not-placed","reason":"weak"},{"scheme":"Taman Sri Makmur (Matang Batu 6)","status":"not-placed","reason":"weak"},{"scheme":"Taman Sri Makmur (RPR Batu 6)","status":"not-placed","reason":"weak"},{"scheme":"Taman Sri Matang","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Maya","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Moyan 3","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Muhibah (RPR Batu 13)","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Muhibbah (RPR Batu 13)","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Perkasa / Lee Ling Villa","status":"not-placed","reason":"none"},{"scheme":"Taman Sri Segedup","status":"not-placed","reason":"none"},{"scheme":"Taman Stapok","status":"not-placed","reason":"weak"},{"scheme":"Taman Stella","status":"not-placed","reason":"none"},{"scheme":"Taman Sukma","status":"not-placed","reason":"weak"},{"scheme":"Taman Sunyeh","status":"not-placed","reason":"none"},{"scheme":"Taman Tabuan Desa","status":"not-placed","reason":"none"},{"scheme":"Taman Tabuan Dusun","status":"not-placed","reason":"none"},{"scheme":"Taman Tabuan Jaya","status":"not-placed","reason":"weak"},{"scheme":"Taman Tabuan Laru","status":"not-placed","reason":"none"},{"scheme":"The Cube","status":"not-placed","reason":"none"},{"scheme":"The Echelon","status":"not-placed","reason":"none"},{"scheme":"The Glen Apartment","status":"not-placed","reason":"none"},{"scheme":"The Park Residence","status":"not-placed","reason":"none"},{"scheme":"The Park Residences","status":"not-placed","reason":"none"},{"scheme":"The Rex","status":"not-placed","reason":"none"},{"scheme":"Top Green Height","status":"not-placed","reason":"none"},{"scheme":"Tribeca Suites Apartment","status":"not-placed","reason":"none"},{"scheme":"Trinity Residence","status":"not-placed","reason":"none"},{"scheme":"Upton","status":"not-placed","reason":"none"},{"scheme":"Vermont Suites","status":"not-placed","reason":"none"},{"scheme":"Vermont Suites Condominium","status":"not-placed","reason":"none"},{"scheme":"Village Grove Condominium","status":"not-placed","reason":"none"},{"scheme":"Vision Heights","status":"not-placed","reason":"none"},{"scheme":"Vivacity Jazz Suites","status":"not-placed","reason":"none"},{"scheme":"Wassion Avenue","status":"not-placed","reason":"none"},{"scheme":"Windsor Estate","status":"not-placed","reason":"none"},{"scheme":"Woodlands Estate","status":"not-placed","reason":"none"},{"scheme":"Yarra Park Apartment","status":"not-placed","reason":"none"},{"scheme":"Yen Yen Park","status":"not-placed","reason":"weak"},{"scheme":"Yoshi Square","status":"not-placed","reason":"weak"},{"scheme":"Zen 66 Apartment","status":"not-placed","reason":"none"}]};
+
+const KM_CONF = {
+  'named-feature': { label: 'Named in OpenStreetMap', dash: false,
+    said: 'OpenStreetMap names a residential area, a place or a building as NAPIC names the scheme; it is drawn round that.' },
+  'lanes-named': { label: 'Its lanes carry the name', dash: true,
+    said: 'OpenStreetMap lanes carry the scheme’s name; it is drawn round the middle of those lanes.' },
+};
+const KM_NOT = {
+  weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap: held for review, not guessed.' },
+  street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
+  none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
+  'not-a-place': { label: 'Not a place', said: 'An extraction label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
+};
+const kmReason = (s) => (s.status === 'not-a-place' ? 'not-a-place' : s.reason);
+
+/* The page's state for this tab: the map, its mode and what is selected. The
+   map itself is kept across redraws of the page (its box is moved into each
+   new drawing), and let go once the page is left (kmLetGo, below). */
+const KM = { box: null, map: null, mode: 'idle', why: '', theme: null, sel: null, tilt: false, anyway: false, libs: null, filter: '', from: null };
+const kmPlaced = () => (KM_DATA?.schemes || []).filter(s => s.status === 'placed');
+const kmIdOf = (s) => `km-${String(s.scheme).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+const kmFind = (name) => (KM_DATA?.schemes || []).find(s => s.scheme === name) || null;
+const kmAt = (path) => `${location.origin}${BASE}/${String(path).replace(/^\//, '')}`;
+
+/* ---------------------------------------------------------------- the data */
+/* THE DRAWN LAYER'S DATA, AND ALL OF IT: each placed scheme as the
+   neighbourhood round its evidence (a ring of 64 points, its radius in
+   metres) and as the point its name is set at. A feature carries the
+   scheme's name, how it was placed and its index — never a figure: no
+   price, no range, no rent, no count of observations (build.mjs --check
+   and served-check scan these properties; the journey scans what the map
+   holds). */
+function kmFeatures(schemes = kmPlaced()) {
+  const ring = (lon, lat, m) => {
+    const out = [];
+    const dLat = m / 111320, dLon = m / (111320 * Math.cos(lat * Math.PI / 180));
+    for (let i = 0; i <= 64; i++) {
+      const a = (i % 64) / 64 * 2 * Math.PI;
+      out.push([Math.round((lon + dLon * Math.cos(a)) * 1e6) / 1e6, Math.round((lat + dLat * Math.sin(a)) * 1e6) / 1e6]);
+    }
+    return out;
+  };
+  const props = (s, i) => ({ i, name: s.scheme, method: s.method, confidence: s.confidence });
+  return {
+    areas: { type: 'FeatureCollection', features: schemes.map((s, i) => ({ type: 'Feature', id: i, properties: props(s, i),
+      geometry: { type: 'Polygon', coordinates: [ring(s.centre[0], s.centre[1], s.radius)] } })) },
+    points: { type: 'FeatureCollection', features: schemes.map((s, i) => ({ type: 'Feature', id: i, properties: props(s, i),
+      geometry: { type: 'Point', coordinates: s.centre } })) },
+  };
+}
+
+/* NAPIC's rows under a scheme's name, from the division's file — every row
+   of that name, each labelled by its type and basis, as the area screen's
+   benchmark panel shows them (81-napic.js). */
+const kmRowsOf = (scheme) => (napicDoc('Kuching')?.benchmarks || []).filter(b => b.scheme === scheme);
+/* change: the panel's — each row's change on the half-year before, as
+   NAPIC states it. */
+function kmFigures(scheme, { change = false } = {}) {
+  const doc = napicDoc('Kuching');
+  if (!doc) return null;
+  const rows = kmRowsOf(scheme);
+  const period = doc.period.code;
+  const range = (b) => (b.min === b.max ? fmtMoney(b.min, 'MYR', 0) : `${fmtMoney(b.min, 'MYR', 0)}–${fmtMoney(b.max, 'MYR', 0)}`);
+  const type = (b) => [b.propertyType, b.floorLevel, b.roadPosition].filter(Boolean).join(' · ').toLowerCase();
+  if (!rows.length) return el('p', { class: 'metaline' }, `No row under this name in NAPIC’s ${period} Kuching file.`);
+  return el('ul', { class: 'km-figs' }, rows.map(b => el('li', { class: `km-fig${b.sampleSize === 1 ? ' napic-single' : ''}` }, [
+    el('span', { class: 'km-fig-type' }, type(b)), ' ',
+    el('span', { class: 'km-fig-range num', title: b.sampleSize === 1 ? `${b.rangeLabel}: one property, not the scheme’s price` : b.rangeLabel }, range(b)),
+    el('span', { class: 'caption' }, ` ${napicUnitLabel(b)} · ${b.sampleSize == null ? 'sample size not published' : b.sampleSize === 1 ? napicSampleWords(b, period) : `${b.sampleSize} in NAPIC’s ${period} sample`}`
+      + (change ? ` · change ${b.changeStated ? b.changeStated : isNum(b.changePct) ? withSign(b.changePct, 1) : 'not stated'}` : '')),
+  ])));
+}
+
+/* --------------------------------------------------------------- the page */
+VIEWS.areaMap = () => {
+  const wrap = el('div', { class: 'km-page' });
+  if (!KM_DATA) { wrap.append(emptyState('The Kuching map is not in this build.')); return wrap; }
+  /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
+     under each scheme come with it (loadNapic redraws the page). */
+  if (!napicDivisions.has('Kuching')) loadNapic('Kuching');
+  const placed = kmPlaced(), all = KM_DATA.schemes;
+  wrap.append(pageHead({ title: 'Kuching scheme map',
+    /* Its own state, as the register row has it (80-registers.js): the area
+       screen's tab is Live, and this view of it is new. */
+    badge: el('span', { class: 'status-badge status-beta', title: 'New: positions only, most schemes not yet placed, nothing on the map priced.' }, 'Beta'),
+    lede: 'Where NAPIC’s Kuching housing schemes are, wherever OpenStreetMap names them — positions only, never prices.',
+    note: `${placed.length} of ${all.length} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
+      + 'NAPIC’s observed ranges stay in the list, under each scheme; the map carries no figure.' }));
+  wrap.append(areaViewsNav('areaMap'));
+
+  const layout = el('div', { class: 'km-layout' });
+  layout.append(kmMapCard());
+  layout.append(kmPanel());
+  wrap.append(layout);
+  wrap.append(kmList());
+  wrap.append(el('div', { class: 'card' }, [
+    cardHead('What this map cannot tell you', 'Named, because a map is the most persuasive thing this product draws.'),
+    el('ul', { class: 'ticklist blocklist' }, [
+      el('li', {}, 'A scheme’s position is a neighbourhood drawn round OpenStreetMap’s evidence for its name — never a building, a lot, a boundary or a title. Confirm any property against its title and the Land and Survey Department.'),
+      el('li', {}, 'No price, rent or range is drawn on the map. NAPIC’s observed ranges are in the list: a range observed across its sample for one half-year (H1 2025), not the scheme’s price, not the latest sale, and never a midpoint.'),
+      el('li', {}, 'A scheme not placed is not missing from the market: OpenStreetMap does not name it, or names it only in part. An empty block on the map is not empty land — many suburbs are not yet mapped.'),
+      el('li', {}, `Heights are drawn only where OpenStreetMap records one (${KM_DATA.heights.count} buildings); a flat building is one with no recorded height, not a single-storey one.`),
+      el('li', {}, 'No flood, zoning or title status is held here, and nothing on the map ranks, scores or recommends a place.'),
+    ]),
+  ]));
+  return wrap;
+};
+
+/* THE AREA SCREEN'S TWO VIEWS, side by side as links (they work with no
+   script): the localities, and this map. */
+function areaViewsNav(here) {
+  const link = (view, path, words) => el('a', { href: href(path), class: 'km-view-link', 'aria-current': here === view ? 'page' : null,
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); if (here !== view) navigate(path); } }, words);
+  return el('nav', { class: 'km-views', 'aria-label': 'Area screen views' }, el('div', { class: 'segmented km-views-seg' }, [
+    link('areas', '/property/areas', 'Localities'), link('areaMap', '/property/areas/map', 'Kuching scheme map')]));
+}
+
+/* The box the map is drawn in, kept across redraws: a fresh box on a new
+   visit, the same one (with its map) on a redraw of the page. */
+const KM_SERVED_SAY = 'The map is drawn here by the page’s script, from this site’s own map file. The list below has every scheme it places, with its evidence.';
+function kmBox() {
+  if (KM.box && KM.box.isConnected) return KM.box;
+  if (KM.box && KM.map) return KM.box;
+  KM.box = el('div', { class: 'km-box', id: 'km-box' }, [
+    el('div', { class: 'km-say', id: 'km-say', role: 'status', 'data-now': KM_SERVED_SAY }, KM_SERVED_SAY),
+    el('div', { class: 'km-canvas', id: 'km-canvas' }),
+    el('p', { class: 'km-attrib' }, ['© ', el('a', { href: 'https://www.openstreetmap.org/copyright', rel: 'license' }, 'OpenStreetMap'), ' contributors']),
+  ]);
+  return KM.box;
+}
+function kmMapCard() {
+  const card = el('section', { class: 'card km-card', 'aria-labelledby': 'km-map-h' });
+  const tools = el('div', { class: 'segmented km-tools', role: 'group', 'aria-label': 'Map view' }, [
+    el('button', { type: 'button', id: 'km-flat', 'aria-pressed': KM.tilt ? 'false' : 'true', onclick: () => kmTilt(false) }, '2D'),
+    /* Nothing to tilt in the locality diagram. */
+    el('button', { type: 'button', id: 'km-tilt', 'aria-pressed': KM.tilt ? 'true' : 'false', disabled: KM.mode === 'fallback' ? '' : null,
+      title: KM.mode === 'fallback' ? 'Tilting needs the interactive map' : null, onclick: () => kmTilt(true) }, 'Tilt'),
+  ]);
+  const head = cardHead('Kuching — NAPIC schemes placed from OpenStreetMap', null, tools);
+  head.querySelector('h3')?.setAttribute('id', 'km-map-h');
+  card.append(head);
+  card.append(kmBox());
+  /* The legend: how a scheme was placed, and what a raised building means. */
+  const swatch = (dash, words) => el('span', { class: 'km-key' }, [el('span', { class: `km-swatch${dash ? ' km-swatch-dash' : ''}`, 'aria-hidden': 'true' }), words]);
+  card.append(el('div', { class: 'km-legend' }, [
+    swatch(false, 'Named in OpenStreetMap — drawn round the named area, place or building'),
+    swatch(true, 'Its lanes carry the name — drawn round the middle of those lanes'),
+  ]));
+  card.append(el('p', { class: 'metaline km-note' }, `Tilt raises only the ${KM_DATA.heights.count} buildings OpenStreetMap records a height for; every other building is drawn flat, and flat does not mean single-storey. Many suburbs are not yet mapped in OpenStreetMap: an empty block is not empty land.`));
+  card.append(el('p', { class: 'metaline km-note' }, `Map data: OpenStreetMap, as of ${KM_DATA.tileAsOf} (Protomaps build ${KM_DATA.build}); scheme positions from OpenStreetMap names as of ${KM_DATA.osmAsOf}; NAPIC ${KM_DATA.period}.`));
+  /* The map, once the page is up: a frame after, so the box has its size. */
+  setTimeout(kmStart, 0);
+  return card;
+}
+
+/* ------------------------------------------------------------- the panel */
+function kmPanel() {
+  const s = KM.sel ? kmFind(KM.sel) : null;
+  const panel = el('aside', { class: 'card km-panel', id: 'km-panel', 'aria-labelledby': 'km-panel-h',
+    onkeydown: (e) => { if (e.key === 'Escape' && KM.sel) { e.preventDefault(); kmSelect(null); } } });
+  if (!s) {
+    panel.append(el('h3', { class: 'h-card', id: 'km-panel-h', tabindex: '-1' }, 'A scheme, its evidence and its figures'));
+    const t = KM_DATA.tally || {};
+    panel.append(el('p', { class: 'body km-panel-lede' }, 'Choose a scheme on the map or in the list: its position, what places it, NAPIC’s figures for it and the Scenario Lab, here.'));
+    panel.append(el('dl', { class: 'km-tally' }, [
+      ['Placed on the map', kmPlaced().length],
+      ['Not placed — a partial or ambiguous match', t['not-placed:weak'] || 0],
+      ['Not placed — named after a street', t['not-placed:street'] || 0],
+      ['Not placed — no OpenStreetMap match', t['not-placed:none'] || 0],
+      ['Not a place', t['not-a-place'] || 0],
+    ].flatMap(([k, v]) => [el('dt', {}, k), el('dd', { class: 'num' }, String(v))])));
+    return panel;
+  }
+  const placed = s.status === 'placed';
+  panel.append(el('p', { class: 'eyebrow' }, placed ? 'Placed on the map' : 'Not placed on the map'));
+  panel.append(el('h3', { class: 'h-card', id: 'km-panel-h', tabindex: '-1' }, s.scheme));
+  if (placed) {
+    const c = KM_CONF[s.confidence];
+    panel.append(el('p', { class: 'km-chips' }, [el('span', { class: `chip km-conf km-conf-${s.confidence}`, title: c.said }, c.label)]));
+    panel.append(el('p', { class: 'metaline' }, s.said));
+    panel.append(el('p', { class: 'metaline' }, `Drawn ${s.radius} m round its evidence: a neighbourhood, not a building. OpenStreetMap ${s.osm.join(', ')}.`));
+  } else panel.append(el('p', { class: 'metaline' }, [el('strong', {}, KM_NOT[kmReason(s)].label), ' — ', KM_NOT[kmReason(s)].said]));
+  panel.append(el('div', { class: 'card-hd-t km-panel-sub' }, [el('h4', { class: 'eyebrow' }, `NAPIC ${KM_DATA.period}, under this name`), kindBadge('filed', { fine: `NAPIC ${KM_DATA.period}` })]));
+  panel.append(kmFigures(s.scheme, { change: true }) || el('p', { class: 'metaline' }, 'Loading NAPIC’s Kuching file…'));
+  panel.append(el('p', { class: 'metaline' }, 'A range observed across NAPIC’s sample for the half-year: not the scheme’s price, not the latest sale, never a midpoint. A row from one observation is one property in the sample.'));
+  const acts = el('div', { class: 'km-acts' });
+  if (placed) {
+    acts.append(kmLabButton(s, 'km-panel-lab'));
+    if (KM.mode === 'map') acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: 'km-panel-zoom', onclick: () => kmShow(s, { focus: false }) }, 'Zoom the map to it'));
+  }
+  acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: 'km-panel-close', onclick: () => kmSelect(null) }, 'Close'));
+  panel.append(acts);
+  if (placed) panel.append(el('p', { class: 'metaline' }, `${s.nearest.name} is the calculator’s listed Kuching locality whose point lies nearest this scheme — ${s.nearest.km} km away. Localities are points, not boundaries: change the district in the Lab if the scheme lies in another. Nothing is saved until you save there.`));
+  return panel;
+}
+function kmLabButton(s, id) {
+  return el('button', { type: 'button', class: 'btn btn-ghost km-lab', id, 'data-km-lab': s.scheme, onclick: () => kmOpenLab(s) }, `Open the Scenario Lab on ${s.nearest.name}`);
+}
+/* THE SCENARIO LAB, ON THE SCHEME'S LOCALITY: the work the Lab holds, where
+   it holds one (pfContext, 88-property-flow.js), else the calculator's
+   deal; its active column moved to the locality as a what-if (labOpen,
+   82-property-lab.js, on the Lab's page once it is up). Nothing written. */
+function kmOpenLab(s) {
+  State.labPlace = { city: 'kuching', district: s.nearest.name, scheme: s.scheme };
+  const ctx = pfContext();
+  if (ctx) pfToLab(ctx); else navigate('/property/lab?');
+}
+
+/* -------------------------------------------------------------- the list */
+function kmList() {
+  const card = el('section', { class: 'card km-list-card', id: 'km-list', 'aria-labelledby': 'km-list-h' });
+  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${KM_DATA.schemes.length}`,
+    'The map’s list, and the way to it from a keyboard or a screen reader: each scheme’s position and evidence, NAPIC’s figures under it, and the Scenario Lab.', null, { kind: 'filed', fine: `NAPIC ${KM_DATA.period}` }));
+  const find = el('div', { class: 'km-find' }, [
+    el('label', { for: 'km-find' }, 'Find a scheme'),
+    el('input', { class: 'input', id: 'km-find', type: 'search', autocomplete: 'off', value: KM.filter, placeholder: 'A name, or part of one',
+      oninput: (e) => { KM.filter = e.target.value; kmFilter(card); } }),
+    el('p', { class: 'metaline', id: 'km-find-said', 'aria-live': 'polite' }, ''),
+  ]);
+  card.append(find);
+  card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  const groups = [
+    ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
+    ['weak', null, (s) => kmReason(s) === 'weak'],
+    ['street', null, (s) => kmReason(s) === 'street'],
+    ['none', null, (s) => kmReason(s) === 'none'],
+    ['not-a-place', null, (s) => kmReason(s) === 'not-a-place'],
+  ];
+  for (const [key, title, test] of groups) {
+    const rows = KM_DATA.schemes.filter(test);
+    if (!rows.length) continue;
+    const g = el('section', { class: `km-group km-group-${key}`, 'aria-labelledby': `km-g-${key}` });
+    g.append(el('h4', { class: 'km-group-h', id: `km-g-${key}` }, title || `${KM_NOT[key].label} — ${rows.length}`));
+    if (key !== 'placed') g.append(el('p', { class: 'metaline' }, KM_NOT[key].said));
+    g.append(el('ol', { class: 'km-items' }, rows.map(s => kmItem(s))));
+    card.append(g);
+  }
+  if (KM.filter) queueMicrotask(() => kmFilter(card));
+  return card;
+}
+function kmItem(s) {
+  const placed = s.status === 'placed';
+  const li = el('li', { class: `km-item${KM.sel === s.scheme ? ' is-sel' : ''}`, 'data-scheme': s.scheme, id: kmIdOf(s) });
+  li.append(el('div', { class: 'km-item-hd' }, [
+    el('span', { class: 'km-name' }, s.scheme),
+    placed ? el('span', { class: `chip km-conf km-conf-${s.confidence}`, title: KM_CONF[s.confidence].said }, KM_CONF[s.confidence].label) : null,
+  ]));
+  if (placed) li.append(el('p', { class: 'metaline km-ev' }, s.said));
+  const figs = kmFigures(s.scheme);
+  if (figs) li.append(figs);
+  if (placed) li.append(el('div', { class: 'km-acts' }, [
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: `${kmIdOf(s)}-show`, onclick: () => kmShow(s) }, 'Show on the map'),
+    kmLabButton(s, `${kmIdOf(s)}-lab`),
+  ]));
+  return li;
+}
+/* The list narrowed to a name as it is typed, here, with no request. */
+function kmFilter(root = document.getElementById('km-list')) {
+  if (!root) return;
+  const q = KM.filter.trim().toLowerCase();
+  let shown = 0;
+  for (const li of root.querySelectorAll('.km-item')) {
+    const on = !q || li.dataset.scheme.toLowerCase().includes(q);
+    li.hidden = !on; if (on) shown++;
+  }
+  for (const g of root.querySelectorAll('.km-group')) g.hidden = !g.querySelector('.km-item:not([hidden])');
+  const said = root.querySelector('#km-find-said');
+  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} schemes match “${KM.filter.trim()}”.` : '';
+}
+
+/* -------------------------------------------------------- choosing one */
+/* A scheme chosen, from the map or the list: the panel says it, and focus
+   goes to the panel's heading — from where Escape (or Close) returns it to
+   the control that chose it. */
+/* scroll: what is brought into view — the panel (a scheme chosen from the
+   list with no map to show it on), the map (shown on it), or nothing (a
+   scheme tapped on the map, the panel beside or under it). */
+function kmSelect(name, { from = null, scroll = 'panel' } = {}) {
+  const was = KM.sel;
+  KM.sel = name;
+  if (name) KM.from = from || (document.activeElement && document.activeElement !== document.body ? document.activeElement.id : null);
+  render();
+  kmPaintSelection();
+  if (name) {
+    document.getElementById('km-panel-h')?.focus({ preventScroll: true });
+    const into = scroll === 'map' && KM.mode === 'map' ? KM.box : scroll === 'panel' ? document.getElementById('km-panel') : null;
+    into?.scrollIntoView({ block: 'nearest' });
+  } else if (was) {
+    /* Back where it was chosen: a list's button, or the map itself. */
+    const back = KM.from === 'km-map' ? KM.map?.getCanvas() : KM.from && document.getElementById(KM.from);
+    (back || document.getElementById('km-panel-h'))?.focus();
+    KM.from = null;
+  }
+}
+function kmShow(s, { focus = true } = {}) {
+  if (focus) kmSelect(s.scheme, { scroll: 'map' });
+  if (KM.mode === 'map' && KM.map) {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const zoom = s.radius >= 500 ? 14 : s.radius >= 300 ? 14.6 : 15.2;
+    KM.map[reduce ? 'jumpTo' : 'easeTo']({ center: s.centre, zoom, ...(reduce ? {} : { duration: 600 }) });
+  }
+}
+
+/* -------------------------------------------------------- drawing the map */
+function kmSay(text, extra = null) {
+  const say = KM.box?.querySelector('#km-say');
+  if (!say) return;
+  say.replaceChildren(text, ...(extra ? [' ', extra] : []));
+  say.hidden = !text;
+}
+/* WHICH MAP, decided once a visit: the interactive one where the browser
+   draws WebGL2 on its graphics hardware, else the locality diagram. A
+   reader whose device asks for reduced motion or reduced data is given the
+   diagram first, and a button for the map. */
+function kmWebGL() {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2', { failIfMajorPerformanceCaveat: true });
+    if (!gl) return false;
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return true;
+  } catch { return false; }
+}
+function kmStart() {
+  if (!KM.box || !KM.box.isConnected || KM.mode !== 'idle') return;
+  const quiet = matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(prefers-reduced-data: reduce)').matches;
+  if (quiet && !KM.anyway) return kmFallback('reduce');
+  if (!kmWebGL()) return kmFallback('webgl');
+  kmDraw();
+}
+function kmFallback(why, detail = '') {
+  KM.mode = 'fallback'; KM.why = why;
+  const host = KM.box.querySelector('#km-canvas');
+  const say = why === 'reduce'
+    ? 'Your device asks for reduced motion or data, so Kuching’s localities are drawn instead of the interactive map. The list below has every placed scheme.'
+    : why === 'webgl'
+      ? 'This browser cannot draw the interactive map (it needs WebGL2 on graphics hardware), so Kuching’s localities are drawn instead. The list below has every placed scheme.'
+      : `The interactive map could not be drawn (${detail || 'an error in the drawing'}), so Kuching’s localities are drawn instead. The list below has every placed scheme.`;
+  kmSay(say, why === 'reduce' ? el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'km-anyway',
+    onclick: () => { KM.anyway = true; KM.mode = 'idle'; KM.box.querySelector('#km-canvas')?.replaceChildren(); if (kmWebGL()) kmDraw(); else kmFallback('webgl'); } }, 'Draw the map') : null);
+  /* Nothing on the box itself changes (no class, no attribute): the served
+     page is drawn so, in a browser asking for reduced motion, and what it
+     says here is the tab's (data-now). The stylesheet reads the mode off
+     what the box holds (styles.css, kuching-map: :has(svg), :has(canvas)). */
+  const draw = () => {
+    if (!sarawakGeo) { if (geoLoadState === 'idle') loadSarawakLayers(); return; }
+    /* The room between the words and the attribution: the box's height
+       less theirs. */
+    const said = KM.box.querySelector('#km-say'), credit = KM.box.querySelector('.km-attrib');
+    const room = KM.box.clientHeight - (said && !said.hidden ? said.offsetHeight + 12 : 0) - (credit ? credit.offsetHeight : 0) - 8;
+    host.replaceChildren(cityMap('kuching', null, (n) => { State.areaScreen.city = 'kuching'; State.areaScreen.editing = n; navigate('/property/areas'); }, null,
+      { label: 'Kuching’s localities, drawn in place of the interactive map. The list below has every placed scheme.', maxH: room }));
+  };
+  KM.drawFallback = draw;
+  draw();
+}
+async function kmLibs() {
+  if (KM.libs) return KM.libs;
+  KM.libs = (async () => {
+    const base = `${BASE}/${KM_DATA.vendor.maplibre}`;
+    if (!document.querySelector('link[data-km-css]')) document.head.append(el('link', { rel: 'stylesheet', href: `${base}/maplibre-gl.css`, 'data-km-css': '' }));
+    await new Promise((res, rej) => {
+      if (window.pmtiles) return res();
+      const s = el('script', { src: `${BASE}/${KM_DATA.vendor.pmtiles}`, 'data-km-pmtiles': '' });
+      s.onload = res; s.onerror = () => rej(new Error('the map file reader did not load'));
+      document.head.append(s);
+    });
+    const ml = await import(`${base}/maplibre-gl.mjs`);
+    const protocol = new window.pmtiles.Protocol();
+    ml.addProtocol('pmtiles', protocol.tile);
+    return ml;
+  })();
+  KM.libs.catch(() => { KM.libs = null; });
+  return KM.libs;
+}
+/* A style, its addresses made this site's: the file holds paths ("/data/…",
+   "pmtiles:///data/…"), and the page puts its own origin before each. */
+async function kmStyle(theme) {
+  const style = await fetchJson(dataUrl(KM_DATA.styles[theme]));
+  if (!style) throw new Error('the map’s style did not load');
+  style.glyphs = kmAt(style.glyphs);
+  style.sprite = kmAt(style.sprite);
+  for (const src of Object.values(style.sources)) if (src.url?.startsWith('pmtiles:///')) src.url = `pmtiles://${kmAt(src.url.slice('pmtiles:///'.length))}`;
+  return style;
+}
+const kmColours = (theme) => (theme === 'dark'
+  ? { mark: '#6D9BF6', fill: 'rgba(109,155,246,0.16)', sel: 'rgba(109,155,246,0.32)', text: '#f2f0ea', halo: '#111413', raised: '#4a534e' }
+  : { mark: '#1B4FCC', fill: 'rgba(27,79,204,0.10)', sel: 'rgba(27,79,204,0.24)', text: '#16191a', halo: '#f1ede4', raised: '#cbbfa8' });
+/* The page's own layers over the basemap: the raised buildings (tilted
+   only), the schemes' neighbourhoods, their outlines (dashed where lanes
+   place them) and their names. */
+function kmLayers(map, theme) {
+  const c = kmColours(theme), f = kmFeatures();
+  if (!map.getSource('km-areas')) map.addSource('km-areas', { type: 'geojson', data: f.areas });
+  if (!map.getSource('km-points')) map.addSource('km-points', { type: 'geojson', data: f.points });
+  if (KM.heights && !map.getSource('km-heights')) map.addSource('km-heights', { type: 'geojson', data: KM.heights });
+  const sel = ['==', ['get', 'name'], KM.sel || ''];
+  if (KM.heights) map.addLayer({ id: 'km-raised', type: 'fill-extrusion', source: 'km-heights', layout: { visibility: KM.tilt ? 'visible' : 'none' },
+    paint: { 'fill-extrusion-color': c.raised, 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'base'], 'fill-extrusion-opacity': 0.9 } });
+  map.addLayer({ id: 'km-fill', type: 'fill', source: 'km-areas', paint: { 'fill-color': ['case', sel, c.sel, c.fill] } });
+  map.addLayer({ id: 'km-line', type: 'line', source: 'km-areas', filter: ['==', ['get', 'confidence'], 'named-feature'],
+    paint: { 'line-color': c.mark, 'line-width': ['case', sel, 3, 1.6] } });
+  map.addLayer({ id: 'km-line-dash', type: 'line', source: 'km-areas', filter: ['==', ['get', 'confidence'], 'lanes-named'],
+    paint: { 'line-color': c.mark, 'line-width': ['case', sel, 3, 1.6], 'line-dasharray': [3, 2] } });
+  map.addLayer({ id: 'km-name', type: 'symbol', source: 'km-points', minzoom: 12.2,
+    layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Medium'], 'text-size': 12, 'text-max-width': 9, 'text-allow-overlap': false },
+    paint: { 'text-color': c.text, 'text-halo-color': c.halo, 'text-halo-width': 1.4 } });
+}
+function kmPaintSelection() {
+  const map = KM.map;
+  if (!map || !map.getLayer?.('km-fill')) return;
+  const c = kmColours(KM.theme), sel = ['==', ['get', 'name'], KM.sel || ''];
+  map.setPaintProperty('km-fill', 'fill-color', ['case', sel, c.sel, c.fill]);
+  map.setPaintProperty('km-line', 'line-width', ['case', sel, 3, 1.6]);
+  map.setPaintProperty('km-line-dash', 'line-width', ['case', sel, 3, 1.6]);
+}
+async function kmDraw() {
+  KM.mode = 'loading';
+  kmSay('Loading the map — this site’s own map file and its drawing code, about 1.2MB the first time.');
+  try {
+    const theme = currentTheme() === 'dark' ? 'dark' : 'light';
+    const [ml, style, heights] = await Promise.all([kmLibs(), kmStyle(theme), fetchJson(dataUrl(KM_DATA.heights.file)).catch(() => null)]);
+    if (!KM.box) return;
+    KM.heights = heights;
+    KM.theme = theme;
+    const host = KM.box.querySelector('#km-canvas');
+    const [w, s, e, n] = KM_DATA.bbox;
+    const map = new ml.Map({
+      container: host, style, attributionControl: false, maplibreLogo: false,
+      bounds: [[110.24, 1.44], [110.44, 1.62]], fitBoundsOptions: { padding: 12 },
+      minZoom: 10, maxZoom: 17.5, maxPitch: 60,
+      maxBounds: [[w - 0.08, s - 0.07], [e + 0.08, n + 0.07]],
+      cooperativeGestures: true, dragRotate: false, pitchWithRotate: false, touchPitch: false,
+      canvasContextAttributes: { failIfMajorPerformanceCaveat: true },
+      locale: { 'Map.Title': 'Map of Greater Kuching with the placed NAPIC schemes. The list below has every scheme.' },
+    });
+    KM.map = map;
+    map.addControl(new ml.NavigationControl({ showCompass: true, visualizePitch: true }), 'top-right');
+    map.on('style.load', () => { kmLayers(map, KM.theme); kmPaintSelection(); });
+    map.on('load', () => { KM.mode = 'map'; kmSay(''); });
+    /* An error in loading the style itself, before the map has drawn, is
+       the end of it: the diagram instead. A tile, a glyph or an image that
+       fails later is the map's to carry (it draws without it). */
+    map.on('error', (ev) => {
+      if (KM.mode !== 'loading' || ev?.sourceId || ev?.tile) return;
+      try { map.remove(); } catch { /* gone */ }
+      KM.map = null;
+      kmFallback('error', ev?.error?.message);
+    });
+    /* A neighbourhood is chosen by a tap anywhere within 22px of it — the
+       44px target the locality diagram's points have. */
+    const hit = (pt) => map.queryRenderedFeatures([[pt.x - 22, pt.y - 22], [pt.x + 22, pt.y + 22]], { layers: ['km-fill', 'km-name'] });
+    map.on('click', (ev) => { const f = hit(ev.point)[0]; if (f) kmSelect(f.properties.name, { from: 'km-map', scroll: 'none' }); });
+    map.on('mousemove', (ev) => { map.getCanvas().style.cursor = hit(ev.point).length ? 'pointer' : ''; });
+  } catch (err) {
+    KM.map = null;
+    kmFallback(err?.name === 'GPUInitializationError' ? 'webgl' : 'error', err?.message);
+  }
+}
+function kmTilt(on) {
+  if (on && KM.mode !== 'map') return;
+  KM.tilt = !!on;
+  for (const [id, v] of [['km-flat', !on], ['km-tilt', !!on]]) document.getElementById(id)?.setAttribute('aria-pressed', v ? 'true' : 'false');
+  const map = KM.map;
+  if (!map) return;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (map.getLayer('km-raised')) map.setLayoutProperty('km-raised', 'visibility', on ? 'visible' : 'none');
+  if (on) { map.dragRotate.enable(); map.touchPitch.enable(); } else { map.dragRotate.disable(); map.touchPitch.disable(); }
+  map[reduce ? 'jumpTo' : 'easeTo']({ pitch: on ? 55 : 0, bearing: on ? map.getBearing() : 0, ...(reduce ? {} : { duration: 500 }) });
+}
+/* The theme followed: a redraw of the page with the other theme on swaps
+   the style, the page's layers put back once it is in. */
+async function kmFollowTheme() {
+  const theme = currentTheme() === 'dark' ? 'dark' : 'light';
+  if (!KM.map || KM.mode !== 'map' || theme === KM.theme) return;
+  KM.theme = theme;
+  try { KM.map.setStyle(await kmStyle(theme), { diff: false }); } catch { /* the map keeps the style it has */ }
+}
+/* The page left: the map and its graphics context let go. A return draws
+   a new one. */
+function kmLetGo() {
+  if (KM.box && !KM.box.isConnected) {
+    try { KM.map?.remove(); } catch { /* gone */ }
+    Object.assign(KM, { box: null, map: null, mode: 'idle', why: '', theme: null, sel: null, tilt: false, from: null, drawFallback: null });
+  }
+}
+new MutationObserver(() => {
+  if (!KM.box) return;
+  if (!KM.box.isConnected) return kmLetGo();
+  if (KM.mode === 'fallback' && KM.drawFallback && sarawakGeo && !KM.box.querySelector('svg')) KM.drawFallback();
+  kmFollowTheme();
+}).observe(viewRoot, { childList: true });
 /* ==========================================================================
    WORKED EXAMPLE — A FULL DISTRICT, EVERY FIGURE MARKED AS INVENTED
    --------------------------------------------------------------------------
