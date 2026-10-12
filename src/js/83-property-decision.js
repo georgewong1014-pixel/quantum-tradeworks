@@ -254,7 +254,11 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
   /* The price gap. */
   if (g.status === 'ok') {
     const w = priceGapWords(g);
+    /* Its kind (D6): the weakest of the asking price and the comparables
+       named — each as the reader recorded it (samples are never named). */
+    const gapKind = kindFirst([KIND_OF_EVIDENCE[d?.evidence?.askingPrice || 'user'] || 'yours', ...g.comps.map(c => KIND_OF_EVIDENCE[c.evidence] || 'yours')]) || 'yours';
     cards.append(lsInsightCard({ label: 'Price gap', cls: 'pe-card pe-gap', attrs: { 'data-pe': 'gap', 'data-value': String(g.askingGap.amount) },
+      badge: auBadge(gapKind, 'your asking price and the comparables you named'),
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: el('p', { class: 'ls-card-sub' }, [w.price ? `${w.price} ` : '', `Named: ${g.comps.map(pqCompWords).join('; ')}.`, g.askingComps?.length ? ` ${pqAskingWords(g)}` : '']),
@@ -276,7 +280,10 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
       cta: lsCta('Set a target', { id: `${prefix}-pe-target-go`, onclick: setTarget }) }));
   } else {
     const w = priceSolveWords(s, d);
+    /* Solved on the whole deal: its weakest input, and the model's step. */
+    const solveKind = dealKind(d, null, { also: ['modelled'] });
     cards.append(lsInsightCard({ label: 'The price that makes this work', cls: 'pe-card pe-solve',
+      badge: auBadge(solveKind.kind, solveKind.fine),
       attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' ? String(s.price) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
@@ -986,7 +993,8 @@ function ndResults({ n, d, prefix, why = {} }) {
         : rn.status === 'pending' ? 'Working out the rent that covers the premium.' : (rn.why || 'Not computable for these inputs.');
     const sub = gn.status === 'solved' ? `Or values growing ${fmtNum(gn.pct, 1)}% a year, for a completed unit worth ${pqMoney(n.comp)} to be worth the ${pqMoney(n.paid)} you pay by vacant possession, ${fmtNum(gn.years, 1)} years after signing.`
       : gn.status === 'no-dates' ? 'The growth that would cover it needs the SPA month and the month of vacant possession.' : null;
-    box.append(lsInsightCard({ label: 'What would justify the premium', cls: 'nd-card nd-needed', attrs: { 'data-nd-fig': 'needed', 'data-status': rn.status, 'data-value': rn.status === 'solved' ? String(rn.rent) : '', 'data-growth': gn.status === 'solved' ? String(auR4(gn.pct)) : '' },
+    box.append(lsInsightCard({ label: 'What would justify the premium', cls: 'nd-card nd-needed',
+      badge: auBadge(n.rentKind === 'illustrative' ? 'illustrative' : 'modelled', 'solved on your assumptions'),attrs: { 'data-nd-fig': 'needed', 'data-status': rn.status, 'data-value': rn.status === 'solved' ? String(rn.rent) : '', 'data-growth': gn.status === 'solved' ? String(auR4(gn.pct)) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, figure), finding: el('p', { class: 'ls-card-title' }, finding), sub: sub ? el('p', { class: 'ls-card-sub' }, sub) : null,
       cta: lsCta('See why', { id: `${prefix}-nd-needed-why`, onclick: why.needed, sr: ' this rent and growth would cover the premium' }) }));
   }
@@ -1386,7 +1394,10 @@ function cmResults({ c, d, prefix, why = {}, toRents = null }) {
       cta: lsCta('Name them', { id: `${prefix}-cm-sustain-go`, onclick: toRents }) }));
   } else {
     const a = c.sustain.status === 'ok' ? c.sustain.contract : c.sustain.model;
+    /* The weaker of the achieved rents and the rent set against them. */
+    const rentKind = (id) => c.rents.find(r => r.id === id)?.kind || 'unavailable';
     box.append(lsInsightCard({ label: 'Rent sustainability', cls: 'cm-card cm-sustain',
+      badge: auBadge(kindFirst([rentKind('observed'), rentKind(c.sustain.status === 'ok' ? 'contract' : 'model')]), 'the achieved rents you named'),
       attrs: { 'data-cm-fig': 'sustain', 'data-status': c.sustain.status, 'data-lo': a ? String(auR4(a.lo)) : '', 'data-hi': a ? String(auR4(a.hi)) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure), finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,

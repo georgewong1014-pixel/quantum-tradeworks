@@ -92,10 +92,10 @@ function lsAlertCard({ text, sub = null, cta, cls = '', attrs = {} }) {
   ]);
 }
 /* INSIGHT: a finding, its figure, and "See why →" into the evidence. */
-function lsInsightCard({ figure, finding, sub = null, cta, cls = '', attrs = {}, label = null }) {
+function lsInsightCard({ figure, finding, sub = null, cta, badge = null, cls = '', attrs = {}, label = null }) {
   cta.classList.add('ls-card-cta');
   return el('div', { ...attrs, class: `ls-card${cls ? ` ${cls}` : ''}`, 'data-card': 'insight' }, [
-    label ? el('p', { class: 'ls-card-hd' }, el('span', { class: 'ls-card-label' }, label)) : null,
+    label ? el('p', { class: 'ls-card-hd' }, [el('span', { class: 'ls-card-label' }, label), badge ? ' ' : null, badge]) : null,
     el('div', { class: 'ls-card-row' }, [figure, el('div', { class: 'ls-card-body' }, [finding, sub])]),
     cta,
   ]);
