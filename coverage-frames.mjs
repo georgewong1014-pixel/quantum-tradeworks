@@ -511,7 +511,10 @@ try {
        3. Under ?utm_source=, ?fbclid= or ?gclid=, and with only a theme kept:
           it stands, and is its render.
        4. Where it is not the reader's page it never stands, and the page drawn
-          is not its render (so the check is not idle): ?companies=aapl,msft,
+          is not its render (so the check is not idle): ?companies=jpm,bac
+          (two filers that are not the first visit's pair — Apple and
+          Microsoft are, since the owner's decision of 11 Oct 2026, so their
+          address is the reader's page and stands),
           ?tab=heatmap, the dashboard holding the reader's own list, Pricing on
           another plan, the screener with its Start here panel hidden. */
     {
@@ -644,7 +647,7 @@ try {
         if (r.stood && !r.differs) tally.tracking++;
       }
       /* 4. */
-      for (const [p, query, keys, what] of [['/compare', '?companies=aapl,msft', [], 'comparing Apple and Microsoft by its address'],
+      for (const [p, query, keys, what] of [['/compare', '?companies=jpm,bac', [], 'comparing JPMorgan Chase and Bank of America by its address'],
         ['/discover', '?tab=heatmap', [], 'the heatmap tab by its address'],
         ['/app', '', ['watchlists', 'onboarding'], 'the dashboard, holding the reader\'s own list'],
         ['/pricing', '', ['plan'], 'Pricing, on another plan'],
@@ -1214,9 +1217,17 @@ try {
             if (tz === 'Asia/Singapore') {
               say('ccy', app.served && app.shown && !app.skeleton, `/compare in Singapore (${lang}): once the script ran the served page did not stand`, app);
               await releaseData(); await quiet(SETTLED);
-              const landed = await value(`(() => { const t = document.getElementById('views').innerText; return { rm: (t.match(/RM\\s?[0-9]/g) || []).length, usd: (t.match(/\\$\\s?[0-9]/g) || []).length, frames: window.__fp2 || [] }; })()`);
+              /* The sums: a share's price and its base-case estimate stay in
+                 the currency the company reports in (VIEWS.compare: a quoted
+                 price is never converted), and since the first visit compares
+                 Apple and Microsoft (the owner's decision of 11 Oct 2026)
+                 those two rows read in dollars by design. Every other figure
+                 is a sum in the reader's base currency. */
+              const landed = await value(`(() => { const v = document.getElementById('views'), n = (s, re) => (s.match(re) || []).length, t = v.innerText;
+                const per = [...v.querySelectorAll('tr')].filter(tr => /^(Price|Base-case model estimate)$/.test((tr.cells[0] ? tr.cells[0].innerText : '').trim())).map(tr => tr.innerText).join('\\n');
+                return { rm: n(t, /RM\\s?[0-9]/g), usd: n(t, /\\$\\s?[0-9]/g) - n(per, /\\$\\s?[0-9]/g), perShare: n(per, /\\$\\s?[0-9]/g), frames: window.__fp2 || [] }; })()`);
               say('ccy', landed.rm > 0 && landed.usd === 0 && !landed.frames.some(k => /skeleton/.test(k)),
-                `/compare in Singapore (${lang}): once the filings landed, ${landed.usd} sums in dollars and ${landed.rm} in ringgit${landed.frames.some(k => /skeleton/.test(k)) ? ', the skeleton painted between' : ''}`, landed.frames);
+                `/compare in Singapore (${lang}): once the filings landed, ${landed.usd} sums in dollars and ${landed.rm} in ringgit (and ${landed.perShare} per-share figures in the companies' own dollars)${landed.frames.some(k => /skeleton/.test(k)) ? ', the skeleton painted between' : ''}`, landed.frames);
             }
           }
         } finally { await zone(P.ZONE, P.LOCALE); }
