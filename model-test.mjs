@@ -7943,6 +7943,176 @@ try {
   }
   /* ---- end cost-import ---- */
 
+  /* ---- pu-provenance ---- */
+  /* ONE SOURCED RECORD, ITS PROVENANCE CARRIED (the 11 Oct 2026 daily
+     audit, #7, owner-approved 12 Oct; oppDeal, oppSourceOf and
+     oppProvenanceWords in 80-registers.js, labAddOpportunity and
+     labSaveOpportunity in 82-property-lab.js, the register's card in
+     85-trading-index.js, the guided evidence flow in 90-area-screen.js). An
+     opportunity the reader recorded — its source, the date it is from, the
+     day recorded — populates a Scenario Lab column, a comparison beside a
+     saved property (P6) and a property saved from it, each with those three.
+     PV1 — the record's deal is its own: what it states, and where it
+           states nothing the calculator's figures stand in — never the
+           calculator's answers. With the calculator answered Auction, a
+           reserve and its comparables named, the record is a subsale with
+           no reserve and nothing named; its asking price is the price it
+           records; the register's card and the Lab's column model the one
+           deal.
+     PV2 — opened in the Lab beside a saved property, a column of its own
+           ('opp:<id>') with its provenance in the columns card and the
+           comparison's header, compared on its own model — and nothing
+           written: the saved work, the deal, the register and the saved
+           comparisons byte for byte; a move on it a what-if.
+     PV3 — saved: a property tied to the record, its source, dated and
+           recorded the record's, the move kept and marked the reader's;
+           the column is that property's; the register lists the record as
+           saved; offered again, as the property; and "Open in the
+           calculator" from the register keeps the same three.
+     PV4 — evidence → opportunity: an asking price recorded in the guided
+           flow (locality level) begins the register's form — its amount,
+           town, locality, source and date — and the record made keeps
+           them and names the record it came from; that record stays the
+           reader's own at the locality's level ("checked by you",
+           never verified) and the card says it is not a verified building
+           transaction. No address is put on it.
+     Each fails on 5a75a923, where none of oppDeal, labAddOpportunity or
+     labSaveOpportunity exists and a record carries no date of its source. */
+  {
+    const pvtry = async (name, fn) => { try { await fn(); } catch (e) { fail(name, String(e.message).split('\n')[0]); } };
+    const PV_KEYS = ['savedWork', 'deal', 'opportunities', 'labComparisons', 'observations', 'registerLog', 'dealBeforeLink'];
+    await evaluate(`(() => { window.__pvkeep = Object.fromEntries(${JSON.stringify(PV_KEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])); return true; })()`);
+    const PV_RECORD = `const pvRecord = (extra = {}) => ({ id: 'opp-pv-' + Math.random().toString(36).slice(2, 8), name: 'pv Residences', source: 'Agent listing ref. PV-1 (synthetic)', sourceDate: '2026-10-01',
+        capturedAt: '2026-10-12', state: 'captured', availabilityCheckedAt: null, available: null,
+        deal: { city: 'kuching', district: 'Tabuan', propertyType: 'Condominium', price: 450000, sqft: 1100, projectId: customProjectId('kuching'), bankValuation: 0, titleType: 'unknown' },
+        touched: { price: true, sqft: true }, evidence: { price: 'user', sqft: 'user' }, negotiatedPrice: null, valuerEstimate: null, nextAction: '', nextActionOwner: '', nextActionDue: '', ...extra });
+      const pvBase = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+      const pvSnap = () => JSON.stringify(${JSON.stringify(PV_KEYS)}.map(k => localStorage.getItem('vl.' + k)));`;
+    const PV_RESTORE = `const back = window.__pvkeep; for (const [k, v] of Object.entries(back)) { if (v === null) localStorage.removeItem('vl.' + k); else localStorage.setItem('vl.' + k, v); }
+      State.deal = store.read('deal', null) || pvBase(); State.opportunities = store.read('opportunities', []); State.observations = store.read('observations', []);
+      for (const k of Object.keys(LAB)) delete LAB[k]; labSubject = null; State.labResume = null;`;
+
+    await pvtry('pu-provenance PV1: the record\'s deal is its own', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${PV_RECORD}
+        State.deal = { ...pvBase(), route: 'auction', reservePrice: 400000, auctionComp1: 520000, comparableIds: ['obs-x'], objective: 'cashflow', rfRefurbCost: 30000 };
+        const o = pvRecord(); State.opportunities = [o];
+        const d = oppDeal(o), col = labForeignCol('B', 'opp:' + o.id, null);
+        const out = { route: dealRoute(d), keys: ['route', 'reservePrice', 'auctionComp1', 'comparableIds', 'objective', 'rfRefurbCost'].filter(k => k in d), asking: d.askingPrice, price: d.price, sqft: d.sqft,
+          rent: d.rent === State.deal.rent, same: pmCanon(pmBare(candidateModel(o).d)) === pmCanon(col.baseInputs), prop: col.prop, source: col.source, name: col.name,
+          ptr: ['modelId', 'scenarioId'].filter(k => k in d) };
+        ${PV_RESTORE}
+        return JSON.stringify(out); })()`));
+      const p = [];
+      if (r.route !== 'subsale' || r.keys.length || r.ptr.length) p.push(`the record's deal is ${r.route} and carries ${JSON.stringify([...r.keys, ...r.ptr])} from the calculator`);
+      if (r.price !== 450000 || r.asking !== 450000 || r.sqft !== 1100) p.push(`price ${r.price}, asking ${r.asking}, area ${r.sqft} — the record's 450,000 and 1,100 sq ft`);
+      if (!r.rent) p.push('a figure the record does not state is not the calculator\'s');
+      if (!r.same || r.prop !== r.source || !/^opp:opp-pv-/.test(r.source) || r.name !== 'pv Residences') p.push(`the Lab's column: ${JSON.stringify(r)}`);
+      if (p.length) fail('pu-provenance PV1: the record\'s deal is its own', p);
+      else ok('pu-provenance PV1: with the calculator answered Auction (a reserve, a comparable, an objective, a refurbishment cost), a register record is a subsale carrying none of them, priced and asked at the RM450,000 it records, 1,100 sq ft, the calculator\'s rent standing in; the register\'s card and the Lab\'s column (opp:<id>) model the one deal');
+    });
+
+    await pvtry('pu-provenance PV2 + PV3: opened beside a saved property, compared, saved with its provenance', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${PV_RECORD}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        for (const k of Object.keys(LAB)) delete LAB[k]; labSubject = null;
+        State.deal = pvBase(); saveDeal();
+        const a = saveActiveProperty({ name: 'pv saved condo' });
+        const o = pvRecord(); State.opportunities = [o]; saveOpportunities();
+        navigate('/property/opportunities'); await w(500);
+        const before = pvSnap();
+        const btn = document.getElementById('opp-0-lab');
+        const out = { button: !!btn };
+        btn?.click(); await w(900);
+        const L = LAB[labSubject];
+        const xr = document.getElementById('lab-xr');
+        out.opened = { view: State.view, subject: labSubject, cols: L.cols.map(c => c.key + ':' + c.source).join(','), active: L.active,
+          prov: [...document.querySelectorAll('.lab-col-prov[data-prov="B"], .lab-xr-prov[data-prov="B"]')].map(n => n.textContent),
+          xr: !!xr, ra: [...document.querySelectorAll('#lab-xr-grid .lab-xr-colhd')].map(n => n.querySelector('.lab-xr-ra')?.textContent),
+          cash: document.querySelector('#lab-xr-grid .lab-xr-cell[data-row="cash"][data-col="B"]')?.dataset.value || null,
+          want: String(dealModel(L.cols[1].work).safeCashRequired), written: pvSnap() !== before,
+          offered: labOtherSources(L).some(x => x.id === 'opp:' + o.id) };
+        labWrite(labActive(L), 'price', 430000); labRefresh(); await w(200);
+        out.moved = { moves: labMoveCount(labActive(L)), written: pvSnap() !== before };
+        const P = [...LAB_PANELS].find(x => x.address && x.node.isConnected);
+        const saved = labSaveOpportunity(P, L, 'pv Residences, saved');
+        await w(300);
+        const rec = saved && pmFind(saved.id);
+        out.saved = rec ? { id: rec.id, source: rec.source, price: pmInputsOf(rec).price, touched: !!pmInputsOf(rec).touched?.price, col: L.cols[1].source === 'pm:' + rec.id && L.cols[1].prop === 'pm:' + rec.id && !labMoveCount(L.cols[1]),
+          tied: oppTied(o)?.id === rec.id, offered: labOtherSources(L).map(x => x.id).filter(x => x.includes(o.id) || x.includes(rec.id)),
+          again: labForeignCol('C', 'opp:' + o.id, a.id)?.source, words: labProvWords(L, L.cols[1]) } : null;
+        navigate('/property/opportunities'); await w(400);
+        out.card = { chip: document.querySelector('#views [data-tied]')?.textContent || null, prov: document.getElementById('opp-0-prov')?.textContent || null };
+        /* The register's own Open, on a second record: the same three kept. */
+        const o2 = pvRecord({ name: 'pv Second', source: 'Agent call, 3 Oct (synthetic)', sourceDate: '2026-10-03' }); State.opportunities = [o2, ...State.opportunities]; saveOpportunities();
+        openOpportunityProperty(o2, candidateModel(o2).d); await w(300);
+        out.calc = oppTied(o2)?.source || null;
+        ${PV_RESTORE}
+        navigate('/property/calculator'); await w(300);
+        return JSON.stringify(out); })()`));
+      const p = [];
+      if (!r.button) p.push('the register\'s card has no "Open in the Scenario Lab"');
+      const op = r.opened || {};
+      if (op.view !== 'propertyLab' || !/^m:/.test(op.subject || '') || !/^A:base,B:opp:opp-pv-/.test(op.cols || '') || op.active !== 'B') p.push(`opened: ${JSON.stringify(op)}`);
+      const want = 'Source: Agent listing ref. PV-1 (synthetic) · dated 2026-10-01 · recorded 2026-10-12';
+      if (!op.prov || op.prov.length !== 2 || op.prov.some(t => !t.includes(want))) p.push(`B's provenance reads ${JSON.stringify(op.prov)}`);
+      if (!op.xr || !op.cash || op.cash !== op.want) p.push(`the comparison: ${op.xr ? `B's cash required ${op.cash}, its model ${op.want}` : 'not drawn'}`);
+      if (op.written) p.push('opening it in the Lab wrote to storage');
+      if (!op.offered) p.push('the record is not offered among the columns\' sources');
+      if (r.moved?.moves !== 1 || r.moved?.written) p.push(`a move on B: ${JSON.stringify(r.moved)} — one move, nothing written`);
+      const s = r.saved;
+      if (!s) p.push('Save kept no property');
+      else {
+        if (s.source?.kind !== 'opportunity' || s.source.ref !== 'Agent listing ref. PV-1 (synthetic)' || s.source.dated !== '2026-10-01' || s.source.recordedAt !== '2026-10-12' || s.source.name !== 'pv Residences') p.push(`the property's source: ${JSON.stringify(s.source)}`);
+        if (s.price !== 430000 || !s.touched) p.push(`the property's price ${s.price}${s.touched ? '' : ', not marked the reader\'s'} — the move, 430,000`);
+        if (!s.col || !s.tied) p.push('the column is not the saved property\'s, or the record is not tied to it');
+        if (s.offered.some(x => x.startsWith('opp:')) || s.again !== `pm:${s.id}`) p.push(`saved, the record is still offered as itself, or not as the property: ${JSON.stringify(s)}`);
+        if (!s.words?.includes(want)) p.push(`the saved property's column reads “${s.words}”`);
+      }
+      if (!/^Saved as a property: “pv Residences, saved”$/.test(r.card?.chip || '') || !(r.card?.prov || '').includes(want)) p.push(`the register's card: ${JSON.stringify(r.card)}`);
+      if (r.calc?.ref !== 'Agent call, 3 Oct (synthetic)' || r.calc?.dated !== '2026-10-03' || r.calc?.recordedAt !== '2026-10-12') p.push(`"Open in the calculator" kept ${JSON.stringify(r.calc)}`);
+      if (p.length) fail('pu-provenance PV2 + PV3: opened beside a saved property, compared, saved with its provenance', p);
+      else ok(`pu-provenance PV2 + PV3: "Open in the Scenario Lab" on the register's card puts the record beside the saved property as B (${op.cols.replace(/opp-pv-\w+/, '…')}), its provenance — "${want}" — under its name in the columns card and the comparison, B's cash required its own model's (RM${Number(op.cash).toFixed(0)}), nothing written and a price move a what-if; Save keeps a property tied to the record with that source, date and day, the move marked the reader's; the column becomes the property's, the record is offered no more as itself, and the register says "Saved as a property"; the register's Open in the calculator keeps the same three`);
+    });
+
+    await pvtry('pu-provenance PV4: an asking price recorded becomes an opportunity, the record staying locality-level', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${PV_RECORD}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        State.observations = []; State.opportunities = []; saveOpportunities();
+        const obs = addObservation({ city: 'kuching', area: 'Tabuan', kind: 'ask-price', value: 615000, date: '2026-09-28', evidence: 'user', sourceRef: 'https://example.com/pv-listing', sourceKind: 'url', scope: 'area', guided: true, sqft: 1200, areaUnit: 'sqft',
+          reviewedBy: 'you', reviewedAt: '2026-10-12' });
+        State.evidenceFlow = { city: 'kuching', area: 'Tabuan', draft: null, last: obs.id };
+        navigate('/property/comparables'); await w(500);
+        const b = document.getElementById('ef-opp');
+        const out = { button: !!b };
+        b?.click(); await w(600);
+        const v = (id) => document.getElementById(id)?.value ?? null;
+        out.form = { view: State.view, price: v('opp-new-askingPrice'), sqft: v('opp-new-sqft'), source: v('opp-new-source'), dated: v('opp-new-sourceDate'), city: v('opp-new-city'), district: v('opp-new-district'),
+          note: document.getElementById('opp-new-from')?.textContent || null, written: (State.opportunities || []).length };
+        const name = document.getElementById('opp-new-name'); name.value = 'pv From a listing'; name.dispatchEvent(new Event('input', { bubbles: true }));
+        document.getElementById('opp-add').click(); await w(400);
+        const o = State.opportunities[0];
+        out.record = o ? { fromObs: o.fromObs === obs.id, source: o.source, dated: o.sourceDate, price: o.deal?.price, ev: o.evidence?.price } : null;
+        out.card = [...document.querySelectorAll('#views .opp-from-obs')].map(n => n.textContent).join(' | ');
+        const now = State.observations.find(x => x.id === obs.id);
+        out.obs = { standing: observationStanding(now).id, scope: now.scope, address: now.address || null };
+        ${PV_RESTORE}
+        return JSON.stringify(out); })()`));
+      const p = [];
+      if (!r.button) p.push('an asking price recorded offers no "Record it as an opportunity"');
+      const f = r.form || {};
+      if (f.view !== 'opportunities' || f.price !== '615000' || f.sqft !== '1200' || f.source !== 'https://example.com/pv-listing' || f.dated !== '2026-09-28' || f.city !== 'kuching' || f.district !== 'Tabuan') p.push(`the form begun: ${JSON.stringify(f)}`);
+      if (f.written !== 0) p.push('beginning the form wrote a record before Add');
+      if (!/never a verified building transaction/.test(f.note || '')) p.push(`the form's note: “${f.note}”`);
+      if (!r.record?.fromObs || r.record.source !== 'https://example.com/pv-listing' || r.record.dated !== '2026-09-28' || r.record.price !== 615000 || r.record.ev === 'verified') p.push(`the record: ${JSON.stringify(r.record)}`);
+      if (!/not a verified building transaction/.test(r.card || '')) p.push(`the card says “${r.card}”`);
+      if (r.obs.standing !== 'area_checked' || r.obs.scope !== 'area' || r.obs.address) p.push(`the asking price's record became ${JSON.stringify(r.obs)}`);
+      if (p.length) fail('pu-provenance PV4: an asking price recorded becomes an opportunity, the record staying locality-level', p);
+      else ok('pu-provenance PV4: an asking price recorded in the guided flow (Tabuan, RM615,000, 1,200 sq ft, a web page dated 28 Sep 2026) offers "Record it as an opportunity", which begins the register\'s form with its amount, area, town, locality, source and date — nothing written until Add; the record made keeps them and names the record it came from, its price never "verified"; the card says that record is the reader\'s own at the locality\'s level, not a verified building transaction, and the record itself stays "checked by you" at the locality\'s level with no address');
+    });
+    await evaluate(`(() => { const back = window.__pvkeep; for (const [k, v] of Object.entries(back)) { if (v === null) localStorage.removeItem('vl.' + k); else localStorage.setItem('vl.' + k, v); } return true; })()`).catch(() => {});
+  }
+  /* ---- end pu-provenance ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

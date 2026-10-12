@@ -224,7 +224,7 @@ const LAB_METRIC_IDS = LAB_METRICS.map(x => x.id);
 const LAB = {};
 const LAB_LETTERS = ['A', 'B', 'C'];
 const LAB_SOURCE_CHIP = { deal: 'On the calculator', current: 'On the calculator', base: 'As saved', sc: 'Scenario', variant: 'Lab variant — not saved',
-  pm: 'Another property', sample: 'Sample — not a real listing' };
+  pm: 'Another property', sample: 'Sample — not a real listing', opp: 'Your opportunity — not saved' };
 let labSubject = null;          /* the page's subject */
 let labUrlSeen = null;          /* the address last read on arrival */
 let labArrivalNote = null;      /* said for the arrival that needed it */
@@ -232,7 +232,23 @@ const LAB_LISTENERS = new Set();
 const LAB_PANELS = new Set();
 
 const labKeyOf = (spec) => (spec?.kind === 'model' ? `m:${spec.id}` : 'deal');
-const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : c.source);
+const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : String(c.source).startsWith('opp:') ? 'opp' : c.source);
+/* A COLUMN FROM THE OPPORTUNITY REGISTER (the 11 Oct audit, #7): 'opp:<id>',
+   a property the reader recorded there and has not saved as a property —
+   its figures the register's own (oppDeal, 80-registers.js), its
+   provenance with it, a what-if like any column until Save keeps it as a
+   property tied to the record (labSaveOpportunity). A record already saved
+   as a property is that property's column ('pm:<id>'). */
+const labOppRef = (source) => { const m = /^opp:(.+)$/.exec(String(source || '')); return m ? m[1] : null; };
+const labColOpp = (col) => (col?.prop ? oppById(labOppRef(col.prop)) : null);
+/* What a column's provenance line says: a register record's source and
+   dates, as recorded — or kept, on a property saved from one. */
+function labProvWords(lab, col) {
+  const o = labColOpp(col);
+  if (o) return `From your opportunity register · ${oppProvenanceWords(o)}`;
+  const rec = labColRec(lab, col);
+  return rec?.source?.kind === 'opportunity' ? `From your opportunity register · ${oppProvenanceWords(rec.source)}` : null;
+}
 /* COLUMNS FROM ANOTHER PROPERTY (the decision layer, P6). Column A is the
    lab's subject — the property opened, or the calculator's deal — and B
    and C may be its scenarios and copies, as before, or another of the
@@ -252,6 +268,15 @@ const labColRec = (lab, col) => { const id = labColRecId(lab, col); return id ? 
    scenarios) that is not the subject. */
 function labForeignCol(key, id, subjectId = null) {
   if (id === 'sample') return labCol(key, 'sample', 'Sample deal', pmSampleDeal(), { prop: 'sample' });
+  /* A record of the opportunity register; once saved as a property, that
+     property's column. */
+  const oid = labOppRef(id);
+  if (oid) {
+    const o = oppById(oid), tied = oppTied(o);
+    if (!o) return null;
+    if (tied) return tied.id === subjectId ? null : labForeignCol(key, `pm:${tied.id}`, subjectId);
+    return labCol(key, `opp:${o.id}`, o.name, oppDeal(o), { prop: `opp:${o.id}` });
+  }
   const r = labPmRef(id), rec = r && r.id !== subjectId ? pmFind(r.id) : null;
   if (!rec) return null;
   const sc = r.sc ? pmScenario(rec, r.sc) : null;
@@ -306,6 +331,8 @@ function labSourceInputs(lab, col) {
     return sc ? pmSavedInputs(other, sc) : null;
   }
   if (k === 'sample') return pmSampleDeal();
+  /* A register record: as the register holds it now. */
+  if (k === 'opp') { const o = oppById(labOppRef(col.source)); return o ? oppDeal(o) : null; }
   if (!lab.model) return null;
   const rec = pmFind(lab.model);
   if (!rec) return null;
@@ -323,9 +350,16 @@ function labRebase(lab) {
   const rec = lab.model ? pmFind(lab.model) : null;
   if (lab.model && !rec) return false;
   for (const col of lab.cols) {
+    /* A record saved as a property since — from the calculator, or another
+       column of it — is that property's column now, its moves kept on it;
+       and so is a copy of it. */
+    if (String(col.prop).startsWith('opp:')) {
+      const tied = oppTied(oppById(labOppRef(col.prop)));
+      if (tied && tied.id !== lab.model) { if (col.source !== 'variant') col.source = `pm:${tied.id}`; col.prop = `pm:${tied.id}`; }
+    }
     if (col.source === 'variant') continue;
     const now = labSourceInputs(lab, col);
-    if (!now) { col.name = `${col.name} — ${['sc', 'pm'].includes(labSourceKind(col)) ? 'no longer saved' : 'no longer on the calculator'}`; col.source = 'variant'; continue; }
+    if (!now) { col.name = `${col.name} — ${['sc', 'pm'].includes(labSourceKind(col)) ? 'no longer saved' : labSourceKind(col) === 'opp' ? 'no longer in your register' : 'no longer on the calculator'}`; col.source = 'variant'; continue; }
     const base = pmBare(pmCopy(now));
     if (labSourceKind(col) === 'sc') { const sc = pmScenario(rec, col.source.slice(3)); if (sc) col.name = sc.name; }
     /* Another property's column is named as that property is now. */
@@ -333,6 +367,7 @@ function labRebase(lab) {
       const r = labPmRef(col.source), other = pmFind(r.id), sc = r.sc ? pmScenario(other, r.sc) : null;
       col.name = sc ? `${other.name} — ${sc.name}` : other.name;
     }
+    if (labSourceKind(col) === 'opp') col.name = oppById(labOppRef(col.source))?.name || col.name;
     /* The calculator's deal is named as it is now: "Sample deal" is not the
        name of a deal the reader has since changed (F2). */
     if (labSourceKind(col) === 'deal') col.name = labDealName();
@@ -458,6 +493,58 @@ function labOpen(subject) {
   labRefresh();
   return { ok: true, key: lab.key };
 }
+/* A RECORD OF THE OPPORTUNITY REGISTER, OPENED IN THE LAB (the 11 Oct audit,
+   #7): a column beside what the lab is open on — the property being worked
+   on, else the calculator's deal (a saved property, where it is one) — so
+   it is compared with it on its own route and asset (P6), its moves a
+   what-if until Save. Nothing is written. The column it takes: the one that
+   shows it already; else a lab copy holding nothing of the reader's; else a
+   free letter; else the last column with no move — and a column holding
+   moves not saved is replaced only once the reader agrees. A record saved
+   as a property opens as that property's column. Then the lab, on that
+   subject (labResume). */
+function labAddOpportunity(oppId, { go = true } = {}) {
+  const o = oppById(oppId);
+  if (!o) return { ok: false, why: 'That record is not in your opportunity register.' };
+  const tied = oppTied(o);
+  const id = tied ? `pm:${tied.id}` : `opp:${o.id}`;
+  let lab = labSubject && LAB[labSubject] && labRebase(LAB[labSubject]) ? LAB[labSubject] : null;
+  if (!lab) lab = labEnsure({ kind: 'deal' });
+  if (!lab) return { ok: false, why: 'Nothing could be opened in the lab.' };
+  let col = null;
+  if (tied && lab.model === tied.id) col = lab.cols.find(c => c.source === 'base') || lab.cols[0];
+  else col = lab.cols.find(c => labColId(c) === id);
+  if (!col) {
+    const own = (c) => labMoveCount(c) > 0 || Object.keys(c.inherited || {}).length > 0;
+    const spare = [...lab.cols].reverse().find(c => c.key !== 'A' && c.source === 'variant' && !own(c));
+    const free = LAB_LETTERS.find(x => !lab.cols.some(c => c.key === x));
+    let key = spare ? spare.key : free;
+    if (!key) {
+      const quiet = [...lab.cols].reverse().find(c => c.key !== 'A' && !own(c));
+      if (quiet) key = quiet.key;
+      else {
+        const last = lab.cols[lab.cols.length - 1], n = labMoveCount(last);
+        /* The one prompt before a what-if is lost (#8): said, and refused
+           unless the reader agrees. */
+        if (!confirm(`Column ${last.key} holds ${n} move${n === 1 ? '' : 's'} not saved. Show “${o.name}” in ${last.key} instead? Those moves are lost.`)) return { ok: false, why: 'kept' };
+        key = last.key;
+      }
+    }
+    col = labForeignCol(key, id, lab.model);
+    if (!col) return { ok: false, why: 'That record could not be opened.' };
+    const at = lab.cols.findIndex(c => c.key === key);
+    if (at > -1) lab.cols[at] = col; else lab.cols.push(col);
+    lab.cols.sort((a, b) => LAB_LETTERS.indexOf(a.key) - LAB_LETTERS.indexOf(b.key));
+    const rec = lab.model ? pmFind(lab.model) : null;
+    if (rec) pmCompareSelect(rec.id, labOwnIds(lab));
+  }
+  lab.active = col.key;
+  lab.naming = null;
+  labSubject = lab.key;
+  State.labResume = lab.key;
+  if (go) navigate('/property/lab?');
+  return { ok: true, key: lab.key, col: col.key };
+}
 /* Told after each paint, with what the lab holds. A listener whose node has
    left the page takes itself off. */
 function labSubscribe(fn, node = null) {
@@ -497,6 +584,22 @@ function labNotify(lab) {
    A property not saved here is said so, and the deal on the calculator is
    shown in its place. */
 function labArrive() {
+  /* RESUMED (the 11 Oct audit, #7 and #8): the subject the reader was
+     working on — a record opened from the register beside it, or the work
+     left for the comparables, the area screen or the calculator — as this
+     tab holds it: its columns, their moves and the answers given, whatever
+     the address says. The address is then written for it. */
+  const resume = State.labResume;
+  if (resume) {
+    State.labResume = null;
+    if (LAB[resume] && labRebase(LAB[resume])) {
+      labSubject = resume;
+      labArrivalNote = null;
+      labWriteAddress(LAB[resume]);
+      labUrlSeen = location.pathname + location.search;
+      return;
+    }
+  }
   const key = location.pathname + location.search;
   const q = new URLSearchParams(location.search);
   /* A saved comparison (P6), ?compare=<id>: its property, its columns and
@@ -808,6 +911,8 @@ function labScenarioAfterProperty(lab, col) {
   const deal = State.deal || {};
   return labMarked(col).some(k => pmCanon(col.work[k]) !== pmCanon(deal[k]));
 }
+/* A register record's column, named for its Save (#7): the record's name. */
+const labOppNaming = (col, at = null) => ({ kind: 'opp', at, value: labColOpp(col)?.name || col.name });
 const labGuidedWords = (lab, col) => (labScenarioAfterProperty(lab, col) ? `Save this property and ${col.key} as a scenario` : 'Save this property');
 function labGuidedScenario(lab, col) {
   if (!labScenarioAfterProperty(lab, col)) return null;
@@ -854,6 +959,10 @@ function labIdentityAct(P, lab) {
   if (lab.naming?.at === 'identity') return box;
   if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)));
+  /* The sliders on a register record's column (#7): Save keeps it as a
+     property of the reader's, tied to the record. */
+  else if (labColOpp(col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labNaming(P, lab, labOppNaming(col, 'identity')) }, `Save ${col.key} as a property`));
   /* The sliders on another property's column, moved (P6): Save keeps it as
      a scenario of that property. */
   else if (col.prop && labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
@@ -1344,8 +1453,9 @@ function labBarSave() {
   const P = labPagePanel(), lab = P && LAB[P.key];
   if (!lab) return { aria: 'Nothing to save', disabled: true };
   const col = labActive(lab);
-  if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
+  if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'scenario' ? 'scenario-name' : 'property-name'))?.focus() };
   if (lab.model && labAnswersPending(lab)) return { aria: labSaveAnswersWords(lab), run: () => labSaveAnswers(P, lab) };
+  if (labColOpp(col)) return { aria: `Save ${col.key} as a property`, run: () => labNaming(P, lab, labOppNaming(col, 'identity')) };
   if (col.prop && labCanSave(lab, col)) return { aria: `Save ${col.key} as a scenario`, run: () => labNaming(P, lab, labScenarioNaming(lab, col, 'identity')) };
   /* The same guided save as the identity line's: the property's name and,
      where the column holds figures a scenario would keep, its own. */
@@ -2138,6 +2248,9 @@ function labColumnsCard(P, lab) {
     const li = el('li', { class: `lab-col-row lab-c-${c.key}${c.key === lab.active ? ' is-active' : ''}` });
     li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, LAB_SOURCE_CHIP[labSourceKind(c)]),
       labMoveCount(c) ? el('span', { class: 'lab-tag lab-tag-whatif' }, `${labMoveCount(c)} move${labMoveCount(c) === 1 ? '' : 's'} not saved`) : null]));
+    /* Where a register record's figures came from, under its name (#7). */
+    const prov = labProvWords(lab, c);
+    if (prov) li.append(el('span', { class: 'metaline lab-col-prov', 'data-prov': c.key }, prov));
     const acts = el('span', { class: 'lab-col-acts' });
     /* Column A is the property opened: only its own figures. */
     const own = offered.map(o => [o.id, o.id === 'base' ? 'As saved' : o.short]);
@@ -2228,6 +2341,9 @@ function labCommits(P, lab, col) {
      or none — the calculator's unsaved deal, or the sample. */
   const rec = labColRec(lab, col);
   const sample = col.prop === 'sample';
+  /* A register record (#7), or one removed from the register since. */
+  const opp = labColOpp(col);
+  const gone = !opp && String(col.prop || '').startsWith('opp:');
   const n = labMoveCount(col);
   const kind = labSourceKind(col);
   const scOf = kind === 'sc' || (kind === 'pm' && !!labPmRef(col.source)?.sc);
@@ -2252,7 +2368,11 @@ function labCommits(P, lab, col) {
       `Save ${col.key} as a scenario${yours}`));
     if (scOf && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
       `Update scenario “${col.name}”${yours}`));
-  } else if (!sample) {
+  } else if (opp) {
+    /* Kept as a property of the reader's, tied to its record (#7). */
+    acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-opp'),
+      onclick: () => labNaming(P, lab, labOppNaming(col)) }, `Save ${col.key} as a property${yours}`));
+  } else if (!sample && !gone) {
     /* The guided save: one action, both names (labGuidedNaming). */
     acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
       onclick: () => labNaming(P, lab, labGuidedNaming(lab)) }, labGuidedWords(lab, col)));
@@ -2271,12 +2391,17 @@ function labCommits(P, lab, col) {
      reader's and why the grade can stay U, under "How saving works" (L3,
      closed) — every word of it kept. */
   const line = sample ? `${col.key} is the sample deal — open it in the calculator to save it as a property of yours.`
+    : opp ? `Save keeps ${col.key} as a property, its source and dates with it.`
+    : gone ? `${col.key}’s record is no longer in your register — open it in the calculator to keep it.`
     : !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
     : canSave ? `Saving makes ${col.key}’s moved figures yours.`
     : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
     : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
   if (sample) why.push(`The sample deal is the tool’s, not a property saved here, so ${col.key} has no property to keep a scenario of. Opened in the calculator, its figures become a deal of yours to save there.`);
+  else if (opp) why.push(`${col.key} is a property you recorded in your opportunity register (${oppProvenanceWords(opp)}). Its figures are the register’s: what the record states, and where it states nothing the calculator’s figures stand in, marked as the tool’s. `
+    + `Save keeps it as a property of yours tied to that record, its source and dates kept with it; opened in the calculator it is saved so too, as the register’s Open does. Until then it is a what-if, and nothing is written.`);
+  else if (gone) why.push(`${col.key} was a record of your opportunity register, removed since. Its figures are kept here as a lab variant; opened in the calculator they become a deal of yours to save there.`);
   else if (!rec) why.push(labScenarioAfterProperty(lab, col)
     ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
     : `A scenario belongs to a saved property. Save keeps the deal on the calculator as a property; move a figure of ${col.key} and the same Save keeps ${col.key} as its scenario too.`);
@@ -2323,15 +2448,18 @@ function labGateWords(d) {
 }
 function labNaming(P, lab, naming) {
   lab.naming = naming;
-  labDraw(P, labId(P, naming.kind === 'property' ? 'property-name' : 'scenario-name'));
-  const f = document.getElementById(labId(P, naming.kind === 'property' ? 'property-name' : 'scenario-name'));
+  labDraw(P, labId(P, naming.kind === 'scenario' ? 'scenario-name' : 'property-name'));
+  const f = document.getElementById(labId(P, naming.kind === 'scenario' ? 'scenario-name' : 'property-name'));
   if (f) { f.focus(); f.select?.(); }
 }
 /* THE NAME, ASKED FOR IN THE PAGE — not prompt(), which a phone draws over
    everything and a screen reader announces out of place. */
 function labNameForm(P, lab, col) {
   const isProp = lab.naming.kind === 'property';
-  const fid = labId(P, isProp ? 'property-name' : 'scenario-name');
+  /* A register record saved as a property (#7): its name, and nothing else
+     asked — no scenario of it until it is a property. */
+  const isOpp = lab.naming.kind === 'opp';
+  const fid = labId(P, isProp || isOpp ? 'property-name' : 'scenario-name');
   /* The guided save's second name: the column the sliders move now, as its
      scenario — asked for again if another column was picked meanwhile, and
      not at all where that column holds nothing a scenario would keep. */
@@ -2343,12 +2471,13 @@ function labNameForm(P, lab, col) {
   }
   const form = el('form', { class: 'lab-name-form', onsubmit: (e) => {
     e.preventDefault();
+    if (isOpp) { labSaveOpportunity(P, lab, input.value); return; }
     if (!isProp) { labCommitScenario(P, lab, input.value); return; }
     labSaveProperty(P, lab, input.value, sc && sc.on ? { name: scInput.value } : null);
   } });
   const input = el('input', { type: 'text', class: 'input', id: fid, maxlength: '80', value: lab.naming.value || '', autocomplete: 'off',
     oninput: (e) => { lab.naming.value = e.target.value; } });
-  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${labColRec(lab, col)?.name || ''}”`), input);
+  form.append(el('label', { for: fid, class: 'lab-name-label' }, isOpp ? `Name ${col.key} as a property of yours` : isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${labColRec(lab, col)?.name || ''}”`), input);
   let scInput = null;
   if (sc) {
     const sid = labId(P, 'scenario-name'), cid = labId(P, 'name-with-sc');
@@ -2365,7 +2494,7 @@ function labNameForm(P, lab, col) {
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
-        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isProp ? 'save-first' : 'save'];
+        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isOpp ? 'save-opp' : isProp ? 'save-first' : 'save'];
         lab.naming = null; labDraw(P, back.map(x => labId(P, x)));
       } }, 'Cancel'),
     ]));
@@ -2471,6 +2600,30 @@ function labUpdateScenario(P, lab) {
   toast(`Updated the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
   return sc;
 }
+/* A REGISTER RECORD KEPT AS A PROPERTY (the 11 Oct audit, #7): the column's
+   figures — the record's, and the moves made on it, marked the reader's as
+   any commit marks them — saved as a property tied to the record, its
+   provenance with it (oppSourceOf: the source, the date it is from, the day
+   it was recorded). The column becomes that property's, and so does a copy
+   of it; the register lists the record as saved. The only write. */
+function labSaveOpportunity(P, lab, name) {
+  const col = labActive(lab), o = labColOpp(col);
+  if (!o) { toast('That record is no longer in your opportunity register — open it in the calculator to keep it.'); return null; }
+  if (oppTied(o)) { labRebase(lab); labDraw(P); toast(`“${o.name}” is saved as a property already — its column shows it.`); return null; }
+  const next = labNext(col), yours = labYoursWords(col);
+  const rec = pmNewRecord(next, String(name || '').trim() || o.name, new Date().toISOString(), { source: oppSourceOf(o) });
+  const refused = store.failed;
+  if (!persistWork([rec, ...loadWork()]) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+  const fresh = pmFind(rec.id), was = col.prop;
+  const i = lab.cols.indexOf(col);
+  lab.cols[i] = labCol(col.key, `pm:${fresh.id}`, fresh.name, pmInputsOf(fresh), { prop: `pm:${fresh.id}` });
+  for (const c of lab.cols) if (c.prop === was) c.prop = `pm:${fresh.id}`;
+  lab.naming = null;
+  labDraw(P, [labId(P, 'id-save'), labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labAfterStructure(P, lab, { address: true });
+  toast(`Saved “${fresh.name}” as a property from your opportunity register — its source and dates kept with it${yours}. Listed in My properties.${labGateWords(next)}`);
+  return fresh;
+}
 /* OPEN IN THE CALCULATOR: the calculator is given the column's figures,
    marked as the reader's first (propertyLoad saves at once), and the deal
    it had is kept aside where it was the reader's own work. */
@@ -2478,6 +2631,11 @@ function labOpenInCalculator(P, lab) {
   const col = labActive(lab);
   const k = labSourceKind(col);
   const next = labNext(col), yours = labYoursWords(col);
+  /* A register record opens as the register's Open does (#7): saved as a
+     property tied to the record, its provenance kept — here with the
+     column's figures — and opened as that property. */
+  const opp = labColOpp(col);
+  if (opp) { openOpportunityProperty(opp, next); return; }
   /* Another property's column opens as that property (or its scenario);
      the sample, as a deal of no property (P6). */
   const ref = labPmRef(col.source);
@@ -2550,6 +2708,9 @@ function labRouteAsset(d) {
 function labOtherSources(lab) {
   const out = pmAll().filter(r => r.id !== lab.model).map(r => ({ id: `pm:${r.id}`, label: `${r.name} — ${labRouteAsset(pmInputsOf(r))}` }));
   if (lab.model || propertyStatus(State.deal).kind !== 'sample') out.push({ id: 'sample', label: 'Sample deal — not a real listing' });
+  /* The register's records not yet saved as properties (#7): a saved one
+     is listed above, as the property it became. */
+  for (const o of State.opportunities || []) if (o?.id && !oppTied(o)) out.push({ id: `opp:${o.id}`, label: `${o.name} — your opportunity, recorded ${o.capturedAt || 'undated'}` });
   return out;
 }
 /* A column as the comparison across properties names it: by its property —
@@ -2689,7 +2850,7 @@ const LAB_XR_CHARTS = {
    order (only those some column has), every column's cell, and the chart. */
 function labXrView(lab) {
   const lens = LAB_LENS_BY_ID[lab.lens] || LAB_LENS_BY_ID[LAB_LENS_DEFAULT];
-  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], ra: labRouteAsset(c.work), active: c.key === lab.active, f: labXrFacts(c) }));
+  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], ra: labRouteAsset(c.work), prov: labProvWords(lab, c), active: c.key === lab.active, f: labXrFacts(c) }));
   const rows = lens.order.map(id => LAB_XR_ROW_BY_ID[id]).filter(r => !r.only || cols.some(x => x.f && labXrApplies(r, x.f)))
     .map((r, i) => ({ id: r.id, label: r.label, neg: !!r.neg, level: i < 2 ? 1 : 2, cells: cols.map(x => labXrCell(r, x.f)) }));
   const spec = LAB_XR_CHARTS[lens.chart];
@@ -2707,7 +2868,7 @@ function labXrView(lab) {
   const step = nt.ticks.length > 1 ? nt.ticks[1] - nt.ticks[0] : hi - lo;
   if ((spec.refs || []).some(x => x >= hi)) hi += step;
   const chart = { title: spec.title, form: spec.form, refs: spec.refs || [], lo, hi, bars };
-  const shape = JSON.stringify([lens.id, cols.map(x => [x.key, x.name, x.chip, x.ra, x.active]), rows.map(r => [r.id, r.cells.map(c => [!!c.na, !!c.plain, c.kind || null, !!c.notFinal, !!c.sub])]),
+  const shape = JSON.stringify([lens.id, cols.map(x => [x.key, x.name, x.chip, x.ra, x.prov, x.active]), rows.map(r => [r.id, r.cells.map(c => [!!c.na, !!c.plain, c.kind || null, !!c.notFinal, !!c.sub])]),
     chart.form, bars.map(b => [b.key, isNum(b.value), (b.parts || []).length, !!b.note])]);
   return { lens, cols, rows, chart, shape };
 }
@@ -2798,7 +2959,9 @@ function labXrDraw(P, vm) {
   const grid = xr.grid;
   grid.style.setProperty('--xr-n', String(vm.cols.length));
   const kids = [el('div', { class: 'lab-xr-row lab-xr-cols' }, vm.cols.map(c => el('div', { class: `lab-xr-colhd lab-c-${c.key}${c.active ? ' is-active' : ''}`, 'data-col': c.key }, [
-    labLetter(c.key), el('strong', { class: 'lab-xr-colname' }, ` ${c.key} — ${c.name}`), el('span', { class: 'lab-xr-ra' }, c.ra), el('span', { class: 'lab-cmp-chip' }, c.chip)])))];
+    labLetter(c.key), el('strong', { class: 'lab-xr-colname' }, ` ${c.key} — ${c.name}`), el('span', { class: 'lab-xr-ra' }, c.ra), el('span', { class: 'lab-cmp-chip' }, c.chip),
+    /* A register record's provenance, under its name (#7). */
+    c.prov ? el('span', { class: 'lab-xr-prov', 'data-prov': c.key }, c.prov) : null])))];
   const cells = {};
   vm.rows.forEach(r => {
     const hid = `${pre}-row-${r.id}`;

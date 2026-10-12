@@ -5071,7 +5071,7 @@
       },
       "inert": {
         "buttons": 3,
-        "fields": 7,
+        "fields": 8,
         "choices": 0,
         "roles": 0,
         "forms": 0,
@@ -5081,8 +5081,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "c58987e0100f5604",
-      "changed": "2026-10-07"
+      "digest": "e93858b06b29469c",
+      "changed": "2026-10-12"
     },
     "pages/research.html": {
       "path": "/research",

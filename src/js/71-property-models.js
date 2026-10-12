@@ -511,10 +511,12 @@ function openOpportunityProperty(o, modelled) {
     });
     saveOpportunities();
   }
-  const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+  const tied = oppTied(o);
   if (tied) return openPropertyModel(tied.id);
   const at = new Date().toISOString();
-  const rec = pmNewRecord(modelled, o.name, at, { source: { kind: 'opportunity', id: o.id, name: o.name } });
+  /* Tied to the record with its provenance: where it was found, the date
+     the source is from and the day it was recorded (oppSourceOf). */
+  const rec = pmNewRecord(modelled, o.name, at, { source: oppSourceOf(o) });
   const refused = store.failed;
   if (!persistWork([rec, ...loadWork()]) || store.failed !== refused) { toast(STORE_REFUSED); return false; }
   const kept = propertyLoad(pmInputsOf(rec), { modelId: rec.id });
@@ -1122,6 +1124,8 @@ VIEWS.propertyModels = () => {
         ]),
         el('strong', {}, rec.name),
         el('span', { class: 'metaline' }, `${pmPlace(d)} · ${d.propertyType || 'Property'}`),
+        /* Saved from the register: the record's provenance, kept (#7). */
+        rec.source?.kind === 'opportunity' ? el('span', { class: 'metaline pm-prov' }, oppProvenanceWords(rec.source)) : null,
       ]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Price'), el('span', { class: 'num' }, f.price)]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),

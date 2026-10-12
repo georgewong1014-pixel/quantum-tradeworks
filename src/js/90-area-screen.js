@@ -686,8 +686,20 @@ function evidenceFlowDone(o) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
       ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
-    box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
-      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+    box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
+      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      /* EVIDENCE → OPPORTUNITY (the 11 Oct audit, #7): an asking price is a
+         property somebody is selling. "Record it as an opportunity" begins
+         the register's form with its amount, its town and locality, its
+         source and its date — nothing written until Add, and the record
+         itself unchanged: still the reader's own at the locality's level,
+         never a verified building transaction. */
+      o.kind === 'ask-price' ? el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-opp', onclick: () => {
+        oppDraft = { name: '', city: o.city, district: listedDistrict(o.city, o.area) || '', type: 'Condominium', source: o.sourceRef || '',
+          sourceDate: o.date || '', askingPrice: o.value, sqft: num0(o.sqft) > 0 ? o.sqft : 0, fromObs: o.id };
+        navigate('/property/opportunities');
+        setTimeout(() => { const n = document.getElementById('opp-new-name'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus({ preventScroll: true }); } }, 0);
+      } }, 'Record it as an opportunity') : null]));
   } else if (o.kind === 'let-rent') {
     /* An achieved rent (P5): named in the Scenario Lab's observed
        comparable rents, which a commercial property's rent is set against —

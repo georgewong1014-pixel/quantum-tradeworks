@@ -1128,7 +1128,7 @@ VIEWS.opportunities = () => {
      focus and the typing handed back to it (render(), 35-ui.js), showed a
      name Add then said was missing. It is held here from the first
      keystroke until Add takes it. */
-  const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
+  const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', sourceDate:'', askingPrice:0, sqft:0 };
   /* Each control carries its own label: the labels had no `for` and the
      inputs no id, so all seven fields were unnamed to a screen reader. */
   /* The district is chosen from the city's own list, which follows the city.
@@ -1157,10 +1157,10 @@ VIEWS.opportunities = () => {
       input = el('select', { class: 'select', id });
       PROPERTY_TYPES.forEach(t => input.append(el('option', { value: t }, t)));
     } else {
-      input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : 'text' });
+      input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : kind === 'date' ? 'date' : 'text' });
     }
     /* A figure not given is 0 in the draft, and an empty field on the page. */
-    input.value = kind === 'num' ? (draft[key] || '') : draft[key];
+    input.value = kind === 'num' ? (draft[key] || '') : (draft[key] || '');
     const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; if (kind === 'city') fillDistricts?.(); };
     input.addEventListener('input', keep);
     input.addEventListener('change', keep);
@@ -1174,8 +1174,16 @@ VIEWS.opportunities = () => {
   add.append(f('Asking price (RM)', 'askingPrice', 'num'));
   add.append(f('Built-up area (sq ft)', 'sqft', 'num'));
   add.append(f('Where you found it — listing reference, agent, or how you heard', 'source'));
+  /* The date the source is from — the listing, the call — beside the day it
+     is recorded (#7): the record's provenance, carried wherever it goes. */
+  add.append(f('The date it is from — the listing or the call (optional)', 'sourceDate', 'date'));
   add.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'A reference, not a copy. Record enough to find it again; do not paste listing content you have no right to store.'));
+  /* Begun from an asking price in the comparables register (the guided
+     evidence flow): said, and what that record is and is not. */
+  const fromObs = draft.fromObs ? (State.observations || []).find(x => x.id === draft.fromObs) : null;
+  if (fromObs) add.append(el('p', { class: 'metaline opp-from-obs', id: 'opp-new-from' },
+    `Begun from your record of an asking price in ${fromObs.area}, ${(SARAWAK_CITIES.find(c => c.id === fromObs.city) || {}).name || fromObs.city}, dated ${fromObs.date}: its amount, source and date are filled in above. That record stays your own at the locality’s level — never a verified building transaction.`));
   /* Add and Remove redraw the page, and both dropped focus on <body>. Add
      keeps it on Add, with the form emptied for the next one; Remove hands it
      to the record that took the removed one's place, or the one before it,
@@ -1185,6 +1193,10 @@ VIEWS.opportunities = () => {
     State.opportunities = [{
       id: `opp-${Date.now().toString(36)}${(OPP_SEQ++).toString(36)}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
       name: draft.name, source: draft.source,
+      /* Its provenance (#7): the date the source is from, where given, and
+         the record of the comparables register it was begun from. */
+      sourceDate: /^\d{4}-\d{2}-\d{2}$/.test(draft.sourceDate || '') ? draft.sourceDate : null,
+      ...(draft.fromObs ? { fromObs: draft.fromObs } : {}),
       state: 'captured',
       capturedAt: new Date().toISOString().slice(0, 10),
       availabilityCheckedAt: null, available: null,
@@ -1267,6 +1279,8 @@ VIEWS.opportunities = () => {
 
     /* Availability, only where it was actually checked. */
     const age = daysSince(o.availabilityCheckedAt);
+    /* The property it was saved as, if it was (#7). */
+    const tiedRec = oppTied(o);
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:10px' }, [
       el('span', { class: 'chip' }, (CANDIDATE_STATES.find(s => s.id === o.state) || {}).label || o.state),
       o.availabilityCheckedAt && o.available && age != null && age <= 14
@@ -1277,7 +1291,16 @@ VIEWS.opportunities = () => {
       el('span', { class: 'chip' }, `Recorded ${o.capturedAt}`),
       /* The card's figures' kind (D6). */
       (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
+      tiedRec ? el('span', { class: 'chip chip-brand', 'data-tied': tiedRec.id }, `Saved as a property: “${tiedRec.name}”`) : null,
     ]));
+    /* WHERE IT CAME FROM, IN SIGHT (#7): the source, the date it is from
+       and the day it was recorded — what a Lab column, a comparison and a
+       property saved from it all carry. */
+    card.append(el('p', { class: 'metaline opp-prov', id: `opp-${i}-prov`, style: 'margin-top:6px' }, oppProvenanceWords(o)));
+    const obs = o.fromObs ? (State.observations || []).find(x => x.id === o.fromObs) : null;
+    if (o.fromObs) card.append(el('p', { class: 'metaline opp-from-obs' }, obs
+      ? `Its asking price is from your record in ${obs.area}, ${(SARAWAK_CITIES.find(c => c.id === obs.city) || {}).name || obs.city}, dated ${obs.date} — your own, at the locality’s level: not a verified building transaction.`
+      : 'Begun from a record of the comparables register removed since.'));
 
     /* Four prices, kept apart. */
     const pk = el('dl', { class: 'kv', style: 'margin-top:10px' });
@@ -1421,7 +1444,14 @@ VIEWS.opportunities = () => {
        calculator since — a rent confirmed, a rate quoted — had to be typed a
        second time. The first Open saves it as a property tied to the record;
        every Open after reopens that property as it was left. */
-    const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+    const tied = tiedRec;
+    /* IN THE SCENARIO LAB, BESIDE WHAT IS OPEN THERE (#7): a column of the
+       Lab — the record's own figures, compared on its own route and asset
+       with the property being worked on — a what-if until Save. Opening it
+       writes nothing. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-lab`,
+      title: tied ? `Opens “${tied.name}”, saved from this record, as a column of the Scenario Lab` : 'Opens this record as a column of the Scenario Lab — nothing is saved until you save it',
+      onclick: () => labAddOpportunity(o.id) }, 'Open in the Scenario Lab'));
     acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-calc`,
       title: tied ? `Opens “${tied.name}”, saved from this record` : 'Saves this record as a property and opens it',
       onclick: () => openOpportunityProperty(o, modelled[i].d) }, 'Open in the calculator'));
@@ -1431,7 +1461,6 @@ VIEWS.opportunities = () => {
       focusAfterRedraw(`#opp-${i}-name`, `#opp-${i - 1}-name`, '#opp-empty h3');
     } }, 'Remove'));
     card.append(acts);
-    if (o.source) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Source: ${o.source}`));
     wrap.append(card);
   });
 

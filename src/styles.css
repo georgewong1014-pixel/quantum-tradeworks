@@ -6648,6 +6648,12 @@ input.au-in[type="text"] { text-align: left; }
 .lab-xr-colhd.is-active { outline: 2px solid var(--brand); outline-offset: -1px; }
 .lab-xr-colname { font-size: var(--ls-support); line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
 .lab-xr-ra { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+/* A register record's provenance under its column's name (#7): the source,
+   the date it is from, the day recorded — the record's words, never wrapped
+   inside a word but at any point of a long reference. */
+.lab-xr-prov { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lab-col-prov { flex: 1 1 100%; min-width: 0; font-size: var(--ls-meta); line-height: 16px; overflow-wrap: anywhere; }
+.opp-prov, .opp-from-obs { overflow-wrap: anywhere; max-width: 70ch; }
 .lab-xr-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding: 6px 8px;
   border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
 /* A figure a column's route or asset has not: said, outlined, never a figure. */

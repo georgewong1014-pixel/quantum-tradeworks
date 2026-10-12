@@ -3398,6 +3398,32 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end furthest-step-served ---- */
 
+/* ---- pu-provenance-served ---- */
+/* ONE SOURCED RECORD (the 11 Oct 2026 daily audit, #7). What a record's
+   provenance is made of is asked where it is recorded, as served before any
+   script: /property/opportunities asks where the property was found and
+   the date that source is from (beside the day it is recorded, which the
+   register keeps itself); /property/comparables's guided flow says a
+   record is the locality's, never a building's, and never a verified
+   transaction. model-test (pu-provenance) holds the record's three carried
+   to a Lab column, a comparison and a saved property. */
+{
+  const p = [];
+  const got = await getAll(['/property/opportunities', '/property/comparables']);
+  const opp = got.get('/property/opportunities'), cmp = got.get('/property/comparables');
+  const ot = opp?.status === 200 ? pageText(opp.body) : '', ct = cmp?.status === 200 ? pageText(cmp.body) : '';
+  if (!ot) p.push(`/property/opportunities: ${opp?.status || 'no answer'}, not 200`);
+  else {
+    if (!/Where you found it/.test(ot)) p.push('/property/opportunities does not ask where the property was found');
+    if (!/The date it is from/.test(ot)) p.push('/property/opportunities does not ask the date its source is from');
+  }
+  if (!ct) p.push(`/property/comparables: ${cmp?.status || 'no answer'}, not 200`);
+  else if (!/never a building/.test(ct) || !/never shown as a verified transaction/.test(ct)) p.push('/property/comparables\'s guided flow does not say a record is the locality\'s, never a building\'s, and never a verified transaction');
+  judge(p, 'a record\'s provenance, as served: /property/opportunities asks where it was found and the date its source is from; /property/comparables says a record is the locality\'s, never a building\'s, never a verified transaction',
+    'a page that records a property or a price does not ask, or say, what its record rests on');
+}
+/* ---- end pu-provenance-served ---- */
+
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);

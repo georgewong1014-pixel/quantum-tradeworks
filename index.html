@@ -6717,6 +6717,12 @@ input.au-in[type="text"] { text-align: left; }
 .lab-xr-colhd.is-active { outline: 2px solid var(--brand); outline-offset: -1px; }
 .lab-xr-colname { font-size: var(--ls-support); line-height: 18px; color: var(--ink); overflow-wrap: anywhere; }
 .lab-xr-ra { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+/* A register record's provenance under its column's name (#7): the source,
+   the date it is from, the day recorded — the record's words, never wrapped
+   inside a word but at any point of a long reference. */
+.lab-xr-prov { font-size: var(--ls-meta); line-height: 16px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lab-col-prov { flex: 1 1 100%; min-width: 0; font-size: var(--ls-meta); line-height: 16px; overflow-wrap: anywhere; }
+.opp-prov, .opp-from-obs { overflow-wrap: anywhere; max-width: 70ch; }
 .lab-xr-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; padding: 6px 8px;
   border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); }
 /* A figure a column's route or asset has not: said, outlined, never a figure. */
@@ -44174,10 +44180,12 @@ function openOpportunityProperty(o, modelled) {
     });
     saveOpportunities();
   }
-  const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+  const tied = oppTied(o);
   if (tied) return openPropertyModel(tied.id);
   const at = new Date().toISOString();
-  const rec = pmNewRecord(modelled, o.name, at, { source: { kind: 'opportunity', id: o.id, name: o.name } });
+  /* Tied to the record with its provenance: where it was found, the date
+     the source is from and the day it was recorded (oppSourceOf). */
+  const rec = pmNewRecord(modelled, o.name, at, { source: oppSourceOf(o) });
   const refused = store.failed;
   if (!persistWork([rec, ...loadWork()]) || store.failed !== refused) { toast(STORE_REFUSED); return false; }
   const kept = propertyLoad(pmInputsOf(rec), { modelId: rec.id });
@@ -44785,6 +44793,8 @@ VIEWS.propertyModels = () => {
         ]),
         el('strong', {}, rec.name),
         el('span', { class: 'metaline' }, `${pmPlace(d)} · ${d.propertyType || 'Property'}`),
+        /* Saved from the register: the record's provenance, kept (#7). */
+        rec.source?.kind === 'opportunity' ? el('span', { class: 'metaline pm-prov' }, oppProvenanceWords(rec.source)) : null,
       ]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Price'), el('span', { class: 'num' }, f.price)]),
       el('div', { class: 'pm-cell' }, [el('span', { class: 'pm-label' }, 'Monthly position'), el('span', { class: `num${f.neg ? ' neg' : ''}` }, f.monthly)]),
@@ -53342,7 +53352,10 @@ const saveOpportunities = () => store.write('opportunities', State.opportunities
 /* Runs the underwriting engine over a candidate by layering its fields on the
    calculator's own defaults, so a register entry and a calculator run cannot
    diverge — one engine, two front doors. */
-function candidateModel(o) {
+/* The deal a record is modelled as — the register's card, its side by side
+   and a Scenario Lab column of it (82-property-lab.js) read this one, so
+   the three cannot differ. */
+function oppDeal(o) {
   /* A record states what it states. Its checklist answers are its own — the
      calculator's answers used to be attributed to every record, raising their
      financeability — and a price it does not state is absent: a price of 0
@@ -53353,6 +53366,21 @@ function candidateModel(o) {
   if (unpriced) delete od.price;
   if (!(num0(od.sqft) > 0)) delete od.sqft;
   const d = { ...State.deal, ...od, touched: o.touched || {}, evidence: o.evidence || {}, checks: o.checks || {} };
+  /* WHAT AND HOW ARE THE RECORD'S, NEVER THE CALCULATOR'S (the 11 Oct audit,
+     #7). How a property is bought, its subtype, the objective, the
+     comparables named, an auction's terms and the cost lines are answers
+     about one property: the calculator's stood in for every record, so a
+     deal answered Auction there modelled each candidate as bought at
+     auction, on that deal's reserve and its comparables. A record answers
+     none of them, so none is assumed: each is its default (subsale, the
+     class its type implies, nothing named) until the reader answers it for
+     this property. */
+  for (const k of [...DEAL_ANSWER_KEYS, ...COST_LINE_KEYS, 'comparableIds', 'rentComparableIds']) if (!Object.hasOwn(od, k)) delete d[k];
+  delete d.modelId; delete d.scenarioId;
+  /* The one answer a record does give: the price it records is the price
+     asked, so the price gap sets it against the comparables the reader
+     names for it (P2) — named for this property, never the calculator's. */
+  if (!unpriced && !Object.hasOwn(od, 'askingPrice')) d.askingPrice = num0(od.price);
   /* And a district the record's city lists. A blank one was null in the
      deal, and a typed one the city does not list was modelled under a name
      no locality, select or link could match; each is the calculator's
@@ -53360,8 +53388,40 @@ function candidateModel(o) {
      the city's first. The record keeps what was typed (dealDistrict,
      70-property.js). */
   d.district = dealDistrict(d.city, od.district, State.deal.city === d.city ? State.deal.district : null);
+  return d;
+}
+function candidateModel(o) {
+  const d = oppDeal(o);
   const m = dealModel(d);
   return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
+}
+
+/* ONE SOURCED RECORD, ITS PROVENANCE CARRIED WHEREVER IT GOES (the 11 Oct
+   audit, #7). An opportunity is the reader's own record of a real property:
+   where they found it (a reference, never a copy), the date the source is
+   from where they gave one, and the day it was recorded. Opened in the
+   Scenario Lab, set beside a saved property as a column, saved as a property
+   of its own — each says the same three, from here. A record made from an
+   asking price in the comparables register (fromObs) names that record: it
+   is the reader's own, at the locality's level, and never a verified
+   building transaction (observationStanding, scope 'area'). */
+const oppById = (id) => (id ? (State.opportunities || []).find(o => o && o.id === id) || null : null);
+/* The property a record was saved as — by "Open in the calculator" or a
+   Save in the Lab — if any: the record opens as that property after. */
+const oppTied = (o) => (o ? pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id) || null : null);
+/* What a property saved from a record keeps of it. */
+const oppSourceOf = (o) => ({ kind: 'opportunity', id: o.id, name: o.name, ref: o.source ? String(o.source) : null,
+  dated: o.sourceDate || null, recordedAt: o.capturedAt || null, ...(o.fromObs ? { fromObs: o.fromObs } : {}) });
+/* The provenance in words, from a record or from a property's source. */
+function oppProvenanceWords(p) {
+  if (!p) return '';
+  /* A property saved from a record before its provenance was kept with it
+     carries only the record's id: the record says it, while it is held. */
+  if (p.kind === 'opportunity' && !('ref' in p)) { const o = oppById(p.id); return o ? oppProvenanceWords(o) : 'From a record no longer in your register'; }
+  const ref = p.ref !== undefined ? p.ref : p.source;
+  const dated = p.dated !== undefined ? p.dated : p.sourceDate;
+  const at = p.recordedAt !== undefined ? p.recordedAt : p.capturedAt;
+  return [ref ? `Source: ${ref}` : 'No source recorded', dated ? `dated ${dated}` : null, at ? `recorded ${at}` : null].filter(Boolean).join(' · ');
 }
 
 const daysSince = (iso) => {
@@ -54540,7 +54600,7 @@ const LAB_METRIC_IDS = LAB_METRICS.map(x => x.id);
 const LAB = {};
 const LAB_LETTERS = ['A', 'B', 'C'];
 const LAB_SOURCE_CHIP = { deal: 'On the calculator', current: 'On the calculator', base: 'As saved', sc: 'Scenario', variant: 'Lab variant — not saved',
-  pm: 'Another property', sample: 'Sample — not a real listing' };
+  pm: 'Another property', sample: 'Sample — not a real listing', opp: 'Your opportunity — not saved' };
 let labSubject = null;          /* the page's subject */
 let labUrlSeen = null;          /* the address last read on arrival */
 let labArrivalNote = null;      /* said for the arrival that needed it */
@@ -54548,7 +54608,23 @@ const LAB_LISTENERS = new Set();
 const LAB_PANELS = new Set();
 
 const labKeyOf = (spec) => (spec?.kind === 'model' ? `m:${spec.id}` : 'deal');
-const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : c.source);
+const labSourceKind = (c) => (String(c.source).startsWith('sc:') ? 'sc' : String(c.source).startsWith('pm:') ? 'pm' : String(c.source).startsWith('opp:') ? 'opp' : c.source);
+/* A COLUMN FROM THE OPPORTUNITY REGISTER (the 11 Oct audit, #7): 'opp:<id>',
+   a property the reader recorded there and has not saved as a property —
+   its figures the register's own (oppDeal, 80-registers.js), its
+   provenance with it, a what-if like any column until Save keeps it as a
+   property tied to the record (labSaveOpportunity). A record already saved
+   as a property is that property's column ('pm:<id>'). */
+const labOppRef = (source) => { const m = /^opp:(.+)$/.exec(String(source || '')); return m ? m[1] : null; };
+const labColOpp = (col) => (col?.prop ? oppById(labOppRef(col.prop)) : null);
+/* What a column's provenance line says: a register record's source and
+   dates, as recorded — or kept, on a property saved from one. */
+function labProvWords(lab, col) {
+  const o = labColOpp(col);
+  if (o) return `From your opportunity register · ${oppProvenanceWords(o)}`;
+  const rec = labColRec(lab, col);
+  return rec?.source?.kind === 'opportunity' ? `From your opportunity register · ${oppProvenanceWords(rec.source)}` : null;
+}
 /* COLUMNS FROM ANOTHER PROPERTY (the decision layer, P6). Column A is the
    lab's subject — the property opened, or the calculator's deal — and B
    and C may be its scenarios and copies, as before, or another of the
@@ -54568,6 +54644,15 @@ const labColRec = (lab, col) => { const id = labColRecId(lab, col); return id ? 
    scenarios) that is not the subject. */
 function labForeignCol(key, id, subjectId = null) {
   if (id === 'sample') return labCol(key, 'sample', 'Sample deal', pmSampleDeal(), { prop: 'sample' });
+  /* A record of the opportunity register; once saved as a property, that
+     property's column. */
+  const oid = labOppRef(id);
+  if (oid) {
+    const o = oppById(oid), tied = oppTied(o);
+    if (!o) return null;
+    if (tied) return tied.id === subjectId ? null : labForeignCol(key, `pm:${tied.id}`, subjectId);
+    return labCol(key, `opp:${o.id}`, o.name, oppDeal(o), { prop: `opp:${o.id}` });
+  }
   const r = labPmRef(id), rec = r && r.id !== subjectId ? pmFind(r.id) : null;
   if (!rec) return null;
   const sc = r.sc ? pmScenario(rec, r.sc) : null;
@@ -54622,6 +54707,8 @@ function labSourceInputs(lab, col) {
     return sc ? pmSavedInputs(other, sc) : null;
   }
   if (k === 'sample') return pmSampleDeal();
+  /* A register record: as the register holds it now. */
+  if (k === 'opp') { const o = oppById(labOppRef(col.source)); return o ? oppDeal(o) : null; }
   if (!lab.model) return null;
   const rec = pmFind(lab.model);
   if (!rec) return null;
@@ -54639,9 +54726,16 @@ function labRebase(lab) {
   const rec = lab.model ? pmFind(lab.model) : null;
   if (lab.model && !rec) return false;
   for (const col of lab.cols) {
+    /* A record saved as a property since — from the calculator, or another
+       column of it — is that property's column now, its moves kept on it;
+       and so is a copy of it. */
+    if (String(col.prop).startsWith('opp:')) {
+      const tied = oppTied(oppById(labOppRef(col.prop)));
+      if (tied && tied.id !== lab.model) { if (col.source !== 'variant') col.source = `pm:${tied.id}`; col.prop = `pm:${tied.id}`; }
+    }
     if (col.source === 'variant') continue;
     const now = labSourceInputs(lab, col);
-    if (!now) { col.name = `${col.name} — ${['sc', 'pm'].includes(labSourceKind(col)) ? 'no longer saved' : 'no longer on the calculator'}`; col.source = 'variant'; continue; }
+    if (!now) { col.name = `${col.name} — ${['sc', 'pm'].includes(labSourceKind(col)) ? 'no longer saved' : labSourceKind(col) === 'opp' ? 'no longer in your register' : 'no longer on the calculator'}`; col.source = 'variant'; continue; }
     const base = pmBare(pmCopy(now));
     if (labSourceKind(col) === 'sc') { const sc = pmScenario(rec, col.source.slice(3)); if (sc) col.name = sc.name; }
     /* Another property's column is named as that property is now. */
@@ -54649,6 +54743,7 @@ function labRebase(lab) {
       const r = labPmRef(col.source), other = pmFind(r.id), sc = r.sc ? pmScenario(other, r.sc) : null;
       col.name = sc ? `${other.name} — ${sc.name}` : other.name;
     }
+    if (labSourceKind(col) === 'opp') col.name = oppById(labOppRef(col.source))?.name || col.name;
     /* The calculator's deal is named as it is now: "Sample deal" is not the
        name of a deal the reader has since changed (F2). */
     if (labSourceKind(col) === 'deal') col.name = labDealName();
@@ -54774,6 +54869,58 @@ function labOpen(subject) {
   labRefresh();
   return { ok: true, key: lab.key };
 }
+/* A RECORD OF THE OPPORTUNITY REGISTER, OPENED IN THE LAB (the 11 Oct audit,
+   #7): a column beside what the lab is open on — the property being worked
+   on, else the calculator's deal (a saved property, where it is one) — so
+   it is compared with it on its own route and asset (P6), its moves a
+   what-if until Save. Nothing is written. The column it takes: the one that
+   shows it already; else a lab copy holding nothing of the reader's; else a
+   free letter; else the last column with no move — and a column holding
+   moves not saved is replaced only once the reader agrees. A record saved
+   as a property opens as that property's column. Then the lab, on that
+   subject (labResume). */
+function labAddOpportunity(oppId, { go = true } = {}) {
+  const o = oppById(oppId);
+  if (!o) return { ok: false, why: 'That record is not in your opportunity register.' };
+  const tied = oppTied(o);
+  const id = tied ? `pm:${tied.id}` : `opp:${o.id}`;
+  let lab = labSubject && LAB[labSubject] && labRebase(LAB[labSubject]) ? LAB[labSubject] : null;
+  if (!lab) lab = labEnsure({ kind: 'deal' });
+  if (!lab) return { ok: false, why: 'Nothing could be opened in the lab.' };
+  let col = null;
+  if (tied && lab.model === tied.id) col = lab.cols.find(c => c.source === 'base') || lab.cols[0];
+  else col = lab.cols.find(c => labColId(c) === id);
+  if (!col) {
+    const own = (c) => labMoveCount(c) > 0 || Object.keys(c.inherited || {}).length > 0;
+    const spare = [...lab.cols].reverse().find(c => c.key !== 'A' && c.source === 'variant' && !own(c));
+    const free = LAB_LETTERS.find(x => !lab.cols.some(c => c.key === x));
+    let key = spare ? spare.key : free;
+    if (!key) {
+      const quiet = [...lab.cols].reverse().find(c => c.key !== 'A' && !own(c));
+      if (quiet) key = quiet.key;
+      else {
+        const last = lab.cols[lab.cols.length - 1], n = labMoveCount(last);
+        /* The one prompt before a what-if is lost (#8): said, and refused
+           unless the reader agrees. */
+        if (!confirm(`Column ${last.key} holds ${n} move${n === 1 ? '' : 's'} not saved. Show “${o.name}” in ${last.key} instead? Those moves are lost.`)) return { ok: false, why: 'kept' };
+        key = last.key;
+      }
+    }
+    col = labForeignCol(key, id, lab.model);
+    if (!col) return { ok: false, why: 'That record could not be opened.' };
+    const at = lab.cols.findIndex(c => c.key === key);
+    if (at > -1) lab.cols[at] = col; else lab.cols.push(col);
+    lab.cols.sort((a, b) => LAB_LETTERS.indexOf(a.key) - LAB_LETTERS.indexOf(b.key));
+    const rec = lab.model ? pmFind(lab.model) : null;
+    if (rec) pmCompareSelect(rec.id, labOwnIds(lab));
+  }
+  lab.active = col.key;
+  lab.naming = null;
+  labSubject = lab.key;
+  State.labResume = lab.key;
+  if (go) navigate('/property/lab?');
+  return { ok: true, key: lab.key, col: col.key };
+}
 /* Told after each paint, with what the lab holds. A listener whose node has
    left the page takes itself off. */
 function labSubscribe(fn, node = null) {
@@ -54813,6 +54960,22 @@ function labNotify(lab) {
    A property not saved here is said so, and the deal on the calculator is
    shown in its place. */
 function labArrive() {
+  /* RESUMED (the 11 Oct audit, #7 and #8): the subject the reader was
+     working on — a record opened from the register beside it, or the work
+     left for the comparables, the area screen or the calculator — as this
+     tab holds it: its columns, their moves and the answers given, whatever
+     the address says. The address is then written for it. */
+  const resume = State.labResume;
+  if (resume) {
+    State.labResume = null;
+    if (LAB[resume] && labRebase(LAB[resume])) {
+      labSubject = resume;
+      labArrivalNote = null;
+      labWriteAddress(LAB[resume]);
+      labUrlSeen = location.pathname + location.search;
+      return;
+    }
+  }
   const key = location.pathname + location.search;
   const q = new URLSearchParams(location.search);
   /* A saved comparison (P6), ?compare=<id>: its property, its columns and
@@ -55124,6 +55287,8 @@ function labScenarioAfterProperty(lab, col) {
   const deal = State.deal || {};
   return labMarked(col).some(k => pmCanon(col.work[k]) !== pmCanon(deal[k]));
 }
+/* A register record's column, named for its Save (#7): the record's name. */
+const labOppNaming = (col, at = null) => ({ kind: 'opp', at, value: labColOpp(col)?.name || col.name });
 const labGuidedWords = (lab, col) => (labScenarioAfterProperty(lab, col) ? `Save this property and ${col.key} as a scenario` : 'Save this property');
 function labGuidedScenario(lab, col) {
   if (!labScenarioAfterProperty(lab, col)) return null;
@@ -55170,6 +55335,10 @@ function labIdentityAct(P, lab) {
   if (lab.naming?.at === 'identity') return box;
   if (lab.model && labAnswersPending(lab)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
     onclick: () => labSaveAnswers(P, lab) }, labSaveAnswersWords(lab)));
+  /* The sliders on a register record's column (#7): Save keeps it as a
+     property of the reader's, tied to the record. */
+  else if (labColOpp(col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
+    onclick: () => labNaming(P, lab, labOppNaming(col, 'identity')) }, `Save ${col.key} as a property`));
   /* The sliders on another property's column, moved (P6): Save keeps it as
      a scenario of that property. */
   else if (col.prop && labCanSave(lab, col)) box.append(el('button', { type: 'button', class: 'btn btn-primary', id,
@@ -55660,8 +55829,9 @@ function labBarSave() {
   const P = labPagePanel(), lab = P && LAB[P.key];
   if (!lab) return { aria: 'Nothing to save', disabled: true };
   const col = labActive(lab);
-  if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'property' ? 'property-name' : 'scenario-name'))?.focus() };
+  if (lab.naming?.at === 'identity') return { aria: 'Save — name it under the property’s name', run: () => document.getElementById(labId(P, lab.naming.kind === 'scenario' ? 'scenario-name' : 'property-name'))?.focus() };
   if (lab.model && labAnswersPending(lab)) return { aria: labSaveAnswersWords(lab), run: () => labSaveAnswers(P, lab) };
+  if (labColOpp(col)) return { aria: `Save ${col.key} as a property`, run: () => labNaming(P, lab, labOppNaming(col, 'identity')) };
   if (col.prop && labCanSave(lab, col)) return { aria: `Save ${col.key} as a scenario`, run: () => labNaming(P, lab, labScenarioNaming(lab, col, 'identity')) };
   /* The same guided save as the identity line's: the property's name and,
      where the column holds figures a scenario would keep, its own. */
@@ -56454,6 +56624,9 @@ function labColumnsCard(P, lab) {
     const li = el('li', { class: `lab-col-row lab-c-${c.key}${c.key === lab.active ? ' is-active' : ''}` });
     li.append(el('span', { class: 'lab-col-name' }, [labLetter(c.key), el('strong', {}, ` ${c.key} — ${c.name}`), ' ', el('span', { class: 'lab-cmp-chip' }, LAB_SOURCE_CHIP[labSourceKind(c)]),
       labMoveCount(c) ? el('span', { class: 'lab-tag lab-tag-whatif' }, `${labMoveCount(c)} move${labMoveCount(c) === 1 ? '' : 's'} not saved`) : null]));
+    /* Where a register record's figures came from, under its name (#7). */
+    const prov = labProvWords(lab, c);
+    if (prov) li.append(el('span', { class: 'metaline lab-col-prov', 'data-prov': c.key }, prov));
     const acts = el('span', { class: 'lab-col-acts' });
     /* Column A is the property opened: only its own figures. */
     const own = offered.map(o => [o.id, o.id === 'base' ? 'As saved' : o.short]);
@@ -56544,6 +56717,9 @@ function labCommits(P, lab, col) {
      or none — the calculator's unsaved deal, or the sample. */
   const rec = labColRec(lab, col);
   const sample = col.prop === 'sample';
+  /* A register record (#7), or one removed from the register since. */
+  const opp = labColOpp(col);
+  const gone = !opp && String(col.prop || '').startsWith('opp:');
   const n = labMoveCount(col);
   const kind = labSourceKind(col);
   const scOf = kind === 'sc' || (kind === 'pm' && !!labPmRef(col.source)?.sc);
@@ -56568,7 +56744,11 @@ function labCommits(P, lab, col) {
       `Save ${col.key} as a scenario${yours}`));
     if (scOf && n) acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'update'), onclick: () => labUpdateScenario(P, lab) },
       `Update scenario “${col.name}”${yours}`));
-  } else if (!sample) {
+  } else if (opp) {
+    /* Kept as a property of the reader's, tied to its record (#7). */
+    acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-opp'),
+      onclick: () => labNaming(P, lab, labOppNaming(col)) }, `Save ${col.key} as a property${yours}`));
+  } else if (!sample && !gone) {
     /* The guided save: one action, both names (labGuidedNaming). */
     acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
       onclick: () => labNaming(P, lab, labGuidedNaming(lab)) }, labGuidedWords(lab, col)));
@@ -56587,12 +56767,17 @@ function labCommits(P, lab, col) {
      reader's and why the grade can stay U, under "How saving works" (L3,
      closed) — every word of it kept. */
   const line = sample ? `${col.key} is the sample deal — open it in the calculator to save it as a property of yours.`
+    : opp ? `Save keeps ${col.key} as a property, its source and dates with it.`
+    : gone ? `${col.key}’s record is no longer in your register — open it in the calculator to keep it.`
     : !rec ? (labScenarioAfterProperty(lab, col) ? `One Save keeps the property and ${col.key} as its scenario.` : `Save keeps the property — and ${col.key}, once moved, as its scenario.`)
     : canSave ? `Saving makes ${col.key}’s moved figures yours.`
     : differs ? `${col.key} is saved as “${col.name}” — move a figure to save again.`
     : `${col.key} is the property as saved — move a figure first.`;
   const why = [];
   if (sample) why.push(`The sample deal is the tool’s, not a property saved here, so ${col.key} has no property to keep a scenario of. Opened in the calculator, its figures become a deal of yours to save there.`);
+  else if (opp) why.push(`${col.key} is a property you recorded in your opportunity register (${oppProvenanceWords(opp)}). Its figures are the register’s: what the record states, and where it states nothing the calculator’s figures stand in, marked as the tool’s. `
+    + `Save keeps it as a property of yours tied to that record, its source and dates kept with it; opened in the calculator it is saved so too, as the register’s Open does. Until then it is a what-if, and nothing is written.`);
+  else if (gone) why.push(`${col.key} was a record of your opportunity register, removed since. Its figures are kept here as a lab variant; opened in the calculator they become a deal of yours to save there.`);
   else if (!rec) why.push(labScenarioAfterProperty(lab, col)
     ? `A scenario belongs to a saved property, so this Save asks for two names: the property’s, and ${col.key}’s as its scenario. It saves the deal on the calculator as a property, then ${col.key}, its moves kept, as a scenario of it.`
     : `A scenario belongs to a saved property. Save keeps the deal on the calculator as a property; move a figure of ${col.key} and the same Save keeps ${col.key} as its scenario too.`);
@@ -56639,15 +56824,18 @@ function labGateWords(d) {
 }
 function labNaming(P, lab, naming) {
   lab.naming = naming;
-  labDraw(P, labId(P, naming.kind === 'property' ? 'property-name' : 'scenario-name'));
-  const f = document.getElementById(labId(P, naming.kind === 'property' ? 'property-name' : 'scenario-name'));
+  labDraw(P, labId(P, naming.kind === 'scenario' ? 'scenario-name' : 'property-name'));
+  const f = document.getElementById(labId(P, naming.kind === 'scenario' ? 'scenario-name' : 'property-name'));
   if (f) { f.focus(); f.select?.(); }
 }
 /* THE NAME, ASKED FOR IN THE PAGE — not prompt(), which a phone draws over
    everything and a screen reader announces out of place. */
 function labNameForm(P, lab, col) {
   const isProp = lab.naming.kind === 'property';
-  const fid = labId(P, isProp ? 'property-name' : 'scenario-name');
+  /* A register record saved as a property (#7): its name, and nothing else
+     asked — no scenario of it until it is a property. */
+  const isOpp = lab.naming.kind === 'opp';
+  const fid = labId(P, isProp || isOpp ? 'property-name' : 'scenario-name');
   /* The guided save's second name: the column the sliders move now, as its
      scenario — asked for again if another column was picked meanwhile, and
      not at all where that column holds nothing a scenario would keep. */
@@ -56659,12 +56847,13 @@ function labNameForm(P, lab, col) {
   }
   const form = el('form', { class: 'lab-name-form', onsubmit: (e) => {
     e.preventDefault();
+    if (isOpp) { labSaveOpportunity(P, lab, input.value); return; }
     if (!isProp) { labCommitScenario(P, lab, input.value); return; }
     labSaveProperty(P, lab, input.value, sc && sc.on ? { name: scInput.value } : null);
   } });
   const input = el('input', { type: 'text', class: 'input', id: fid, maxlength: '80', value: lab.naming.value || '', autocomplete: 'off',
     oninput: (e) => { lab.naming.value = e.target.value; } });
-  form.append(el('label', { for: fid, class: 'lab-name-label' }, isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${labColRec(lab, col)?.name || ''}”`), input);
+  form.append(el('label', { for: fid, class: 'lab-name-label' }, isOpp ? `Name ${col.key} as a property of yours` : isProp ? 'Name this property' : `Name ${col.key} as a scenario of “${labColRec(lab, col)?.name || ''}”`), input);
   let scInput = null;
   if (sc) {
     const sid = labId(P, 'scenario-name'), cid = labId(P, 'name-with-sc');
@@ -56681,7 +56870,7 @@ function labNameForm(P, lab, col) {
     el('div', { class: 'lab-name-acts' }, [
       el('button', { type: 'submit', class: 'btn btn-primary btn-sm', id: labId(P, 'name-save') }, 'Save'),
       el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: labId(P, 'name-cancel'), onclick: () => {
-        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isProp ? 'save-first' : 'save'];
+        const back = lab.naming?.at === 'identity' ? ['id-save', 'next-go'] : [isOpp ? 'save-opp' : isProp ? 'save-first' : 'save'];
         lab.naming = null; labDraw(P, back.map(x => labId(P, x)));
       } }, 'Cancel'),
     ]));
@@ -56787,6 +56976,30 @@ function labUpdateScenario(P, lab) {
   toast(`Updated the scenario “${sc.name}” of “${rec.name}”${yours}.${labGateWords(next)}`);
   return sc;
 }
+/* A REGISTER RECORD KEPT AS A PROPERTY (the 11 Oct audit, #7): the column's
+   figures — the record's, and the moves made on it, marked the reader's as
+   any commit marks them — saved as a property tied to the record, its
+   provenance with it (oppSourceOf: the source, the date it is from, the day
+   it was recorded). The column becomes that property's, and so does a copy
+   of it; the register lists the record as saved. The only write. */
+function labSaveOpportunity(P, lab, name) {
+  const col = labActive(lab), o = labColOpp(col);
+  if (!o) { toast('That record is no longer in your opportunity register — open it in the calculator to keep it.'); return null; }
+  if (oppTied(o)) { labRebase(lab); labDraw(P); toast(`“${o.name}” is saved as a property already — its column shows it.`); return null; }
+  const next = labNext(col), yours = labYoursWords(col);
+  const rec = pmNewRecord(next, String(name || '').trim() || o.name, new Date().toISOString(), { source: oppSourceOf(o) });
+  const refused = store.failed;
+  if (!persistWork([rec, ...loadWork()]) || store.failed !== refused) { toast(STORE_REFUSED); return null; }
+  const fresh = pmFind(rec.id), was = col.prop;
+  const i = lab.cols.indexOf(col);
+  lab.cols[i] = labCol(col.key, `pm:${fresh.id}`, fresh.name, pmInputsOf(fresh), { prop: `pm:${fresh.id}` });
+  for (const c of lab.cols) if (c.prop === was) c.prop = `pm:${fresh.id}`;
+  lab.naming = null;
+  labDraw(P, [labId(P, 'id-save'), labId(P, 'open'), labId(P, `col-${col.key}`)]);
+  labAfterStructure(P, lab, { address: true });
+  toast(`Saved “${fresh.name}” as a property from your opportunity register — its source and dates kept with it${yours}. Listed in My properties.${labGateWords(next)}`);
+  return fresh;
+}
 /* OPEN IN THE CALCULATOR: the calculator is given the column's figures,
    marked as the reader's first (propertyLoad saves at once), and the deal
    it had is kept aside where it was the reader's own work. */
@@ -56794,6 +57007,11 @@ function labOpenInCalculator(P, lab) {
   const col = labActive(lab);
   const k = labSourceKind(col);
   const next = labNext(col), yours = labYoursWords(col);
+  /* A register record opens as the register's Open does (#7): saved as a
+     property tied to the record, its provenance kept — here with the
+     column's figures — and opened as that property. */
+  const opp = labColOpp(col);
+  if (opp) { openOpportunityProperty(opp, next); return; }
   /* Another property's column opens as that property (or its scenario);
      the sample, as a deal of no property (P6). */
   const ref = labPmRef(col.source);
@@ -56866,6 +57084,9 @@ function labRouteAsset(d) {
 function labOtherSources(lab) {
   const out = pmAll().filter(r => r.id !== lab.model).map(r => ({ id: `pm:${r.id}`, label: `${r.name} — ${labRouteAsset(pmInputsOf(r))}` }));
   if (lab.model || propertyStatus(State.deal).kind !== 'sample') out.push({ id: 'sample', label: 'Sample deal — not a real listing' });
+  /* The register's records not yet saved as properties (#7): a saved one
+     is listed above, as the property it became. */
+  for (const o of State.opportunities || []) if (o?.id && !oppTied(o)) out.push({ id: `opp:${o.id}`, label: `${o.name} — your opportunity, recorded ${o.capturedAt || 'undated'}` });
   return out;
 }
 /* A column as the comparison across properties names it: by its property —
@@ -57005,7 +57226,7 @@ const LAB_XR_CHARTS = {
    order (only those some column has), every column's cell, and the chart. */
 function labXrView(lab) {
   const lens = LAB_LENS_BY_ID[lab.lens] || LAB_LENS_BY_ID[LAB_LENS_DEFAULT];
-  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], ra: labRouteAsset(c.work), active: c.key === lab.active, f: labXrFacts(c) }));
+  const cols = lab.cols.map(c => ({ key: c.key, name: labXrName(lab, c), chip: LAB_SOURCE_CHIP[labSourceKind(c)], ra: labRouteAsset(c.work), prov: labProvWords(lab, c), active: c.key === lab.active, f: labXrFacts(c) }));
   const rows = lens.order.map(id => LAB_XR_ROW_BY_ID[id]).filter(r => !r.only || cols.some(x => x.f && labXrApplies(r, x.f)))
     .map((r, i) => ({ id: r.id, label: r.label, neg: !!r.neg, level: i < 2 ? 1 : 2, cells: cols.map(x => labXrCell(r, x.f)) }));
   const spec = LAB_XR_CHARTS[lens.chart];
@@ -57023,7 +57244,7 @@ function labXrView(lab) {
   const step = nt.ticks.length > 1 ? nt.ticks[1] - nt.ticks[0] : hi - lo;
   if ((spec.refs || []).some(x => x >= hi)) hi += step;
   const chart = { title: spec.title, form: spec.form, refs: spec.refs || [], lo, hi, bars };
-  const shape = JSON.stringify([lens.id, cols.map(x => [x.key, x.name, x.chip, x.ra, x.active]), rows.map(r => [r.id, r.cells.map(c => [!!c.na, !!c.plain, c.kind || null, !!c.notFinal, !!c.sub])]),
+  const shape = JSON.stringify([lens.id, cols.map(x => [x.key, x.name, x.chip, x.ra, x.prov, x.active]), rows.map(r => [r.id, r.cells.map(c => [!!c.na, !!c.plain, c.kind || null, !!c.notFinal, !!c.sub])]),
     chart.form, bars.map(b => [b.key, isNum(b.value), (b.parts || []).length, !!b.note])]);
   return { lens, cols, rows, chart, shape };
 }
@@ -57114,7 +57335,9 @@ function labXrDraw(P, vm) {
   const grid = xr.grid;
   grid.style.setProperty('--xr-n', String(vm.cols.length));
   const kids = [el('div', { class: 'lab-xr-row lab-xr-cols' }, vm.cols.map(c => el('div', { class: `lab-xr-colhd lab-c-${c.key}${c.active ? ' is-active' : ''}`, 'data-col': c.key }, [
-    labLetter(c.key), el('strong', { class: 'lab-xr-colname' }, ` ${c.key} — ${c.name}`), el('span', { class: 'lab-xr-ra' }, c.ra), el('span', { class: 'lab-cmp-chip' }, c.chip)])))];
+    labLetter(c.key), el('strong', { class: 'lab-xr-colname' }, ` ${c.key} — ${c.name}`), el('span', { class: 'lab-xr-ra' }, c.ra), el('span', { class: 'lab-cmp-chip' }, c.chip),
+    /* A register record's provenance, under its name (#7). */
+    c.prov ? el('span', { class: 'lab-xr-prov', 'data-prov': c.key }, c.prov) : null])))];
   const cells = {};
   vm.rows.forEach(r => {
     const hid = `${pre}-row-${r.id}`;
@@ -60924,7 +61147,7 @@ VIEWS.opportunities = () => {
      focus and the typing handed back to it (render(), 35-ui.js), showed a
      name Add then said was missing. It is held here from the first
      keystroke until Add takes it. */
-  const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', askingPrice:0, sqft:0 };
+  const draft = oppDraft ||= { name:'', city:'kuching', district:'', type:'Condominium', source:'', sourceDate:'', askingPrice:0, sqft:0 };
   /* Each control carries its own label: the labels had no `for` and the
      inputs no id, so all seven fields were unnamed to a screen reader. */
   /* The district is chosen from the city's own list, which follows the city.
@@ -60953,10 +61176,10 @@ VIEWS.opportunities = () => {
       input = el('select', { class: 'select', id });
       PROPERTY_TYPES.forEach(t => input.append(el('option', { value: t }, t)));
     } else {
-      input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : 'text' });
+      input = el('input', { class: 'input', id, type: kind === 'num' ? 'number' : kind === 'date' ? 'date' : 'text' });
     }
     /* A figure not given is 0 in the draft, and an empty field on the page. */
-    input.value = kind === 'num' ? (draft[key] || '') : draft[key];
+    input.value = kind === 'num' ? (draft[key] || '') : (draft[key] || '');
     const keep = e => { draft[key] = kind === 'num' ? num0(e.target.value) : e.target.value; if (kind === 'city') fillDistricts?.(); };
     input.addEventListener('input', keep);
     input.addEventListener('change', keep);
@@ -60970,8 +61193,16 @@ VIEWS.opportunities = () => {
   add.append(f('Asking price (RM)', 'askingPrice', 'num'));
   add.append(f('Built-up area (sq ft)', 'sqft', 'num'));
   add.append(f('Where you found it — listing reference, agent, or how you heard', 'source'));
+  /* The date the source is from — the listing, the call — beside the day it
+     is recorded (#7): the record's provenance, carried wherever it goes. */
+  add.append(f('The date it is from — the listing or the call (optional)', 'sourceDate', 'date'));
   add.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     'A reference, not a copy. Record enough to find it again; do not paste listing content you have no right to store.'));
+  /* Begun from an asking price in the comparables register (the guided
+     evidence flow): said, and what that record is and is not. */
+  const fromObs = draft.fromObs ? (State.observations || []).find(x => x.id === draft.fromObs) : null;
+  if (fromObs) add.append(el('p', { class: 'metaline opp-from-obs', id: 'opp-new-from' },
+    `Begun from your record of an asking price in ${fromObs.area}, ${(SARAWAK_CITIES.find(c => c.id === fromObs.city) || {}).name || fromObs.city}, dated ${fromObs.date}: its amount, source and date are filled in above. That record stays your own at the locality’s level — never a verified building transaction.`));
   /* Add and Remove redraw the page, and both dropped focus on <body>. Add
      keeps it on Add, with the form emptied for the next one; Remove hands it
      to the record that took the removed one's place, or the one before it,
@@ -60981,6 +61212,10 @@ VIEWS.opportunities = () => {
     State.opportunities = [{
       id: `opp-${Date.now().toString(36)}${(OPP_SEQ++).toString(36)}-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24)}`,
       name: draft.name, source: draft.source,
+      /* Its provenance (#7): the date the source is from, where given, and
+         the record of the comparables register it was begun from. */
+      sourceDate: /^\d{4}-\d{2}-\d{2}$/.test(draft.sourceDate || '') ? draft.sourceDate : null,
+      ...(draft.fromObs ? { fromObs: draft.fromObs } : {}),
       state: 'captured',
       capturedAt: new Date().toISOString().slice(0, 10),
       availabilityCheckedAt: null, available: null,
@@ -61063,6 +61298,8 @@ VIEWS.opportunities = () => {
 
     /* Availability, only where it was actually checked. */
     const age = daysSince(o.availabilityCheckedAt);
+    /* The property it was saved as, if it was (#7). */
+    const tiedRec = oppTied(o);
     card.append(el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:10px' }, [
       el('span', { class: 'chip' }, (CANDIDATE_STATES.find(s => s.id === o.state) || {}).label || o.state),
       o.availabilityCheckedAt && o.available && age != null && age <= 14
@@ -61073,7 +61310,16 @@ VIEWS.opportunities = () => {
       el('span', { class: 'chip' }, `Recorded ${o.capturedAt}`),
       /* The card's figures' kind (D6). */
       (() => { const k = oppKind(modelled[i]); return kindBadge(k.kind, { fine: k.fine }); })(),
+      tiedRec ? el('span', { class: 'chip chip-brand', 'data-tied': tiedRec.id }, `Saved as a property: “${tiedRec.name}”`) : null,
     ]));
+    /* WHERE IT CAME FROM, IN SIGHT (#7): the source, the date it is from
+       and the day it was recorded — what a Lab column, a comparison and a
+       property saved from it all carry. */
+    card.append(el('p', { class: 'metaline opp-prov', id: `opp-${i}-prov`, style: 'margin-top:6px' }, oppProvenanceWords(o)));
+    const obs = o.fromObs ? (State.observations || []).find(x => x.id === o.fromObs) : null;
+    if (o.fromObs) card.append(el('p', { class: 'metaline opp-from-obs' }, obs
+      ? `Its asking price is from your record in ${obs.area}, ${(SARAWAK_CITIES.find(c => c.id === obs.city) || {}).name || obs.city}, dated ${obs.date} — your own, at the locality’s level: not a verified building transaction.`
+      : 'Begun from a record of the comparables register removed since.'));
 
     /* Four prices, kept apart. */
     const pk = el('dl', { class: 'kv', style: 'margin-top:10px' });
@@ -61217,7 +61463,14 @@ VIEWS.opportunities = () => {
        calculator since — a rent confirmed, a rate quoted — had to be typed a
        second time. The first Open saves it as a property tied to the record;
        every Open after reopens that property as it was left. */
-    const tied = pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id);
+    const tied = tiedRec;
+    /* IN THE SCENARIO LAB, BESIDE WHAT IS OPEN THERE (#7): a column of the
+       Lab — the record's own figures, compared on its own route and asset
+       with the property being worked on — a what-if until Save. Opening it
+       writes nothing. */
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-lab`,
+      title: tied ? `Opens “${tied.name}”, saved from this record, as a column of the Scenario Lab` : 'Opens this record as a column of the Scenario Lab — nothing is saved until you save it',
+      onclick: () => labAddOpportunity(o.id) }, 'Open in the Scenario Lab'));
     acts.append(el('button', { class: 'btn btn-ghost btn-sm', id: `opp-${i}-calc`,
       title: tied ? `Opens “${tied.name}”, saved from this record` : 'Saves this record as a property and opens it',
       onclick: () => openOpportunityProperty(o, modelled[i].d) }, 'Open in the calculator'));
@@ -61227,7 +61480,6 @@ VIEWS.opportunities = () => {
       focusAfterRedraw(`#opp-${i}-name`, `#opp-${i - 1}-name`, '#opp-empty h3');
     } }, 'Remove'));
     card.append(acts);
-    if (o.source) card.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, `Source: ${o.source}`));
     wrap.append(card);
   });
 
@@ -67058,8 +67310,20 @@ function evidenceFlowDone(o) {
     box.append(el('p', { class: 'metaline' }, o.kind === 'sold-price'
       ? 'Use it in a scenario: it is named in the Scenario Lab’s comparables, where the price gap and an auction’s market value take it — with its source and date — as a what-if until you save.'
       : 'Use it in a scenario: it is named in the Scenario Lab, beside the comparable value and never in it — an asking price is kept apart.'));
-    box.append(el('p', { class: 'ef-act' }, el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
-      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab')));
+    box.append(el('p', { class: 'ef-act row row-wrap', style: 'gap:8px' }, [el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-use',
+      onclick: () => { State.labUseComparable = o.id; navigate('/property'); } }, 'Use it in the Scenario Lab'),
+      /* EVIDENCE → OPPORTUNITY (the 11 Oct audit, #7): an asking price is a
+         property somebody is selling. "Record it as an opportunity" begins
+         the register's form with its amount, its town and locality, its
+         source and its date — nothing written until Add, and the record
+         itself unchanged: still the reader's own at the locality's level,
+         never a verified building transaction. */
+      o.kind === 'ask-price' ? el('button', { type: 'button', class: 'btn btn-ghost', id: 'ef-opp', onclick: () => {
+        oppDraft = { name: '', city: o.city, district: listedDistrict(o.city, o.area) || '', type: 'Condominium', source: o.sourceRef || '',
+          sourceDate: o.date || '', askingPrice: o.value, sqft: num0(o.sqft) > 0 ? o.sqft : 0, fromObs: o.id };
+        navigate('/property/opportunities');
+        setTimeout(() => { const n = document.getElementById('opp-new-name'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus({ preventScroll: true }); } }, 0);
+      } }, 'Record it as an opportunity') : null]));
   } else if (o.kind === 'let-rent') {
     /* An achieved rent (P5): named in the Scenario Lab's observed
        comparable rents, which a commercial property's rent is set against —

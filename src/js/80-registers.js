@@ -517,7 +517,10 @@ const saveOpportunities = () => store.write('opportunities', State.opportunities
 /* Runs the underwriting engine over a candidate by layering its fields on the
    calculator's own defaults, so a register entry and a calculator run cannot
    diverge — one engine, two front doors. */
-function candidateModel(o) {
+/* The deal a record is modelled as — the register's card, its side by side
+   and a Scenario Lab column of it (82-property-lab.js) read this one, so
+   the three cannot differ. */
+function oppDeal(o) {
   /* A record states what it states. Its checklist answers are its own — the
      calculator's answers used to be attributed to every record, raising their
      financeability — and a price it does not state is absent: a price of 0
@@ -528,6 +531,21 @@ function candidateModel(o) {
   if (unpriced) delete od.price;
   if (!(num0(od.sqft) > 0)) delete od.sqft;
   const d = { ...State.deal, ...od, touched: o.touched || {}, evidence: o.evidence || {}, checks: o.checks || {} };
+  /* WHAT AND HOW ARE THE RECORD'S, NEVER THE CALCULATOR'S (the 11 Oct audit,
+     #7). How a property is bought, its subtype, the objective, the
+     comparables named, an auction's terms and the cost lines are answers
+     about one property: the calculator's stood in for every record, so a
+     deal answered Auction there modelled each candidate as bought at
+     auction, on that deal's reserve and its comparables. A record answers
+     none of them, so none is assumed: each is its default (subsale, the
+     class its type implies, nothing named) until the reader answers it for
+     this property. */
+  for (const k of [...DEAL_ANSWER_KEYS, ...COST_LINE_KEYS, 'comparableIds', 'rentComparableIds']) if (!Object.hasOwn(od, k)) delete d[k];
+  delete d.modelId; delete d.scenarioId;
+  /* The one answer a record does give: the price it records is the price
+     asked, so the price gap sets it against the comparables the reader
+     names for it (P2) — named for this property, never the calculator's. */
+  if (!unpriced && !Object.hasOwn(od, 'askingPrice')) d.askingPrice = num0(od.price);
   /* And a district the record's city lists. A blank one was null in the
      deal, and a typed one the city does not list was modelled under a name
      no locality, select or link could match; each is the calculator's
@@ -535,8 +553,40 @@ function candidateModel(o) {
      the city's first. The record keeps what was typed (dealDistrict,
      70-property.js). */
   d.district = dealDistrict(d.city, od.district, State.deal.city === d.city ? State.deal.district : null);
+  return d;
+}
+function candidateModel(o) {
+  const d = oppDeal(o);
   const m = dealModel(d);
   return { d, m, grade: propertyGrade(d, m), finance: propertyFinanceability(d, m) };
+}
+
+/* ONE SOURCED RECORD, ITS PROVENANCE CARRIED WHEREVER IT GOES (the 11 Oct
+   audit, #7). An opportunity is the reader's own record of a real property:
+   where they found it (a reference, never a copy), the date the source is
+   from where they gave one, and the day it was recorded. Opened in the
+   Scenario Lab, set beside a saved property as a column, saved as a property
+   of its own — each says the same three, from here. A record made from an
+   asking price in the comparables register (fromObs) names that record: it
+   is the reader's own, at the locality's level, and never a verified
+   building transaction (observationStanding, scope 'area'). */
+const oppById = (id) => (id ? (State.opportunities || []).find(o => o && o.id === id) || null : null);
+/* The property a record was saved as — by "Open in the calculator" or a
+   Save in the Lab — if any: the record opens as that property after. */
+const oppTied = (o) => (o ? pmAll().find(r => r.source?.kind === 'opportunity' && r.source.id === o.id) || null : null);
+/* What a property saved from a record keeps of it. */
+const oppSourceOf = (o) => ({ kind: 'opportunity', id: o.id, name: o.name, ref: o.source ? String(o.source) : null,
+  dated: o.sourceDate || null, recordedAt: o.capturedAt || null, ...(o.fromObs ? { fromObs: o.fromObs } : {}) });
+/* The provenance in words, from a record or from a property's source. */
+function oppProvenanceWords(p) {
+  if (!p) return '';
+  /* A property saved from a record before its provenance was kept with it
+     carries only the record's id: the record says it, while it is held. */
+  if (p.kind === 'opportunity' && !('ref' in p)) { const o = oppById(p.id); return o ? oppProvenanceWords(o) : 'From a record no longer in your register'; }
+  const ref = p.ref !== undefined ? p.ref : p.source;
+  const dated = p.dated !== undefined ? p.dated : p.sourceDate;
+  const at = p.recordedAt !== undefined ? p.recordedAt : p.capturedAt;
+  return [ref ? `Source: ${ref}` : 'No source recorded', dated ? `dated ${dated}` : null, at ? `recorded ${at}` : null].filter(Boolean).join(' · ');
 }
 
 const daysSince = (iso) => {
