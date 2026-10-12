@@ -20,3 +20,7 @@
 *.ico  binary
 *.woff  binary
 *.woff2 binary
+# The Kuching map's tile archive and its glyphs (map-assets.mjs): bytes that
+# data/map/manifest.json records by their SHA-256, never text to normalise.
+*.pmtiles binary
+*.pbf     binary

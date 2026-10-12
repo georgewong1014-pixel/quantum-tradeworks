@@ -1,0 +1,207 @@
+{
+ "format": "quantum-tradeworks/map-manifest",
+ "version": 1,
+ "tiles": {
+  "file": "data/tiles/kuching-20261012.pmtiles",
+  "bbox": [
+   110.18,
+   1.35,
+   110.48,
+   1.66
+  ],
+  "maxzoom": 15,
+  "source": "Protomaps daily build (OpenStreetMap)",
+  "osmAsOf": "2026-10-12T04:00:00Z",
+  "schema": "4.15.2",
+  "build": "20261012"
+ },
+ "libraries": {
+  "maplibre-gl": "6.11.2",
+  "pmtiles": "4.5.0",
+  "@protomaps/basemaps": "5.7.2"
+ },
+ "assets": {
+  "repository": "protomaps/basemaps-assets",
+  "commit": "028c18f713baecad011301ff7a69acc39bcc2ae7",
+  "glyphStacks": [
+   "Noto Sans Regular",
+   "Noto Sans Medium",
+   "Noto Sans Italic"
+  ],
+  "glyphRanges": [
+   "0-255",
+   "256-511",
+   "8192-8447"
+  ],
+  "sprites": [
+   "light",
+   "light@2x",
+   "dark",
+   "dark@2x"
+  ]
+ },
+ "licences": {
+  "OpenStreetMap data (tiles, scheme positions, heights)": "ODbL 1.0 — © OpenStreetMap contributors",
+  "MapLibre GL JS": "BSD-3-Clause",
+  "pmtiles": "BSD-3-Clause",
+  "fflate": "MIT",
+  "@protomaps/basemaps (the style)": "BSD-3-Clause",
+  "Noto Sans glyphs": "SIL Open Font License 1.1",
+  "Protomaps sprites": "MIT (derived from tangrams/icons, per basemaps-assets)"
+ },
+ "vendorUrls": {
+  "vendor/maplibre-gl-6.11.2/maplibre-gl.mjs": [
+   "http://www.w3.org/1999/xhtml",
+   "http://www.w3.org/2000/svg",
+   "https://github.com/maplibre/maplibre-gl-js/blob/v6.11.2/LICENSE.txt",
+   "https://maplibre.invalid/",
+   "https://maplibre.org/",
+   "https://wiki.openstreetmap.org/wiki/This_map_requires_WebGL"
+  ],
+  "vendor/maplibre-gl-6.11.2/maplibre-gl-shared.mjs": [
+   "https://github.com/mapbox/mapbox-gl-js/issues/2907",
+   "https://github.com/maplibre/maplibre-gl-js/blob/v6.11.2/LICENSE.txt"
+  ],
+  "vendor/maplibre-gl-6.11.2/maplibre-gl-worker.mjs": [
+   "https://github.com/maplibre/maplibre-gl-js/blob/v6.11.2/LICENSE.txt"
+  ],
+  "vendor/maplibre-gl-6.11.2/maplibre-gl.css": [],
+  "vendor/pmtiles-4.5.0/pmtiles.js": [
+   "https://github.com/protomaps/PMTiles/tree/main/js"
+  ]
+ },
+ "files": {
+  "data/map/LICENSE-protomaps-basemaps.md": {
+   "bytes": 3289,
+   "sha256": "74f975cfedd168098c43b5cfd6e587e40604684c4ffcec3e90d24b3b09c061b0"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Italic/0-255.pbf": {
+   "bytes": 79344,
+   "sha256": "43edfca91c285ba1226f09d5e74d68e1473a088c517f02a5212ff6ccb10037dc"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Italic/256-511.pbf": {
+   "bytes": 132976,
+   "sha256": "a6f9f6574c86a4a28aba630ca1017857ceadd2370ed32a1293c35f819ab9bd60"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Italic/8192-8447.pbf": {
+   "bytes": 52891,
+   "sha256": "5dc4e6680116fef01be024e272859d130262613c7e634409a590e5d50ad124ae"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Medium/0-255.pbf": {
+   "bytes": 77628,
+   "sha256": "ba2f0118dd024e3041b158e5f9eb49bc0a658019f53f458e9f5c0b8efcd79b91"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Medium/256-511.pbf": {
+   "bytes": 129635,
+   "sha256": "d5e801a1a5b1d409d3298c3a1e1ca76328e2314a751078833a618620e8e66e4d"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Medium/8192-8447.pbf": {
+   "bytes": 65101,
+   "sha256": "cc38e4956207f0edba1aaf749b61e8f6f1678ef1ad443d32ee285b21d0eb67aa"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Regular/0-255.pbf": {
+   "bytes": 76044,
+   "sha256": "62c6d49b15fa836eb6aa45e259c7ca6762f44b011b09e47776efbe4a6db1b397"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Regular/256-511.pbf": {
+   "bytes": 127726,
+   "sha256": "2eca7561f9f566bcacfda5dd04fb5880baec1328ec0f5484678289a13994de8a"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/Noto Sans Regular/8192-8447.pbf": {
+   "bytes": 64220,
+   "sha256": "8ea977a587352fe31b4159ffdbc9a40be79056f2472017c742ea1e4a931864b9"
+  },
+  "data/map/basemaps-assets-028c18f/fonts/OFL.txt": {
+   "bytes": 4374,
+   "sha256": "7713cfc8e3c36d5ec4aa3d6cffe7500a1b3310f8a86d914b8ea09c2a9dee7c2d"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/LICENSE-tangrams-icons.md": {
+   "bytes": 1074,
+   "sha256": "46d0ca73c10d7366ef7bf3932d8508267096393ccc9ef3a41d1b1d1fe37023f1"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/dark.json": {
+   "bytes": 3549,
+   "sha256": "bfac76cf7ed5c2aa2992695904056a1c6b07785b7fd20e6c640cb44fd6244a2e"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/dark.png": {
+   "bytes": 16054,
+   "sha256": "8920f68e8f9f7a4188da43e62a81bbc426532579fff7b5f27aad09e130f4246e"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/dark@2x.json": {
+   "bytes": 3579,
+   "sha256": "1fb5b123fbe35d2e1f6ac171513ce01df89e671273a417ee89c44886a4c132f0"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/dark@2x.png": {
+   "bytes": 28407,
+   "sha256": "6e01b4e366d304f27bbd55390511a3d4e39aa1d03eb3e82f873f7ea32e74cbe4"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/light.json": {
+   "bytes": 3549,
+   "sha256": "bfac76cf7ed5c2aa2992695904056a1c6b07785b7fd20e6c640cb44fd6244a2e"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/light.png": {
+   "bytes": 16174,
+   "sha256": "b6a34640917bdc57d0bd080836db33376371a3312ebe7b849045268015de3481"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/light@2x.json": {
+   "bytes": 3579,
+   "sha256": "1fb5b123fbe35d2e1f6ac171513ce01df89e671273a417ee89c44886a4c132f0"
+  },
+  "data/map/basemaps-assets-028c18f/sprites/v4/light@2x.png": {
+   "bytes": 28852,
+   "sha256": "23f6e9df27c2e9a14385763980a24e3608966bfc8192a106058bc2ca959ab563"
+  },
+  "data/map/kuching-heights.json": {
+   "bytes": 28332,
+   "sha256": "643c73c7d0a5fcf260c072df2e6ec9699210aa883737c9dc24aad5caef354e33"
+  },
+  "data/map/kuching-schemes.json": {
+   "bytes": 83549,
+   "sha256": "a6de65439a4052aa27a847a50647155184909d62958e9822e3e9cac464a4b7cb"
+  },
+  "data/map/style-dark.json": {
+   "bytes": 65597,
+   "sha256": "4cb45334991fee6a2ed552e4690290b9e14f99b471859b22364ddadc2b4391cc"
+  },
+  "data/map/style-light.json": {
+   "bytes": 65620,
+   "sha256": "54dc229f0caa095f975be58ca4c67dfe22774bc6f4b0245feac25f4b82ba598b"
+  },
+  "data/tiles/kuching-20261012.pmtiles": {
+   "bytes": 4864331,
+   "sha256": "b4e07dfd110f39dcf50fa0f4b3a592a22c64c9d47aeb392e52506caa56f12756"
+  },
+  "vendor/maplibre-gl-6.11.2/LICENSE.txt": {
+   "bytes": 5984,
+   "sha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2"
+  },
+  "vendor/maplibre-gl-6.11.2/maplibre-gl-shared.mjs": {
+   "bytes": 515924,
+   "sha256": "76b5f55bdee928c65d592684aaff2b913d50b6b17b0ec6334e88b09b6aa47960"
+  },
+  "vendor/maplibre-gl-6.11.2/maplibre-gl-worker.mjs": {
+   "bytes": 19133,
+   "sha256": "01ad197aa7f4cec258a890febd71b7515e96309881b036a7095befc01a45296e"
+  },
+  "vendor/maplibre-gl-6.11.2/maplibre-gl.css": {
+   "bytes": 83310,
+   "sha256": "d8617d8421930e3fc6185365400e788c374c1a5d9fbe87999998c0bc14a202d3"
+  },
+  "vendor/maplibre-gl-6.11.2/maplibre-gl.mjs": {
+   "bytes": 590228,
+   "sha256": "3f55566295583644617fe17d008a36c580414b8c71dd2e1fcff1309de6fdee5d"
+  },
+  "vendor/pmtiles-4.5.0/LICENSE": {
+   "bytes": 1713,
+   "sha256": "0371c38f338835f7fc13ed71176f3d92144e22c8b736a31cced57adbbeb647b3"
+  },
+  "vendor/pmtiles-4.5.0/LICENSE-fflate": {
+   "bytes": 1069,
+   "sha256": "805f6cb28bb8b6d3a0badd83c93bccd9671fa01a3b4b92b7042b0743325ac243"
+  },
+  "vendor/pmtiles-4.5.0/pmtiles.js": {
+   "bytes": 20229,
+   "sha256": "caf981bc46f6327ee7e65d5dc964d89d38a69f60edca2bd4c5c890c21b554c6c"
+  }
+ }
+}
