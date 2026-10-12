@@ -131,7 +131,7 @@ const pqChangeButton = (prefix) => el('button', { type: 'button', class: 'pq-cha
   ['Change', el('span', { class: 'sr-only' }, ' what you are buying and how'), el('span', { class: 'pq-change-chev', 'aria-hidden': 'true' }, '›')]);
 const pqSummaryLine = (d, prefix) => el('span', { class: 'pq-sumline', id: `${prefix}-q-sum` }, pqSummaryText(d));
 
-function propertyQuestions({ d, prefix, answer, summary = true }) {
+function propertyQuestions({ d, prefix, answer, summary = true, contracts = true }) {
   const cls = propertyClassOf(d), route = dealRoute(d);
   const box = el('section', { class: `pq${PQ_OPEN.has(prefix) ? ' is-open' : ''}`, id: `${prefix}-q`, 'data-pq': '', 'aria-label': 'What you are buying, and how',
     /* Escape folds them again, the keyboard back on Change. */
@@ -170,10 +170,12 @@ function propertyQuestions({ d, prefix, answer, summary = true }) {
   ]));
   if (dealObjective(d).id) notes.push(el('p', { class: 'pq-note', 'data-note': 'objective' },
     `${dealObjective(d).label} sets which figures lead; it ranks nothing and moves no column.`));
-  /* Every route on every kind, written down (the 11 Oct 2026 audit, #4). */
-  notes.push(el('p', { class: 'pq-note', 'data-note': 'contracts' },
+  /* Every route on every kind, written down (the 11 Oct 2026 audit, #4).
+     Not on the Lab, whose words before its first slider are counted
+     (mobile.mjs, lab-words): its questions carry the route's notes only. */
+  if (contracts) notes.push(el('p', { class: 'pq-note', 'data-note': 'contracts' },
     el('a', { href: '/methodology/property' }, 'What each route needs, returns and will not assume')));
-  body.append(el('div', { class: 'pq-notes' }, notes));
+  if (notes.length) body.append(el('div', { class: 'pq-notes' }, notes));
   return box;
 }
 

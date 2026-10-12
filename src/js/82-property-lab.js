@@ -1118,7 +1118,7 @@ const labAnswerInputs = (lab) => labActive(lab)?.work || labSubjectInputs(lab);
 function labQuestions(P, lab) {
   const d = labAnswerInputs(lab);
   if (!d) return null;
-  const box = propertyQuestions({ d, prefix: P.idPrefix, summary: !!P.compact, answer: (k, v) => labAnswer(P, lab, k, v) });
+  const box = propertyQuestions({ d, prefix: P.idPrefix, summary: !!P.compact, contracts: false, answer: (k, v) => labAnswer(P, lab, k, v) });
   /* The sliders on another property's column (P6): the answers are that
      property's, and said so above them. */
   const col = labActive(lab);
