@@ -2974,7 +2974,7 @@ const JOURNEYS = [
        folder of the journey's own and read back from disk. The browser is
        cleared, as a new one is; the file is chosen in "Restore from a file"
        and restored; and again: each item back, once, as it was exported. The
-       page says when it was exported, and that nothing has been saved since.
+       page says when it was exported, and that nothing has changed since.
        The folder is deleted at the end. */
     id: 'backup', name: 'Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once',
     outcomes: ['Export everything: the file holds each item, and the page says when', 'Import the file: each item back, once', 'Import it again: nothing doubled'],
@@ -3038,7 +3038,7 @@ const JOURNEYS = [
             d.wht?.US !== 15 && 'the withholding setting', d.baseCcy !== 'USD' && 'the base currency',
           ].filter(Boolean);
           if (missing.length) throw new StepError(`the file does not hold ${missing.join(', ')}`);
-          const want = await tab.eval(`'Last exported: ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' — nothing saved since'`);
+          const want = await tab.eval(`'Last exported: ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + ' — no changes since'`);
           await tab.expect(`${LINE} === ${JSON.stringify(want)}`, async () => `after the export the backup line reads “${await tab.eval(LINE)}”, not “${want}”`, 4000);
           await tab.goto('/app');
           const app = await tab.eval(LINE);

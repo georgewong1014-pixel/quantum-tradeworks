@@ -2890,8 +2890,8 @@ const HOME_PAGE = read(HOME);
 
 /* ---- backup-served ---- */
 /* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the
-   workspace at /app say when this browser last exported, and what has been
-   saved since. Served, they are a fresh visitor's: "Never exported", and no
+   workspace at /app say when this browser last exported, and what has
+   changed since. Served, they are a fresh visitor's: "Never exported", and no
    count of anything — a fresh visitor holds only samples, which are never
    counted as theirs. Held here on the served HTML, before any script:
    - each page's #views holds one backup line (data-backup-line), its state
