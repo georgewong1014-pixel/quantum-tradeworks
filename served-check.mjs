@@ -3764,7 +3764,9 @@ const HOME_PAGE = read(HOME);
     const steps = inFlow.filter(n => B.hasClass(n, 'pf-step'));
     const words = steps.map(n => sight(n).trim()).join(' ');
     if (words !== STEPS) p.push(`${path}: the steps read "${words}", not "${STEPS}"`);
-    const cur = steps.filter(n => B.hasClass(n, 'is-here')).map(n => attr(n, 'data-pf-step'));
+    /* A served button is its words (prerender: its id and class kept), so
+       a step is known by its id. */
+    const cur = steps.filter(n => B.hasClass(n, 'is-here')).map(n => attr(n, 'data-pf-step') || String(attr(n, 'id') || '').replace(/^pf-/, ''));
     if (attr(flow, 'data-pf-here') !== here || cur.length !== 1 || cur[0] !== here) p.push(`${path}: ${cur.join(', ') || 'no step'} marked (data-pf-here ${attr(flow, 'data-pf-here')}), not ${here}`);
     const byId = (id) => inFlow.find(n => attr(n, 'id') === id) || null;
     const t = (id) => { const n = byId(id); return n ? sight(n).replace(/\s+/g, ' ').trim() : null; };
