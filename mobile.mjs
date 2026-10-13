@@ -4041,7 +4041,12 @@ for (const w of [360, 390]) {
        174: the property flow's four steps — Explore, Analyse, Compare,
        Save, the 11 Oct audit's #8 — stand above the page at 1440 and not
        on a phone, so 1440's bounds rose by those four words, the margin
-       kept);
+       kept. The journey bar, the 13 Oct audit's #7, kept the bounds: its
+       fifth step, Evidence, and its line under the steps — "Sample
+       figures: 10 of 10 · No unsaved moves" — take the place of the line
+       above the sliders that said "Unsaved moves are lost on reload or
+       close." from 640px, which now says the same words on a phone only:
+       measured 179 and 131, 561 and 473 in all);
      - in all of <main>: at most 574 at 1440 and 485 at 390; measured 553
        and 466 (799 and 608 on 58dbc0b4), the margin the same lines' and
        a district's name (570, measured 549, before the flow's four words);
@@ -4790,6 +4795,8 @@ for (const w of [360, 390]) {
        Analyse · Compare · Save there, and its first slider stays on the
        first screen;
      - at 1440×900 on the Lab: the four steps in sight, Analyse marked.
+   Five steps since the journey bar (the 13 Oct 2026 audit, #7): Evidence
+   between Analyse and Compare (journey-bar-phone, below, holds its line).
    Fails on 5a75a923, where there is no flow. */
 {
   const fails = [], said = [];
@@ -4820,7 +4827,7 @@ for (const w of [360, 390]) {
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const r = await ev(steps);
       if (r.over > 0) fails.push(`${at} /property/opportunities: the page scrolls ${r.over}px sideways`);
-      if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Compare Save') fails.push(`${at} /property/opportunities: the flow reads ${JSON.stringify(r.steps.map(s => s.t))}`);
+      if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Evidence Compare Save') fails.push(`${at} /property/opportunities: the flow reads ${JSON.stringify(r.steps.map(s => s.t))}`);
       if (new Set(r.steps.map(s => s.top)).size > 1) fails.push(`${at} /property/opportunities: the flow's steps take more than one line`);
       r.steps.forEach(s => { if (s.h < 43.5) fails.push(`${at} /property/opportunities: "${s.t}" is ${s.h}px tall, not a 44px target`); });
       if (r.steps.find(s => s.cur === 'step')?.t !== 'Explore') fails.push(`${at} /property/opportunities: the flow marks ${r.steps.find(s => s.cur === 'step')?.t || 'no step'}, not Explore`);
@@ -4833,16 +4840,167 @@ for (const w of [360, 390]) {
     await load('/privacy'); await forget();
     await load('/property');
     const r = await ev(steps);
-    if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Compare Save' || r.steps.find(s => s.cur === 'step')?.t !== 'Analyse') fails.push(`1440 /property: the flow reads ${JSON.stringify(r.steps)}`);
+    if (r.steps.map(s => s.t).join(' ') !== 'Explore Analyse Evidence Compare Save' || r.steps.find(s => s.cur === 'step')?.t !== 'Analyse') fails.push(`1440 /property: the flow reads ${JSON.stringify(r.steps)}`);
   } catch (e) {
     fails.push(`the check could not run: ${e.message}`);
   } finally {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL pu-flow — the property flow laid out (the 11 Oct audit, #8): ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   pu-flow: on the opportunity register at ${said.join(', ')} the flow's four steps one line of 44px chips, Explore marked, nothing sideways; not drawn over the Lab on a phone; at 1440 on the Lab, Analyse marked`);
+  else console.log(`ok   pu-flow: on the opportunity register at ${said.join(', ')} the flow's five steps one line of 44px chips, Explore marked, nothing sideways; not drawn over the Lab on a phone; at 1440 on the Lab, Analyse marked`);
 }
 /* ---- end pu-flow ---- */
+
+/* ---- journey-bar-phone ---- */
+/* THE PROPERTY JOURNEY BAR, LAID OUT (the 13 Oct 2026 audit, #7, the
+   owner's choice; 88-property-flow.js; styles.css, property-flow). The five
+   steps and, under them, the context line — the property worked on, how it
+   is bought, its evidence as a count, its moves not saved:
+     - at 360×640, 390×844 and 430×932, in the page's font and in Verdana,
+       on the register, the comparables, the area screen, the map, My
+       properties and the calculator (whose steps are its action bar's), on
+       a first visit: the line in sight, inside the page's width, its route
+       and its evidence each whole on one line (it wraps between its parts),
+       nothing scrolling sideways, every control of the flow a 44px target;
+     - the same with the Lab holding two moves, on the comparables and the
+       calculator: the line naming the Lab's work and its moves, Resume a
+       44px target;
+     - on the Lab under 640px the bar not drawn, its words beside the
+       sliders, in the strip's own room: as tall after a move as before it;
+     - at 390×844, the page's first card (its first result) on the first
+       screen: on the register, the comparables, the area screen and the map
+       with the Start here panel hidden, as a returning reader has it, in
+       both fonts; and on a first visit, the register's and the
+       comparables', in the page's font;
+     - at 1440×900, the line one line on every Property page — the Lab's
+       under its steps at the top right — and, with the Lab's moves, on the
+       comparables and the Lab, where the first slider does not move when
+       the line counts a move.
+   Fails on acc59142, where there is no context line. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  /* The app's own navigation, the tab's memory — the Lab's moves — kept. */
+  const go = async (path) => { await ev(`(navigate(${JSON.stringify(path)}), true)`); await sleep(900); return ev('State.view'); };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`) : null);
+  const move = `(async () => { const L = LAB[labSubject]; const c = labActive(L); labWrite(c, 'price', 540000); labWrite(c, 'rent', 2000); labSchedule();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); await new Promise(r => setTimeout(r, 200)); return labMoveCount(c); })()`;
+  const MEASURE = `(async () => { await document.fonts.ready; await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const box = (n) => { const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), w: Math.round(b.width), h: Math.round(b.height) }; };
+    const flow = document.querySelector('#views .pf-flow'), ctx = document.getElementById('pf-ctx'), p = ctx?.querySelector('.pf-ctx-text');
+    const small = flow ? [...flow.querySelectorAll('a[href], button')].filter(shown).map(n => [n.id || n.textContent.trim(), box(n)]).filter(([, b]) => b.h < 43.5 || b.w < 43.5).map(([n, b]) => n + ' ' + b.w + '×' + b.h) : [];
+    const parts = ctx ? [...ctx.querySelectorAll('.pf-ctx-route, .pf-ctx-ev')].filter(shown).map(n => [n.id, n.getClientRects().length]) : [];
+    const card = [...document.querySelectorAll('#views .shell .card')].find(n => !n.closest('.pf-flow, .start-here') && n.getClientRects().length);
+    return { ctx: shown(ctx) ? box(ctx) : null, text: ctx ? ctx.textContent.replace(/\\s+/g, ' ').trim() : '', small, parts,
+      lines: p && shown(p) ? Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)) : null,
+      resume: (() => { const r = document.getElementById('pf-resume'); return r && shown(r) ? box(r) : null; })(),
+      flowShown: shown(flow), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ctxOver: ctx ? ctx.scrollWidth - ctx.clientWidth : 0, vw: innerWidth, vh: innerHeight, first: card ? box(card).t : null }; })()`;
+  const PAGES = ['/property/opportunities', '/property/comparables', '/property/areas', '/property/areas/map', '/property/models', '/property/calculator'];
+  const lineOk = (at, path, r, { work = false } = {}) => {
+    if (!r.ctx) { fails.push(`${at} ${path}: no context line in sight`); return; }
+    if (r.over > 0) fails.push(`${at} ${path}: the page scrolls ${r.over}px sideways`);
+    if (r.ctxOver > 1 || r.ctx.l < 0 || r.ctx.r > r.vw) fails.push(`${at} ${path}: the line runs out of its box or the window (${r.ctx.l}–${r.ctx.r} of ${r.vw}, ${r.ctxOver}px over)`);
+    r.parts.forEach(([id, n]) => { if (n !== 1) fails.push(`${at} ${path}: #${id} breaks across ${n} lines — the line wraps inside a part, not between parts`); });
+    if (r.small.length) fails.push(`${at} ${path}: controls of the flow under 44px: ${r.small.join('; ')}`);
+    if (work && (!/In the Lab|moves not saved/.test(r.text) || !r.resume)) fails.push(`${at} ${path}: with the Lab's moves the line reads "${r.text.slice(0, 120)}"${r.resume ? '' : ', no Resume'}`);
+    if (!/Sample figures: \d+ of \d+|Every figure yours/.test(r.text)) fails.push(`${at} ${path}: the line names no evidence count: "${r.text.slice(0, 120)}"`);
+  };
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await load('/privacy'); await forget();
+      const firsts = [];
+      for (const path of PAGES) {
+        await load(path);
+        await face(font);
+        const r = await ev(MEASURE);
+        lineOk(at, path, r);
+        if (w === 390 && !font && (path === '/property/opportunities' || path === '/property/comparables') && !(r.first != null && r.first < r.vh)) fails.push(`${at} ${path}: on a first visit the first card starts at ${r.first}px, off the ${r.vh}px first screen`);
+        firsts.push(`${path.split('/').pop()} ${r.first}`);
+      }
+      /* The Lab: its words beside the sliders, the strip's room kept at a move. */
+      await load('/property');
+      await face(font);
+      const lab = await ev(`(async () => { await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const s = document.getElementById('lab-unsaved'), b = s.getBoundingClientRect(), f = document.querySelector('#views .pf-flow');
+        return { h: Math.round(b.height), text: s.textContent.replace(/\\s+/g, ' ').trim(), seen: s.checkVisibility({ checkVisibilityCSS: true }), flow: !!f && f.getClientRects().length > 0 }; })()`);
+      if (lab.flow) fails.push(`${at} /property: the bar is drawn over the Lab (its action bar carries the steps)`);
+      if (!lab.seen || !/Sample figures: 10 of 10 · No unsaved moves\.$/.test(lab.text)) fails.push(`${at} /property: the Lab's line beside its sliders reads "${lab.text}"${lab.seen ? '' : ' (not in sight)'}`);
+      await ev(move);
+      const lab2 = await ev(`(() => { const s = document.getElementById('lab-unsaved'); return { h: Math.round(s.getBoundingClientRect().height), text: s.textContent.replace(/\\s+/g, ' ').trim() }; })()`);
+      if (!/B has 2 moves not saved — lost on reload or close\.$/.test(lab2.text)) fails.push(`${at} /property: after two moves the Lab's line reads "${lab2.text}"`);
+      if (lab2.h !== lab.h) fails.push(`${at} /property: the line beside the sliders grew from ${lab.h}px to ${lab2.h}px at a move — the sliders moved under the thumb`);
+      /* The Lab's moves, named on the comparables and the calculator. */
+      for (const path of ['/property/comparables', '/property/calculator']) {
+        if (await go(path) !== (path.endsWith('calculator') ? 'property' : 'comparables')) { fails.push(`${at} ${path}: did not open`); continue; }
+        await face(font);
+        lineOk(`${at}, the Lab's moves held,`, path, await ev(MEASURE), { work: true });
+      }
+      /* A returning reader's first screen: the Start here panel hidden. */
+      await load('/privacy'); await forget();
+      await ev(`(store.write('startHere', { property: '2026-09-20T01:00:00.000Z' }), true)`);
+      for (const path of PAGES.slice(0, 4)) {
+        await load(path);
+        await face(font);
+        const r = await ev(MEASURE);
+        if (w === 390 && !(r.first != null && r.first < r.vh)) fails.push(`${at} ${path}: with the Start here panel hidden the first card starts at ${r.first}px, off the ${r.vh}px first screen`);
+      }
+      said.push(`${at} (first cards on a first visit: ${firsts.join(', ')})`);
+    }
+    /* A desk: one line on every Property page, and with the Lab's moves. */
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `1440×900${font ? ' in Verdana' : ''}`;
+      await load('/privacy'); await forget();
+      for (const path of [...PAGES, '/property', '/property/lab']) {
+        await load(path);
+        await face(font);
+        const r = await ev(MEASURE);
+        if (!r.ctx) { fails.push(`${at} ${path}: no context line`); continue; }
+        if (r.lines !== 1) fails.push(`${at} ${path}: the line takes ${r.lines} lines, not one: "${r.text.slice(0, 120)}"`);
+        if (r.over > 0) fails.push(`${at} ${path}: the page scrolls ${r.over}px sideways`);
+      }
+      await load('/property');
+      await face(font);
+      const slider = `(() => { const s = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length); return s ? Math.round(s.getBoundingClientRect().top) : null; })()`;
+      const s0 = await ev(slider);
+      await ev(move);
+      const r = await ev(MEASURE), s1 = await ev(slider);
+      if (r.lines !== 1 || !/B has 2 moves not saved/.test(r.text)) fails.push(`${at} /property, two moves: the line reads "${r.text}" in ${r.lines} lines`);
+      if (s0 !== s1) fails.push(`${at} /property: the first slider moved from ${s0}px to ${s1}px when the line counted a move`);
+      await go('/property/comparables');
+      await face(font);
+      const c = await ev(MEASURE);
+      if (c.lines !== 1 || !/In the Lab: the sample deal/.test(c.text) || !/2 moves not saved/.test(c.text) || !c.resume) fails.push(`${at} /property/comparables, the Lab's moves held: the line reads "${c.text}" in ${c.lines} lines${c.resume ? '' : ', no Resume'}`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL journey-bar-phone — the property journey bar laid out (the 13 Oct audit, #7): ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   journey-bar-phone: the context line in sight under the steps on the register, the comparables, the area screen, the map, My properties and the calculator at ${said.join('; ')} — inside the window, its route and its evidence whole, nothing sideways, the flow's controls 44px, and with the Lab's moves named, Resume 44px; on the Lab under 640px its words beside the sliders in the strip's room, as tall after a move; at 390 the first cards on the first screen (Start here hidden, both fonts; a first visit's register and comparables in the page font); at 1440 one line on every Property page and with the Lab's moves, the first slider unmoved by a move`);
+}
+/* ---- end journey-bar-phone ---- */
 
 /* ---- calc-words ---- */
 /* THE CALCULATOR, SAID IN LESS ON A PHONE (the 11 Oct 2026 daily audit, #6,
@@ -4856,7 +5014,8 @@ for (const w of [360, 390]) {
        wording and a figure's may vary by — not one paragraph put back;
      - at 1440×900: at most 6,300 — the desktop keeps its layout; measured
        6,275 (6,271 on 5a75a923: the four more are the property flow's
-       steps, #8);
+       steps, #8); 6,284 on acc59142, and 6,295 with the journey bar's
+       Evidence step and its line (the 13 Oct audit, #7), the bound kept;
    and the layout a phone gets, at 360×640, 390×844 and 430×932 in the
    page's font and in Verdana:
      - the one-page answer's four metric cards, each with its kind badge in

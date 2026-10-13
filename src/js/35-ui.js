@@ -3059,12 +3059,16 @@ const SERVED_READS = {
      page at once); and the comparisons across properties the reader saved
      (P6). */
   propertyLab: ['deal', 'savedWork', 'lang', 'plan', 'propertyReportsBought', 'observations', 'labComparisons', 'propertyActuals'],
-  areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere'],
+  /* The explore pages carry the property flow's context line (88-property-
+     flow.js; the 13 Oct 2026 audit, #7): the calculator's deal it names on
+     a first visit — the sample deal — and a saved property's name, so each
+     names the deal and the saved work besides its own. */
+  areas: ['areaProfiles', 'observations', 'rateUnitBuilt', 'rateUnitLand', 'startHere', 'deal', 'savedWork'],
   /* /property/areas/map: the schemes are the build's and the map the tab's;
-     the product's Start here panel is the one thing the reader's own. */
-  areaMap: ['startHere'],
-  comparables: ['observations', 'registerActor', 'registerLog', 'startHere'],
-  opportunities: ['opportunities', 'startHere'],
+     the product's Start here panel and the line's deal are the reader's own. */
+  areaMap: ['startHere', 'deal', 'savedWork'],
+  comparables: ['observations', 'registerActor', 'registerLog', 'startHere', 'deal', 'savedWork'],
+  opportunities: ['opportunities', 'startHere', 'deal', 'savedWork'],
   tradingIndex: ['qttiPlan', 'savedWork', 'startHere'],
   wheel: ['wheelPlan', 'wheelLegs', 'savedWork', 'startHere'],
   decisionRecord: ['deal', 'observations', 'qttiPlan', 'wheelPlan'],
@@ -3708,8 +3712,10 @@ function drawPage(samePage) {
   /* ls-view: a page on the layout system, its journey line and Start here
      with it (37-layout-system.js; styles.css, layout-system). */
   /* And first, on a Property page, the property flow — Explore → Analyse →
-     Compare → Save — with the work the Scenario Lab holds (the 11 Oct
-     audit, #8; 88-property-flow.js). Not over the skeleton. */
+     Evidence → Compare → Save — and its context line: the property worked
+     on, how it is bought, its evidence as a count and what is not saved
+     (the 11 Oct audit, #8; the 13 Oct audit, #7; 88-property-flow.js). Not
+     over the skeleton. */
   const flow = !(realPending && viewWaits()) ? propertyFlowNode() : null;
   const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
     'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [flow, journeyLineNode(), startHereNode(), node]));

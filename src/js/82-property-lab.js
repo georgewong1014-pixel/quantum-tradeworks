@@ -3554,13 +3554,23 @@ function labPaintPanel(P, { initial = false } = {}) {
      43px under the finger at 360 (the re-verification of 4 Oct 2026). It now
      stands from the first drawing, saying what happens to a move before
      there is one, and holds its room on a phone (styles.css). */
+  /* THE JOURNEY BAR'S CONTEXT LINE (the 13 Oct 2026 audit, #7; 88-property-
+     flow.js): the page's line says the evidence and the moves — under the
+     steps from 640px, and here, beside the sliders, under 640px, where the
+     action bar carries the steps. Out of sight from 640px (styles.css,
+     property-flow), so they are said once. */
+  /* The evidence is the property's as kept, so it is read at a drawing, not
+     at a tick: a move marks nothing as the reader's. */
+  if (P.address && (initial || P.pfEv === undefined)) P.pfEv = pfLabEvidence(lab);
   if (P.els.unsaved) {
     const withMoves = lab.cols.filter(c => labMoveCount(c));
-    const s = withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
+    const s = P.address ? pfLabWords(lab, P.pfEv)
+      : withMoves.length ? `${withMoves.map((c, i) => `${c.key} has ${labMoveCount(c)}${i === 0 ? ` move${labMoveCount(c) === 1 ? '' : 's'}` : ''}`).join(' and ')} not saved — kept until you close or reload this tab.`
       : 'Unsaved moves are lost on reload or close.';
     labText(P.els.unsavedSay, s);
     P.els.unsaved.classList.toggle('is-unsaved', withMoves.length > 0);
   }
+  if (P.address) pfLabPaint(lab, P.pfEv);
   /* What follows the moves: the baseline's name, the links to where a
      figure is entered (only while the column is the calculator's deal as
      it is), and the column and commit cards — drawn again only when a

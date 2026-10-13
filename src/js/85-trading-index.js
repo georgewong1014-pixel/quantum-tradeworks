@@ -1264,7 +1264,9 @@ VIEWS.opportunities = () => {
     const place = listedAt ? ` · ${listedAt}`
       : o.deal.district ? ` · ${o.deal.district} (not one of ${cityName}'s districts — modelled in ${md.district})`
       : ` · district not recorded — ${md.district} stands in`;
-    const card = el('div', { class: 'card' });
+    /* data-opp: where the property flow's Evidence lands for a record the
+       Lab's sliders move — its source line (88-property-flow.js, pfLand). */
+    const card = el('div', { class: 'card', 'data-opp': o.id });
     const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[grade.grade];
     card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
       el('div', {}, [
