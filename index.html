@@ -6982,7 +6982,10 @@ input.au-in[type="text"] { text-align: left; }
   .pf-flow[data-pf-view="propertyLab"] > .pf-ctx { float: right; clear: right; max-width: 60%; margin: 0 0 var(--xs) var(--lg); }
 }
 @media (max-width: 639.98px) {
-  .pf-flow { gap: 6px var(--xs); margin-bottom: var(--sm); }
+  /* Tight on a phone (the 13 Oct release, CI): with the line under the steps
+     a first visit's first card on /property/comparables sat at 853px in
+     Verdana and DejaVu, off the 844px first screen. */
+  .pf-flow { gap: 4px var(--xs); margin-bottom: var(--xs); }
   .pf-steps { width: 100%; overflow-x: auto; scrollbar-width: none; }
   .pf-steps::-webkit-scrollbar { display: none; }
   .pf-step { min-height: 44px; padding: 0 14px; }
@@ -6991,7 +6994,9 @@ input.au-in[type="text"] { text-align: left; }
      as it can. A part wraps within itself only where it must (a name, the
      moves). */
   .pf-ctx { padding: 0 0 0 10px; min-height: 0; border: 0; border-left: 3px solid var(--line-2); border-radius: 0; background: none; }
-  .pf-ctx-text { line-height: 18px; }
+  .pf-ctx-text { line-height: 17px; }
+  #views:has(.pf-flow) .start-here { margin-bottom: var(--sm); }
+  #views:has(.pf-flow) .start-here-ft { margin-top: 4px; }
   .pf-ctx-what, .pf-ctx-state { white-space: normal; }
   .pf-name { max-width: 100%; }
   .pf-resume { min-height: 44px; }
