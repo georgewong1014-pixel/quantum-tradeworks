@@ -1393,7 +1393,7 @@ const HOME_PAGE = read(HOME);
   if (kinds == null) p.push('/status serves no #health-kinds');
   else {
     if (kinds !== want.kinds) p.push(`/status's #health-kinds is not the records': served "${words(kinds).slice(0, 120)}", the records "${words(want.kinds).slice(0, 120)}"`);
-    const rows = [...kinds.matchAll(/<li class="kind-row" id="kind-([a-z]+)" data-status="(PASS|FAIL|DEGRADED|NOT-RUN)"><span class="chip health-chip[^"]*">([^<]*)<\/span><p class="kind-name">([^<]*)<span[^>]*>[^<]*<\/span><\/p><div class="kind-body"><p class="caption">([\s\S]*?)<\/p>([\s\S]*?)<\/div><\/li>/g)];
+    const rows = [...kinds.matchAll(/<li class="kind-row" id="kind-([a-z]+)" data-status="(PASS|FAIL|DEGRADED|NOT-RUN|PENDING)"><span class="chip health-chip[^"]*">([^<]*)<\/span><p class="kind-name">([^<]*)<span[^>]*>[^<]*<\/span><\/p><div class="kind-body"><p class="caption">([\s\S]*?)<\/p>([\s\S]*?)<\/div><\/li>/g)];
     const ids = rows.map(m => m[1]);
     if (ids.join() !== 'journeys,numbers,data,layout') p.push(`/status serves the kinds ${JSON.stringify(ids)}, not Journeys, Numbers, Data, Layout & served pages in that order`);
     const SHA = want.commit;
@@ -1408,15 +1408,23 @@ const HOME_PAGE = read(HOME);
         said.push(`Journeys ${st}`);
         continue;
       }
-      const suites = [...items.matchAll(/<li data-mark="(ok|fail|notrun)"><span class="kind-mark">(PASS|FAIL|Not run)<\/span> ([^<]*)/g)];
+      const suites = [...items.matchAll(/<li data-mark="(ok|fail|notrun|pending)"><span class="kind-mark">(PASS|FAIL|Not run|Pending)<\/span> ([^<]*)/g)];
       const mine = CHECK_SUITES.filter(s => s.kind === id);
       if (suites.length !== mine.length) p.push(`${name}: ${suites.length} suites listed, of its ${mine.length}`);
       const pass = suites.filter(s => s[2] === 'PASS').length;
       if (st === 'PASS' && pass !== mine.length) p.push(`${name}: Pass with ${pass} of ${mine.length} suites passing — a suite not run or failed is never a pass`);
       if (st === 'PASS' && !new RegExp(`^${mine.length} of ${mine.length} suites pass( · [\\d,]+ of [\\d,]+ checks)? · CI on ${SHA}, \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{2}:\\d{2} UTC · run log$`).test(text)) p.push(`${name}: "${text.slice(0, 120)}" — not its counts, CI's commit ${SHA} and its time`);
       if (st === 'NOT-RUN' && !(SHA ? text.startsWith(`Not run for ${SHA}: `) : text.startsWith('Not run'))) p.push(`${name}: not run, and it does not say "Not run for ${SHA}": "${text.slice(0, 100)}"`);
+      /* Still running in CI when recorded (the 13 Oct 2026 audit, #2): Pending
+         for the commit, in the warning colour, every suite Pending — never a
+         pass. */
+      if (st === 'PENDING') {
+        const at = kinds.indexOf(`id="kind-${id}"`);
+        if (chip !== 'Pending' || !/chip-warn/.test(kinds.slice(at, at + 120)) || !text.startsWith(`Pending for ${SHA}: `) || suites.some(x => x[2] !== 'Pending'))
+          p.push(`${name}: pending, and it does not say "Pending for ${SHA}" in the warning colour with every suite Pending: "${text.slice(0, 100)}"`);
+      }
       if (suites.some(s => s[2] === 'Not run') && st === 'PASS') p.push(`${name}: a suite not run, under Pass`);
-      said.push(`${words(name)} ${st === 'NOT-RUN' ? `not run for ${SHA}` : `${st} (${pass}/${mine.length} suites)`}`);
+      said.push(`${words(name)} ${st === 'NOT-RUN' ? `not run for ${SHA}` : st === 'PENDING' ? `pending for ${SHA}` : `${st} (${pass}/${mine.length} suites)`}`);
     }
     if (status.indexOf('id="health-kinds"') > status.indexOf('>Complete journeys on the live site</h3>')) p.push('/status: the four kinds are not served above the journeys');
   }

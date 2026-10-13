@@ -122,9 +122,10 @@ jobs:
       cancel-in-progress: false
     runs-on: ubuntu-latest
     # Up to an hour waiting for a held deployment to go live, then the run,
-    # then up to 50 minutes for checks.yml to finish on the served commit
-    # where Deployment Checks did not already hold the deployment for it.
-    timeout-minutes: 140
+    # then up to 90 minutes for checks.yml to finish on the served commit
+    # where Deployment Checks did not already hold the deployment for it
+    # (CI ran 77 minutes on 12 Oct 2026, past the 50 it was given).
+    timeout-minutes: 170
     env:
       # What started the run, and its public log: both are recorded.
       TRIGGER: ${{ github.event_name == 'deployment_status' && 'deployment' || github.event_name == 'schedule' && 'schedule' || 'dispatch' }}
@@ -251,9 +252,12 @@ jobs:
       # three are checks.yml's suites on the commit the site serves (the
       # record's commit_served), read from the annotations each of its jobs
       # leaves (checks-record.mjs summarize) — public, so nothing is
-      # downloaded. A run still going on that commit is waited for, up to 50
+      # downloaded. A run still going on that commit is waited for, up to 90
       # minutes (a deployment Deployment Checks did not hold goes live before
-      # its checks end); a suite with no result reads NOT RUN, never PASS.
+      # its checks end); one still going after that is recorded PENDING —
+      # /status says "Pending for <commit>", and checks-record.yml fills it
+      # in when the run ends — and a suite with no result reads NOT RUN,
+      # never PASS.
       # Only when the journeys are recorded, and into the same commit: no
       # second record, no second deployment, the same loop guard. The step
       # never fails the run — a record it cannot read says so.
@@ -262,7 +266,7 @@ jobs:
         env:
           SERVED: ${{ steps.decide.outputs.commit_served }}
           GH_TOKEN: ${{ github.token }}
-        run: node checks-record.mjs collect --commit "$SERVED" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/checks.json" --wait 3000
+        run: node checks-record.mjs collect --commit "$SERVED" --repo "$GITHUB_REPOSITORY" --out "$RUNNER_TEMP/checks.json" --wait 5400
 
       # The record and the island pages rebuilt from it, in one commit by
       # github-actions[bot], on top of main as it is now:

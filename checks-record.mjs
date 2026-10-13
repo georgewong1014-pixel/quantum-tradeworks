@@ -204,14 +204,19 @@ export const placeholder = () => ({ kind: CHECKS_KIND, schema: 1, commit: null, 
 
 /* Every suite of SUITES, from what a run of checks.yml recorded on the
    commit: a suite with no entry is NOT RUN. */
-export function record({ commit, run = null, ranAt = null, event = null, conclusion = null, entries = [], note = null, now = new Date() }) {
+/* `pending`: checks.yml was still running on the commit when this was
+   recorded (the 13 Oct 2026 audit, #2). Its suites stay NOT RUN — no
+   result — and /status reads "Pending for <commit>", not "Not run", until
+   checks-record.yml records the run's end. */
+export function record({ commit, run = null, ranAt = null, event = null, conclusion = null, entries = [], note = null, pending = false, now = new Date() }) {
   const by = new Map(entries.filter(Boolean).map(e => [e.id, e]));
   const suites = SUITES.map(s => {
     const e = by.get(s.id);
     if (!e || !STATUSES.includes(e.status)) return { id: s.id, name: s.name, kind: s.kind, job: s.job, status: 'NOT RUN', passed: null, failed: null, said: run ? 'no result from this run on the commit' : 'no run on the commit', exit: null };
     return { id: s.id, name: s.name, kind: s.kind, job: s.job, status: e.status, passed: Number.isFinite(e.passed) ? e.passed : null, failed: Number.isFinite(e.failed) ? e.failed : null, said: e.said ? String(e.said).slice(0, 220) : null, exit: Number.isFinite(e.exit) ? e.exit : null };
   });
-  return { kind: CHECKS_KIND, schema: 1, commit: commit || null, recordedAt: now.toISOString(), run: RUN_URL.test(String(run || '')) ? run : null, ranAt: ranAt || null, event, conclusion, note, suites };
+  return { kind: CHECKS_KIND, schema: 1, commit: commit || null, recordedAt: now.toISOString(), run: RUN_URL.test(String(run || '')) ? run : null, ranAt: ranAt || null, event, conclusion, note,
+    ...(pending && commit ? { pending: true } : {}), suites };
 }
 
 export function checksProblem(doc) {
@@ -257,7 +262,7 @@ export function checksServed(checks, journeys, suites) {
   const KINDS = [['journeys', 'Journeys', 'journeys.mjs, on the live site'], ['numbers', 'Numbers', 'known-answer and invariant suites, in CI'],
     ['data', 'Data', 'the shipped data and the register, in CI'], ['layout', 'Layout & served pages', 'phone widths, first frames and served pages, in CI']];
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const CHIP = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'], 'NOT RUN': ['', 'Not run'] };
+  const CHIP = { PASS: ['chip-ok', 'Pass'], DEGRADED: ['chip-warn', 'Degraded'], FAIL: ['chip-critical', 'Fail'], PENDING: ['chip-warn', 'Pending'], 'NOT RUN': ['', 'Not run'] };
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const two = (n) => (n < 10 ? '0' : '') + n;
   const when = (iso) => { const d = typeof iso === 'string' ? new Date(iso) : null; return d && Number.isFinite(d.getTime()) ? d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()] + ' ' + d.getUTCFullYear() + ', ' + two(d.getUTCHours()) + ':' + two(d.getUTCMinutes()) + ' UTC' : null; };
@@ -279,6 +284,10 @@ export function checksServed(checks, journeys, suites) {
   const ciAt = forSite ? when(cdoc.ranAt) : null;
   const log = (url, words) => '<a class="journeys-log" href="' + esc(url) + '">' + words + '</a>';
   const notRunFor = 'Not run' + (target ? ' for ' + target : '');
+  /* Still running when it was recorded, and nothing of it recorded since:
+     pending, not missing (the 13 Oct 2026 audit, #2). */
+  const pending = forSite && cdoc.pending === true && !cdoc.suites.some(s => s && (s.status === 'PASS' || s.status === 'FAIL'));
+  const pendingAt = pending ? when(cdoc.recordedAt) : null;
   const status = {};
   const rows = KINDS.map(([id, name, of]) => {
     let st, line, items = '';
@@ -301,11 +310,14 @@ export function checksServed(checks, journeys, suites) {
         return r && (r.status === 'PASS' || r.status === 'FAIL') ? { s, r } : { s, r: null };
       });
       const pass = got.filter(x => x.r && x.r.status === 'PASS').length, fail = got.filter(x => x.r && x.r.status === 'FAIL').length, none = got.length - pass - fail;
-      st = !got.length ? 'NOT RUN' : fail ? 'FAIL' : none ? 'NOT RUN' : 'PASS';
+      st = !got.length ? 'NOT RUN' : pending ? 'PENDING' : fail ? 'FAIL' : none ? 'NOT RUN' : 'PASS';
       const checked = got.reduce((a, x) => a + (x.r && Number.isFinite(x.r.passed) ? x.r.passed : 0), 0);
       const ofChecks = got.reduce((a, x) => a + (x.r && Number.isFinite(x.r.passed) ? x.r.passed + (Number.isFinite(x.r.failed) ? x.r.failed : 0) : 0), 0);
       const where = (forSite ? 'CI on ' + target + (ciAt ? ', ' + ciAt : '') : notRunFor) + ' · ' + (ciRun ? log(ciRun, 'run log') : log(REPO_URL + '/actions/workflows/checks.yml', 'run history'));
-      if (st === 'NOT RUN') {
+      if (st === 'PENDING') {
+        line = 'Pending for ' + target + ': CI was still running on this commit when it was recorded' + (pendingAt ? ' (' + pendingAt + ')' : '')
+          + '; its ' + (got.length === 1 ? 'one suite is' : got.length + ' suites are') + ' recorded here when the run ends · ' + log(REPO_URL + '/actions/workflows/checks.yml', 'run history');
+      } else if (st === 'NOT RUN') {
         line = notRunFor + ': ' + (none === got.length ? (got.length === 1 ? 'its one suite has no result' : 'none of its ' + got.length + ' suites has a result') + ' recorded for this commit'
           : none + ' of its ' + got.length + ' suites ' + (none === 1 ? 'has' : 'have') + ' no result for this commit; ' + pass + ' passed')
           + ' · ' + (ciRun ? log(ciRun, 'run log') : log(REPO_URL + '/actions/workflows/checks.yml', 'run history'));
@@ -313,10 +325,10 @@ export function checksServed(checks, journeys, suites) {
         line = pass + ' of ' + got.length + ' suites pass' + (fail ? ', ' + fail + ' failed' : '') + (none ? ', ' + none + ' not run' : '') + (ofChecks ? ' · ' + n(checked) + ' of ' + n(ofChecks) + ' checks' : '') + ' · ' + where;
       }
       items = '<ol class="kind-suites" aria-label="' + esc(name) + ': each suite">' + got.map(({ s, r }) => {
-        const mark = r ? (r.status === 'PASS' ? 'PASS' : 'FAIL') : 'Not run';
-        const said = r ? (r.said ? esc(r.said) : r.status === 'PASS' ? 'passed' : 'failed') : 'not run for ' + (target || 'this commit');
+        const mark = r ? (r.status === 'PASS' ? 'PASS' : 'FAIL') : pending ? 'Pending' : 'Not run';
+        const said = r ? (r.said ? esc(r.said) : r.status === 'PASS' ? 'passed' : 'failed') : pending ? 'running in CI on ' + target : 'not run for ' + (target || 'this commit');
         const count = r && Number.isFinite(r.passed) ? ' <span class="kind-count">' + n(r.passed) + '/' + n(r.passed + (Number.isFinite(r.failed) ? r.failed : 0)) + '</span>' : '';
-        return '<li data-mark="' + (r ? (r.status === 'PASS' ? 'ok' : 'fail') : 'notrun') + '"><span class="kind-mark">' + mark + '</span> ' + esc(s.name) + count + '<span class="kind-said"> — ' + said + '</span></li>';
+        return '<li data-mark="' + (r ? (r.status === 'PASS' ? 'ok' : 'fail') : pending ? 'pending' : 'notrun') + '"><span class="kind-mark">' + mark + '</span> ' + esc(s.name) + count + '<span class="kind-said"> — ' + said + '</span></li>';
       }).join('') + '</ol>';
     }
     status[id] = st;
@@ -330,6 +342,7 @@ export function checksServed(checks, journeys, suites) {
   const ciSaid = ['numbers', 'data'].map(id => {
     const name = KINDS.find(k => k[0] === id)[1];
     if (status[id] === 'NOT RUN') return name + ' not run for ' + (target || 'this commit');
+    if (status[id] === 'PENDING') return name + ' pending for ' + target + ' (CI still running)';
     const mine = list.filter(s => s.kind === id);
     const pass = mine.filter(s => byId[s.id] && byId[s.id].status === 'PASS').length;
     const checked = mine.reduce((a, s) => a + (byId[s.id] && Number.isFinite(byId[s.id].passed) ? byId[s.id].passed : 0), 0);
@@ -377,7 +390,8 @@ async function collect({ commit, repo, wait }) {
     await sleep(60000);
   }
   const run = picked.run;
-  if (!run) return record({ commit, note: picked.going ? `checks.yml was still running on this commit after ${wait}s` : 'checks.yml has no finished run on this commit' });
+  if (!run) return record({ commit, pending: picked.going,
+    note: picked.going ? `checks.yml was still running on this commit after ${wait}s — pending; checks-record.yml records it when the run ends` : 'checks.yml has no finished run on this commit' });
   const jobs = (await api(`/repos/${repo}/actions/runs/${run.id}/jobs?per_page=50`)).jobs || [];
   const entries = [];
   for (const job of jobs) {
@@ -466,6 +480,24 @@ function selfTest() {
   const other = checksServed({ ...full, commit: '1111111222222233333334444444555555566666' }, jrec, SUITES);
   t(['numbers', 'data', 'layout'].every(k => other.status[k] === 'NOT RUN') && /Not run for abcdef1/.test(words(rowOf(other, 'data'))) && !/chip-ok/.test(other.kinds.replace(rowOf(other, 'journeys'), '')),
     'a record for another commit than the site\'s is no result for it: every CI kind "Not run for <the site\'s commit>"');
+  /* PENDING (the 13 Oct 2026 audit, #2): CI still running on the site's
+     commit when the record was taken reads "Pending for <commit>", with
+     the time it was recorded — never Not run, never a pass; for another
+     commit, or once a suite of it has a result, it is what it always was. */
+  const pend = record({ commit: sha, pending: true, note: 'checks.yml was still running on this commit after 5400s', now: new Date('2026-10-13T00:15:00Z') });
+  t(checksProblem(pend) === null && pend.pending === true && pend.suites.every(s => s.status === 'NOT RUN') && record({ commit: sha }).pending === undefined && record({ commit: null, pending: true }).pending === undefined,
+    'the record: pending only where CI was still running on a named commit, its suites still NOT RUN');
+  const pending = checksServed(pend, jrec, SUITES);
+  const pnums = rowOf(pending, 'numbers');
+  t(['numbers', 'data', 'layout'].every(k => pending.status[k] === 'PENDING') && /data-status="PENDING"/.test(pnums) && /<span class="chip health-chip chip-warn">Pending<\/span>/.test(pnums) && !/chip-ok/.test(pnums)
+    && words(pnums).includes('Pending for abcdef1: CI was still running on this commit when it was recorded (13 Oct 2026, 00:15 UTC); its 5 suites are recorded here when the run ends · run history')
+    && /<li data-mark="pending"><span class="kind-mark">Pending<\/span> model-test<span class="kind-said"> — running in CI on abcdef1<\/span><\/li>/.test(pnums),
+    `CI still running reads "Pending for <commit>", not Not run and never a pass: Numbers ${pending.status.numbers} — ${words(pnums).slice(0, 120)}`);
+  t(/Numbers pending for abcdef1 \(CI still running\)/.test(words(pending.ci)) && !/Numbers PASS|not run/.test(words(pending.ci)), `the line beside the in-browser checks, pending: "${words(pending.ci).slice(0, 120)}"`);
+  const pendOther = checksServed({ ...pend, commit: '1111111222222233333334444444555555566666' }, jrec, SUITES);
+  const pendDone = checksServed({ ...full, pending: true }, jrec, SUITES);
+  t(['numbers', 'data', 'layout'].every(k => pendOther.status[k] === 'NOT RUN' && pendDone.status[k] === 'PASS'),
+    'pending counts for the site\'s commit only, and a record with results is read by its results');
   const none = checksServed(placeholder(), jrec, SUITES), nothing = checksServed(null, null, SUITES);
   t(['numbers', 'data', 'layout'].every(k => none.status[k] === 'NOT RUN' && nothing.status[k] === 'NOT RUN') && nothing.status.journeys === 'NOT RUN' && /Not run for abcdef1: none of its 5 suites has a result recorded for this commit/.test(words(rowOf(none, 'numbers'))),
     'the placeholder, and no record at all: every kind Not run, for the site\'s commit where one is named');
