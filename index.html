@@ -6979,7 +6979,11 @@ input.au-in[type="text"] { text-align: left; }
 @media (min-width: 1440px) {
   .pf-flow[data-pf-view="propertyLab"] { display: block; margin: 0; }
   .pf-flow[data-pf-view="propertyLab"] > .pf-steps { float: right; margin: 0 0 var(--xs) var(--lg); }
-  .pf-flow[data-pf-view="propertyLab"] > .pf-ctx { float: right; clear: right; max-width: 60%; margin: 0 0 var(--xs) var(--lg); }
+  /* One width, moves or none: sized to its words, the box widened at the
+     first move (324 → 642px) and the head beside it narrowed, and in CI's
+     font its line wrapped — the first slider moved 19px under the thumb
+     (the 13 Oct release). */
+  .pf-flow[data-pf-view="propertyLab"] > .pf-ctx { float: right; clear: right; width: 60%; max-width: 60%; margin: 0 0 var(--xs) var(--lg); }
 }
 @media (max-width: 639.98px) {
   /* Tight on a phone (the 13 Oct release, CI): with the line under the steps
