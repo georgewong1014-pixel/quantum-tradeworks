@@ -3730,6 +3730,82 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end kuching-map ---- */
 
+/* ---- journey-bar-served ---- */
+/* THE PROPERTY JOURNEY BAR, AS SERVED (the 13 Oct 2026 audit, #7, the
+   owner's choice; 88-property-flow.js). A fetch that runs no script reads,
+   on each of the eight served Property addresses:
+   - the five steps, Explore · Analyse · Evidence · Compare · Save, the
+     page's own marked — Evidence on the calculator, where a property's
+     figures become the reader's;
+   - under them the context line, a fresh visitor's: on the calculator, the
+     explore pages and My properties "The sample deal · Residential ·
+     Subsale · Sample figures: 10 of 10" — the property, how it is bought
+     and what it is (the route questions' summary), its evidence as a
+     count — and nothing of moves in a Lab not opened; on /property and
+     /property/lab, whose heading names the property and the route, its
+     evidence and "No unsaved moves", the same words beside the sliders
+     for a phone;
+   - a count and never a figure: no ringgit, no percentage, no other digit;
+   - the calculator's line counting what its review counts (10 sample
+     inputs);
+   - each render having read the calculator's deal and the saved work, so
+     a reader holding their own is kept from the sample deal's line until
+     the script draws theirs (FIRST_SCRIPT, build.mjs).
+   Fails on acc59142: four steps and no context line on any of the eight. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const WANT = { '/property': ['analyse', 'lab'], '/property/lab': ['analyse', 'lab'], '/property/calculator': ['evidence', 'calc'], '/property/models': ['save', 'calc'],
+    '/property/opportunities': ['explore', 'calc'], '/property/comparables': ['explore', 'calc'], '/property/areas': ['explore', 'calc'], '/property/areas/map': ['explore', 'calc'] };
+  const STEPS = 'Explore Analyse Evidence Compare Save';
+  const p = [], said = [];
+  const got = await getAll(Object.keys(WANT));
+  for (const [path, [here, where]] of Object.entries(WANT)) {
+    const r = got.get(path);
+    if (!r || r.status !== 200) { p.push(`${path}: ${r ? described(r) : 'not fetched'}`); continue; }
+    const tree = all(B.htmlTree(r.body));
+    const views = tree.find(n => attr(n, 'id') === 'views');
+    const nodes = views ? all(views) : [];
+    const flow = nodes.find(n => n.tag === 'nav' && B.hasClass(n, 'pf-flow'));
+    if (!flow) { p.push(`${path} serves no property flow`); continue; }
+    const inFlow = all(flow);
+    const steps = inFlow.filter(n => B.hasClass(n, 'pf-step'));
+    const words = steps.map(n => sight(n).trim()).join(' ');
+    if (words !== STEPS) p.push(`${path}: the steps read "${words}", not "${STEPS}"`);
+    /* A served button is its words (prerender: its id and class kept), so
+       a step is known by its id. */
+    const cur = steps.filter(n => B.hasClass(n, 'is-here')).map(n => attr(n, 'data-pf-step') || String(attr(n, 'id') || '').replace(/^pf-/, ''));
+    if (attr(flow, 'data-pf-here') !== here || cur.length !== 1 || cur[0] !== here) p.push(`${path}: ${cur.join(', ') || 'no step'} marked (data-pf-here ${attr(flow, 'data-pf-here')}), not ${here}`);
+    const byId = (id) => inFlow.find(n => attr(n, 'id') === id) || null;
+    const t = (id) => { const n = byId(id); return n ? sight(n).replace(/\s+/g, ' ').trim() : null; };
+    const ctx = byId('pf-ctx');
+    if (!ctx) { p.push(`${path} serves no context line under the steps`); continue; }
+    if (attr(ctx, 'data-pf-ctx') !== where) p.push(`${path}: the line names ${attr(ctx, 'data-pf-ctx')}'s property, not ${where === 'lab' ? 'the Lab\'s (its evidence and moves only)' : 'the calculator\'s deal'}`);
+    const ev = byId('pf-ctx-ev');
+    if (t('pf-ctx-ev') !== 'Sample figures: 10 of 10' || attr(ev, 'data-sample') !== '10' || attr(ev, 'data-of') !== '10') p.push(`${path}: the evidence reads "${t('pf-ctx-ev')}" (${attr(ev, 'data-sample')} of ${attr(ev, 'data-of')}), not "Sample figures: 10 of 10"`);
+    if (where === 'calc') {
+      if (t('pf-ctx-what') !== 'The sample deal' || t('pf-ctx-route') !== 'Residential · Subsale') p.push(`${path}: the line names "${t('pf-ctx-what')}", "${t('pf-ctx-route')}", not "The sample deal", "Residential · Subsale"`);
+      if (byId('pf-unsaved') || byId('pf-resume')) p.push(`${path}: the line speaks of moves, or offers Resume, in a Lab a fresh visitor has not opened`);
+    } else {
+      if (byId('pf-ctx-what') || byId('pf-ctx-route')) p.push(`${path}: the Lab's line names the property or the route its own heading names`);
+      if (t('pf-unsaved') !== 'No unsaved moves' || attr(byId('pf-unsaved'), 'data-unsaved') !== '0') p.push(`${path}: the Lab's line reads "${t('pf-unsaved')}", not "No unsaved moves"`);
+      const strip = nodes.find(n => attr(n, 'id') === 'lab-unsaved');
+      const s = strip ? sight(strip).replace(/\s+/g, ' ').trim() : '';
+      if (!/Sample figures: 10 of 10 · No unsaved moves\.$/.test(s)) p.push(`${path}: the line beside the sliders, a phone's, reads "${s}"`);
+    }
+    const line = sight(ctx).replace(/\s+/g, ' ');
+    if (/RM|%/.test(line) || /\d/.test(line.replace(/\b10 of 10\b/g, ''))) p.push(`${path}: the line carries a figure: "${line.trim()}"`);
+    const reads = attr(tree.find(n => n.tag === 'html'), 'data-served-reads') || '';
+    if (!/(^|\s)deal:/.test(reads) || !/(^|\s)savedWork:/.test(reads)) p.push(`${path}: its render did not read the calculator's deal and the saved work (data-served-reads), so a reader holding their own would be shown the sample deal's line`);
+    said.push(`${path} ${here}`);
+  }
+  const calc = got.get('/property/calculator');
+  if (calc?.status === 200) { const m = /(\d+) sample inputs? needs? your evidence/.exec(pageText(calc.body)); if (!m || m[1] !== '10') p.push(`/property/calculator's review counts ${m ? m[1] : 'nothing'}, its line 10`); }
+  judge(p, `the property journey bar as served: ${said.length} Property pages each serve Explore · Analyse · Evidence · Compare · Save with their own step marked (${said.join(', ')}); the context line under them — "The sample deal · Residential · Subsale · Sample figures: 10 of 10" on six, "Sample figures: 10 of 10 · No unsaved moves" on the Lab's two (its heading names the rest) and beside its sliders — a count and no figure, the calculator's count its review's; each render read the deal and the saved work`,
+    'the property journey bar is not served as it is drawn for a fresh visitor');
+}
+/* ---- end journey-bar-served ---- */
+
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);

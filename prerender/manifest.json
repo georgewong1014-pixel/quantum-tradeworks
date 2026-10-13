@@ -4923,19 +4923,19 @@
         ]
       },
       "inert": {
-        "buttons": 30,
+        "buttons": 31,
         "fields": 12,
         "choices": 26,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 13,
+        "notShown": 14,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1bdf03bc77e9731b",
-      "changed": "2026-10-12"
+      "digest": "2dbfd71af2b3a06c",
+      "changed": "2026-10-13"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -4952,7 +4952,7 @@
         ]
       },
       "inert": {
-        "buttons": 62,
+        "buttons": 63,
         "fields": 4,
         "choices": 0,
         "roles": 0,
@@ -4963,8 +4963,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "e10148cd63df4a38",
-      "changed": "2026-10-12"
+      "digest": "c6d33b1b13df711e",
+      "changed": "2026-10-13"
     },
     "pages/property/areas/map.html": {
       "path": "/property/areas/map",
@@ -4981,7 +4981,7 @@
         ]
       },
       "inert": {
-        "buttons": 86,
+        "buttons": 87,
         "fields": 1,
         "choices": 0,
         "roles": 0,
@@ -4992,8 +4992,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f9d55b0f352071c2",
-      "changed": "2026-10-12"
+      "digest": "9f44379dec7c9957",
+      "changed": "2026-10-13"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -5010,7 +5010,7 @@
         ]
       },
       "inert": {
-        "buttons": 65,
+        "buttons": 66,
         "fields": 91,
         "choices": 26,
         "roles": 0,
@@ -5021,8 +5021,8 @@
         "cellStops": 4,
         "emptyDetails": 0
       },
-      "digest": "64f8ce038c7b9d31",
-      "changed": "2026-10-12"
+      "digest": "4a3181c935695dcf",
+      "changed": "2026-10-13"
     },
     "pages/property/comparables.html": {
       "path": "/property/comparables",
@@ -5039,7 +5039,7 @@
         ]
       },
       "inert": {
-        "buttons": 11,
+        "buttons": 12,
         "fields": 6,
         "choices": 8,
         "roles": 0,
@@ -5050,8 +5050,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "a556eab43f983d8f",
-      "changed": "2026-10-12"
+      "digest": "7407da2900ca8397",
+      "changed": "2026-10-13"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -5068,19 +5068,19 @@
         ]
       },
       "inert": {
-        "buttons": 30,
+        "buttons": 31,
         "fields": 12,
         "choices": 26,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 13,
+        "notShown": 14,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "63a0e728f93e8263",
-      "changed": "2026-10-12"
+      "digest": "85a39b8b9bbc9900",
+      "changed": "2026-10-13"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -5097,7 +5097,7 @@
         ]
       },
       "inert": {
-        "buttons": 7,
+        "buttons": 8,
         "fields": 0,
         "choices": 0,
         "roles": 0,
@@ -5108,8 +5108,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "58dd5b711774b9b0",
-      "changed": "2026-10-12"
+      "digest": "22a120f18a8ef095",
+      "changed": "2026-10-13"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -5126,7 +5126,7 @@
         ]
       },
       "inert": {
-        "buttons": 6,
+        "buttons": 7,
         "fields": 8,
         "choices": 0,
         "roles": 0,
@@ -5137,8 +5137,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "49d089d47fc11447",
-      "changed": "2026-10-12"
+      "digest": "3bcc4609a4a84b60",
+      "changed": "2026-10-13"
     },
     "pages/research.html": {
       "path": "/research",

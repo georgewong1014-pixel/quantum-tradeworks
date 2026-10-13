@@ -6842,12 +6842,14 @@ input.au-in[type="text"] { text-align: left; }
 /* ---- end actuals ---- */
 
 /* ---- property-flow ---- */
-/* THE PROPERTY FLOW (the 11 Oct audit, #8; 88-property-flow.js): above every
-   Property page, Explore → Analyse → Compare → Save, the page's own step
-   marked; and on the pages that are not the Lab, the work the Lab holds with
-   "Resume in the Lab". One line of steps at every width; under 640px 44px
-   chips that scroll, and not on the Lab or the calculator, whose action bar
-   carries Analyse · Compare · Save there. */
+/* THE PROPERTY FLOW (the 11 Oct audit, #8; the 13 Oct audit, #7;
+   88-property-flow.js): above every Property page, Explore → Analyse →
+   Evidence → Compare → Save, the page's own step marked; and under it the
+   context line — the property worked on, how it is bought, its evidence as
+   a count and what is not saved, with "Resume in the Lab" or Save. One line
+   of steps at every width; under 640px 44px chips that scroll, and not on
+   the Lab or the calculator, whose action bar carries Analyse · Compare ·
+   Save there. */
 .pf-flow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--lg); margin: 0 0 var(--md); min-width: 0; }
 .pf-steps { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; list-style: none; margin: 0; padding: 0; min-width: 0; }
 .pf-li { display: flex; align-items: center; flex: none; }
@@ -6859,28 +6861,71 @@ input.au-in[type="text"] { text-align: left; }
 .pf-step:active { transform: translateY(1px); }
 .pf-step:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .pf-step.is-here { color: var(--brand); background: var(--brand-wash); border-color: color-mix(in srgb, var(--brand) 42%, transparent); }
-/* The work the Lab holds: its own line under the steps, the resume beside
-   it; bronze-edged while it holds moves not saved. */
-.pf-ctx { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--md); min-width: 0;
-  padding: 8px 8px 8px 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); }
+/* THE CONTEXT LINE, under the steps: its parts set apart by a dot that keeps
+   with the part before it, so on a phone the line wraps between parts; from
+   1024px one line, a long name giving way (ellipsed, the whole name its
+   title) before any other part does. Bronze-edged, its moves bronze, while
+   the Lab holds moves not saved. */
+.pf-ctx { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--md); min-width: 0; min-height: 34px;
+  padding: 6px 8px 6px 12px; border: 1px solid var(--line); border-left: 3px solid var(--line-2); border-radius: var(--r-md); background: var(--surface-2); }
 .pf-ctx.is-unsaved { border-left-color: var(--bronze); }
-.pf-ctx-text { flex: 1 1 24rem; min-width: 0; max-width: 70ch; margin: 0; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
-.pf-ctx-text strong { color: var(--ink); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.pf-ctx-text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: var(--ls-meta); line-height: 20px; color: var(--ink-2); }
+.pf-ctx-text strong { color: var(--ink); font-weight: var(--weight-semibold); }
+.pf-seg { white-space: nowrap; }
+.pf-sep { color: var(--ink-3); }
+.pf-ctx-ev { color: var(--ink); }
+.pf-name { display: inline-block; max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .pf-ctx.is-unsaved .pf-ctx-state { color: var(--bronze); font-weight: var(--weight-semibold); }
 .pf-resume { flex: none; white-space: nowrap; }
+/* The Lab's Save, in the line while it holds moves (out of sight and out of
+   reach until the first): the identity line's Save, given the keyboard. */
+.pf-ctx-save { flex: none; display: inline-flex; align-items: center; min-height: 28px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand) 42%, transparent); background: var(--brand-wash); color: var(--brand);
+  font: inherit; font-size: var(--ls-meta); font-weight: var(--weight-semibold); line-height: 1.2; cursor: pointer; }
+.pf-ctx-save[hidden] { display: none; }
+.pf-ctx-save:hover { background: color-mix(in srgb, var(--brand) 16%, var(--brand-wash)); }
+.pf-ctx-save:active { transform: translateY(1px); }
+.pf-ctx-save:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (min-width: 640px) {
+  /* The Lab's line keeps the room its Save takes, so the first move moves
+     nothing under it. */
+  .pf-flow[data-pf-view="propertyLab"] > .pf-ctx { min-height: 42px; }
+  /* What the line says on the Lab, the line above its sliders said: out of
+     sight and out of reach from 640px (visibility, not display:none, so the
+     page served at 1280 still carries it for a phone). Under 640px, where
+     the steps are the action bar's, it says it there (labPaintPanel). */
+  .lab-pick-cols > .lab-moved-line, :root[data-served] .lab-pick-cols > .lab-moved-line {
+    position: absolute; width: 1px; height: 1px; min-height: 0; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; visibility: hidden; }
+}
+@media (min-width: 1024px) {
+  .pf-ctx { flex-wrap: nowrap; }
+  .pf-ctx-text { display: flex; flex-wrap: nowrap; align-items: baseline; overflow: hidden; }
+  .pf-ctx-text > * { flex: none; }
+  /* A flex item drops the space it ends with: the dot's own, kept. */
+  .pf-ctx-text > .pf-sep { padding-right: .3em; }
+  .pf-ctx-text > .pf-ctx-what { flex: 0 1 auto; min-width: 12ch; overflow: hidden; text-overflow: ellipsis; }
+}
 /* On the Lab from 1440px the steps stand at the top right, beside the
-   journey line and the page's head, not above them: its first slider stays
-   on the first screen (n3-first-view). The Lab draws no work's line of its
-   own, so nothing else is beside them. */
+   journey line and the page's head, not above them, and the line under
+   them: its first slider stays on the first screen (n3-first-view). */
 @media (min-width: 1440px) {
   .pf-flow[data-pf-view="propertyLab"] { display: block; margin: 0; }
   .pf-flow[data-pf-view="propertyLab"] > .pf-steps { float: right; margin: 0 0 var(--xs) var(--lg); }
+  .pf-flow[data-pf-view="propertyLab"] > .pf-ctx { float: right; clear: right; max-width: 60%; margin: 0 0 var(--xs) var(--lg); }
 }
 @media (max-width: 639.98px) {
-  .pf-flow { gap: var(--xs); }
+  .pf-flow { gap: 6px var(--xs); margin-bottom: var(--sm); }
   .pf-steps { width: 100%; overflow-x: auto; scrollbar-width: none; }
   .pf-steps::-webkit-scrollbar { display: none; }
   .pf-step { min-height: 44px; padding: 0 14px; }
+  /* On a phone the line is the steps' caption: its rule, no box, two lines
+     at most for a first visit's deal, so the page under it moves as little
+     as it can. A part wraps within itself only where it must (a name, the
+     moves). */
+  .pf-ctx { padding: 0 0 0 10px; min-height: 0; border: 0; border-left: 3px solid var(--line-2); border-radius: 0; background: none; }
+  .pf-ctx-text { line-height: 18px; }
+  .pf-ctx-what, .pf-ctx-state { white-space: normal; }
+  .pf-name { max-width: 100%; }
   .pf-resume { min-height: 44px; }
   .pf-flow[data-pf-view="propertyLab"], .pf-flow[data-pf-view="property"] .pf-steps { display: none; }
 }

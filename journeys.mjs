@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, map, scanner, return, records, registers, cases, settings, backup, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -2269,11 +2269,32 @@ const JOURNEYS = [
         await tab.click(`[...document.querySelectorAll('#productTabs a')].find(a => /^Comparables/.test(a.textContent.trim()))`, 'Comparables — the product tabs');
         await tab.expect(`State.view === 'comparables' && !!document.getElementById('pf-ctx')`, async () => `the comparables opened ${await tab.eval('State.view')} with ${await tab.eval(`document.getElementById('pf-ctx') ? 'the work named' : 'no word of the work in the Lab'`)}`);
         const r = JSON.parse(await tab.eval(`JSON.stringify({ text: (document.getElementById('pf-ctx')?.textContent || '').replace(/\\s+/g, ' '), n: Number(document.getElementById('pf-unsaved')?.dataset.unsaved || 0),
+          route: (document.getElementById('pf-ctx-route')?.textContent || '').trim(), ev: (document.getElementById('pf-ctx-ev')?.textContent || '').trim(),
           here: document.querySelector('.pf-step[aria-current="step"]')?.dataset.pfStep || null, town: document.getElementById('ef-town')?.value, area: document.getElementById('ef-area')?.value })`));
-        if (!r.text.includes('“Journey flow condo”') || !r.text.includes(`B — ${NAME}`) || r.n < 2 || !/not saved — kept in this tab until you save/.test(r.text)) throw new StepError(`the work is named “${r.text.slice(0, 220)}” (${r.n} moves)`);
+        if (!r.text.includes('“Journey flow condo”') || !r.text.includes(`B — ${NAME}`) || r.n < 2 || !/not saved — lost on reload or close/.test(r.text)) throw new StepError(`the work is named “${r.text.slice(0, 220)}” (${r.n} moves)`);
+        /* The journey bar (the 13 Oct audit, #7): B's route as answered in
+           the Lab, and its evidence — what the record states (its price and
+           its area), counted. */
+        if (r.route !== 'Residential · Auction' || r.ev !== 'Figures not in the record: 8 of 10') throw new StepError(`the line says B is “${r.route}” with “${r.ev}”, not “Residential · Auction” with “Figures not in the record: 8 of 10”`);
         if (r.here !== 'explore') throw new StepError(`the flow marks ${r.here}, not Explore`);
         if (r.town !== 'kuching' || r.area !== 'Tabuan') throw new StepError(`the guided flow starts at ${r.area}, ${r.town}, not where B is (Tabuan, Kuching)`);
         if (await snap() !== before) throw new StepError('leaving the Lab wrote to storage');
+      });
+      await step(j, tab, 'Press Evidence: the record’s source, in the register', BUDGET.load + BUDGET.action * 2, async () => {
+        await tab.click(`document.getElementById('pf-evidence')`, 'Evidence — the property flow');
+        await tab.expect(`State.view === 'opportunities' && !!document.activeElement?.closest?.('[data-opp]')`,
+          async () => `Evidence opened ${await tab.eval('State.view')} with focus on ${await tab.eval(`document.activeElement?.id || document.activeElement?.className || document.activeElement?.tagName`)}`, 6000);
+        /* Scrolled to, as the page scrolls (smoothly, where motion is not reduced). */
+        await tab.waitFor(`(() => { const b = document.activeElement.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; })()`, 3000);
+        const r = JSON.parse(await tab.eval(`JSON.stringify({ card: document.activeElement.closest('[data-opp]').dataset.opp, prov: document.activeElement.classList.contains('opp-prov'), text: document.activeElement.textContent,
+          seen: (() => { const b = document.activeElement.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; })(), ctx: (document.getElementById('pf-ctx-ev')?.textContent || '').trim() })`));
+        if (r.card !== oppId || !r.prov || !r.text.startsWith(`Source: ${SRC} · dated ${DATED}`) || !r.seen) throw new StepError(`Evidence landed on ${JSON.stringify(r)}, not the record's source line in sight`);
+        if (r.ctx !== 'Figures not in the record: 8 of 10') throw new StepError(`the register's line counts “${r.ctx}”`);
+        if (await snap() !== before) throw new StepError('Evidence wrote to storage');
+        /* Back to the comparables, the explore page the rest of the journey
+           returns to. */
+        await tab.click(`[...document.querySelectorAll('#productTabs a')].find(a => /^Comparables/.test(a.textContent.trim()))`, 'Comparables — the product tabs');
+        await tab.expect(`State.view === 'comparables' && !!document.getElementById('pf-resume')`, 'the comparables did not open with the work named');
       });
       await step(j, tab, 'Resume in the Lab: the what-if intact', BUDGET.load, async () => {
         await tab.click(`document.getElementById('pf-resume')`, 'Resume in the Lab');
@@ -2307,6 +2328,122 @@ const JOURNEYS = [
       });
     },
   },
+  {
+    /* ---- journey-bar ---- */
+    /* THE PROPERTY JOURNEY BAR (the 13 Oct 2026 audit, #7, the owner's
+       choice; 88-property-flow.js). Five steps — Explore, Analyse, Evidence,
+       Compare, Save — over every Property page, and under them one line: the
+       property worked on, how it is bought and what it is (the route
+       questions' summary), its evidence as a count (the review queue's
+       figures still the sample's, never a figure) and the moves not saved,
+       with Resume or Save. A first visit to the comparables reads the sample
+       deal; the Lab says its evidence and its moves (its heading line names
+       the property and how it is bought); a price moved and Auction answered
+       are counted as moves, the evidence unchanged (a move marks nothing as
+       the reader's) and nothing written; the comparables then name the Lab's
+       work; Evidence lands on the calculator's review of the figures still
+       the sample's, Evidence marked there; a figure replaced on the
+       calculator takes one off the count; Resume finds the moves intact,
+       and the line's Save gives the keyboard to the Lab's own Save. Every
+       step reads what is stored: the Lab writes nothing before Save. */
+    id: 'journey-bar', name: 'Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed',
+    outcomes: ['Move the price and answer Auction: the line counts the moves, the evidence stays the sample’s, nothing written',
+      'Press Evidence: the calculator, at the figures still the sample’s, Evidence marked',
+      'Replace the rent on the calculator: the count follows the review, 9 of 10'],
+    async run(j, tab) {
+      const KEYS = ['savedWork', 'opportunities', 'labComparisons', 'dealBeforeLink'];
+      const snap = () => tab.eval(`JSON.stringify(${JSON.stringify(KEYS)}.map(k => localStorage.getItem('vl.' + k)))`);
+      const dealKept = () => tab.eval(`localStorage.getItem('vl.deal')`);
+      const line = async () => JSON.parse(await tab.eval(`(() => { const t = (id) => { const n = document.getElementById(id); return n ? n.textContent.replace(/\\s+/g, ' ').trim() : null; };
+        const box = document.getElementById('pf-ctx'), ev = document.getElementById('pf-ctx-ev'), st = document.getElementById('pf-unsaved'), sv = document.getElementById('pf-ctx-save');
+        const p = box?.querySelector('.pf-ctx-text');
+        return JSON.stringify({ where: box?.dataset.pfCtx || null, what: t('pf-ctx-what'), route: t('pf-ctx-route'), ev: t('pf-ctx-ev'),
+          n: ev ? Number(ev.dataset.sample) : null, of: ev ? Number(ev.dataset.of) : null, moves: st ? Number(st.dataset.unsaved) : null, state: t('pf-unsaved'),
+          resume: !!document.getElementById('pf-resume'), save: !!sv && !sv.hidden && sv.getClientRects().length > 0,
+          steps: [...document.querySelectorAll('#views .pf-flow .pf-step')].map(s => s.textContent.trim()).join(' '),
+          here: document.querySelector('#views .pf-step[aria-current="step"]')?.dataset.pfStep || null,
+          lines: p ? Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)) : null }); })()`));
+      const said = (r) => JSON.stringify({ where: r.where, what: r.what, route: r.route, ev: r.ev, state: r.state });
+      let before = null;
+      await step(j, tab, 'A first visit to the comparables: the sample deal, how it is bought and its sample figures, Explore marked', BUDGET.load, async () => {
+        await tab.goto('/property/comparables');
+        await tab.expect(`State.view === 'comparables' && !!document.getElementById('pf-ctx')`, 'the comparables carry no context line under the steps');
+        const r = await line();
+        if (r.steps !== 'Explore Analyse Evidence Compare Save' || r.here !== 'explore') throw new StepError(`the steps read “${r.steps}”, ${r.here || 'none'} marked`);
+        if (r.where !== 'calc' || r.what !== 'The sample deal' || r.route !== 'Residential · Subsale' || r.ev !== 'Sample figures: 10 of 10' || r.n !== 10 || r.of !== 10)
+          throw new StepError(`the line reads ${said(r)}`);
+        if (r.moves !== null || r.resume) throw new StepError('the line speaks of moves in a Lab this tab has not opened');
+        if (r.lines !== 1) throw new StepError(`the line takes ${r.lines} lines at 1440, not one`);
+        before = await snap();
+      });
+      await step(j, tab, 'Open the Lab from the steps: its evidence and its moves under them, the property and how it is bought in its heading', BUDGET.load + BUDGET.action, async () => {
+        await tab.click(`document.getElementById('pf-analyse')`, 'Analyse — the property flow');
+        await tab.expect(`State.view === 'propertyLab' && document.getElementById('pf-ctx')?.dataset.pfCtx === 'lab'`, async () => `Analyse opened ${await tab.eval('State.view')}`, 8000);
+        const r = await line();
+        if (r.here !== 'analyse' || r.what !== null || r.route !== null || r.ev !== 'Sample figures: 10 of 10' || r.moves !== 0 || r.state !== 'No unsaved moves' || r.save)
+          throw new StepError(`the Lab's line reads ${said(r)}${r.save ? ', Save offered with nothing moved' : ''}, ${r.here} marked`);
+        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
+        if (!/^Sample deal — not a real listing/.test(id.name) || id.route !== 'Residential · Subsale') throw new StepError(`the Lab's heading names “${id.name}”, “${id.route}”`);
+        if (r.lines !== 1) throw new StepError(`the Lab's line takes ${r.lines} lines at 1440, not one`);
+        if (await snap() !== before) throw new StepError('opening the Lab wrote to storage');
+      });
+      await step(j, tab, 'Move the price and answer Auction: the line counts the moves, the evidence stays the sample’s, nothing written', BUDGET.action * 5, async () => {
+        const deal = await dealKept();
+        await tab.fill(`document.getElementById('lab-n-price')`, '540000', 'Purchase price — B', { commit: true });
+        await tab.expect(`document.getElementById('pf-unsaved')?.dataset.unsaved === '1'`, async () => `after one move the line reads “${await tab.eval(`document.getElementById('pf-unsaved')?.textContent`)}”`);
+        await tab.eval(`(document.activeElement && document.activeElement !== document.body && document.activeElement.blur(), true)`);
+        if (await tab.eval(`(() => { const b = document.getElementById('lab-q-change'); return !!b && getComputedStyle(b).visibility !== 'hidden' && !!b.getClientRects().length && b.getAttribute('aria-expanded') === 'false'; })()`))
+          await tab.click(`document.getElementById('lab-q-change')`, 'Change — what you are buying and how');
+        await tab.click(`document.querySelector('label[for="lab-q-how-auction"]')`, 'How are you buying? — Auction');
+        await tab.expect(`dealRoute(labActive(LAB[labSubject]).work) === 'auction' && Number(document.getElementById('pf-unsaved')?.dataset.unsaved) >= 2`,
+          async () => `after Auction the line reads “${await tab.eval(`document.getElementById('pf-unsaved')?.textContent`)}”`);
+        const r = await line();
+        if (!/^[A-C] has \d+ moves?( and [A-C] has \d+)* not saved — lost on reload or close$/.test(r.state || '') || !r.save) throw new StepError(`the line reads “${r.state}”${r.save ? '' : ', no Save in it'}`);
+        if (r.ev !== 'Sample figures: 10 of 10') throw new StepError(`a move changed the evidence: “${r.ev}”`);
+        if (await snap() !== before || await dealKept() !== deal) throw new StepError('a move or an answer wrote to storage before Save');
+      });
+      await step(j, tab, 'Visit the comparables: the line names the Lab’s work, Auction and its moves, with Resume', BUDGET.load, async () => {
+        await tab.click(`[...document.querySelectorAll('#productTabs a')].find(a => /^Comparables/.test(a.textContent.trim()))`, 'Comparables — the product tabs');
+        await tab.expect(`State.view === 'comparables' && document.getElementById('pf-ctx')?.dataset.pfCtx === 'work'`, async () => `the comparables opened ${await tab.eval('State.view')} without the Lab's work named`);
+        const r = await line();
+        if (r.what !== 'In the Lab: the sample deal' || r.route !== 'Residential · Auction' || r.ev !== 'Sample figures: 10 of 10' || !(r.moves >= 2)
+          || !/^\d+ moves not saved — lost on reload or close$/.test(r.state || '') || !r.resume) throw new StepError(`the line reads ${said(r)}${r.resume ? '' : ', no Resume'}`);
+        if (r.lines !== 1) throw new StepError(`the line takes ${r.lines} lines at 1440, not one`);
+        if (await snap() !== before) throw new StepError('leaving the Lab wrote to storage');
+      });
+      await step(j, tab, 'Press Evidence: the calculator, at the figures still the sample’s, Evidence marked', BUDGET.load + BUDGET.action, async () => {
+        await tab.click(`document.getElementById('pf-evidence')`, 'Evidence — the property flow');
+        await tab.expect(`State.view === 'property' && document.getElementById('pc-review-list')?.open && document.activeElement === document.querySelector('#pc-review-list > summary')`,
+          async () => `Evidence opened ${await tab.eval('State.view')}, the review ${await tab.eval(`document.getElementById('pc-review-list')?.open ? 'open' : 'closed'`)}, focus on ${await tab.eval(`document.activeElement?.id || document.activeElement?.tagName`)}`, 8000);
+        const r = await line();
+        const review = await tab.eval(`(document.querySelector('#pc-review-list > summary')?.textContent || '').replace(/\\s+/g, ' ')`);
+        if (r.here !== 'evidence') throw new StepError(`the calculator marks ${r.here}, not Evidence`);
+        if (r.where !== 'calc' || r.what !== 'The sample deal' || r.route !== 'Residential · Subsale' || r.ev !== 'Sample figures: 10 of 10'
+          || !/^In the Lab: \d+ moves not saved — lost on reload or close$/.test(r.state || '') || !r.resume) throw new StepError(`the calculator's line reads ${said(r)}`);
+        if (!new RegExp(`Review ${r.n} sample inputs`).test(review)) throw new StepError(`the line counts ${r.n}, the review “${review.trim().slice(0, 90)}”`);
+        if (await snap() !== before) throw new StepError('Evidence wrote to storage');
+      });
+      await step(j, tab, 'Replace the rent on the calculator: the count follows the review, 9 of 10', BUDGET.action * 3, async () => {
+        await tab.fill(`document.getElementById('d-rent')`, '2000', 'Expected monthly rent', { commit: true });
+        await tab.expect(`document.getElementById('pf-ctx-ev')?.textContent.trim() === 'Sample figures: 9 of 10'`, async () => `after the rent the line counts “${await tab.eval(`document.getElementById('pf-ctx-ev')?.textContent`)}”`);
+        const r = await line();
+        const review = await tab.eval(`(document.querySelector('#pc-review-list > summary')?.textContent || '').replace(/\\s+/g, ' ')`);
+        if (!/Review 9 sample inputs/.test(review) || r.what !== 'The deal on the calculator') throw new StepError(`the review reads “${review.trim().slice(0, 90)}”, the line names “${r.what}”`);
+        if (await snap() !== before) throw new StepError('a figure typed on the calculator wrote to the saved work');
+      });
+      await step(j, tab, 'Resume in the Lab: the moves intact, the evidence 9 of 10, Save in the line gives the keyboard to the Lab’s Save', BUDGET.load + BUDGET.action, async () => {
+        await tab.click(`document.getElementById('pf-resume')`, 'Resume in the Lab');
+        await tab.expect(`State.view === 'propertyLab' && document.getElementById('pf-ctx')?.dataset.pfCtx === 'lab'`, async () => `Resume opened ${await tab.eval('State.view')}`, 8000);
+        const r = await line();
+        const b = JSON.parse(await tab.eval(`JSON.stringify({ price: labActive(LAB[labSubject]).work.price, route: dealRoute(labActive(LAB[labSubject]).work) })`));
+        if (!(r.moves >= 2) || r.ev !== 'Sample figures: 9 of 10' || !r.save || b.price !== 540000 || b.route !== 'auction') throw new StepError(`back in the Lab the line reads ${said(r)}, B holds ${JSON.stringify(b)}`);
+        await tab.click(`document.getElementById('pf-ctx-save')`, 'Save — the context line');
+        await tab.expect(`document.activeElement?.id === 'lab-id-save'`, async () => `Save in the line gave the keyboard to ${await tab.eval(`document.activeElement?.id || document.activeElement?.tagName`)}`, 4000);
+        if (await snap() !== before) throw new StepError('resuming wrote to storage');
+      });
+    },
+  },
+  /* ---- end journey-bar ---- */
   {
     /* ---- map ---- */
     /* THE KUCHING SCHEME MAP (the owner's decision of 12 Oct 2026;
