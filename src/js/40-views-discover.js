@@ -275,7 +275,7 @@ VIEWS.researchQueue = () => {
     dl.append(row);
   });
   disc.append(dl);
-  disc.append(el('p', { class: 'metaline', style: 'margin-top:10px' }, 'Sorted by modelled gap, not by conviction. A large gap usually means the model and the market disagree — which is a reason to read the company, not a reason to act.'));
+  disc.append(el('p', { class: 'metaline', style: 'margin-top:10px' }, 'Sorted by modelled gap, not by conviction. A large gap means the model and the sample price disagree. The sample price is not a market quotation, and the gap is a reason to read the assumptions, not a reason to act.'));
   CARDS.discounts = disc;
 
   /* research loop */
