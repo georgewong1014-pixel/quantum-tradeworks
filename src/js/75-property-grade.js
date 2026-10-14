@@ -4159,7 +4159,9 @@ VIEWS.property = () => {
   cash.append(resRow);
 
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `The reserve is not paid to anyone — it is what stays in your account after completion. Completion and rent-ready together take ${fmtAmount(m.acquisitionCost, 'MYR')}; the reserve is on top of that.`));
+    /* The tile above already says the reserve is paid to no one; this line
+       names the figure before it (QT-002's label), and nothing twice. */
+    `Cash before reserve: ${fmtAmount(m.acquisitionCost, 'MYR')} — completion and rent-ready together; the reserve is on top of that.`));
   buyCard.append(cash);
 
   /* ---------- Sarawak checklist ---------- */
