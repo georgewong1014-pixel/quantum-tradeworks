@@ -2044,13 +2044,17 @@ try {
     const r = await evaluate(`(() => {
       const unpriced = U.find(x => x.c.real && !isNum(x.c.px?.p) && x.c.type !== 'bank');
       const ids = ['MSFT-SEC', 'AAPL-SEC', 'MAYBANK'];
-      State.compare = [...ids]; State.plan = 'pro'; navigate('/compare?companies=' + ids.join(','));
+      /* On each company's latest year (?years=latest): by default the two filers
+         read FY2025, the year both hold (compareYears; model-test eq-comparability). */
+      State.compare = [...ids]; State.plan = 'pro'; navigate('/compare?companies=' + ids.join(',') + '&years=latest');
       const labels = [...document.querySelectorAll('main table.dt tbody tr')].map(tr => tr.cells[0]?.textContent);
       const rowOf = (l) => [...document.querySelectorAll('main table.dt tbody tr')].find(tr => tr.cells[0]?.textContent === l);
       const banner = [...document.querySelectorAll('main .guardrail, main [data-cmp-periods]')].map(n => n.textContent).join(' ');
-      const bare = [...document.querySelectorAll('main table.dt td')].filter(td => td.innerHTML === NA).length;
+      /* A cell as it reads without the year beside it (the columns are not on one label here). */
+      const own = (td) => { if (!td) return td; const k = td.cloneNode(true); k.querySelectorAll('.cmp-fy').forEach(n => n.remove()); return k; };
+      const bare = [...document.querySelectorAll('main table.dt td')].filter(td => own(td).innerHTML.trim() === NA).length;
       const basis = [...rowOf('Accounting basis').cells].slice(1).map(td => td.textContent);
-      const fcfBank = rowOf('Free cash flow')?.cells[3]?.textContent;
+      const fcfBank = own(rowOf('Free cash flow')?.cells[3])?.textContent.trim();
       const out = { labels, banner, bare, basis, fcfBank };
       State.compare = [unpriced.c.id, 'AAPL-SEC']; navigate('/compare?companies=' + State.compare.join(','));
       out.price = rowOf('Price')?.cells[1]?.textContent; out.unpriced = unpriced.c.id;

@@ -5261,6 +5261,82 @@ for (const w of [360, 390]) {
 }
 /* ---- end kuching-map ---- */
 
+/* ---- eq-comparability ---- */
+/* COMPARE'S FISCAL-YEAR SWITCH ON A PHONE (the 12 and 13 Oct 2026 audits,
+   #5/#6; compareYears, 50-views-studio.js). At 360, 390 and 430, in the
+   page's font and in Verdana (CI's Linux sans is as wide), on a first
+   visit's /compare (Apple and Microsoft): the switch's two choices are each
+   a 44px target inside the screen, and nothing scrolls sideways — on the
+   common year, and after "Each company’s latest" puts the year beside
+   every figure (the table scrolls inside its card; the page must not).
+   Fails on 1ee5ed60, which has no switch. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 100; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && State.view === 'compare' && !document.getElementById('views').hasAttribute('data-served')`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+  };
+  const face = (font) => (font ? ev(`(() => { const s = document.createElement('style'); s.id = 'eqc-face'; s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true)))); })()`) : null);
+  const MEASURE = `(() => {
+    const vw = document.documentElement.clientWidth;
+    const picks = [...document.querySelectorAll('#views .cmp-years button')].map(b => { const x = b.getBoundingClientRect(); return { word: b.textContent.trim(), w: Math.round(x.width), h: Math.round(x.height), l: Math.round(x.left), r: Math.round(x.right), on: b.getAttribute('aria-pressed') }; });
+    const wrap = document.querySelector('#views table.dt-pagesticky')?.closest('.tablewrap');
+    return { vw, over: document.documentElement.scrollWidth - vw, picks, tags: document.querySelectorAll('#views table.dt-pagesticky .cmp-fy').length,
+      wrapRight: wrap ? Math.round(wrap.getBoundingClientRect().right) : null,
+      face: getComputedStyle(document.querySelector('#views .cmp-years button') || document.body).fontFamily };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const w of [360, 390, 430]) for (const font of [null, 'Verdana, sans-serif']) {
+      const h = w === 360 ? 640 : w === 390 ? 844 : 932;
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await send('Page.navigate', { url: BASE + '/privacy' }, sessionId); await sleep(500);
+      await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+      await load('/compare');
+      await face(font);
+      for (const mode of ['common', 'latest']) {
+        if (mode === 'latest') {
+          await ev(`(() => { document.getElementById('cmp-years-latest')?.click(); return true; })()`);
+          await sleep(400); await face(font);
+        }
+        const v = await ev(MEASURE);
+        const where = `${at}, ${mode === 'common' ? 'the same fiscal year' : 'each company’s latest'}`;
+        if (font && !/Verdana/.test(v.face)) fails.push(`${where}: the switch was drawn in ${v.face}, not Verdana`);
+        if (v.picks.length !== 2) { fails.push(`${where}: the fiscal-year switch has ${v.picks.length} choices, not "Same fiscal year (FY2025)" and "Each company’s latest"`); continue; }
+        const on = v.picks.find(p => p.on === 'true');
+        if (!on || (mode === 'common' ? on.word !== 'Same fiscal year (FY2025)' : !/^Each company/.test(on.word))) fails.push(`${where}: ${on ? `"${on.word}"` : 'no choice'} is on`);
+        v.picks.forEach(p => {
+          if (p.w < 43.5 || p.h < 43.5) fails.push(`${where}: "${p.word}" is ${p.w}×${p.h}px, not a 44px target`);
+          if (p.l < 0 || p.r > v.vw) fails.push(`${where}: "${p.word}" runs out of the screen (${p.l}–${p.r} of ${v.vw})`);
+        });
+        if (v.over > 0) fails.push(`${where}: the page scrolls ${v.over}px sideways`);
+        if (v.wrapRight != null && v.wrapRight > v.vw) fails.push(`${where}: the table's card ends at ${v.wrapRight}px, past the ${v.vw}px screen`);
+        if (mode === 'latest' && !v.tags) fails.push(`${where}: no figure names its year`);
+        if (mode === 'common' && v.tags) fails.push(`${where}: ${v.tags} figures carry a year tag on the one year`);
+        said.push(`${at} ${mode} ${v.picks.map(p => `${p.w}×${p.h}`).join('/')}`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL eq-comparability — Compare's fiscal-year switch on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   eq-comparability: /compare (Apple and Microsoft) at 360, 390 and 430, in the page's font and in Verdana — "Same fiscal year (FY2025)" and "Each company’s latest" each a 44px target inside the screen, nothing sideways on the common year or with every figure's year beside it (${said.length} views)`);
+}
+/* ---- end eq-comparability ---- */
+
 
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */

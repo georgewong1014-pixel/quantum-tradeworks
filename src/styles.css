@@ -3750,6 +3750,21 @@ a.dash-row:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; }
 .cmp-periods-warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--surface-sunk)); }
 .cmp-periods-k { font-weight: var(--weight-semibold); color: var(--ink); }
 .caption.cmp-na { white-space: normal; overflow-wrap: normal; }
+/* The year each column reads (compareYears, 50-views-studio.js): the
+   switch's line, a column head's year-end, and the year a figure belongs
+   to where the columns are not on one label — a quiet outlined tag on the
+   figure's own line (the cell does not wrap), so it moves nothing. */
+.cmp-years-said { margin: var(--sm) 0 0; max-width: 70ch; }
+/* On a phone the two choices do not fit one line: one under the other, each
+   the strip's full width, rather than the second wrapping out of its box. */
+@media (max-width: 480px) {
+  .cmp-years .segmented { display: grid; grid-template-columns: 1fr; width: 100%; }
+}
+table.dt thead th .cmp-yearend { display: inline-block; margin-top: 2px; font-weight: var(--weight-body); text-transform: none; letter-spacing: 0;
+  font-size: var(--text-label); line-height: 16px; color: var(--ink-3); white-space: normal; max-width: 30ch; }
+.cmp-fy { display: inline-block; margin-left: 2px; padding: 0 5px; border: 1px solid var(--line-2); border-radius: 999px;
+  font-size: var(--text-micro); line-height: 15px; font-weight: var(--weight-medium); letter-spacing: .02em; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; vertical-align: 1px; white-space: nowrap; }
 /* What a clear removes (confirmClear): a plain list — a tick would read as done. */
 .clear-list { margin: 0; padding-left: 1.25em; list-style: disc; }
 .clear-list li { margin: 4px 0; }

@@ -572,6 +572,36 @@ function metricCoverage(m, type) {
   return Math.round(applicable.filter(k => isNum(m[k])).length / applicable.length * 100);
 }
 
+/* A COMPANY AS AT ONE OF ITS EARLIER FISCAL YEARS (equities comparability,
+   the 12 and 13 Oct 2026 audits, #5/#6). Compare lines filed companies up on
+   the latest fiscal year all of them hold, so Microsoft's FY2025 sits beside
+   Apple's FY2025 rather than its FY2026. That year's figures are this file's
+   own: the same record with its statements cut at the year — fin and years
+   up to it — run through derive() and everything addCompany runs after it
+   (companyRow, 25-universe.js), never a second implementation. What the cut
+   cannot carry is said, not computed:
+   - a price is today's, and today's price over an earlier year's earnings is
+     no period at all (openSourceDrawer's rule for its prior period): the copy
+     carries none, and its market measures say why for that year;
+   - the reader's price history is today's too: derive reads none for it;
+   - a measure whose rows run off the start of the statements held at that
+     year — a four-year rate needs five — is not computed over fewer, which
+     would be another measure under the same name: derive leaves it null and
+     metricStatus names the years it needs.
+   Null for a year the record does not hold; the record itself for its
+   latest. */
+function statementsAt(c, fy) {
+  const ys = yearsOf(c), k = ys.indexOf(fy);
+  if (k < 0 || !Array.isArray(c?.fin)) return null;
+  if (k === ys.length - 1) return c;
+  return { ...c, fin: c.fin.slice(0, k + 1), years: ys.slice(0, k + 1),
+    px: { p: null, d1: null, m1: null, m3: null, m12: null, lo: null, hi: null },
+    asAt: { fy, latest: ys[ys.length - 1] } };
+}
+/* How many of the latest stored rows a measure reads (its span, or the
+   widest of its lines' spans, in METRICS); Infinity for the whole series. */
+const metricRowsRead = (x) => Math.max(x?.span || 1, ...Object.values(x?.spanLine || {}));
+
 function derive(c) {
   const fin = c.fin, n = fin.length, i = n - 1;
   const isBank = c.type === 'bank', isReit = c.type === 'reit';
@@ -908,7 +938,8 @@ function derive(c) {
      has been imported yet. The illustrative price series is still drawn on the
      sample charts, where it is labelled as an illustration; it is not evidence
      and no longer reaches a screen. */
-  const obs = (typeof realSeriesFor === 'function') ? realSeriesFor(c) : null;
+  /* None as at an earlier year (statementsAt): the closes held are today's. */
+  const obs = (typeof realSeriesFor === 'function' && !c.asAt) ? realSeriesFor(c) : null;
   /* With the highs and lows where the history holds them, so from52 and
      range52 read the 52-week range, not the closing extremes. */
   const tr = obs ? trendContext(obs.series, { ohlc: obs.ohlc }) : null;
@@ -965,6 +996,9 @@ function derive(c) {
      same rule as the margin, yield and growth rate built on it. Nulled last
      because the bank-inapplicable measures above were computed from it. */
   if (isBank) m.fcf = null;
+  /* As at an earlier year (statementsAt): a measure whose rows run off the
+     start of the statements held at that year is not computed over fewer. */
+  if (c.asAt) for (const x of METRICS) { const need = metricRowsRead(x); if (Number.isFinite(need) && n < need) m[x.k] = null; }
   m.coverage = metricCoverage(m, c.type);
   m.inapplicable = skip.length;
 

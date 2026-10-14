@@ -2805,6 +2805,36 @@ function metricCoverage(m, type) {
   return Math.round(applicable.filter(k => isNum(m[k])).length / applicable.length * 100);
 }
 
+/* A COMPANY AS AT ONE OF ITS EARLIER FISCAL YEARS (equities comparability,
+   the 12 and 13 Oct 2026 audits, #5/#6). Compare lines filed companies up on
+   the latest fiscal year all of them hold, so Microsoft's FY2025 sits beside
+   Apple's FY2025 rather than its FY2026. That year's figures are this file's
+   own: the same record with its statements cut at the year — fin and years
+   up to it — run through derive() and everything addCompany runs after it
+   (companyRow, 25-universe.js), never a second implementation. What the cut
+   cannot carry is said, not computed:
+   - a price is today's, and today's price over an earlier year's earnings is
+     no period at all (openSourceDrawer's rule for its prior period): the copy
+     carries none, and its market measures say why for that year;
+   - the reader's price history is today's too: derive reads none for it;
+   - a measure whose rows run off the start of the statements held at that
+     year — a four-year rate needs five — is not computed over fewer, which
+     would be another measure under the same name: derive leaves it null and
+     metricStatus names the years it needs.
+   Null for a year the record does not hold; the record itself for its
+   latest. */
+function statementsAt(c, fy) {
+  const ys = yearsOf(c), k = ys.indexOf(fy);
+  if (k < 0 || !Array.isArray(c?.fin)) return null;
+  if (k === ys.length - 1) return c;
+  return { ...c, fin: c.fin.slice(0, k + 1), years: ys.slice(0, k + 1),
+    px: { p: null, d1: null, m1: null, m3: null, m12: null, lo: null, hi: null },
+    asAt: { fy, latest: ys[ys.length - 1] } };
+}
+/* How many of the latest stored rows a measure reads (its span, or the
+   widest of its lines' spans, in METRICS); Infinity for the whole series. */
+const metricRowsRead = (x) => Math.max(x?.span || 1, ...Object.values(x?.spanLine || {}));
+
 function derive(c) {
   const fin = c.fin, n = fin.length, i = n - 1;
   const isBank = c.type === 'bank', isReit = c.type === 'reit';
@@ -3141,7 +3171,8 @@ function derive(c) {
      has been imported yet. The illustrative price series is still drawn on the
      sample charts, where it is labelled as an illustration; it is not evidence
      and no longer reaches a screen. */
-  const obs = (typeof realSeriesFor === 'function') ? realSeriesFor(c) : null;
+  /* None as at an earlier year (statementsAt): the closes held are today's. */
+  const obs = (typeof realSeriesFor === 'function' && !c.asAt) ? realSeriesFor(c) : null;
   /* With the highs and lows where the history holds them, so from52 and
      range52 read the 52-week range, not the closing extremes. */
   const tr = obs ? trendContext(obs.series, { ohlc: obs.ohlc }) : null;
@@ -3198,6 +3229,9 @@ function derive(c) {
      same rule as the margin, yield and growth rate built on it. Nulled last
      because the bank-inapplicable measures above were computed from it. */
   if (isBank) m.fcf = null;
+  /* As at an earlier year (statementsAt): a measure whose rows run off the
+     start of the statements held at that year is not computed over fewer. */
+  if (c.asAt) for (const x of METRICS) { const need = metricRowsRead(x); if (Number.isFinite(need) && n < need) m[x.k] = null; }
   m.coverage = metricCoverage(m, c.type);
   m.inapplicable = skip.length;
 
@@ -9541,6 +9575,17 @@ function addCompany(c) {
      reported and nothing else; where that is shorter, the measures needing a
      longer window report themselves unavailable. */
   if (!c.real && c.fin.length === AUTHORED_YEARS) c.fin = [...backcast(c), ...c.fin];
+  const row = companyRow(c);
+  U.push(row);
+  BY_ID.set(c.id, row);
+  return row;
+}
+
+/* One company's row from its record: the derivation, the valuation's
+   default inputs and its run, the risk flags and grade, the scores.
+   addCompany puts it in the universe; rowAt, below, makes one for an
+   earlier fiscal year of the same record and puts it nowhere. */
+function companyRow(c) {
   const d = derive(c);
   const inputs = defaultInputs(c, d);
   const val = valuationRun(c, d, inputs);
@@ -9590,9 +9635,25 @@ function addCompany(c) {
      20% floor into 0.2%. */
   d.m.mosBase = isNum(val.mos?.base) ? val.mos.base : null;
 
-  const row = { c, d, m: d.m, scores, val, inputs, flags, risk, discount };
-  U.push(row);
-  BY_ID.set(c.id, row);
+  return { c, d, m: d.m, scores, val, inputs, flags, risk, discount };
+}
+
+/* THE SAME COMPANY AS AT AN EARLIER FISCAL YEAR (Compare's common year;
+   statementsAt, 15-derivation.js): its statements cut at the year and run
+   through companyRow — the derivation, the valuation, the risk grade and
+   the scores every row is made by. It ranks nowhere: a cohort percentile
+   places a score among every company's latest year, so an earlier year's
+   has none, and the row is not in the universe the cohorts are drawn
+   from. `latest` is the row it was cut from. The row itself for its latest
+   year; null for a year its record does not hold. */
+function rowAt(r, fy) {
+  if (!r || fy === latestFy(r.c)) return r || null;
+  const c = statementsAt(r.c, fy);
+  if (!c) return null;
+  const row = companyRow(c);
+  row.pct = { quality: null, growth: null, strength: null, capital: null, value: null };
+  row.pctAll = { quality: null, value: null };
+  row.latest = r;
   return row;
 }
 
@@ -15071,9 +15132,11 @@ const SERVED_READS = {
      reports are used up meets the served overview until the script runs. */
   research: ['plan', 'reportRoom', 'watchlists', 'wlActive', 'compare', 'theses', 'manualPrices', 'valuation', 'requiredDiscount', '?tab'],
   /* /compare, /app/equities/compare: the companies (?companies=, or kept),
-     a saved comparison opened (?saved=) and the count saved, the
-     currencies, the withholding rates, the plan's limit, a price typed in. */
-  compare: ['compare', '?saved', 'comparisons', 'compareCcy', 'baseCcy', 'wht', 'plan', 'manualPrices', 'startHere', 'reportLog'],
+     a saved comparison opened (?saved=) and the count saved, the fiscal
+     year compared (?years=latest: each company's latest, not the common
+     year), the currencies, the withholding rates, the plan's limit, a
+     price typed in. */
+  compare: ['compare', '?saved', '?years', 'comparisons', 'compareCcy', 'baseCcy', 'wht', 'plan', 'manualPrices', 'startHere', 'reportLog'],
   /* /pricing: the plan in force. */
   plans: ['plan'],
   /* /discover/sarawak: the reader's exposure records. */
@@ -19036,10 +19099,18 @@ function metricStatus(r, k) {
   const fyNow = c?.real ? latestFy(c) : null;
   const heldBack = inputs.filter(l => c?.withheld?.[l]?.years?.includes(fyNow));
   if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  /* As at an earlier year (statementsAt, 15-derivation.js; Compare's common
+     year): the rows the measure reads run off the start of the statements
+     held, and derive() computes nothing over fewer. */
+  const rowsRead = metricRowsRead(METRIC_BY_K[k]);
+  if (c?.asAt && Number.isFinite(rowsRead) && fin.length < rowsRead) {
+    const ys = yearsOf(c), at = ys[ys.length - 1];
+    return why('not reported', `${f?.label || 'This measure'} reads ${rowsRead} years to FY${at}, FY${at - rowsRead + 1}–FY${at}, and the statements held for ${c.tk} begin at FY${ys[0]} — the window runs off the data. Nothing is imputed.`);
+  }
   const lastRow = fin[fin.length - 1] || [];
   const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
   const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
-  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
+  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in ${c?.asAt ? `the FY${fyNow} statements stored` : 'the latest stored statements'}${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
   /* The latest year is not the only year a growth, variability or share-count
      measure reads. META's dividend line is absent in its early stored years,
      so its dividend CAGR has no base — and the cell said "n/m" with "every
@@ -19052,6 +19123,10 @@ function metricStatus(r, k) {
     return { l, years: rows.map((row, j) => (isNum(row[LINE_COL[l]]) ? null : ys[j])).filter(y => y != null) };
   }).filter(x => x.years.length);
   if (earlier.length) return why('not reported', `${earlier.map(x => `${LINE_LABEL[x.l]} (FY${x.years.join(', FY')})`).join('; ')} ${earlier.length === 1 ? 'is' : 'are'} not in the stored statements for ${earlier.length === 1 && earlier[0].years.length === 1 ? 'a year' : 'years'} this measure reads${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+  /* A price is today's: as at an earlier year a measure on it would set
+     today's price against that year's statements, which is no period. */
+  if (c?.asAt && inputs.some(l => l === 'price' || l === 'history'))
+    return why('needs a price', `Needs the price at the end of FY${c.asAt.fy}, which is not held. No price history reaches back to it, and a price entered on the company page is today’s, read against the latest year held (FY${c.asAt.latest}), never FY${c.asAt.fy}. Nothing is imputed.`);
   if (noPrice) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
   if (inputs.includes('history')) {
     const need = k === 'sma200d' ? 200 : 252;
@@ -19115,6 +19190,8 @@ function openSourceDrawer(r, f) {
     [st.available ? 'What it is' : 'Why it is absent', st.text],
     ['Formula', f.formula],
     ['Reporting period', stmtLines.length ? periodEndText(c, stmtLines[0], fy) : `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
+    /* Opened from Compare's common year (statementsAt, 15-derivation.js). */
+    ...(c.asAt ? [['Year compared', `FY${c.asAt.fy}, the latest fiscal year every filed company in the comparison holds — not ${c.tk}’s latest, which is FY${c.asAt.latest}. Compare’s “Each company’s latest” reads that one.`]] : []),
     ['Prior period', priceBased ? 'not shown — this measure needs the price on the day, and no price history for the prior year is held' : isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', sourceSentence(c)],
@@ -25580,6 +25657,77 @@ function fyAlignment(rows) {
   if (unknown.length) return { state: 'unknown', text: `${known.length ? `${ends.join('; ')}; ` : ''}${known.length ? notHeld.charAt(0).toLowerCase() + notHeld.slice(1) : notHeld}` };
   return null;
 }
+
+/* THE YEAR EACH COLUMN READS (equities comparability; the 12 and 13 Oct
+   2026 audits, #5/#6: "AAPL and MSFT are displayed with different fiscal
+   years… Two filed companies can be compared on aligned periods"). Every
+   column read its own latest year, so Apple's FY2025 sat beside Microsoft's
+   FY2026 under one row label. Where the filed columns' latest fiscal-year
+   labels differ, they are now compared on the latest label every one of
+   them holds — FY2025 for Apple and Microsoft — each column's figures for
+   that year made by the derivation that makes its latest (rowAt,
+   25-universe.js; statementsAt, 15-derivation.js). A two-way switch reads
+   each company's latest instead, kept in the address (?years=latest) as the
+   selection is (?companies=). An illustrative column keeps its own year and
+   says so. Wherever the columns are not then on one label, every figure
+   that belongs to a year names it (cmp-fy). A shared label is still not a
+   shared twelve months: fyAlignment says so, and never assumes December. */
+const compareYearsAsked = () => (new URLSearchParams(location.search).get('years') === 'latest' ? 'latest' : 'common');
+function setCompareYears(mode) {
+  const q = new URLSearchParams(location.search);
+  if (mode === 'latest') q.set('years', 'latest'); else q.delete('years');
+  const s = q.toString().replace(/%2C/gi, ',');
+  history.replaceState(history.state, '', `${location.pathname}${s ? `?${s}` : ''}`);
+}
+function compareYears(rows) {
+  const filed = rows.filter(r => r.c.real);
+  const differ = new Set(filed.map(r => latestFy(r.c))).size > 1;
+  const held = filed.map(r => new Set(yearsOf(r.c)));
+  const all = differ ? yearsOf(filed[0].c).filter(y => held.every(h => h.has(y))) : [];
+  const common = all.length ? Math.max(...all) : null;
+  const mode = differ && common != null && compareYearsAsked() === 'common' ? 'common' : 'latest';
+  const shown = rows.map(r => (mode === 'common' && r.c.real ? rowAt(r, common) || r : r));
+  const fys = shown.map(r => latestFy(r.c));
+  return { differ, common, mode, shown, fys, tagged: new Set(fys).size > 1 };
+}
+/* The year a figure belongs to, beside it. */
+const fyTag = (fy) => el('span', { class: 'cmp-fy' }, `FY${fy}`);
+/* A column head's year-end: the month where the record holds the end of the
+   year the column reads, never assumed. */
+function yearEndWords(c) {
+  if (!c.real) return 'no year-end — illustrative';
+  const p = reportingPeriod(c);
+  const d = p.end ? new Date(`${p.end}T00:00:00Z`) : null;
+  return d && !Number.isNaN(d.getTime()) ? `year ends ${FY_MONTHS[d.getUTCMonth()]}` : 'year-end not in this dataset';
+}
+/* The switch, and what each column reads under it. */
+function compareYearsCard(yrs) {
+  const shown = yrs.shown;
+  const filed = shown.filter(r => r.c.real), illus = shown.filter(r => !r.c.real);
+  const each = (list) => andList(list.map(r => `${r.c.tk} FY${latestFy(r.c)}`));
+  const said = [];
+  if (yrs.mode === 'common') {
+    const moved = filed.filter(r => r.c.asAt);
+    said.push(`${filed.length === 2 ? 'Both filed columns read' : `All ${filed.length} filed columns read`} FY${yrs.common}, the latest fiscal year ${filed.length === 2 ? 'both' : 'all'} of them hold.`);
+    if (moved.length) said.push(`Not shown here: ${andList(moved.map(r => `${r.c.tk}’s FY${r.c.asAt.latest}`))} — “Each company’s latest” reads ${moved.length === 1 ? 'it' : 'them'}, each figure with its year.`);
+  } else if (yrs.common == null) {
+    said.push(`No fiscal year is held by every filed column, so each reads its company’s latest — ${each(filed)} — and each figure names its year.`);
+  } else {
+    said.push(`Each column reads its company’s latest year — ${each(filed)} — so the figures are not one year’s, and each names its year.`);
+  }
+  if (illus.length) said.push(`${andList(illus.map(r => r.c.tk))} ${illus.length === 1 ? 'keeps its' : 'keep their'} own year (${andList([...new Set(illus.map(r => `FY${latestFy(r.c)}`))])}): illustrative figures belong to no filed year.`);
+  const card = el('div', { class: 'card cmp-years', 'data-cmp-years': yrs.mode, style: 'margin-bottom:var(--md)' });
+  const pick = (mode) => () => { if (yrs.mode === mode) return; setCompareYears(mode); redrawKeepFocus(); };
+  card.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:center' }, [
+    el('span', { class: 'metaline', id: 'cmp-years-k' }, 'Fiscal year'),
+    yrs.common != null ? el('div', { class: 'segmented', role: 'group', 'aria-labelledby': 'cmp-years-k' }, [
+      el('button', { id: 'cmp-years-common', 'aria-pressed': yrs.mode === 'common' ? 'true' : 'false', onclick: pick('common') }, `Same fiscal year (FY${yrs.common})`),
+      el('button', { id: 'cmp-years-latest', 'aria-pressed': yrs.mode === 'latest' ? 'true' : 'false', onclick: pick('latest') }, 'Each company’s latest'),
+    ]) : null,
+  ]));
+  card.append(el('p', { class: 'metaline cmp-years-said' }, said.join(' ')));
+  return card;
+}
 /* A measure that has no meaning for a column's business model, said in
    the column (the 10 Oct 2026 audit, #6): "n/a" stood for it, with the
    reason only on hover. The plurals are the glossary's (TYPE_PLURAL,
@@ -25607,6 +25755,9 @@ function saveComparison(name) {
     name: String(name || rows.map(r => r.c.tk).join(' vs ')).slice(0, 80),
     ids: rows.map(r => r.c.id), tks: rows.map(r => r.c.tk),
     ccy: State.compareCcy || 'common', baseCcy: State.baseCcy, pack: pack.id,
+    /* The fiscal year it read (compareYears): 'common', 'latest', or null where
+       the filed columns' latest years were one. */
+    years: CMP_LIVE.years,
     created: new Date().toISOString(), stamp: buildStamp(rows.map(r => r.c)), snapshot: snapshotNow(),
   };
   saveComparisons([rec, ...loadComparisons()]);
@@ -25615,7 +25766,7 @@ function saveComparison(name) {
   return rec;
 }
 /* Reopened: the stamp's verdict, and every cell that reads differently now. */
-function comparisonMovedCard(s, now, rows) {
+function comparisonMovedCard(s, now, rows, yearsNow = null) {
   const card = el('div', { class: 'card', style: 'margin-bottom:var(--md);border-left:3px solid var(--bronze)' });
   const diff = stampDiff(s.stamp);
   card.append(cardHead(`Saved comparison — ${s.name}`,
@@ -25634,6 +25785,11 @@ function comparisonMovedCard(s, now, rows) {
   if (added.length) notes.push(`${added.map(r => r.c.tk).join(', ')} ${added.length === 1 ? 'was' : 'were'} not in it when saved.`);
   if ((s.ccy || 'common') !== (State.compareCcy || 'common') || (s.baseCcy && s.baseCcy !== State.baseCcy))
     notes.push('The currency setting differs from the one it was saved under, so money cells differ for that reason alone.');
+  /* Saved before the common year (no years kept), it read each company's latest. */
+  const savedYears = s.years === 'common' ? 'common' : 'latest';
+  if (yearsNow && savedYears !== yearsNow) notes.push(savedYears === 'latest'
+    ? 'It was saved reading each company’s latest year, and the page now reads one fiscal year for every filed column, so cells differ for that reason alone.'
+    : 'It was saved on one fiscal year for every filed column, and the page now reads each company’s latest, so cells differ for that reason alone.');
   if (notes.length) card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, notes.join(' ')));
   if (!changes.length) card.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--sm)' },
     'Every cell of the companies still selected reads as it did when this comparison was saved.'));
@@ -25655,7 +25811,9 @@ function openComparison(id) {
   const ids = s.ids.map(x => companyFromSlug(x) || x).filter(x => BY_ID.has(x)).slice(0, lim('compare'));
   State.compare = ids; store.write('compare', ids);
   if (s.ccy) { State.compareCcy = s.ccy; store.write('compareCcy', s.ccy); }
-  navigate(`/compare?companies=${ids.join(',')}&saved=${encodeURIComponent(id)}`);
+  /* In the fiscal year it was saved under: a comparison saved before the
+     common year read each company's latest. */
+  navigate(`/compare?companies=${ids.join(',')}&saved=${encodeURIComponent(id)}${s.years === 'common' || s.years === null ? '' : '&years=latest'}`);
 }
 
 VIEWS.compare = () => {
@@ -25742,12 +25900,18 @@ VIEWS.compare = () => {
   const rows = State.compare.map(id => BY_ID.get(id)).filter(Boolean);
   if (!rows.length) { wrap.append(el('div', { class: 'card' }, emptyState('Select at least one company.'))); return wrap; }
 
+  /* Which fiscal year each column reads (compareYears): `shown` is each
+     column as compared — a filed column's row for the common year, or its
+     own. Every figure below is read from it. */
+  const yrs = compareYears(rows);
+  const shown = yrs.shown;
   const mixedTypes = new Set(rows.map(r => r.c.type)).size > 1;
   const mixedMkts = new Set(rows.map(r => r.c.mkt)).size > 1;
   /* Periods: which twelve months each filed column is, or that it cannot
-     be told (fyAlignment) — said in a line of its own below. Bases: the
-     accounting standard. Kinds: synthetic beside filed. */
-  const periods = fyAlignment(rows);
+     be told (fyAlignment) — said in a line of its own below, for the years
+     the columns read. Bases: the accounting standard. Kinds: synthetic
+     beside filed. */
+  const periods = fyAlignment(shown);
   /* Among the columns that have a basis at all; synthetic beside filed is
      its own sentence below. */
   const bases = [...new Set(rows.filter(r => r.c.real).map(r => accountingBasis(r.c).id))];
@@ -25768,6 +25932,8 @@ VIEWS.compare = () => {
     warn.innerHTML = `<span style="color:var(--warn)">${icon('alert')}</span><span>${esc(said.join(' '))}</span>`;
     wrap.append(warn);
   }
+  /* The fiscal year compared, where the filed columns' latest differ. */
+  if (yrs.differ) wrap.append(compareYearsCard(yrs));
   /* The periods, in a line of their own: a warning where the columns are
      not the same twelve months, a plain note where it cannot be told. */
   if (periods) wrap.append(el('p', { class: `cmp-periods cmp-periods-${periods.state === 'unknown' ? 'unknown' : 'warn'}`, 'data-cmp-periods': periods.state, role: 'note' },
@@ -25910,15 +26076,23 @@ VIEWS.compare = () => {
      shows — the same rule as market capitalisation. */
   const money = (r, v) => fmtCap(showLocal ? v : toBase(v, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy);
   const NO_PRICE = 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.';
-  /* A statement line, absolute: present, or the line that is missing. */
+  /* A statement line, absolute: present, or the line that is missing — in
+     the statements of the year the column reads. */
+  const stmtsOf = (r) => (r.c.asAt ? `the FY${r.c.asAt.fy} statements stored` : 'the latest stored statements');
   const lineCell = (r, v, lines) => isNum(v) ? money(r, v) : absentCell('not reported',
-    `${lines.map(l => LINE_LABEL[l]).join(' or ')} is not in the latest stored statements for ${r.c.tk}${r.c.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+    `${lines.map(l => LINE_LABEL[l]).join(' or ')} is not in ${stmtsOf(r)} for ${r.c.tk}${r.c.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+  /* The year in the scale rows' names: the one year every column reads,
+     or each column's own, named beside each figure. */
+  const yearWord = yrs.mode === 'common' ? (yrs.tagged ? 'each column’s year' : `FY${yrs.common}`) : 'latest year';
   const SCALE_ROWS = [
     ['— Scale —', null],
-    ['Revenue, latest year', r => lineCell(r, last(r.d.rev), ['rev'])],
-    ['Revenue growth, latest year', r => {
+    [`Revenue, ${yearWord}`, r => lineCell(r, last(r.d.rev), ['rev'])],
+    [`Revenue growth, ${yearWord}`, r => {
       const a = r.d.rev[r.d.rev.length - 2], b = last(r.d.rev);
-      if (!isNum(a) || !isNum(b)) return absentCell('not reported', `Revenue is not in the stored statements for both of the last two years for ${r.c.tk}. Nothing is imputed.`);
+      const ys = yearsOf(r.c);
+      if (!isNum(a) || !isNum(b)) return absentCell('not reported', r.c.asAt
+        ? `Revenue is not in the stored statements for both FY${ys[ys.length - 2]} and FY${ys[ys.length - 1]} for ${r.c.tk}. Nothing is imputed.`
+        : `Revenue is not in the stored statements for both of the last two years for ${r.c.tk}. Nothing is imputed.`);
       if (!(a > 0)) return absentCell('not meaningful', 'The prior year’s revenue is zero or negative, so a growth rate has no meaning.');
       return withSign((b / a - 1) * 100, 1);
     }],
@@ -25940,13 +26114,27 @@ VIEWS.compare = () => {
       : lineCell(r, r.m.netDebt, ['debt', 'cash'])],
   ];
 
+  /* A price, and the market capitalisation on it, are today's, whichever
+     year a column reads: they are read off the company's own row and name
+     no year. */
+  const NOW_ROWS = new Set(['Price', 'Market capitalisation']);
+  /* Rows that belong to no fiscal year, beside them: what the company is,
+     which year the column reads, and the standard. */
+  const TIMELESS = new Set([...NOW_ROWS, 'Business model', 'Reporting period', 'Accounting basis', 'Model pack']);
   const METRIC_ROWS = [
     ['Price', r => isNum(r.c.px?.p) ? fmtMoney(r.c.px.p, r.c.ccy) : absentCell('needs a price', NO_PRICE)],
     ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy), 'mcap'],
     ['Business model', r => r.c.type],
     /* Which twelve months, and under which standard — so a column is read as
-       what it is before any figure in it is compared. */
-    ['Reporting period', r => { const p = reportingPeriod(r.c); return `${esc(p.label)}<br><span class="caption">${esc(p.detail)}</span>`; }],
+       what it is before any figure in it is compared. Where the filed
+       columns' latest years differ, whether this is the company's latest. */
+    ['Reporting period', r => {
+      const p = reportingPeriod(r.c);
+      const detail = !yrs.differ ? p.detail
+        : !r.c.real ? 'illustrative — its own year'
+        : [p.end ? `ended ${fmtFyEnd(p.end)}` : null, r.c.asAt ? `FY${r.c.asAt.latest} is its latest held` : 'its latest held'].filter(Boolean).join(' · ');
+      return `${esc(p.label)}<br><span class="caption">${esc(detail)}</span>`;
+    }],
     ['Accounting basis', r => { const b = accountingBasis(r.c); return `<span title="${esc(b.detail)}">${esc(b.label)}</span>`; }],
     ['Model pack', r => r.val.pack.name],
     ...SCALE_ROWS,
@@ -25964,13 +26152,16 @@ VIEWS.compare = () => {
     ['Data completeness', r => `${r.m.coverage}%`],
   ];
 
+  /* The row a cell is read from: the company's own for a figure of today,
+     the column's year's for the rest. */
+  const rowFor = (r, label) => (NOW_ROWS.has(label) ? r.latest || r : r);
   /* ---------- saving it, and what has moved since it was saved ---------- */
-  const snapshotNow = () => Object.fromEntries(rows.map(r => [r.c.id, { tk: r.c.tk,
-    cells: Object.fromEntries(METRIC_ROWS.filter(([, g]) => g).map(([label, g]) => [label, cellText(g(r))])) }]));
-  CMP_LIVE = { rows, pack, snapshotNow };
+  const snapshotNow = () => Object.fromEntries(shown.map(r => [r.c.id, { tk: r.c.tk,
+    cells: Object.fromEntries(METRIC_ROWS.filter(([, g]) => g).map(([label, g]) => [label, cellText(g(rowFor(r, label)))])) }]));
+  CMP_LIVE = { rows, pack, snapshotNow, years: yrs.differ ? yrs.mode : null };
   const savedId = new URLSearchParams(location.search).get('saved');
   const savedCmp = savedId ? loadComparisons().find(x => x.id === savedId) : null;
-  if (savedCmp) wrap.append(comparisonMovedCard(savedCmp, snapshotNow(), rows));
+  if (savedCmp) wrap.append(comparisonMovedCard(savedCmp, snapshotNow(), rows, CMP_LIVE.years));
   const nSaved = loadComparisons().length;
   const saveBar = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   saveBar.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
@@ -25996,7 +26187,9 @@ VIEWS.compare = () => {
      filed column was the one with no word. */
   /* D6: each column's company kind once, in its header (kindBadge after the
      chip); each section's computation kind once, in its divider row. */
-  rows.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindTh(rowKind(r.c), r.c.tk, { link: false }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span>` })));
+  /* And its year-end, where the record holds the end of the year the column
+     reads, or that it is not held — never assumed to be December. */
+  shown.forEach(r => thr.append(el('th', { html: `${esc(r.c.tk)} ${dataChip(r.c).outerHTML} ${kindTh(rowKind(r.c), r.c.tk, { link: false }).outerHTML}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-3)">${esc(r.c.ccy)}</span><br><span class="cmp-yearend">${esc(yearEndWords(r.c))}</span>` })));
   t.append(el('thead', {}, thr));
   const tb = el('tbody');
   /* A row keyed to a screener field reads like a screener cell: present, it
@@ -26005,7 +26198,7 @@ VIEWS.compare = () => {
      drawer, which names the line behind the absence. Rows on a bank's or a
      REIT's own disclosures (margin, CASA, occupancy) and on the model are not
      statement arithmetic, and keep their plain cell. */
-  const sourcedCell = (r, get, k) => {
+  const sourcedCell = (r, get, k, fy = null) => {
     const fld = FIELD_BY_K[k];
     const present = isNum(r.m[k]);
     const st = present ? null : metricStatus(r, k);
@@ -26015,8 +26208,9 @@ VIEWS.compare = () => {
     const na = !present && st.reason === 'not applicable';
     const td = el('td', { class: 'cell-sourced', role: 'button', tabindex: '0',
       html: present ? get(r) : na ? naCell(r, st.text) : `<span class="caption cell-absent" title="${esc(st.text)}">${esc(st.label)}</span>` });
-    /* Read off the cell, so a converted money figure is announced as shown. */
-    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}: ${present ? td.textContent.trim() : na ? notMeaningfulFor(r.c).toLowerCase() : `unavailable, ${st.reason}`} — show source`);
+    /* Read off the cell, so a converted money figure is announced as shown;
+       with its year where the cell names one. */
+    td.setAttribute('aria-label', `${fld.label} for ${r.c.tk}${fy ? `, FY${fy}` : ''}: ${present ? td.textContent.trim() : na ? notMeaningfulFor(r.c).toLowerCase() : `unavailable, ${st.reason}`} — show source`);
     td.addEventListener('click', () => openSourceDrawer(r, fld));
     td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSourceDrawer(r, fld); } });
     return td;
@@ -26031,21 +26225,34 @@ VIEWS.compare = () => {
     }
     const tr = el('tr');
     tr.append(el('td', { class: 'pin ident' }, label));
-    rows.forEach(r => tr.append(k && FIELD_BY_K[k] ? sourcedCell(r, get, k) : el('td', { html: get(r) })));
+    /* Where the columns are not on one fiscal-year label, each figure that
+       belongs to a year names it. */
+    const tag = yrs.tagged && !TIMELESS.has(label);
+    shown.forEach((s, i) => {
+      const r = rowFor(s, label), fy = tag ? yrs.fys[i] : null;
+      const td = k && FIELD_BY_K[k] ? sourcedCell(r, get, k, fy) : el('td', { html: get(r) });
+      if (fy) td.append(' ', fyTag(fy));
+      tr.append(td);
+    });
     tb.append(tr);
   });
   t.append(tb); tw.append(t); tcard.append(tw);
   /* One tab stop and arrow keys, as the screener. Every sourced cell used to be
      its own tab stop — dozens on a three-company comparison — and on a phone
      each one scrolled in under the pinned label column, invisible. */
-  gridKeyboard(t, `${rows.length} companies compared, one column each. Arrow keys move between cells; Enter opens a figure’s source.`);
+  gridKeyboard(t, `${rows.length} companies compared, one column each${yrs.mode === 'common' ? `, on fiscal year ${yrs.common}${yrs.tagged ? ' where filed, each figure naming its year' : ''}` : yrs.tagged ? ', each figure naming its fiscal year' : ''}. Arrow keys move between cells; Enter opens a figure’s source.`);
   tcard.append(el('p', { class: 'metaline', style: 'padding:var(--sm) var(--lg)' },
     'Select any measure computed from the statements for its source: the formula, the fiscal year, the lines it reads with their XBRL concepts, and the EDGAR record for a filer. An empty cell names its reason. Rows from a bank’s or REIT’s own disclosures, and the model rows, are not statement arithmetic and open nothing.'));
   wrap.append(tcard);
 
   /* quality / valuation matrix */
   const mx = el('div', { class: 'card' });
-  mx.append(cardHead('Quality against valuation', 'Same axes as the Value Radar, restricted to the selected companies.', null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
+  /* Drawn from each company's own row: its difference is to a price held
+     now and its percentile ranks its latest year, so where the table reads
+     a common year the chart says it does not. */
+  const chartYears = yrs.mode === 'common' && shown.some(r => r.c.asAt)
+    ? ` Each company’s latest year, against a price held now — not FY${yrs.common}.` : '';
+  mx.append(cardHead('Quality against valuation', `Same axes as the Value Radar, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
   const host = el('div', { style: 'width:100%' });
   mx.append(host);
   mx.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -46414,7 +46621,7 @@ const CAPABILITY_REGISTER = [
      what the surface's notice says; `checks` is what already covers it. */
   { name:'Company comparison', status:'flagged', path:'/compare',
     brief:['EQ-210'], priority:'P1',
-    now:'Reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
+    now:'Filed companies whose latest fiscal years differ compared on the latest year all of them hold, or on each company’s latest with every figure naming its year; reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
     flag:'Period-end months cannot be aligned until the SEC dataset is regenerated with period ends, and no line-level accounting reconciliation (leases, minorities, associates) is possible from the statements held.',
     checks:[{ file:'equity-test.mjs', name:'the comparison states each column' },
             { file:'equity-test.mjs', name:'compare and onboarding do what their labels say' }] },

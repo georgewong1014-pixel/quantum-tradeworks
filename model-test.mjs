@@ -8456,6 +8456,134 @@ try {
   }
   /* ---- end pu-provenance ---- */
 
+  /* ---- eq-comparability ---- */
+  /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
+     #5/#6; compareYears, 50-views-studio.js; rowAt, 25-universe.js;
+     statementsAt, 15-derivation.js). Apple's latest fiscal year is FY2025;
+     Microsoft's and Walmart's is FY2026. Compared, the three read FY2025,
+     the latest year all of them hold. Hand-worked from data/us.json, read
+     by hand and copied here (not through the app), USD billions:
+       MSFT FY2025: revenue 281.724 (FY2024 245.122, FY2021 168.088), EBIT
+         128.528, operating cash flow 136.162, capex 64.551, equity 343.479,
+         debt 43.151 (LongTermDebtNoncurrent + LongTermDebtCurrent), cash
+         30.242; net income 101.832 on 7.434bn shares (FY2021 61.271 on
+         7.519bn).
+         operating margin 128.528 / 281.724 = 45.62% → 45.6%
+         revenue growth 281.724 / 245.122 − 1 = 14.93% → +14.9%
+         free cash flow margin (136.162 − 64.551) / 281.724 = 25.42% → 25.4%
+         ROIC 128.528 × (1 − 0.21) / (343.479 + 43.151 − 30.242) = 28.49% → 28.5%
+         revenue CAGR (281.724 / 168.088)^(1/4) − 1 = 13.78% → 13.8%
+         earnings CAGR (13.698 / 8.149)^(1/4) − 1 = 13.87% → 13.9%
+         net debt 43.151 − 30.242 = 12.909 → $12.9B; ÷ EBIT 0.100 → 0.1×
+       WMT FY2025: revenue 674.538 (FY2024 642.637, FY2021 555.233), EBIT
+         29.348, operating cash flow 36.443, capex 23.783, equity 83.793,
+         debt 40.605 (LongTermDebtNoncurrent + LongTermDebtCurrent), cash
+         9.311.
+         operating margin 29.348 / 674.538 = 4.35% → 4.4%
+         revenue growth 674.538 / 642.637 − 1 = 4.96% → +5.0%
+         free cash flow margin (36.443 − 23.783) / 674.538 = 1.88% → 1.9%
+         ROIC 29.348 × 0.79 / (83.793 + 40.605 − 9.311) = 20.15% → 20.1%
+         revenue CAGR (674.538 / 555.233)^(1/4) − 1 = 4.99% → 5.0%
+         net debt 40.605 − 9.311 = 31.294 → $31.3B; ÷ EBIT 1.066 → 1.1×
+     EC1 — the common year: the switch reads "Same fiscal year (FY2025)",
+           pressed; the address carries no ?years; every column's
+           reporting period is FY2025, the scale rows are named FY2025, the
+           cells are the figures above, and no figure carries a year tag
+           (the columns are on one label).
+     EC2 — Unavailable in that year: Walmart's earnings CAGR reads
+           FY2021–FY2025, and its share count moves 2.847bn → 8.415bn
+           between FY2021 and FY2022 (a split): withheld, saying so. Its
+           FY2026 rate (FY2022–FY2026) is not: (21.893 / 8.022) ÷ (13.673 /
+           8.415) = 1.6796, ^(1/4) − 1 = 13.84% → 13.8%. And EV / EBIT as at
+           FY2025 needs that year's price, not today's.
+     EC3 — the switch: "Each company’s latest" writes ?years=latest; Apple
+           reads FY2025, Microsoft and Walmart FY2026 (Microsoft's
+           operating margin 155.237 / 331.839 = 46.78% → 46.8%), the scale
+           rows are "latest year", and every figure carries its year; back,
+           the address loses it and the figures are FY2025's again.
+     EC4 — a window that runs off the data: Microsoft as at FY2020 holds
+           FY2017–FY2020, four rows: its four-year revenue rate is
+           Unavailable, naming the years it needs, never a three-year rate;
+           a one-year margin stands. Its latest year is the row itself.
+     Each fails on 1ee5ed60, which has no compareYears and reads each
+     column's latest. */
+  {
+    const ecName = 'eq-comparability EC1–EC4: Compare reads the fiscal year the filed columns all hold, and each company’s latest on the switch';
+    try {
+      const r = JSON.parse(await evaluate(`(async () => {
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        for (let i = 0; i < 160 && (typeof realPending === 'undefined' || realPending || !BY_ID.has('WMT-SEC')); i++) await w(250);
+        const keep = { compare: [...State.compare], ccy: State.compareCcy, plan: State.plan };
+        const body = () => [...document.querySelectorAll('#views table.dt-pagesticky tbody tr')];
+        const own = (td) => [...td.childNodes].filter(n => !(n.nodeType === 1 && n.classList.contains('cmp-fy'))).map(n => n.textContent).join('').replace(/\\s+/g, ' ').trim();
+        const row = (test) => { const tr = body().find(x => test(x.cells[0]?.textContent.trim() || '')); return tr ? { label: tr.cells[0].textContent.trim(), cells: [...tr.cells].slice(1).map(td => ({ text: own(td), fy: td.querySelector('.cmp-fy')?.textContent || null, title: td.querySelector('[title]')?.getAttribute('title') || '' })) } : null; };
+        const is = (l) => (t) => t === l, starts = (l) => (t) => t.startsWith(l);
+        const read = () => ({ search: location.search, card: document.querySelector('.cmp-years')?.dataset.cmpYears || null,
+          pressed: [...document.querySelectorAll('.cmp-years button[aria-pressed="true"]')].map(b => b.textContent.trim()),
+          heads: [...document.querySelectorAll('#views table.dt-pagesticky thead th')].slice(1).map(th => (th.childNodes[0]?.textContent || '').trim()),
+          period: row(is('Reporting period')), rev: row(starts('Revenue, ')), growth: row(starts('Revenue growth, ')), om: row(is('Operating margin')),
+          fcfm: row(is('Free cash flow margin')), roic: row(is('Return on invested capital')), rev5: row(is('Revenue CAGR (4y)')), eps5: row(is('Earnings CAGR (4y)')),
+          nd: row(is('Net debt')), ndebit: row(is('Net debt / EBIT')), evebit: row(is('EV / EBIT')), price: row(is('Price')),
+          untagged: body().filter(tr => tr.cells.length > 1 && !['Price', 'Market capitalisation', 'Business model', 'Reporting period', 'Accounting basis', 'Model pack'].includes(tr.cells[0].textContent.trim()))
+            .flatMap(tr => [...tr.cells].slice(1).filter(td => !td.querySelector('.cmp-fy')).map(() => tr.cells[0].textContent.trim())),
+          tags: [...document.querySelectorAll('#views table.dt-pagesticky .cmp-fy')].length });
+        const out = {};
+        try {
+          State.plan = 'pro'; State.compareCcy = 'local';
+          navigate('/compare?companies=AAPL-SEC,MSFT-SEC,WMT-SEC'); await w(500);
+          out.common = read();
+          document.getElementById('cmp-years-latest')?.click(); await w(500);
+          out.latest = read();
+          document.getElementById('cmp-years-common')?.click(); await w(500);
+          out.back = read();
+          const ms = BY_ID.get('MSFT-SEC'), m20 = rowAt(ms, 2020);
+          out.window = m20 ? { years: yearsOf(m20.c).join(','), rev5: m20.m.rev5, st: metricStatus(m20, 'rev5'), om: m20.m.om } : null;
+          out.self = rowAt(ms, 2026) === ms;
+        } finally {
+          State.compare = keep.compare; store.write('compare', keep.compare); State.compareCcy = keep.ccy; State.plan = keep.plan;
+          navigate('/property/calculator'); await w(300);
+        }
+        return JSON.stringify(out);
+      })()`));
+      const p = [];
+      const col = { AAPL: 0, MSFT: 1, WMT: 2 };
+      const at = (x, tk) => x?.cells?.[col[tk]] || {};
+      const want = (where, x, tk, text) => { if (at(x, tk).text !== text) p.push(`${where}: ${tk}'s ${x?.label || 'row (missing)'} reads “${at(x, tk).text}”, not ${text}`); };
+      /* EC1 */
+      const c = r.common;
+      if (c.heads.join() !== 'AAPL,MSFT,WMT') p.push(`the columns are ${c.heads.join(', ')}, not AAPL, MSFT and WMT`);
+      if (c.card !== 'common' || c.pressed.join() !== 'Same fiscal year (FY2025)' || /years=/.test(c.search)) p.push(`EC1: the switch is ${c.card} with ${JSON.stringify(c.pressed)} pressed, the address ${c.search}`);
+      if (!c.period || c.period.cells.map(x => x.text.slice(0, 6)).join() !== 'FY2025,FY2025,FY2025') p.push(`EC1: the reporting periods read ${JSON.stringify(c.period?.cells.map(x => x.text))}`);
+      if (c.rev?.label !== 'Revenue, FY2025' || c.growth?.label !== 'Revenue growth, FY2025') p.push(`EC1: the scale rows are “${c.rev?.label}” and “${c.growth?.label}”, not named FY2025`);
+      if (c.tags) p.push(`EC1: ${c.tags} figures carry a year tag, where every column reads FY2025`);
+      for (const [x, m, wm] of [[c.rev, '$281.7B', '$674.5B'], [c.growth, '+14.9%', '+5.0%'], [c.om, '45.6%', '4.4%'], [c.fcfm, '25.4%', '1.9%'], [c.roic, '28.5%', '20.1%'],
+        [c.rev5, '13.8%', '5.0%'], [c.nd, '$12.9B', '$31.3B'], [c.ndebit, '0.1×', '1.1×']]) { want('EC1', x, 'MSFT', m); want('EC1', x, 'WMT', wm); }
+      want('EC1', c.eps5, 'MSFT', '13.9%');
+      /* EC2 */
+      if (at(c.eps5, 'WMT').text !== 'withheld' || !/2\.85bn to 8\.42bn/.test(at(c.eps5, 'WMT').title)) p.push(`EC2: WMT's earnings CAGR as at FY2025 reads “${at(c.eps5, 'WMT').text}” (${at(c.eps5, 'WMT').title.slice(0, 90)}), not withheld for the share count's move inside FY2021–FY2025`);
+      if (!/end of FY2025/.test(at(c.evebit, 'MSFT').title)) p.push(`EC2: MSFT's EV / EBIT as at FY2025 says “${at(c.evebit, 'MSFT').title.slice(0, 100)}”, not that it needs FY2025's price`);
+      /* EC3 */
+      const l = r.latest;
+      if (l.card !== 'latest' || l.pressed.join() !== 'Each company’s latest' || !/(^|[?&])years=latest(&|$)/.test(l.search) || !/companies=AAPL-SEC,MSFT-SEC,WMT-SEC/.test(l.search)) p.push(`EC3: after the switch ${l.card}, ${JSON.stringify(l.pressed)} pressed, the address ${l.search}`);
+      if (!l.period || l.period.cells.map(x => x.text.slice(0, 6)).join() !== 'FY2025,FY2026,FY2026') p.push(`EC3: the reporting periods read ${JSON.stringify(l.period?.cells.map(x => x.text))}`);
+      if (l.rev?.label !== 'Revenue, latest year') p.push(`EC3: the revenue row is “${l.rev?.label}”`);
+      want('EC3', l.om, 'MSFT', '46.8%'); want('EC3', l.om, 'AAPL', at(c.om, 'AAPL').text); want('EC3', l.eps5, 'WMT', '13.8%');
+      const fys = (x) => (x?.cells || []).map(y => y.fy).join();
+      for (const x of [l.rev, l.om, l.eps5, l.nd, l.evebit]) if (fys(x) !== 'FY2025,FY2026,FY2026') p.push(`EC3: ${x?.label}'s figures are tagged ${fys(x)}`);
+      if (l.untagged.length) p.push(`EC3: ${l.untagged.length} figures name no year (${[...new Set(l.untagged)].slice(0, 4).join(', ')})`);
+      if (fys(l.price) !== ',,' ) p.push(`EC3: the price, a figure of today, is tagged ${fys(l.price)}`);
+      const b = r.back;
+      if (b.card !== 'common' || /years=/.test(b.search) || at(b.om, 'MSFT').text !== '45.6%' || b.tags) p.push(`EC3: back on the same fiscal year: ${b.card}, the address ${b.search}, MSFT's margin ${at(b.om, 'MSFT').text}, ${b.tags} tags`);
+      /* EC4 */
+      const wd = r.window;
+      if (!wd || wd.years !== '2017,2018,2019,2020' || wd.rev5 !== null || wd.st?.reason !== 'not reported' || !/FY2016–FY2020/.test(wd.st?.text || '') || !/runs off the data/.test(wd.st?.text || '') || typeof wd.om !== 'number') p.push(`EC4: MSFT as at FY2020: ${JSON.stringify(wd)}`);
+      if (!r.self) p.push('EC4: rowAt for a company\'s latest year is not its own row');
+      if (p.length) fail(ecName, p);
+      else ok(`${ecName}: AAPL, MSFT and WMT open on "Same fiscal year (FY2025)", each column FY2025 and no figure tagged; MSFT 45.6% margin, +14.9% growth, 25.4% FCF margin, 28.5% ROIC, 13.8% revenue and 13.9% earnings CAGR, $12.9B net debt, 0.1×; WMT 4.4%, +5.0%, 1.9%, 20.1%, 5.0%, $31.3B, 1.1× — by hand from us.json; WMT's earnings CAGR withheld as at FY2025 (2.85bn → 8.42bn shares inside the window), 13.8% on FY2026; EV / EBIT as at FY2025 needs that year's price; "Each company’s latest" writes ?years=latest, reads FY2025/FY2026/FY2026 with every figure tagged (MSFT 46.8%), and back drops it; MSFT as at FY2020 has no four-year rate ("runs off the data")`);
+    } catch (e) { fail(ecName, String(e.message).split('\n')[0]); }
+  }
+  /* ---- end eq-comparability ---- */
+
 } catch (e) {
   fail('harness error', e.message);
 } finally {

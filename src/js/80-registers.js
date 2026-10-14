@@ -233,7 +233,7 @@ const CAPABILITY_REGISTER = [
      what the surface's notice says; `checks` is what already covers it. */
   { name:'Company comparison', status:'flagged', path:'/compare',
     brief:['EQ-210'], priority:'P1',
-    now:'Reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
+    now:'Filed companies whose latest fiscal years differ compared on the latest year all of them hold, or on each company’s latest with every figure naming its year; reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
     flag:'Period-end months cannot be aligned until the SEC dataset is regenerated with period ends, and no line-level accounting reconciliation (leases, minorities, associates) is possible from the statements held.',
     checks:[{ file:'equity-test.mjs', name:'the comparison states each column' },
             { file:'equity-test.mjs', name:'compare and onboarding do what their labels say' }] },
