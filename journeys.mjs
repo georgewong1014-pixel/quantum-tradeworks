@@ -1328,7 +1328,13 @@ const JOURNEYS = [
        but this browser's own storage is written. */
     id: 'compare', name: 'Equities compare: two filed companies, saved and reopened',
     storage: () => ({ compare: [] }),
-    outcomes: ['Add AAPL and MSFT: a column each, from their SEC filings', 'Save this comparison', 'The workspace lists it', 'Open restores both columns'],
+    /* EQUITIES COMPARABILITY (the 12 and 13 Oct 2026 audits, #5/#6):
+       Apple's latest fiscal year is FY2025 and Microsoft's FY2026, so the
+       two open on FY2025, the year both hold, under its label; the switch
+       to "Each company’s latest" puts FY2026 in Microsoft's column and the
+       year beside every figure. */
+    outcomes: ['Add AAPL and MSFT: a column each, from their SEC filings', 'They open on the fiscal year both hold, FY2025',
+      'Each company’s latest: every figure names its year', 'Save this comparison', 'The workspace lists it', 'Open restores both columns'],
     async run(j, tab) {
       /* The comparison table's company columns, by ticker, and whether each
          says it is filed (dataChip: .filed-mark), not illustrative. */
@@ -1339,12 +1345,26 @@ const JOURNEYS = [
         if (c.map(x => x.tk).join() !== 'AAPL,MSFT') throw new StepError(`${why}: the table's columns are ${c.length ? c.map(x => x.tk).join(', ') : 'none'}, not AAPL and MSFT`);
         const not = c.filter(x => !x.filed).map(x => x.tk);
         if (not.length) throw new StepError(`${why}: ${not.join(' and ')} ${not.length === 1 ? 'is' : 'are'} not marked as filed`);
-        /* Figures in both columns, from their statements: the latest year's
-           revenue, the row every operating business fills. */
-        const rev = await tab.eval(`(() => { const tr = [...document.querySelectorAll('main table.dt-pagesticky tbody tr')].find(r => r.querySelector('td.pin')?.textContent.trim() === 'Revenue, latest year');
+        /* Figures in both columns, from their statements: the revenue of the
+           year compared, the row every operating business fills. */
+        const rev = await tab.eval(`(() => { const tr = [...document.querySelectorAll('main table.dt-pagesticky tbody tr')].find(r => /^Revenue, (latest year|FY\\d{4})$/.test(r.querySelector('td.pin')?.textContent.trim() || ''));
           return tr ? [...tr.querySelectorAll('td')].slice(1).map(td => td.textContent.trim()) : null; })()`);
-        if (!rev || rev.length !== 2 || !rev.every(v => /\d/.test(v))) throw new StepError(`${why}: the latest year's revenue reads ${rev ? rev.map(v => `“${v || 'empty'}”`).join(' and ') : 'nowhere'}, not a figure for each`);
+        if (!rev || rev.length !== 2 || !rev.every(v => /\d/.test(v))) throw new StepError(`${why}: the revenue row reads ${rev ? rev.map(v => `“${v || 'empty'}”`).join(' and ') : 'nowhere'}, not a figure for each`);
       };
+      /* The year each column reads, and the year beside each figure: the
+         switch pressed, the address, the reporting period row, the revenue
+         row's name, and per period row the tag in each column (the price,
+         the business, the basis and the model pack name no year). */
+      const YEARS = `(() => { const rows = [...document.querySelectorAll('main table.dt-pagesticky tbody tr')].filter(tr => tr.cells.length === 3);
+        const timeless = ['Price', 'Market capitalisation', 'Business model', 'Reporting period', 'Accounting basis', 'Model pack'];
+        const period = rows.find(tr => tr.cells[0].textContent.trim() === 'Reporting period');
+        return { pressed: [...document.querySelectorAll('main .cmp-years button[aria-pressed="true"]')].map(b => b.textContent.trim()),
+          years: new URLSearchParams(location.search).get('years'),
+          period: period ? [...period.cells].slice(1).map(td => (td.textContent.trim().match(/^FY\\d{4}/) || [''])[0]) : null,
+          rev: (rows.find(tr => /^Revenue, /.test(tr.cells[0].textContent.trim()))?.cells[0].textContent.trim()) || null,
+          periodRows: rows.filter(tr => !timeless.includes(tr.cells[0].textContent.trim())).length,
+          tags: rows.filter(tr => !timeless.includes(tr.cells[0].textContent.trim())).map(tr => [...tr.cells].slice(1).map(td => td.querySelector('.cmp-fy')?.textContent || '').join('/')),
+          timelessTags: rows.filter(tr => timeless.includes(tr.cells[0].textContent.trim())).reduce((n, tr) => n + tr.querySelectorAll('.cmp-fy').length, 0) }; })()`;
       const chip = (tk) => `document.getElementById('cmp-chip-${tk}-SEC')`;
       await step(j, tab, 'Open Compare', BUDGET.load, async () => {
         await tab.goto('/compare');
@@ -1360,6 +1380,30 @@ const JOURNEYS = [
         }
         await tab.expect(`${COLS}.map(x => x.tk).join() === 'AAPL,MSFT'`, 'the table did not gain a column each for AAPL and MSFT', 6000);
         await both('Added');
+      });
+      await step(j, tab, 'They open on the fiscal year both hold, FY2025', BUDGET.action, async () => {
+        const y = await tab.eval(YEARS);
+        if (y.pressed.join() !== 'Same fiscal year (FY2025)') throw new StepError(`the fiscal-year switch has ${y.pressed.length ? `“${y.pressed.join('”, “')}”` : 'nothing'} pressed, not “Same fiscal year (FY2025)”`);
+        if (y.years) throw new StepError(`the address says years=${y.years} before any switch was pressed`);
+        if ((y.period || []).join() !== 'FY2025,FY2025') throw new StepError(`the reporting periods read ${(y.period || []).join(' and ') || 'nothing'}, not FY2025 for both`);
+        if (y.rev !== 'Revenue, FY2025') throw new StepError(`the revenue row is “${y.rev}”, not named for FY2025`);
+        const tagged = y.tags.filter(t => t !== '/').length + y.timelessTags;
+        if (tagged) throw new StepError(`${tagged} rows tag a year beside their figures, where both columns read FY2025`);
+      });
+      await step(j, tab, 'Each company’s latest: every figure names its year', BUDGET.action * 2, async () => {
+        await tab.click(`document.getElementById('cmp-years-latest')`, '“Each company’s latest”');
+        await tab.expect(`new URLSearchParams(location.search).get('years') === 'latest' && document.getElementById('cmp-years-latest')?.getAttribute('aria-pressed') === 'true'`,
+          async () => `pressing “Each company’s latest” left the address at ${await tab.eval('location.search') || 'nothing'} and the switch ${await tab.eval(`document.getElementById('cmp-years-latest')?.getAttribute('aria-pressed')`)}`, 4000);
+        const y = await tab.eval(YEARS);
+        if ((y.period || []).join() !== 'FY2025,FY2026') throw new StepError(`the reporting periods read ${(y.period || []).join(' and ') || 'nothing'}, not FY2025 for AAPL and FY2026 for MSFT`);
+        if (y.rev !== 'Revenue, latest year') throw new StepError(`the revenue row is “${y.rev}”, not the latest year's`);
+        const off = y.tags.filter(t => t !== 'FY2025/FY2026');
+        if (!y.periodRows || off.length) throw new StepError(`${off.length} of ${y.periodRows} figure rows do not name FY2025 in AAPL's column and FY2026 in MSFT's (e.g. “${off[0]}”)`);
+        if (y.timelessTags) throw new StepError(`${y.timelessTags} figures that belong to no year (the price, the business, the basis) carry one`);
+        await both('Each company’s latest');
+        /* Back, so the comparison saved below is the one a first visit opens on. */
+        await tab.click(`document.getElementById('cmp-years-common')`, '“Same fiscal year (FY2025)”');
+        await tab.expect(`!new URLSearchParams(location.search).has('years') && document.getElementById('cmp-years-common')?.getAttribute('aria-pressed') === 'true'`, 'pressing “Same fiscal year (FY2025)” did not return to it', 4000);
       });
       const name = `Journey check AAPL vs MSFT ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
       tab.prompt = name;

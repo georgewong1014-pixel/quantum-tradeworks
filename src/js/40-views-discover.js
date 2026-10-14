@@ -2423,10 +2423,18 @@ function metricStatus(r, k) {
   const fyNow = c?.real ? latestFy(c) : null;
   const heldBack = inputs.filter(l => c?.withheld?.[l]?.years?.includes(fyNow));
   if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  /* As at an earlier year (statementsAt, 15-derivation.js; Compare's common
+     year): the rows the measure reads run off the start of the statements
+     held, and derive() computes nothing over fewer. */
+  const rowsRead = metricRowsRead(METRIC_BY_K[k]);
+  if (c?.asAt && Number.isFinite(rowsRead) && fin.length < rowsRead) {
+    const ys = yearsOf(c), at = ys[ys.length - 1];
+    return why('not reported', `${f?.label || 'This measure'} reads ${rowsRead} years to FY${at}, FY${at - rowsRead + 1}–FY${at}, and the statements held for ${c.tk} begin at FY${ys[0]} — the window runs off the data. Nothing is imputed.`);
+  }
   const lastRow = fin[fin.length - 1] || [];
   const missingLines = inputs.filter(l => LINE_COL[l] != null && !isNum(lastRow[LINE_COL[l]]));
   const noPrice = inputs.includes('price') && !isNum(c?.px?.p);
-  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in the latest stored statements${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
+  if (missingLines.length) return why('not reported', `${missingLines.map(l => LINE_LABEL[l]).join(', ')} ${missingLines.length === 1 ? 'is' : 'are'} not in ${c?.asAt ? `the FY${fyNow} statements stored` : 'the latest stored statements'}${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.${noPrice ? ' It also needs a price, which no licensed feed supplies — but a price alone would not fill it.' : ''}`);
   /* The latest year is not the only year a growth, variability or share-count
      measure reads. META's dividend line is absent in its early stored years,
      so its dividend CAGR has no base — and the cell said "n/m" with "every
@@ -2439,6 +2447,10 @@ function metricStatus(r, k) {
     return { l, years: rows.map((row, j) => (isNum(row[LINE_COL[l]]) ? null : ys[j])).filter(y => y != null) };
   }).filter(x => x.years.length);
   if (earlier.length) return why('not reported', `${earlier.map(x => `${LINE_LABEL[x.l]} (FY${x.years.join(', FY')})`).join('; ')} ${earlier.length === 1 ? 'is' : 'are'} not in the stored statements for ${earlier.length === 1 && earlier[0].years.length === 1 ? 'a year' : 'years'} this measure reads${c?.real ? ' — the XBRL tag did not resolve for this filer' : ''}. Nothing is imputed.`);
+  /* A price is today's: as at an earlier year a measure on it would set
+     today's price against that year's statements, which is no period. */
+  if (c?.asAt && inputs.some(l => l === 'price' || l === 'history'))
+    return why('needs a price', `Needs the price at the end of FY${c.asAt.fy}, which is not held. No price history reaches back to it, and a price entered on the company page is today’s, read against the latest year held (FY${c.asAt.latest}), never FY${c.asAt.fy}. Nothing is imputed.`);
   if (noPrice) return why('needs a price', 'No licensed market-data feed is connected, so a filed company carries no price. Enter one on the company page and this computes from it, labelled as a figure you supplied.');
   if (inputs.includes('history')) {
     const need = k === 'sma200d' ? 200 : 252;
@@ -2502,6 +2514,8 @@ function openSourceDrawer(r, f) {
     [st.available ? 'What it is' : 'Why it is absent', st.text],
     ['Formula', f.formula],
     ['Reporting period', stmtLines.length ? periodEndText(c, stmtLines[0], fy) : `FY${fy}${fyEndOf(c, fy) ? ` (ended ${fmtFyEnd(fyEndOf(c, fy))})` : ''}, as reported`],
+    /* Opened from Compare's common year (statementsAt, 15-derivation.js). */
+    ...(c.asAt ? [['Year compared', `FY${c.asAt.fy}, the latest fiscal year every filed company in the comparison holds — not ${c.tk}’s latest, which is FY${c.asAt.latest}. Compare’s “Each company’s latest” reads that one.`]] : []),
     ['Prior period', priceBased ? 'not shown — this measure needs the price on the day, and no price history for the prior year is held' : isNum(prev) ? `FY${yearsOf(c)[yearsOf(c).length - 2]} · ${f.fmt(prev, r)}` : 'not computable'],
     ['Currency', c.ccy],
     ['Source', sourceSentence(c)],

@@ -192,6 +192,17 @@ function addCompany(c) {
      reported and nothing else; where that is shorter, the measures needing a
      longer window report themselves unavailable. */
   if (!c.real && c.fin.length === AUTHORED_YEARS) c.fin = [...backcast(c), ...c.fin];
+  const row = companyRow(c);
+  U.push(row);
+  BY_ID.set(c.id, row);
+  return row;
+}
+
+/* One company's row from its record: the derivation, the valuation's
+   default inputs and its run, the risk flags and grade, the scores.
+   addCompany puts it in the universe; rowAt, below, makes one for an
+   earlier fiscal year of the same record and puts it nowhere. */
+function companyRow(c) {
   const d = derive(c);
   const inputs = defaultInputs(c, d);
   const val = valuationRun(c, d, inputs);
@@ -241,9 +252,25 @@ function addCompany(c) {
      20% floor into 0.2%. */
   d.m.mosBase = isNum(val.mos?.base) ? val.mos.base : null;
 
-  const row = { c, d, m: d.m, scores, val, inputs, flags, risk, discount };
-  U.push(row);
-  BY_ID.set(c.id, row);
+  return { c, d, m: d.m, scores, val, inputs, flags, risk, discount };
+}
+
+/* THE SAME COMPANY AS AT AN EARLIER FISCAL YEAR (Compare's common year;
+   statementsAt, 15-derivation.js): its statements cut at the year and run
+   through companyRow — the derivation, the valuation, the risk grade and
+   the scores every row is made by. It ranks nowhere: a cohort percentile
+   places a score among every company's latest year, so an earlier year's
+   has none, and the row is not in the universe the cohorts are drawn
+   from. `latest` is the row it was cut from. The row itself for its latest
+   year; null for a year its record does not hold. */
+function rowAt(r, fy) {
+  if (!r || fy === latestFy(r.c)) return r || null;
+  const c = statementsAt(r.c, fy);
+  if (!c) return null;
+  const row = companyRow(c);
+  row.pct = { quality: null, growth: null, strength: null, capital: null, value: null };
+  row.pctAll = { quality: null, value: null };
+  row.latest = r;
   return row;
 }
 

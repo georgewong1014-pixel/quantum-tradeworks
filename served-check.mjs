@@ -3428,6 +3428,55 @@ const HOME_PAGE = read(HOME);
 /* ---- end claims-filed-defaults ---- */
 
 
+/* ---- eq-comparability ---- */
+/* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
+   #5/#6; compareYears, 50-views-studio.js). Apple's latest fiscal year is
+   FY2025 and Microsoft's FY2026, and every column read its own: the served
+   first visit set FY2025 beside FY2026 under "Revenue, latest year". Held
+   on /compare and /app/equities/compare as served (Apple and Microsoft, the
+   default):
+   1. the fiscal-year switch, on "Same fiscal year (FY2025)" — the year both
+      hold — with "Each company’s latest" beside it;
+   2. both columns' reporting period FY2025, the scale rows named FY2025,
+      and no figure tagged with a year (the columns are on one label);
+   3. each column head's year line: "year-end not in this dataset", as the
+      shipped statements hold no year-end — never a month assumed. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText, has = B.hasClass;
+  const paths = ['/compare', '/app/equities/compare'];
+  const got = await getAll(paths);
+  const said = [];
+  for (const path of paths) {
+    const res = got.get(path);
+    if (!res || res.status !== 200) { p.push(`${path}: ${res?.status || 'no answer'}, not 200`); continue; }
+    const tree = B.htmlTree(res.body);
+    const card = all(tree).find(n => has(n, 'cmp-years'));
+    const picks = card ? all(card).filter(n => /^cmp-years-(common|latest)$/.test(attr(n, 'id') || '')).map(n => ({ label: sight(n), on: attr(n, 'data-on') !== null || attr(n, 'aria-pressed') === 'true' })) : [];
+    const on = picks.filter(x => x.on).map(x => x.label);
+    if (!card || attr(card, 'data-cmp-years') !== 'common') p.push(`${path}: no fiscal-year switch on the common year (${card ? attr(card, 'data-cmp-years') : 'none served'})`);
+    if (on.join() !== 'Same fiscal year (FY2025)' || !picks.some(x => /^Each company[’']s latest$/.test(x.label))) p.push(`${path}: the switch offers ${picks.map(x => `"${x.label}"${x.on ? ' (on)' : ''}`).join(', ') || 'nothing'}, not "Same fiscal year (FY2025)" on and "Each company’s latest"`);
+    const table = all(tree).find(n => n.tag === 'table' && has(n, 'dt-pagesticky'));
+    const heads = table ? all(table).filter(n => n.tag === 'th' && all(n).some(x => has(x, 'filed-mark'))) : [];
+    const lines = heads.map(th => { const y = all(th).find(x => has(x, 'cmp-yearend')); return y ? sight(y) : null; });
+    if (heads.length !== 2 || !lines.every(l => l === 'year-end not in this dataset')) p.push(`${path}: the column heads' year lines read ${JSON.stringify(lines)} over ${heads.length} filed columns, not "year-end not in this dataset" for each`);
+    if (table && lines.some(l => /January|February|March|April|May|June|July|August|September|October|November|December/.test(l || ''))) p.push(`${path}: a column head names a year-end month the shipped statements do not hold`);
+    const rows = table ? all(table).filter(n => n.tag === 'tr') : [];
+    const cellsOf = (label) => { const tr = rows.find(r => { const c = all(r).find(x => x.tag === 'td'); return c && sight(c) === label; }); return tr ? all(tr).filter(x => x.tag === 'td').slice(1).map(x => sight(x)) : null; };
+    const period = cellsOf('Reporting period');
+    if (!period || period.length !== 2 || !period.every(t => /^FY2025\b/.test(t))) p.push(`${path}: the reporting periods read ${JSON.stringify(period)}, not FY2025 for both`);
+    if (!cellsOf('Revenue, FY2025') || cellsOf('Revenue, latest year')) p.push(`${path}: the revenue row is not named for FY2025`);
+    const tags = table ? all(table).filter(x => has(x, 'cmp-fy')).length : 0;
+    if (tags) p.push(`${path}: ${tags} figures carry a year tag, where both columns read FY2025`);
+    said.push(`${path} "${on.join()}" on, periods ${(period || []).join(' / ')}, heads "${lines.join('" / "')}"`);
+  }
+  judge(p, `Compare's served first visit on the fiscal year Apple and Microsoft both hold (the 12 and 13 Oct 2026 audits, #5/#6): ${said.join('; ')}`,
+    'the served comparison reads each company\'s latest year, or its column heads do not say the year-end is not held');
+}
+/* ---- end eq-comparability ---- */
+
+
 /* ---- claims-cash-required-name ---- */
 /* "CASH REQUIRED (WITH A 3-MONTH RESERVE)" (the owner's decision of 11 Oct
    2026; the claims audit, rank 9: F-06, R-11). The calculator, the client

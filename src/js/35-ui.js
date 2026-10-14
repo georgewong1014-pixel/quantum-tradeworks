@@ -3014,9 +3014,11 @@ const SERVED_READS = {
      reports are used up meets the served overview until the script runs. */
   research: ['plan', 'reportRoom', 'watchlists', 'wlActive', 'compare', 'theses', 'manualPrices', 'valuation', 'requiredDiscount', '?tab'],
   /* /compare, /app/equities/compare: the companies (?companies=, or kept),
-     a saved comparison opened (?saved=) and the count saved, the
-     currencies, the withholding rates, the plan's limit, a price typed in. */
-  compare: ['compare', '?saved', 'comparisons', 'compareCcy', 'baseCcy', 'wht', 'plan', 'manualPrices', 'startHere', 'reportLog'],
+     a saved comparison opened (?saved=) and the count saved, the fiscal
+     year compared (?years=latest: each company's latest, not the common
+     year), the currencies, the withholding rates, the plan's limit, a
+     price typed in. */
+  compare: ['compare', '?saved', '?years', 'comparisons', 'compareCcy', 'baseCcy', 'wht', 'plan', 'manualPrices', 'startHere', 'reportLog'],
   /* /pricing: the plan in force. */
   plans: ['plan'],
   /* /discover/sarawak: the reader's exposure records. */
