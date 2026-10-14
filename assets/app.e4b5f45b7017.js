@@ -33266,6 +33266,11 @@ function propertyReviewQueue(d) {
    return may be negative; every other figure is an amount, an area, a
    count or a share. Returns the reason, or null. */
 const DEAL_SIGNED = new Set(['rentGrowthPct', 'apprecPct', 'equityReturnPct']);
+/* The calculator's own boxes: the figures a link may set and the box guard covers. */
+const DEAL_BOX_KEYS = new Set(['sqft', 'landSqft', 'parking', 'price', 'bankValuation', 'bookingDepositPaid', 'renovation', 'renoRentUpliftPct', 'renoValueRecoveryPct',
+  'downPct', 'ratePct', 'tenureYears', 'rent', 'rentGrowthPct', 'vacancyPct', 'maintenance', 'sinkingFund', 'assessment', 'quitRent', 'insurance', 'mgmtPct',
+  'repairReservePct', 'leasingFeeMonths', 'renewalFeeMonths', 'mgmtMinMonthly', 'tenancyMonths', 'daysToFirstTenant', 'depositMonths', 'repairApprovalLimit',
+  'inspectionsPerYear', 'arrearsChaseDays', 'apprecPct', 'sellMonths', 'agentPct', 'exitLegalPct', 'equityReturnPct']);
 const DEAL_SHARE = new Set(['renoRentUpliftPct', 'renoValueRecoveryPct', 'downPct', 'ratePct', 'vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct']);
 function dealEntryRefused(k, v) {
   if (!Number.isFinite(v)) return 'needs a number';
@@ -34047,6 +34052,9 @@ function applyDealParam(d, str) {
     else if (SHARE_STR.test(raw)) v = raw;
     else continue;
     if (k === 'holdYears') v = normHoldYears(v);
+    /* A link that sets a box to a figure the box would refuse — a negative
+       price, a 150% deposit — is skipped for that part, as the box refuses it. */
+    else if (typeof v === 'number' && DEAL_BOX_KEYS.has(k) && dealEntryRefused(k, v)) continue;
     if (d[k] !== v) { d[k] = v; changed = true; }
   }
   return changed;
@@ -40921,8 +40929,10 @@ function dealModel(d) {
   /* Cash flow survives every class, and for a parcel it is the whole question:
      what does holding this cost me each month while it appreciates. */
   const cashflowMonthly = debtUnknown ? null : (noiN / 12) - num0(instalment);
-  const cashOnCash = (letsToTenant && acquisitionCost > 0 && !debtUnknown)
-    ? (noiN - annualDebtService) / acquisitionCost * 100 : null;
+  /* Cash-on-cash is set once the reserve is priced (below): on the cash
+     required including it, the base the headline and the rate of return use
+     (the owner, 14 Oct 2026: one basis for both). */
+  let cashOnCash = null;
   /* Null when there is no debt, and null when the instalment could not be
      computed — those are different states and neither is 0.00x. It reported an
      exact 0.00x cover off a non-computable instalment, which reads as "the rent
@@ -41143,8 +41153,8 @@ function dealModel(d) {
          total with the entered renovation swapped for the stressed one. */
       const cash = acquisitionCost - renovation + reno;
       return { label: over === 0 ? 'as budgeted' : `+${over}% over`, renovation: reno, cash,
-               cashOnCash: (letsToTenant && !debtUnknown && isNum(cash) && cash > 0)
-                 ? (noiN - annualDebtService) / cash * 100 : null };
+               /* Set with the reserve, below: on this row's cash including it. */
+               cashOnCash: null };
     }),
   };
   /* The point at which the monthly position crosses zero, by bisection.
@@ -41282,6 +41292,14 @@ function dealModel(d) {
      the reserve among its missing lines, as it always did. */
   const reserveCash = reserveComputable ? groupTotal('reserve') : null;
   const safeCashRequired = transactionCash + improvementCash + num0(reserveCash);
+  /* CASH-ON-CASH, ON ONE BASIS (the owner, 14 Oct 2026). The year's cash
+     flow over the cash required including the reserve — the figure the
+     headline shows and the rate of return commits — here and in each row
+     of the renovation-overrun table. It was over the cash before the
+     reserve, beside a rate of return over the cash including it. */
+  const cocOn = (base) => (letsToTenant && !debtUnknown && isNum(base) && base > 0 ? (noiN - annualDebtService) / base * 100 : null);
+  cashOnCash = cocOn(safeCashRequired);
+  stress.renovation.forEach(r => { r.cashOnCash = cocOn(r.cash + num0(reserveCash)); });
 
   /* Directive 6.3 asks for four totals, not three. The fourth is what has
      already left the buyer's account — a booking or earnest deposit paid at
@@ -44636,7 +44654,7 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: 'Annual cash flow ÷ cash before reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
