@@ -33258,6 +33258,24 @@ function propertyReviewQueue(d) {
   return PROPERTY_REVIEW.filter(f => !isTouched(d, f.k) && propertyInputApplies(d, f.k));
 }
 
+/* AN ENTRY THE MODEL CANNOT MEAN (QT-001–003, 14 Oct 2026). A price of
+   −RM500,000 was taken, and the calculator showed "Cash required −RM27.3k";
+   a 150% deposit, RM618.4k; a price of 0, RM29.9k for a free property.
+   Refused at the box, which keeps its figure and says why — as an emptied
+   box already is. Growth and appreciation may fall, and the alternative
+   return may be negative; every other figure is an amount, an area, a
+   count or a share. Returns the reason, or null. */
+const DEAL_SIGNED = new Set(['rentGrowthPct', 'apprecPct', 'equityReturnPct']);
+const DEAL_SHARE = new Set(['renoRentUpliftPct', 'renoValueRecoveryPct', 'downPct', 'ratePct', 'vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct']);
+function dealEntryRefused(k, v) {
+  if (!Number.isFinite(v)) return 'needs a number';
+  if (k === 'price' && !(v > 0)) return 'needs a price above 0 — the model cannot price a purchase with no price';
+  if (DEAL_SIGNED.has(k)) return null;
+  if (v < 0) return 'cannot be negative';
+  if (DEAL_SHARE.has(k) && v > 100) return 'cannot be above 100%';
+  return null;
+}
+
 /* What to show for a figure the reader has not touched: what it actually is. */
 const shownEvidence = (d, k) =>
   (EVIDENCE_DRIVERS.includes(k) && !isTouched(d, k) && !d?.userStarted)
@@ -36079,7 +36097,7 @@ const METRIC_DICTIONARY = {
   dataCompleteness:{ en:'Data completeness',        ms:'Kelengkapan data',        zh:'数据完整度' },
   baseCaseModel:   { en:'Base-case model estimate', ms:'Anggaran model kes asas', zh:'基准情景模型估值' },
   netYield:        { en:'Net yield',                ms:'Hasil sewa bersih',       zh:'租金净回报率' },
-  totalInitialCash:{ en:'Total initial cash',       ms:'Jumlah tunai permulaan',  zh:'初始现金总额' },
+  totalInitialCash:{ en:'Cash required including reserve', ms:'Tunai diperlukan termasuk rizab', zh:'所需现金（含储备金）' },
   monthlyInstalment:{ en:'Monthly instalment',      ms:'Ansuran bulanan',         zh:'每月供款' },
   vacancy:         { en:'Vacancy',                  ms:'Kekosongan',              zh:'空置率' },
   evidenceQuality: { en:'Evidence quality',         ms:'Kualiti bukti',           zh:'证据质量' },
@@ -36197,7 +36215,7 @@ const PROPERTY_I18N = {
   'c.purchaseLegal':{ en:'Purchase legal fees', ms:'Yuran guaman pembelian', zh:'购屋律师费' },
   'c.loanDuty':     { en:'Loan stamp duty', ms:'Duti setem pinjaman', zh:'贷款印花税' },
   'c.emergencyReserve':{ en:'Emergency reserve', ms:'Simpanan kecemasan', zh:'应急储备金' },
-  'c.totalInitialCash':{ en:'Total initial cash', ms:'Jumlah tunai permulaan', zh:'初期现金总额' },
+  'c.totalInitialCash':{ en:'Cash required including reserve', ms:'Tunai diperlukan termasuk rizab', zh:'所需现金（含储备金）' },
   'c.reserveNote':  { en:'The emergency reserve is not spent. It stays in your account.', ms:'Simpanan kecemasan ini tidak dibelanjakan. Ia kekal dalam akaun anda.', zh:'应急储备金不会被动用，它留在你的户头里。' },
   'c.notValuation': { en:'This is not an official property valuation. In Malaysia that must be carried out by a registered valuer.', ms:'Ini bukan penilaian hartanah rasmi. Di Malaysia, penilaian rasmi mesti dijalankan oleh penilai berdaftar.', zh:'这不是正式的产业估价。在马来西亚，正式估价必须由注册估价师进行。' },
   'c.noModelChange':{ en:'This tool changes no figure on the strength of your answers.', ms:'Alat ini tidak mengubah sebarang angka berdasarkan jawapan anda.', zh:'本工具不会因你的回答而改动任何数字。' },
@@ -40362,9 +40380,15 @@ function propertyGrade(d, m) {
       caps:null });
 
   const untouchedDrivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
+  /* Counted against the review queue the page heads with ("N sample inputs
+     need your evidence", "Review N sample inputs"), of which the drivers are
+     a part (QT-001, 14 Oct 2026): "4 of the figures driving every output"
+     beside "10 sample inputs" and "all 4 blockers" read as three counts
+     disagreeing. One base now: "3 of the 9 sample inputs still to review". */
+  const toReview = Math.max(propertyReviewQueue(d).length, untouchedDrivers.length);
   if (untouchedDrivers.length)
     gates.push({ id:'illustrative', severity:'critical',
-      text:`${untouchedDrivers.length} of the figures driving every output — ${untouchedDrivers.join(', ')} — are still this tool's starting numbers rather than yours.`,
+      text:`${untouchedDrivers.length} of the ${toReview} sample input${toReview === 1 ? '' : 's'} still to review — ${untouchedDrivers.join(', ')} — drive${untouchedDrivers.length === 1 ? 's' : ''} every output, and ${untouchedDrivers.length === 1 ? 'is' : 'are'} still this tool's starting number${untouchedDrivers.length === 1 ? '' : 's'} rather than yours.`,
       caps:'U' });
 
   /* An ACHIEVED rent comparable is an executed tenancy by definition, so it is
@@ -42710,7 +42734,7 @@ VIEWS.property = () => {
       m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
       isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
     complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
+      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve'],
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
       isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
   };
@@ -43602,6 +43626,14 @@ VIEWS.property = () => {
             toast(`An empty box is not zero — “${label}” stays at ${isNum(d[k]) ? d[k] : 'its last figure'}. Type 0 if you mean nought.`);
             return;
           }
+          /* An entry the model cannot mean keeps the box's figure, said
+             (dealEntryRefused, 70-property.js). */
+          const why = k === 'holdYears' ? null : dealEntryRefused(k, Number(e.target.value));
+          if (why) {
+            e.target.value = d[k] ?? '';
+            toast(`“${label}” ${why} — it stays at ${isNum(d[k]) ? d[k] : 'its last figure'}.`);
+            return;
+          }
           d[k] = k === 'holdYears' ? normHoldYears(e.target.value) : num0(e.target.value);
           markTouched(d, k); saveDeal(); renderAfterTyping();
         } }));
@@ -43962,7 +43994,10 @@ VIEWS.property = () => {
   cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' }, [
-      cashPartial(m) ? 'Total initial cash — partial' : nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
+      /* The headline's own words for the same figure (QT-002, 14 Oct 2026):
+         it read "Total initial cash" here and "Cash required (with a
+         3-month reserve)" above it. */
+      cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : nMissing ? `${cashRequiredLabel(m)} so far` : cashRequiredLabel(m), ' ',
       /* Its weakest input's kind, the fee lines' included (N6). */
       kindBadge(DKF.kind, { fine: DKF.fine })]),
     el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
@@ -44275,7 +44310,11 @@ VIEWS.property = () => {
   ]));
   stressCard.append(stressTable('If the renovation overruns', m.stress.renovation, [
     { label: 'Renovation', get: r2 => `${r2.label} · ${fmtAmount(r2.renovation, 'MYR')}` },
-    { label: 'Cash required', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    /* Its basis said (QT-002): the rows are the ledger less the reserve —
+       the cash the overrun consumes — and read "Cash required" beside a
+       headline that includes the reserve. The reserve is added back beside. */
+    { label: 'Cash before reserve', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    ...(isNum(m.reserveCash) ? [{ label: 'Cash required including reserve', num: true, get: r2 => fmtAmount(r2.cash + m.reserveCash, 'MYR') }] : []),
     { label: 'Cash-on-cash', num: true, get: r2 => isNum(r2.cashOnCash) ? fmtPct(r2.cashOnCash, 2) : '—',
       tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
   ]));
@@ -44597,7 +44636,7 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: 'Annual cash flow ÷ cash invested', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: 'Annual cash flow ÷ cash before reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
