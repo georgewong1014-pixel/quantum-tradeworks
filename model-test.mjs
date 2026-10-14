@@ -8486,8 +8486,16 @@ try {
         refused.push({ k, v, kept: State.deal[k] === was, box: document.getElementById('d-' + k)?.value, cash: dealModel(State.deal).safeCashRequired });
       }
       const unit = { negGrowth: dealEntryRefused('apprecPct', -2), zeroRent: dealEntryRefused('rent', 0), hundred: dealEntryRefused('downPct', 100), nan: dealEntryRefused('rent', NaN) };
+      /* One basis for cash-on-cash (the owner, 14 Oct): the cash required including the reserve. */
+      const mm = dealModel(State.deal);
+      const coc = { got: mm.cashOnCash, want: (mm.noi - mm.annualDebtService) / mm.safeCashRequired * 100,
+        row: mm.stress.renovation[0].cashOnCash, rowCash: mm.stress.renovation[0].cash + mm.reserveCash, safe: mm.safeCashRequired };
+      /* A link's figure the box would refuse is skipped, the rest of the link applied. */
+      const linked = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked, 'price:-500000~rent:2000~downPct:150~apprecPct:-1');
+      const link = { price: linked.price, rent: linked.rent, downPct: linked.downPct, apprecPct: linked.apprecPct, def: PROPERTY_DEFAULT_DEAL.price, defDown: PROPERTY_DEFAULT_DEAL.downPct };
       State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator'); await w(300);
-      return JSON.stringify({ before, after, cash0, refused, unit }); })()`));
+      return JSON.stringify({ before, after, cash0, refused, unit, coc, link }); })()`));
     const p = [];
     const n = (s) => Number((s.match(/^(\d+)/) || [])[1]);
     for (const [when, c] of [['before', r.before], ['after', r.after]]) {
@@ -8497,8 +8505,10 @@ try {
     if (!/^4 of the 10 sample inputs/.test(r.before.gate) || !/^3 of the 9 sample inputs/.test(r.after.gate)) p.push(`the blocker sentence: "${r.before.gate.slice(0, 40)}" then "${r.after.gate.slice(0, 40)}"`);
     for (const x of r.refused) if (!x.kept || x.cash !== r.cash0) p.push(`${x.k} = ${x.v} was taken (box ${x.box}, cash required ${x.cash})`);
     if (r.unit.negGrowth !== null || r.unit.zeroRent !== null || r.unit.hundred !== null || !r.unit.nan) p.push(`dealEntryRefused: ${JSON.stringify(r.unit)}`);
+    if (!(Math.abs(r.coc.got - r.coc.want) < 1e-9 && Math.abs(r.coc.row - r.coc.got) < 1e-9 && Math.abs(r.coc.rowCash - r.coc.safe) < 0.005)) p.push(`cash-on-cash is not on the cash required including the reserve: ${JSON.stringify(r.coc)}`);
+    if (r.link.price !== r.link.def || r.link.downPct !== r.link.defDown || r.link.rent !== 2000 || r.link.apprecPct !== -1) p.push(`a link's refused figures: ${JSON.stringify(r.link)}`);
     if (p.length) fail('qt-day1: the calculator\'s counts agree and an entry the model cannot mean is refused', p);
-    else ok('qt-day1: "10 sample inputs need your evidence", "Review 10 sample inputs", 10 rows and "4 of the 10 sample inputs still to review — price, rent, maintenance, sqft — drive every output"; after the price is typed, 9, 9, 9 and "3 of the 9"; a price of −500,000 or 0, a rent of −2,000, a 150% deposit and a 101% vacancy are each refused at the box, the cash required unmoved; a falling growth, a nil rent and a 100% deposit are taken');
+    else ok('qt-day1: "10 sample inputs need your evidence", "Review 10 sample inputs", 10 rows and "4 of the 10 sample inputs still to review — price, rent, maintenance, sqft — drive every output"; after the price is typed, 9, 9, 9 and "3 of the 9"; a price of −500,000 or 0, a rent of −2,000, a 150% deposit and a 101% vacancy are each refused at the box, the cash required unmoved; a falling growth, a nil rent and a 100% deposit are taken; cash-on-cash is the year\'s cash flow over the cash required including the reserve, in the tile and the overrun table\'s as-budgeted row alike; a link\'s negative price and 150% deposit are skipped and its rent and falling growth applied');
   }
   /* ---- end qt-day1 ---- */
 

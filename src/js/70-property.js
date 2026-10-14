@@ -576,6 +576,11 @@ function propertyReviewQueue(d) {
    return may be negative; every other figure is an amount, an area, a
    count or a share. Returns the reason, or null. */
 const DEAL_SIGNED = new Set(['rentGrowthPct', 'apprecPct', 'equityReturnPct']);
+/* The calculator's own boxes: the figures a link may set and the box guard covers. */
+const DEAL_BOX_KEYS = new Set(['sqft', 'landSqft', 'parking', 'price', 'bankValuation', 'bookingDepositPaid', 'renovation', 'renoRentUpliftPct', 'renoValueRecoveryPct',
+  'downPct', 'ratePct', 'tenureYears', 'rent', 'rentGrowthPct', 'vacancyPct', 'maintenance', 'sinkingFund', 'assessment', 'quitRent', 'insurance', 'mgmtPct',
+  'repairReservePct', 'leasingFeeMonths', 'renewalFeeMonths', 'mgmtMinMonthly', 'tenancyMonths', 'daysToFirstTenant', 'depositMonths', 'repairApprovalLimit',
+  'inspectionsPerYear', 'arrearsChaseDays', 'apprecPct', 'sellMonths', 'agentPct', 'exitLegalPct', 'equityReturnPct']);
 const DEAL_SHARE = new Set(['renoRentUpliftPct', 'renoValueRecoveryPct', 'downPct', 'ratePct', 'vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct']);
 function dealEntryRefused(k, v) {
   if (!Number.isFinite(v)) return 'needs a number';
@@ -1357,6 +1362,9 @@ function applyDealParam(d, str) {
     else if (SHARE_STR.test(raw)) v = raw;
     else continue;
     if (k === 'holdYears') v = normHoldYears(v);
+    /* A link that sets a box to a figure the box would refuse — a negative
+       price, a 150% deposit — is skipped for that part, as the box refuses it. */
+    else if (typeof v === 'number' && DEAL_BOX_KEYS.has(k) && dealEntryRefused(k, v)) continue;
     if (d[k] !== v) { d[k] = v; changed = true; }
   }
   return changed;
