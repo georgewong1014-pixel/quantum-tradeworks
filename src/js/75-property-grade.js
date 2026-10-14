@@ -2625,15 +2625,477 @@ function pcAnswerLevel(d, t) {
 function propertyBarActions() {
   const d = State.deal, st = propertyStatus(d);
   const can = st.kind !== 'model' || st.dirty;
+  /* In the Quick model (QT-003) Analyse is its answer, and Compare opens the
+     full model at its Scenarios. */
+  const quick = !pcViewIsFull();
   return [
-    { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', aria: 'Analyse: the figures and the grade', onclick: () => lsGoTo(document.getElementById('pc-answer'), document.getElementById('pc-answer-h')) },
-    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare scenarios', onclick: () => goToPropertySection('scenarios', { focus: '#pm-sc-title' }) },
+    { id: 'ls-act-analyse', label: 'Analyse', icon: 'chart', aria: 'Analyse: the figures and the grade', onclick: () => (quick
+      ? lsGoTo(document.getElementById('pc-q-answer'), document.getElementById('pc-q-answer-h'))
+      : lsGoTo(document.getElementById('pc-answer'), document.getElementById('pc-answer-h'))) },
+    { id: 'ls-act-compare', label: 'Compare', icon: 'scale', aria: 'Compare scenarios', onclick: () => {
+      if (!pcViewIsFull()) pcSwitchView(true);
+      goToPropertySection('scenarios', { focus: '#pm-sc-title' });
+    } },
     { id: 'ls-act-save', label: 'Save this', icon: 'bookmark', primary: true, disabled: !can,
       aria: !can ? 'Saved in this browser' : st.kind === 'model' && st.sc ? 'Save this scenario' : 'Save this property',
       said: 'Saved in this browser — change a figure to save it again.', onclick: () => { if (saveActiveProperty()) renderKeepFocus(); } },
   ];
 }
+
+/* ------------------------------------------------ the inputs, for both views */
+/* THE CALCULATOR'S BOXES, ONE LIST (QT-003). Grouped, because a flat list
+   of twenty numbers reads as a form to be endured rather than a model to be
+   understood: each group is one question — what does it cost, what does it
+   earn, what does it cost to run, what happens on the way out — in the
+   section it belongs to: the loan's three figures in Financing, and the
+   exit in Scenarios, where what it decides — the rate of return, and its
+   sensitivity — is drawn. The full model draws every group in its section;
+   the Quick model draws its core boxes from the same list, with the same
+   builder (pcDealField), so a box is the same element, label, step and
+   handler in either. */
+const PC_GROUPS = [
+  ['acquisition', 'Size and parking', [
+    ['sqft', 'Built-up area (sq ft)', 10],
+    ['landSqft', 'Land area (sq ft, 0 if none)', 10],
+    ['parking', 'Allocated parking bays', 1],
+  ]],
+  ['acquisition', 'Purchase', [
+    ['price', 'Purchase price (RM)', 1000],
+    ['bankValuation', 'Bank or valuer estimate (RM, 0 if not yet known)', 1000],
+    ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
+    ['renovation', 'Renovation and furnishing (RM)', 500],
+    ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
+    ['renoValueRecoveryPct', 'Share of the renovation you assume a buyer pays for at exit (%)', 10],
+  ]],
+  ['financing', 'Loan', [
+    ['downPct', 'Deposit (%)', 1],
+    ['ratePct', 'Loan interest rate (%)', 0.05],
+    ['tenureYears', 'Loan tenure (years)', 1],
+  ]],
+  ['rental', 'Income', [
+    ['rent', 'Expected monthly rent (RM)', 50],
+    ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
+    ['vacancyPct', 'Vacancy allowance (%)', 1],
+  ]],
+  ['rental', 'Running costs', [
+    ['maintenance', 'Monthly maintenance (RM)', 10],
+    ['sinkingFund', 'Monthly sinking fund (RM)', 10],
+    ['assessment', 'Annual assessment (RM)', 50],
+    ['quitRent', 'Annual quit rent (RM)', 25],
+    ['insurance', 'Annual insurance (RM)', 50],
+    ['mgmtPct', 'Letting and management fee (% of rent)', 0.5],
+    ['repairReservePct', 'Repair reserve (% of rent)', 0.5],
+  ]],
+  /* A fee percentage says what management costs and nothing about what it
+     does. These are the terms that decide both — and the ones a landlord has
+     to agree before signing a mandate, not after. */
+  ['rental', 'Management operations', [
+    ['selfManaged', 'I will manage this property myself', 'bool'],
+    ['leasingFeeMonths', 'Tenant placement fee (months of rent)', 0.25],
+    ['renewalFeeMonths', 'Renewal fee (months of rent)', 0.25],
+    ['mgmtMinMonthly', 'Minimum monthly fee (RM)', 10],
+    ['tenancyMonths', 'Expected tenancy length (months)', 6],
+    ['daysToFirstTenant', 'Target days to place a tenant', 5],
+    ['depositMonths', 'Tenancy deposit held (months)', 0.5],
+    ['repairApprovalLimit', 'Repair the manager may authorise without asking (RM)', 50],
+    ['inspectionsPerYear', 'Inspections a year, with a written report', 1],
+    ['arrearsChaseDays', 'Days late before arrears are chased', 1],
+    ['ownerReportCadence', 'Owner statement', ['monthly', 'quarterly', 'on request', 'not agreed']],
+    ['tenantPaysUtilities', 'Tenant pays utilities, not the owner', 'bool'],
+  ]],
+  ['scenarios', 'Exit', [
+    ['holdYears', 'Holding period (years)', 1],
+    ['apprecPct', 'Annual capital growth (%)', 0.25],
+    ['sellMonths', 'Expected months to sell', 1],
+    ['agentPct', 'Agent commission on exit (%)', 0.25],
+    ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
+  ]],
+  ['scenarios', 'Comparison', [
+    ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
+  ]],
+];
+const PC_FIELD_DEF = Object.fromEntries(PC_GROUPS.flatMap(([, , fields]) => fields.map(f => [f[0], f])));
+
+/* RESULTS AS YOU TYPE (QT-003). A number box commits about 600ms after the
+   last keystroke, as well as on change (Tab, Enter, leaving it). What the
+   pause commits is what change would: through the same refusals, the
+   committed value only — an empty box or an entry the model cannot mean
+   (dealEntryRefused, 70-property.js) is left for change to refuse and say
+   so, never toasted while the reader is still typing. The box redraws with
+   the page and keeps the keyboard and the caret (renderAfterTyping,
+   noteFocusForRedraw and keepTyping, 35-ui.js). The pause finds the box by
+   its id, so a box drawn again since the keystroke — the filings landing —
+   commits with its own deal. */
+const PC_TYPE_PAUSE = 600;
+let pcTypeTimer = 0;
+function pcTypePause(n) {
+  clearTimeout(pcTypeTimer);
+  const id = n.id;
+  pcTypeTimer = setTimeout(() => { pcTypeTimer = 0; document.getElementById(id)?.pcCommit?.(true); }, PC_TYPE_PAUSE);
+}
+
+/* One box of the deal, as the full model and the Quick model both draw it. */
+function pcDealField(d, k) {
+  const [, label, step] = PC_FIELD_DEF[k];
+  const f = el('div', { class: 'assumption' });
+  /* Two non-numeric kinds, because a management mandate is made of
+     commitments and cadences as well as amounts. */
+  if (step === 'bool') {
+    const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;align-items:flex-start' });
+    l.append(el('input', { type: 'checkbox', id: `d-${k}`, checked: d[k] ? '' : null,
+      onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); renderKeepFocus(); } }));
+    l.append(el('span', {}, ptr(`in.${k}`, label)));
+    return l;
+  }
+  if (Array.isArray(step)) {
+    f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+    const s = el('select', { class: 'select select-sm', id: `d-${k}`,
+      onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); renderKeepFocus(); } });
+    step.forEach(o => s.append(el('option', { value: o, selected: d[k] === o ? '' : null }, o)));
+    f.append(s);
+    return f;
+  }
+  f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+  /* The renovation as cost lines (QT-03): their total is the figure,
+     so the box holds it and is not typed over while there are lines. */
+  const linesOn = k === 'renovation' && costLinesExplicit(d, 'renovation');
+  /* `typing`: the pause's commit — silent, and only of a figure the box
+     would take. */
+  const commit = (n, typing) => {
+    clearTimeout(pcTypeTimer); pcTypeTimer = 0;
+    /* AN EMPTIED BOX IS NOT ZERO. It was stored as 0, so clearing the
+       price modelled a free property and clearing the rent a vacant
+       one, with every figure beside them computed as if that had been
+       typed. The model has no way to carry an absent price, so the
+       box keeps its figure and says so; a nought has to be typed. */
+    if (String(n.value).trim() === '') {
+      if (typing) return;
+      n.value = d[k] ?? '';
+      toast(`An empty box is not zero — “${label}” stays at ${isNum(d[k]) ? d[k] : 'its last figure'}. Type 0 if you mean nought.`);
+      return;
+    }
+    /* An entry the model cannot mean keeps the box's figure, said
+       (dealEntryRefused, 70-property.js). */
+    const why = k === 'holdYears' ? null : dealEntryRefused(k, Number(n.value));
+    if (why) {
+      if (typing) return;
+      n.value = d[k] ?? '';
+      toast(`“${label}” ${why} — it stays at ${isNum(d[k]) ? d[k] : 'its last figure'}.`);
+      return;
+    }
+    const v = k === 'holdYears' ? normHoldYears(n.value) : num0(n.value);
+    /* Nothing new to draw: the figure already committed, and already the
+       reader's. */
+    if (typing && v === d[k] && isTouched(d, k)) return;
+    d[k] = v;
+    markTouched(d, k); saveDeal(); renderAfterTyping();
+  };
+  const box = el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
+    value: d[k] ?? 0, style: 'text-align:right', readonly: linesOn ? '' : null, 'aria-describedby': linesOn ? 'pc-cl-renovation-sum' : null,
+    ...(k === 'holdYears' ? { min: 1, max: HOLD_YEARS_MAX } : {}),
+    onchange: e => commit(e.target, false),
+    oninput: e => { if (!linesOn) pcTypePause(e.target); },
+    /* Enter commits as Tab does: a number box fires no change on it. */
+    onkeydown: e => { if (e.key === 'Enter' && !e.isComposing && !linesOn) { e.preventDefault(); commit(e.target, false); } } });
+  box.pcCommit = (typing) => commit(box, typing);
+  f.append(box);
+  /* Said beside the number rather than only in the evidence section below,
+     because this is where a reader decides whether to trust it. Only for
+     a figure this class has: a parcel's rent is used by nothing. All ten
+     seeded figures, not the four evidence drivers only (inputIsSeeded,
+     70-property.js). */
+  if (inputIsSeeded(d, k))
+    f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
+      'Illustrative default — not yours, and not from any market'));
+  /* On a new development, where the holding period counts from — the
+     keys once both months are entered (ndTimingOf), signing until then. */
+  if (k === 'holdYears' && dealRoute(d) === 'newdev') {
+    const t = ndTimingOf(d), hold = normHoldYears(d.holdYears);
+    const why = t ? `Held ${hold} year${hold === 1 ? '' : 's'} from vacant possession: the sale falls ${ndYears(t.lead + hold)} years after signing.` : ndTimingWhy(d);
+    if (why) f.append(el('span', { class: 'a-note', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false' }, why));
+  }
+  return f;
+}
+
+/* ---------------------------------------------- the one-page answer's parts */
+/* The four answer cards' label, figure, line and tone, for the full model's
+   one-page answer; the Quick model shows two of them as they are. */
+function pcAnswerFigs(d, m) {
+  const unpricedLines = m.missingCostLines || [];
+  return {
+    /* While any fee line is not Verified, the headline says how much of
+       it rests on those lines (the fee rulebook, 70-property.js); the
+       ledger below names them. */
+    /* Partial on a commercial property or land (the fee rulebook 1.2.0):
+       the lines not yet checked for the class are named, never a
+       full-looking figure. */
+    safe: [cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), fmtAmount(m.safeCashRequired, 'MYR'),
+      (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
+        : unpricedLines.length
+        ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
+        : 'Including rent-ready and the reserve')
+      + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
+    monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
+      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
+      isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
+    complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
+      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve'],
+    breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
+      isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+  };
+}
+const PC_GRADE_TONE = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' };
+/* The most serious blocker, one line, in sight; the full model lists them
+   all in a drawer under it (N3). */
+const PC_GATE_RANK = { critical: 0, serious: 1, warning: 2 };
+const pcGatesOrdered = (g) => [...(g.gates || [])].sort((a, b) => (PC_GATE_RANK[a.severity] ?? 3) - (PC_GATE_RANK[b.severity] ?? 3));
+function pcWorstLine(worst) {
+  return el('p', { class: 'pc-worst' }, [
+    el('span', { class: worst.severity === 'critical' ? 'chip chip-bronze' : 'chip' }, worst.severity === 'critical' ? 'Blocking' : 'Most serious'),
+    ' ', el('span', { class: 'pc-worst-text' }, worst.text)]);
+}
+/* Whose numbers these are, beside the verdict they produced rather than in a
+   card the reader reaches long after believing it. `after`: where the
+   figures it qualifies stand. */
+function pcDefaultsWarn(d, untouched, { after = 'anything below' } = {}) {
+  const warn = el('div', { class: 'pc-defaults', style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
+  warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
+    el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
+    el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
+      `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on ${after}.`),
+  ]));
+  if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
+    `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
+  return warn;
+}
+/* Modelling states that change every figure and cannot be inferred from
+   the numbers themselves. A tenure matters only to a loan. A cash purchase
+   with the box at 0 has an instalment of nought and a reserve, and was told
+   both were unavailable. */
+function pcModelFlags(m) {
+  const noSchedule = !m.tenureValid && m.loan > 0;
+  if (!(m.zeroRateModelled || noSchedule || !m.reserveComputable)) return null;
+  const flags = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--dn-text)' });
+  const ul = el('ul', { class: 'ticklist' });
+  if (m.zeroRateModelled) ul.append(el('li', {},
+    'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
+  if (noSchedule) ul.append(el('li', {},
+    'The loan tenure is zero or negative, so there is no repayment schedule. The instalment, reserve and closing balance are not computable and are shown as unavailable rather than calculated.'));
+  if (!m.reserveComputable) ul.append(el('li', {},
+    'The reserve could not be computed because the instalment or the running costs could not be. It is reported as missing rather than counted as nothing.'));
+  flags.append(cardHead('Check these before reading anything below', 'Each one changes every figure in the report.'));
+  flags.append(ul);
+  return flags;
+}
+/* THE REVIEW QUEUE, AS THE SYSTEM'S ALERT CARD: how many figures still need
+   the reader's evidence, and "Review →", which opens the list (L3) under
+   it. The Scenario Lab's alert links here (/property/calculator#review),
+   in either view. A figure the Quick model does not show is gone to in the
+   full model. */
+function pcReviewCard(d, queue, { sub }) {
+  const q = el('div', { class: 'card ls-card pc-review', 'data-card': 'alert', id: 'review', style: 'margin-bottom:var(--md)' });
+  const det = el('details', { id: 'pc-review-list' });
+  const n = queue.length, s = n === 1 ? '' : 's';
+  const sum = el('summary', { class: 'pc-review-sum' }, [
+    el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
+    el('span', { class: 'ls-card-body' }, [
+      el('span', { class: 'ls-card-title' }, `${n} sample input${s} need${n === 1 ? 's' : ''} your evidence`),
+      el('span', { class: 'ls-card-sub' }, sub)]),
+    el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
+  ]);
+  det.append(sum);
+
+  const list = el('div', { style: 'margin-top:var(--md);display:flex;flex-direction:column;gap:2px' });
+  queue.forEach(f => {
+    const row = el('div', { class: 'row row-wrap',
+      style: 'gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--grid)' });
+    row.append(el('span', { style: 'font-size:var(--ls-support);font-weight:600;min-width:150px' }, f.label));
+    row.append(el('span', { class: 'num', style: 'font-size:var(--ls-support);min-width:120px' },
+      isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'));
+    row.append(el('span', { class: 'metaline', style: 'flex:1 1 260px' }, f.affects));
+    row.append(el('button', {
+      class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
+      onclick: () => pcGoToField(`d-${f.k}`) }, 'Go to it'));
+    list.append(row);
+  });
+  det.append(list);
+  det.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+    'A figure leaves this list when you change it, or when you grade it under Evidence quality. '
+    + 'Typing the same number yourself still counts — that is a decision about it.'));
+  q.append(det);
+  return q;
+}
+/* To a box, the keyboard in it: its section chosen first (on a phone one
+   section shows, #6), or the drawer it is in opened — and, from the Quick
+   model, the full model opened first where the box is one of its own. */
+function pcGoToField(id) {
+  let input = document.getElementById(id);
+  if (!input && !pcViewIsFull()) { pcSwitchView(true); input = document.getElementById(id); }
+  if (!input) return;
+  pcShowFor(input);
+  input.closest('.assumption')?.scrollIntoView({ block: 'center' });
+  input.focus(); input.select?.();
+}
+
+/* ------------------------------------------------------------- the two views */
+/* QUICK MODEL | FULL MODEL (the owner's decision, QT-003, 14 Oct 2026):
+   one deal (State.deal) through one model (dealModel), the same boxes and
+   the same refusals, shown two ways. Quick, the default, is the core
+   inputs, then the main results with their badges, the review alert, the
+   sample label and the limitations; Full is the calculator as it was.
+   Switching changes what is shown, never a value: the deal is not touched
+   and nothing is saved (setPropertyView, 70-property.js). As links, so a
+   view can be opened in a new tab; the one shown is aria-current. */
+function pcViewSwitch(full) {
+  const link = (isFull, words, id) => el('a', { class: 'pc-view-link', id, href: href(pcViewPath(isFull)),
+    'aria-current': isFull === full ? 'page' : null,
+    onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); if (isFull !== full) pcSwitchView(isFull, { keep: id }); } }, words);
+  return el('nav', { class: 'pc-view', 'aria-label': 'Calculator view' }, el('div', { class: 'segmented pc-view-seg' }, [
+    link(false, 'Quick model', 'pc-view-quick'), link(true, 'Full model', 'pc-view-full')]));
+}
+/* The calculator's address in one view or the other, its deal with it. */
+function pcViewPath(full) {
+  const p = new URLSearchParams(location.search);
+  if (full) p.set('view', 'full'); else p.delete('view');
+  const q = p.toString();
+  return `/property/calculator${q ? `?${q}` : ''}`;
+}
+/* `keep`: the id of the control that switched, which keeps the keyboard
+   where it was on the screen (renderKeepFocus) — given it, too, where the
+   switch was pressed without taking focus. */
+function pcSwitchView(full, { keep = null } = {}) {
+  clearTimeout(pcTypeTimer); pcTypeTimer = 0;
+  setPropertyView(full);
+  if (!keep) { render(); return; }
+  renderKeepFocus();
+  const n = document.getElementById(keep);
+  if (n && document.activeElement !== n) n.focus({ preventScroll: true });
+}
+/* A LINK TO A PART OF THE FULL MODEL OPENS IT. A section's address
+   (#scenarios) or a box the Quick model does not show (#d-holdYears,
+   #d-askingPrice) is the full model's; #review and the Quick model's own
+   boxes are both views', and keep the view the address names. */
+function pcArrivalView() {
+  const want = location.hash.replace(/^#/, '');
+  if (!want || pcViewIsFull()) return;
+  const fullOnly = PC_SECTIONS.some(s => s.id === want) || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
+  if (!fullOnly) return;
+  const p = new URLSearchParams(location.search);
+  p.set('view', 'full');
+  history.replaceState(history.state, '', `${location.pathname}?${p}${location.hash}`);
+}
+
+/* THE QUICK MODEL'S BOXES, in the order a purchase is costed: the price
+   and the loan; the rent and what it takes to run; the other running costs
+   as one line that opens in place to their own boxes; the renovation. */
+const PC_QUICK_GROUPS = [
+  ['Purchase and loan', ['price', 'downPct', 'ratePct', 'tenureYears']],
+  ['Rent and running costs', ['rent', 'vacancyPct', 'maintenance', 'mgmtPct']],
+];
+const PC_QUICK_OTHER = ['sinkingFund', 'assessment', 'quitRent', 'insurance', 'repairReservePct'];
+const PC_QUICK_KEYS = new Set([...PC_QUICK_GROUPS.flatMap(([, ks]) => ks), ...PC_QUICK_OTHER, 'renovation']);
+/* Whether the other running costs stand open, across a redraw — every box
+   in it redraws the page. In memory, as the page's other drawers. */
+let pcQuickOtherOpen = false;
+/* The Quick model's results: the cash required with the reserve and the
+   month, as the full model's one-page answer says them (pcAnswerFigs), the
+   net yield as the Scenario Lab's tile does, and the grade — each with its
+   badge (labTileKind: the weakest figure it rests on). */
+function pcQuickCard(key, level, label, value, sub, badge, tone = null) {
+  const card = el('div', { class: `panel ls-card ls-l${level}`, 'data-card': 'metric', 'data-level': String(level), 'data-quick': key },
+    statTile(label, value, { sub, tone }));
+  card.append(badge);
+  return card;
+}
+function pcQuickView(d, m, g, DK) {
+  const sec = el('section', { class: 'pc-quick', id: 'pc-quick', 'aria-label': 'Quick model' });
+
+  /* The boxes. */
+  const inputs = el('div', { class: 'card pc-inputs pc-q-inputs ls-form' });
+  inputs.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-inputs-h' }, 'The core figures'));
+  PC_QUICK_GROUPS.forEach(([heading, keys], i) => {
+    inputs.append(el('p', { class: 'eyebrow', style: i ? 'margin:var(--md) 0 8px' : 'margin:var(--sm) 0 8px' }, heading));
+    keys.forEach(k => inputs.append(pcDealField(d, k)));
+  });
+  /* What the model counts of the five a year (dealModel): a bare parcel's
+     sinking fund and a class with no tenancy's repair reserve count
+     nothing, and the line says what is counted. */
+  const otherY = ['sinkingY', 'statutoryY', 'insuranceY', 'repairY'].reduce((a, k) => a + (isNum(m[k]) ? m[k] : 0), 0);
+  const other = el('details', { class: 'pc-more pc-q-other', id: 'pc-q-other', open: pcQuickOtherOpen ? '' : null });
+  other.addEventListener('toggle', () => { pcQuickOtherOpen = other.open; });
+  other.append(el('summary', { class: 'pc-more-sum pc-q-other-sum' }, [
+    el('span', { class: 'pc-q-other-k' }, 'Other running costs'), ' ',
+    el('span', {}, `${fmtMoney(otherY, 'MYR', 0)} a year: sinking fund, assessment, quit rent, insurance, repair reserve`)]));
+  const otherBoxes = el('div', { class: 'pc-q-other-boxes' });
+  PC_QUICK_OTHER.forEach(k => otherBoxes.append(pcDealField(d, k)));
+  other.append(otherBoxes);
+  inputs.append(other);
+  inputs.append(el('p', { class: 'eyebrow', style: 'margin:var(--md) 0 8px' }, 'Renovation'));
+  inputs.append(pcDealField(d, 'renovation'));
+  /* Itemised in the full model, the box holds the lines' total. */
+  if (costLinesExplicit(d, 'renovation')) {
+    const s = costLinesSummary(costLinesOf(d, 'renovation'));
+    inputs.append(el('p', { class: 'metaline', id: 'pc-cl-renovation-sum' },
+      `The total of ${s.n} cost line${s.n === 1 ? '' : 's'} — change them in the full model.`));
+  }
+
+  /* The answer. */
+  const res = el('div', { class: 'pc-q-results' });
+  const ans = el('div', { class: 'card ls-section pc-q-answer', id: 'pc-q-answer', 'aria-labelledby': 'pc-q-answer-h', style: `--pc-grade:var(${PC_GRADE_TONE[g.grade]})` });
+  ans.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-answer-h' }, 'The answer'));
+  const figs = pcAnswerFigs(d, m);
+  const cards = el('div', { class: 'grid pc-answers pc-q-cards' });
+  const [sl, sv, ss] = figs.safe;
+  cards.append(pcQuickCard('safe', 1, sl, sv, ss,
+    labTag(labTileKind(d, PC_ANSWER_CARDS[0].rests), { fees: m.unconfirmedCost > 0 })));
+  const [ml, mv, ms, mt] = figs.monthly;
+  cards.append(pcQuickCard('monthly', 1, ml, mv, ms, labTag(labTileKind(d, PC_ANSWER_CARDS[1].rests)), mt));
+  /* A class with no tenancy has no yield: said, and its badge Unavailable. */
+  const lets = m.letsToTenant !== false;
+  cards.append(pcQuickCard('netYield', 2, 'Net yield', lets && isNum(m.netYield) ? fmtPct(m.netYield, 2) : '—',
+    !lets ? 'Not a quantity this asset has — it earns no rent' : isNum(m.grossYield) ? `Rent less running costs, before the loan; gross ${fmtPct(m.grossYield, 2)}` : 'Not computable',
+    labTag(lets && isNum(m.netYield) ? labTileKind(d, LAB_TILE_RESTS.netYield) : { kind: 'unavailable', words: 'No figure — the line says why' })));
+  const gradeKind = kindFirst([DK.kind, 'modelled']);
+  cards.append(pcQuickCard('grade', 2, 'Underwriting grade', g.grade, g.verdict,
+    kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
+    PC_GRADE_TONE[g.grade]));
+  ans.append(cards);
+  const worst = pcGatesOrdered(g)[0];
+  if (worst) ans.append(pcWorstLine(worst));
+  /* The sample label and the limitations, beside the figures they qualify. */
+  const untouched = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
+  if (untouched.length) {
+    const warn = pcDefaultsWarn(d, untouched, { after: 'these figures' });
+    /* And what the full model's Start here says of the sample, which the
+       Quick model does not carry (startHereFor, 36-layouts.js). */
+    if (propertyStatus(d).kind === 'sample') warn.querySelector('p.body')?.append(' The sample deal is not a real listing.');
+    ans.append(warn);
+  }
+  ans.append(el('p', { class: 'metaline pc-q-limits' }, [
+    el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
+    'Arithmetic on the figures entered — not advice, not a forecast, not a bank decision and not legal clearance. The grade is a research grade on the evidence entered.']));
+  res.append(ans);
+  const flags = pcModelFlags(m);
+  if (flags) res.append(flags);
+  const queue = propertyReviewQueue(d);
+  if (queue.length) res.append(pcReviewCard(d, queue, { sub: 'These are figures this tool seeded, not figures you gave it. The answer is arithmetic on them.' }));
+
+  /* The rest of the calculator, one step away. */
+  const open = el('div', { class: 'pc-q-open' }, lsActionCard({ title: 'The full model',
+    line: 'Evidence, management operations, the exit, returns and tax, stress tests, scenarios, the methodology and the report — on this deal, every figure kept.',
+    cta: lsCta('Open the full model', { path: pcViewPath(true), id: 'pc-open-full', onclick: () => {
+      pcSwitchView(true);
+      const sw = document.getElementById('pc-view-full');
+      sw?.scrollIntoView({ block: 'start' });
+      focusAfterRedraw(sw);
+    } }) }));
+  sec.append(inputs, res, open);
+  return sec;
+}
 VIEWS.property = () => {
+  /* A part of the full model the address names opens the full model
+     (QT-003), before the section or the box is looked for. */
+  pcArrivalView();
   /* A section the address names (#scenarios), read before this page writes
      its own address, which carries none (71-property-models.js). */
   propertyArrivalSection();
@@ -2694,6 +3156,17 @@ VIEWS.property = () => {
      before it is replaced. The report paywall's buttons at the page's end
      were once its only filled ones, 15,000px down. */
   wrap.append(propertyModelBar(d));
+  /* QUICK MODEL | FULL MODEL, at the top of the inputs (QT-003). */
+  const full = pcViewIsFull();
+  wrap.append(pcViewSwitch(full));
+  if (!full) {
+    wrap.classList.add('pc-page-quick');
+    /* The address carries the deal from the first draw, as the full model's
+       does (below), so the link to the full model is this deal's. */
+    syncPropertyUrl(d);
+    wrap.append(pcQuickView(d, m, propertyGrade(d, m), DK));
+    return wrap;
+  }
   /* THE TWO QUESTIONS AND THE OBJECTIVE (the property decision layer, P1;
      83-property-decision.js), before every other field: what is bought and
      how select the model, and the objective which figures lead. Written to
@@ -2710,7 +3183,7 @@ VIEWS.property = () => {
      ignores vacancy, maintenance, financing and every acquisition cost, which
      makes it the most flattering number here and the least informative. */
   const g = propertyGrade(d, m);
-  const gradeTone = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' }[g.grade];
+  const gradeTone = PC_GRADE_TONE[g.grade];
   const onePage = el('section', { class: 'card ls-section pc-answer', id: 'pc-answer', 'aria-labelledby': 'pc-answer-h', style: `border-left:3px solid var(${gradeTone})` });
 
   /* THE MONEY, FIRST, AND ONCE (N3, the owner's decision D18).
@@ -2733,33 +3206,12 @@ VIEWS.property = () => {
      total and the tile said it was in. A short total says it is short, as
      the ledger's does. */
   const answers = el('div', { class: 'grid g-4 pc-answers' });
-  const unpricedLines = m.missingCostLines || [];
   /* THE SYSTEM'S METRIC CARDS (37-layout-system.js): the safe cash and the
      month are the decision (L1, first and at the card-metric size), the
      cash to complete and the break-even rent qualify them (L2); each with
      its data badge — what its figures rest on, in the Lab's tiles' words
      (labTileKind), the lowest-ranked input it is worked from. */
-  const answerFigs = {
-    /* While any fee line is not Verified, the headline says how much of
-       it rests on those lines (the fee rulebook, 70-property.js); the
-       ledger below names them. */
-    /* Partial on a commercial property or land (the fee rulebook 1.2.0):
-       the lines not yet checked for the class are named, never a
-       full-looking figure. */
-    safe: [cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : cashRequiredLabel(m), fmtAmount(m.safeCashRequired, 'MYR'),
-      (cashPartial(m) ? `${cashPartial(m).words.replace(/^partial: e/, 'E')}${unpricedLines.length > cashPartial(m).n ? `; also short by ${unpricedLines.filter(x => !x.gated).map(x => x.label.toLowerCase()).join(', ')}, which could not be priced` : ''}`
-        : unpricedLines.length
-        ? `So far — short by ${unpricedLines.length === 1 ? 'a line' : `${unpricedLines.length} lines`} that could not be priced: ${unpricedLines.map(x => x.label.toLowerCase()).join(', ')}`
-        : 'Including rent-ready and the reserve')
-      + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
-    monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
-      isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
-    complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve'],
-    breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-      isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
-  };
+  const answerFigs = pcAnswerFigs(d, m);
   /* The objective decides which lead (PC_ANSWER_LEAD): the cards keep
      their places, and only their weight follows it. */
   for (const t0 of PC_ANSWER_CARDS) {
@@ -2827,12 +3279,8 @@ VIEWS.property = () => {
        the rest behind "Show all", 60-odd words before the first field.
        Severity orders them: the most serious stays in sight on one line,
        and the whole list — each with who confirms it — is the drawer. */
-    const rank = { critical: 0, serious: 1, warning: 2 };
-    const ordered = [...g.gates].sort((a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3));
-    const worst = ordered[0];
-    onePage.append(el('p', { class: 'pc-worst' }, [
-      el('span', { class: worst.severity === 'critical' ? 'chip chip-bronze' : 'chip' }, worst.severity === 'critical' ? 'Blocking' : 'Most serious'),
-      ' ', el('span', { class: 'pc-worst-text' }, worst.text)]));
+    const ordered = pcGatesOrdered(g);
+    onePage.append(pcWorstLine(ordered[0]));
     /* Named for the grade it sits under. Every graded result read "Why this
        is conditional", so a D — "Does not meet the selected underwriting
        criteria" — and an A that "Meets" them both called their findings
@@ -2888,17 +3336,7 @@ VIEWS.property = () => {
   /* Whose numbers these are, beside the verdict they produced rather than in a
      card the reader reaches long after believing it. */
   const untouched = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
-  if (untouched.length) {
-    const warn = el('div', { style: 'margin-top:var(--md);padding:10px 12px;border-left:3px solid var(--bronze);background:var(--surface-2)' });
-    warn.append(el('div', { class: 'row row-wrap', style: 'gap:10px;align-items:baseline' }, [
-      el('span', { class: 'chip chip-bronze' }, 'Illustrative defaults'),
-      el('p', { class: 'body', style: 'font-size:var(--ls-support);flex:1 1 320px;margin:0' },
-        `${untouched.map(k => ptr(`in.${k}`, k).replace(/\s*\(.*\)$/, '').toLowerCase()).join(', ')} ${untouched.length === 1 ? 'is' : 'are'} still the number this tool opened with. Nobody chose ${untouched.length === 1 ? 'it' : 'them'} for this property and no market was consulted — replace ${untouched.length === 1 ? 'it' : 'them'} before relying on anything below.`),
-    ]));
-    if (d.city !== 'kuching') warn.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-      `These defaults were written around a Kuching condominium. They are not a starting point for ${(SARAWAK_CITIES.find(c => c.id === d.city) || {}).name || 'this location'}, and this tool holds no transacted price or rent for it.`));
-    onePage.append(warn);
-  }
+  if (untouched.length) onePage.append(pcDefaultsWarn(d, untouched));
 
   /* Pillars, so the grade decomposes rather than being taken on trust — and
      the methodology that reads them, beside them. */
@@ -3072,23 +3510,9 @@ VIEWS.property = () => {
   /* Drawn in the Financing section, below. */
 
   /* Modelling states that change every figure below and cannot be inferred from
-     the numbers themselves. */
-  /* A tenure matters only to a loan. A cash purchase with the box at 0 has an
-     instalment of nought and a reserve, and was told both were unavailable. */
-  const noSchedule = !m.tenureValid && m.loan > 0;
-  if (m.zeroRateModelled || noSchedule || !m.reserveComputable) {
-    const flags = el('div', { class: 'card ls-section', style: 'border-left:3px solid var(--dn-text)' });
-    const ul = el('ul', { class: 'ticklist' });
-    if (m.zeroRateModelled) ul.append(el('li', {},
-      'The loan interest rate is 0%. If that was intended, the instalment below is right; if the box was cleared, it is roughly half what it should be. This tool cannot tell the two apart from the value.'));
-    if (noSchedule) ul.append(el('li', {},
-      'The loan tenure is zero or negative, so there is no repayment schedule. The instalment, reserve and closing balance are not computable and are shown as unavailable rather than calculated.'));
-    if (!m.reserveComputable) ul.append(el('li', {},
-      'The reserve could not be computed because the instalment or the running costs could not be. It is reported as missing rather than counted as nothing.'));
-    flags.append(cardHead('Check these before reading anything below', 'Each one changes every figure in the report.'));
-    flags.append(ul);
-    wrap.append(flags);
-  }
+     the numbers themselves (pcModelFlags). */
+  const modelFlags = pcModelFlags(m);
+  if (modelFlags) wrap.append(modelFlags);
 
   /* The illustrative-defaults warning used to be built here, roughly eight
      screens below the verdict it qualifies. It now renders inside the grade
@@ -3538,143 +3962,14 @@ VIEWS.property = () => {
       : `No sample project is held for ${cityDef.name}, and none has been invented. Enter the property yourself — the model runs identically, and says plainly that it has no transacted evidence to check your figures against.`));
   rail.append(psel);
 
-  /* Grouped, because a flat list of twenty numbers reads as a form to be
-     endured rather than a model to be understood. Each group is one question:
-     what does it cost, what does it earn, what does it cost to run, what
-     happens on the way out. */
-  /* Each group in the section it belongs to (sec): the loan's three figures
-     left "Purchase" for Financing, and the exit went to Scenarios, where
-     what it decides — the rate of return, and its sensitivity — is drawn. */
-  const GROUPS = [
-    [acq, 'Size and parking', [
-      ['sqft', 'Built-up area (sq ft)', 10],
-      ['landSqft', 'Land area (sq ft, 0 if none)', 10],
-      ['parking', 'Allocated parking bays', 1],
-    ]],
-    [acq, 'Purchase', [
-      ['price', 'Purchase price (RM)', 1000],
-      ['bankValuation', 'Bank or valuer estimate (RM, 0 if not yet known)', 1000],
-      ['bookingDepositPaid', 'Booking deposit already paid (RM)', 500],
-      ['renovation', 'Renovation and furnishing (RM)', 500],
-      ['renoRentUpliftPct', 'Share of the rent that depends on the renovation (%)', 5],
-      ['renoValueRecoveryPct', 'Share of the renovation you assume a buyer pays for at exit (%)', 10],
-    ]],
-    [fnc, 'Loan', [
-      ['downPct', 'Deposit (%)', 1],
-      ['ratePct', 'Loan interest rate (%)', 0.05],
-      ['tenureYears', 'Loan tenure (years)', 1],
-    ]],
-    [rnt, 'Income', [
-      ['rent', 'Expected monthly rent (RM)', 50],
-      ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
-      ['vacancyPct', 'Vacancy allowance (%)', 1],
-    ]],
-    [rnt, 'Running costs', [
-      ['maintenance', 'Monthly maintenance (RM)', 10],
-      ['sinkingFund', 'Monthly sinking fund (RM)', 10],
-      ['assessment', 'Annual assessment (RM)', 50],
-      ['quitRent', 'Annual quit rent (RM)', 25],
-      ['insurance', 'Annual insurance (RM)', 50],
-      ['mgmtPct', 'Letting and management fee (% of rent)', 0.5],
-      ['repairReservePct', 'Repair reserve (% of rent)', 0.5],
-    ]],
-    /* A fee percentage says what management costs and nothing about what it
-       does. These are the terms that decide both — and the ones a landlord has
-       to agree before signing a mandate, not after. */
-    [rnt, 'Management operations', [
-      ['selfManaged', 'I will manage this property myself', 'bool'],
-      ['leasingFeeMonths', 'Tenant placement fee (months of rent)', 0.25],
-      ['renewalFeeMonths', 'Renewal fee (months of rent)', 0.25],
-      ['mgmtMinMonthly', 'Minimum monthly fee (RM)', 10],
-      ['tenancyMonths', 'Expected tenancy length (months)', 6],
-      ['daysToFirstTenant', 'Target days to place a tenant', 5],
-      ['depositMonths', 'Tenancy deposit held (months)', 0.5],
-      ['repairApprovalLimit', 'Repair the manager may authorise without asking (RM)', 50],
-      ['inspectionsPerYear', 'Inspections a year, with a written report', 1],
-      ['arrearsChaseDays', 'Days late before arrears are chased', 1],
-      ['ownerReportCadence', 'Owner statement', ['monthly', 'quarterly', 'on request', 'not agreed']],
-      ['tenantPaysUtilities', 'Tenant pays utilities, not the owner', 'bool'],
-    ]],
-    [scn, 'Exit', [
-      ['holdYears', 'Holding period (years)', 1],
-      ['apprecPct', 'Annual capital growth (%)', 0.25],
-      ['sellMonths', 'Expected months to sell', 1],
-      ['agentPct', 'Agent commission on exit (%)', 0.25],
-      ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
-    ]],
-    [scn, 'Comparison', [
-      ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
-    ]],
-  ];
-  GROUPS.forEach(([sec, heading, fields]) => {
-    const rail = sec.inputs;
+  /* Each group of boxes in the section it belongs to (PC_GROUPS, drawn by
+     pcDealField — the Quick model's boxes are the same). */
+  const PC_SEC_OF = { acquisition: acq, financing: fnc, rental: rnt, scenarios: scn };
+  PC_GROUPS.forEach(([sid, heading, fields]) => {
+    const rail = PC_SEC_OF[sid].inputs;
     rail.append(el('p', { class: 'eyebrow', style: rail.childElementCount ? 'margin:var(--md) 0 8px' : 'margin:0 0 8px' }, heading));
-    fields.forEach(([k, label, step]) => {
-      const f = el('div', { class: 'assumption' });
-      /* Two non-numeric kinds, because a management mandate is made of
-         commitments and cadences as well as amounts. */
-      if (step === 'bool') {
-        const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;align-items:flex-start' });
-        l.append(el('input', { type: 'checkbox', id: `d-${k}`, checked: d[k] ? '' : null,
-          onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); renderKeepFocus(); } }));
-        l.append(el('span', {}, ptr(`in.${k}`, label)));
-        rail.append(l);
-        return;
-      }
-      if (Array.isArray(step)) {
-        f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
-        const s = el('select', { class: 'select select-sm', id: `d-${k}`,
-          onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); renderKeepFocus(); } });
-        step.forEach(o => s.append(el('option', { value: o, selected: d[k] === o ? '' : null }, o)));
-        f.append(s);
-        rail.append(f);
-        return;
-      }
-      f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
-      /* The renovation as cost lines (QT-03): their total is the figure,
-         so the box holds it and is not typed over while there are lines. */
-      const linesOn = k === 'renovation' && costLinesExplicit(d, 'renovation');
-      f.append(el('input', { class: 'input input-inline', id: `d-${k}`, type: 'number', step,
-        value: d[k] ?? 0, style: 'text-align:right', readonly: linesOn ? '' : null, 'aria-describedby': linesOn ? 'pc-cl-renovation-sum' : null,
-        ...(k === 'holdYears' ? { min: 1, max: HOLD_YEARS_MAX } : {}),
-        onchange: e => {
-          /* AN EMPTIED BOX IS NOT ZERO. It was stored as 0, so clearing the
-             price modelled a free property and clearing the rent a vacant
-             one, with every figure beside them computed as if that had been
-             typed. The model has no way to carry an absent price, so the
-             box keeps its figure and says so; a nought has to be typed. */
-          if (String(e.target.value).trim() === '') {
-            e.target.value = d[k] ?? '';
-            toast(`An empty box is not zero — “${label}” stays at ${isNum(d[k]) ? d[k] : 'its last figure'}. Type 0 if you mean nought.`);
-            return;
-          }
-          /* An entry the model cannot mean keeps the box's figure, said
-             (dealEntryRefused, 70-property.js). */
-          const why = k === 'holdYears' ? null : dealEntryRefused(k, Number(e.target.value));
-          if (why) {
-            e.target.value = d[k] ?? '';
-            toast(`“${label}” ${why} — it stays at ${isNum(d[k]) ? d[k] : 'its last figure'}.`);
-            return;
-          }
-          d[k] = k === 'holdYears' ? normHoldYears(e.target.value) : num0(e.target.value);
-          markTouched(d, k); saveDeal(); renderAfterTyping();
-        } }));
-      /* Said beside the number rather than only in the evidence section below,
-         because this is where a reader decides whether to trust it. Only for
-         a figure this class has: a parcel's rent is used by nothing. All ten
-         seeded figures, not the four evidence drivers only (inputIsSeeded,
-         70-property.js). */
-      if (inputIsSeeded(d, k))
-        f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
-          'Illustrative default — not yours, and not from any market'));
-      /* On a new development, where the holding period counts from — the
-         keys once both months are entered (ndTimingOf), signing until then. */
-      if (k === 'holdYears' && dealRoute(d) === 'newdev') {
-        const t = ndTimingOf(d), hold = normHoldYears(d.holdYears);
-        const why = t ? `Held ${hold} year${hold === 1 ? '' : 's'} from vacant possession: the sale falls ${ndYears(t.lead + hold)} years after signing.` : ndTimingWhy(d);
-        if (why) f.append(el('span', { class: 'a-note', id: 'd-holdYears-from', 'data-timed': t ? 'true' : 'false' }, why));
-      }
-      rail.append(f);
+    fields.forEach(([k]) => {
+      rail.append(pcDealField(d, k));
       /* QT-03: the renovation itemised, each line with its source, date,
          what it covers and its kind; the total the weakest line's badge. */
       if (k === 'renovation') rail.append(costLinesBlock({ d, target: 'renovation', prefix: 'pc',
@@ -3769,51 +4064,9 @@ VIEWS.property = () => {
 
   /* THE REVIEW QUEUE, ABOVE THE RESULT IT QUALIFIES.
      Below the four headline figures it would be a footnote on a number the
-     reader has already taken. */
+     reader has already taken (pcReviewCard). */
   const queue = propertyReviewQueue(d);
-  if (queue.length) {
-    /* THE SYSTEM'S ALERT CARD: how many figures still need the reader's
-       evidence, and "Review →", which opens the list (L3) under it. The
-       Scenario Lab's alert links here (/property/calculator#review). */
-    const q = el('div', { class: 'card ls-card pc-review', 'data-card': 'alert', id: 'review', style: 'margin-bottom:var(--md)' });
-    const det = el('details', { id: 'pc-review-list' });
-    const n = queue.length, s = n === 1 ? '' : 's';
-    const sum = el('summary', { class: 'pc-review-sum' }, [
-      el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
-      el('span', { class: 'ls-card-body' }, [
-        el('span', { class: 'ls-card-title' }, `${n} sample input${s} need${n === 1 ? 's' : ''} your evidence`),
-        el('span', { class: 'ls-card-sub' }, 'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.')]),
-      el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
-    ]);
-    det.append(sum);
-
-    const list = el('div', { style: 'margin-top:var(--md);display:flex;flex-direction:column;gap:2px' });
-    queue.forEach(f => {
-      const row = el('div', { class: 'row row-wrap',
-        style: 'gap:10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--grid)' });
-      row.append(el('span', { style: 'font-size:var(--ls-support);font-weight:600;min-width:150px' }, f.label));
-      row.append(el('span', { class: 'num', style: 'font-size:var(--ls-support);min-width:120px' },
-        isNum(d[f.k]) ? f.fmt(d[f.k]) : '—'));
-      row.append(el('span', { class: 'metaline', style: 'flex:1 1 260px' }, f.affects));
-      row.append(el('button', {
-        class: 'btn btn-quiet btn-sm', style: 'margin-left:auto',
-        onclick: () => {
-          const input = document.querySelector(`#d-${f.k}`);
-          if (!input) return;
-          /* Its section chosen first: on a phone one section shows (#6). */
-          pcShowFor(input);
-          input.closest('.assumption')?.scrollIntoView({ block: 'center' });
-          input.focus(); input.select?.();
-        } }, 'Go to it'));
-      list.append(row);
-    });
-    det.append(list);
-    det.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-      'A figure leaves this list when you change it, or when you grade it under Evidence quality. '
-      + 'Typing the same number yourself still counts — that is a decision about it.'));
-    q.append(det);
-    free.append(q);
-  }
+  if (queue.length) free.append(pcReviewCard(d, queue, { sub: 'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.' }));
   const summaryCard = free;
 
   /* The four headline numbers, in the section whose inputs make them. */

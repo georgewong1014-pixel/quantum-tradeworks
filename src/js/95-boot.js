@@ -804,6 +804,9 @@ function fromHash() {
    there are four problems still has to go and find out which one matters. */
 const DOCKS = {
   property: () => {
+    /* The Quick model (QT-003) is its figures, beside its boxes: its dock is
+       the phone's action bar alone, as the Scenario Lab's is. */
+    if (!pcViewIsFull()) return { figs: [], actions: propertyBarActions(), phoneOnly: true };
     const d = State.deal, m = dealModel(d), g = propertyGrade(d, m);
     const worst = (g.gates || []).slice().sort((a, b) =>
       (b.severity === 'critical') - (a.severity === 'critical'))[0];

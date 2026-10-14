@@ -6977,6 +6977,60 @@ input.au-in[type="text"] { text-align: left; }
   details.pc-l3m[open] > .pc-l3m-sum::before { transform: rotate(90deg); }
 }
 /* ---- end calc-density ---- */
+/* ---- calc-quick ---- */
+/* THE CALCULATOR'S QUICK MODEL (the owner's QT-003, 14 Oct 2026;
+   75-property-grade.js, pcQuickView and pcViewSwitch): Quick model | Full
+   model at the top of the inputs; in Quick the core boxes and the answer
+   beside them — two columns from 900px, the answer held in sight from
+   1024px while a box is typed in — and on a phone the four figures first,
+   then the boxes, then the action bar. The rules are the window's, so the
+   page served in Quick is laid out as the page drawn. */
+.pc-view { margin: 0 0 var(--md); }
+.pc-view-seg { vertical-align: top; }
+.pc-view-link { display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 639.98px) {
+  .pc-view-seg { display: flex; }
+  .pc-view-link { flex: 1 1 0; }
+}
+.pc-quick { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md); align-items: start; min-width: 0; }
+@media (min-width: 900px) { .pc-quick { grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); } }
+/* A box's "Illustrative default" line under the whole row, not under the label alone. */
+.pc-q-inputs .assumption > .metaline { grid-column: 1 / -1; }
+.pc-q-results { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+.pc-q-results > .pc-review { margin-bottom: 0 !important; }
+@media (min-width: 1024px) and (min-height: 760px) {
+  .pc-q-results { position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) + 12px); }
+}
+.pc-q-answer { border-left: 3px solid var(--pc-grade, var(--line)); }
+@media (max-width: 639.98px) {
+  .pc-q-results { order: -1; }
+  /* On a phone the answer is its four figures, each a panel of its own, so
+     its section is drawn flat: the first figure on the first screen. */
+  .pc-view { margin-bottom: var(--sm); }
+  .pc-q-answer { padding: 0; border: 0; background: none; box-shadow: none; }
+  /* Its heading for the ear: the four labels say it to the eye. */
+  .pc-q-answer > .pc-q-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .grid.pc-q-cards { margin-top: 0; }
+  /* The property's bar after the model: its Save is the action bar's too. */
+  .pc-page-quick { display: flex; flex-direction: column; }
+  .pc-page-quick > .pm-bar { order: 1; margin: var(--md) 0 0; }
+}
+.pc-q-open { grid-column: 1 / -1; min-width: 0; }
+.pc-q-h { margin: 0; }
+.grid.pc-q-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sm); margin-top: var(--sm); }
+.pc-q-cards > .panel { min-width: 0; }
+.pc-q-other { margin-top: 0; padding: 4px 0; border-top: 1px solid var(--grid); }
+.pc-q-other > .pc-q-other-sum { align-items: baseline; flex-wrap: wrap; column-gap: 6px; row-gap: 0; padding: 6px 0; font-size: var(--ls-support); line-height: 1.45; }
+.pc-q-other-k { font-weight: var(--weight-semibold); color: var(--ink); }
+.pc-q-other-boxes { padding-left: var(--sm); border-left: 2px solid var(--line); margin: 2px 0 var(--xs); }
+.pc-q-limits { margin-top: var(--md); }
+.pc-q-limits > .chip { margin-right: 4px; }
+@media (max-width: 620px) {
+  .pc-q-cards > .panel { padding: 10px 12px; }
+  .pc-q-cards .stat-value { font-size: var(--ls-l2); }
+}
+@media print { .pc-view, .pc-q-open { display: none !important; } }
+/* ---- end calc-quick ---- */
 /* ---- kuching-map ---- */
 /* THE KUCHING SCHEME MAP (92-kuching-map.js; the owner's decision of
    12 Oct 2026). Tokens only; the page is the area screen's second view.

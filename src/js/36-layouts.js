@@ -112,9 +112,14 @@ const startHereHidden = () => { const v = store.read('startHere', {}); return v 
    the panel offered — Apple's filed figures — one press from them, and the
    panel stood about a hundred words above the search, its first control.
    The screener, Compare and the queue keep it. */
+/* Nor on the calculator's Quick model (QT-003, 14 Oct 2026), for the Lab's
+   reason: its four figures are what a first-time reader starts with, the
+   first of them on a phone's first screen, and the panel stood 338px above
+   them at 390. The full model keeps it. */
 function startHereFor(view = State.view) {
   const pid = productOf(view);
   if (!pid || !START_HERE[pid] || NO_PRODUCT_TABS.has(view) || view === 'propertyLab' || view === 'researchHome') return null;
+  if (view === 'property' && !pcViewIsFull()) return null;
   if (!TOOLS.some(t => t.product === pid && toolViews(t).includes(view))) return null;
   return startHereHidden()[pid] ? null : pid;
 }

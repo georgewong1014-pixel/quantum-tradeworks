@@ -792,7 +792,7 @@ try {
       (exp.startsWith('BUTTON:Export JSON') ? kept : lost).push(`Export JSON → ${exp}`);
 
       /* a calculator field, mid-number */
-      await underLanding('/property/calculator', /us\.json|sarawak-geo\.json/, `!!document.getElementById('d-sqft')`, async () => {
+      await underLanding('/property/calculator?view=full', /us\.json|sarawak-geo\.json/, `!!document.getElementById('d-sqft')`, async () => {
         await evaluate(`(() => { const n = document.getElementById('d-sqft'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
         await typeIn('12');
       });
