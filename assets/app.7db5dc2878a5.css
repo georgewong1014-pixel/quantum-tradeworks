@@ -6981,10 +6981,9 @@ input.au-in[type="text"] { text-align: left; }
 /* THE CALCULATOR'S QUICK MODEL (the owner's QT-003, 14 Oct 2026;
    75-property-grade.js, pcQuickView and pcViewSwitch): Quick model | Full
    model at the top of the inputs; in Quick the core boxes and the answer
-   beside them — two columns from 900px, the answer held in sight from
-   1024px while a box is typed in — and on a phone the four figures first,
-   then the boxes, then the action bar. The rules are the window's, so the
-   page served in Quick is laid out as the page drawn. */
+   beside them — two columns from 1200px — and narrower the four figures
+   first, then the boxes, then on a phone the action bar. The rules are the
+   window's, so the page served in Quick is laid out as the page drawn. */
 .pc-view { margin: 0 0 var(--md); }
 .pc-view-seg { vertical-align: top; }
 .pc-view-link { display: inline-flex; align-items: center; justify-content: center; }
@@ -6993,17 +6992,20 @@ input.au-in[type="text"] { text-align: left; }
   .pc-view-link { flex: 1 1 0; }
 }
 .pc-quick { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--md); align-items: start; min-width: 0; }
-@media (min-width: 900px) { .pc-quick { grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); } }
-/* A box's "Illustrative default" line under the whole row, not under the label alone. */
+/* Side by side from 1200px, where the answer's column holds its four
+   figures two by two in any font; narrower, one column, the answer first. */
+@media (min-width: 1200px) { .pc-quick { grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); } }
+@media (max-width: 1199.98px) { .pc-q-results { order: -1; } }
+/* A box wide enough for a six-figure price in any font, and its
+   "Illustrative default" line under the whole row, not under the label. */
+.pc-q-inputs .assumption { grid-template-columns: minmax(0, 1fr) 104px; }
 .pc-q-inputs .assumption > .metaline { grid-column: 1 / -1; }
 .pc-q-results { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
 .pc-q-results > .pc-review { margin-bottom: 0 !important; }
-@media (min-width: 1024px) and (min-height: 760px) {
-  .pc-q-results { position: sticky; top: calc(var(--topbar-live, var(--topbar-h)) + 12px); }
-}
+/* Not sticky: a drawer opened beside a stuck column moved it (the layout
+   system's L3 rule, held by coverage-frames). */
 .pc-q-answer { border-left: 3px solid var(--pc-grade, var(--line)); }
 @media (max-width: 639.98px) {
-  .pc-q-results { order: -1; }
   /* On a phone the answer is its four figures, each a panel of its own, so
      its section is drawn flat: the first figure on the first screen. */
   .pc-view { margin-bottom: var(--sm); }
@@ -7023,6 +7025,7 @@ input.au-in[type="text"] { text-align: left; }
 .pc-q-other > .pc-q-other-sum { align-items: baseline; flex-wrap: wrap; column-gap: 6px; row-gap: 0; padding: 6px 0; font-size: var(--ls-support); line-height: 1.45; }
 .pc-q-other-k { font-weight: var(--weight-semibold); color: var(--ink); }
 .pc-q-other-boxes { padding-left: var(--sm); border-left: 2px solid var(--line); margin: 2px 0 var(--xs); }
+.pc-q-restore { margin: var(--xs) 0 0; }
 .pc-q-limits { margin-top: var(--md); }
 .pc-q-limits > .chip { margin-right: 4px; }
 @media (max-width: 620px) {

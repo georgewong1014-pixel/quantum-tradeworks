@@ -29762,7 +29762,8 @@ const reportLink = (path, attrs, ...kids) => el('a', { href: href(path), ...attr
 function reportsOpenProperty(rec, to) {
   if (State.deal?.modelId !== rec.id && !openPropertyModel(rec.id, { show: false })) return;
   if (to === 'record') { State.decisionSubject = 'property'; navigate('/decision-record'); return; }
-  navigate('/property/calculator');
+  /* The report is the full model's (QT-003). */
+  navigate('/property/calculator?view=full');
   /* To the Report section once the calculator has settled — its data landing
      redraws the page above the section — as an address naming the section
      is landed on (propertyArrivalSection, 71-property-models.js). */
@@ -43035,6 +43036,15 @@ function pcQuickView(d, m, g, DK) {
   /* The boxes. */
   const inputs = el('div', { class: 'card pc-inputs pc-q-inputs ls-form' });
   inputs.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-inputs-h' }, 'The core figures'));
+  /* The deal a link, the launcher or an opened property kept aside comes
+     back from here as from the full model's (the toast that said it was
+     kept names this button). */
+  if (store.read('dealBeforeLink', null)) inputs.append(el('p', { class: 'pc-q-restore' }, el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: 'pc-q-restore',
+    onclick: () => {
+      if (!restoreDealBeforeLink()) return;
+      toast(store.read('dealBeforeLink', null) ? 'Your previous deal is restored — the one it replaced is kept aside; restore again to swap back' : 'Your previous deal is restored');
+      render(); focusAfterRedraw('#pc-q-restore', '#d-price');
+    } }, 'Restore my previous deal')));
   PC_QUICK_GROUPS.forEach(([heading, keys], i) => {
     inputs.append(el('p', { class: 'eyebrow', style: i ? 'margin:var(--md) 0 8px' : 'margin:var(--sm) 0 8px' }, heading));
     keys.forEach(k => inputs.append(pcDealField(d, k)));

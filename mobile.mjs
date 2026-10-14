@@ -4950,7 +4950,7 @@ for (const w of [360, 390]) {
       if (lab2.h !== lab.h) fails.push(`${at} /property: the line beside the sliders grew from ${lab.h}px to ${lab2.h}px at a move — the sliders moved under the thumb`);
       /* The Lab's moves, named on the comparables and the calculator. */
       for (const path of ['/property/comparables', '/property/calculator?view=full']) {
-        if (await go(path) !== (path.endsWith('calculator') ? 'property' : 'comparables')) { fails.push(`${at} ${path}: did not open`); continue; }
+        if (await go(path) !== (path.includes('/calculator') ? 'property' : 'comparables')) { fails.push(`${at} ${path}: did not open`); continue; }
         await face(font);
         lineOk(`${at}, the Lab's moves held,`, path, await ev(MEASURE), { work: true });
       }

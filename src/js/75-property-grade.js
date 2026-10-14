@@ -3013,6 +3013,15 @@ function pcQuickView(d, m, g, DK) {
   /* The boxes. */
   const inputs = el('div', { class: 'card pc-inputs pc-q-inputs ls-form' });
   inputs.append(el('h2', { class: 'h-card pc-q-h', id: 'pc-q-inputs-h' }, 'The core figures'));
+  /* The deal a link, the launcher or an opened property kept aside comes
+     back from here as from the full model's (the toast that said it was
+     kept names this button). */
+  if (store.read('dealBeforeLink', null)) inputs.append(el('p', { class: 'pc-q-restore' }, el('button', { type: 'button', class: 'btn btn-quiet btn-sm', id: 'pc-q-restore',
+    onclick: () => {
+      if (!restoreDealBeforeLink()) return;
+      toast(store.read('dealBeforeLink', null) ? 'Your previous deal is restored — the one it replaced is kept aside; restore again to swap back' : 'Your previous deal is restored');
+      render(); focusAfterRedraw('#pc-q-restore', '#d-price');
+    } }, 'Restore my previous deal')));
   PC_QUICK_GROUPS.forEach(([heading, keys], i) => {
     inputs.append(el('p', { class: 'eyebrow', style: i ? 'margin:var(--md) 0 8px' : 'margin:var(--sm) 0 8px' }, heading));
     keys.forEach(k => inputs.append(pcDealField(d, k)));
