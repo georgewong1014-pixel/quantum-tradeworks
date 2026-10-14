@@ -392,9 +392,15 @@ function propertyGrade(d, m) {
       caps:null });
 
   const untouchedDrivers = evidenceDriversFor(d).filter(k => shownEvidence(d, k) === 'illustrative_default');
+  /* Counted against the review queue the page heads with ("N sample inputs
+     need your evidence", "Review N sample inputs"), of which the drivers are
+     a part (QT-001, 14 Oct 2026): "4 of the figures driving every output"
+     beside "10 sample inputs" and "all 4 blockers" read as three counts
+     disagreeing. One base now: "3 of the 9 sample inputs still to review". */
+  const toReview = Math.max(propertyReviewQueue(d).length, untouchedDrivers.length);
   if (untouchedDrivers.length)
     gates.push({ id:'illustrative', severity:'critical',
-      text:`${untouchedDrivers.length} of the figures driving every output — ${untouchedDrivers.join(', ')} — are still this tool's starting numbers rather than yours.`,
+      text:`${untouchedDrivers.length} of the ${toReview} sample input${toReview === 1 ? '' : 's'} still to review — ${untouchedDrivers.join(', ')} — drive${untouchedDrivers.length === 1 ? 's' : ''} every output, and ${untouchedDrivers.length === 1 ? 'is' : 'are'} still this tool's starting number${untouchedDrivers.length === 1 ? '' : 's'} rather than yours.`,
       caps:'U' });
 
   /* An ACHIEVED rent comparable is an executed tenancy by definition, so it is
@@ -2740,7 +2746,7 @@ VIEWS.property = () => {
       m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
       isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
     complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer` : 'Paid out on completion day'],
+      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve'],
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
       isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
   };
@@ -3632,6 +3638,14 @@ VIEWS.property = () => {
             toast(`An empty box is not zero — “${label}” stays at ${isNum(d[k]) ? d[k] : 'its last figure'}. Type 0 if you mean nought.`);
             return;
           }
+          /* An entry the model cannot mean keeps the box's figure, said
+             (dealEntryRefused, 70-property.js). */
+          const why = k === 'holdYears' ? null : dealEntryRefused(k, Number(e.target.value));
+          if (why) {
+            e.target.value = d[k] ?? '';
+            toast(`“${label}” ${why} — it stays at ${isNum(d[k]) ? d[k] : 'its last figure'}.`);
+            return;
+          }
           d[k] = k === 'holdYears' ? normHoldYears(e.target.value) : num0(e.target.value);
           markTouched(d, k); saveDeal(); renderAfterTyping();
         } }));
@@ -3992,7 +4006,10 @@ VIEWS.property = () => {
   cashT.append(cashB);
   cashB.append(el('tr', { style: 'border-top:2px solid var(--line)' }, [
     el('td', { style: 'font-weight:700' }, [
-      cashPartial(m) ? 'Total initial cash — partial' : nMissing ? 'Total initial cash so far' : 'Total initial cash', ' ',
+      /* The headline's own words for the same figure (QT-002, 14 Oct 2026):
+         it read "Total initial cash" here and "Cash required (with a
+         3-month reserve)" above it. */
+      cashPartial(m) ? `${cashRequiredLabel(m)} — partial` : nMissing ? `${cashRequiredLabel(m)} so far` : cashRequiredLabel(m), ' ',
       /* Its weakest input's kind, the fee lines' included (N6). */
       kindBadge(DKF.kind, { fine: DKF.fine })]),
     el('td', { class: 'num', style: 'font-weight:700' }, fmtAmount(m.totalInitialCash, 'MYR'))]));
@@ -4305,7 +4322,11 @@ VIEWS.property = () => {
   ]));
   stressCard.append(stressTable('If the renovation overruns', m.stress.renovation, [
     { label: 'Renovation', get: r2 => `${r2.label} · ${fmtAmount(r2.renovation, 'MYR')}` },
-    { label: 'Cash required', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    /* Its basis said (QT-002): the rows are the ledger less the reserve —
+       the cash the overrun consumes — and read "Cash required" beside a
+       headline that includes the reserve. The reserve is added back beside. */
+    { label: 'Cash before reserve', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    ...(isNum(m.reserveCash) ? [{ label: 'Cash required including reserve', num: true, get: r2 => fmtAmount(r2.cash + m.reserveCash, 'MYR') }] : []),
     { label: 'Cash-on-cash', num: true, get: r2 => isNum(r2.cashOnCash) ? fmtPct(r2.cashOnCash, 2) : '—',
       tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
   ]));
@@ -4627,7 +4648,7 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: 'Annual cash flow ÷ cash invested', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: 'Annual cash flow ÷ cash before reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);

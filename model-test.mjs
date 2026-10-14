@@ -3780,7 +3780,7 @@ try {
         const calc = { base: read(), same: pmSame(State.deal, pmInputsOf(pmFind(rec.id))) };
         const tables = [...document.querySelectorAll('#views table.dt')];
         /* The ledger: the table with the groups' subtotals (a summary
-           table names "Total initial cash" too). */
+           table names the total too). */
         const ledgerT = tables.find(t => t.textContent.includes('Acquisition costs subtotal'));
         calc.ledger = {};
         ledgerT?.querySelectorAll('tbody tr').forEach(tr => { const c = tr.children; if (c.length !== 2) return;
@@ -3907,7 +3907,7 @@ try {
           say('effectiveRent', Object.entries(base.kv).find(([k]) => k.startsWith('Effective rent after'))?.[1], '"Effective rent after … vacancy"');
           say('opex', base.kv['Operating costs'], '"Operating costs"');
           say('annualDebtService', base.kv['Annual debt service'], '"Annual debt service"');
-          say('totalInitialCash', c.ledger['Total initial cash'] ?? c.ledger['Total initial cash so far'], 'the ledger\'s total');
+          say('totalInitialCash', Object.entries(c.ledger).find(([k]) => /^Cash required \(with (a \d+-month|the) reserve\)( so far)?$/.test(k))?.[1], 'the ledger\'s total');
           if (r.models.base.unconfirmedCost > 0) say('unconfirmedShare', c.unconfirmed, 'the ledger\'s "… of this — N% — rests on unverified or unknown lines"');
           const hold = r.inputs.holdYears;
           if (hold === 5 || hold === 10) {
@@ -7329,7 +7329,7 @@ try {
         navigate('/property/calculator'); await w(800);
         const cards = [...document.querySelectorAll('.pc-answers .ls-card, .pc-answers [class*="card"]')].map(n => n.textContent.replace(/\\s+/g, ' ')).join(' | ');
         const ledgerGated = [...document.querySelectorAll('.pc-cost-table [data-gated]')].map(n => n.textContent);
-        const total = [...document.querySelectorAll('.pc-cost-table tr')].map(n => n.textContent).find(t => /Total initial cash/.test(t)) || null;
+        const total = [...document.querySelectorAll('.pc-cost-table tr')].map(n => n.textContent).find(t => /Cash required \\(with a \\d+-month reserve\\)/.test(t)) || null;
         const dock = document.querySelector('.ls-dock, .dock')?.textContent?.replace(/\\s+/g, ' ') || '';
         navigate('/property'); await w(900);
         const tile = document.querySelector('.lab-tile[data-tile="safeCashRequired"]')?.textContent?.replace(/\\s+/g, ' ') || null;
@@ -7342,7 +7342,7 @@ try {
       const p = [];
       if (!/Cash required \(with a 3-month reserve\) — partial/.test(r.cards) || !/Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property/.test(r.cards)) p.push(`the calculator's answer card: "${r.cards.slice(0, 300)}"`);
       if (r.ledgerGated.length !== 4 || r.ledgerGated.some(t => t !== 'Unavailable')) p.push(`the ledger's gated rows: ${JSON.stringify(r.ledgerGated)}`);
-      if (!/Total initial cash — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
+      if (!/Cash required \(with a 3-month reserve\) — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
       if (r.dock && !/Cash required — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
       if (!/Cash required — partial/.test(r.tile || '') || !/partial — 4 lines not checked for commercial/.test(r.tile || '')) p.push(`the Lab's tile reads "${r.tile}"`);
       if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.3.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
@@ -7351,7 +7351,7 @@ try {
         disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
       if (JSON.stringify(r.book.cls) !== JSON.stringify(want)) p.push(`the class table: ${JSON.stringify(r.book.cls)}`);
       if (p.length) fail('val G4: drawn — partial wherever the cash required is shown', p);
-      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Total initial cash — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.3.0, 1.2.0\'s changelog line and the class table line by line');
+      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Cash required (with a 3-month reserve) — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.3.0, 1.2.0\'s changelog line and the class table line by line');
     });
 
     /* G5 — PURCHASE LEGAL FEES BY ROUTE (the fee rulebook 1.3.0; the 12 Oct
@@ -8455,6 +8455,52 @@ try {
     await evaluate(`(() => { const back = window.__pvkeep; for (const [k, v] of Object.entries(back)) { if (v === null) localStorage.removeItem('vl.' + k); else localStorage.setItem('vl.' + k, v); } return true; })()`).catch(() => {});
   }
   /* ---- end pu-provenance ---- */
+
+  /* ---- qt-day1 ---- */
+  /* THE CALCULATOR'S COUNTS AND ENTRIES (the 14 Oct 2026 Day-1 tasks
+     QT-001 and QT-002; dealEntryRefused in 70-property.js, the driver gate
+     in 75-property-grade.js). One base for every count: the review title,
+     its button, the dock and the blocker sentence agree before and after
+     the price is replaced. An entry the model cannot mean — a negative
+     price or rent, a 150% deposit, a price of 0 — is refused at the box,
+     which keeps its figure, and nothing downstream moves. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify(State.deal);
+      State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      saveDeal(); navigate('/property/calculator'); await w(500);
+      const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
+      const counts = () => ({ title: t(document.querySelector('#review .ls-card-title')), cta: t(document.querySelector('#review .ls-card-cta')),
+        rows: document.querySelectorAll('#pc-review-list > div > div.row').length,
+        gate: (propertyGrade(State.deal, dealModel(State.deal)).gates.find(g => g.id === 'illustrative') || {}).text || '' });
+      const set = async (k, v) => { const i = document.getElementById('d-' + k); i.focus(); i.value = String(v); i.dispatchEvent(new Event('change', { bubbles: true })); await w(250); };
+      const before = counts();
+      await set('price', 480000);
+      const after = counts();
+      const cash0 = dealModel(State.deal).safeCashRequired;
+      const refused = [];
+      for (const [k, v] of [['price', -500000], ['rent', -2000], ['downPct', 150], ['price', 0], ['vacancyPct', 101]]) {
+        const was = State.deal[k];
+        await set(k, v);
+        refused.push({ k, v, kept: State.deal[k] === was, box: document.getElementById('d-' + k)?.value, cash: dealModel(State.deal).safeCashRequired });
+      }
+      const unit = { negGrowth: dealEntryRefused('apprecPct', -2), zeroRent: dealEntryRefused('rent', 0), hundred: dealEntryRefused('downPct', 100), nan: dealEntryRefused('rent', NaN) };
+      State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator'); await w(300);
+      return JSON.stringify({ before, after, cash0, refused, unit }); })()`));
+    const p = [];
+    const n = (s) => Number((s.match(/^(\d+)/) || [])[1]);
+    for (const [when, c] of [['before', r.before], ['after', r.after]]) {
+      const title = n(c.title), cta = Number((c.cta.match(/Review (\d+)/) || [])[1]), gateOf = Number((c.gate.match(/of the (\d+) sample input/) || [])[1]);
+      if (!(title === cta && cta === c.rows && c.rows === gateOf)) p.push(`${when} the price was replaced: title ${title}, button ${cta}, rows ${c.rows}, blocker "${c.gate.slice(0, 60)}"`);
+    }
+    if (!/^4 of the 10 sample inputs/.test(r.before.gate) || !/^3 of the 9 sample inputs/.test(r.after.gate)) p.push(`the blocker sentence: "${r.before.gate.slice(0, 40)}" then "${r.after.gate.slice(0, 40)}"`);
+    for (const x of r.refused) if (!x.kept || x.cash !== r.cash0) p.push(`${x.k} = ${x.v} was taken (box ${x.box}, cash required ${x.cash})`);
+    if (r.unit.negGrowth !== null || r.unit.zeroRent !== null || r.unit.hundred !== null || !r.unit.nan) p.push(`dealEntryRefused: ${JSON.stringify(r.unit)}`);
+    if (p.length) fail('qt-day1: the calculator\'s counts agree and an entry the model cannot mean is refused', p);
+    else ok('qt-day1: "10 sample inputs need your evidence", "Review 10 sample inputs", 10 rows and "4 of the 10 sample inputs still to review — price, rent, maintenance, sqft — drive every output"; after the price is typed, 9, 9, 9 and "3 of the 9"; a price of −500,000 or 0, a rent of −2,000, a 150% deposit and a 101% vacancy are each refused at the box, the cash required unmoved; a falling growth, a nil rent and a 100% deposit are taken');
+  }
+  /* ---- end qt-day1 ---- */
 
 } catch (e) {
   fail('harness error', e.message);

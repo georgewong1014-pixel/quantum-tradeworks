@@ -568,6 +568,24 @@ function propertyReviewQueue(d) {
   return PROPERTY_REVIEW.filter(f => !isTouched(d, f.k) && propertyInputApplies(d, f.k));
 }
 
+/* AN ENTRY THE MODEL CANNOT MEAN (QT-001–003, 14 Oct 2026). A price of
+   −RM500,000 was taken, and the calculator showed "Cash required −RM27.3k";
+   a 150% deposit, RM618.4k; a price of 0, RM29.9k for a free property.
+   Refused at the box, which keeps its figure and says why — as an emptied
+   box already is. Growth and appreciation may fall, and the alternative
+   return may be negative; every other figure is an amount, an area, a
+   count or a share. Returns the reason, or null. */
+const DEAL_SIGNED = new Set(['rentGrowthPct', 'apprecPct', 'equityReturnPct']);
+const DEAL_SHARE = new Set(['renoRentUpliftPct', 'renoValueRecoveryPct', 'downPct', 'ratePct', 'vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct']);
+function dealEntryRefused(k, v) {
+  if (!Number.isFinite(v)) return 'needs a number';
+  if (k === 'price' && !(v > 0)) return 'needs a price above 0 — the model cannot price a purchase with no price';
+  if (DEAL_SIGNED.has(k)) return null;
+  if (v < 0) return 'cannot be negative';
+  if (DEAL_SHARE.has(k) && v > 100) return 'cannot be above 100%';
+  return null;
+}
+
 /* What to show for a figure the reader has not touched: what it actually is. */
 const shownEvidence = (d, k) =>
   (EVIDENCE_DRIVERS.includes(k) && !isTouched(d, k) && !d?.userStarted)
@@ -3389,7 +3407,7 @@ const METRIC_DICTIONARY = {
   dataCompleteness:{ en:'Data completeness',        ms:'Kelengkapan data',        zh:'数据完整度' },
   baseCaseModel:   { en:'Base-case model estimate', ms:'Anggaran model kes asas', zh:'基准情景模型估值' },
   netYield:        { en:'Net yield',                ms:'Hasil sewa bersih',       zh:'租金净回报率' },
-  totalInitialCash:{ en:'Total initial cash',       ms:'Jumlah tunai permulaan',  zh:'初始现金总额' },
+  totalInitialCash:{ en:'Cash required including reserve', ms:'Tunai diperlukan termasuk rizab', zh:'所需现金（含储备金）' },
   monthlyInstalment:{ en:'Monthly instalment',      ms:'Ansuran bulanan',         zh:'每月供款' },
   vacancy:         { en:'Vacancy',                  ms:'Kekosongan',              zh:'空置率' },
   evidenceQuality: { en:'Evidence quality',         ms:'Kualiti bukti',           zh:'证据质量' },
@@ -3507,7 +3525,7 @@ const PROPERTY_I18N = {
   'c.purchaseLegal':{ en:'Purchase legal fees', ms:'Yuran guaman pembelian', zh:'购屋律师费' },
   'c.loanDuty':     { en:'Loan stamp duty', ms:'Duti setem pinjaman', zh:'贷款印花税' },
   'c.emergencyReserve':{ en:'Emergency reserve', ms:'Simpanan kecemasan', zh:'应急储备金' },
-  'c.totalInitialCash':{ en:'Total initial cash', ms:'Jumlah tunai permulaan', zh:'初期现金总额' },
+  'c.totalInitialCash':{ en:'Cash required including reserve', ms:'Tunai diperlukan termasuk rizab', zh:'所需现金（含储备金）' },
   'c.reserveNote':  { en:'The emergency reserve is not spent. It stays in your account.', ms:'Simpanan kecemasan ini tidak dibelanjakan. Ia kekal dalam akaun anda.', zh:'应急储备金不会被动用，它留在你的户头里。' },
   'c.notValuation': { en:'This is not an official property valuation. In Malaysia that must be carried out by a registered valuer.', ms:'Ini bukan penilaian hartanah rasmi. Di Malaysia, penilaian rasmi mesti dijalankan oleh penilai berdaftar.', zh:'这不是正式的产业估价。在马来西亚，正式估价必须由注册估价师进行。' },
   'c.noModelChange':{ en:'This tool changes no figure on the strength of your answers.', ms:'Alat ini tidak mengubah sebarang angka berdasarkan jawapan anda.', zh:'本工具不会因你的回答而改动任何数字。' },
