@@ -3047,7 +3047,7 @@ for (const w of [360, 390]) {
              reader choosing them does, before they are read. */
           document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
           document.querySelectorAll('#views details.pc-l3m').forEach(d => { d.open = true; });
-          const tables = [...document.querySelectorAll('#views table')].filter(t => shown(t) && !t.closest('details:not([open])')).filter(t => /Margin of finance/.test(t.querySelector('thead')?.textContent || '') || /Cash required \\(with|Cash required including reserve/.test(t.querySelector('tbody')?.textContent || ''));
+          const tables = [...document.querySelectorAll('#views table')].filter(t => shown(t) && !t.closest('details:not([open])')).filter(t => /Margin of finance/.test(t.querySelector('thead')?.textContent || '') || /Cash required \\(with|Cash required including reserve/.test([...t.tBodies].map(b => b.textContent).join(' ')));
           out.tables = tables.map(t => { const wrap = t.closest('.tablewrap') || t.parentElement; const rowsShown = [...t.querySelectorAll('tbody tr')].filter(shown);
             return { name: /Margin of finance/.test(t.textContent) ? 'financing scenarios' : 'cost breakdown', display: getComputedStyle(t).display,
               sideways: wrap.scrollWidth - wrap.clientWidth, right: Math.round(t.getBoundingClientRect().right), rows: rowsShown.length, all: t.querySelectorAll('tbody tr').length,
