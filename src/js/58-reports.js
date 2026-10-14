@@ -99,7 +99,8 @@ const reportLink = (path, attrs, ...kids) => el('a', { href: href(path), ...attr
 function reportsOpenProperty(rec, to) {
   if (State.deal?.modelId !== rec.id && !openPropertyModel(rec.id, { show: false })) return;
   if (to === 'record') { State.decisionSubject = 'property'; navigate('/decision-record'); return; }
-  navigate('/property/calculator');
+  /* The report is the full model's (QT-003). */
+  navigate('/property/calculator?view=full');
   /* To the Report section once the calculator has settled — its data landing
      redraws the page above the section — as an address naming the section
      is landed on (propertyArrivalSection, 71-property-models.js). */

@@ -156,7 +156,7 @@ try {
   };
 
   console.log(`target  ${BASE}\n`);
-  await send('Page.navigate', { url: `${BASE}/property/calculator` }, sessionId);
+  await send('Page.navigate', { url: `${BASE}/property/calculator?view=full` }, sessionId);
   /* Waited for, not slept on: until the page says it has drawn its data in
      (propertyPagesSettled, 70-property.js). A fixed 4s ended before boot on
      a loaded machine, and every check after it read a page not yet there. */
@@ -618,7 +618,7 @@ try {
       const CLAIM = /fully verified|verified total|total is verified|all (?:the )?(?:fee )?lines (?:are )?verified|every (?:fee )?line in it is verified/i;
       try {
         State.deal = { ...window.__T.base };
-        for (const path of ['/property/calculator', '/property', '/data-sources']) {
+        for (const path of ['/property/calculator?', '/property/calculator?view=full', '/property', '/data-sources']) {
           navigate(path, { replace: true }); render(); await w(500);
           const opened = [...document.querySelectorAll('#views details:not([open])')]; opened.forEach(d => { d.open = true; });
           await w(150);
@@ -629,11 +629,11 @@ try {
         const f = LAB_FIGURES.find(x => x.key === 'safeCashRequired');
         const m = dealModel(State.deal);
         out.formula = f.formula(State.deal, m); out.note = f.note(m); out.unconfirmed = m.unconfirmedCost;
-      } finally { State.deal = kept; saveDeal(); navigate('/property/calculator', { replace: true }); render(); }
+      } finally { State.deal = kept; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full'), { replace: true }); render(); }
       return JSON.stringify(out);
     })()`));
     const p = [];
-    for (const path of ['/property/calculator', '/property', '/data-sources']) if (r[path]) p.push(`${path} says “…${r[path]}…”`);
+    for (const path of ['/property/calculator?', '/property/calculator?view=full', '/property', '/data-sources']) if (r[path]) p.push(`${path} says “…${r[path]}…”`);
     if (!(r.unconfirmed > 0) || !/rests on unverified or unknown lines/.test(r.formula) || !/on unverified lines/.test(r.note)) p.push(`the Lab's cash required row: note “${r.note}”, formula “${String(r.formula).slice(0, 140)}”`);
     if (p.length) fail('no total is called verified while an unverified line is in it', p);
     else ok(`no “fully verified” claim on the calculator, the Lab or /data-sources with RM${Math.round(r.unconfirmed).toLocaleString('en')} on unverified lines in the sample's total; the Lab's row says “${r.note}”`);
@@ -725,7 +725,7 @@ try {
       const out = {};
       try {
         State.deal = { ...window.__T.base, mrtaPremium: 4200 };
-        navigate('/property/calculator'); render(); await w(450);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render(); await w(450);
         const m = dealModel(State.deal);
         const fees = m.costGroups.flatMap(g => g.items).filter(it => it[2] && it[2].provenance && isNum(it[1]));
         const rows = [...document.querySelectorAll('#views .pc-cost-table tr')];
@@ -754,7 +754,7 @@ try {
         out.ids = Object.keys(FEE_TABLE.lines).map(id => id + ':' + FEE_TABLE.lines[id].provenance).sort();
         out.cats = Object.keys(FEE_TABLE.categories);
         out.version = FEE_TABLE.version; out.checked = typeof feeDay === 'function' ? feeDay(FEE_TABLE.checkedOn) : null;
-      } finally { State.deal = kept; saveDeal(); navigate('/property/calculator'); render(); }
+      } finally { State.deal = kept; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render(); }
       return JSON.stringify(out);
     })()`));
     const p = [];
@@ -985,7 +985,7 @@ try {
          read the stale deal back over it). */
   {
     const r = await evaluate(`(async () => {
-      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await new Promise(res => setTimeout(res, 300));
       State.deal.rent = 2345; saveDeal(); render(); await new Promise(res => setTimeout(res, 100));
       render(); await new Promise(res => setTimeout(res, 100));
       return { rent: State.deal.rent, stored: store.read('deal', {}).rent, inAddress: /rent%3A2345|rent:2345/.test(location.search) };
@@ -1072,7 +1072,7 @@ try {
   /* 39 — the cash waterfall's parts are the total. */
   {
     const r = await evaluate(`(async () => {
-      State.deal = ${FRESH}; saveDeal(); navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
+      State.deal = ${FRESH}; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await new Promise(res => setTimeout(res, 300));
       const det = [...document.querySelectorAll('details')].find(x => /of cash required goes/.test(x.querySelector('summary')?.textContent || ''));
       const rows = det ? det.querySelectorAll('div > div.row').length : -1;
       const m = dealModel(State.deal);
@@ -1146,7 +1146,7 @@ try {
     const r = await evaluate(`(async () => {
       State.deal = ${FRESH}; saveDeal();
       State.propertyReportsBought = [...State.propertyReportsBought, State.deal.projectId];
-      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 300));
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await new Promise(res => setTimeout(res, 300));
       const m = dealModel(State.deal);
       const card = [...document.querySelectorAll('.card')].find(c => /The same cash in equities/.test(c.textContent));
       return { committed: m.equity.map(q => q.committed), equityOut: m.equityOut,
@@ -1731,7 +1731,7 @@ try {
     };
     await evaluate(`(async () => {
       State.deal = { ...window.__T.base, disposerCategory: 'citizen', marginalTaxPct: null, flatQuotePct: null };
-      saveDeal(); navigate('/property/calculator');
+      saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full'));
       await new Promise(res => setTimeout(res, 400));
       document.getElementById('disposerCategory-citizen').focus();
       return true;
@@ -1765,7 +1765,7 @@ try {
   {
     await evaluate(`(() => { window.__T.leaseKept = JSON.parse(JSON.stringify(State.deal));
       State.deal = { ...State.deal, titleType: 'mixed-zone', remainingLease: 88 }; saveDeal();
-      navigate('/property/calculator'); return true; })()`);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(600);
     await evaluate(`(() => { const n = document.getElementById('dealLease'); n.focus(); n.select(); return true; })()`);
     for (const k of ['4', '5']) {
@@ -1803,7 +1803,7 @@ try {
       window.Date = class extends Real { constructor(...a) { super(...(a.length ? a : [fixed])); } static now() { return fixed; } };
       const kept = State.sarawakExposure;
       try {
-        navigate('/property/calculator'); render();
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
         await new Promise(res => setTimeout(res, 200));
         const observed = document.querySelector('input[aria-label="Date observed"]')?.value || null;
         /* The Sarawak exposure record's "Added" date, stamped the same way. */
@@ -1829,7 +1829,7 @@ try {
   {
     const r = JSON.parse(await evaluate(`(async () => {
       const kept = JSON.parse(JSON.stringify(State.deal));
-      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 200));
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await new Promise(res => setTimeout(res, 200));
       const graded = (rent, ev) => ({ ...kept, titleType: 'mixed-zone', remainingLease: 0, bankValuation: kept.price, rent,
         touched: { price: true, rent: true, maintenance: true, sqft: true },
         evidence: { price: 'verified', rent: ev, maintenance: 'verified', sqft: 'verified' },
@@ -1898,7 +1898,7 @@ try {
     const at = () => evaluate(`document.activeElement?.id || document.activeElement?.tagName || null`);
     const out = {};
     await evaluate(`(() => { window.__T.focusDeal = JSON.parse(JSON.stringify(State.deal)); window.__T.focusWheel = JSON.parse(JSON.stringify(State.wheel));
-      navigate('/property/calculator'); return true; })()`);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(500);
     await evaluate(`(() => { const n = document.getElementById('d-price'); n.focus(); n.select(); return true; })()`);
     await keys(['6', '0', '0', '0', '0', '0', 'Tab']); out.field = await at();
@@ -1910,7 +1910,7 @@ try {
     await sleep(500);
     await evaluate(`(() => { const n = document.getElementById('w-putStrike'); n.focus(); n.select(); return true; })()`);
     await keys(['4', '5', 'Tab']); out.wheel = await at();
-    await evaluate(`(() => { State.wheel = window.__T.focusWheel; saveWheel(); navigate('/property/calculator'); return true; })()`);
+    await evaluate(`(() => { State.wheel = window.__T.focusWheel; saveWheel(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     const lost = [];
     if (!/^d-/.test(out.field) || out.field === 'd-price') lost.push(`typed price then Tab → ${out.field}`);
     if (out.select !== 'ev-price') lost.push(`evidence grade by arrow key → ${out.select}`);
@@ -1965,7 +1965,7 @@ try {
       const m = dealModel(cash);
       const fin = dealModel({ ...window.__T.base, tenureYears: 0 });
       const aff = borrowerAffordability({ verifiedNetMonthlyIncome: 9000, existingMonthlyDebtPayments: 500 }, m);
-      State.deal = cash; navigate('/property/calculator'); render();
+      State.deal = cash; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
       await new Promise(res => setTimeout(res, 200));
       const text = document.querySelector('main').innerText;
       /* The anchor for "warned": the same words on the loan that has no
@@ -2063,7 +2063,7 @@ try {
       const out = {};
       for (const [name, d] of [['financed', strong], ['cash', { ...strong, downPct: 100 }], ['noTenure', { ...window.__T.base, tenureYears: 0 }]]) {
         const g = propertyGrade(d, dealModel(d));
-        State.deal = d; navigate('/property/calculator'); render();
+        State.deal = d; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
         await new Promise(res => setTimeout(res, 150));
         const card = [...document.querySelectorAll('main h3')].find(x => /Underwriting Grade/.test(x.textContent))?.closest('.card');
         const text = card ? card.textContent : '';
@@ -2106,7 +2106,7 @@ try {
     const out = {};
     await evaluate(`(() => { window.__T.q7 = { deal: JSON.parse(JSON.stringify(State.deal)), borrower: localStorage.getItem('vl.borrowerProfile'), borrowerState: JSON.parse(JSON.stringify(State.borrower)),
       swk: localStorage.getItem('vl.sarawakExposure'), obs: localStorage.getItem('vl.observations'), log: localStorage.getItem('vl.registerLog') };
-      navigate('/property/calculator'); return true; })()`);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(600);
     /* the borrower's disclosure */
     await evaluate(`(() => { const d = document.getElementById('b-credit').closest('details'); d.open = true; return true; })()`);
@@ -2163,7 +2163,7 @@ try {
       put('borrowerProfile', k.borrower); put('sarawakExposure', k.swk); put('observations', k.obs); put('registerLog', k.log);
       State.borrower = k.borrowerState; State.sarawakExposure = store.read('sarawakExposure', []);
       State.observations = store.read('observations', []); loadRegisterLog();
-      State.deal = k.deal; saveDeal(); navigate('/property/calculator'); return true; })()`);
+      State.deal = k.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(300);
     const lost = [];
     if (out.income !== 'b-variableIncomeMonthlyAverage' || !out.stillOpen) lost.push(`borrower income then Tab → ${out.income}, disclosure open ${out.stillOpen}`);
@@ -2224,7 +2224,7 @@ try {
         essentialMonthlyCommitments: 2500, liquidCashAvailable: 150000, incomeStabilityMonths: 36, creditReview: 'not_checked', applicantCount: 1, docs: {} };
       const read = async (d) => {
         const m = dealModel(d), g = propertyGrade(d, m), lr = loanReadiness(who, m);
-        State.deal = d; navigate('/property/calculator'); render();
+        State.deal = d; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
         await new Promise(res => setTimeout(res, 200));
         const tile = (re) => [...document.querySelectorAll('#views .panel')].map(p => p.innerText.replace(/\\n+/g, ' | ')).find(t => re.test(t)) || null;
         const out = { reserveCash: m.reserveCash, gate: (g.gates.find(x => x.id === 'no-reserve') || {}).text || null,
@@ -2267,7 +2267,7 @@ try {
       const kept = State.deal;
       const d = { ...window.__T.base, bookingDepositPaid: 5000 };
       const m = dealModel(d);
-      State.deal = d; navigate('/property/calculator'); render();
+      State.deal = d; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); render();
       await new Promise(res => setTimeout(res, 200));
       /* Said once above the sections since N3 (D18): the tile; the strip went. */
       const strip = document.querySelector('#views .capstrip') ? 'present' : '';
@@ -2381,7 +2381,7 @@ try {
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, windowsVirtualKeyCode: code }, sessionId);
     };
     const typeIn = async (t) => { for (const ch of t) { await key(ch, ch.charCodeAt(0), ch); await sleep(40); } };
-    await evaluate(`(() => { window.__T.f3 = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator'); return true; })()`);
+    await evaluate(`(() => { window.__T.f3 = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(600);
     await evaluate(`(() => { const n = document.getElementById('d-sqft'); n.scrollIntoView({ block: 'center' }); n.focus(); n.select(); return true; })()`);
     await typeIn('1100');
@@ -2419,7 +2419,7 @@ try {
       return at();
     };
     await evaluate(`(() => { window.__T.f5 = { deal: JSON.parse(JSON.stringify(State.deal)), bought: localStorage.getItem('vl.propertyReportsBought'), before: localStorage.getItem('vl.dealBeforeLink') };
-      State.propertyReportsBought = []; store.write('propertyReportsBought', []); navigate('/property/calculator'); return true; })()`);
+      State.propertyReportsBought = []; store.write('propertyReportsBought', []); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(600);
     const unlocked = await pressLabelled('Preview this report');
     await evaluate(`(() => { store.write('dealBeforeLink', { ...State.deal, price: 500000 }); render(); return true; })()`);
@@ -2442,7 +2442,7 @@ try {
   {
     const r = JSON.parse(await evaluate(`(async () => {
       const kept = { deal: JSON.parse(JSON.stringify(State.deal)), obs: localStorage.getItem('vl.observations'), log: localStorage.getItem('vl.registerLog') };
-      navigate('/property/calculator'); await new Promise(res => setTimeout(res, 400));
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await new Promise(res => setTimeout(res, 400));
       const q = (l) => document.querySelector('main [aria-label="' + l + '"]');
       const set = (l, v) => { const n = q(l); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
       set('What you observed', 'land-sold'); set('Observed value', '880000'); set('Land area', '4'); set('Source reference', 'SPA 7');
@@ -2553,7 +2553,7 @@ try {
        way from 640px (the 11 Oct audit, #6). */
     const STOPS = `[...document.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]')]
       .filter(n => n.tabIndex >= 0 && n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden' && !n.closest('[inert]'))`;
-    await evaluate(`(() => { window.__T.fw = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator'); return true; })()`);
+    await evaluate(`(() => { window.__T.fw = JSON.parse(JSON.stringify(State.deal)); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(700);
     const p = [];
     for (const [typed, shift] of [['3', false], ['5', true]]) {
@@ -2594,7 +2594,7 @@ try {
     State.observations = store.read('observations', []); State.opportunities = store.read('opportunities', []);
     State.propertyReportsBought = store.read('propertyReportsBought', []); State.areaProfiles = store.read('areaProfiles', {});
     if (typeof loadRegisterLog === 'function') loadRegisterLog();
-    State.lang = k.lang; State.deal = k.deal; saveDeal(); navigate('/property/calculator'); return true; })()`);
+    State.lang = k.lang; State.deal = k.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
   const FW_KEYS = ['observations', 'registerLog', 'opportunities', 'propertyReportsBought', 'areaProfiles', 'lang', 'deal', 'borrowerProfile'];
 
   /* P18 — one month of reserve reads "1 month", and P9 — with no instalment
@@ -2610,7 +2610,7 @@ try {
       const base = window.__fwKept.deal;
       const tile = () => ([...document.querySelectorAll('main .panel')].map(p => p.textContent).find(t => t.startsWith('Cash to keep untouched')) || '');
       const para = () => document.getElementById('d-reserveMonths')?.closest('.row')?.querySelector('p')?.textContent || '';
-      navigate('/property/calculator'); await tick(400);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await tick(400);
       State.deal = { ...base, reserveMonths: 1 }; saveDeal(); render(); await tick();
       const one = tile();
       State.deal = { ...base, tenureYears: 0 }; saveDeal(); render(); await tick();
@@ -2656,7 +2656,7 @@ try {
       try {
         line.unset = true;
         Object.assign(State.borrower, { assessed: true, verifiedNetMonthlyIncome: 15000, creditReview: 'none_reported', incomeStabilityMonths: 36, liquidCashAvailable: 200000 });
-        navigate('/property/calculator'); await new Promise(res => setTimeout(res, 450));
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await new Promise(res => setTimeout(res, 450));
         const lr = loanReadiness(State.borrower, dealModel(State.deal));
         const note = [...document.querySelectorAll('main p')].map(p => p.textContent).find(t => t.startsWith('Not assessed:')) || '';
         return { score: lr.score, unknowns: lr.unknowns, note };
@@ -2742,7 +2742,7 @@ try {
         State.deal = { ...deal, touched: {}, evidence: { ...(deal.evidence || {}) } };
         State.propertyReportsBought = [...(State.propertyReportsBought || []), State.deal.projectId];
         store.write('propertyReportsBought', State.propertyReportsBought);
-        saveDeal(); navigate('/property/calculator'); await tick(450);
+        saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await tick(450);
         return document.querySelector('main').innerText;
       };
       const flat = await draw(base);
@@ -2781,7 +2781,7 @@ try {
     await fwKeep(FW_KEYS);
     const r = await evaluate(`(async () => {
       const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
-      navigate('/property/calculator'); await tick(400);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await tick(400);
       /* Every section's column of inputs. The calculator's inputs sit in five
          columns since it was sectioned (audit1/property-model), and the first
          alone was read: Acquisition's 15 of the 50 labels, and none of the
@@ -2836,6 +2836,8 @@ try {
         const card = [...document.querySelectorAll('main .card')].find(c => c.querySelector('h3')?.textContent === name);
         [...card.querySelectorAll('button')].find(b => b.textContent.trim() === 'Open in the calculator').click();
         await tick(500);
+        /* The district select is the full model's (QT-003). */
+        if (typeof setPropertyView === 'function') { setPropertyView(true); render(); await tick(300); }
         const text = document.querySelector('main').innerText;
         const listed = SARAWAK_CITIES.find(c => c.id === State.deal.city)?.districts || [];
         return { city: State.deal.city, district: State.deal.district, listed: listed.includes(State.deal.district),
@@ -2913,7 +2915,7 @@ try {
     await fwKeep(FW_KEYS);
     const r = await evaluate(`(async () => {
       const tick = (ms = 300) => new Promise(res => setTimeout(res, ms));
-      navigate('/property/calculator'); await tick(400);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await tick(400);
       const q = (l) => document.querySelector('main [aria-label="' + l + '"]');
       const set = (l, v) => { const n = q(l); n.value = v; n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); };
       set('What you observed', 'land-sold'); set('Observed value', '180000'); set('Land area', '4'); set('Unit the area is in', 'point'); set('Source reference', 'SPA 9');
@@ -2970,12 +2972,12 @@ try {
     let two;
     try {
       await send('Runtime.enable', {}, sB);
-      await send('Page.navigate', { url: `${BASE}/property/calculator` }, sB);
+      await send('Page.navigate', { url: `${BASE}/property/calculator?view=full` }, sB);
       for (const t = Date.now(); Date.now() - t < 30000; await sleep(150))
         if (await evalB(`typeof propertyPagesSettled === 'function' && propertyPagesSettled()`) === true) break;
       const typeA = (id, v) => evaluate(`(() => { const n = document.getElementById(${JSON.stringify(id)}); n.value = ${JSON.stringify(v)};
         n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
-      await evaluate(`(() => { navigate('/property/calculator'); return true; })()`);
+      await evaluate(`(() => { navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
       await sleep(500);
       /* Waited for, not slept on: until this tab holds what the other wrote,
          or three seconds — where nothing re-reads it, it never will. */
@@ -3000,7 +3002,7 @@ try {
       window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
       await tick();
       const mem = State.deal.price;
-      navigate('/property/calculator'); await tick(450);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await tick(450);
       return { mem, box: document.getElementById('d-price')?.value, stored: store.read('deal').price };
     })()`);
     await fwPut();
@@ -3039,7 +3041,7 @@ try {
           selected: [...document.querySelectorAll('main [aria-selected]')].filter(n => !/^(tab|option|row|gridcell|columnheader|rowheader|treeitem)$/.test(n.getAttribute('role') || '')).length,
         };
       }
-      navigate('/property/calculator'); await w(400);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
       const card = [...document.querySelectorAll('main .card')].find(c => /^What this rests on/.test(c.querySelector('.h-card')?.textContent || ''));
       const box = card && [...card.querySelectorAll('div')].find(d => getComputedStyle(d).overflowX === 'auto' && d.querySelector('table'));
       out.box = box ? { tab: box.tabIndex, role: box.getAttribute('role'), name: box.getAttribute('aria-label') || '', focusable: !!box.querySelector(FOCUSABLE) } : null;
@@ -3127,7 +3129,7 @@ try {
           const rows = [...document.querySelectorAll('main .pm-list .pm-row:not(.pm-head)')].map(txt);
           const out = { a, b, c, wh, rows, deal: { modelId: State.deal.modelId }, kept: store.read('dealBeforeLink', null),
             keptRow: rows.some(t => /Kept aside — your previous deal/.test(t)) };
-          navigate('/property/calculator'); await w(300);
+          navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           out.status = txt(document.getElementById('pm-status'));
           out.restore = !!btn('Restore my previous deal');
           navigate('/my/workspace'); await w(250);
@@ -3171,7 +3173,7 @@ try {
            own figure for that price. */
         const r2 = await evaluate(`(async () => { ${A1}
           window.__a1Prompt = [];
-          newPropertyDeal({ show: false }); navigate('/property/calculator'); await w(300);
+          newPropertyDeal({ show: false }); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           const f = document.getElementById('d-price');
           f.value = '612345'; f.dispatchEvent(new Event('change', { bubbles: true })); await w(350);
           const m = dealModel(State.deal), s = propertySensitivity(State.deal);
@@ -3219,7 +3221,7 @@ try {
            own model; a change to the property reaches a scenario on every
            input it does not change; one opens to edit; three at most. */
         const r3 = await evaluate(`(async () => { ${A1}
-          navigate('/property/calculator'); await w(250);
+          navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(250);
           const id = State.deal.modelId;
           const set = async (k, v) => { const f = document.getElementById('d-' + k); f.value = String(v); f.dispatchEvent(new Event('change', { bubbles: true })); await w(300); };
           await set('rent', 2600);
@@ -3347,7 +3349,7 @@ try {
           const del = [...document.querySelectorAll('main .pm-row')].find(r => /CRUD renamed/.test(r.textContent))?.querySelector('button[aria-label^="Delete"]');
           del.click(); await w(300);
           out.del = { gone: !pmFind(copy.id), onCalc: State.deal.modelId, price: State.deal.price, focus: document.activeElement?.className || document.activeElement?.id };
-          navigate('/property/calculator'); await w(250);
+          navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(250);
           out.afterDel = txt(document.getElementById('pm-status'));
           deletePropertyModel(id);
           return out;
@@ -3404,7 +3406,7 @@ try {
            JUMPS TO NOT UNDER IT; THE ADDRESS'S #scenarios OPENS AT SCENARIOS. */
         const r7 = await evaluate(`(async () => { ${A1}
           document.documentElement.style.scrollBehavior = 'auto';
-          navigate('/property/calculator'); await w(300);
+          navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           const secs = [...document.querySelectorAll('main section.pc-sec')];
           const out = {
             ids: secs.map(s => s.id), titles: secs.map(s => txt(s.querySelector('h2'))),
@@ -3546,7 +3548,7 @@ try {
             reportProvide: (document.querySelector('#report .pc-contract')?.textContent || '').replace(/\\s+/g, ' ').trim(),
             demandInputs: document.querySelectorAll('#report select[id^="demand-"]').length,
           });
-          newPropertyDeal({ show: false }); navigate('/property/calculator'); await w(300);
+          newPropertyDeal({ show: false }); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           const lets = read();
           State.deal.propertyType = 'Land'; State.deal.propertyClassOverride = 'land'; saveDeal(); render(); await w(300);
           const land = read();
@@ -3571,7 +3573,7 @@ try {
           window.__a1Prompt = [];
           newPropertyDeal({ show: false }); State.deal.price = 500500; markTouched(State.deal, 'price'); saveDeal();
           const rec = saveActiveProperty({ name: 'V4 base' });
-          navigate('/property/calculator'); await w(300);
+          navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           State.deal.rent = 2100; markTouched(State.deal, 'rent'); saveDeal();
           window.__a1Prompt = ['V4 rent']; saveAsScenario(); render(); await w(250);
           const out = { clean: primaries() };
@@ -3747,7 +3749,7 @@ try {
         scenarios: [['PP letting agent', { selfManaged: false, mgmtPct: 10 }], ['PP 35% deposit', { downPct: 35 }], ['PP no renovation', { renovation: 0 }]] },
     ];
     try {
-      await send('Page.navigate', { url: `${BASE}/property/calculator` }, sessionId);
+      await send('Page.navigate', { url: `${BASE}/property/calculator?view=full` }, sessionId);
       for (const t = Date.now(); ; await sleep(100)) {
         const r = await send('Runtime.evaluate', { expression: `typeof propertyPagesSettled === 'function' && propertyPagesSettled()`, returnByValue: true }, sessionId);
         if (r.result?.result?.value === true) break;
@@ -3776,7 +3778,7 @@ try {
             c.forEach((n, i) => { if (n.tagName === 'DT' && c[i + 1]?.tagName === 'DD') { const k = txt(n); if (!(k in kv)) kv[k] = txt(c[i + 1]); } }); });
           return { tiles, subs, kv };
         };
-        navigate('/property/calculator'); await w(500);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
         const calc = { base: read(), same: pmSame(State.deal, pmInputsOf(pmFind(rec.id))) };
         const tables = [...document.querySelectorAll('#views table.dt')];
         /* The ledger: the table with the groups' subtotals (a summary
@@ -4167,7 +4169,7 @@ try {
           const rec = ppMake('PP two tabs', { price: 500000, rent: 2000 });
           navigate(cpPath(rec.id)); await w(450); return rec.id; })()`);
         const before = await evaluate(look);
-        const { result: { targetId: tB } } = await send('Target.createTarget', { url: `${BASE}/property/calculator` });
+        const { result: { targetId: tB } } = await send('Target.createTarget', { url: `${BASE}/property/calculator?view=full` });
         const { result: { sessionId: sB } } = await send('Target.attachToTarget', { targetId: tB, flatten: true });
         await send('Runtime.enable', {}, sB);
         const evalB = async (expression) => { const x = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sB);
@@ -4317,7 +4319,7 @@ try {
             const locked = await look();
             /* The calculator's offer of the report, on the same locked deal:
                it may not offer what the Lab already shows free. */
-            navigate('/property/calculator'); await w(500);
+            navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
             locked.offer = txt([...document.querySelectorAll('#views p')].find(p => /^Adds /.test(txt(p)) && /Full investor report — proposed/.test(txt(p.parentElement))));
             State.propertyReportsBought = [...State.propertyReportsBought, pid];
             const open = await look();
@@ -4981,7 +4983,7 @@ try {
           down(r2); render(); await w(30); const heldCancel = replaced;
           r2.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 })); await w(30); out.cancel = replaced - heldCancel;
           const r3 = document.getElementById('lab-r-price');
-          down(r3); navigate('/property/calculator'); await w(200);
+          down(r3); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(200);
           out.nav = { view: State.view, drawn: !!document.querySelector('#views #acquisition') };
           render(); await w(30);
           out.afterNav = State.view === 'property';
@@ -5138,7 +5140,7 @@ try {
         await vDeal({});
         const a = await evaluate(`(async () => { ${VH}
           await pick('A');
-          navigate('/property/calculator'); await w(300);
+          navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
           State.deal.ratePct = 5.5; markTouched(State.deal, 'ratePct'); saveDeal();
           navigate('/property/lab'); await w(400); await frame();
           return { view: State.view, active: L().active, f: figs(pmBare(State.deal)) };
@@ -5647,11 +5649,11 @@ try {
         out.moved = tiles();
         /* Every figure the queue lists made the reader's: Save, then Compare. */
         PROPERTY_REVIEW.forEach(f => markTouched(State.deal, f.k)); saveDeal();
-        navigate('/property/calculator'); await w(150); navigate('/property'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(150); navigate('/property'); await w(300);
         out.touched = tiles();
         out.save = document.getElementById('lab-id-save')?.textContent.trim();
         const rec = saveActiveProperty({ name: 'N3 tiles' });
-        navigate('/property/calculator'); await w(150); navigate('/property'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(150); navigate('/property'); await w(300);
         out.saved = tiles();
         out.savedName = (document.getElementById('lab-status')?.textContent || '').trim();
         if (rec) deletePropertyModel(rec.id);
@@ -6068,12 +6070,12 @@ try {
       applyDealParam(junk, 'auctionDepositPct:150~auctionDepositOf:deposit~auctionBalanceDays:9.5~auctionChecks:occupancy,guess~reservePrice:-1');
       /* On the calculator, as a reader sees it. */
       const keep = { deal: State.deal, stored: store.read('deal', null) };
-      State.deal = { ...${P3_DEAL} }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...${P3_DEAL} }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const card = () => { const n = document.querySelector('#pc-au [data-au-fig="forfeiture"]'); return n ? { status: n.dataset.status, value: n.querySelector('.ls-card-value')?.textContent.trim(), badge: n.querySelector('[data-kind-badge]')?.dataset.kindBadge, sub: n.querySelector('.ls-card-sub')?.textContent.trim() } : null; };
       const shown = card();
       Object.assign(State.deal, { auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90 }); saveDeal(); render(); await w(400);
       const entered = card();
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ cases, s, back: { pct: back.auctionDepositPct, of: back.auctionDepositOf, days: back.auctionBalanceDays, reserve: back.reservePrice },
         junk: ['auctionDepositPct', 'auctionDepositOf', 'auctionBalanceDays', 'auctionChecks', 'reservePrice'].filter(k => k in junk), shown, entered });
     })()`));
@@ -6098,13 +6100,13 @@ try {
       const view = () => ({ alert: (document.querySelector('#pc-au-alert .ls-card-title')?.textContent || '').trim(),
         cards: [...document.querySelectorAll('#pc-au [data-au-fig]')].map(n => [n.dataset.auFig, /Not final\\./.test(n.textContent)]),
         finals: [...document.querySelectorAll('#pc-au [data-au-fig="effective"], #pc-au [data-au-fig="discount"]')].map(n => n.dataset.final) });
-      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const open6 = view();
       for (const id of AUCTION_CHECK_IDS.slice(0, 5)) { document.getElementById('pc-au-ck-' + id).click(); await w(250); }
       const open1 = view();
       document.getElementById('pc-au-ck-' + AUCTION_CHECK_IDS[5]).click(); await w(300);
       const done = view(), stored = store.read('deal', null)?.auctionChecks || null;
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ model: Object.fromEntries(Object.entries(model).map(([k, a]) => [k, { final: a.final, open: a.checksOpen }])), open6, open1, done, stored, sources: Object.values(AUCTION_GUIDANCE).map(s => s.url),
         checks: AUCTION_CHECK_IDS });
     })()`));
@@ -6147,7 +6149,7 @@ try {
       out.saved = { ok: saved, route: after.route ?? null, pct: after.auctionDepositPct ?? null, of: after.auctionDepositOf ?? null, days: after.auctionBalanceDays ?? null, reserve: after.reservePrice ?? null };
       deletePropertyModel(rec.id);
       const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-      navigate('/property/calculator'); await w(300);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify(out);
     })()`));
     if (one.err) throw new Error(one.err);
@@ -6287,7 +6289,7 @@ try {
       } finally {
         State.observations = keepObs; saveObservations(); State.evidenceFlow = null;
         if (LAB[labSubject]) delete LAB[labSubject];
-        State.deal = keepState; saveDeal(); navigate('/property/calculator', { replace: true }); render();
+        State.deal = keepState; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full'), { replace: true }); render();
       }
       return JSON.stringify(out);
     })()`));
@@ -6356,11 +6358,11 @@ try {
       State.observations = keepObs; saveObservations();
       const keep = { deal: State.deal, stored: store.read('deal', null) };
       const card = () => { const n = document.querySelector('#pc-nd [data-nd-fig="premium"]'); return n ? { value: n.querySelector('.ls-card-value')?.textContent.trim(), data: n.querySelector('[data-value]')?.dataset.value, badge: n.querySelector('[data-kind-badge]')?.dataset.kindBadge, sub: (n.querySelector('.ls-card-sub')?.textContent || '').trim() } : null; };
-      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const shown = card();
       State.deal = { ...d, ndCompPrice: undefined }; delete State.deal.ndCompPrice; saveDeal(); render(); await w(400);
       const unavailable = card();
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ a: { amount: a.premium?.amount, pct: a.premium?.pct, kind: a.premiumKind, paid: a.paid }, b: { amount: b.premium?.amount, paid: b.paid },
         none: { premium: none.premium, kind: none.premiumKind }, named: { comp: named.comp, amount: named.premium?.amount, n: named.compFrom.named.length }, shown, unavailable });
     })()`));
@@ -6438,14 +6440,14 @@ try {
       const keep = { deal: State.deal, stored: store.read('deal', null) };
       const card = () => { const n = document.querySelector('#pc-nd [data-nd-fig="idc"]'); return n ? { status: n.dataset.status, value: n.querySelector('.ls-card-value')?.textContent.trim(), badge: n.querySelector('[data-kind-badge]')?.dataset.kindBadge, sub: (n.querySelector('.ls-card-sub')?.textContent || '').trim() } : null; };
       const kindLine = () => (document.querySelector('#pc-nd-drawdown .nd-sched-kind')?.textContent || '').replace(/\\s+/g, ' ').trim();
-      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const before = { card: card(), kind: kindLine(), stored: State.deal.ndSchedule ?? null, template: document.getElementById('pc-nd-tpl')?.value || null };
       document.getElementById('pc-nd-tpl').value = 'swk-c'; document.getElementById('pc-nd-tpl').dispatchEvent(new Event('change', { bubbles: true }));
       document.getElementById('pc-nd-tpl-go').click(); await w(500);
       const applied = { card: card(), kind: kindLine(), stored: State.deal.ndSchedule ?? null, stages: document.querySelectorAll('#pc-nd-drawdown .nd-stage').length, what: document.querySelector('#pc-nd-drawdown .nd-stage-what')?.textContent || '' };
       document.getElementById('pc-nd-even').click(); await w(500);
       const spaced = { card: card(), stored: State.deal.ndSchedule ?? null };
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ none: { status: none.status, idc: none.idc, missing: none.missing }, lines: m.costGroups.flatMap(g => g.items).filter(it => it[0] === 'Interest during construction').length,
         same: m.safeCashRequired === sub.safeCashRequired, short: short.missing, before, applied, spaced,
         tpl: NEWDEV_TEMPLATE_IDS.map(id => [id, NEWDEV_TEMPLATES[id].stages.reduce((t, s) => t + s[0], 0)]) });
@@ -6535,7 +6537,7 @@ try {
       out.saved = { ok: saved, route: after.route ?? null, comp: after.ndCompPrice ?? null, sched: after.ndSchedule ?? null, vp: after.ndVpMonth ?? null };
       deletePropertyModel(rec.id);
       const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-      navigate('/property/calculator'); await w(300);
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify(out);
     })()`));
     if (one.err) throw new Error(one.err);
@@ -6624,10 +6626,10 @@ try {
       const s = commercialModel(d).sustain;
       const one = commercialModel({ ...d, rentComparableIds: [r2.id] }).sustain;
       const keep = { deal: State.deal, stored: store.read('deal', null) };
-      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const n = document.querySelector('#pc-cm [data-cm-fig="sustain"]');
       const card = n ? { type: n.dataset.card, status: n.dataset.status, lo: n.dataset.lo, hi: n.dataset.hi, figure: n.querySelector('.ls-card-figure')?.textContent, title: n.querySelector('.ls-card-title')?.textContent, sub: n.querySelector('.ls-card-sub')?.textContent } : null;
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); restore(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); restore(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ s, one, card });
     })()`));
     const p = [];
@@ -6646,11 +6648,11 @@ try {
       const d = { ...${P5_BASE}, tenancy: 'tenanted', tenancyRent: 4600, rentComparableIds: [ask.id] };
       const c = commercialModel(d);
       const keep = { deal: State.deal, stored: store.read('deal', null) };
-      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const n = document.querySelector('#pc-cm [data-cm-fig="sustain"]');
       const row = document.querySelector('#pc-cm [data-rent="observed"]');
       const shown = { type: n?.dataset.card, status: n?.dataset.status, text: (n?.textContent || '').replace(/\\s+/g, ' '), row: row ? { value: row.dataset.value, kind: row.dataset.kind, amt: row.querySelector('.au-wf-amt')?.textContent } : null };
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); restore(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); restore(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ status: c.sustain.status, observed: c.observed, kind: c.observedKind, shown });
     })()`));
     const p = [];
@@ -6677,13 +6679,13 @@ try {
       const beyond = commercialModel({ ...d, cmLeaseExpiry: mo(now + 72) }, undefined, { asOf: now }).lease.scenarios.map(s => [s.status, s.effYield]);
       const none = commercialModel({ ...d, cmLeaseExpiry: undefined }, undefined, { asOf: now }).lease;
       const keep = { deal: State.deal, stored: store.read('deal', null) };
-      State.deal = { ...d }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...d }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const rows = [...document.querySelectorAll('#pc-cm-ld-table tbody tr')].map(t => [t.dataset.months, t.dataset.reserve, t.dataset.yield, t.textContent.replace(/\\s+/g, ' ').trim()]);
       const card = document.querySelector('#pc-cm [data-cm-fig="reserve-12"] [data-value]')?.dataset.value;
       const when = document.querySelector('#pc-cm-ld .cm-ld-kind')?.textContent || '';
       State.deal = { ...d, cmLeaseExpiry: undefined }; delete State.deal.cmLeaseExpiry; saveDeal(); render(); await w(400);
       const naCard = (document.querySelector('#pc-cm [data-cm-fig="reserve-12"]')?.textContent || '').replace(/\\s+/g, ' ');
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ a: a.lease.scenarios, burn: a.lease.burn, b: b.lease.scenarios.map(s => s.reserve), burnB: b.lease.burn, inst, fixedB: ml.fixedOperatingCosts,
         vacant: vacant.scenarios.map(s => [s.cMonths, s.mMonths, s.effYield]), vstart: vacant.start, beyond, none: { missing: none.missing, s: none.scenarios.map(s => s.status) }, rows, card, when, naCard });
     })()`));
@@ -6717,11 +6719,11 @@ try {
       const cm = { cmAskingRent: 2000, cmLeaseExpiry: '2027-04', cmFitOut: 5000, cmPosition: 'corner', cmFrontage: 20 };
       const sample = print(base()), withCm = print({ ...base(), ...cm });
       const keep = { deal: State.deal, stored: store.read('deal', null) };
-      State.deal = { ...base(), ...cm }; saveDeal(); navigate('/property/calculator'); await w(600);
+      State.deal = { ...base(), ...cm }; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(600);
       const calc = { section: !!document.getElementById('pc-cm'), inputs: !!document.getElementById('commercial'), tenancy: !!document.getElementById('d-tenancy') };
       navigate('/property'); await w(600);
       const lab = !!document.getElementById('lab-cm');
-      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = keep.deal; if (keep.stored) store.write('deal', keep.stored); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ sample, withCm, calc, lab });
     })()`));
     const p = [];
@@ -6774,7 +6776,7 @@ try {
       out.after = { cls: propertyClassOf(after), rent: after.tenancyRent ?? null, exp: after.cmLeaseExpiry ?? null, ids: after.rentComparableIds ?? null };
       deletePropertyModel(rec.id);
       const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-      restore(); navigate('/property/calculator'); await w(300);
+      restore(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ ...out, r1: r1.id });
     })()`));
     if (one.err) throw new Error(one.err);
@@ -6979,7 +6981,7 @@ try {
         const saved = JSON.parse(localStorage.getItem('vl.labComparisons') || '[]');
         const exported = exportEverything().data.labComparisons || null;
         const listed = [...document.querySelectorAll('.lab-cmps-row')].map(x => x.dataset.cmp);
-        navigate('/property/calculator'); await w(500);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
         navigate('/property/lab?compare=' + saved[0]?.id); await w(900);
         const back = { cols: LAB[labSubject].cols.map(c => c.key + ':' + labColId(c) + ':' + Object.keys(c.moves).length).join(','), lens: LAB[labSubject].lens,
           checked: document.querySelector('input[name="lab-lens"]:checked')?.value, heads: read().heads, url: location.search };
@@ -7004,7 +7006,7 @@ try {
       else ok('p6 X5: a lens switched and a price moved write nothing; the lens is in the address (?lens=risk); Save writes the comparison — its name, A, B and C as the properties they read, the risk lens, never B\'s unsaved price — listed in the Lab and carried by the export; ?compare= reopens the same columns, in the same order, unmoved, with the risk lens, and the address names them; ?cols=…&lens=growth opens its columns on the growth lens');
     });
     await evaluate(`(() => { const k = window.__x6keep; if (!k) return false; for (const [key, v] of Object.entries(k.ls)) { if (v === null) localStorage.removeItem('vl.' + key); else localStorage.setItem('vl.' + key, v); }
-      State.deal = k.deal; navigate('/property/calculator'); return true; })()`);
+      State.deal = k.deal; navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
     await sleep(300);
   }
   /* ---- end p6-compare ---- */
@@ -7197,18 +7199,18 @@ try {
         const refused = ['auctionCapKind', 'ndDelayMonths', 'cmRentFreeMonths'].map(k => { const x = {}; return [k, setDealAnswer(x, k, k === 'auctionCapKind' ? 'cheapest' : '-3'), x[k] ?? null]; });
         const keep = { deal: State.deal };
         State.deal = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionCapKind: 'margin', auctionCapValue: 15 }); saveDeal();
-        navigate('/property/calculator'); await w(700);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(700);
         const ce = document.querySelector('#pc-au [data-au-fig="ceiling"]');
         const chips = ['cost', 'margin'].map(k => !!document.getElementById('pc-q-au-auctionCapKind-' + k));
-        State.deal = L({ route: 'newdev' }); saveDeal(); navigate('/property/calculator'); await w(700);
+        State.deal = L({ route: 'newdev' }); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(700);
         const ndGate = document.querySelector('#pc-nd [data-nd-fig="gated"]')?.textContent || null, ndInputs = !!document.getElementById('pc-nd-ndDelayMonths');
-        State.deal = F({ propertyType: 'Shophouse', route: 'newdev' }); saveDeal(); navigate('/property/calculator'); await w(700);
+        State.deal = F({ propertyType: 'Shophouse', route: 'newdev' }); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(700);
         const tplGate = document.getElementById('pc-nd-tpl-gate')?.textContent || null, tplBtn = !!document.getElementById('pc-nd-tpl-go'), delay = document.querySelector('[data-nd="ndDelayMonths"]')?.dataset.kind || null;
         const dlp = document.getElementById('pc-nd-dlp')?.dataset.gate || null;
-        State.deal = F({ propertyType: 'Shophouse', tenancy: 'tenanted', tenancyRent: 2400, cmRentFreeMonths: 3 }); saveDeal(); navigate('/property/calculator'); await w(700);
+        State.deal = F({ propertyType: 'Shophouse', tenancy: 'tenanted', tenancyRent: 2400, cmRentFreeMonths: 3 }); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(700);
         const rf = document.querySelector('[data-cm="cmRentFreeMonths"]')?.dataset.kind || null, sc = document.querySelector('[data-cm="cmServiceCharge"]')?.dataset.kind || null;
         const term = document.querySelector('#pc-cm [data-cm-fig="term"]')?.dataset.status || null;
-        State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
+        State.deal = keep.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
         return JSON.stringify({ s, back: ['auctionCapKind', 'auctionCapValue', 'cmRentFreeMonths', 'cmServiceCharge', 'ndDelayMonths'].map(k => back[k]), refused,
           ce: ce ? { v: ce.querySelector('[data-value]')?.dataset.value, status: ce.dataset.status, final: ce.dataset.final, badge: ce.querySelector('[data-kind-badge]')?.dataset.kindBadge } : null, chips,
           ndGate, ndInputs, tplGate, tplBtn, delay, dlp, rf, sc, term }); })()`));
@@ -7334,7 +7336,7 @@ try {
         const w = (ms) => new Promise(res => setTimeout(res, ms));
         const keep = { deal: State.deal };
         State.deal = F({ propertyType: 'Shophouse', commercialSubtype: 'whole-shoplot' }); saveDeal();
-        navigate('/property/calculator'); await w(800);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(800);
         const cards = [...document.querySelectorAll('.pc-answers .ls-card, .pc-answers [class*="card"]')].map(n => n.textContent.replace(/\\s+/g, ' ')).join(' | ');
         const ledgerGated = [...document.querySelectorAll('.pc-cost-table [data-gated]')].map(n => n.textContent);
         const total = [...document.querySelectorAll('.pc-cost-table tr')].map(n => n.textContent).find(t => /Cash required \\(with a \\d+-month reserve\\)/.test(t)) || null;
@@ -7345,7 +7347,7 @@ try {
         const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.3.0') || false,
           log: document.querySelector('[data-fee-version="1.2.0"]')?.textContent || null,
           cls: Object.fromEntries([...document.querySelectorAll('[data-fee-class-line]')].map(n => [n.dataset.feeClassLine, [n.dataset.commercial, n.dataset.land]])) };
-        State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
+        State.deal = keep.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
         return JSON.stringify({ cards, ledgerGated, total, dock, tile, book }); })()`));
       const p = [];
       if (!/Cash required \(with a 3-month reserve\) — partial/.test(r.cards) || !/Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property/.test(r.cards)) p.push(`the calculator's answer card: "${r.cards.slice(0, 300)}"`);
@@ -7392,10 +7394,10 @@ try {
         navigate('/methodology/property'); await w(900);
         out.meth = ['auction', 'newdev-residential', 'newdev-commercial'].map(id => { const row = document.getElementById('route-' + id); const dt = [...(row?.querySelectorAll('dt') || [])].find(n => txt(n) === 'Legal fees');
           return [id, txt(dt?.nextElementSibling), !!dt?.nextElementSibling?.querySelector('a[href="/data-sources#fee-rulebook-route"]')]; });
-        State.deal = F({ route: 'newdev', ndLegal: 5000 }); saveDeal(); navigate('/property/calculator'); await w(800);
+        State.deal = F({ route: 'newdev', ndLegal: 5000 }); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(800);
         out.field = { kind: document.querySelector('#pc-nd-inputs [data-nd="ndLegal"]')?.dataset.kind || null, value: document.getElementById('pc-nd-ndLegal')?.value || null };
         out.ledger = [...document.querySelectorAll('.pc-cost-table tr')].map(n => txt(n)).find(t => /your lawyer’s quote/.test(t)) || null;
-        State.deal = keep.deal; saveDeal(); navigate('/property/calculator'); await w(400);
+        State.deal = keep.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
         return JSON.stringify(out); })()`));
       const p = [];
       if (!near(r.nd.pl, 3400) || !near(r.nd.cash, 63302) || !near(r.au.pl, 3400) || !near(r.au.cash, 63302)) p.push(`no quote: new development ${JSON.stringify(r.nd)}, auction ${JSON.stringify(r.au)} — by hand rule 1's 3,400 and 63,302, unchanged`);
@@ -7548,7 +7550,7 @@ try {
           hold: txt(document.getElementById('d-holdYears-from')), rpgt: txt(document.getElementById('pc-rpgt-from')), nd: txt(document.getElementById('pc-nd-timing')),
           exits: [...document.querySelectorAll('#views .card')].map(n => txt(n.querySelector('h2,h3'))).filter(t => /^Selling/.test(t)) });
         State.propertyReportsBought = [...State.propertyReportsBought, PROPERTY_DEFAULT_DEAL.projectId];
-        State.deal = T(); saveDeal(); navigate('/property/calculator'); await w(700);
+        State.deal = T(); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(700);
         const timed = read();
         State.deal = T({ ndVpMonth: undefined }); delete State.deal.ndVpMonth; saveDeal(); render(); await w(500);
         const untimed = read();
@@ -7570,7 +7572,7 @@ try {
       await sleep(400);
       r.lab = JSON.parse(await evaluate(`(() => { const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
         return JSON.stringify({ label: txt(document.querySelector('#lab-root .lab-row[data-row="irrPct"] .lab-row-label')), vll: txt(document.querySelector('#lab-root .lab-row[data-row="valueLessLoanAtExit"] .lab-row-label')) }); })()`));
-      await evaluate(`(() => { const k = ${JSON.stringify(r.stored)}; if (k) { State.deal = k; store.write('deal', k); } else localStorage.removeItem('vl.deal'); navigate('/property/calculator'); return true; })()`);
+      await evaluate(`(() => { const k = ${JSON.stringify(r.stored)}; if (k) { State.deal = k; store.write('deal', k); } else localStorage.removeItem('vl.deal'); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); return true; })()`);
       await sleep(400);
       const p = [], t = r.timed, u = r.untimed;
       if (t.timed !== 'true' || !/Timed from vacant possession, 24 months after signing/.test(t.returns) || !/3 to 12 years after signing/.test(t.returns)) p.push(`the return panel: "${t.returns}"`);
@@ -7686,7 +7688,7 @@ try {
       else ok(`lab-row-kinds K4: twelve frames of the price slider moved the repayment through ${r.figures} figures and wrote no badge; the rent typed to nought turned the break-even occupancy Unavailable — that badge alone was written`);
     });
     await evaluate(`(() => { const k = ${keep}; if (k.deal === null) localStorage.removeItem('vl.deal'); else localStorage.setItem('vl.deal', k.deal); if (k.before === null) localStorage.removeItem('vl.dealBeforeLink'); else localStorage.setItem('vl.dealBeforeLink', k.before); return true; })()`);
-    await send('Page.navigate', { url: `${BASE}/property/calculator` }, sessionId);
+    await send('Page.navigate', { url: `${BASE}/property/calculator?view=full` }, sessionId);
     await sleep(800);
   }
   /* ---- end lab-row-kinds ---- */
@@ -7768,7 +7770,7 @@ try {
         const inputs = [...document.querySelectorAll('#lab-rf input, #lab-rf label')].map(n => n.textContent + ' ' + (n.id || '') + ' ' + (n.getAttribute('aria-label') || '')).join(' ');
         deletePropertyModel(rec.id);
         const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-        navigate('/property/calculator'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ seen, order: RF_LENS_ORDER, inputs }); })()`));
       const p = [];
       for (const s of r.seen) {
@@ -7809,7 +7811,7 @@ try {
           pending: !!document.getElementById('lab-rf-save'), payback: cell('payback', 'refurb')?.dataset.value || null };
         deletePropertyModel(rec.id);
         const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-        navigate('/property/calculator'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify(out); })()`));
       const p = [], b = r.before;
       if (!b.recordSame || /rfRefurb|rfUpgrade|rfSale/.test(b.address)) p.push(`written before Save: record ${b.recordSame ? 'unchanged' : 'written'}, address "${b.address}"`);
@@ -7911,7 +7913,7 @@ try {
         const w = (ms) => new Promise(res => setTimeout(res, ms));
         const keep = JSON.stringify({ deal: store.read('deal', null) });
         State.deal = F({ renovation: 20000, touched: { ...F().touched, renovation: true } }); saveDeal();
-        navigate('/property/calculator'); await w(700);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(700);
         const box = () => document.getElementById('pc-cl-renovation');
         const before = { box: !!box(), open: !!box()?.open, sum: document.getElementById('pc-cl-renovation-sum')?.dataset.clKind || null };
         if (box()) box().open = true;
@@ -7926,7 +7928,7 @@ try {
         await addLine({ item: 'Sofa', amount: '3000', kind: 'quoted', source: '', date: '2026-08-30' });
         const refused = { msg: document.getElementById('pc-cl-renovation-msg')?.textContent || '', n: (State.deal.renovationLines || []).length };
         const k = JSON.parse(keep); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-        navigate('/property/calculator'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ before, after2, refused }); })()`));
       const p = [], a = r.after2;
       if (!r.before.box || r.before.open) p.push(`before any line: the editor ${r.before.box ? 'is open' : 'is not drawn'} under the renovation`);
@@ -7962,7 +7964,7 @@ try {
         const after = { cost: kept.rfRefurbCost, basis: kept.rfRefurbBasis, lines: (kept.rfRefurbLines || []).map(x => [x.item, x.amount, x.kind, x.source, x.date]) };
         deletePropertyModel(rec.id);
         const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-        navigate('/property/calculator'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ before, after }); })()`));
       const p = [], b = r.before;
       if (!b.drawn) p.push('Refurbish has no cost-lines editor');
@@ -8024,7 +8026,7 @@ try {
         const ledger = document.querySelector('#cp-doc [data-cp="line"][data-cp-line="Transfer stamp duty (MOT)"]')?.textContent || null;
         const m = dealModel(pmInputsOf(pmFind(rec.id)));
         const stress = m.stress.rate.slice(1).map(x => x.monthly);
-        deletePropertyModel(rec.id); restore(); navigate('/property/calculator'); await w(300);
+        deletePropertyModel(rec.id); restore(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ secs, ledger, stress }); })()`));
       const p = [], by = Object.fromEntries(r.secs.map(s => [s.id, s]));
       const find = (id, re) => (by[id]?.rows || []).find(x => re.test(x.label));
@@ -8066,7 +8068,7 @@ try {
         const a = await open(shop, 'rs RS2 shophouse'); const s1 = read(); deletePropertyModel(a.id);
         const auc = F(); setDealAnswer(auc, 'route', 'auction');
         const b = await open(auc, 'rs RS2 auction'); const s2 = read(); deletePropertyModel(b.id);
-        restore(); navigate('/property/calculator'); await w(300);
+        restore(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ s1, s2 }); })()`));
       const p = [];
       const sec = (s, id) => s.find(x => x.id === id) || { rows: [], text: '' };
@@ -8182,7 +8184,7 @@ try {
         const recordSame = JSON.stringify(pmFind(rec.id)) === before;
         deletePropertyModel(rec.id);
         const gone = !actualsAll()[rec.id];
-        restore(); navigate('/property/calculator'); await w(300);
+        restore(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ card, msg1, one, msg2, stored: [stored.start, stored.entries.length], recordSame, gone }); })()`));
       const p = [];
       if (!r.card) p.push('no actual-against-modelled card on a saved property');
@@ -8280,7 +8282,7 @@ try {
         const third = { msg: msg(), cols: cols() };
         deletePropertyModel(rec.id);
         const k = JSON.parse(keep); store.write('savedWork', k.list); if (k.deal) { State.deal = k.deal; store.write('deal', k.deal); }
-        navigate('/property/calculator'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify({ had, first, second, third }); })()`));
       const p = [];
       if (!r.had) p.push('Refurbish\'s editor has no file control');
@@ -8398,7 +8400,7 @@ try {
         openOpportunityProperty(o2, candidateModel(o2).d); await w(300);
         out.calc = oppTied(o2)?.source || null;
         ${PV_RESTORE}
-        navigate('/property/calculator'); await w(300);
+        navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
         return JSON.stringify(out); })()`));
       const p = [];
       if (!r.button) p.push('the register\'s card has no "Open in the Scenario Lab"');
@@ -8477,7 +8479,7 @@ try {
       const w = (ms) => new Promise(res => setTimeout(res, ms));
       const keep = JSON.stringify(State.deal);
       State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
-      saveDeal(); navigate('/property/calculator'); await w(500);
+      saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
       const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
       const counts = () => ({ title: t(document.querySelector('#review .ls-card-title')), cta: t(document.querySelector('#review .ls-card-cta')),
         rows: document.querySelectorAll('#pc-review-list > div > div.row').length,
@@ -8502,7 +8504,7 @@ try {
       const linked = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
       applyDealParam(linked, 'price:-500000~rent:2000~downPct:150~apprecPct:-1');
       const link = { price: linked.price, rent: linked.rent, downPct: linked.downPct, apprecPct: linked.apprecPct, def: PROPERTY_DEFAULT_DEAL.price, defDown: PROPERTY_DEFAULT_DEAL.downPct };
-      State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator'); await w(300);
+      State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(300);
       return JSON.stringify({ before, after, cash0, refused, unit, coc, link }); })()`));
     const p = [];
     const n = (s) => Number((s.match(/^(\d+)/) || [])[1]);
@@ -8646,6 +8648,229 @@ try {
     } catch (e) { fail(ecName, String(e.message).split('\n')[0]); }
   }
   /* ---- end eq-comparability ---- */
+
+  /* ---- qt-quick ---- */
+  /* THE CALCULATOR'S TWO VIEWS (the owner's QT-003, 14 Oct 2026;
+     75-property-grade.js, pcQuickView). One deal, unlike the default in
+     every box the Quick model shows:
+     - Quick and Full say its results byte for byte the same: the cash
+       required and the monthly position — their tiles' markup and their
+       badges — the net yield and the grade; every box the Quick model shows
+       holds in Full what it holds in Quick; and dealModel's whole output is
+       the same string drawn in either;
+     - switching, both ways, keeps every value: the deal, what is stored and
+       the address's d= are what they were, and only ?view= moves;
+     - a figure typed with no Tab commits after the pause, not before — no
+       keystroke commits or toasts — with the keyboard still in the box and
+       the caret at the end, so a digit typed after the pause is added to
+       the figure; Enter commits at once; a refused partial (−5 for the
+       price) and an emptied box neither commit nor toast at the pause, and
+       Tab refuses them with the toast, the box back at its figure; and a
+       box of the full model's own commits after the pause too.
+     Fails on d66cfd0b: there is no Quick model, no ?view=, and a box commits
+     only on change. */
+  {
+    const p = [];
+    const pause = (ms) => sleep(ms);
+    const key = async (k, code, vk) => {
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: k, code, windowsVirtualKeyCode: vk }, sessionId);
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: k, code, windowsVirtualKeyCode: vk }, sessionId);
+    };
+    const typeChars = async (s, gap = 80, each = null) => { for (const ch of s) { await send('Input.insertText', { text: ch }, sessionId); await pause(gap); if (each) await each(ch); } };
+    const READ = `(() => {
+      const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : null);
+      const quick = !!document.getElementById('pc-quick');
+      const card = (k) => quick ? document.querySelector('#pc-q-answer [data-quick="' + k + '"]') : document.querySelector('#pc-answer [data-answer="' + k + '"]');
+      const tile = (k) => card(k)?.querySelector('.stat')?.outerHTML || null;
+      const badge = (k) => card(k)?.querySelector('[data-kind-badge]')?.closest('.kind-with')?.outerHTML || null;
+      const grade = quick ? t(card('grade')?.querySelector('.stat-value')) : [...document.querySelectorAll('#pc-answer .num')].map(t).find(x => /^[A-DU]$/.test(x)) || null;
+      const verdict = quick ? t(card('grade')?.querySelector('.stat-sub')) : t(document.querySelector('#pc-answer-h + .row > span:nth-child(2)'));
+      const netYield = quick ? t(card('netYield')?.querySelector('.stat-value')) : [...document.querySelectorAll('.pc-summary tr')].map(r => [t(r.cells[0]), t(r.cells[1])]).find(([k]) => /^Net yield/.test(k || ''))?.[1] || null;
+      const boxes = Object.fromEntries(PC_QUICK_KEYS ? [...PC_QUICK_KEYS].map(k => [k, document.getElementById('d-' + k)?.value ?? null]) : []);
+      return { quick, full: document.querySelectorAll('.pc-page .pc-sec').length, safe: tile('safe'), monthly: tile('monthly'), safeBadge: badge('safe'), monthlyBadge: badge('monthly'),
+        grade, verdict, netYield, boxes, model: JSON.stringify(dealModel(State.deal)), deal: JSON.stringify(State.deal), stored: localStorage.getItem('vl.deal'),
+        d: new URLSearchParams(location.search).get('d'), view: new URLSearchParams(location.search).get('view'), active: document.activeElement?.id || null };
+    })()`;
+    const setup = await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      window.__QK = { keep: JSON.stringify(State.deal), stored: localStorage.getItem('vl.deal'), toasts: [], toast: window.toast };
+      window.toast = (m) => { window.__QK.toasts.push(String(m)); return window.__QK.toast(m); };
+      State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: { price: true, rent: true },
+        price: 512000, rent: 2350, downPct: 15, ratePct: 4.1, tenureYears: 30, vacancyPct: 6, maintenance: 310, mgmtPct: 8,
+        sinkingFund: 40, assessment: 700, quitRent: 120, insurance: 500, repairReservePct: 4, renovation: 25000, holdYears: 8, apprecPct: 2.5 };
+      saveDeal(); navigate('/property/calculator');
+      if (typeof setPropertyView !== 'function') return { none: 'no setPropertyView — the calculator has one view' };
+      setPropertyView(false); render(); await w(400);
+      return { quick: !!document.getElementById('pc-quick') };
+    })()`).catch(e => ({ none: e.message }));
+    let typed = null;
+    if (setup.none || !setup.quick) p.push(`the calculator opens no Quick model: ${setup.none || 'no #pc-quick drawn'}`);
+    else {
+      const q1 = await evaluate(READ);
+      await evaluate(`(document.getElementById('pc-view-full').click(), new Promise(r => setTimeout(r, 400)))`);
+      const f1 = await evaluate(READ);
+      await evaluate(`(document.getElementById('pc-view-quick').click(), new Promise(r => setTimeout(r, 400)))`);
+      const q2 = await evaluate(READ);
+      if (!q1.quick || q1.full || q1.view) p.push(`the bare address drew ${q1.quick ? '' : 'no '}Quick model with ${q1.full} sections, ?view=${q1.view}`);
+      if (f1.quick || f1.full !== 5 || f1.view !== 'full') p.push(`Full model drew ${f1.quick ? 'the Quick model' : `${f1.full} sections`} at ?view=${f1.view}`);
+      for (const k of ['safe', 'monthly', 'safeBadge', 'monthlyBadge', 'grade', 'verdict', 'netYield', 'model'])
+        if (!q1[k] || q1[k] !== f1[k]) p.push(`${k}: Quick says ${String(q1[k]).slice(0, 140)}; Full says ${String(f1[k]).slice(0, 140)}`);
+      for (const [k, v] of Object.entries(q1.boxes)) if (v === null || v !== f1.boxes[k]) p.push(`the ${k} box holds ${v} in Quick and ${f1.boxes[k]} in Full`);
+      for (const [a, b, when] of [[q1, f1, 'to Full'], [f1, q2, 'back to Quick']])
+        for (const k of ['deal', 'stored', 'd']) if (a[k] !== b[k]) p.push(`switching ${when} changed ${k}`);
+      if (JSON.stringify({ ...q1, active: null }) !== JSON.stringify({ ...q2, active: null })) p.push('Quick, Full and back to Quick: the Quick model does not read as it did');
+      /* Typing, in Quick. */
+      await evaluate(`(() => { window.__QK.toasts.length = 0; const i = document.getElementById('d-price'); i.scrollIntoView({ block: 'center' }); i.focus(); i.select(); return true; })()`);
+      const early = [];
+      await typeChars('48000', 80, async (ch) => { const s = await evaluate(`({ price: State.deal.price, toasts: window.__QK.toasts.length })`); if (s.price !== 512000 || s.toasts) early.push(`after “${ch}”: price ${s.price}, ${s.toasts} toasts`); });
+      await pause(250);
+      const before = await evaluate(`({ price: State.deal.price, box: document.getElementById('d-price')?.value })`);
+      await pause(800);
+      const at1 = await evaluate(`({ price: State.deal.price, active: document.activeElement?.id, box: document.activeElement?.value, cash: document.querySelector('#pc-q-answer [data-quick="safe"] .stat-value')?.textContent.trim(), toasts: [...window.__QK.toasts] })`);
+      await typeChars('0');
+      await pause(900);
+      const at2 = await evaluate(`({ price: State.deal.price, active: document.activeElement?.id, box: document.activeElement?.value, toasts: [...window.__QK.toasts] })`);
+      /* Enter commits at once. */
+      await evaluate(`(() => { const i = document.getElementById('d-price'); i.focus(); i.select(); return true; })()`);
+      await typeChars('490000', 30);
+      await key('Enter', 'Enter', 13);
+      await pause(150);
+      const entered = await evaluate(`State.deal.price`);
+      /* A refused partial, and an empty box: nothing at the pause; Tab refuses each, said. */
+      await evaluate(`(() => { window.__QK.toasts.length = 0; const i = document.getElementById('d-price'); i.focus(); i.select(); return true; })()`);
+      await typeChars('-5', 60);
+      await pause(900);
+      const neg = await evaluate(`({ price: State.deal.price, toasts: window.__QK.toasts.length, box: document.getElementById('d-price')?.value })`);
+      await key('Tab', 'Tab', 9);
+      await pause(300);
+      const negTab = await evaluate(`({ price: State.deal.price, toasts: [...window.__QK.toasts], box: document.getElementById('d-price')?.value })`);
+      await evaluate(`(() => { window.__QK.toasts.length = 0; const i = document.getElementById('d-rent'); i.focus(); i.select(); return true; })()`);
+      await key('Backspace', 'Backspace', 8);
+      await pause(900);
+      const empty = await evaluate(`({ rent: State.deal.rent, toasts: window.__QK.toasts.length, box: document.getElementById('d-rent')?.value })`);
+      await key('Tab', 'Tab', 9);
+      await pause(300);
+      const emptyTab = await evaluate(`({ rent: State.deal.rent, toasts: [...window.__QK.toasts], box: document.getElementById('d-rent')?.value })`);
+      /* A box of the full model's own. */
+      await evaluate(`(async () => { document.getElementById('pc-view-full').click(); await new Promise(r => setTimeout(r, 400)); const i = document.getElementById('d-apprecPct'); pcShowFor(i); i.scrollIntoView({ block: 'center' }); i.focus(); i.select(); return true; })()`);
+      await typeChars('3.5', 80);
+      await pause(900);
+      const fullBox = await evaluate(`({ apprecPct: State.deal.apprecPct, active: document.activeElement?.id, view: new URLSearchParams(location.search).get('view') })`);
+      typed = { early, before, at1, at2, entered, neg, negTab, empty, emptyTab, fullBox };
+      if (early.length) p.push(`a keystroke committed or toasted: ${early.join('; ')}`);
+      if (before.price !== 512000 || before.box !== '48000') p.push(`250ms after the last key the price is ${before.price} (box ${before.box}) — committed before the pause`);
+      if (at1.price !== 48000 || at1.active !== 'd-price' || at1.box !== '48000' || at1.toasts.length) p.push(`after the pause: price ${at1.price}, keyboard on ${at1.active} holding ${at1.box}, ${at1.toasts.length} toasts`);
+      if (at2.price !== 480000 || at2.active !== 'd-price' || at2.box !== '480000') p.push(`a digit typed after the pause's redraw: price ${at2.price}, box ${at2.box} (keyboard on ${at2.active}) — not 480000, the caret not kept at the end`);
+      if (entered !== 490000) p.push(`Enter left the price at ${entered}, not 490000 at once`);
+      if (neg.price !== 490000 || neg.toasts) p.push(`“−5” at the pause: price ${neg.price}, ${neg.toasts} toasts — a refused partial must neither commit nor toast`);
+      if (negTab.price !== 490000 || negTab.toasts.length !== 1 || !/stays at 490000/.test(negTab.toasts[0] || '') || negTab.box !== '490000') p.push(`Tab on “−5”: price ${negTab.price}, box ${negTab.box}, toasts ${JSON.stringify(negTab.toasts)}`);
+      if (empty.rent !== 2350 || empty.toasts) p.push(`an emptied rent box at the pause: rent ${empty.rent}, ${empty.toasts} toasts`);
+      if (emptyTab.rent !== 2350 || emptyTab.toasts.length !== 1 || !/empty box is not zero/.test(emptyTab.toasts[0] || '') || emptyTab.box !== '2350') p.push(`Tab on the emptied rent: rent ${emptyTab.rent}, box ${emptyTab.box}, toasts ${JSON.stringify(emptyTab.toasts)}`);
+      if (fullBox.apprecPct !== 3.5 || fullBox.active !== 'd-apprecPct' || fullBox.view !== 'full') p.push(`the full model's capital growth typed 3.5: ${JSON.stringify(fullBox)}`);
+    }
+    await evaluate(`(async () => { if (window.__QK) { window.toast = window.__QK.toast; State.deal = JSON.parse(window.__QK.keep); if (window.__QK.stored) localStorage.setItem('vl.deal', window.__QK.stored); }
+      if (typeof setPropertyView === 'function') setPropertyView(false); saveDeal(); navigate('/property/calculator'); await new Promise(r => setTimeout(r, 300)); return true; })()`).catch(() => {});
+    if (p.length) fail('qt-quick: the calculator\'s Quick and Full models show one deal alike, switching keeps every value, and a typed figure commits at the pause', p);
+    else ok('qt-quick: one deal in Quick and Full — the cash required and the monthly position byte for byte (tile and badge), the net yield, the grade and its verdict, every Quick box and dealModel\'s whole output the same; switching both ways keeps the deal, what is stored and the address\'s d=; 48000 typed with no Tab commits after the pause and not before, the keyboard in the box, and a 0 typed after the redraw makes 480000; Enter commits at once; “−5” and an emptied box neither commit nor toast at the pause, Tab refuses each with its toast; the full model\'s capital growth commits after the pause', typed);
+  }
+  /* ---- end qt-quick ---- */
+
+  /* ---- qt-quick-full ---- */
+  /* WHAT THE CALCULATOR WAS SERVED WITH, THE FULL MODEL DRAWS (QT-003).
+     /property/calculator is served in the Quick model since QT-003, so what
+     served-check held the served calculator to and the Quick model does not
+     show is held here, on the full model as a first visit draws it
+     (?view=full), by the same rules — visible is not under [hidden],
+     aria-hidden, .sr-only or an <svg>, nor in a closed <details> but its
+     <summary>:
+     - readiness-served: each of the ten seeded inputs carries "Illustrative
+       default — not yours, and not from any market" in its row;
+     - n3-property-landing: "The score and the grade are not the same
+       claim", the pillar table and every blocker above the sections inside
+       closed <details>, the worst in sight on its own line (.pc-worst), and
+       "Cash to complete" and "Monthly position" visible once above them;
+     - p1-questions: "What are you buying?" (Residential · Commercial ·
+       Land) and "How are you buying?" (New development · Subsale ·
+       Auction), each a row of chips answered Residential and Subsale, the
+       objective optional and not chosen, the summary line "Residential ·
+       Subsale" and its Change ahead of them, and their first choice the
+       page's first form control;
+     - d6-kind-badges: an Illustrative, a Placeholder and a Derived badge;
+     - claims 6e: the sensitivity's "The ones at the top move the result
+       most; …" and "Share of the renovation you assume a buyer pays for at
+       exit (%)".
+     On d66cfd0b served-check holds these on the served page, and the full
+     model is that page; there is no ?view=, and the calculator draws them. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = { deal: JSON.stringify(State.deal), stored: localStorage.getItem('vl.deal'), aside: localStorage.getItem('vl.dealBeforeLink') };
+      try {
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+        saveDeal(); navigate('/property/calculator');
+        if (typeof setPropertyView === 'function') setPropertyView(true);
+        render(); await w(500);
+        const main = document.querySelector('main');
+        const hidden = (n) => !!n.closest('[hidden], [aria-hidden="true"], .sr-only, svg, option, select');
+        const closedAt = (n) => { for (let d = n.closest('details'); d; d = d.parentElement?.closest('details')) if (!d.open && !n.closest('summary')?.parentElement?.isSameNode(d)) return true; return false; };
+        const visible = (n) => !hidden(n) && !closedAt(n);
+        const sec = document.getElementById('acquisition');
+        const before = (n) => !!sec && !!(n.compareDocumentPosition(sec) & Node.DOCUMENT_POSITION_FOLLOWING);
+        const TAG = 'Illustrative default — not yours, and not from any market';
+        const SEEDED = ['price', 'rent', 'sqft', 'maintenance', 'ratePct', 'vacancyPct', 'downPct', 'apprecPct', 'tenureYears', 'holdYears'];
+        const untagged = SEEDED.filter(k => { const row = document.getElementById('d-' + k)?.closest('.assumption'); const t = row && [...row.querySelectorAll('span')].find(s => s.textContent === TAG); return !t || !visible(t); });
+        const texts = []; const tw = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+        for (let n = tw.nextNode(); n; n = tw.nextNode()) texts.push(n);
+        const method = texts.find(n => n.data.includes('The score and the grade are not the same claim'));
+        const pillar = [...main.querySelectorAll('th')].find(t => t.textContent.trim() === 'Pillar');
+        const gates = [...main.querySelectorAll('li.evidence.counter')].filter(before);
+        const worst = main.querySelector('.pc-worst');
+        const top = texts.filter(n => n.parentElement && visible(n.parentElement) && before(n.parentElement)).map(n => n.data).join(' ').replace(/\\s+/g, ' ');
+        const once = Object.fromEntries(['Cash to complete', 'Monthly position'].map(k => [k, top.split(k).length - 1]));
+        const q = (g) => { const fs = main.querySelector('[data-pq] fieldset[data-q="' + g + '"]'); if (!fs) return null;
+          return { legend: fs.querySelector('legend')?.textContent.trim(), chips: !!fs.querySelector('.lab-seg.ls-chips'), visible: visible(fs),
+            opts: [...fs.querySelectorAll('.lab-seg-opt')].map(o => ({ label: o.textContent.trim(), on: !!o.querySelector('input')?.checked })) }; };
+        const ctl = [...main.querySelectorAll('input:not([type="hidden"]), select, textarea')].filter(c => !c.closest('.pm-bar'));
+        const firstPq = ctl.findIndex(c => c.closest('[data-pq]')), firstOther = ctl.findIndex(c => !c.closest('[data-pq]'));
+        const sum = document.getElementById('pc-q-sum'), change = document.getElementById('pc-q-change');
+        const badges = [...new Set([...main.querySelectorAll('[data-kind-badge]')].map(b => b.dataset.kindBadge))];
+        const all = main.textContent.replace(/\\s+/g, ' ');
+        return { full: document.querySelectorAll('.pc-page .pc-sec').length, untagged,
+          method: method ? closedAt(method.parentElement) : null, pillar: pillar ? closedAt(pillar) : null,
+          gates: gates.length, gatesOpen: gates.filter(g => !closedAt(g)).length, worst: !!worst && visible(worst), once,
+          what: q('what'), how: q('how'), why: q('why'), firstPq, firstOther,
+          sum: sum ? sum.textContent.trim() : null, sumFirst: !!sum && firstPq >= 0 && !!(sum.compareDocumentPosition(ctl[firstPq]) & Node.DOCUMENT_POSITION_FOLLOWING), change: !!change,
+          badges, sens: all.includes('The ones at the top move the result most; firmer evidence there (a valuation, a rental appraisal) narrows the range most. The ones at the bottom move it least.'),
+          reno: all.includes('Share of the renovation you assume a buyer pays for at exit (%)') };
+      } finally {
+        State.deal = JSON.parse(keep.deal);
+        for (const [k, v] of [['vl.deal', keep.stored], ['vl.dealBeforeLink', keep.aside]]) { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); }
+        if (typeof setPropertyView === 'function') setPropertyView(false);
+        saveDeal(); render(); await w(300);
+      }
+    })()`);
+    const p = [];
+    if (r.full !== 5) p.push(`?view=full drew ${r.full} sections`);
+    if (r.untagged.length) p.push(`seeded inputs without the illustrative-default tag in their row: ${r.untagged.join(', ')}`);
+    if (r.method !== true) p.push(r.method === null ? 'no "The score and the grade are not the same claim"' : 'the methodology is not inside a closed <details>');
+    if (r.pillar !== true) p.push(r.pillar === null ? 'no pillar table' : 'the pillar table is not inside a closed <details>');
+    if (!r.gates || r.gatesOpen) p.push(r.gates ? `${r.gatesOpen} of ${r.gates} blockers stand outside a closed <details>` : 'no blockers above the sections');
+    if (!r.worst) p.push('the worst blocker is not in sight on its own line (.pc-worst)');
+    for (const [k, n] of Object.entries(r.once)) if (n !== 1) p.push(`"${k}" is visible ${n} times above the sections, not once`);
+    for (const [g, legend, want, on] of [['what', 'What are you buying?', ['Residential', 'Commercial', 'Land'], 'Residential'], ['how', 'How are you buying?', ['New development', 'Subsale', 'Auction'], 'Subsale']]) {
+      const x = r[g];
+      if (!x || x.legend !== legend || !x.chips || !x.visible || JSON.stringify(x.opts.map(o => o.label)) !== JSON.stringify(want) || x.opts.filter(o => o.on).map(o => o.label).join() !== on) p.push(`"${legend}": ${JSON.stringify(x)}`);
+    }
+    if (!r.why || r.why.legend !== 'Objective (optional)' || r.why.opts.filter(o => o.on).map(o => o.label).join() !== 'Not chosen') p.push(`the objective: ${JSON.stringify(r.why)}`);
+    if (r.firstPq < 0 || (r.firstOther >= 0 && r.firstOther < r.firstPq)) p.push(`the first form control is not the questions' (questions' first at ${r.firstPq}, another at ${r.firstOther})`);
+    if (r.sum !== 'Residential · Subsale' || !r.sumFirst || !r.change) p.push(`the summary line: "${r.sum}", ahead of the questions ${r.sumFirst}, Change ${r.change}`);
+    for (const k of ['illustrative', 'placeholder', 'derived']) if (!r.badges.includes(k)) p.push(`no ${k} badge (badges: ${r.badges.join(', ')})`);
+    if (!r.sens) p.push('the sensitivity\'s "The ones at the top move the result most; …" is not in the page');
+    if (!r.reno) p.push('"Share of the renovation you assume a buyer pays for at exit (%)" is not in the page');
+    if (p.length) fail('qt-quick-full: the full model drawn holds what the calculator was served with before QT-003', p);
+    else ok('qt-quick-full: the full model drawn (?view=full) on a first visit — the ten seeded inputs each tagged "Illustrative default — not yours, and not from any market"; the methodology, the pillar table and every blocker above the sections in closed drawers, the worst in sight; "Cash to complete" and "Monthly position" once above the sections; the two questions answered Residential and Subsale, rows of chips, the objective not chosen, "Residential · Subsale" and Change ahead of them, their first choice the first form control; Illustrative, Placeholder and Derived badges; the sensitivity and the renovation recovery in their approved words', r);
+  }
+  /* ---- end qt-quick-full ---- */
 
 } catch (e) {
   fail('harness error', e.message);

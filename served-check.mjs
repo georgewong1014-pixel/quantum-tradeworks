@@ -1762,6 +1762,12 @@ const HOME_PAGE = read(HOME);
      screen-reader text or a title.
    - /property/calculator: every one of the ten seeded inputs — not the four
      evidence drivers only — has the illustrative-default tag in its row.
+     Since QT-003 (14 Oct 2026) the page is served in the Quick model,
+     which shows seven of them — the price, the deposit, the rate, the
+     tenure, the rent, the vacancy and the maintenance — and each it serves
+     carries the tag; the full model's other three (the built-up area, the
+     capital growth and the holding period) are held tagged where the full
+     model is drawn (model-test, qt-quick-full).
    - /status: no capability named a "map" at /property/calculator — what
      exists is a diagram of 8 locality points per town on /property/areas,
      with no basemap, and its row says so. */
@@ -1773,8 +1779,11 @@ const HOME_PAGE = read(HOME);
   if (!hd) p.push('/property/lab: no status badge beside its h1 — its only visible state is the product\'s');
   else if (hd[1].trim() !== 'Scenario Lab' || hd[2].trim() !== 'Beta') p.push(`/property/lab: the heading reads "${hd[1]}" beside "${hd[2]}", not "Scenario Lab" beside "Beta"`);
   const TAG = 'Illustrative default — not yours, and not from any market';
-  const SEEDED = ['price', 'rent', 'sqft', 'maintenance', 'ratePct', 'vacancyPct', 'downPct', 'apprecPct', 'tenureYears', 'holdYears'];
+  const SEEDED = ['price', 'rent', 'maintenance', 'ratePct', 'vacancyPct', 'downPct', 'tenureYears'];
+  const FULL_ONLY = ['sqft', 'apprecPct', 'holdYears'];
   const calc = got.get('/property/calculator').body || '';
+  const fullServed = FULL_ONLY.filter(k => calc.includes(`id="d-${k}"`));
+  if (fullServed.length) p.push(`/property/calculator: serves ${fullServed.join(', ')} — boxes of the full model, which is not the page served (QT-003)`);
   const untagged = SEEDED.filter(k => {
     const at = calc.indexOf(`id="d-${k}"`);
     if (at < 0) return true;
@@ -1790,7 +1799,7 @@ const HOME_PAGE = read(HOME);
     if (!row.includes('<a href="/property/areas">/property/areas</a>')) p.push('/status: the locality diagram\'s row does not give /property/areas as where it is');
     if (!/no basemap/.test(row) || !/8 locality points per town/.test(row)) p.push(`/status: the locality diagram's row does not say "8 locality points per town" and "no basemap": ${row.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 200)}`);
   }
-  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator serves the illustrative-default tag in the row of each of its ${SEEDED.length} seeded inputs; /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
+  judge(p, `/property/lab serves "Beta" beside its h1 "Scenario Lab"; /property/calculator, served in the Quick model, serves the illustrative-default tag in the row of each of the ${SEEDED.length} seeded inputs it shows (the full model's other ${FULL_ONLY.length}: model-test qt-quick-full); /status lists the "Locality diagram and area observations" at /property/areas, 8 locality points per town with no basemap, and no property map`,
     'a Property page serves its readiness other than as it is');
 }
 /* ---- end readiness-served ---- */
@@ -1817,7 +1826,12 @@ const HOME_PAGE = read(HOME);
      not the same claim"), the pillar table and the list of blockers inside
      closed <details>, with the worst blocker in sight on one line, and the
      cash to complete and the monthly position stated once above the
-     sections.
+     sections. Since QT-003 (14 Oct 2026) the page is served in the Quick
+     model: none of the methodology, the pillar table or a blocker list is
+     served outside a closed <details>, the worst blocker is in sight on
+     its line, and the cash required and the monthly position are each
+     said once; the full model, drawn, is held to the rest (model-test,
+     qt-quick-full).
    THE TWO QUESTIONS (the property decision layer, P1, 8 Oct 2026) are the
    page's first controls, between the identity line and the tiles: "the
    first form control" above is the first one after them ([data-pq]), and
@@ -1922,27 +1936,26 @@ const HOME_PAGE = read(HOME);
     });
   }
   const C = scan(calc.body || '');
-  const firstSection = C.tags.find(t => attr(t.raw, 'id') === 'acquisition')?.at ?? Infinity;
+  /* Served in the Quick model (QT-003): no section of the full model. */
+  if (C.tags.some(t => attr(t.raw, 'id') === 'acquisition')) p.push('/property/calculator: serves the full model\'s sections — the page is served in the Quick model (QT-003)');
+  if (!C.tags.some(t => attr(t.raw, 'id') === 'pc-quick')) p.push('/property/calculator: serves no Quick model (#pc-quick)');
   const method = C.runs.find(r => r.s.includes('The score and the grade are not the same claim'));
-  if (!method) p.push('/property/calculator: serves no "The score and the grade are not the same claim" — the check has nothing to read');
-  else if (!method.closed) p.push('/property/calculator: "The score and the grade are not the same claim" is not inside a closed <details>');
+  if (method && !method.closed) p.push('/property/calculator: "The score and the grade are not the same claim" is served outside a closed <details>');
   const pillar = C.tags.find(t => t.tag === 'th' && C.textOf(t.at, true) === 'Pillar');
-  if (!pillar) p.push('/property/calculator: serves no pillar table');
-  else if (!pillar.closed) p.push('/property/calculator: the pillar table is not inside a closed <details>');
-  const gates = C.tags.filter(t => t.tag === 'li' && / evidence counter /.test(` ${attr(t.raw, 'class') || ''} `) && t.at < firstSection);
-  if (!gates.length) p.push('/property/calculator: serves no blockers above its sections — the check has nothing to read');
-  else if (gates.some(t => !t.closed)) p.push(`/property/calculator: ${gates.filter(t => !t.closed).length} of its ${gates.length} blockers stand outside a closed <details>`);
+  if (pillar && !pillar.closed) p.push('/property/calculator: the pillar table is served outside a closed <details>');
+  const gates = C.tags.filter(t => t.tag === 'li' && / evidence counter /.test(` ${attr(t.raw, 'class') || ''} `));
+  if (gates.some(t => !t.closed)) p.push(`/property/calculator: ${gates.filter(t => !t.closed).length} of its ${gates.length} blockers stand outside a closed <details>`);
   const worst = C.tags.find(t => / pc-worst /.test(` ${attr(t.raw, 'class') || ''} `));
   if (!worst || !worst.visible) p.push('/property/calculator: the worst blocker is not in sight on its own line (.pc-worst)');
   else said.worst = C.textOf(worst.at).slice(0, 60);
-  /* Stated once above the sections: the capstrip and the Summary table
-     said the cash and the monthly position again. */
-  const top = C.runs.filter(r => r.visible && r.at < firstSection).map(r => r.s).join(' ').replace(/\s+/g, ' ');
-  for (const k of ['Cash to complete', 'Monthly position']) {
+  /* Each said once: the capstrip and the Summary table said the cash and
+     the monthly position again. */
+  const top = C.runs.filter(r => r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
+  for (const k of ['Cash required (with a 3-month reserve)', 'Monthly position']) {
     const n = top.split(k).length - 1;
-    if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times above its sections, not once`);
+    if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times, not once`);
   }
-  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and "not a real listing" in sight; /property/calculator keeps the methodology, the pillar table and its blockers in closed drawers, the worst in sight ("${said.worst}…"), and says the cash to complete and the monthly position once above its sections`,
+  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and "not a real listing" in sight; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
     '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
 
   /* ---- p1-questions ---- */
@@ -1956,7 +1969,11 @@ const HOME_PAGE = read(HOME);
      control — before every slider, field and other choice in <main> — and
      on /property it stands after the identity line and before the tiles;
      and the sample is served answered as every deal was before the
-     questions: Residential, Subsale, no objective. */
+     questions: Residential, Subsale, no objective. Since QT-003 (14 Oct
+     2026) /property/calculator is served in the Quick model, which asks
+     neither question and serves none ([data-pq]); the full model, drawn,
+     is held to all of this (model-test, qt-quick-full; mobile,
+     p1-questions). */
   {
     const q = [], qs = {};
     const choices = (S, group) => {
@@ -1969,7 +1986,8 @@ const HOME_PAGE = read(HOME);
         chips: !!row && / ls-chips /.test(` ${attr(row.raw, 'class') || ''} `), visible: fs.visible,
         opts: opts.map(o => { const all = S.textOf(o.at, true); return { label: S.textOf(o.at).replace(/[☑☐]/g, '').trim(), on: all.includes('☑') }; }) };
     };
-    for (const [path, S, prefix] of [['/property', L, 'lab'], ['/property/calculator', C, 'pc']]) {
+    if (C.tags.some(t => t.pq)) q.push('/property/calculator: serves the two questions — the full model\'s; the page is served in the Quick model (QT-003)');
+    for (const [path, S, prefix] of [['/property', L, 'lab']]) {
       const what = choices(S, 'what'), how = choices(S, 'how'), why = choices(S, 'why');
       if (!what || !how) { q.push(`${path}: serves no ${!what ? '"What are you buying?"' : '"How are you buying?"'} among its questions ([data-pq])`); continue; }
       const W = [['What are you buying?', what, ['Residential', 'Commercial', 'Land'], 'Residential'], ['How are you buying?', how, ['New development', 'Subsale', 'Auction'], 'Subsale']];
@@ -2001,7 +2019,7 @@ const HOME_PAGE = read(HOME);
       if (!id || id.at > L.qControl.at) q.push('/property: the questions come before the identity line, or there is none');
       if (!tile || tile.at < L.qControl.at) q.push('/property: a tile comes before the questions');
     }
-    judge(q, `the two questions are served first on /property (after the identity line, before the tiles) and on /property/calculator, each a row of chips for a phone and, for a phone, their summary line served ahead of them ("Residential · Subsale" and Change), the sample answered as every deal was: ${Object.entries(qs).map(([k, v]) => `${k} ${v}`).join('; ')}; the objective optional, not chosen`,
+    judge(q, `the two questions are served first on /property (after the identity line, before the tiles), each a row of chips for a phone and, for a phone, their summary line served ahead of them ("Residential · Subsale" and Change), the sample answered as every deal was: ${Object.entries(qs).map(([k, v]) => `${k} ${v}`).join('; ')}; the objective optional, not chosen; /property/calculator, served in the Quick model, serves none (the full model, drawn: model-test qt-quick-full)`,
       'the two questions are not the first controls of /property and the calculator, or the sample is not served as a subsale of its class (the property decision layer, P1)');
   }
   /* ---- end p1-questions ---- */
@@ -2161,7 +2179,10 @@ const HOME_PAGE = read(HOME);
   /* path → the kinds its served page must carry as badges, and why. */
   const SAMPLE = [
     ['/property', ['illustrative'], 'the sample deal’s tiles and seeded inputs'],
-    ['/property/calculator', ['illustrative', 'placeholder', 'derived'], 'the answer cards, the fee lines (Placeholder, Derived) and the total'],
+    /* Served in the Quick model since QT-003: its results and seeded
+       inputs; the full model's fee lines (Placeholder, Derived) and total
+       are held where it is drawn (model-test, qt-quick-full). */
+    ['/property/calculator', ['illustrative'], 'the Quick model’s results'],
     ['/property/lab', ['illustrative'], 'the Lab’s tiles'],
     ['/', ['filed', 'unavailable', 'illustrative'], 'the homepage’s three product pictures'],
     ['/research', ['filed', 'illustrative'], 'Research’s filed examples and illustrative lenses'],
@@ -3299,14 +3320,15 @@ const HOME_PAGE = read(HOME);
   gone(/worth paying for/, 'the sensitivity\'s "worth paying for"');
   gone(/a buyer will pay for at exit/, '"a buyer will pay for at exit"');
   here('/property/calculator', /This models the acquisition cost line by line — each fee with its source, estimates marked — then financing, vacancy, maintenance, exit costs and tax, and compares the result with the equity return you enter\./, 'what the calculator models, without a comparison or "true"');
-  here('/property/calculator', /The ones at the top move the result most; firmer evidence there \(a valuation, a rental appraisal\) narrows the range most\. The ones at the bottom move it least\./, 'the sensitivity\'s ranking as what moves the result');
-  here('/property/calculator', /Share of the renovation you assume a buyer pays for at exit \(%\)/, 'the renovation recovery as an assumption');
+  /* The sensitivity and the renovation recovery are the full model's,
+     which is not the page served since QT-003: held where it is drawn
+     (model-test, qt-quick-full). */
   {
     const row = /'in\.renoValueRecoveryPct':\{([^}]*)\}/.exec(read('src/js/70-property.js'))?.[1] || '';
     if (!/en:'Share of the renovation you assume a buyer pays for at exit \(%\)'/.test(row) || !/andaikan/.test(row) || !/假设/.test(row) || /akan dibayar|愿为/.test(row))
       p.push(`the calculator's Malay and Chinese labels for the renovation recovery do not say it is an assumption: {${row.slice(0, 200)}}`);
   }
-  said.push('/property/calculator "compares the result with the equity return you enter", "move the result most", "you assume a buyer pays" (en, ms, zh)');
+  said.push('/property/calculator "compares the result with the equity return you enter" (the full model\'s "move the result most" and "you assume a buyer pays", en, ms, zh: model-test qt-quick-full and the labels\' source)');
   /* 6f — the Learn lede (F-15, R-10): "Every formula, weight, anchor range
      and limitation used anywhere in this prototype is published here" on
      the five Learn pages — a completeness guarantee no check holds (the

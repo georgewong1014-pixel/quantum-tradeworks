@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -1469,7 +1469,10 @@ const JOURNEYS = [
          page shows can be held to what was typed, not only to being there. */
       const grossIs = (fig, rent, price) => fig?.label !== 'Gross yield' || fig.value === `${(rent * 12 / price * 100).toFixed(2)}%`;
       let first;
-      await step(j, tab, 'Open the property calculator', BUDGET.load, () => tab.goto('/property/calculator'));
+      /* The full model (QT-003): its gross yield is held to the price and
+         the rent typed, and the Quick model shows the net yield only — the
+         quick journey, below, works the Quick model. */
+      await step(j, tab, 'Open the property calculator', BUDGET.load, () => tab.goto('/property/calculator?view=full'));
       await step(j, tab, 'Enter a price, a rent and a loan', BUDGET.action * 3, async () => {
         await set('/^Purchase price/', '600000', 'The purchase price');
         await set('/^Expected monthly rent/', '2600', 'The monthly rent');
@@ -1548,6 +1551,106 @@ const JOURNEYS = [
           .filter(([, re]) => re.test(sale.text)).map(([w]) => w);
         if (shown.length) throw new StepError(`before any report is unlocked the proposal shows the full report's ${shown.join(', ')}`);
         if (!sale.notes.includes('In the full analysis — preview in the calculator; nothing is on sale')) throw new StepError('the proposal does not say where the rest of the sale is');
+      });
+    },
+  },
+  {
+    /* THE CALCULATOR'S QUICK MODEL (the owner's QT-003, 14 Oct 2026).
+       /property/calculator opens in Quick: the core boxes and the answer
+       beside them. A price and a rent typed with no Tab commit at the pause
+       and move the answer, the keyboard still in the box; the full model,
+       opened, holds the same deal and says the same figures; the other
+       running costs open in place and a box in them moves the answer; and
+       a reload keeps the view the address names. */
+    id: 'quick', name: 'Property Quick model: typed figures move the answer, the full model holds the same deal',
+    outcomes: ['Type a price and a rent, no Tab: the answer moves', 'Open the full model: the same deal and the same figures',
+      'Other running costs: opened in place, a box changed, the answer moves', 'A reload keeps the view the address names'],
+    async run(j, tab) {
+      const FIGS = `(() => { const v = (k) => document.querySelector('#pc-q-answer [data-quick="' + k + '"] .stat-value')?.textContent.trim() || null;
+        return { safe: v('safe'), monthly: v('monthly'), netYield: v('netYield'), grade: v('grade') }; })()`;
+      const figs = () => tab.eval(FIGS);
+      const QUICK = `!!document.getElementById('pc-quick') && !document.querySelector('.pc-page .pc-sec') && document.getElementById('pc-view-quick')?.getAttribute('aria-current') === 'page'`;
+      const FULL = `document.querySelectorAll('.pc-page .pc-sec').length === 5 && !document.getElementById('pc-quick') && document.getElementById('pc-view-full')?.getAttribute('aria-current') === 'page'`;
+      /* Typed as a reader types, and not committed: the box clicked, its
+         figure selected, the new one inserted a character at a time. */
+      const type = async (id, value, what) => {
+        await tab.click(`document.getElementById('${id}')`, what);
+        await tab.S('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2, commands: ['selectAll'] });
+        await tab.S('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+        for (const ch of String(value)) { await tab.S('Input.insertText', { text: ch }); await sleep(60); }
+      };
+      let at;
+      await step(j, tab, 'Open the calculator: the Quick model', BUDGET.load, async () => {
+        await tab.goto('/property/calculator');
+        await tab.expect(QUICK, async () => `/property/calculator opened ${await tab.eval(`document.getElementById('pc-quick') ? 'the Quick model, not marked so' : document.querySelector('.pc-sec') ? 'the full model' : 'neither view'`)}`);
+        at = await figs();
+        const none = Object.entries(at).filter(([, v]) => !v).map(([k]) => k);
+        if (none.length) throw new StepError(`the Quick model's answer shows no ${none.join(', no ')}`);
+      });
+      await step(j, tab, 'Type a price and a rent, no Tab: the answer moves', BUDGET.action * 4, async () => {
+        await type('d-price', '480000', 'The purchase price');
+        await tab.expect(`State.deal.price === 480000`, async () => `the price typed with no Tab is not committed after the pause (the deal holds ${await tab.eval('State.deal.price')})`, 4000);
+        await tab.expect(`document.activeElement?.id === 'd-price' && document.activeElement.value === '480000'`, async () => `after the pause the keyboard is on ${await tab.eval(`document.activeElement?.id || document.activeElement?.tagName`)}, holding “${await tab.eval(`document.activeElement?.value ?? ''`)}”, not the price box`, 3000);
+        const p = await figs();
+        if (p.safe === at.safe) throw new StepError(`the cash required stayed ${at.safe} when the price went to RM480,000`);
+        await type('d-rent', '2400', 'The monthly rent');
+        await tab.expect(`State.deal.rent === 2400 && document.activeElement?.id === 'd-rent'`, async () => `the rent typed with no Tab is not committed with the keyboard in its box (the deal holds ${await tab.eval('State.deal.rent')}, the keyboard on ${await tab.eval('document.activeElement?.id || document.activeElement?.tagName')})`, 4000);
+        const r = await figs();
+        if (r.monthly === p.monthly || r.netYield === p.netYield) throw new StepError(`the rent went to RM2,400 and the monthly position read ${p.monthly} → ${r.monthly}, the net yield ${p.netYield} → ${r.netYield}`);
+        const toast = await tab.eval(`document.getElementById('toast')?.textContent || ''`);
+        if (/stays at|not zero|cannot/.test(toast)) throw new StepError(`typing a valid figure toasted “${toast}”`);
+        at = r;
+      });
+      await step(j, tab, 'Open the full model: the same deal and the same figures', BUDGET.action * 2, async () => {
+        const deal = await tab.eval('JSON.stringify(State.deal)');
+        await tab.click(`document.getElementById('pc-open-full')`, 'Open the full model');
+        await tab.expect(FULL, async () => `"Open the full model" left ${await tab.where()} showing ${await tab.eval(`document.querySelectorAll('.pc-sec').length`)} sections`);
+        if (!new URLSearchParams(await tab.eval('location.search')).get('view')) throw new StepError('the address does not name the full model (?view=full)');
+        if (await tab.eval('JSON.stringify(State.deal)') !== deal) throw new StepError('opening the full model changed the deal');
+        const boxes = await tab.eval(`[document.getElementById('d-price')?.value, document.getElementById('d-rent')?.value]`);
+        if (boxes.join() !== '480000,2400') throw new StepError(`the full model's boxes read price ${boxes[0]} and rent ${boxes[1]}, not 480000 and 2400`);
+        const f = await tab.eval(`(() => { const v = (k) => document.querySelector('#pc-answer [data-answer="' + k + '"] .stat-value')?.textContent.trim() || null;
+          const g = [...document.querySelectorAll('#pc-answer .num')].find(n => /^[A-DU]$/.test(n.textContent.trim()))?.textContent.trim() || null;
+          return { safe: v('safe'), monthly: v('monthly'), grade: g, netYield: [...document.querySelectorAll('.pc-summary tr')].find(r => /^Net yield/i.test(r.cells[0]?.textContent.trim() || ''))?.cells[1]?.textContent.trim() || null }; })()`);
+        const differ = ['safe', 'monthly', 'grade', 'netYield'].filter(k => f[k] !== at[k]);
+        if (differ.length) throw new StepError(`the full model says ${differ.map(k => `${k} ${f[k]}`).join(', ')}; the Quick model said ${differ.map(k => at[k]).join(', ')}`);
+        /* And back: the Quick model, the same figures. */
+        await tab.click(`document.getElementById('pc-view-quick')`, 'Quick model');
+        await tab.expect(QUICK, 'Quick model did not bring the Quick model back');
+        const back = await figs();
+        if (JSON.stringify(back) !== JSON.stringify(at)) throw new StepError(`back in Quick the answer reads ${JSON.stringify(back)}, not ${JSON.stringify(at)}`);
+      });
+      await step(j, tab, 'Other running costs: opened in place, a box changed, the answer moves', BUDGET.action * 3, async () => {
+        const sum = `document.querySelector('#pc-q-other > summary')`;
+        const line = await tab.eval(`(${sum})?.textContent.replace(/\\s+/g, ' ').trim() || ''`);
+        if (!/^Other running costs RM[\d,]+ a year: sinking fund, assessment, quit rent, insurance, repair reserve$/.test(line)) throw new StepError(`the other running costs read “${line}”`);
+        if (await tab.eval(`document.getElementById('pc-q-other').open || !!document.getElementById('d-insurance')?.checkVisibility()`)) throw new StepError('the other running costs stand open before they are opened');
+        await tab.click(sum, 'Other running costs');
+        await tab.expect(`document.getElementById('pc-q-other').open && !!document.getElementById('d-insurance')?.checkVisibility()`, 'pressing the other running costs did not open their boxes in place');
+        const was = await tab.eval('State.deal.insurance');
+        await tab.fill(`document.getElementById('d-insurance')`, String(was + 1200), 'The annual insurance', { commit: true });
+        await tab.expect(`State.deal.insurance === ${was + 1200}`, 'the insurance did not take the figure entered');
+        await tab.expect(`document.getElementById('pc-q-other').open`, 'the other running costs closed when a box in them changed');
+        const now = await tab.eval(`(${sum})?.textContent.replace(/\\s+/g, ' ').trim() || ''`);
+        const n = (s) => Number((/RM([\d,]+)/.exec(s) || [])[1]?.replace(/,/g, '') || NaN);
+        if (n(now) - n(line) !== 1200) throw new StepError(`RM1,200 more insurance moved the line from “${line}” to “${now}”`);
+        const f = await figs();
+        if (f.monthly === at.monthly) throw new StepError(`the monthly position stayed ${at.monthly} with RM1,200 a year more insurance`);
+      });
+      await step(j, tab, 'A reload keeps the view the address names', BUDGET.load * 2, async () => {
+        await tab.goto(await tab.where());
+        await tab.expect(QUICK, 'a reload of the Quick model did not open the Quick model');
+        /* Switching writes nothing: every key this browser holds, before and after. */
+        const STORE = `JSON.stringify(Object.keys(localStorage).sort().map(k => [k, localStorage.getItem(k)]))`;
+        const kept = await tab.eval(STORE);
+        await tab.click(`document.getElementById('pc-view-full')`, 'Full model');
+        await tab.expect(FULL, 'Full model did not open the full model');
+        if (await tab.eval(STORE) !== kept) throw new StepError('switching to the full model wrote to this browser\'s storage');
+        const path = await tab.where();
+        if (new URLSearchParams(path.split('?')[1] || '').get('view') !== 'full') throw new StepError(`the full model's address, ${path}, does not name it`);
+        await tab.goto(path);
+        await tab.expect(FULL, async () => `a reload of ${path} opened ${await tab.eval(`document.getElementById('pc-quick') ? 'the Quick model' : 'something else'`)}`);
+        if (await tab.eval(`document.getElementById('d-price')?.value`) !== '480000') throw new StepError('after a reload the full model does not hold the price typed');
       });
     },
   },

@@ -41,11 +41,12 @@ const ROUTES = [
      carries a feature-flag notice from the capability register. */
   '/app/equities/msft/source-data', '/app/equities/msft/statements', '/app/equities/aapl/valuation',
   '/discover/sarawak', '/property',
-  '/property/calculator', '/property/opportunities', '/property/comparables', '/property/areas', '/us-options/wheel', '/property/calculator?city=sibu',
+  /* The calculator opens the Quick model; its full model is ?view=full (QT-003). */
+  '/property/calculator', '/property/calculator?view=full', '/property/opportunities', '/property/comparables', '/property/areas', '/us-options/wheel', '/property/calculator?view=full&city=sibu',
   '/research/trading-index', '/learn/trading-index', '/trading-index',
   '/wheel', '/cash-wheel', '/options', '/my/wheel', '/my/options',
-  '/property/calculator?city=miri&district=lutong&type=shophouse',
-  '/property/calculator?city=bintulu', '/learn', '/learn/glossary', '/methodology',
+  '/property/calculator?view=full&city=miri&district=lutong&type=shophouse',
+  '/property/calculator?view=full&city=bintulu', '/learn', '/learn/glossary', '/methodology',
   '/data-sources', '/corrections', '/status', '/learn/product-boundaries', '/pricing', '/about', '/contact', '/privacy', '/terms',
   '/decision-record', '/methodology/ips',
   /* Phase 2 batch F: the research report (filed, illustrative, the brief's
@@ -55,8 +56,9 @@ const ROUTES = [
   '/my/workspace', '/app/workspace', '/compare?companies=MSFT-SEC,AAPL-SEC,MAYBANK',
   /* A town with no coordinates, which now has the recorder; and a link that
      carries a checklist answer, an over-long hold and a loan with no tenure. */
-  '/property/calculator?city=bau',
+  '/property/calculator?view=full&city=bau',
   '/property/calculator?type=land&d=holdYears:40~tenureYears:0~check.flood:yes~checkev.flood:verified',
+  '/property/calculator?view=full&type=land&d=holdYears:40~tenureYears:0~check.flood:yes~checkev.flood:verified',
   /* Phase 3 — user: the reader's scanner pages, an unknown setup and an
      unknown alert (each a "not in your record" card, never the not-found
      page), the builder opened from a company page, and the old address
@@ -300,7 +302,7 @@ for (const route of ROUTES) {
   };
   ws.addEventListener('message', aqListen);
   await send('Log.enable', {}, sessionId);
-  const PAGES = ['/', '/pricing', '/discover/screener', '/app', '/property/calculator', '/property/areas', '/app/scanner', '/admin/scanner'];
+  const PAGES = ['/', '/pricing', '/discover/screener', '/app', '/property/calculator', '/property/calculator?view=full', '/property/areas', '/app/scanner', '/admin/scanner'];
   const WIDTHS = [[1280, 900, false], [390, 844, true]];
   const aqBad = [];
   for (const [w, h, mobile] of WIDTHS) {
@@ -339,7 +341,7 @@ for (const route of ROUTES) {
      files are still asked for, present or absent. */
   if (ownMachine) {
     seen = [];
-    await send('Page.navigate', { url: BASE + '/property/calculator' }, sessionId);
+    await send('Page.navigate', { url: BASE + '/property/calculator?view=full' }, sessionId);
     await sleep(2600);
     const want = ['prices.json', 'price-history.json', 'scan-setups.json', 'scan-alerts.json', 'price-adjustments.json',
       'scan-runs.json', 'scan-control.json', 'scan-deliveries.json', 'ingest-runs.json', 'sarawak-income.json'];
@@ -839,7 +841,7 @@ for (const route of ROUTES) {
 
   /* 2. As production serves it. */
   const LIVE_PAGES = ['/', '/how-it-works', '/app', '/research', '/company/msft-microsoft', '/app/scanner', '/app/scanner/setups',
-    '/app/scanner/market', '/app/scanner/alerts', '/app/scanner/backtest', '/research/trading-index', '/property/calculator', '/my/workspace'];
+    '/app/scanner/market', '/app/scanner/alerts', '/app/scanner/backtest', '/research/trading-index', '/property/calculator', '/property/calculator?view=full', '/my/workspace'];
   let offLinks = 0;
   for (const path of LIVE_PAGES) {
     await load(live + path);
@@ -1146,7 +1148,7 @@ for (const route of ROUTES) {
   /* 2 and 3. As production serves it. */
   const SCAN_OFF = /^\/app\/scanner\/(market|alerts|backtest)(\/|$)/;
   const PROD = ['/', '/how-it-works', '/app', '/research', '/company/msft-microsoft', '/app/scanner', '/app/scanner/setups', '/app/scanner/setups/new',
-    '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index', '/property/calculator', '/my/workspace', '/my/tracked', '/my/alerts'];
+    '/app/scanner/watchlists', '/app/scanner/settings', '/research/trading-index', '/property/calculator', '/property/calculator?view=full', '/my/workspace', '/my/tracked', '/my/alerts'];
   for (const path of PROD) {
     await load(live + path);
     const r = await ev(`({ links: [...document.querySelectorAll('a[href], [data-tool-path]')].map(a => [a.tagName, a.getAttribute('data-tool-path') || new URL(a.href).pathname, a.textContent.trim().replace(/\\s+/g, ' ').slice(0, 40)])
@@ -1584,14 +1586,17 @@ for (const route of ROUTES) {
     if (!hid.kept || !hid.kept.equities) p.push(`hiding Equities' panel is not remembered: vl.startHere ${JSON.stringify(hid.kept)}`);
   }
   const seen = {};
-  for (const path of ['/compare', '/discover/screener', '/research', '/app/scanner', '/research/trading-index', '/property/models', '/property/calculator',
+  for (const path of ['/compare', '/discover/screener', '/research', '/app/scanner', '/research/trading-index', '/property/models', '/property/calculator?view=full', '/property/calculator',
     '/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc', '/admin/scanner']) {
     await load(BASE + path);
     seen[path] = await ev(`document.querySelector('#views .start-here')?.dataset.product || null`);
   }
   for (const path of ['/compare', '/discover/screener', '/research']) if (seen[path]) p.push(`${path}: Equities' panel is back after it was hidden (${seen[path]})`);
-  for (const [path, pid] of [['/app/scanner', 'scanner'], ['/research/trading-index', 'scanner'], ['/property/models', 'property'], ['/property/calculator', 'property']])
+  /* The calculator's full model keeps the panel; its Quick model, whose
+     four figures come first, carries none, as the Scenario Lab (QT-003). */
+  for (const [path, pid] of [['/app/scanner', 'scanner'], ['/research/trading-index', 'scanner'], ['/property/models', 'property'], ['/property/calculator?view=full', 'property']])
     if (seen[path] !== pid) p.push(`${path}: ${pid}'s panel is ${JSON.stringify(seen[path])} while only Equities' is hidden`);
+  if (seen['/property/calculator']) p.push(`/property/calculator: the Quick model carries a Start here panel (${seen['/property/calculator']}) above its four figures`);
   /* Nor on a company page, or the Scanner's read-only operations pages. */
   for (const path of ['/', '/how-it-works', '/app', '/my/watchlists', '/company/aapl-apple-inc', '/admin/scanner']) if (seen[path]) p.push(`${path}: a Start here panel (${seen[path]}) on a page that is not one of a product's tools`);
   /* Your data & settings says so, and brings it back. */
@@ -2492,7 +2497,7 @@ for (const route of ROUTES) {
   const p = [];
   let pdfBox = null, placements = 0, rowsHeld = 0, PAPER_N = 0;
   try {
-    await load(BASE + '/property/calculator');
+    await load(BASE + '/property/calculator?view=full');
     bucket = [];
     const r = await ev(`(async () => {
       const w = (ms) => new Promise(res => setTimeout(res, ms));

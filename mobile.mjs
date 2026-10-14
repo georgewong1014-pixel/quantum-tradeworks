@@ -22,8 +22,8 @@ const BASE = process.argv[2] || 'http://localhost:8123';
 /* 375 is the Phase 2 brief's own phone width, and the one the focus walk
    below already used; the overflow sweep skipped from 360 to 390 past it. */
 const WIDTHS = [360, 375, 390, 430, 768, 1024, 1440];
-const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator?city=sibu',
-                '/property/calculator?city=kuching', '/pricing', '/learn/glossary', '/app',
+const ROUTES = ['/my/theses', '/discover/screener', '/property/calculator', '/property/calculator?view=full&city=sibu',
+                '/property/calculator?view=full&city=kuching', '/pricing', '/learn/glossary', '/app',
                 /* Release A: /app is the visitor's dashboard, and the research queue
                    it used to be — the four-card market strip and the change feed —
                    moved here, so the page measured under /app is still measured. */
@@ -252,7 +252,7 @@ for (const w of WIDTHS) {
    cooldown and the expiry — and its keyboard use was checked only by
    equity-test's own walk at one width, never against the phone topbar
    (docs/phase3-plan.md SC-319 item 6). */
-const FOCUS_ROUTES = ['/property/calculator', '/discover/screener', '/company/AAPL-SEC', '/app/watchlists',
+const FOCUS_ROUTES = ['/property/calculator', '/property/calculator?view=full', '/discover/screener', '/company/AAPL-SEC', '/app/watchlists',
                       '/app/equities/explore', '/compare', '/app/scanner/setups/new'];
 /* Reduced motion, so a control that slides in on focus — the skip link — is
    measured where it comes to rest and not 20ms into the slide. */
@@ -447,7 +447,7 @@ await sleep(2500);
    margin") and the sensitivity grid's fifth column was drawn past the card.
    No label, value or cell may extend outside the svg it belongs to. */
 await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
-for (const route of ['/company/MSFT-SEC?tab=valuation', '/company/MAYBANK?tab=valuation', '/property/calculator']) {
+for (const route of ['/company/MSFT-SEC?tab=valuation', '/company/MAYBANK?tab=valuation', '/property/calculator?view=full']) {
   await send('Page.navigate', { url: BASE + route }, sessionId);
   let ready = false;
   for (let i = 0; i < 40 && !ready; i++) {
@@ -593,7 +593,7 @@ await sleep(2500);
    and not counted. */
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
 for (const [route, heads] of [
-  ['/property/calculator?city=kuching', ['#|Gate|State|Why', 'Source|State|Counts', 'Allowance|Triggered by']],
+  ['/property/calculator?view=full&city=kuching', ['#|Gate|State|Why', 'Source|State|Counts', 'Allowance|Triggered by']],
   ['/methodology/ips', ['IPS §8 says|', '#|Gate|The question it asks', 'Tier|IPS description|']],
   ['/company/JPM-SEC', ['Strategy|Grade|Supports|Weakens or missing']],
 ]) {
@@ -724,7 +724,7 @@ await send('Runtime.evaluate', { expression: `localStorage.setItem('vl.borrowerP
   verifiedNetMonthlyIncome: 9000, existingMonthlyDebtPayments: 800, essentialMonthlyCommitments: 2500, liquidCashAvailable: 150000,
   incomeStabilityMonths: 36, creditReview: 'not_checked', applicantCount: 1, docs: {} })); true` }, sessionId);
 for (const [route, heads] of [
-  ['/property/calculator?city=kuching', ['Pillar|Weight|Score|Basis', 'Component|Weight|Score|Basis']],
+  ['/property/calculator?view=full&city=kuching', ['Pillar|Weight|Score|Basis', 'Component|Weight|Score|Basis']],
   ['/company/JPM-SEC?tab=valuation', ['Part|Reading|Points|Rule', '#|Method|Value per share|vs price|Basis']],
 ]) {
   await send('Page.navigate', { url: BASE + route }, sessionId);
@@ -942,7 +942,7 @@ for (const w of [360, 390]) {
   const PUBLIC = ['/', '/pricing', '/about', '/contact', '/privacy', '/terms', '/learn', '/learn/glossary', '/methodology', '/data-sources',
     '/corrections', '/learn/product-boundaries', '/status', '/methodology/ips', '/no-such-page'];
   const APP = ['/app', '/research', '/discover/screener', '/discover/value-map', '/compare', '/discover/sarawak', '/us-options/wheel',
-    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/calculator', '/property/areas',
+    '/company/AAPL-SEC', '/app/scanner', '/app/scanner/alerts', '/research/trading-index', '/property', '/property/calculator?view=full', '/property/areas',
     '/my/watchlists', '/my/alerts', '/my/workspace', '/my/data', '/my/portfolio', '/decision-record', '/welcome', '/start'];
   const chromeProbe = (paths) => `(async () => {
     const shown = (s) => { const n = document.querySelector(s); return !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden'; };
@@ -1172,7 +1172,7 @@ for (const w of [360, 390]) {
     }
     /* SHELL-10 — the dock is inert behind the open drawer, and a dock drawn
        while it is open is too; closing it gives the dock back. */
-    for (const path of ['/property/calculator', '/us-options/wheel']) {
+    for (const path of ['/property/calculator?view=full', '/us-options/wheel']) {
       await load(path, 390);
       await ev(`(() => { document.getElementById('navOpen').click(); return true; })()`); await sleep(350);
       const inert = `(() => { const d = document.querySelector('body > .dock'); return d ? !!d.closest('[inert]') : 'no dock'; })()`;
@@ -1215,7 +1215,7 @@ for (const w of [360, 390]) {
      — 143px of it at 390px and 31px at 1440, with nothing left to scroll. */
   {
     const fails = [];
-    for (const [path, w, must] of [['/property/calculator', 390, true], ['/property/calculator', 1440, true],
+    for (const [path, w, must] of [['/property/calculator?view=full', 390, true], ['/property/calculator?view=full', 1440, true],
       ['/us-options/wheel', 390, false], ['/research/trading-index', 390, false]]) {
       await loadAt(path, w);
       const r = await evalM(`(async () => {
@@ -1273,7 +1273,7 @@ for (const w of [360, 390]) {
     })()`;
     const fails = [];
     for (const w of [1440, 1024, 390, 360]) {
-      await loadAt('/property/calculator', w);
+      await loadAt('/property/calculator?view=full', w);
       const r = await evalM(CLIPPED);
       if (!r || r.n < 14) fails.push(`${w}px: measured ${r?.n} controls`);
       (r?.out || []).slice(0, 6).forEach(x => fails.push(`${w}px ${x}`));
@@ -1284,7 +1284,7 @@ for (const w of [360, 390]) {
        neither Inter nor Segoe, laid it out 52px too wide; Verdana forced
        gives the same answer on any machine. */
     for (const w of [1440, 1024]) {
-      await loadAt('/property/calculator', w);
+      await loadAt('/property/calculator?view=full', w);
       const r = await evalM(`(() => {
         const st = document.createElement('style'); st.id = 'probeFont';
         st.textContent = 'body, button, a, select, th, td, div, span, p { font-family: Verdana, sans-serif !important; }';
@@ -1410,7 +1410,7 @@ for (const w of [360, 390]) {
     const marked = [...main.querySelectorAll('[data-scroll-stop]')].filter(n => !(n.scrollWidth > n.clientWidth + 1 || n.scrollHeight > n.clientHeight + 1)).map(who);
     return { unreachable, stops, twice, marked };
   })()`;
-  const PAGES = ['/property/calculator', '/company/aapl-apple-inc?tab=financials', '/discover/screener', '/methodology/ips', '/data-sources', '/us-options/wheel'];
+  const PAGES = ['/property/calculator?view=full', '/company/aapl-apple-inc?tab=financials', '/discover/screener', '/methodology/ips', '/data-sources', '/us-options/wheel'];
   try {
     await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
     let total = 0;
@@ -1423,7 +1423,7 @@ for (const w of [360, 390]) {
          methodology as drawers (the 11 Oct audit, #6): each shown, as a
          reader choosing them does, and laid out — the shell makes its
          stops then — before its boxes are counted. */
-      if (p === '/property/calculator') await ev(`(async () => { document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
+      if (p === '/property/calculator?view=full') await ev(`(async () => { document.querySelectorAll('#views .pc-sec').forEach(s => s.classList.add('is-on'));
         document.querySelectorAll('#views details.pc-l3m').forEach(d => { d.open = true; });
         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))); return true; })()`);
       const r = await ev(MEASURE);
@@ -1437,7 +1437,7 @@ for (const w of [360, 390]) {
     /* The calculator's first such box, by keyboard: Tab from the stop before
        it lands on it with a visible ring, and ArrowRight scrolls it. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-    await send('Page.navigate', { url: BASE + '/property/calculator' }, sessionId);
+    await send('Page.navigate', { url: BASE + '/property/calculator?view=full' }, sessionId);
     for (let i = 0; i < 60; i++) { await sleep(300); if (await ev(`typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`) === true) break; }
     await sleep(900);
     const prep = await ev(`(async () => {
@@ -1639,7 +1639,7 @@ for (const w of [360, 390]) {
       if (dark && ![390, 1440].includes(w)) continue;
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: 860, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
-      for (const path of ['/property/models', '/property/calculator']) {
+      for (const path of ['/property/models', '/property/calculator?view=full']) {
         await send('Page.navigate', { url: BASE + path }, sessionId);
         await sleep(1500);
         if (!seeded) {
@@ -1683,8 +1683,8 @@ for (const w of [360, 390]) {
         if (path === '/property/models' && (!v.listed.length || v.listed.some(d => d === 'none'))) fails.push(`${at}: a saved property's figures have no label a screen reader reads (${[...new Set(v.listed)].join(', ') || 'none drawn'})`);
         /* On a desktop the three columns are set side by side, not behind a
            scroll: at 1440 the third was cut at its heading. */
-        if (path === '/property/calculator' && w >= 1440 && v.fits > 1) fails.push(`${at}: the three-column comparison needs ${v.fits}px of sideways scrolling`);
-        if (path === '/property/calculator') {
+        if (path === '/property/calculator?view=full' && w >= 1440 && v.fits > 1) fails.push(`${at}: the three-column comparison needs ${v.fits}px of sideways scrolling`);
+        if (path === '/property/calculator?view=full') {
           if (!v.idx || v.idx.rows !== 1 || v.idx.scrolls !== 'auto') fails.push(`${at}: the section index is ${JSON.stringify(v.idx)}`);
           if (!v.cmp || v.cmp.cols !== 4 || !v.cmp.boxScrolls || !v.cmp.inBox) fails.push(`${at}: the scenarios comparison is ${JSON.stringify(v.cmp)}`);
         }
@@ -2083,7 +2083,7 @@ for (const w of [360, 390]) {
          machine's own scheme, which may be dark. */
       await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: dark ? 'dark' : 'light' }] }, sessionId);
       await ev(seed);
-      await load('/property/calculator');
+      await load('/property/calculator?view=full');
       await ev(`(async () => { const w = (ms) => new Promise(r => setTimeout(r, ms));
         saveActiveProperty({ name: 'QT phone property' });
         const l = wlCreate(${JSON.stringify(LONG)}); if (l.ok) wlAdd(l.watchlist.id, 'MAYBANK');
@@ -2230,7 +2230,7 @@ for (const w of [360, 390]) {
   let measured = 0, stops = 0, targets = 0, heads = 0, rows = 0;
   try {
     await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await load('/property/calculator');
+    await load('/property/calculator?view=full');
     const path = await ev(`(async () => {
       const w = (ms) => new Promise(r => setTimeout(r, ms));
       Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k));
@@ -2716,9 +2716,9 @@ for (const w of [360, 390]) {
     /* The calculator's way into the lab, on a phone. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await fresh();
-    await load('/property/calculator');
+    await load('/property/calculator?view=full');
     await ev(`(() => { newPropertyDeal({ show: false }); const rec = saveActiveProperty({ name: 'Mobile link' }); pmAddScenario(rec.id, { rent: 2100, touched: { rent: true } }, 'Rent 2100'); return true; })()`);
-    await load('/property/calculator');
+    await load('/property/calculator?view=full');
     /* Its section — Scenarios — chosen first, as on a phone a reader does (#6). */
     const link = await ev(`(() => { const a = document.getElementById('pm-sc-lab'); if (!a) return null; if (typeof pcShowFor === 'function') pcShowFor(a); const b = a.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; })()`);
     said.link = link;
@@ -3021,7 +3021,7 @@ for (const w of [360, 390]) {
       const h = w === 360 ? 640 : w === 390 ? 844 : 932;
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
       await load('/privacy'); await forget();
-      for (const path of ['/property', '/property/calculator']) {
+      for (const path of ['/property', '/property/calculator?view=full']) {
         const at = `${w}×${h} ${path}${font ? ' in Verdana' : ''}`;
         const view = await load(path);
         if (view !== (path === '/property' ? 'propertyLab' : 'property')) { fails.push(`${at}: opened ${view}`); continue; }
@@ -3083,7 +3083,7 @@ for (const w of [360, 390]) {
           if (r.footEnd == null || r.footEnd > r.barTopAtEnd + 1) fails.push(`${at}: at the page's end the footer's last line ends at ${r.footEnd}px, under the bar from ${r.barTopAtEnd}px`);
         }
         r.rows.forEach(([name, x]) => { if (x && x.lines > 1) fails.push(`${at}: ${name} take ${x.lines} lines (their tops ${x.spread}px apart), not one`); else if (x) said.rows++; });
-        if (path === '/property/calculator') {
+        if (path === '/property/calculator?view=full') {
           if (r.tables.length < 2) fails.push(`${at}: the financing scenarios and the cost breakdown were not both found (${r.tables.map(t => t.name).join(', ') || 'none'})`);
           for (const t of r.tables) {
             said.tables++;
@@ -3105,7 +3105,7 @@ for (const w of [360, 390]) {
     /* 2. The scale and the measure, at a phone's width and two desks'. */
     for (const [w, h] of [[390, 844], [1024, 800], [1440, 900]]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
-      for (const path of ['/property', '/property/calculator']) {
+      for (const path of ['/property', '/property/calculator?view=full']) {
         await load(path);
         const r = await ev(`(() => {
           const cs = getComputedStyle(document.documentElement);
@@ -3235,7 +3235,7 @@ for (const w of [360, 390]) {
       const phone = w < 640;
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: phone }, sessionId);
       await load('/privacy'); await forget();
-      for (const [path, prefix, view] of [['/property', 'lab', 'propertyLab'], ['/property/calculator', 'pc', 'property']]) {
+      for (const [path, prefix, view] of [['/property', 'lab', 'propertyLab'], ['/property/calculator?view=full', 'pc', 'property']]) {
         const at = `${w}×${h} ${path}${font ? ' in Verdana' : ''}`;
         const got = await load(path);
         if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
@@ -3356,7 +3356,7 @@ for (const w of [360, 390]) {
     for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
       await load('/privacy'); await forget();
-      for (const [path, sec, view] of [['/property/calculator?d=' + TERMS, 'pc-au', 'property'], ['/property', 'lab-au', 'propertyLab']]) {
+      for (const [path, sec, view] of [['/property/calculator?view=full&d=' + TERMS, 'pc-au', 'property'], ['/property', 'lab-au', 'propertyLab']]) {
         const at = `${w}×${h} ${path.split('?')[0]}${font ? ' in Verdana' : ''}`;
         const got = await load(path);
         if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
@@ -3457,7 +3457,7 @@ for (const w of [360, 390]) {
     for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
       await load('/privacy'); await forget();
-      for (const [path, sec, view] of [['/property/calculator?d=' + TERMS, 'pc-nd', 'property'], ['/property', 'lab-nd', 'propertyLab']]) {
+      for (const [path, sec, view] of [['/property/calculator?view=full&d=' + TERMS, 'pc-nd', 'property'], ['/property', 'lab-nd', 'propertyLab']]) {
         const at = `${w}×${h} ${path.split('?')[0]}${font ? ' in Verdana' : ''}`;
         const got = await load(path);
         if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
@@ -3563,7 +3563,7 @@ for (const w of [360, 390]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
       await load('/privacy'); await forget();
       const ids = await ev(RECORD);
-      for (const [path, sec, view] of [['/property/calculator?' + TERMS, 'pc-cm', 'property'], ['/property', 'lab-cm', 'propertyLab']]) {
+      for (const [path, sec, view] of [['/property/calculator?view=full&' + TERMS, 'pc-cm', 'property'], ['/property', 'lab-cm', 'propertyLab']]) {
         const at = `${w}×${h} ${path.split('?')[0]}${font ? ' in Verdana' : ''}`;
         const got = await load(path);
         if (got !== view) { fails.push(`${at}: opened ${got}`); continue; }
@@ -3854,7 +3854,7 @@ for (const w of [360, 390]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
       await load('/privacy'); await forget();
       const id = await ev(SEED);
-      for (const [path, boxId, want] of [['/property/calculator', 'pc-cl-renovation', 3], [`/property/lab?model=${id}`, 'lab-rf-cl-refurb', 2]]) {
+      for (const [path, boxId, want] of [['/property/calculator?view=full', 'pc-cl-renovation', 3], [`/property/lab?model=${id}`, 'lab-rf-cl-refurb', 2]]) {
         const got = await load(path);
         if (!/^property/.test(got || '')) { fails.push(`${at} ${path}: opened ${got}`); continue; }
         if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
@@ -4197,7 +4197,7 @@ for (const w of [360, 390]) {
       const at = `${w}×${h} auction`;
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
       await load('/privacy'); await forget();
-      await load('/property/calculator?d=' + TERMS);
+      await load('/property/calculator?view=full&d=' + TERMS);
       const view = await load('/property');
       if (view !== 'propertyLab') { fails.push(`${at}: /property opened ${view}`); continue; }
       const r = await ev(`(async () => { ${SEEN}
@@ -4682,7 +4682,7 @@ for (const w of [360, 390]) {
       await load('/privacy'); await forget();
       if (state === 'returning') {
         await load('/company/aapl-apple-inc');
-        await load('/property/calculator');
+        await load('/property/calculator?view=full');
         await ev(`(() => { State.deal.price = 615000; markTouched(State.deal, 'price'); saveDeal(); return !!saveActiveProperty({ name: 'Phone check property' }); })()`);
       }
       const at = `${w}×${h} /app, ${state === 'first' ? 'a first visit' : 'a returning reader'}${font ? ' in Verdana' : ''}`;
@@ -4911,7 +4911,7 @@ for (const w of [360, 390]) {
       resume: (() => { const r = document.getElementById('pf-resume'); return r && shown(r) ? box(r) : null; })(),
       flowShown: shown(flow), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       ctxOver: ctx ? ctx.scrollWidth - ctx.clientWidth : 0, vw: innerWidth, vh: innerHeight, first: card ? box(card).t : null }; })()`;
-  const PAGES = ['/property/opportunities', '/property/comparables', '/property/areas', '/property/areas/map', '/property/models', '/property/calculator'];
+  const PAGES = ['/property/opportunities', '/property/comparables', '/property/areas', '/property/areas/map', '/property/models', '/property/calculator?view=full'];
   const lineOk = (at, path, r, { work = false } = {}) => {
     if (!r.ctx) { fails.push(`${at} ${path}: no context line in sight`); return; }
     if (r.over > 0) fails.push(`${at} ${path}: the page scrolls ${r.over}px sideways`);
@@ -4949,8 +4949,8 @@ for (const w of [360, 390]) {
       if (!/B has 2 moves not saved — lost on reload or close\.$/.test(lab2.text)) fails.push(`${at} /property: after two moves the Lab's line reads "${lab2.text}"`);
       if (lab2.h !== lab.h) fails.push(`${at} /property: the line beside the sliders grew from ${lab.h}px to ${lab2.h}px at a move — the sliders moved under the thumb`);
       /* The Lab's moves, named on the comparables and the calculator. */
-      for (const path of ['/property/comparables', '/property/calculator']) {
-        if (await go(path) !== (path.endsWith('calculator') ? 'property' : 'comparables')) { fails.push(`${at} ${path}: did not open`); continue; }
+      for (const path of ['/property/comparables', '/property/calculator?view=full']) {
+        if (await go(path) !== (path.includes('/calculator') ? 'property' : 'comparables')) { fails.push(`${at} ${path}: did not open`); continue; }
         await face(font);
         lineOk(`${at}, the Lab's moves held,`, path, await ev(MEASURE), { work: true });
       }
@@ -5016,6 +5016,9 @@ for (const w of [360, 390]) {
        6,275 (6,271 on 5a75a923: the four more are the property flow's
        steps, #8); 6,284 on acc59142, and 6,295 with the journey bar's
        Evidence step and its line (the 13 Oct audit, #7), the bound kept;
+       6,298 with "Quick model | Full model" at its top (QT-003, 14 Oct
+       2026; read at ?view=full, the bare address being the Quick model's,
+       held by calc-quick below), the bound kept;
    and the layout a phone gets, at 360×640, 390×844 and 430×932 in the
    page's font and in Verdana:
      - the one-page answer's four metric cards, each with its kind badge in
@@ -5097,8 +5100,10 @@ for (const w of [360, 390]) {
       const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
       await load('/privacy'); await forget();
-      const view = await load('/property/calculator');
-      if (view !== 'property') { fails.push(`${at}: /property/calculator opened ${view}`); continue; }
+      /* The full model (QT-003): /property/calculator opens the Quick
+         model, held to its own words below (calc-quick). */
+      const view = await load('/property/calculator?view=full');
+      if (view !== 'property') { fails.push(`${at}: /property/calculator?view=full opened ${view}`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const r = await ev(read);
       if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
@@ -5147,7 +5152,7 @@ for (const w of [360, 390]) {
       const at = `${w}×${h} a shophouse`;
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
       await load('/privacy'); await forget();
-      await load('/property/calculator?type=shophouse');
+      await load('/property/calculator?type=shophouse&view=full');
       const r = await ev(`(async () => { ${SEEN} await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         const c = [...document.querySelectorAll('#pc-answer .pc-answers [data-card="metric"]')].find(x => /^Cash required/.test(x.querySelector('.stat-label')?.textContent || ''));
         return c ? seenText(c) : null; })()`);
@@ -5163,6 +5168,142 @@ for (const w of [360, 390]) {
   else console.log(`ok   calc-words: /property/calculator on a first visit — ${said.join('; ')} (bounds ${BOUND[1440]} at 1440, ${BOUND[390]} at 390); on a phone (360, 390, 430, both fonts) the four metric cards with their badges, Acquisition alone and "Next: Financing", the bar's Analyse · Compare · Save (Compare shows Scenarios alone), the district, the per-unit figures and the ledger closed drawers with 44px summaries (the ledger opened, cards); the strip, "Not a valuation", the regulated claim, "not a real listing", Illustrative, the unverified lines and the ledger's Placeholder in sight, and a shophouse's partial cash required; at 1440 every section and every drawer's content standing`);
 }
 /* ---- end calc-words ---- */
+
+/* ---- calc-quick ---- */
+/* THE CALCULATOR'S QUICK MODEL (the owner's QT-003, 14 Oct 2026;
+   75-property-grade.js, pcQuickView). /property/calculator on a first
+   visit opens the Quick model. At 360×640, 390×844 and 430×932, and at
+   1440×900, in the page's font and in Verdana (CI's Linux sans is as wide):
+     - the words in sight in <main>, counted as calc-words counts them, well
+       under the full model's: at most 520 at 1440 and 500 on a phone
+       (calc-words holds the full model to 6,300 at 1440 and 1,150 at 390);
+     - nothing scrolls sideways;
+     - Quick model | Full model, Quick the one marked current; no section
+       of the full model drawn; the four results — the cash required, the
+       monthly position, the net yield and the grade — each with its kind
+       badge in sight (Illustrative, a first visit's), the review alert
+       counting the sample inputs, "Illustrative defaults", "Not a
+       valuation", the regulated claim and "not advice" in sight;
+   and on a phone:
+     - the four results come first: the first's figure whole on the first
+       screen at 390×844, above the action bar — the bar's Analyse · Compare
+       · Save, fixed at the foot;
+     - every control in <main> a 44px target on both axes (a kind badge's
+       target is its ::after, the stylesheet's own rule; a link inside a
+       sentence is exempt, as WCAG has it);
+     - the other running costs a closed line whose summary is a 44px target.
+   Fails on d66cfd0b: the bare address draws the full model, 6,294 words at
+   1440. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  /* Measured 459 at 1440 and 434 on each phone, in either font (14 Oct
+     2026) — a twelfth of the full model's 6,298 at 1440 and under two
+     fifths of its 1,118 at 390; the margin, about 60 words, is what a
+     deal's wording may vary by, not a paragraph put back. */
+  const QBOUND = { 1440: 520, 390: 500, 360: 500, 430: 500 };
+  const read = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const seen = (n, root = document.querySelector('main') || document.body) => {
+      const p = n.nodeType === 3 ? n.parentElement : n;
+      if (!p || p.closest('.sr-only, script, style, template, svg')) return false;
+      if (!p.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
+      for (let a = p; a && a !== root.parentElement; a = a.parentElement) {
+        const b = a.getBoundingClientRect(), cs = getComputedStyle(a);
+        if ((b.width <= 1 || b.height <= 1) && cs.overflow !== 'visible') return false;
+      }
+      const r = document.createRange(); r.selectNodeContents(n);
+      return [...r.getClientRects()].some(x => x.width > 1 && x.height > 1);
+    };
+    const words = (s) => s.split(/\\s+/).filter(t => /[\\p{L}\\p{N}]/u.test(t));
+    const seenText = (root) => { const out = []; const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); for (let n = tw.nextNode(); n; n = tw.nextNode()) if (seen(n)) out.push(n.data); return out.join(' ').replace(/\\s+/g, ' '); };
+    const main = document.querySelector('main') || document.body;
+    let all = 0;
+    const tw = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) if (seen(n)) all += words(n.data).length;
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const cards = [...document.querySelectorAll('#pc-q-answer [data-card="metric"]')].filter(shown).map(c => { const b = c.getBoundingClientRect(), v = c.querySelector('.stat-value')?.getBoundingClientRect();
+      return { key: c.dataset.quick, label: (c.querySelector('.stat-label')?.textContent || '').trim(), text: seenText(c), top: Math.round(b.top), valueBottom: v ? Math.round(v.bottom) : null,
+        badge: (() => { const x = c.querySelector('[data-kind-badge]'); return x && seen(x.lastChild || x) ? x.textContent.trim() : null; })() }; });
+    const firstInput = document.querySelector('#pc-quick .pc-q-inputs input')?.getBoundingClientRect();
+    const name = (n) => (n.id ? '#' + n.id : n.tagName.toLowerCase() + (n.getAttribute('class') ? '.' + n.getAttribute('class').trim().split(/\\s+/)[0] : '')) + ' “' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '”';
+    const small = []; let controls = 0;
+    for (const c of main.querySelectorAll('a[href], button, input:not([type="hidden"]), select, summary, [role="button"]')) {
+      if (!shown(c) || !c.checkVisibility({ checkVisibilityCSS: true })) continue;
+      if (c.closest('p, li') && c.tagName === 'A' && !c.matches('.btn, .ls-cta, .kind-badge, .pc-view-link')) continue;
+      controls++;
+      let b = c.getBoundingClientRect();
+      if (c.matches('a.kind-badge')) { const a = getComputedStyle(c, '::after'); b = { width: b.width, height: b.height + 2 * Math.max(0, -parseFloat(a.top) || 0) }; }
+      if (b.width < 43.5 || b.height < 43.5) small.push(name(c) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    }
+    const other = document.getElementById('pc-q-other'), otherSum = other?.querySelector(':scope > summary')?.getBoundingClientRect();
+    const dock = document.querySelector('body > .dock');
+    const bar = [...document.querySelectorAll('body > .dock .ls-actbar .ls-act')].filter(shown).map(a => a.textContent.trim());
+    const sw = ['pc-view-quick', 'pc-view-full'].map(id => { const n = document.getElementById(id); return n ? { id, current: n.getAttribute('aria-current'), shown: shown(n), text: n.textContent.trim() } : null; });
+    return { all, cards, small, controls, sw, bar, secs: document.querySelectorAll('.pc-page .pc-sec').length, quick: !!document.getElementById('pc-quick'),
+      dockTop: dock && shown(dock) ? Math.round(dock.getBoundingClientRect().top) : null, inner: innerHeight, firstInputTop: firstInput ? Math.round(firstInput.top) : null,
+      other: other ? { open: other.open, h: otherSum ? Math.round(otherSum.height) : 0 } : null,
+      review: (document.querySelector('#review .ls-card-title')?.textContent || '').trim(),
+      over: document.documentElement.scrollWidth - document.documentElement.clientWidth, height: document.documentElement.scrollHeight,
+      strip: (() => { const s = document.getElementById('disclosureText'); return s ? seenText(s) : ''; })(), page: seenText(main) };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[1440, 900], [390, 844], [360, 640], [430, 932]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 }, sessionId);
+      await load('/privacy'); await forget();
+      const view = await load('/property/calculator');
+      if (view !== 'property') { fails.push(`${at}: /property/calculator opened ${view}`); continue; }
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(read);
+      if (!r.quick || r.secs) { fails.push(`${at}: /property/calculator drew ${r.quick ? '' : 'no '}Quick model and ${r.secs} sections of the full model`); continue; }
+      if (r.over > 0) fails.push(`${at}: the page scrolls ${r.over}px sideways`);
+      if (r.all > QBOUND[w]) fails.push(`${at}: ${r.all} words in sight in <main>, more than ${QBOUND[w]}`);
+      said.push(`${at} ${r.all} words, ${r.height}px`);
+      if (!r.sw[0] || !r.sw[1] || r.sw[0].current !== 'page' || r.sw[1].current || !r.sw.every(x => x.shown) || r.sw.map(x => x.text).join('|') !== 'Quick model|Full model') fails.push(`${at}: the view switch reads ${JSON.stringify(r.sw)}`);
+      const keys = r.cards.map(c => c.key).join();
+      if (keys !== 'safe,monthly,netYield,grade') fails.push(`${at}: the results in sight are ${keys || 'none'}, not the cash required, the monthly position, the net yield and the grade`);
+      r.cards.forEach(c => { if (!c.badge || !/^Illustrative/.test(c.badge)) fails.push(`${at}: the "${c.label}" result shows ${c.badge ? `"${c.badge}"` : 'no kind badge'}, not Illustrative`); });
+      if (!/^10 sample inputs need your evidence$/.test(r.review)) fails.push(`${at}: the review alert reads "${r.review}"`);
+      const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.page, 'Not a valuation', 'the chip'], [r.page, 'Not an official property valuation', 'the regulated claim'],
+        [r.page, 'Illustrative defaults', 'the sample label'], [r.page, 'not advice', 'the limitations line'], [r.cards.find(c => c.key === 'safe')?.text || '', 'unverified', 'the cash required\'s unverified lines']];
+      for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
+      if (!r.other || r.other.open) fails.push(`${at}: the other running costs ${r.other ? 'stand open' : 'are not drawn'}`);
+      if (w >= 640) continue;
+      /* A phone: the results first, then the boxes; 44px targets; the bar. */
+      if (r.bar.length !== 3 || !/^Analyse/.test(r.bar[0]) || !/^Compare/.test(r.bar[1]) || !/^Save/.test(r.bar[2])) fails.push(`${at}: the action bar reads ${JSON.stringify(r.bar)}`);
+      const first = r.cards[0];
+      if (first && r.firstInputTop !== null && r.firstInputTop < first.top) fails.push(`${at}: a box (at ${r.firstInputTop}px) comes before the first result (${first.top}px)`);
+      if (w === 390 && (!first || first.valueBottom === null || first.valueBottom > (r.dockTop ?? r.inner))) fails.push(`${at}: the first result's figure ends at ${first?.valueBottom}px, below the first screen (${r.dockTop ?? r.inner}px, the bar's top)`);
+      if (r.small.length) fails.push(`${at}: ${r.small.length} of ${r.controls} controls under 44px: ${r.small.slice(0, 5).join('; ')}`);
+      if (r.other && r.other.h < 43.5) fails.push(`${at}: the other running costs' line is ${r.other.h}px, not a 44px target`);
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL calc-quick — the calculator's Quick model (QT-003): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   calc-quick: /property/calculator opens the Quick model — ${said.join('; ')} (bounds ${QBOUND[1440]} at 1440, ${QBOUND[390]} on a phone; the full model's 6,300 and 1,150); Quick model | Full model, Quick current; the cash required, the monthly position, the net yield and the grade with their Illustrative badges, the review alert's 10, "Illustrative defaults", "Not a valuation", the regulated claim and "not advice" in sight; nothing sideways; on a phone (360, 390, 430, both fonts) the results before the boxes, the first figure on the first screen at 390 above the bar's Analyse · Compare · Save, every control a 44px target and the other running costs a closed 44px line`);
+}
+/* ---- end calc-quick ---- */
 
 /* ---- kuching-map ---- */
 /* THE KUCHING SCHEME MAP ON A PHONE (the owner's decision of 12 Oct 2026;

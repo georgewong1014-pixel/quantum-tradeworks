@@ -1475,6 +1475,23 @@ function syncPropertyUrl(d) {
   propertyUrlSeen = propertyUrlKey();
 }
 
+/* THE CALCULATOR'S VIEW RIDES IN ITS ADDRESS (QT-003, 14 Oct 2026):
+   ?view=full, or no parameter for Quick. syncPropertyUrl keeps it, as it
+   keeps every parameter it does not write. Replaced, never pushed — Back
+   to an older entry would be read as a link and replace the deal — never
+   stored, and with no section's hash left behind to choose Full again.
+   An address this page had already read stays read: switching is not an
+   arrival. */
+const pcViewIsFull = () => new URLSearchParams(location.search).get('view') === 'full';
+function setPropertyView(full) {
+  const p = new URLSearchParams(location.search);
+  if (full) p.set('view', 'full'); else p.delete('view');
+  const q = p.toString();
+  const seen = propertyUrlSeen === propertyUrlKey();
+  history.replaceState(history.state, '', location.pathname + (q ? `?${q}` : ''));
+  if (seen) propertyUrlSeen = propertyUrlKey();
+}
+
 /* Applies a link's parameters to the deal. Returns true when something actually
    changed, so the caller can persist only on a real change. */
 function readPropertyUrl(d) {

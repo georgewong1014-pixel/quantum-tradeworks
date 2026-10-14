@@ -5673,7 +5673,7 @@ try {
         return document.activeElement?.id || document.activeElement?.tagName;
       };
       try {
-        navigate('/property/calculator');
+        navigate('/property/calculator?view=full');
         await w(400);
         const box = document.querySelector('#ownUseWeeks');
         const named = !!box && !box.hasAttribute('aria-label') && box.labels?.[0]?.textContent.trim() === 'Weeks a year you would use it yourself';
@@ -6224,7 +6224,7 @@ try {
       ${levelsOf}
       const out = {};
       for (const p of ['/app/scanner/market', '/app/scanner/backtest', '/admin/scanner', '/admin/scanner/data', '/admin/scanner/jobs',
-        '/admin/scanner/delivery', '/discover/screener', '/app/scanner/setups', '/property', '/property/calculator', '/methodology/ips', '/company/AAPL-SEC',
+        '/admin/scanner/delivery', '/discover/screener', '/app/scanner/setups', '/property', '/property/calculator', '/property/calculator?view=full', '/methodology/ips', '/company/AAPL-SEC',
         '/company/AAPL-SEC/report', '/decision-record', '/learn', '/data-sources', '/methodology', '/my/alerts', '/my/theses', '/research']) {
         navigate(p); await w(150);
         const hs = [...document.querySelectorAll('main h1, main h2, main h3, main h4, main h5, main h6')];
@@ -7465,7 +7465,7 @@ try {
         k: f.querySelector('.dock-fig-k').textContent, v: f.querySelector('.dock-fig-v').textContent,
         tone: f.querySelector('.dock-fig-v').getAttribute('style') || '' }));
       const out = {};
-      navigate('/property/calculator'); await w(150);
+      navigate('/property/calculator?view=full'); await w(150);
       State.deal.tenureYears = 0; saveDeal(); render(); await w(150);
       out.short = { figs: figs(), strip: /So far/.test(document.querySelector('main').textContent), missing: dealModel(State.deal).missingCostLines.length };
       State.deal.tenureYears = 35; saveDeal(); render(); await w(150);
@@ -8792,11 +8792,11 @@ try {
          drawn above it when the locality positions land. */
       await view(1440, 900);
       const observed = `[...document.querySelectorAll('#main select')].find(s => (s.labels?.[0]?.textContent || s.getAttribute('aria-label') || '').includes('What you observed'))`;
-      await open('/property/calculator', /us\.json|sarawak-geo\.json/, `!!${observed}`);
+      await open('/property/calculator?view=full', /us\.json|sarawak-geo\.json/, `!!${observed}`);
       await evaluate(`(() => { const s = ${observed}; s.scrollIntoView({ block: 'center' }); s.focus({ preventScroll: true }); return true; })()`);
       await sleep(200);
       const obsWas = await at();
-      await release('/property/calculator');
+      await release('/property/calculator?view=full');
       const obsNow = await at();
       (obsNow.at === obsWas.at && Math.abs(obsNow.top - obsWas.top) <= 2 ? kept : lost).push(`"What you observed" ${obsWas.top}px down → after the data lands ${said(obsNow)}`);
 
@@ -9655,7 +9655,7 @@ try {
         const BAD2 = Object.fromEntries(['theses', 'priceAlerts', 'watchlists', 'observations', 'savedWork', 'runs', 'dividendsReceived', 'registerLog', 'comparisons', 'labComparisons',
           'savedScreens', 'corrections', 'sarawakExposure', 'opportunities', 'wheelLegs'].map(k => [k, [1, 'x', null]]));
         BAD2.portfolios = [{ id: 'p-bad', name: 'no holdings' }];
-        const PAGES = ['/my/portfolio', '/my/theses', '/my/alerts', '/my/workspace', '/my/watchlists', '/my/data', '/property/calculator', '/us-options/wheel',
+        const PAGES = ['/my/portfolio', '/my/theses', '/my/alerts', '/my/workspace', '/my/watchlists', '/my/data', '/property/calculator', '/property/calculator?view=full', '/us-options/wheel',
           '/research/trading-index', '/company/AAPL-SEC', '/compare', '/discover/screener', '/app'];
         for (const [name, BAD] of [['wrong types', BAD1], ['lists of non-records', BAD2]]) {
           wsErrors.length = 0;
@@ -10616,7 +10616,7 @@ try {
       /* No aria-selected where it is not allowed, on the pages that carry
          segmented strips. */
       {
-        const pages = ['/discover/screener', '/property/calculator', '/property/areas', '/compare?companies=MSFT-SEC,AAPL-SEC',
+        const pages = ['/discover/screener', '/property/calculator', '/property/calculator?view=full', '/property/areas', '/compare?companies=MSFT-SEC,AAPL-SEC',
           '/company/aapl-apple-inc?tab=financials', '/my/workspace', '/discover?tab=heatmap', '/discover?tab=ideas', '/app/scanner',
           '/admin/scanner/jobs', '/', '/pricing', '/app'];
         const r = await aq(`
@@ -10915,7 +10915,7 @@ try {
       const keep = { plan: State.plan, bought: State.propertyReportsBought };
       State.plan = 'free'; store.write('plan', 'free');
       State.propertyReportsBought = []; store.write('propertyReportsBought', []);
-      navigate('/property/calculator'); await w(400);
+      navigate('/property/calculator?view=full'); await w(400);
       const main = document.querySelector('main');
       const card = [...main.querySelectorAll('.card')].find(c => /^Full investor report/.test(c.querySelector('h3')?.textContent.trim() || ''));
       const around = card ? [card, card.nextElementSibling].filter(Boolean) : [];

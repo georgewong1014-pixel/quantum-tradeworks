@@ -684,6 +684,10 @@ function pcActivate(id) {
 function pcShowFor(node) {
   const sec = node?.closest?.('.pc-sec');
   if (sec && !sec.classList.contains('is-on')) pcActivate(sec.id);
+  /* Or, in the Quick model, the other running costs it is one of, opened
+     in place (pcQuickView, 75-property-grade.js). */
+  const other = node?.closest?.('details.pc-q-other');
+  if (other && !other.open) other.open = true;
 }
 /* L3 ON A PHONE (#6): methodology and a long table, a drawer under 640px —
    its summary says what is in it — and from 640px simply there, its summary
