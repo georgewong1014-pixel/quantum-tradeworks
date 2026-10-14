@@ -256,7 +256,7 @@
         ]
       },
       "inert": {
-        "buttons": 148,
+        "buttons": 150,
         "fields": 2,
         "choices": 0,
         "roles": 22,
@@ -267,8 +267,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "222fa30f6d99fca6",
-      "changed": "2026-10-11"
+      "digest": "d6a9c456dfe8d4ee",
+      "changed": "2026-10-14"
     },
     "pages/app/equities/explore.html": {
       "path": "/app/equities/explore",
@@ -4057,7 +4057,7 @@
         ]
       },
       "inert": {
-        "buttons": 148,
+        "buttons": 150,
         "fields": 2,
         "choices": 0,
         "roles": 22,
@@ -4068,8 +4068,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "222fa30f6d99fca6",
-      "changed": "2026-10-11"
+      "digest": "d6a9c456dfe8d4ee",
+      "changed": "2026-10-14"
     },
     "pages/contact.html": {
       "path": "/contact",
@@ -5282,8 +5282,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "2f0d815df1fadfa7",
-      "changed": "2026-10-12"
+      "digest": "5b3eca9df679402d",
+      "changed": "2026-10-14"
     },
     "pages/terms.html": {
       "path": "/terms",
