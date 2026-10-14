@@ -5010,18 +5010,18 @@
         ]
       },
       "inert": {
-        "buttons": 66,
-        "fields": 91,
-        "choices": 26,
+        "buttons": 16,
+        "fields": 14,
+        "choices": 0,
         "roles": 0,
         "forms": 0,
-        "removed": 1,
-        "notShown": 8,
-        "now": 1,
-        "cellStops": 4,
+        "removed": 0,
+        "notShown": 0,
+        "now": 0,
+        "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b6ea8013e06607f7",
+      "digest": "c925faeef875fe0d",
       "changed": "2026-10-14"
     },
     "pages/property/comparables.html": {
