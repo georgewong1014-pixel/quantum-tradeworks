@@ -8536,9 +8536,9 @@ try {
           out.latest = read();
           document.getElementById('cmp-years-common')?.click(); await w(500);
           out.back = read();
-          const ms = BY_ID.get('MSFT-SEC'), m20 = rowAt(ms, 2020);
+          const ms = BY_ID.get('MSFT-SEC'), m20 = typeof rowAt === 'function' ? rowAt(ms, 2020) : null;
           out.window = m20 ? { years: yearsOf(m20.c).join(','), rev5: m20.m.rev5, st: metricStatus(m20, 'rev5'), om: m20.m.om } : null;
-          out.self = rowAt(ms, 2026) === ms;
+          out.self = typeof rowAt === 'function' && rowAt(ms, 2026) === ms;
         } finally {
           State.compare = keep.compare; store.write('compare', keep.compare); State.compareCcy = keep.ccy; State.plan = keep.plan;
           navigate('/property/calculator'); await w(300);
