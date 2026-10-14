@@ -40396,7 +40396,7 @@ function propertyGrade(d, m) {
   const toReview = Math.max(propertyReviewQueue(d).length, untouchedDrivers.length);
   if (untouchedDrivers.length)
     gates.push({ id:'illustrative', severity:'critical',
-      text:`${untouchedDrivers.length} of the ${toReview} sample input${toReview === 1 ? '' : 's'} still to review — ${untouchedDrivers.join(', ')} — drive${untouchedDrivers.length === 1 ? 's' : ''} every output, and ${untouchedDrivers.length === 1 ? 'is' : 'are'} still this tool's starting number${untouchedDrivers.length === 1 ? '' : 's'} rather than yours.`,
+      text:`${untouchedDrivers.length} of the ${toReview} sample input${toReview === 1 ? '' : 's'} still to review — ${untouchedDrivers.join(', ')} — drive${untouchedDrivers.length === 1 ? 's' : ''} every output.`,
       caps:'U' });
 
   /* An ACHIEVED rent comparable is an executed tenancy by definition, so it is
