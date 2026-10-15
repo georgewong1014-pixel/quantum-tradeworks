@@ -5203,7 +5203,7 @@ try {
         const m = dealModel(d), g = propertyGrade(d, m), bad = [];
         const nodes = [...document.querySelectorAll('#lab-root [data-lab]')];
         for (const n of nodes) {
-          const k = n.dataset.lab, want = k === 'grade' ? g.grade : m[k], dv = n.getAttribute('data-value');
+          const k = n.dataset.lab, want = k === 'grade' ? g.grade : k === 'monthlyCommitment' ? monthlyCommitment(m) : m[k], dv = n.getAttribute('data-value');
           const got = dv === '' || dv === null ? null : k === 'grade' ? dv : Number(dv);
           const ok = k === 'grade' ? got === (want ?? null) : near(got, isNum(want) ? want : null);
           if (!ok || txt(n) !== LAB_FORMATS[n.dataset.labFmt](want)) bad.push(k + ' shows ' + txt(n) + ', the model ' + LAB_FORMATS[n.dataset.labFmt](want));
