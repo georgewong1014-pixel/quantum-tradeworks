@@ -2459,8 +2459,11 @@ function feeRulebookCard() {
   if ((FEE_TABLE.notApplied || []).length) {
     card.append(el('h3', { class: 'fee-book-h3' }, 'Held, and not applied by default'));
     card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.notApplied.map(x => el('li', {}, [el('strong', {}, x.title), ` — ${x.what} Source: `,
-      x.source?.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.source.title) : (x.source?.title || 'none'), '.',
-      ...(x.proposed ? [` ${x.proposed.what} Source: `, (x.proposed.source?.url ? el('a', { href: x.proposed.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.proposed.source.title) : (x.proposed.source?.title || 'none')), '.'] : [])]))));
+      x.source?.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.source.title) : (x.source?.title || 'none'),
+      /* One text node, as the served page parses it: a "." beside the
+         proposal's words would be two in the live page and one served. */
+      x.proposed ? `. ${x.proposed.what} Source: ` : '.',
+      ...(x.proposed ? [(x.proposed.source?.url ? el('a', { href: x.proposed.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.proposed.source.title) : (x.proposed.source?.title || 'none')), '.'] : [])]))));
   }
   if ((FEE_TABLE.unverified || []).length) {
     card.append(el('h3', { class: 'fee-book-h3' }, 'What could not be verified, and why'));

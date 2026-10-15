@@ -5752,9 +5752,18 @@ try {
          only change (handoff scripts/probes/r1-diff.mjs). Was: sample
          758435b8:31047, shophouse e47bc4b9:31913, condoAsCommercial
          df62f2a4:32086, taxed 09028703:31235, cash c8ab8454:29826,
-         lowValuation 8d0782ba:31287, managed 3e226266:31113. */
-      const BASE = { sample: 'cbcd2f27:31048', land: '70c75a39:30812', shophouse: '1777f229:31915', condoAsCommercial: '9442ea1c:32084',
-        taxed: '36649ea9:31234', cash: 'e5ad62ff:29826', lowValuation: 'fb38716f:31287', noTenure: '07ff01a8:28765', managed: 'fb62145e:31114' };
+         lowValuation 8d0782ba:31287, managed 3e226266:31113.
+         Recorded again for the fee rulebook 1.4.0 (15 Oct 2026, the re-check
+         after Budget 2027): the service-tax line's note, which the result
+         carries, gained one sentence (152 characters). With that sentence
+         taken out, every deal prints its previous fingerprint exactly — no
+         amount moved (handoff scripts/probes/r1-note-diff.mjs). Was: sample
+         cbcd2f27:31048, land 70c75a39:30812, shophouse 1777f229:31915,
+         condoAsCommercial 9442ea1c:32084, taxed 36649ea9:31234, cash
+         e5ad62ff:29826, lowValuation fb38716f:31287, noTenure 07ff01a8:28765,
+         managed fb62145e:31114. */
+      const BASE = { sample: 'ace436c6:31200', land: '0f43d4a2:30964', shophouse: 'fdc0d1ec:32067', condoAsCommercial: 'ee82214b:32236',
+        taxed: '3d9d1af4:31386', cash: '98e5de34:29978', lowValuation: '631d6040:31439', noTenure: '4e07c073:28917', managed: '88aa4cd7:31266' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);
@@ -6728,10 +6737,10 @@ try {
       return JSON.stringify({ sample, withCm, calc, lab });
     })()`));
     const p = [];
-    if (r.sample !== 'cbcd2f27:31048' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint cbcd2f27:31048)`);
+    if (r.sample !== 'ace436c6:31200' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint ace436c6:31200)`);
     if (r.calc.section || r.calc.inputs || !r.calc.tenancy || r.lab) p.push(`a residential deal: ${JSON.stringify(r)}`);
     if (p.length) fail('p5 C5: residential deals unchanged', p);
-    else ok('p5 C5: the sample prints P1 R1\'s fingerprint cbcd2f27:31048 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
+    else ok('p5 C5: the sample prints P1 R1\'s fingerprint ace436c6:31200 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
   });
   await p5try('p5 C6: the answers travel in the address in their own words', async () => {
     const r = await evaluate(`(() => {
