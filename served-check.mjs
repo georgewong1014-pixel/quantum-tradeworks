@@ -2303,7 +2303,7 @@ const HOME_PAGE = read(HOME);
   if (cards.length !== 3) p.push(`/: ${cards.length} product cards (<article>), not three`);
   for (const c of cards) {
     const id = attr(c, 'data-product') || '?';
-    const w = wordsIn(sight(c, n => n.tag === 'figure' || has(n, 'pub-card-also'))).length;
+    const w = wordsIn(sight(c, n => n.tag === 'figure' || has(n, 'pub-card-also') || has(n, 'pub-card-bound'))).length;
     if (w > 12) p.push(`/: the ${id} card is ${w} words outside its figure, more than 12`);
     const link = all(c).find(n => n.tag === 'a' && has(n, 'pub-card-link'));
     const ids = (link && attr(link, 'aria-describedby') || '').split(/\s+/).filter(Boolean);
@@ -2314,6 +2314,9 @@ const HOME_PAGE = read(HOME);
   if (hm) for (const a of all(hm).filter(n => n.tag === 'a')) if (all(a).some(n => ['a', 'button', 'details'].includes(n.tag))) p.push(`/: a link holds a ${all(a).find(n => ['a', 'button', 'details'].includes(n.tag)).tag}`);
   const cardOf = (id) => cards.find(c => attr(c, 'data-product') === id);
   if (!cardOf('property') || !all(cardOf('property')).some(n => n.tag === 'a' && attr(n, 'href') === '/property/lab')) p.push('/: the Property card does not link /property/lab');
+  /* QT-D02-02: the calculator's boundary, in sight beside the Property card's action, once, and on no other card. */
+  const bounds = cards.flatMap(c => all(c).filter(n => has(n, 'pub-card-bound')).map(n => [attr(c, 'data-product'), sight(n)]));
+  if (JSON.stringify(bounds) !== JSON.stringify([['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']])) p.push(`/: the Property card's boundary is not the one stated line (${JSON.stringify(bounds)})`);
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
   if (!scanNote || !/this site ships no prices/.test(rawText(scanNote))) p.push('/: the Scanner card\'s ⓘ does not say "this site ships no prices"');
   const WANT = { equities: 'Beta', scanner: 'Beta', property: 'Live', business: 'Coming soon' };

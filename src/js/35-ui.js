@@ -410,6 +410,9 @@ const PRODUCTS = [
        "Explore Property". */
     also: { label: 'Try the Scenario Lab', path: '/property/lab' },
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    /* What the calculator does not do, in sight beside the homepage card's
+       action (QT-D02-02, the 15 Oct report): served-check holds the words. */
+    boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,

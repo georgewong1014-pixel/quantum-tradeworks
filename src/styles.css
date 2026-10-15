@@ -3163,6 +3163,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-bar-rep, .pub-sw-rep { fill: color-mix(in srgb, var(--ink) 62%, var(--surface-2)); background: color-mix(in srgb, var(--ink) 62%, var(--surface-2)); }
 .pub-bar-cost, .pub-sw-cost { fill: color-mix(in srgb, var(--ink) 26%, var(--surface-2)); background: color-mix(in srgb, var(--ink) 26%, var(--surface-2)); }
 /* The Property card's second action, under its visual. */
+.pub-card-bound { position: relative; z-index: 1; margin: 0; max-width: 60ch; font-size: var(--ls-support); line-height: 1.45; color: var(--ink-2); }
 .pub-card-also { margin: 0; }
 .pub-card-also .pub-textlink { min-height: 40px; font-size: var(--ls-support); }
 @media (pointer: coarse), (max-width: 768px) { .pub-card-also .pub-textlink { min-height: 44px; } }
