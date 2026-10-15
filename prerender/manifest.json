@@ -4929,12 +4929,12 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 18,
+        "notShown": 19,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "6f07a9f4ecff5462",
+      "digest": "99d56f602bdc07bc",
       "changed": "2026-10-15"
     },
     "pages/property/areas.html": {
@@ -5074,12 +5074,12 @@
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 18,
+        "notShown": 19,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7775769f3f5782b9",
+      "digest": "4015f54df5479cc8",
       "changed": "2026-10-15"
     },
     "pages/property/models.html": {
