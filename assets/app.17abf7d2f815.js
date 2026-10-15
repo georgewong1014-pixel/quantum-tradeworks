@@ -50007,24 +50007,33 @@ function labInputPicker(P, lab) {
   return fs;
 }
 
-/* "MORE INPUTS (4)": the phase 2 knobs in a group closed by default (the
-   button opens it in place, nothing drawn again; open across a redraw while
-   this tab lives). Choosing one of them in the phone's picker opens it too
-   (labInputPicker), which is how a keyboard or a script reaches a knob that
-   is not in sight. Under 600px the group is only a wrapper (styles.css). */
+/* "MORE INPUTS (4)": the phase 2 knobs in a <details> closed by default (so
+   a served page carries them, closed), opened in place by its summary —
+   nothing drawn again — and kept open across a redraw while this tab lives.
+   Choosing one of them in the phone's Input picker opens it too, which is
+   how a keyboard or a script reaches a knob that is not in sight. In a panel
+   under 600px wide there is no summary: the group is open, whatever the
+   reader did, and shows only while its knob is the one chosen (styles.css);
+   a panel's width is watched, so one resized across 600px follows. */
+const labNarrow = (P) => (P.node?.isConnected && P.node.clientWidth ? P.node.clientWidth : innerWidth - 63) < 600;
 function labMoreInputs(P, lab, col) {
-  const open = !!P.moreOpen;
-  const bodyId = labId(P, 'more-body');
-  const g = el('div', { class: `lab-more${open ? ' is-open' : ''}`, id: labId(P, 'more') });
-  const btn = el('button', { type: 'button', class: 'btn btn-quiet lab-more-btn', id: labId(P, 'more-btn'), 'aria-expanded': open ? 'true' : 'false', 'aria-controls': bodyId,
-    onclick: () => {
-      P.moreOpen = !P.moreOpen;
-      g.classList.toggle('is-open', P.moreOpen);
-      btn.setAttribute('aria-expanded', P.moreOpen ? 'true' : 'false');
-    } }, [el('span', {}, `More inputs (${LAB_MORE_KEYS.length})`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
-  const body = el('div', { class: 'lab-more-body', id: bodyId });
+  const g = el('details', { class: 'lab-more', id: labId(P, 'more'), open: P.moreOpen || labNarrow(P) ? '' : null });
+  g.append(el('summary', { class: 'btn btn-quiet lab-more-btn', id: labId(P, 'more-btn') },
+    [el('span', {}, `More inputs (${LAB_MORE_KEYS.length})`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]));
+  g.addEventListener('toggle', () => { if (!labNarrow(P)) P.moreOpen = g.open; });
+  const body = el('div', { class: 'lab-more-body', id: labId(P, 'more-body') });
   LAB_MORE_KEYS.forEach(k => body.append(labKnob(P, lab, col, LAB_INPUT_BY_K[k])));
-  g.append(btn, body);
+  g.append(body);
+  P.moreEl = g;
+  if (!P.moreRO && typeof ResizeObserver !== 'undefined') {
+    P.moreRO = new ResizeObserver(() => {
+      const n = P.moreEl;
+      if (!n?.isConnected) return;
+      const want = labNarrow(P) || !!P.moreOpen;
+      if (n.open !== want) n.open = want;
+    });
+    P.moreRO.observe(P.node);
+  }
   return g;
 }
 /* ONE KNOB: the calculator's own label, a slider and a box beside it. */
