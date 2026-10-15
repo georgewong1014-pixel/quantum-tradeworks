@@ -3017,7 +3017,10 @@ const HOME_PAGE = read(HOME);
     const tree = all(B.htmlTree(ds.body));
     const book = tree.find(n => attr(n, 'id') === 'fee-rulebook');
     const text = book ? sight(book) : '';
-    if (!/Version 1\.3\.0, checked 13 Oct 2026/.test(text)) p.push('/data-sources does not serve the fee rulebook at version 1.3.0, checked 13 Oct 2026');
+    if (!/Version 1\.4\.0, checked 15 Oct 2026/.test(text)) p.push('/data-sources does not serve the fee rulebook at version 1.4.0, checked 15 Oct 2026');
+    /* 1.4.0: Budget 2027's first-home proposal is held beside the law in
+       force, said to be a proposal and applied to nothing. */
+    if (!/Proposed in Budget 2027 \(9 October 2026; not yet law\)[^.]*RM750,000[\s\S]*Not applied\./.test(text)) p.push('/data-sources does not serve Budget 2027\'s first-home proposal as "not yet law" and "Not applied"');
     const routes = book ? all(book).filter(n => attr(n, 'data-fee-route')).map(n => [attr(n, 'data-fee-route'), attr(n, 'data-status'), sight(n)]) : [];
     said.routes = routes.length;
     if (JSON.stringify(routes.map(x => [x[0], x[1]])) !== '[["subsale","assumed"],["auction","not-decided"],["newdev","not-decided"]]') p.push(`/data-sources serves the route readings ${JSON.stringify(routes.map(x => [x[0], x[1]]))}`);

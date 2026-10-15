@@ -539,8 +539,9 @@ try {
     /* 1.2.0: the owner's decision of 10 Oct 2026 (audit #4) gates the lines
        not checked for commercial property and land; 1.1.0 (9 Oct) stays in
        the changelog beneath it. 1.3.0 (13 Oct, the 12 Oct audit's #3) reads
-       the purchase legal fees by route over both (val G5). */
-    if (r.version !== '1.3.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.2.0' || r.changelog[2] !== '1.1.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]}, ${r.changelog[2]} — 13 Oct's route readings are 1.3.0, over 10 Oct's 1.2.0 and 9 Oct's 1.1.0; the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
+       the purchase legal fees by route over both (val G5). 1.4.0 (15 Oct)
+       is the re-check after Budget 2027, which moves no amount. */
+    if (r.version !== '1.4.0' || r.changelog[0] !== r.version || r.changelog[1] !== '1.3.0' || r.changelog[2] !== '1.2.0' || r.changelog[3] !== '1.1.0') p.push(`the rulebook is ${r.version} and its changelog starts at ${r.changelog[0]}, ${r.changelog[1]}, ${r.changelog[2]}, ${r.changelog[3]} — 15 Oct's Budget 2027 re-check is 1.4.0, over 13 Oct's route readings at 1.3.0, 10 Oct's 1.2.0 and 9 Oct's 1.1.0; the owner's 10 Oct decision is 1.2.0, over 9 Oct's 1.1.0, each with a changelog line`);
     if (JSON.stringify(r.kinds) !== JSON.stringify(['statutory', 'professional', 'quotation', 'optional', 'estimate'])) p.push(`the ledger's kinds are ${JSON.stringify(r.kinds)}, not the owner's five in order`);
     if (r.cats.some(c => !r.kinds.includes(c))) p.push(`a line's category is none of the five: ${JSON.stringify(r.cats)}`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.checkedOn || '')) p.push(`the rulebook's checked date is ${r.checkedOn}`);
@@ -7344,7 +7345,7 @@ try {
         navigate('/property'); await w(900);
         const tile = document.querySelector('.lab-tile[data-tile="safeCashRequired"]')?.textContent?.replace(/\\s+/g, ' ') || null;
         navigate('/data-sources'); await w(900);
-        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.3.0') || false,
+        const book = { version: document.getElementById('fee-rulebook')?.textContent.includes('Version 1.4.0') || false,
           log: document.querySelector('[data-fee-version="1.2.0"]')?.textContent || null,
           cls: Object.fromEntries([...document.querySelectorAll('[data-fee-class-line]')].map(n => [n.dataset.feeClassLine, [n.dataset.commercial, n.dataset.land]])) };
         State.deal = keep.deal; saveDeal(); navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
@@ -7355,7 +7356,7 @@ try {
       if (!/Cash required \(with a 3-month reserve\) — partial/.test(r.total || '')) p.push(`the ledger's total reads "${r.total}"`);
       if (r.dock && !/Cash required — partial/.test(r.dock)) p.push(`the dock reads "${r.dock.slice(0, 120)}"`);
       if (!/Cash required — partial/.test(r.tile || '') || !/partial — 4 lines not checked for commercial/.test(r.tile || '')) p.push(`the Lab's tile reads "${r.tile}"`);
-      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.3.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
+      if (!r.book.version || !/not yet checked/.test(r.book.log || '')) p.push(`the rulebook page: version 1.4.0 ${r.book.version}, changelog "${(r.book.log || '').slice(0, 80)}"`);
       const want = { transferStampDuty: ['same', 'same'], loanStampDuty: ['same', 'same'], chargeStampDuty: ['same', 'same'], registration: ['same', 'same'], purchaseLegal: ['same', 'same'],
         loanLegal: ['gated', 'same'], professionalServiceTax: ['follows', 'follows'], valuationFee: ['same', 'gated'], valuationServiceTax: ['follows', 'follows'],
         disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
@@ -7404,7 +7405,7 @@ try {
       if (!near(r.ndq.q, 5000) || r.ndq.pl !== null || !near(r.ndq.st, 712) || !near(r.ndq.cash, 65030) || JSON.stringify(r.ndq.kind) !== '["quoted","quotation","Purchase legal fees — your lawyer’s quote"]') p.push(`a new development with a RM5,000 quote: ${JSON.stringify(r.ndq)} — by hand 5,000 Quoted, 712 of tax, 65,030`);
       if (r.subq.q !== null || !near(r.subq.cash, 63302) || r.auq.q !== null || !near(r.auq.cash, 63302)) p.push(`the quote on a subsale or an auction: ${JSON.stringify([r.subq, r.auq])} — it is the new development's, so unchanged`);
       if (r.landq.q !== null || !near(r.landq.cash, 308226)) p.push(`the quote on land answered New development: ${JSON.stringify(r.landq)} — the route is not run for a parcel, 308,226 as G2`);
-      if (r.version !== '1.3.0' || r.log !== '1.3.0' || JSON.stringify(r.routes) !== '{"subsale":"assumed","auction":"not-decided","newdev":"not-decided"}' || r.unverified.length !== 2) p.push(`the rulebook: ${JSON.stringify({ v: r.version, log: r.log, routes: r.routes, unverified: r.unverified })}`);
+      if (r.version !== '1.4.0' || r.log !== '1.4.0' || JSON.stringify(r.routes) !== '{"subsale":"assumed","auction":"not-decided","newdev":"not-decided"}' || r.unverified.length !== 2) p.push(`the rulebook: ${JSON.stringify({ v: r.version, log: r.log, routes: r.routes, unverified: r.unverified })}`);
       if (!/rules 2 and 3/.test(r.notes.nd) || !/your lawyer’s quote/.test(r.notes.nd) || !/13\(b\)/.test(r.notes.au) || !/not decided here/.test(r.notes.au)) p.push(`the routes' fee notes: ${JSON.stringify(r.notes)}`);
       if (JSON.stringify(r.book) !== '[["subsale","assumed"],["auction","not-decided"],["newdev","not-decided"]]' || !/Swk\. L\.N\. \(F\) 348 of 2022, First Schedule, rules 1–5, 12, 13 and 14/.test(r.cite)) p.push(`/data-sources: ${JSON.stringify(r.book)}, "${r.cite.slice(0, 160)}"`);
       if (r.meth.some(([, t, a]) => !/Not decided by the Rules/.test(t) || !a)) p.push(`/methodology/property's legal fees: ${JSON.stringify(r.meth)}`);
