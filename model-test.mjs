@@ -8573,7 +8573,10 @@ try {
       const named = ((c.defaults.match(/^(.*?) (?:is|are) still the number/) || [])[1] || '').split(', ').filter(Boolean);
       if (!listed.length || named.length !== listed.length) p.push(`${v}: the defaults name ${named.length} ("${named.join(', ')}"), the blocker sentence ${listed.length} ("${listed.join(', ')}")`);
     }
-    for (const k of ['title', 'cta', 'rows', 'defaults', 'gate']) if (r.quick[k] !== r.full[k] || r.quick[k] !== r.back[k]) p.push(`${k}: Quick "${r.quick[k]}", Full "${r.full[k]}", back "${r.back[k]}"`);
+    /* The defaults' last words differ by design ("these figures" in Quick,
+       "anything below" in Full): the inputs they name must not. */
+    for (const c of [r.quick, r.full, r.back]) c.named = (c.defaults.match(/^(.*?) (?:is|are) still the number/) || [])[1] || '';
+    for (const k of ['title', 'cta', 'rows', 'named', 'gate']) if (r.quick[k] !== r.full[k] || r.quick[k] !== r.back[k]) p.push(`${k}: Quick "${r.quick[k]}", Full "${r.full[k]}", back "${r.back[k]}"`);
     if (r.deal.price !== 480000 || r.deal.rent !== 2600) p.push(`the deal moved between the views: ${JSON.stringify(r.deal)}`);
     if (p.length) fail('qt-day3: the Quick and full models count the same review, defaults and blockers', p);
     else ok(`qt-day3: with the price and the rent replaced, Quick, Full and Quick again each read "${r.quick.title}", "${r.quick.cta}", ${r.quick.rows} rows, the defaults "${r.quick.defaults.slice(0, 40)}…" and "${r.quick.gate.slice(0, 45)}…", the deal unmoved`);
