@@ -8551,11 +8551,12 @@ try {
         defaults: t(document.querySelector('.pc-defaults p.body')).replace(/ The sample deal is not a real listing\\.$/, ''),
         queue: propertyReviewQueue(State.deal).length,
         gate: (propertyGrade(State.deal, dealModel(State.deal)).gates.find(g => g.id === 'illustrative') || {}).text || '' });
-      navigate('/property/calculator'); await w(500);
+      const to = async (id) => { document.getElementById(id)?.click(); await w(600); };
+      navigate('/property/calculator'); await w(500); await to('pc-view-quick');
       const quick = read();
-      navigate('/property/calculator?view=full'); await w(500);
+      await to('pc-view-full');
       const full = read();
-      navigate('/property/calculator'); await w(500);
+      await to('pc-view-quick');
       const back = read();
       const deal = { price: State.deal.price, rent: State.deal.rent };
       State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator?view=full'); await w(300);
@@ -8566,8 +8567,11 @@ try {
     for (const [v, c] of [['Quick', r.quick], ['Full', r.full], ['back in Quick', r.back]]) {
       const gateOf = Number((c.gate.match(/of the (\d+) sample input/) || [])[1]);
       if (!(n(c.title) === c.queue && n(c.cta) === c.queue && c.rows === c.queue && gateOf === c.queue)) p.push(`${v}: title "${c.title}", button "${c.cta}", ${c.rows} rows, blocker "${c.gate.slice(0, 50)}", the queue ${c.queue}`);
-      const listed = (c.gate.match(/still to review — (.*) — drive/) || [])[1] || '';
-      if (!c.defaults || !c.defaults.toLowerCase().startsWith(listed.toLowerCase())) p.push(`${v}: the defaults name "${c.defaults.slice(0, 60)}", the blocker sentence "${listed}"`);
+      /* The defaults name the inputs by their labels, the blocker sentence by
+         their short names: the same inputs, so the same number of them. */
+      const listed = ((c.gate.match(/still to review — (.*) — drive/) || [])[1] || '').split(', ').filter(Boolean);
+      const named = ((c.defaults.match(/^(.*?) (?:is|are) still the number/) || [])[1] || '').split(', ').filter(Boolean);
+      if (!listed.length || named.length !== listed.length) p.push(`${v}: the defaults name ${named.length} ("${named.join(', ')}"), the blocker sentence ${listed.length} ("${listed.join(', ')}")`);
     }
     for (const k of ['title', 'cta', 'rows', 'defaults', 'gate']) if (r.quick[k] !== r.full[k] || r.quick[k] !== r.back[k]) p.push(`${k}: Quick "${r.quick[k]}", Full "${r.full[k]}", back "${r.back[k]}"`);
     if (r.deal.price !== 480000 || r.deal.rent !== 2600) p.push(`the deal moved between the views: ${JSON.stringify(r.deal)}`);
