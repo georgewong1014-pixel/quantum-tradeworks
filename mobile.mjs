@@ -2417,7 +2417,7 @@ for (const w of [360, 390]) {
     for (const w of [1024, 1440]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
       await load('/property/lab');
-      const drawn = `[...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length).length`;
+      const drawn = `[...document.querySelectorAll('.lab-knob')].filter(n => n.checkVisibility()).length`;
       const n = await ev(drawn);
       if (n !== 5) fails.push(`${w}px: ${n} knobs drawn, not the five, with "More inputs (4)" closed`);
       const btn = await ev(`(() => { const b = document.getElementById('lab-more-btn'); return b && b.getClientRects().length ? { text: b.textContent.trim(), open: String(b.parentElement.open), h: Math.round(b.getBoundingClientRect().height) } : null; })()`);

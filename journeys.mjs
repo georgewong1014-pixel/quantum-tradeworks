@@ -1675,7 +1675,7 @@ const JOURNEYS = [
       /* The chain's figures as the page holds them, by row. */
       const chain = `Object.fromEntries([...document.querySelectorAll('#lab-root .lab-chain [data-lab]')].map(n => [n.dataset.lab, n.dataset.value]))`;
       /* A knob's slider, picked first where a phone shows one at a time. */
-      const knob = (k) => `(() => { const r = document.getElementById('lab-in-${k}'); if (r && !r.checked && !document.getElementById('lab-r-${k}')?.getClientRects().length) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
+      const knob = (k) => `(() => { const r = document.getElementById('lab-in-${k}'); if (r && !r.checked && !document.getElementById('lab-r-${k}')?.checkVisibility()) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
         const n = document.getElementById('lab-r-${k}'); if (!n) return false; n.scrollIntoView({ block: 'center', behavior: 'instant' }); n.focus(); return document.activeElement === n; })()`;
       const press = async (k, key, times) => {
         if (!await tab.eval(knob(k))) throw new StepError(`the ${k} slider is not on the page or cannot take the keyboard`);
