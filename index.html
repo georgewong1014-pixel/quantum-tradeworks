@@ -56003,7 +56003,10 @@ const LAB_FIGURES = [
      either, so its row carries no help button. */
   { key: 'monthlyCommitment', label: () => 'Monthly commitment', fmt: 'money0', help: null,
     read: (m) => monthlyCommitment(m),
-    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income'),
+    /* A note only where there is no figure: "Funded from your income" and
+       "Property funds itself", the calculator's tile lines, are said by the
+       row's opened formula — four words a row the first frame has not got. */
+    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : null),
     formula: (d, m) => {
       if (!isNum(m.cashflowMonthly)) return 'Not computable: with no repayment schedule the loan’s monthly cost is unknown, and so is what the owner funds.';
       const mc = monthlyCommitment(m), loan = m.loan > 0;
