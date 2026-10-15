@@ -50023,7 +50023,10 @@ function labMoreInputs(P, lab, col) {
   const g = el('details', { class: 'lab-more', id: labId(P, 'more'), open: P.moreOpen || labNarrow(P) ? '' : null });
   g.append(el('summary', { class: 'btn btn-quiet lab-more-btn', id: labId(P, 'more-btn') },
     [el('span', {}, `More inputs (${LAB_MORE_KEYS.length})`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]));
-  g.addEventListener('toggle', () => { if (!labNarrow(P)) P.moreOpen = g.open; });
+  /* What the reader chose is kept — by the summary's press alone: a group
+     the width opened or closed (below) is not the reader's choice, and its
+     toggle event must not become one. */
+  g.firstChild.addEventListener('click', () => { if (!labNarrow(P)) P.moreOpen = !g.open; });
   const body = el('div', { class: 'lab-more-body', id: labId(P, 'more-body') });
   LAB_MORE_KEYS.forEach(k => body.append(labKnob(P, lab, col, LAB_INPUT_BY_K[k])));
   g.append(body);
