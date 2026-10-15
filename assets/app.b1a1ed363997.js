@@ -34677,15 +34677,17 @@ const FEE_TABLE = {
   id: 'my-property-fees',
   /* 0.1.0-unverified until 8 Oct 2026: two stamp-duty scales unverified and
      seven placeholder lines, RM39.6k of the sample's RM130.1k initial cash. */
-  version: '1.3.0',
-  checkedOn: '2026-10-13',
+  version: '1.4.0',
+  checkedOn: '2026-10-15',
   /* The property data's state. Each line names its own jurisdiction. */
   jurisdiction: 'Sarawak',
   /* Fill the owner first. Without one, nothing below gets re-checked when a
      schedule changes, and a stale rulebook is worse than an empty one
-     because it looks maintained. Due again after Budget 2027 is tabled. */
-  reviewOwner: null,
-  nextReviewDue: '2026-10-31',
+     because it looks maintained. The owner reviews it (the owner's decision
+     of 15 Oct 2026). Due again when Budget 2027's stamp duty orders are
+     gazetted or a Finance Bill 2026 is tabled, and before 1 January 2027. */
+  reviewOwner: 'The owner of Quantum Tradeworks',
+  nextReviewDue: '2026-12-15',
   /* THE LEDGER'S FIVE KINDS (the owner's decision of 9 Oct 2026, audit
      item #2): what a line IS, said beside it wherever it is shown — the
      calculator's ledger, the Lab's evidence, the rulebook page — in this
@@ -34708,6 +34710,8 @@ const FEE_TABLE = {
   /* What changed, version by version: a reader of /data-sources who sees
      the figures move is owed the reason. Newest first. */
   changelog: [
+    { version: '1.4.0', date: '2026-10-15',
+      what: 'Re-checked after Budget 2027, tabled on 9 October 2026: the speech and its tax measures annex, read in the Ministry of Finance’s English and Malay texts. No line’s rule or amount changes. The Budget proposes no change to the transfer duty scale or the loan agreement duty this tool charges (on a ringgit loan; its cap on foreign-currency loan agreements does not reach one), the charge’s stamp, service tax on legal or valuation services (its one service-tax change is elderly care, 8% to 6%), a non-citizen’s transfer duty, or gains tax on a sale. It proposes to revise the first-home exemption for sale and purchase agreements executed from 1 January 2027 to 31 December 2030: 100% on a first home priced up to RM500,000, and on one priced up to RM750,000, 100% on the first RM500,000 and 50% on the rest. That is a proposal, not law — no order had been gazetted and no Finance Bill tabled when this was read — so it is held below beside the exemption in force, applied to nothing. No rate is made up.' },
     { version: '1.3.0', date: '2026-10-13',
       what: 'Purchase legal fees by purchase route, read in the gazette (Swk. L.N. (F) 348 of 2022, the First Schedule’s rules 1–4 and 13). For a purchase at auction and a purchase from a developer, the Rules do not settle the purchaser’s advocate’s share by the route alone: it turns on the instruments the advocate handles — an SPA and the transfer, the SPA alone, the transfer alone — and, at auction, rule 13 prices the seller’s side and names the purchaser’s only for several lots bought under one title. So no amount changes: the line stays at rule 1’s full scale, each route says why on its page and below, and your lawyer’s quote takes its place once entered — on a new development as well as at auction now. No rate is made up.' },
     { version: '1.2.0', date: '2026-10-10',
@@ -34888,7 +34892,7 @@ const FEE_TABLE = {
                 citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
       checkedOn: '2026-10-08',
       assumes: 'it is charged on the purchase and loan legal fees, not on disbursements',
-      note: '8% on the advocate’s fees for the purchase and the loan. Service tax applies in Sarawak; only Labuan, Langkawi, Tioman, Pangkor and Pulau 1 and certain special zones are outside it. The 2026 orders seen (P.U.(A) 125/2026, 337/2026) do not touch legal services.',
+      note: '8% on the advocate’s fees for the purchase and the loan. Service tax applies in Sarawak; only Labuan, Langkawi, Tioman, Pangkor and Pulau 1 and certain special zones are outside it. The 2026 orders seen (P.U.(A) 125/2026, 337/2026) do not touch legal services. Budget 2027 proposes no change for legal or valuation services; its one service-tax change is for elderly care services (8% to 6% from 1 January 2027).',
     },
     valuationServiceTax: {
       label: 'Service tax on the valuation fee',
@@ -35050,9 +35054,13 @@ const FEE_TABLE = {
   notApplied: [
     { id: 'firstHome', classes: ['residential'], title: 'First-home stamp duty exemption', applied: false,
       what: '100% of the duty on the transfer (P.U.(A) 53/2021, amended by P.U.(A) 448/2025) and on the loan agreement (P.U.(A) 54/2021, amended by P.U.(A) 449/2025), for one residential unit with a market value of RM500,000 or less, bought by a Malaysian citizen who has never owned a residential property, under an SPA executed from 1 January 2021 to 31 December 2027; the loan from a listed lender. LHDN’s declaration excludes SOHO, SOFO, SOVO and serviced apartments, which the Malaysian Bar disputes. Expired: the 75% remission for RM500,001–1,000,000 (SPAs of 1 June 2022 to 31 December 2023).',
-      source: { title: 'Malaysian Bar Circular No 128/2026 (16 April 2026)', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Circular%20No%20128-2026.pdf' } },
+      source: { title: 'Malaysian Bar Circular No 128/2026 (16 April 2026)', url: 'https://www.malaysianbar.org.my/cms/upload_files/document/Circular%20No%20128-2026.pdf' },
+      /* A budget proposal, held beside the law in force and applied to
+         nothing until its order is gazetted (1.4.0). */
+      proposed: { what: 'Proposed in Budget 2027 (9 October 2026; not yet law): for sale and purchase agreements executed from 1 January 2027 to 31 December 2030, 100% on the loan agreement and the transfer for a first home priced up to RM500,000; for one priced up to RM750,000, 100% on the first RM500,000 of the price and 50% on the rest. How the split applies to the loan agreement, and whether the price or the market value is tested, awaits the order or law that enacts it. Not applied.',
+        source: { title: 'Budget 2027 Tax Measures, Appendix 16 (Ministry of Finance, 9 October 2026) — a proposal', url: 'https://belanjawan.mof.gov.my/pdf/belanjawan2027/ucapan/tax-measures.pdf' } } },
     { id: 'nonCitizen', classes: ['residential', 'commercial', 'land'], title: 'Transfer duty for a buyer who is not a citizen or permanent resident', applied: false,
-      what: 'A flat RM8 per RM100 on residential property from 1 January 2026 (Item 32(ab), Finance Act 2025, Act 874), and RM4 per RM100 on other property from 1 January 2024 (Item 32(aa)). This tool charges Item 32(a), the scale for a citizen or permanent resident.',
+      what: 'A flat RM8 per RM100 on residential property from 1 January 2026 (Item 32(ab), Finance Act 2025, Act 874), and RM4 per RM100 on other property from 1 January 2024 (Item 32(aa)). This tool charges Item 32(a), the scale for a citizen or permanent resident. Budget 2027 (9 October 2026) proposes no change.',
       source: { title: 'Stamp Act 1949, First Schedule, Items 32(aa)–(ab); Finance Act 2025 (Act 874)', url: 'https://www.hasil.gov.my/wp-content/uploads/20240101-akta-setem-1949-akta-378.pdf' } },
     { title: 'Stamp duty self-assessment (STSDS)', applied: false,
       what: 'A change of procedure, not of rate. LHDN phases it in: from 1 January 2026 leases and tenancies, securities (loan agreements and charges) and general stamping; from 1 January 2027 transfers of real property not needing a JPPH valuation; from 1 January 2028 every other instrument. The duty payable is unchanged; who assesses it, and when, changes.',
@@ -35072,7 +35080,7 @@ const FEE_TABLE = {
     { what: 'Purchase legal fees on a purchase at auction', why: 'Sarawak’s Rules do not settle the purchaser’s advocate’s share at auction: rule 13(b) names it only for several lots bought under one title, rules 1 and 2 presume a sale and purchase agreement, and rule 3 charges three-quarters for a transfer alone; the instrument a chargee’s sale under the Land Code passes title by was not read. The line stays at rule 1’s full scale on the bid; your lawyer’s quote takes its place (1.3.0).' },
     { what: 'Purchase legal fees on a purchase from a developer', why: 'whether rule 1’s full scale or rule 2’s and rule 3’s three-quarters applies turns on what your lawyer is engaged for — the SPA and the transfer, or the SPA now and the transfer when the title issues — not on the route. The line stays at rule 1’s full scale; your lawyer’s quote takes its place (1.3.0). Rule 12’s half scale for a housing estate of 25 units or more, under RM100,000, is held and not applied.' },
     { what: 'Lines whose rule differs by property class, for a commercial property or land', why: 'the security a commercial lender takes, a commercial purchase’s searches, commercial and land deposits, and the valuation of a bare parcel were not checked: those lines are not charged for the class (1.2.0) and the cash required is partial, naming them — see “Commercial property and land” above.' },
-    { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook: the rates in this tool’s schedule match LHDN’s rates page, but its Schedule 4 exemption was seen only in a search summary, so the schedule stays marked unverified.' },
+    { what: 'Gains tax on a later sale (RPGT)', why: 'outside this rulebook. Schedule 5’s rates and Schedule 4’s exemption (RM10,000 or 10% of the gain, whichever is greater, for an individual) now read in the Attorney General’s Chambers’ updated text of Act 169 as at 1 January 2025, and they match this tool’s schedule; that text is not the authentic reprint, and amendments after 1 January 2025 were not read, so the schedule stays marked unverified. Budget 2027 proposes no change.' },
   ],
 };
 
@@ -35358,7 +35366,8 @@ function feeRulebookCard() {
   if ((FEE_TABLE.notApplied || []).length) {
     card.append(el('h3', { class: 'fee-book-h3' }, 'Held, and not applied by default'));
     card.append(el('ul', { class: 'fee-book-notes' }, FEE_TABLE.notApplied.map(x => el('li', {}, [el('strong', {}, x.title), ` — ${x.what} Source: `,
-      x.source?.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.source.title) : (x.source?.title || 'none'), '.']))));
+      x.source?.url ? el('a', { href: x.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.source.title) : (x.source?.title || 'none'), '.',
+      ...(x.proposed ? [` ${x.proposed.what} Source: `, (x.proposed.source?.url ? el('a', { href: x.proposed.source.url, target: '_blank', rel: 'noopener noreferrer' }, x.proposed.source.title) : (x.proposed.source?.title || 'none')), '.'] : [])]))));
   }
   if ((FEE_TABLE.unverified || []).length) {
     card.append(el('h3', { class: 'fee-book-h3' }, 'What could not be verified, and why'));
