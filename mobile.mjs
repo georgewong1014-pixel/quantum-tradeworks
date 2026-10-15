@@ -2403,7 +2403,7 @@ for (const w of [360, 390]) {
       said.oneScreen = r;
       if (r.knobs !== 1) fails.push(`360×640: ${r.knobs} knobs drawn, not one`);
       if (!r.range || r.range[0] < r.under || r.range[1] > r.vh) fails.push(`360×640: the slider sits at ${JSON.stringify(r.range)}, the screen below the topbar is ${r.under}–${r.vh}`);
-      if (r.vals.length !== 7) fails.push(`360×640: ${r.vals.length} results, not seven`);
+      if (r.vals.length !== 8) fails.push(`360×640: ${r.vals.length} results, not eight`);
       r.vals.filter(([, t, b]) => t < r.under || b > r.vh).forEach(([k, t, b]) => fails.push(`360×640: ${k} sits at ${t}–${b}, off the screen`));
     }
     /* No sideways scroll at 360 under any comparison. */
@@ -2418,7 +2418,7 @@ for (const w of [360, 390]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
       await load('/property/lab');
       const n = await ev(`[...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length).length`);
-      if (n !== 5) fails.push(`${w}px: ${n} knobs drawn, not five`);
+      if (n !== 9) fails.push(`${w}px: ${n} knobs drawn, not nine`);
     }
     /* Colour, light and dark. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
@@ -2475,7 +2475,7 @@ for (const w of [360, 390]) {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL scenario-lab — the Scenario Lab across widths and themes: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   scenario-lab: the Scenario Lab draws its sliders; at 360, 390 and 430 all ${targets} controls measured are 44px targets; at 360×640 one knob, its slider (${said.oneScreen.range.join('–')}) and all seven results (the last ending at ${Math.max(...said.oneScreen.vals.map(v => v[2]))}) on one screen below the ${said.oneScreen.under}px topbar; no sideways scroll at 360 under any of the ${metrics} comparisons; all five knobs at 1024 and 1440; ${pairs} colour pairs held in light and dark (lowest: ${Object.entries(said).filter(([k]) => k.includes('min')).map(([k, v]) => `${k.replace(' min ', ' ')}:1 pairs ${v}`).join(', ')}), the focused slider ringed`);
+  else console.log(`ok   scenario-lab: the Scenario Lab draws its sliders; at 360, 390 and 430 all ${targets} controls measured are 44px targets; at 360×640 one knob, its slider (${said.oneScreen.range.join('–')}) and all eight results (the last ending at ${Math.max(...said.oneScreen.vals.map(v => v[2]))}) on one screen below the ${said.oneScreen.under}px topbar; no sideways scroll at 360 under any of the ${metrics} comparisons; all nine knobs at 1024 and 1440; ${pairs} colour pairs held in light and dark (lowest: ${Object.entries(said).filter(([k]) => k.includes('min')).map(([k, v]) => `${k.replace(' min ', ' ')}:1 pairs ${v}`).join(', ')}), the focused slider ringed`);
 }
 /* ---- end scenario-lab ---- */
 /* ---- scenario-lab-verify ---- */
@@ -2779,6 +2779,74 @@ for (const w of [360, 390]) {
   else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all seven results on one screen, in the page's font and in Verdana with ${SPARE}px spare (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; "About" (${said.about.size.join('×')}px) opens the renovation's span and note after its tags and closes them; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
 }
 /* ---- end scenario-lab-verify ---- */
+/* ---- lab-phase2-picker ---- */
+/* THE PHONE'S INPUT PICKER, WITH THE FOUR KNOBS PHASE 2 ADDED (plan 4.1;
+   16 Oct 2026). One knob at a time stays: the picker lists all nine —
+   Price, Deposit, Rate, Tenure, Rent, Vacancy, Upkeep, Renovation, Hold —
+   at 360 and 390, each chip a 44px target both ways, each reached by
+   scrolling the strip (as "Compare by" is) and then whole inside the
+   screen, the page itself never scrolling sideways, in the page's font and
+   in Verdana (CI's sans is as wide). Fails on b7ce1a77, whose picker lists five. */
+{
+  const fails = [];
+  const said = {};
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev(`State.view`);
+  };
+  const WANT = ['tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const w of [360, 390])
+    for (const font of [null, 'Verdana, sans-serif']) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId);
+      const view = await load('/property/lab');
+      if (view !== 'propertyLab') { fails.push(`${w}: /property/lab opened ${view}`); continue; }
+      const at = `${w}${font ? ' in Verdana' : ''}`;
+      if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+      const r = await ev(`(async () => {
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const fs = document.querySelector('.lab-pick-input');
+        const chips = fs ? [...fs.querySelectorAll('.lab-seg-opt')] : [];
+        const box = (n) => n.getBoundingClientRect();
+        return { keys: chips.map(n => n.querySelector('input')?.value), words: chips.map(n => n.textContent.trim()),
+          small: chips.filter(n => box(n).width < 43.5 || box(n).height < 43.5).map(n => n.textContent.trim() + ' ' + Math.round(box(n).width) + '×' + Math.round(box(n).height)),
+          visible: !!fs && fs.getClientRects().length > 0 && getComputedStyle(fs).visibility !== 'hidden',
+          pageOver: document.documentElement.scrollWidth - innerWidth, pickOver: fs ? fs.scrollWidth - fs.clientWidth : null,
+          /* The strip scrolls (ls-chips), as "Compare by" does: every chip is reached by scrolling it into view, and then stands whole inside the screen. */
+          out: chips.filter(n => { n.scrollIntoView({ inline: 'center', block: 'nearest' }); const b = box(n); return b.right > innerWidth + 0.5 || b.left < -0.5; }).map(n => n.textContent.trim()),
+          after: document.documentElement.scrollWidth - innerWidth,
+          face: getComputedStyle(fs || document.body).fontFamily };
+      })()`);
+      said[at] = r.keys.length;
+      if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+      if (!r.visible) fails.push(`${at}: the Input picker is not shown on a phone`);
+      for (const k of ['price', 'downPct', 'ratePct', 'rent', 'renovation', ...WANT]) if (!r.keys.includes(k)) fails.push(`${at}: the picker does not list ${k} (${r.keys.join(', ')})`);
+      if (r.keys.length !== 9) fails.push(`${at}: the picker lists ${r.keys.length} inputs, not nine`);
+      if (r.small.length) fails.push(`${at}: chips under 44px: ${r.small.join(', ')}`);
+      if (r.pageOver > 0) fails.push(`${at}: the page is ${r.pageOver}px wider than the screen`);
+      if (r.after > 0) fails.push(`${at}: scrolling the chips into view made the page ${r.after}px wider than the screen`);
+      if (r.out.length) fails.push(`${at}: chips that cannot be scrolled whole into the screen: ${r.out.join(', ')}`);
+    }
+  } catch (e) { fails.push(`the checks threw: ${e.message}`); }
+  finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL lab-phase2-picker — the phone's Input picker with the phase 2 knobs: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   lab-phase2-picker: at 360 and 390, in the page's font and in Verdana, the Input picker lists all nine inputs (${Object.values(said).join(', ')} chips), each a 44px target both ways, with no sideways scroll from the page or the picker`);
+}
+/* ---- end lab-phase2-picker ---- */
 /* ---- batch1-phone ---- */
 /* TWO THINGS A WIDE SANS PUSHED OUT (batch 1, 6 Oct 2026). CI's Linux sans
    is as wide as Verdana, and both of these fit in this machine's fonts:
@@ -4282,7 +4350,7 @@ for (const w of [360, 390]) {
       if (await load('/property') !== 'propertyLab') { fails.push(`${at}: /property did not open the Lab`); continue; }
       if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
       const r = await ev(read);
-      if (r.rows.length !== 7) fails.push(`${at}: ${r.rows.length} chain rows, not seven`);
+      if (r.rows.length !== 8) fails.push(`${at}: ${r.rows.length} chain rows, not eight`);
       for (const x of r.rows) {
         if (!x.badge || !x.kind) { fails.push(`${at}: ${x.row} carries no kind badge`); continue; }
         /* The sample's figures: every row Illustrative, by its word. */

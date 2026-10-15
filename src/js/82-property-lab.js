@@ -204,9 +204,13 @@ const LAB_FIGURES = [
     formula: (d, m) => {
       if (!isNum(m.cashflowMonthly)) return 'Not computable: with no repayment schedule the loan’s monthly cost is unknown, and so is what the owner funds.';
       const mc = monthlyCommitment(m), loan = m.loan > 0;
-      return mc > 0
+      /* Debt-service cover (the model's dscr; the Risk view bars it against
+         1.00×) is said here, beside the figure it explains: the rent's
+         cover of the repayments, the commitment being what it leaves unmet. */
+      const cover = isNum(m.dscr) ? ` Debt-service cover ${fmtX(m.dscr, 2)}: net operating income ${labMoney(m.noi)} a year ÷ ${labMoney(m.annualDebtService)} of loan repayments a year${m.dscr < 1 ? ' — below 1.00×, so the rent does not meet them' : ''}.` : '';
+      return (mc > 0
         ? `What the owner pays from their own income each month: ${m.letsToTenant ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`} — the monthly position of ${labMoney(m.cashflowMonthly)} with its sign taken off = ${labMoney(mc)} a month.`
-        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`;
+        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`) + cover;
     } },
   { key: 'netYield', label: () => 'Net yield', fmt: 'pct2', help: 'netYield',
     read: (m) => m.netYield,
@@ -1039,13 +1043,13 @@ function labIdentityAct(P, lab) {
     onclick: () => labNaming(P, lab, labScenarioNaming(lab, labActive(lab), 'identity')) },
     `Save ${col.key} as a scenario${labMarked(col).length ? ' — the moved figures become yours' : ''}`));
   else box.append(el('span', { class: 'lab-id-saved' }, 'Saved in this browser'));
-  box.append(...labExport(P, lab, col));
   return box;
 }
 /* "EXPORT PDF / SHARE WITH CLIENT" (plan 4.5): the existing client proposal
    (72-property-proposal.js) of the property the lab is open on, with the
-   saved columns it names — a quiet button after Save, which stays the page's
-   one primary. "Share" here means the printable proposal and nothing more:
+   saved columns it names — a quiet button in the Keep card, after its Save
+   (the identity line's Save stays the page's one primary, and the first
+   frame, whose words and rows are budgeted, gains nothing). "Share" here means the printable proposal and nothing more:
    no link is made, nothing is uploaded or hosted. A proposal is made from
    what is saved, so the button is off — with the reason in sight — while
    the subject is an unsaved deal, or the column the sliders move holds
@@ -2528,11 +2532,14 @@ function labCommits(P, lab, col) {
     acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
       onclick: () => labNaming(P, lab, labGuidedNaming(lab)) }, labGuidedWords(lab, col)));
   }
+  const exportAct = labExport(P, lab, col);
+  acts.append(exportAct[0]);
   acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
     `Open ${col.key} in the calculator${yours}`));
   acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: labId(P, 'clear'), disabled: n ? null : '', onclick: () => labClear(P, lab, col) },
     `Clear ${col.key}’s moves`));
   card.append(acts);
+  if (exportAct[1]) card.append(exportAct[1]);
   /* The name is asked for where its Save was pressed: here, or under the
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));

@@ -2987,7 +2987,7 @@ const HOME_PAGE = read(HOME);
 
 /* ---- property-accuracy-served ---- */
 /* THE PROPERTY ACCURACY BATCH, AS SERVED (the 12 Oct 2026 audit, #3):
-   - /property and /property/lab serve the Lab's seven chain rows, each with
+   - /property and /property/lab serve the Lab's eight chain rows, each with
      its kind badge in its summary (D6 on the chain) — the sample's figures,
      so Illustrative, as its tiles;
    - /data-sources serves the fee rulebook at 1.3.0 with its purchase legal
@@ -3008,7 +3008,7 @@ const HOME_PAGE = read(HOME);
     const rows = views ? all(views).filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')) : [];
     const kinds = rows.map(n => { const s = all(n).find(x => x.tag === 'summary'); const b = s ? all(s).find(x => attr(x, 'data-kind-badge')) : null; return [attr(n, 'data-row'), b ? attr(b, 'data-kind-badge') : null, b ? sight(b) : null]; });
     said[path] = kinds.length;
-    if (kinds.length !== 7) p.push(`${path} serves ${kinds.length} chain rows, not seven`);
+    if (kinds.length !== 8) p.push(`${path} serves ${kinds.length} chain rows, not eight`);
     for (const [row, kind, word] of kinds) if (kind !== 'illustrative' || word !== 'Illustrative') p.push(`${path}: the ${row} row serves ${kind ? `a ${kind} badge ("${word}")` : 'no kind badge'}, not the sample's Illustrative`);
   }
   const ds = got.get('/data-sources');
@@ -3032,6 +3032,56 @@ const HOME_PAGE = read(HOME);
     'the chain rows or the rulebook\'s route readings are not served');
 }
 /* ---- end property-accuracy-served ---- */
+
+/* ---- lab-phase2-served ---- */
+/* THE SCENARIO LAB'S PHASE 2, AS SERVED (plan 4.1, 4.2 and 4.5; the owner's
+   16 Oct 2026 decision, D9):
+   - /property/lab lists nine labelled inputs, "Loan tenure (years)" and
+     "Monthly maintenance (RM)" among them, each in the calculator's own
+     words;
+   - its chain shows "Debt-service cover" and "Monthly commitment";
+   - "Save" is a btn-primary placed before a non-primary "Export PDF / Share
+     with client", off on the unsaved sample, its reason in sight.
+   Fails on b7ce1a77: five inputs, no "Debt-service cover" or "Monthly
+   commitment" and no export. */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const got = await getAll(['/property/lab']);
+  const r = got.get('/property/lab');
+  if (!r || r.status !== 200) p.push(`/property/lab: ${r ? described(r) : 'not fetched'}`);
+  else {
+    const tree = all(B.htmlTree(r.body));
+    const views = tree.find(n => attr(n, 'id') === 'views');
+    const inside = views ? all(views) : [];
+    const labels = inside.filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => sight(n).trim());
+    said.inputs = labels.length;
+    if (labels.length !== 9) p.push(`/property/lab lists ${labels.length} labelled inputs, not nine: ${labels.join(' | ')}`);
+    for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (%)', 'Holding period (years)'])
+      if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
+    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), sight(n)]);
+    said.rows = rows.length;
+    /* The row, in the calculator's words; the cover said inside it, with its figure. */
+    const mc = rows.find(x => x[0] === 'monthlyCommitment');
+    if (!mc || !mc[1].includes('Monthly commitment')) p.push('/property/lab\'s chain has no “Monthly commitment” row');
+    if (!mc || !/Debt-service cover \d+\.\d\d×/.test(mc[2])) p.push('/property/lab\'s chain does not show “Debt-service cover” with its figure');
+    const buttons = inside.filter(n => (n.tag === 'button' || n.tag === 'a') && B.hasClass(n, 'btn'));
+    const save = buttons.findIndex(n => B.hasClass(n, 'btn-primary') && /^Save/.test(sight(n).trim()));
+    const exp = buttons.findIndex(n => /^Export PDF \/ Share with client$/.test(sight(n).trim()));
+    if (save < 0) p.push('/property/lab serves no btn-primary “Save …” button');
+    if (exp < 0) p.push('/property/lab serves no “Export PDF / Share with client” button');
+    if (save >= 0 && exp >= 0) {
+      if (!(save < exp)) p.push('“Export PDF / Share with client” does not come after Save');
+      if (B.hasClass(buttons[exp], 'btn-primary')) p.push('“Export PDF / Share with client” is btn-primary: Save is the one primary');
+      if (attr(buttons[exp], 'disabled') == null) p.push('on the unsaved sample, “Export PDF / Share with client” is not disabled');
+    }
+    if (!/Save it first — a proposal is made from what is saved/.test(sight(views || tree[0]))) p.push('the reason “Save it first — a proposal is made from what is saved” is not in sight beside Export');
+  }
+  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, Loan tenure (years) and Monthly maintenance (RM) among them, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet, disabled “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
+    'the Lab\'s phase 2 inputs, chain rows or export button are not served');
+}
+/* ---- end lab-phase2-served ---- */
 
 /* ---- backup-served ---- */
 /* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the

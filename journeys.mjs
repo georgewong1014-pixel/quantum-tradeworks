@@ -1667,7 +1667,8 @@ const JOURNEYS = [
        lists it. */
     id: 'lab', name: 'Property landing: the Scenario Lab moves, compares and saves',
     outcomes: ['Move the rent: the monthly position and the net yield follow, the repayment does not', 'Move the rate: the repayment follows, the net yield does not',
-      'Compare by cash flow: A, then B', 'Save the property, then B as a scenario', 'It is listed with the saved properties',
+      'Moving tenure changes the repayment', 'Compare by cash flow: A, then B', 'Save the property, then B as a scenario',
+      'Export is disabled until saved, then opens the proposal', 'It is listed with the saved properties',
       'Choose Commercial and Subsale, set a target: the price that makes it work is solved',
       'Choose Auction, enter the Proclamation’s terms: the effective cost is read'],
     async run(j, tab) {
@@ -1691,6 +1692,8 @@ const JOURNEYS = [
         if (!/^Sample deal/.test(id)) throw new StepError(`the identity line reads “${id.slice(0, 60)}”, not the sample deal`);
         const tiles = await tab.eval(`[...document.querySelectorAll('main .lab-tile .lab-tile-label')].map(n => n.textContent.trim()).join(' | ')`);
         if (tiles !== 'Cash required | Monthly position | Net yield | Next step') throw new StepError(`the four tiles read “${tiles}”`);
+        const exp = await tab.eval(`(() => { const n = document.getElementById('lab-export'); return n ? n.tagName + ':' + n.disabled + ':' + (document.getElementById('lab-export-why')?.textContent || '') : null; })()`);
+        if (exp !== 'BUTTON:true:Save it first — a proposal is made from what is saved') throw new StepError(`on the unsaved sample deal, Export reads “${exp}”, not a disabled button with its reason`);
         deal0 = await tab.eval(dealAt);
       });
       await step(j, tab, 'Move the rent: the monthly position and the net yield follow, the repayment does not', BUDGET.action, async () => {
@@ -1712,6 +1715,28 @@ const JOURNEYS = [
         do { now = await tab.eval(chain); if (now.instalment !== before.instalment) break; await sleep(50); } while (Date.now() - t0 < 1000);
         if (now.instalment === before.instalment) throw new StepError(`the repayment stayed ${before.instalment} when the rate rose a step`);
         if (now.netYield !== before.netYield) throw new StepError(`the net yield moved from ${before.netYield} to ${now.netYield} with the rate`);
+      });
+      /* PHASE 2 (plan 4.1, 4.2): a real slider move of the loan tenure — the
+         repayment moves and the chain follows, the monthly commitment with
+         the monthly position, the net yield not — and moved back, so B holds
+         only the two moves the save below expects. */
+      await step(j, tab, 'Moving tenure changes the repayment', BUDGET.action * 2, async () => {
+        before = await tab.eval(chain);
+        if (before.monthlyCommitment === undefined) throw new StepError('the chain has no “Monthly commitment” row');
+        await press('tenureYears', 'ArrowRight', 5);
+        const t0 = Date.now();
+        let now;
+        do { now = await tab.eval(chain); if (now.instalment !== before.instalment && now.monthlyCommitment !== before.monthlyCommitment) break; await sleep(50); } while (Date.now() - t0 < 1000);
+        if (now.instalment === before.instalment) throw new StepError(`the repayment stayed ${before.instalment} when the loan tenure rose five years`);
+        if (!(Number(now.instalment) < Number(before.instalment))) throw new StepError(`a longer tenure took the repayment from ${before.instalment} to ${now.instalment}, not down`);
+        if (now.cashflowMonthly === before.cashflowMonthly) throw new StepError(`the monthly position stayed ${before.cashflowMonthly} with the repayment`);
+        if (now.monthlyCommitment === before.monthlyCommitment) throw new StepError(`the monthly commitment stayed ${before.monthlyCommitment} with the monthly position`);
+        if (now.netYield !== before.netYield) throw new StepError(`the net yield moved from ${before.netYield} to ${now.netYield} with the tenure`);
+        if (await tab.eval(dealAt) !== deal0) throw new StepError('moving the tenure wrote the calculator’s deal');
+        await press('tenureYears', 'ArrowLeft', 5);
+        const back = await tab.eval(`Object.keys(labActive(LAB[labSubject]).moves).sort().join()`);
+        if (back !== 'ratePct,rent') throw new StepError(`after the tenure was moved back, B's moves are ${back || 'none'}, not the rent and the rate`);
+        before = await tab.eval(chain);
       });
       await step(j, tab, 'Compare by cash flow: A, then B', BUDGET.action, async () => {
         await tab.click(`document.querySelector('label[for="lab-by-cashflow"]')`, 'Compare by “Cash flow”');
@@ -1753,6 +1778,30 @@ const JOURNEYS = [
         if (r.saved?.rent !== was.rent || r.saved?.ratePct !== was.ratePct) throw new StepError(`B's moves were rent ${was.rent} and rate ${was.ratePct}; the scenario saved rent ${r.saved?.rent} and rate ${r.saved?.ratePct}`);
         if (r.col?.rent !== was.rent || r.col?.ratePct !== was.ratePct) throw new StepError(`B's column went from rent ${was.rent} and rate ${was.ratePct} to ${r.col?.rent} and ${r.col?.ratePct} with the save`);
         if (r.identity !== 'Saved in this browser') throw new StepError(`beside the identity line after the save: “${r.identity}”`);
+      });
+      /* "EXPORT PDF / SHARE WITH CLIENT" (plan 4.5): quiet, after Save, and off
+         — its reason in sight — while the column holds figures no save has
+         kept; on once they are kept or put back, a link to the property's
+         client proposal naming its saved columns, which opens it. */
+      await step(j, tab, 'Export is disabled until saved, then opens the proposal', BUDGET.action * 3, async () => {
+        const ids = await tab.eval(`JSON.stringify((() => { const rec = pmFind(State.deal.modelId); return { id: rec.id, sc: (rec.scenarios || [])[0]?.id }; })())`);
+        const { id, sc } = JSON.parse(ids);
+        const state = `(() => { const n = document.getElementById('lab-export'); const why = document.getElementById('lab-export-why');
+          return JSON.stringify({ tag: n?.tagName || null, cls: n?.className || '', disabled: !!n?.disabled, href: n?.getAttribute('href') || null, text: (n?.textContent || '').trim(),
+            why: why && why.getClientRects().length ? why.textContent.trim() : null }); })()`;
+        await press('rent', 'ArrowRight', 1);
+        await tab.expect(`document.getElementById('lab-export')?.tagName === 'BUTTON'`, async () => `with B's rent moved and not saved, “Export” is ${await tab.eval(state)}, not a disabled button`);
+        const off = JSON.parse(await tab.eval(state));
+        if (!off.disabled || off.text !== 'Export PDF / Share with client' || /btn-primary/.test(off.cls)) throw new StepError(`unsaved, the export button reads ${JSON.stringify(off)}`);
+        if (off.why !== 'Save it first — a proposal is made from what is saved') throw new StepError(`unsaved, the reason in sight is ${JSON.stringify(off.why)}`);
+        await press('rent', 'ArrowLeft', 1);
+        await tab.expect(`document.getElementById('lab-export')?.tagName === 'A'`, async () => `with B's moves put back, “Export” is ${await tab.eval(state)}, not a link`);
+        const on = JSON.parse(await tab.eval(state));
+        if (on.href !== `/property/models/${id}/proposal?cols=base,${sc}`) throw new StepError(`saved, the export link goes to ${on.href}, not /property/models/${id}/proposal?cols=base,${sc}`);
+        await tab.click(`document.getElementById('lab-export')`, 'Export PDF / Share with client');
+        await tab.expect(`State.view === 'propertyProposal'`, async () => `Export opened ${await tab.eval('State.view')}, not the client proposal`);
+        const picks = await tab.eval(`JSON.stringify(CP_PICK[${JSON.stringify(id)}] || null)`);
+        if (picks !== JSON.stringify([sc])) throw new StepError(`the proposal's scenarios are ${picks}, not the saved column ${sc}`);
       });
       await step(j, tab, 'It is listed with the saved properties', BUDGET.load, async () => {
         await tab.goto('/property/models');
