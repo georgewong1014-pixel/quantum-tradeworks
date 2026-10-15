@@ -1870,10 +1870,11 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
    again, or a visual taken out fails --check in CI's first job:
    - the hero: its h1 and lede 15 words or fewer, and one call to action;
    - each card (article.pub-card): 12 words or fewer outside its figure,
-     its second action (.pub-card-also) left out;
+     its second action (.pub-card-also) and the Property card's boundary
+     (.pub-card-bound, QT-D02-02: held word for word by served-check) left out;
    - each figure: 20 words or fewer — its caption, legend and state rows,
      inside the <figure>, the <svg>'s words with them;
-   - <main>: 110 words or fewer outside its figures;
+   - <main>: 110 words or fewer outside its figures and that boundary;
    - at least two data visuals: a figure with an <svg> of three or more
      data marks (data-v) and a source label in sight (.pub-vis-src);
    - one disclosure line above the footer — the strip's summary, with its
@@ -1973,7 +1974,7 @@ export function homeBudgets(html) {
   const cards = inMain.filter(n => n.tag === 'article' && hasClass(n, 'pub-card'));
   said.cards = cards.map(c => {
     const name = sightText(allOf(c).find(n => hasClass(n, 'pub-card-product')) || { kids: [] }) || attrOf(c, 'data-product');
-    const w = wordsIn(sightText(c, n => isFig(n) || hasClass(n, 'pub-card-also'))).length;
+    const w = wordsIn(sightText(c, n => isFig(n) || hasClass(n, 'pub-card-also') || hasClass(n, 'pub-card-bound'))).length;
     if (w > HOME_BUDGET.card) p.push(`the ${name} card is ${w} words outside its figure and its second action, more than ${HOME_BUDGET.card}`);
     return [name, w];
   });
@@ -1986,7 +1987,7 @@ export function homeBudgets(html) {
     return w;
   });
   /* Main, outside its figures. */
-  const mainText = sightText(main, isFig);
+  const mainText = sightText(main, n => isFig(n) || hasClass(n, 'pub-card-bound'));
   said.main = wordsIn(mainText).length;
   if (said.main > HOME_BUDGET.main) p.push(`<main> is ${said.main} words outside its figures, more than ${HOME_BUDGET.main}`);
   /* The data visuals. */
