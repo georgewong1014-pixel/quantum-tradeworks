@@ -3028,7 +3028,7 @@ const HOME_PAGE = read(HOME);
     if (!book || !all(book).some(n => n.tag === 'a' && /L\.N\.%20348/.test(attr(n, 'href') || '') && /Advocates’ Remuneration \(Amendment\) Rules, 2022/.test(sight(n)))) p.push('/data-sources: the route readings do not name the gazette they were read in');
     if (!/Purchase legal fees on a purchase at auction/.test(text) || !/Purchase legal fees on a purchase from a developer/.test(text)) p.push('/data-sources: what could not be verified does not name the auction\'s and the developer\'s purchase legal fees');
   }
-  judge(p, `the property accuracy batch as served: /property and /property/lab each serve ${said['/property'] ?? 0} and ${said['/property/lab'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.3.0 with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
+  judge(p, `the property accuracy batch as served: /property and /property/lab each serve ${said['/property'] ?? 0} and ${said['/property/lab'] ?? 0} chain rows with their Illustrative badge; /data-sources serves rulebook 1.4.0 with ${said.routes ?? 0} purchase-route readings, the auction and the new development "not decided by the Rules", the gazette named`,
     'the chain rows or the rulebook\'s route readings are not served');
 }
 /* ---- end property-accuracy-served ---- */

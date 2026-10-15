@@ -7362,7 +7362,7 @@ try {
         disbursements: ['gated', 'gated'], utilityDeposits: ['gated', 'gated'], mortgageProtection: ['gated', 'gated'] };
       if (JSON.stringify(r.book.cls) !== JSON.stringify(want)) p.push(`the class table: ${JSON.stringify(r.book.cls)}`);
       if (p.length) fail('val G4: drawn — partial wherever the cash required is shown', p);
-      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Cash required (with a 3-month reserve) — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.3.0, 1.2.0\'s changelog line and the class table line by line');
+      else ok('val G4: on a shophouse the calculator says "Cash required (with a 3-month reserve) — partial … Excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property", its ledger shows the four as Unavailable and its total "Cash required (with a 3-month reserve) — partial"; the Lab\'s tile reads "Cash required — partial"; /data-sources shows rulebook 1.4.0, 1.2.0\'s changelog line and the class table line by line');
     });
 
     /* G5 — PURCHASE LEGAL FEES BY ROUTE (the fee rulebook 1.3.0; the 12 Oct
@@ -7411,7 +7411,7 @@ try {
       if (r.meth.some(([, t, a]) => !/Not decided by the Rules/.test(t) || !a)) p.push(`/methodology/property's legal fees: ${JSON.stringify(r.meth)}`);
       if (r.field.kind !== 'quoted' || r.field.value !== '5000' || !/Quoted/.test(r.ledger || '') || !/RM5\.0k$|RM5,000$/.test(r.ledger || '')) p.push(`the calculator: the field ${JSON.stringify(r.field)}, the ledger "${r.ledger}"`);
       if (p.length) fail('val G5: purchase legal fees by route — not decided by the rules, the quote in their place', p);
-      else ok('val G5: an auction and a new development with no quote are charged rule 1\'s full scale as before (3,400; RM63,302) — the rules do not decide them by the route, and rulebook 1.3.0 says so in its route readings, its unverified list, each route\'s fee note, /data-sources and /methodology/property; a RM5,000 lawyer\'s quote on a new development takes the line\'s place, Quoted (RM712 of tax, RM65,030 by hand), and stands nowhere else — not on a subsale, an auction or land');
+      else ok('val G5: an auction and a new development with no quote are charged rule 1\'s full scale as before (3,400; RM63,302) — the rules do not decide them by the route, and rulebook 1.4.0 says so in its route readings, its unverified list, each route\'s fee note, /data-sources and /methodology/property; a RM5,000 lawyer\'s quote on a new development takes the line\'s place, Quoted (RM712 of tax, RM65,030 by hand), and stands nowhere else — not on a subsale, an auction or land');
     });
   }
   /* ---- end val-fee-gates ---- */
