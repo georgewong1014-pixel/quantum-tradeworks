@@ -12528,6 +12528,9 @@ const PRODUCTS = [
        "Explore Property". */
     also: { label: 'Try the Scenario Lab', path: '/property/lab' },
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
+    /* What the calculator does not do, in sight beside the homepage card's
+       action (QT-D02-02, the 15 Oct report): served-check holds the words. */
+    boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
   { id: 'business', name: 'Business Intelligence', short: 'Business', path: null,
@@ -27518,8 +27521,9 @@ function pubProductCard(p) {
   const card = el('article', { class: `pub-card ls-card pub-acc-${p.id}`, 'data-card': 'action', 'data-product': p.id, 'aria-labelledby': id('t') });
   card.append(el('div', { class: 'pub-card-top' }, [pubIcon(p.id), el('p', { class: 'pub-card-product', id: id('n') }, p.name)]));
   card.append(el('h3', { class: 'pub-card-title', id: id('t') },
-    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')} ${id('q')} ${id('note')}` }, p.task, pubArrow())));
+    pubLink(p.actionPath, { class: 'pub-card-link ls-card-cta', 'aria-describedby': `${id('n')} ${id('q')} ${id('note')}${p.boundary ? ` ${id('bound')}` : ''}` }, p.task, pubArrow())));
   card.append(pubQualifier(p, id));
+  if (p.boundary) card.append(el('p', { class: 'pub-card-bound', id: id('bound') }, p.boundary));
   const vis = PUB_VISUALS[p.id];
   if (vis) card.append(vis());
   if (p.also) card.append(el('p', { class: 'pub-card-also' }, pubLink(p.also.path, { class: 'pub-textlink' }, p.also.label, pubArrow())));
