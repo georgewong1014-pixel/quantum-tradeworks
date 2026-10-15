@@ -44992,14 +44992,17 @@ VIEWS.property = () => {
        it previews the report in this browser.
        Debt-service cover is not among what it adds: the Scenario Lab shows
        it free, under Risk (plan item 1.4), and a report cannot offer what
-       the free tool already gives. */
+       the free tool already gives. Nor is cash-on-cash (plan item 4.2, 16
+       Oct 2026): the Lab's Yield view shows it free, and Pricing's "What it
+       adds" no longer lists it either (model-test PP9 holds the two lists
+       to the same things). */
     reportCards.push(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
-        ? `Adds net operating income, cash-on-cash return, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
+        ? `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, cash-on-cash return, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
@@ -48397,7 +48400,7 @@ function labDelta(fmt, now, was) {
    its basis beside the slider, and widened to take any figure typed into
    the box, so the thumb is never pinned at an end it does not belong at. */
 const labSnap = (v, step) => +(Math.round(v / step) * step).toFixed(step < 1 ? 2 : 0);
-const LAB_INPUTS = [
+const LAB_INPUT_LIST = [
   { k: 'price', label: () => ptr('in.price', 'Purchase price (RM)'), say: 'Purchase price', short: 'Price', step: 1000,
     span: (a) => [Math.max(0, labSnap(a * 0.75, 1000)), labSnap(a * 1.25, 1000)],
     basis: '±25% of as saved', why: ', to RM1,000 — five of the sensitivity panel’s 5% steps',
@@ -48439,6 +48442,14 @@ const LAB_INPUTS = [
     span: () => [1, HOLD_YEARS_MAX], basis: 'the model’s own limits on a holding period', why: '',
     shown: (v) => labYears(v), spoken: (v) => labYears(v), edge: (v) => labYears(v) },
 ];
+/* THE FOUR PHASE 2 KNOBS STAND IN A CLOSED GROUP, "More inputs (4)" (the
+   owner, 16 Oct 2026: the first frame's words and the phone's one screen
+   hold as they were): at 600px and over its button opens them; on a phone
+   there is no group to open — the Input picker lists all nine and one knob
+   shows at a time, as before. The knobs follow the five in this order, the
+   picker's too. */
+const LAB_MORE_KEYS = ['tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
+const LAB_INPUTS = [...LAB_INPUT_LIST.filter(x => !LAB_MORE_KEYS.includes(x.k)), ...LAB_MORE_KEYS.map(k => LAB_INPUT_LIST.find(x => x.k === k))];
 const LAB_INPUT_BY_K = Object.fromEntries(LAB_INPUTS.map(x => [x.k, x]));
 /* The knobs whose typed entry the calculator's own refusal covers
    (dealEntryRefused, 70-property.js): the four phase 2 added. The first five
@@ -49162,7 +49173,8 @@ function labDraw(P, focusId = null) {
   grid.append(inputs, outputs);
   inputs.append(labColumnPicker(P, lab), labInputPicker(P, lab));
   const col = labActive(lab);
-  LAB_INPUTS.forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
+  LAB_INPUTS.filter(inp => !LAB_MORE_KEYS.includes(inp.k)).forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
+  inputs.append(labMoreInputs(P, lab, col));
   P.els.colsCard = labColumnsCard(P, lab);
   P.els.commitCard = labCommits(P, lab, col);
   P.cardSig = labCardSig(lab);
@@ -49388,9 +49400,10 @@ function labExport(P, lab, col) {
     return [el('a', { class: 'btn btn-quiet lab-export', id, href: href(path),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, LAB_EXPORT_WORDS)];
   }
-  const why = labId(P, 'export-why');
-  return [el('button', { type: 'button', class: 'btn btn-quiet lab-export', id, disabled: '', 'aria-describedby': why }, LAB_EXPORT_WORDS),
-    el('span', { class: 'metaline lab-export-why', id: why }, LAB_EXPORT_WHY)];
+  /* Off: the reason is the Keep card's one line in sight (labCommits), so the
+     card stays within its words — what Save does moves to "How saving works"
+     — and the button is described by it. */
+  return [el('button', { type: 'button', class: 'btn btn-quiet lab-export', id, disabled: '', 'aria-describedby': labId(P, 'export-why') }, LAB_EXPORT_WORDS), LAB_EXPORT_WHY];
 }
 /* THE FOUR TILES. Three of the chain's own figures (LAB_FIGURES: the same
    reading, format and note as its rows, so a tile and a row cannot word or
@@ -49985,7 +49998,7 @@ function labInputPicker(P, lab) {
     row.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}${off ? ' is-off' : ''}`, for: id, title: off ? LAB_NOT_APPLY[inp.k] : null }, [
       el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'in'), id, value: inp.k, checked: on ? '' : null, disabled: off ? '' : null,
         'aria-describedby': off ? labId(P, `off-${inp.k}`) : null,
-        onchange: () => { lab.input = inp.k; labDraw(P, id); } }),
+        onchange: () => { lab.input = inp.k; if (LAB_MORE_KEYS.includes(inp.k)) P.moreOpen = true; labDraw(P, id); } }),
       el('span', {}, inp.short),
     ]));
   }
@@ -49994,6 +50007,26 @@ function labInputPicker(P, lab) {
   return fs;
 }
 
+/* "MORE INPUTS (4)": the phase 2 knobs in a group closed by default (the
+   button opens it in place, nothing drawn again; open across a redraw while
+   this tab lives). Choosing one of them in the phone's picker opens it too
+   (labInputPicker), which is how a keyboard or a script reaches a knob that
+   is not in sight. Under 600px the group is only a wrapper (styles.css). */
+function labMoreInputs(P, lab, col) {
+  const open = !!P.moreOpen;
+  const bodyId = labId(P, 'more-body');
+  const g = el('div', { class: `lab-more${open ? ' is-open' : ''}`, id: labId(P, 'more') });
+  const btn = el('button', { type: 'button', class: 'btn btn-quiet lab-more-btn', id: labId(P, 'more-btn'), 'aria-expanded': open ? 'true' : 'false', 'aria-controls': bodyId,
+    onclick: () => {
+      P.moreOpen = !P.moreOpen;
+      g.classList.toggle('is-open', P.moreOpen);
+      btn.setAttribute('aria-expanded', P.moreOpen ? 'true' : 'false');
+    } }, [el('span', {}, `More inputs (${LAB_MORE_KEYS.length})`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]);
+  const body = el('div', { class: 'lab-more-body', id: bodyId });
+  LAB_MORE_KEYS.forEach(k => body.append(labKnob(P, lab, col, LAB_INPUT_BY_K[k])));
+  g.append(btn, body);
+  return g;
+}
 /* ONE KNOB: the calculator's own label, a slider and a box beside it. */
 function labSpan(col, inp) {
   const anchor = num0(col.baseInputs[inp.k]);
@@ -50857,7 +50890,6 @@ function labCommits(P, lab, col) {
   acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: labId(P, 'clear'), disabled: n ? null : '', onclick: () => labClear(P, lab, col) },
     `Clear ${col.key}’s moves`));
   card.append(acts);
-  if (exportAct[1]) card.append(exportAct[1]);
   /* The name is asked for where its Save was pressed: here, or under the
      identity line (labIdentity). */
   if (lab.naming && lab.naming.at !== 'identity') card.append(labNameForm(P, lab, col));
@@ -50885,7 +50917,11 @@ function labCommits(P, lab, col) {
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
     + 'Until then nothing moved here is saved or marked as yours. The grade stays U while any figure that drives it — the built-up area and the maintenance too — is still the tool’s starting figure.');
-  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') }, line));
+  /* While Export is off, its reason is the line in sight and what Save does
+     is the first thing under "How saving works" — every word kept. */
+  if (exportAct[1]) why.unshift(line);
+  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') },
+    exportAct[1] ? el('span', { id: labId(P, 'export-why') }, exportAct[1]) : line));
   /* Open stays open while the card is drawn again under a move. */
   const more = el('details', { class: 'pc-more ls-l3 lab-commit-more', id: labId(P, 'commit-more'), open: P.saveMoreOpen ? '' : null }, [
     el('summary', { class: 'pc-more-sum' }, 'How saving works'),
