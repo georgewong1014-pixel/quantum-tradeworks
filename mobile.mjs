@@ -2420,7 +2420,7 @@ for (const w of [360, 390]) {
       const drawn = `[...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length).length`;
       const n = await ev(drawn);
       if (n !== 5) fails.push(`${w}px: ${n} knobs drawn, not the five, with "More inputs (4)" closed`);
-      const btn = await ev(`(() => { const b = document.getElementById('lab-more-btn'); return b && b.getClientRects().length ? { text: b.textContent.trim(), open: b.getAttribute('aria-expanded'), h: Math.round(b.getBoundingClientRect().height) } : null; })()`);
+      const btn = await ev(`(() => { const b = document.getElementById('lab-more-btn'); return b && b.getClientRects().length ? { text: b.textContent.trim(), open: String(b.parentElement.open), h: Math.round(b.getBoundingClientRect().height) } : null; })()`);
       if (!btn || btn.text !== 'More inputs (4)' || btn.open !== 'false' || btn.h < 44) fails.push(`${w}px: the group's button is ${JSON.stringify(btn)}, not a closed 44px "More inputs (4)"`);
       await ev(`document.getElementById('lab-more-btn').click()`);
       await ev(`new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))`);

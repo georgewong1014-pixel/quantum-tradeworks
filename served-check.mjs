@@ -3055,26 +3055,27 @@ const HOME_PAGE = read(HOME);
     const tree = all(B.htmlTree(r.body));
     const views = tree.find(n => attr(n, 'id') === 'views');
     const inside = views ? all(views) : [];
-    const labels = inside.filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => sight(n).trim());
+    /* A node's whole text, a closed <details>' body too: the group's four knobs are there, closed. */
+    const rawText = (n) => (n.kids || []).map(k => (k.tag === '#text' ? k.text : rawText(k))).join(' ').replace(/\s+/g, ' ');
+    const labels = inside.filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => rawText(n).trim());
     said.inputs = labels.length;
     if (labels.length !== 9) p.push(`/property/lab lists ${labels.length} labelled inputs, not nine: ${labels.join(' | ')}`);
     /* Four of the nine stand in the closed "More inputs (4)" group (the owner,
        16 Oct 2026), so the first frame holds its words and its screen. */
     const group = inside.find(n => B.hasClass(n, 'lab-more'));
-    const grouped = group ? all(group).filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => sight(n).trim()) : [];
+    const grouped = group ? all(group).filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => rawText(n).trim()) : [];
     said.grouped = grouped.length;
     if (!group) p.push('/property/lab serves no "More inputs" group');
     else {
-      if (B.hasClass(group, 'is-open')) p.push('the "More inputs" group is served open');
+      if (attr(group, 'open') !== null) p.push('the "More inputs" group is served open');
       if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (%)', 'Monthly maintenance (RM)', 'Holding period (years)']))
         p.push(`the "More inputs" group holds ${grouped.join(' | ') || 'no input'}, not tenure, vacancy, maintenance and holding period`);
-      if (!all(group).some(n => /^More inputs \(4\)$/.test(sight(n).trim()))) p.push('the group\'s button does not read "More inputs (4)"');
+      if (!all(group).some(n => /^More inputs \(4\)$/.test(rawText(n).trim()))) p.push('the group\'s button does not read "More inputs (4)"');
     }
     for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (%)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
     /* A row's whole text, its closed body too: the cover is said in the body, one tap away. */
-    const whole = (n) => (n.kids || []).map(k => (k.tag === '#text' ? k.text : whole(k))).join(' ').replace(/\s+/g, ' ');
-    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), whole(n)]);
+    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), rawText(n)]);
     said.rows = rows.length;
     /* The row, in the calculator's words; the cover said inside it, with its figure. */
     const mc = rows.find(x => x[0] === 'monthlyCommitment');
