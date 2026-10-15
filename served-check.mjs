@@ -2319,7 +2319,7 @@ const HOME_PAGE = read(HOME);
      is the 15 Oct report's boundary, word for word. */
   const lines = (cls) => cards.flatMap(c => all(c).filter(n => has(n, cls)).map(n => [attr(c, 'data-product'), sight(n)]));
   const wantOut = [['equities', 'Read a company’s filed financials and compare companies side by side.'], ['scanner', 'Write your own setup rules and see where they held in your price history.'], ['property', 'See the cash required, the monthly position and scenarios for a deal.']];
-  const wantBound = [['equities', 'US companies from SEC filings; Malaysian figures are illustrative. No licensed prices.'], ['scanner', 'No hosted monitoring: the worker runs on your computer, on price history you supply.'], ['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']];
+  const wantBound = [['equities', 'US companies from their SEC filings; Malaysian figures are illustrative. Price measures need a price you enter.'], ['scanner', 'No hosted monitoring: the worker runs on your computer, on price history you supply.'], ['property', 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.']];
   if (JSON.stringify(lines('pub-card-outcome')) !== JSON.stringify(wantOut)) p.push(`/: the cards' outcome lines are not one each, as stated (${JSON.stringify(lines('pub-card-outcome'))})`);
   if (JSON.stringify(lines('pub-card-bound')) !== JSON.stringify(wantBound)) p.push(`/: the cards' limits are not one each, as stated (${JSON.stringify(lines('pub-card-bound'))})`);
   const scanNote = cardOf('scanner') && all(cardOf('scanner')).find(n => has(n, 'pub-info-body'));
