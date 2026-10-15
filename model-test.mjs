@@ -4469,6 +4469,11 @@ try {
               if (f.n < 8) out.bad.push(inp.k + ' at ' + v + ': only ' + f.n + ' figures carry data-lab');
             }
           }
+          /* The sweep has moved every knob, the tenure's and the deposit's too
+             (phase 2): the column put back as it was opened before its edge
+             cases are read, a deal with no tenure being one of them. */
+          for (const inp of LAB_INPUTS) { const c = A(); if (c.work[inp.k] !== c.baseInputs[inp.k]) labWrite(c, inp.k, c.baseInputs[inp.k]); }
+          labSchedule(); await frame();
           /* The edge cases, in words. */
           const row = (k) => txt(document.querySelector('#views .lab-row[data-row="' + k + '"] summary'));
           out.rows = { netYield: row('netYield'), breakEvenOccupancy: row('breakEvenOccupancy'), instalment: row('instalment') };

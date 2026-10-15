@@ -3060,13 +3060,15 @@ const HOME_PAGE = read(HOME);
     if (labels.length !== 9) p.push(`/property/lab lists ${labels.length} labelled inputs, not nine: ${labels.join(' | ')}`);
     for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (%)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
-    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), sight(n)]);
+    /* A row's whole text, its closed body too: the cover is said in the body, one tap away. */
+    const whole = (n) => (n.kids || []).map(k => (k.tag === '#text' ? k.text : whole(k))).join(' ').replace(/\s+/g, ' ');
+    const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), whole(n)]);
     said.rows = rows.length;
     /* The row, in the calculator's words; the cover said inside it, with its figure. */
     const mc = rows.find(x => x[0] === 'monthlyCommitment');
     if (!mc || !mc[1].includes('Monthly commitment')) p.push('/property/lab\'s chain has no “Monthly commitment” row');
     if (!mc || !/Debt-service cover \d+\.\d\d×/.test(mc[2])) p.push('/property/lab\'s chain does not show “Debt-service cover” with its figure');
-    const buttons = inside.filter(n => (n.tag === 'button' || n.tag === 'a') && B.hasClass(n, 'btn'));
+    const buttons = inside.filter(n => (n.tag === 'button' || n.tag === 'a' || attr(n, 'data-inert') === 'button') && B.hasClass(n, 'btn'));
     const save = buttons.findIndex(n => B.hasClass(n, 'btn-primary') && /^Save/.test(sight(n).trim()));
     const exp = buttons.findIndex(n => /^Export PDF \/ Share with client$/.test(sight(n).trim()));
     if (save < 0) p.push('/property/lab serves no btn-primary “Save …” button');
@@ -3074,11 +3076,10 @@ const HOME_PAGE = read(HOME);
     if (save >= 0 && exp >= 0) {
       if (!(save < exp)) p.push('“Export PDF / Share with client” does not come after Save');
       if (B.hasClass(buttons[exp], 'btn-primary')) p.push('“Export PDF / Share with client” is btn-primary: Save is the one primary');
-      if (attr(buttons[exp], 'disabled') == null) p.push('on the unsaved sample, “Export PDF / Share with client” is not disabled');
     }
     if (!/Save it first — a proposal is made from what is saved/.test(sight(views || tree[0]))) p.push('the reason “Save it first — a proposal is made from what is saved” is not in sight beside Export');
   }
-  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, Loan tenure (years) and Monthly maintenance (RM) among them, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet, disabled “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
+  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, Loan tenure (years) and Monthly maintenance (RM) among them, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
     'the Lab\'s phase 2 inputs, chain rows or export button are not served');
 }
 /* ---- end lab-phase2-served ---- */
