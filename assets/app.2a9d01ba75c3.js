@@ -48425,7 +48425,7 @@ const LAB_INPUTS = [
      assumed occupancy the Risk view marks is 100 less this, and the knob's
      note says so (labOccupancyWords) — no separate occupancy figure is kept. */
   { k: 'vacancyPct', label: () => ptr('in.vacancyPct', 'Vacancy allowance (%)'), say: 'Vacancy allowance', short: 'Vacancy', step: 1,
-    span: (a) => [0, Math.max(40, labSnap(a, 1))], basis: 'nothing to 40%, or as saved if more', why: ' — the model’s deepest vacancy stress row',
+    span: (a) => [0, Math.min(100, Math.max(40, labSnap(a, 1)))], basis: 'nothing to 40%, or as saved if more, never above 100%', why: ' — the model’s deepest vacancy stress row',
     shown: (v) => labPctIn(v), spoken: (v) => `${fmtNum(v, 0)} percent vacant, ${fmtNum(100 - v, 0)} percent occupied`, edge: (v) => `${fmtNum(v, 0)}%` },
   { k: 'maintenance', label: () => ptr('in.maintenance', 'Monthly maintenance (RM)'), say: 'Monthly maintenance', short: 'Upkeep', step: 10,
     span: (a) => [Math.max(0, labSnap(a * 0.6, 10)), labSnap(a * 1.4, 10)],
