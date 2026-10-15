@@ -2417,8 +2417,15 @@ for (const w of [360, 390]) {
     for (const w of [1024, 1440]) {
       await send('Emulation.setDeviceMetricsOverride', { width: w, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
       await load('/property/lab');
-      const n = await ev(`[...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length).length`);
-      if (n !== 9) fails.push(`${w}px: ${n} knobs drawn, not nine`);
+      const drawn = `[...document.querySelectorAll('.lab-knob')].filter(n => n.getClientRects().length).length`;
+      const n = await ev(drawn);
+      if (n !== 5) fails.push(`${w}px: ${n} knobs drawn, not the five, with "More inputs (4)" closed`);
+      const btn = await ev(`(() => { const b = document.getElementById('lab-more-btn'); return b && b.getClientRects().length ? { text: b.textContent.trim(), open: b.getAttribute('aria-expanded'), h: Math.round(b.getBoundingClientRect().height) } : null; })()`);
+      if (!btn || btn.text !== 'More inputs (4)' || btn.open !== 'false' || btn.h < 44) fails.push(`${w}px: the group's button is ${JSON.stringify(btn)}, not a closed 44px "More inputs (4)"`);
+      await ev(`document.getElementById('lab-more-btn').click()`);
+      await ev(`new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)))`);
+      const m = await ev(drawn);
+      if (m !== 9) fails.push(`${w}px: ${m} knobs drawn with "More inputs (4)" open, not nine`);
     }
     /* Colour, light and dark. */
     await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
@@ -2475,7 +2482,7 @@ for (const w of [360, 390]) {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL scenario-lab — the Scenario Lab across widths and themes: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   scenario-lab: the Scenario Lab draws its sliders; at 360, 390 and 430 all ${targets} controls measured are 44px targets; at 360×640 one knob, its slider (${said.oneScreen.range.join('–')}) and all eight results (the last ending at ${Math.max(...said.oneScreen.vals.map(v => v[2]))}) on one screen below the ${said.oneScreen.under}px topbar; no sideways scroll at 360 under any of the ${metrics} comparisons; all nine knobs at 1024 and 1440; ${pairs} colour pairs held in light and dark (lowest: ${Object.entries(said).filter(([k]) => k.includes('min')).map(([k, v]) => `${k.replace(' min ', ' ')}:1 pairs ${v}`).join(', ')}), the focused slider ringed`);
+  else console.log(`ok   scenario-lab: the Scenario Lab draws its sliders; at 360, 390 and 430 all ${targets} controls measured are 44px targets; at 360×640 one knob, its slider (${said.oneScreen.range.join('–')}) and all eight results (the last ending at ${Math.max(...said.oneScreen.vals.map(v => v[2]))}) on one screen below the ${said.oneScreen.under}px topbar; no sideways scroll at 360 under any of the ${metrics} comparisons; five knobs and a closed "More inputs (4)" at 1024 and 1440, nine once it is open; ${pairs} colour pairs held in light and dark (lowest: ${Object.entries(said).filter(([k]) => k.includes('min')).map(([k, v]) => `${k.replace(' min ', ' ')}:1 pairs ${v}`).join(', ')}), the focused slider ringed`);
 }
 /* ---- end scenario-lab ---- */
 /* ---- scenario-lab-verify ---- */

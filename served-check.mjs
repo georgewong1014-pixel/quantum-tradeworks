@@ -3058,6 +3058,18 @@ const HOME_PAGE = read(HOME);
     const labels = inside.filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => sight(n).trim());
     said.inputs = labels.length;
     if (labels.length !== 9) p.push(`/property/lab lists ${labels.length} labelled inputs, not nine: ${labels.join(' | ')}`);
+    /* Four of the nine stand in the closed "More inputs (4)" group (the owner,
+       16 Oct 2026), so the first frame holds its words and its screen. */
+    const group = inside.find(n => B.hasClass(n, 'lab-more'));
+    const grouped = group ? all(group).filter(n => n.tag === 'label' && B.hasClass(n, 'lab-knob-label')).map(n => sight(n).trim()) : [];
+    said.grouped = grouped.length;
+    if (!group) p.push('/property/lab serves no "More inputs" group');
+    else {
+      if (B.hasClass(group, 'is-open')) p.push('the "More inputs" group is served open');
+      if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (%)', 'Monthly maintenance (RM)', 'Holding period (years)']))
+        p.push(`the "More inputs" group holds ${grouped.join(' | ') || 'no input'}, not tenure, vacancy, maintenance and holding period`);
+      if (!all(group).some(n => /^More inputs \(4\)$/.test(sight(n).trim()))) p.push('the group\'s button does not read "More inputs (4)"');
+    }
     for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (%)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
     /* A row's whole text, its closed body too: the cover is said in the body, one tap away. */
@@ -3079,7 +3091,7 @@ const HOME_PAGE = read(HOME);
     }
     if (!/Save it first — a proposal is made from what is saved/.test(sight(views || tree[0]))) p.push('the reason “Save it first — a proposal is made from what is saved” is not in sight beside Export');
   }
-  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, Loan tenure (years) and Monthly maintenance (RM) among them, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
+  judge(p, `the Scenario Lab's phase 2 as served: /property/lab lists ${said.inputs} labelled inputs, ${said.grouped} of them — Loan tenure (years) and Monthly maintenance (RM) among them — in the closed "More inputs (4)" group, ${said.rows} chain rows, Monthly commitment among them and Debt-service cover with its figure beside it, and Save (btn-primary) before a quiet “Export PDF / Share with client” with “Save it first — a proposal is made from what is saved” in sight`,
     'the Lab\'s phase 2 inputs, chain rows or export button are not served');
 }
 /* ---- end lab-phase2-served ---- */

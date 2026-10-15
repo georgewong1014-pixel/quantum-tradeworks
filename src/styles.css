@@ -5197,6 +5197,10 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
 .lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
 .lab-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+/* "More inputs (4)": on a phone only a wrapper (the Input picker lists every
+   knob and one shows at a time); from 600px a button opens the four. */
+.lab-more, .lab-more-body { display: contents; }
+.lab-more-btn { display: none; }
 
 /* The pickers: a legend beside a strip of choices, one 44px line on a
    phone. The radio itself is out of sight; its whole label is the target,
@@ -5447,6 +5451,13 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
      first frame instead of gaining it when the script runs. */
   .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
   .lab-knob:not(.is-on) { display: block; }
+  .lab-more { display: block; }
+  .lab-more-body { display: flex; flex-direction: column; gap: var(--xs); }
+  .lab-more:not(.is-open) .lab-more-body { display: none; }
+  .lab-more-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 var(--xs); }
+  .lab-more.is-open .lab-more-btn { margin-bottom: var(--xs); }
+  .lab-more-btn .lab-about-chev { transition: transform 160ms ease; }
+  .lab-more.is-open .lab-more-btn .lab-about-chev { transform: rotate(180deg); }
   .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   .lab-seg-by { display: flex; }
   .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -5477,6 +5488,11 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 @media (min-width: 663px) {
   :root[data-served] .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
   :root[data-served] .lab-knob:not(.is-on) { display: block; }
+  :root[data-served] .lab-more { display: block; }
+  :root[data-served] .lab-more-body { display: flex; flex-direction: column; gap: var(--xs); }
+  :root[data-served] .lab-more:not(.is-open) .lab-more-body { display: none; }
+  :root[data-served] .lab-more-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 var(--xs); }
+  :root[data-served] .lab-more-btn .lab-about-chev { transition: transform 160ms ease; }
   :root[data-served] .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   :root[data-served] .lab-seg-by { display: flex; }
   :root[data-served] .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }

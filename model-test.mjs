@@ -4322,6 +4322,12 @@ try {
                it may not offer what the Lab already shows free. */
             navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
             locked.offer = txt([...document.querySelectorAll('#views p')].find(p => /^Adds /.test(txt(p)) && /Full investor report — proposed/.test(txt(p.parentElement))));
+            /* And Pricing's "What it adds" for the same report (the Lab's phase
+               2, 16 Oct 2026): the two lists name the same things, and
+               neither names what the Lab shows free. */
+            navigate('/pricing'); await w(500);
+            const prow = [...document.querySelectorAll('#views tr')].find(tr => /^Full investor report/.test(txt(tr)));
+            locked.pricing = prow ? txt(prow.querySelectorAll('td')[2]) : null;
             State.propertyReportsBought = [...State.propertyReportsBought, pid];
             const open = await look();
             return { locked, open };
@@ -4343,6 +4349,18 @@ try {
         if (leakedWords.length) p9.push(`locked, the proposal's text names ${leakedWords.join(', ')}`);
         if (!L.offer) p9.push('locked, the calculator offers no full report to set beside the Lab');
         else if (/debt-service cover/i.test(L.offer)) p9.push(`the calculator's offer of the report adds debt-service cover, which the Lab shows free under Risk: "${L.offer.slice(0, 160)}"`);
+        /* What the Lab shows free — debt-service cover under Risk, cash-on-cash
+           in the Yield view — is on neither list, and the lists agree on what
+           the report does add. */
+        if (!L.pricing) p9.push('Pricing has no "Full investor report" row with its "What it adds"');
+        else if (L.offer) {
+          for (const [what, re] of [['debt-service cover', /debt-service cover/i], ['cash-on-cash', /cash-on-cash/i]]) {
+            if (re.test(L.offer)) p9.push(`the calculator's offer adds ${what}, which the Lab shows free`);
+            if (re.test(L.pricing)) p9.push(`Pricing's "What it adds" lists ${what}, which the Lab shows free`);
+          }
+          for (const [what, re] of [['net operating income', /net operating income/i], ['a ten-year scenario', /ten-year scenario/i], ['exit costs', /exit costs/i], ['the equity comparison', /equity comparison/i], ['comparable transactions', /comparable transactions/i]])
+            if (re.test(L.offer) !== re.test(L.pricing)) p9.push(`${what} is on ${re.test(L.offer) ? 'the calculator\'s offer but not Pricing\'s' : 'Pricing\'s list but not the calculator\'s offer'}`);
+        }
         if (O.rows.length !== 10) p9.push(`unlocked, the sale table has ${O.rows.length} rows, not 10: ${JSON.stringify(O.rows.map(x => x.label))}`);
         const missing = PAID_KEYS.filter(k => !O.keys.includes(k));
         if (missing.length) p9.push(`unlocked, the proposal does not print ${missing.join(', ')}`);
