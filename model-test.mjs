@@ -8530,6 +8530,50 @@ try {
     if (p.length) fail('qt-day1: the calculator\'s counts agree and an entry the model cannot mean is refused', p);
     else ok('qt-day1: "10 sample inputs need your evidence", "Review 10 sample inputs", 10 rows and "4 of the 10 sample inputs still to review — price, rent, maintenance, sqft — drive every output"; after the price is typed, 9, 9, 9 and "3 of the 9"; a price of −500,000 or 0, a rent of −2,000, a 150% deposit and a 101% vacancy are each refused at the box, the cash required unmoved; a falling growth, a nil rent and a 100% deposit are taken; cash-on-cash is the year\'s cash flow over the cash required including the reserve, in the tile and the overrun table\'s as-budgeted row alike; a link\'s negative price and 150% deposit are skipped and its rent and falling growth applied');
   }
+  /* THE TWO VIEWS COUNT ALIKE (the 16 Oct 2026 Day-3 report, task 5:
+     "Derive all blocker counts, disclosure titles and blocker lists from
+     the same current state. Check both views."). A price and a rent
+     replaced: the Quick model and the full model each head with the same
+     review title, button and rows, list the same untouched inputs as
+     illustrative defaults, and agree with the blocker sentence — and back
+     in Quick, nothing has moved. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify(State.deal);
+      State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      State.deal.price = 480000; State.deal.rent = 2600; State.deal.touched = { price: true, rent: true };
+      saveDeal();
+      const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
+      const read = () => ({ quick: !!document.getElementById('pc-quick'),
+        title: t(document.querySelector('#review .ls-card-title')), cta: t(document.querySelector('#review .ls-card-cta')),
+        rows: document.querySelectorAll('#pc-review-list > div > div.row').length,
+        defaults: t(document.querySelector('.pc-defaults p.body')).replace(/ The sample deal is not a real listing\\.$/, ''),
+        queue: propertyReviewQueue(State.deal).length,
+        gate: (propertyGrade(State.deal, dealModel(State.deal)).gates.find(g => g.id === 'illustrative') || {}).text || '' });
+      navigate('/property/calculator'); await w(500);
+      const quick = read();
+      navigate('/property/calculator?view=full'); await w(500);
+      const full = read();
+      navigate('/property/calculator'); await w(500);
+      const back = read();
+      const deal = { price: State.deal.price, rent: State.deal.rent };
+      State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator?view=full'); await w(300);
+      return JSON.stringify({ quick, full, back, deal }); })()`));
+    const p = [];
+    const n = (x) => Number((x.match(/(\d+)/) || [])[1]);
+    if (!r.quick.quick || r.full.quick || !r.back.quick) p.push(`the views drawn: Quick ${r.quick.quick}, Full ${!r.full.quick}, back ${r.back.quick}`);
+    for (const [v, c] of [['Quick', r.quick], ['Full', r.full], ['back in Quick', r.back]]) {
+      const gateOf = Number((c.gate.match(/of the (\d+) sample input/) || [])[1]);
+      if (!(n(c.title) === c.queue && n(c.cta) === c.queue && c.rows === c.queue && gateOf === c.queue)) p.push(`${v}: title "${c.title}", button "${c.cta}", ${c.rows} rows, blocker "${c.gate.slice(0, 50)}", the queue ${c.queue}`);
+      const listed = (c.gate.match(/still to review — (.*) — drive/) || [])[1] || '';
+      if (!c.defaults || !c.defaults.toLowerCase().startsWith(listed.toLowerCase())) p.push(`${v}: the defaults name "${c.defaults.slice(0, 60)}", the blocker sentence "${listed}"`);
+    }
+    for (const k of ['title', 'cta', 'rows', 'defaults', 'gate']) if (r.quick[k] !== r.full[k] || r.quick[k] !== r.back[k]) p.push(`${k}: Quick "${r.quick[k]}", Full "${r.full[k]}", back "${r.back[k]}"`);
+    if (r.deal.price !== 480000 || r.deal.rent !== 2600) p.push(`the deal moved between the views: ${JSON.stringify(r.deal)}`);
+    if (p.length) fail('qt-day3: the Quick and full models count the same review, defaults and blockers', p);
+    else ok(`qt-day3: with the price and the rent replaced, Quick, Full and Quick again each read "${r.quick.title}", "${r.quick.cta}", ${r.quick.rows} rows, the defaults "${r.quick.defaults.slice(0, 40)}…" and "${r.quick.gate.slice(0, 45)}…", the deal unmoved`);
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
