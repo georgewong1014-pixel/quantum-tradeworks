@@ -393,6 +393,11 @@ const PRODUCTS = [
        from here, so the three say the same words. */
     question: 'How is this company performing financially?', action: 'Start research', actionPath: '/research',
     status: 'beta', qualifier: 'Filed + illustrative data',
+    /* The homepage card's first useful outcome and its limit, in sight
+       (QT-D03-01, the 16 Oct report; the owner chose card lines only).
+       served-check holds every card's two lines word for word. */
+    outcome: 'Read a company’s filed financials and compare companies side by side.',
+    boundary: 'US companies from SEC filings; Malaysian figures are illustrative. No licensed prices.',
     statusNote: 'Filed US companies from their audited SEC filings; the Malaysian companies, and any US listing marked illustrative, carry illustrative figures; no licensed prices for either market.' },
   /* "Build my setups" (D5): what a visitor does here. "Monitor my setups"
      promised a watch this site never keeps — it ships no prices, and the
@@ -401,6 +406,8 @@ const PRODUCTS = [
     task: 'Build my setups', blurb: 'Your own rules, checked against each daily close in your price history, with a record of every match.',
     question: 'Has my preferred technical setup appeared?', action: 'Create a setup', actionPath: '/app/scanner/setups/new',
     status: 'beta', qualifier: 'Your own price data',
+    outcome: 'Write your own setup rules and see where they held in your price history.',
+    boundary: 'No hosted monitoring: the worker runs on your computer, on price history you supply.',
     statusNote: 'Runs on daily price history you supply, with the worker on your own computer; this site ships no prices, so here it has nothing to scan, and a match is recorded, never sent.' },
   { id: 'property', name: 'Property Intelligence', short: 'Property', path: '/property',
     task: 'Analyse a property', blurb: 'Financing, cash flow, rental yield and ROI.',
@@ -412,6 +419,7 @@ const PRODUCTS = [
     status: 'live', qualifier: 'Your figures, sample to start', qualifyBadge: true,
     /* What the calculator does not do, in sight beside the homepage card's
        action (QT-D02-02, the 15 Oct report): served-check holds the words. */
+    outcome: 'See the cash required, the monthly position and scenarios for a deal.',
     boundary: 'The calculator works with figures you enter. Market listings, transaction evidence and valuation are not provided.',
     statusNote: 'Computed from the figures you enter; the starting deal and the sample projects’ transactions are synthetic and labelled so, and fee lines not yet verified are marked as placeholders.',
     proof: { journey: 'property', step: 'Change the rent: the cash flow and the yield move' } },
