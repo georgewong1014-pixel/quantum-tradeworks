@@ -1514,7 +1514,7 @@
       ]
     },
     {
-      "source": "/assets/app.1baf0c046927.js",
+      "source": "/assets/app.cc3b7e799a70.js",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1531,7 +1531,7 @@
       ]
     },
     {
-      "source": "/assets/app.97902f9690ba.css",
+      "source": "/assets/app.19d974eb1c73.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1556,7 +1556,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-G68MBGknPVpO1tmcgrJnqDdU7BgoqyCuW1hrVQ7rJQA=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-zDt+eZpwolzCQH4YX8IJ7snZtEbDO6d8m9EaJMr9KMs=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
@@ -1565,7 +1565,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.1baf0c046927\\.js$|assets/app\\.97902f9690ba\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.cc3b7e799a70\\.js$|assets/app\\.19d974eb1c73\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1573,7 +1573,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-G68MBGknPVpO1tmcgrJnqDdU7BgoqyCuW1hrVQ7rJQA=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-zDt+eZpwolzCQH4YX8IJ7snZtEbDO6d8m9EaJMr9KMs=' 'sha256-mvVYHai1LccYsjxUMWOCQU2kZBxNiAxcLW8Py4GQnZE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
         },
         {
           "key": "X-Content-Type-Options",
