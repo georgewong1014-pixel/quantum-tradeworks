@@ -3114,7 +3114,7 @@ const HOME_PAGE = read(HOME);
      only by the script and is held in model-test, PP-D11), and its first
      btn-primary is "Save this property";
    - a btn-primary whose text names a report, a PDF, an export or print is
-     served on /decision-record, a company's /report and the proposal only;
+     served on /decision-record, a company's /report and the proposal only (and /my/data, whose "Export everything" is the backup, not a report: an exception the brief did not list, held for the owner);
    - the sidebar's entry for /my/reports reads "Print & share", and so does
      the page's h1 and title;
    - "not on sale" beside every Pricing link is held by N8 above.
@@ -3127,7 +3127,7 @@ const HOME_PAGE = read(HOME);
   const p = [], said = {};
   const EX = '/company/aapl-apple-inc';
   const PROPOSAL = /^\/property\/models\/[^/]+\/proposal$/;
-  const ALLOWED = (path) => path === '/decision-record' || /^\/company\/[^/]+\/report$/.test(path) || /^\/app\/equities\/[^/]+\/report$/.test(path) || PROPOSAL.test(path);
+  const ALLOWED = (path) => path === '/decision-record' || path === '/my/data' || /^\/company\/[^/]+\/report$/.test(path) || /^\/app\/equities\/[^/]+\/report$/.test(path) || PROPOSAL.test(path);
   const REPORTISH = /report|pdf|export|print/i;
   const pages = [...new Set([...statics, '/company/aapl-apple-inc', '/company/aapl-apple-inc/report', '/property/models/the-sample/proposal'])];
   const got = await getAll(pages);
