@@ -12549,7 +12549,7 @@ const PRODUCTS = [
 const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
 /* A product that is not built never appears in the app's navigation. */
 const SHOW_UNBUILT = false;
-/* "Reports" sits in My Workspace, after Saved Models, now that the list of
+/* "Print & share" (called "Reports" until the owner's 16 Oct 2026 decision, D11) sits in My Workspace, after Saved Models, now that the list of
    reports exists (/my/reports, 58-reports.js): what the reader's own work can
    print, each opening the real report. It was kept out while a report was
    printed only from its own page and nothing listed them, when an item would
@@ -12756,10 +12756,10 @@ const TOOLS = [
   { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
-  { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
+  { id: 'reports', product: null, label: 'Print & share', path: '/my/reports', views: ['reports'],
     status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
-    proof: { journey: 'records', step: 'The Cash Wheel’s decision record opens from Reports with the contract’s figures' },
-    action: { label: 'Open your reports', path: '/my/reports' } },
+    proof: { journey: 'records', step: 'The Cash Wheel’s decision record opens from Print & share with the contract’s figures' },
+    action: { label: 'Open Print & share', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
     status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
     proof: { journey: 'cases', step: 'Add a holding: listed, its price return worked from its cost, its case marked written' },
@@ -13041,7 +13041,7 @@ const APP_NAV_WORKSPACE = [
   { id: 'watchlists', label: 'Watchlists',   icon: 'list',   path: '/my/watchlists' },
   { id: 'alerts',     label: 'My Alerts',    icon: 'bell',   path: '/my/alerts' },
   { id: 'workspace',  label: 'Saved Models', icon: 'folder', path: '/my/workspace' },
-  ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Reports', icon: 'doc', path: '/my/reports' }] : []),
+  ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Print & share', icon: 'doc', path: '/my/reports' }] : []),
 ];
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
@@ -13292,7 +13292,7 @@ const ROUTES = [
   { path: '/discover/screener',   view: 'discover',  tab: 'screener',  title: 'Screener' },
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
   { path: '/research',            view: 'researchHome', title: 'Research' },
-  { path: '/company/:id',         view: 'research',  title: 'Company report' },
+  { path: '/company/:id',         view: 'research',  title: 'Company page' },
   /* The print-first research report — one company on one printable page. */
   { path: '/company/:id/report',  view: 'researchReport', title: 'Research report' },
   /* The Phase 2 brief's paths — aliases of the routes around them: the same
@@ -13307,10 +13307,10 @@ const ROUTES = [
   { path: '/app/equities',          view: 'researchHome', title: 'Equities', alias: true },
   { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer', alias: true },
   { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies', alias: true },
-  { path: '/app/equities/:id',      view: 'research',  title: 'Company report' },
+  { path: '/app/equities/:id',      view: 'research',  title: 'Company page' },
   /* Above :tab, which would otherwise read "report" as a tab name. */
   { path: '/app/equities/:id/report', view: 'researchReport', title: 'Research report' },
-  { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company report' },
+  { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company page' },
   { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists', alias: true },
   { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology', alias: true },
   { path: '/compare',             view: 'compare',   title: 'Compare' },
@@ -13319,7 +13319,7 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   /* Release B: every report the reader's own work can print (58-reports.js). */
-  { path: '/my/reports',          view: 'reports',   title: 'Reports' },
+  { path: '/my/reports',          view: 'reports',   title: 'Print & share' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
   /* Phase 3 — ops */
   /* The scanner's dashboard, its two P1 surfaces and the four operations
@@ -13431,7 +13431,7 @@ const META = {
      the methodology's sentence. */
   discover:  'Screen the SEC-filed US companies on quality, returns on capital and financial strength, each filter and measure explained — and an illustrative Malaysian set, labelled as such. A measure that needs a price is blank where none is held.',
   'discover:radar': 'The Quality vs Value Map: each company placed by business quality against the gap between its price and its base-case model estimate — which needs a price: the illustrative set on sample prices, and any company whose close you supplied.',
-  research:  'A company report where every number shows its formula, its period and its source.',
+  research:  'A company page where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
   sarawak: 'Bursa companies that operate in Sarawak, and what you record about them. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
@@ -13909,7 +13909,7 @@ function applyRoute() {
        and only then is an unknown slug a 404. */
     else if (realPending) {
       State.view = route.view;
-      setDocumentMeta({ ...route, title: 'Loading company report', pending: true });
+      setDocumentMeta({ ...route, title: 'Loading company page', pending: true });
       render(); return;
     }
     else { State.view = 'notfound'; State.notFoundWhat = `company “${route.params.id}”`; setDocumentMeta(null); render(); return; }
@@ -16275,16 +16275,16 @@ function startHereExample(pid) {
     const chip = el('span', { class: 'chip chip-ok' }, 'filed with the SEC');
     /* The filings are loading, or did not load: Apple is not held, and a
        link would open a page that cannot draw it. */
-    if (!r?.c?.real) return line([el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report'), chip],
+    if (!r?.c?.real) return line([el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s page'), chip],
       typeof realPending !== 'undefined' && realPending ? 'It opens once the filings have loaded.' : 'It needs the filed statements, which did not load here.');
-    /* The report is metered on the Free plan, as the company page says:
-       opening one not yet read this month is one of the month's reports. */
+    /* The company page is metered on the Free plan:
+       opening one not yet read this month is one of the month's reports (D11: the example opens the page, not its /report). */
     const meter = reportAllowed(r.c.id);
     const cap = lim('reportsPerMonth');
-    /* With the month's reports used, the report would open only to say it
-       is not available: the example is named, not linked, as Reports lists a
+    /* With the month's reports used, the page would open only to say it
+       is not available: the example is named, not linked, as Print & share lists a
        refused report, and the note says when it opens. */
-    const ex = meter.ok ? inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report') : el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report');
+    const ex = meter.ok ? inApp(companyPath(r.c), 'Apple Inc.’s page') : el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s page');
     return line([ex, chip], !Number.isFinite(cap) ? null
       : !meter.ok ? `This month’s ${cap} company reports on this plan are used, so it opens next month.`
       : meter.counted ? `On this plan it is one of this month’s ${cap} company reports.` : null);
@@ -27801,13 +27801,13 @@ function hiwReportBody(r) {
   out.push(el('div', { class: 'hiw-ex-actions' },
     el('a', { class: 'btn btn-ghost pub-btn', href: href(companyPath(r.c)),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); openResearch(r.c.id); } },
-      'Open the full report', pubArrow())));
+      'Open the company page', pubArrow())));
   return out;
 }
 function hiwReportPreview() {
   const box = el('div', { class: 'hiw-example' });
-  box.append(el('h4', { class: 'hiw-ex-t' }, 'What a company report contains'));
-  box.append(el('p', { class: 'hiw-ex-b' }, 'Pick one. Five outputs, then the full report.'));
+  box.append(el('h4', { class: 'hiw-ex-t' }, 'What a company page contains'));
+  box.append(el('p', { class: 'hiw-ex-b' }, 'Pick one. Five outputs, then the company page.'));
   const picks = HIW_PICKS.filter(p => BY_ID.has(p.id));
   if (!picks.length) { box.append(el('p', { class: 'metaline' }, 'The example companies are still loading.')); return box; }
   /* 'property' was a pick when this lived on the homepage; its figures are
@@ -27936,7 +27936,7 @@ function hiwProduct(p) {
    happens. The last step has no link of its own: it is the first step again,
    reached from the match. */
 const HIW_JOURNEY = [
-  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
+  ['Research a company', 'Open its page: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
   ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
@@ -28070,7 +28070,7 @@ const LAUNCH_GOALS = [
     tool:'Property deal calculator' },
   { id:'company', label:'Research a US company',
     blurb:'Audited SEC filings, with every metric showing its formula, its period and what could not be computed.',
-    tool:'Company report' },
+    tool:'Company page' },
   { id:'wheel', label:'Model options cash flow',
     blurb:'A cash-secured put and covered call cycle, from a contract you enter. No chain data is connected.',
     tool:'Options Cash Wheel' },
@@ -29886,7 +29886,7 @@ VIEWS.workspace = () => {
 
    Every report in the product is a page of the tool that makes it: a
    company's research report (/company/:id/report), a saved property's
-   investor report (the calculator's Report section), its decision record and
+   investor report (the calculator's Decide section), its decision record and
    its client proposal (/property/models/:property/proposal, a preview), and
    the Cash Wheel's and the Trading Index's decision records
    (/decision-record). Each was reached only from inside its tool, so a
@@ -29984,7 +29984,7 @@ function reportsOpenProperty(rec, to) {
   if (to === 'record') { State.decisionSubject = 'property'; navigate('/decision-record'); return; }
   /* The report is the full model's (QT-003). */
   navigate('/property/calculator?view=full');
-  /* To the Report section once the calculator has settled — its data landing
+  /* To the Decide section once the calculator has settled — its data landing
      redraws the page above the section — as an address naming the section
      is landed on (propertyArrivalSection, 71-property-models.js). */
   const at = Date.now();
@@ -30031,7 +30031,7 @@ VIEWS.reports = () => {
   wrap.append(mySubnav('reports'));
   /* The workspace's one page head (pageHead, 36-layouts.js): a lede a phone
      shows whole, the rest in the note under it. */
-  wrap.append(pageHead({ title: 'Reports',
+  wrap.append(pageHead({ title: 'Print & share',
     lede: 'Every report your own work in this browser can produce, each opening the real one.',
     note: 'Print one, or save it as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.' }));
 
@@ -30107,7 +30107,7 @@ VIEWS.reports = () => {
   /* ---------- property reports ---------- */
   const st = propertyStatus(State.deal);
   const ps = reportsSection('rp-properties', `Property reports${props.length ? ` — ${props.length} ${props.length === 1 ? 'property' : 'properties'}` : ''}`,
-    'For each property saved in My properties: its investor report — the calculator’s Report section for it, with the grade, what the answer rests on and the gates still open — its decision record, the one printable page of it, carried to a lender or a lawyer, and its client proposal, the property and up to three of its scenarios set out for a client to read (a preview, in no plan).');
+    'For each property saved in My properties: its investor report — the calculator’s Decide section for it, with the grade, what the answer rests on and the gates still open — its decision record, the one printable page of it, carried to a lender or a lawyer, and its client proposal, the property and up to three of its scenarios set out for a client to read (a preview, in no plan).');
   if (!props.length) ps.append(reportsNone('No property saved yet. Save one on the calculator, and its investor report, decision record and client proposal are listed here.',
     reportLink('/property/calculator', { class: 'btn btn-ghost btn-sm' }, productById('property')?.action || 'Analyse a property')));
   else {
@@ -30424,7 +30424,7 @@ recentWatch.observe(viewRoot, { childList: true });
 const FURTHEST_KEY = 'furthestStep';
 const FURTHEST_STEPS = {
   equities: [
-    ['Opened a company report', () => State.view === 'research' && !!State.ticker && typeof BY_ID !== 'undefined' && BY_ID.has(State.ticker)],
+    ['Opened a company page', () => State.view === 'research' && !!State.ticker && typeof BY_ID !== 'undefined' && BY_ID.has(State.ticker)],
     ['Compared companies side by side', () => State.view === 'compare'],
     ['Saved a comparison, a case or a watchlist of your own', () => (store.read('comparisons', []) || []).length > 0
       || (State.theses || []).some(t => t && !SEEDED_THESIS_IDS.includes(t.id))
@@ -32191,7 +32191,7 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', 'Every data item in the product is reportable, and a report is tied to the exact item rather than to a general inbox.'));
-  rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the report form'));
+  rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
   return wrap;
 }
@@ -32467,7 +32467,7 @@ function openReportError() {
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
     /* The page is redrawn first, so the list on /corrections holds the new
-       case — and that redraw replaced "Open the report form", the button the
+       case — and that redraw replaced "Open the error form", the button the
        drawer was to hand focus back to, so closing the confirmation dropped
        focus on <body>. Focus goes to the button's replacement (or stays on
        an opener the redraw did not touch, like the footer's) before the
@@ -37733,15 +37733,22 @@ function propertyModelBar(d = State.deal) {
    Each opens with what the reader gives it and what it works out, and a
    sticky index reaches each without a route of its own: the address stays
    the deal (syncPropertyUrl). The ids are the anchors other pages link to —
-   /property/calculator#scenarios opens at the Scenarios section. */
+   /property/calculator#scenarios opens at the Scenarios section. The last
+   section reads "Decide" (plan item 6.1(a), the owner's 16 Oct 2026 decision
+   D11): reports are what a decision is shared as, not where the work ends.
+   Its id stays "report" — the anchor every old link, the Reports page and
+   the checks already use — so #report lands on it as it always did, and
+   #decide is taken for it too (propertyArrivalSection). */
 const PC_SECTIONS = [
   { id: 'acquisition', label: 'Acquisition' },
   { id: 'financing',   label: 'Financing' },
   { id: 'rental',      label: 'Rental & expenses' },
   { id: 'scenarios',   label: 'Scenarios' },
-  { id: 'report',      label: 'Report' },
+  { id: 'report',      label: 'Decide' },
 ];
 const PC_CONTRACT_OPEN = new Set();
+/* The other name an address may use for a section. */
+const PC_SECTION_ALIAS = { decide: 'report' };
 /* ON A PHONE, ONE SECTION AT A TIME (the 11 Oct 2026 daily audit, #6,
    owner-approved 12 Oct). The calculator served about 6,200 words in some
    36,000px at 390px: every section, its methodology and its long tables one
@@ -37765,7 +37772,7 @@ function pcActivate(id) {
   pcMarkCurrent();
   /* An anchor followed with no script (:target) chooses no more once the
      script has chosen. */
-  if (PC_SECTIONS.some(s => `#${s.id}` === location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+  if (PC_SECTIONS.some(s => `#${s.id}` === location.hash) || location.hash === '#decide') history.replaceState(history.state, '', location.pathname + location.search);
   return true;
 }
 /* The section a control is in, chosen: before it is scrolled to or given
@@ -37892,7 +37899,7 @@ let pcArrivalSeen = null, pcArrivalWant = null, pcArrivalAt = 0;
    the keyboard in it, in its own section. */
 const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
-  const want = location.hash.replace(/^#/, '');
+  const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   const key = location.pathname + location.search + location.hash;
   if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
@@ -37929,18 +37936,42 @@ function propertyArrivalSection() {
   setTimeout(go, 0);
 }
 
-/* The Report section's last word: the printable record of the same inputs.
-   The decision record draws whichever tool's work is chosen on it, so the
-   link chooses the property. */
-function propertyReportNext(d = State.deal) {
+/* THE DECIDE SECTION'S LAST WORD: A QUIET SHARE / EXPORT ROW (plan item
+   6.1(a); the owner's 16 Oct 2026 decision, D11). The section ended in two
+   cards — "Take the report with you" and "A proposal for a client" — each a
+   paragraph and a button, below the offer. They are one row of the three
+   actions the section already had, each opening where it always did:
+     - the client proposal, a preview of the property as saved
+       (propertyProposalNext, 72-property-proposal.js) — or, while the deal
+       is not saved, the one thing to do first;
+     - the investor report, which is this section: its first card, or the
+       offer to preview it in this browser while nothing is previewed;
+     - the decision record, the printable record of the same inputs. It
+       draws whichever tool's work is chosen on it, so the link chooses the
+       property.
+   Nothing here is primary, and nothing new is offered. */
+function propertyShareRow(d = State.deal, paid = false) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card ls-section' });
-  card.append(cardHead('Take the report with you',
-    `The decision record prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open. It reads the same inputs as every section above.`));
-  card.append(el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
-    onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
-    'Open the decision record'));
-  return card;
+  const row = el('section', { class: 'pc-share', id: 'pc-share', 'aria-labelledby': 'pc-share-hd' });
+  row.append(el('h3', { class: 'eyebrow pc-share-hd', id: 'pc-share-hd' }, 'Share / Export'));
+  const jump = () => {
+    const card = document.getElementById(paid ? 'property-report-full' : 'property-report-offer');
+    if (!card) return;
+    card.scrollIntoView({ block: 'start' });
+    const h = card.querySelector('h3');
+    if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  };
+  row.append(el('div', { class: 'pc-share-acts' }, [
+    propertyProposalNext(d),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-share-report',
+      title: paid ? 'The full investor report, in this section, previewed in this browser.' : 'The full investor report, in this section: the offer to preview it in this browser.',
+      onclick: jump }, 'Investor report'),
+    el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
+      title: `Prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open.`,
+      onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
+      'Decision record'),
+  ]));
+  return row;
 }
 
 /* -------------------------------------------------------------- scenarios */
@@ -38597,28 +38628,26 @@ function cpLink(rec, { id = null, cls = 'btn btn-ghost btn-sm', label = 'Client 
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
 }
 
-/* The calculator's Report section: the proposal of the property on it, or —
-   while the deal is not saved — the one thing to do first. */
+/* The calculator's Decide section, in its Share / Export row
+   (propertyShareRow, 71-property-models.js): the proposal of the property on
+   it, or — while the deal is not saved — the one thing to do first. A
+   proposal sets a saved property out for a client; its grade, gates and risk
+   flags stay on the calculator, which the section's contract says. */
 function propertyProposalNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card ls-section', id: 'cp-next' });
+  const item = el('div', { class: 'pc-share-item', id: 'cp-next' });
   if (st.kind !== 'model') {
-    card.append(cardHead('A proposal for a client',
-      'A client proposal is made from a saved property, so that it can be opened again and read the same. Save this property first.'));
-    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    item.append(
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'cp-next-save',
         onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#cp-next-open', '#cp-next'); } } }, 'Save this property first'),
-    ]));
-    return card;
+      el('span', { class: 'metaline' }, 'A client proposal is made from a saved property.'));
+    return item;
   }
-  card.append(cardHead('A proposal for a client',
-    `“${st.rec.name}” set out for someone else: who prepared it and for whom, what buying it takes, the loan and the monthly commitment, the rent and the cash flow, up to three of its scenarios side by side and a sale at the end of the hold. Every figure is the calculator’s, from the property as saved${st.dirty ? ' — the changes on the calculator are not saved, so they are not in it until they are' : ''}. The grade, the gates and the risk flags stay here: they are research for you, not a client’s page.`));
-  card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
+  item.append(
     cpLink(st.rec, { id: 'cp-next-open' }),
     el('span', { class: 'chip chip-bronze' }, 'Preview'),
-    el('span', { class: 'metaline' }, 'Not part of any plan — nothing is on sale.'),
-  ]));
-  return card;
+    el('span', { class: 'metaline' }, `Not part of any plan — nothing is on sale.${st.dirty ? ' Unsaved changes are not in it.' : ''}`));
+  return item;
 }
 
 /* -------------------------------------------------------------- formats */
@@ -43249,7 +43278,7 @@ function pcSwitchView(full, { keep = null } = {}) {
    #d-askingPrice) is the full model's; #review and the Quick model's own
    boxes are both views', and keep the view the address names. */
 function pcArrivalView() {
-  const want = location.hash.replace(/^#/, '');
+  const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   if (!want || pcViewIsFull()) return;
   const fullOnly = PC_SECTIONS.some(s => s.id === want) || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
   if (!fullOnly) return;
@@ -43364,7 +43393,7 @@ function pcQuickView(d, m, g, DK) {
 
   /* The rest of the calculator, one step away. */
   const open = el('div', { class: 'pc-q-open' }, lsActionCard({ title: 'The full model',
-    line: 'Evidence, management operations, the exit, returns and tax, stress tests, scenarios, the methodology and the report — on this deal, every figure kept.',
+    line: 'Evidence, management operations, the exit, returns and tax, stress tests, scenarios, the methodology and Decide — on this deal, every figure kept.',
     cta: lsCta('Open the full model', { path: pcViewPath(true), id: 'pc-open-full', onclick: () => {
       pcSwitchView(true);
       const sw = document.getElementById('pc-view-full');
@@ -45005,13 +45034,16 @@ VIEWS.property = () => {
        Oct 2026): the Lab's Yield view shows it free, and Pricing's "What it
        adds" no longer lists it either (model-test PP9 holds the two lists
        to the same things). */
-    reportCards.push(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
+    const offer = upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
         ? `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+    /* The Share / Export row's "Investor report" goes here (propertyShareRow). */
+    offer.id = 'property-report-offer';
+    reportCards.push(offer);
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
@@ -45031,7 +45063,9 @@ VIEWS.property = () => {
          the button; it goes to the report's first heading. */
       toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
     } }, 'Preview this report in this browser'));
-    buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
+    /* No second "See plans" here: the offer above carries the page's one
+       (upsell, 05-plans.js), beside its line that nothing is on sale
+       (plan item 6.1(a), the owner's 16 Oct 2026 decision D11). */
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */
@@ -45299,7 +45333,7 @@ VIEWS.property = () => {
   rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
   scn.outputs.append(propertyScenariosPanel(d), pcL3('sens', 'What actually decides this: each input moved', sensPanel), stressCard,
     pcL3('returns', 'Return, and tax on the rent, year by year', returnsPanel));
-  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
+  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyShareRow(d, paid), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };
@@ -51969,7 +52003,7 @@ function labPaintPanel(P, { initial = false } = {}) {
     const box = P.els.chain.irrPct.paidBox;
     const words = !m ? '' : labPaid(d)
       ? LAB_PAID.map(f => f.formula(d, m)).join(' ')
-      : 'The net proceeds of that sale and the total profit are part of the full investor report, which is a preview: the calculator’s Report section shows it in this browser. Nothing is on sale.';
+      : 'The net proceeds of that sale and the total profit are part of the full investor report, which is a preview: the calculator’s Decide section shows it in this browser. Nothing is on sale.';
     if (box.textContent !== words) box.replaceChildren(el('p', { class: 'lab-formula' }, words));
   }
   for (const f of LAB_PAID) {
@@ -63055,7 +63089,7 @@ const journeysServed = (function journeysServed(doc) {
 /* Each journey's name by its id (journeys.mjs, JOURNEY_NAMES): put here by
    the build, so a Live badge names the journey that proves it as the
    journeys themselves are named (proofSection). */
-const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","quick":"Property Quick model: typed figures move the answer, the full model holds the same deal","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","journey-bar":"Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
+const JOURNEY_NAMES = {"equities":"Equities: search, filed statements, watchlist","screener":"Equities screener: filter, results, company","compare":"Equities compare: two filed companies, saved and reopened","property":"Property: calculate, change, save","quick":"Property Quick model: typed figures move the answer, the full model holds the same deal","lab":"Property landing: the Scenario Lab moves, compares and saves","evidence":"Property evidence: record a comparable, use it in a scenario","newdev":"Property new development: a comparable and a schedule, the premium read","commercial":"Property commercial: the four rents, a comparable rent recorded, sustainability and the 12-month reserve read","routes":"Property across routes: a subsale condo, an auction condo and a shoplot side by side, the lens switched, the order kept","refurb":"Property refurbish or not: four options built from your figures, the payback read, the order kept, saved","costs":"Property costs: lines with their sources, the report in four parts, actual against modelled, a schedule imported","property-flow":"Property flow: an opportunity recorded with its source, opened in the Lab beside a saved property, the comparables visited and the what-if kept, saved","journey-bar":"Property journey bar: the property, how it is bought, its evidence and its moves on every page; Evidence lands where its figures are confirmed","map":"Property map: Kuching’s placed schemes from the list, positions only, opened in the Scenario Lab","scanner":"Scanner: build, save and evaluate a setup","return":"Workspace: a returning reader resumes in two presses","records":"Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Print & share","registers":"Property registers: a comparable recorded, a locality shaded, a property listed","cases":"Investment case, alerts and portfolio: a case checked, a threshold crossed, a holding listed","settings":"Your data and settings: closes pasted, listed and exported; scanner settings kept","backup":"Backup and restore: your work exported, the browser cleared, the file imported twice — each item back once","replay":"Scanner example: its replay, bar by bar, against the generated series","ctas":"Primary calls to action land on working pages"};
 const journeyNameOf = (id) => (JOURNEY_NAMES && JOURNEY_NAMES[id]) || id;
 /* EACH KIND OF CHECK ON ITS OWN (the daily audit of 10 Oct 2026, items 3
    and 7). health/checks.json, written with the journeys' record by the same
