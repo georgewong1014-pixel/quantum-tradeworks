@@ -5552,6 +5552,95 @@ for (const w of [360, 390]) {
   else console.log(`ok   eq-comparability: /compare (Apple and Microsoft) at 360, 390 and 430, in the page's font and in Verdana — "Same fiscal year (FY2025)" and "Each company’s latest" each a 44px target inside the screen, nothing sideways on the common year or with every figure's year beside it (${said.length} views)`);
 }
 /* ---- end eq-comparability ---- */
+/* ---- d11-decide ---- */
+/* THE CALCULATOR'S "DECIDE" SECTION ON A PHONE (plan item 6.1(a); the
+   owner's 16 Oct 2026 decision, D11). The last section is "Decide" and its
+   quiet Share / Export row (the client proposal or its save-first, the
+   investor report, the decision record) replaced two cards, so at 360, 390,
+   430, 768 and 1440, in the page's font and in Verdana (CI's sans is as
+   wide), both before the property is saved and after:
+     - the index's last chip reads "Decide" and the section is the one on
+       screen when it is chosen;
+     - the section holds one "See plans" and one "Preview … in this browser";
+     - the Share / Export row is whole inside the screen, its controls three
+       and quiet (no btn-primary), and on a phone each is a 44px target;
+     - the page does not run sideways. */
+{
+  const fails = [];
+  const said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view && propertyPagesSettled()`)) break; } catch { /* booting */ }
+    }
+    await sleep(400);
+    return ev(`State.view`);
+  };
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932], [768, 1024], [1440, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const font of [null, 'Verdana, sans-serif'])
+      for (const saved of [false, true]) {
+        const at = `${w}×${h}${font ? ' in Verdana' : ''}${saved ? ', property saved' : ', unsaved'}`;
+        await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+        const view = await load('/property/calculator?view=full');
+        if (view !== 'property') { fails.push(`${at}: /property/calculator?view=full opened ${view}`); continue; }
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        const r = await ev(`(async () => {
+          const frames = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+          window.prompt = (m, d) => d; window.confirm = () => true;
+          const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+          ${saved ? `newPropertyDeal({ show: false }); State.deal.price = 461000; markTouched(State.deal, 'price'); saveDeal(); saveActiveProperty(); render(); await frames();` : ''}
+          State.propertyReportsBought = []; store.write('propertyReportsBought', []); render(); await frames();
+          goToPropertySection('report', { instant: true }); await frames();
+          const sec = document.getElementById('report'), row = document.getElementById('pc-share');
+          const vw = document.documentElement.clientWidth;
+          const chips = [...document.querySelectorAll('.pc-index-link')].map(a => txt(a));
+          const on = document.querySelector('.pc-sec.is-on')?.id || null;
+          const box = (n) => { const b = n.getBoundingClientRect(); return { t: txt(n), w: Math.round(b.width), h: Math.round(b.height), l: Math.round(b.left), r: Math.round(b.right), primary: n.classList.contains('btn-primary') }; };
+          const acts = row ? [...row.querySelectorAll('a.btn, button.btn')].map(box) : [];
+          const bt = [...sec.querySelectorAll('button, a')].filter(n => n.getClientRects().length);
+          return { vw, scrollW: document.documentElement.scrollWidth, chips, on, shown: !!row && !!row.getClientRects().length, rowBox: row ? box(row) : null, acts,
+            plans: bt.filter(n => txt(n) === 'See plans').map(box), previews: bt.filter(n => /^Preview .*in this browser$/.test(txt(n))).map(box),
+            face: row ? getComputedStyle(row.querySelector('.btn')).fontFamily : '' };
+        })()`);
+        said.push(at);
+        if (font && !/Verdana/.test(r.face)) fails.push(`${at}: drawn in ${r.face}, not Verdana`);
+        if (r.chips[r.chips.length - 1] !== 'Decide') fails.push(`${at}: the index reads ${JSON.stringify(r.chips)}`);
+        if (r.on !== 'report') fails.push(`${at}: choosing the section left ${r.on} on screen`);
+        if (r.scrollW > r.vw + 1) fails.push(`${at}: the page is ${r.scrollW}px wide in a ${r.vw}px screen`);
+        if (!r.shown) { fails.push(`${at}: no Share / Export row is in sight`); continue; }
+        if (r.rowBox.l < -0.5 || r.rowBox.r > r.vw + 0.5) fails.push(`${at}: the row runs ${r.rowBox.l}–${r.rowBox.r}px in a ${r.vw}px screen`);
+        const names = r.acts.map(a => a.t);
+        if (r.acts.length !== 3 || !(names[0] === (saved ? 'Client proposal' : 'Save this property first')) || names[1] !== 'Investor report' || names[2] !== 'Decision record') fails.push(`${at}: the row's controls read ${JSON.stringify(names)}`);
+        r.acts.forEach(a => {
+          if (a.primary) fails.push(`${at}: "${a.t}" is btn-primary in a quiet row`);
+          if (a.l < -0.5 || a.r > r.vw + 0.5) fails.push(`${at}: "${a.t}" runs ${a.l}–${a.r}px in a ${r.vw}px screen`);
+          if (w < 640 && (a.w < 43.5 || a.h < 43.5)) fails.push(`${at}: "${a.t}" is ${a.w}×${a.h}px, under the 44px target`);
+        });
+        if (r.plans.length !== 1) fails.push(`${at}: ${r.plans.length} "See plans" in the section, not one`);
+        if (r.previews.length !== 1) fails.push(`${at}: ${r.previews.length} "Preview … in this browser" buttons in the section, not one`);
+        if (w < 640) [...r.plans, ...r.previews].forEach(a => { if (a.w < 43.5 || a.h < 43.5) fails.push(`${at}: "${a.t}" is ${a.w}×${a.h}px, under the 44px target`); });
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await send('Emulation.clearDeviceMetricsOverride', {}, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL d11-decide — the calculator's Decide section on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   d11-decide: the calculator's last section reads "Decide" at 360, 390, 430, 768 and 1440, in the page's font and in Verdana, unsaved and saved (${said.length} frames) — one "See plans" and one "Preview … in this browser" button, a quiet Share / Export row of three controls whole inside the screen (44px targets under 640px), and no sideways page`);
+}
+/* ---- end d11-decide ---- */
 
 
 } catch (e) {

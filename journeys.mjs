@@ -2960,11 +2960,11 @@ const JOURNEYS = [
      positions — and writes nothing but this browser's own storage, which
      goes with its context. */
   {
-    id: 'records', name: 'Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Reports',
+    id: 'records', name: 'Tools’ records: a Cash Wheel contract and Trading Index evidence, printed from Print & share',
     outcomes: ['Enter a contract: the obligation, the shortfall and the payoff at expiry', 'Reserve the cash: the put reads cash-secured',
       'Load the §14 worked example: it returns 38, 35 and 77', 'Record a stronger daily price structure: the trend regime rises and the change is logged',
-      'Reports lists the contract, the trend evidence and Apple', 'The Cash Wheel’s decision record opens from Reports with the contract’s figures',
-      'The Trading Index’s decision record opens from Reports with the evidence’s figures', 'Apple’s research report opens from Reports'],
+      'Print & share lists the contract, the trend evidence and Apple', 'The Cash Wheel’s decision record opens from Print & share with the contract’s figures',
+      'The Trading Index’s decision record opens from Print & share with the evidence’s figures', 'Apple’s research report opens from Print & share'],
     async run(j, tab) {
       const fig = (labels) => tab.eval(`(${FIGURE})(${JSON.stringify(labels)})`);
       /* The contract, and what it must come to — worked by hand, not by the
@@ -3038,19 +3038,19 @@ const JOURNEYS = [
       const row = (id) => `document.querySelector('main li.rp-row[data-id=${JSON.stringify(id)}]')`;
       const toReports = async () => {
         await tab.goto('/my/reports');
-        await tab.expect(`State.view === 'reports' && !!document.getElementById('rp-records')`, async () => `/my/reports opened ${await tab.eval('State.view')}, not Reports`);
+        await tab.expect(`State.view === 'reports' && !!document.getElementById('rp-records')`, async () => `/my/reports opened ${await tab.eval('State.view')}, not Print & share`);
       };
-      await step(j, tab, 'Reports lists the contract, the trend evidence and Apple', BUDGET.load, async () => {
+      await step(j, tab, 'Print & share lists the contract, the trend evidence and Apple', BUDGET.load, async () => {
         await toReports();
         const got = await tab.eval(`[${['wheel', 'tradingIndex', 'AAPL-SEC'].map(row).join(', ')}].map(li => li ? (li.querySelector('.rp-name')?.textContent || '') + ' | ' + (li.querySelector('.metaline')?.textContent || '') + ' | ' + [...li.querySelectorAll('.rp-acts a, .rp-acts button')].map(a => a.getAttribute('aria-label') || a.textContent.trim()).join(', ') : null)`);
         const strike = await usd(40);
         if (!got[0] || !got[0].startsWith('Unnamed contract — cash-secured put and covered call | ') || !got[0].includes(`Put strike ${strike}`) || !got[0].includes('Decision record — Cash Wheel contract'))
-          throw new StepError(`Reports lists the Cash Wheel's contract as “${got[0] || 'nothing'}”`);
+          throw new StepError(`Print & share lists the Cash Wheel's contract as “${got[0] || 'nothing'}”`);
         const sym = await tab.eval(`State.qtti.symbol`);
-        if (!got[1] || !got[1].startsWith(`${sym} — trend evidence | `) || !got[1].includes(`Decision record — Trading Index, ${sym}`)) throw new StepError(`Reports lists the Trading Index evidence as “${got[1] || 'nothing'}”, with no decision record to open`);
-        if (!got[2] || !got[2].startsWith('Apple Inc. | ') || !got[2].includes('Research report — Apple Inc.')) throw new StepError(`Reports lists Apple as “${got[2] || 'nothing'}”, with no research report to open`);
+        if (!got[1] || !got[1].startsWith(`${sym} — trend evidence | `) || !got[1].includes(`Decision record — Trading Index, ${sym}`)) throw new StepError(`Print & share lists the Trading Index evidence as “${got[1] || 'nothing'}”, with no decision record to open`);
+        if (!got[2] || !got[2].startsWith('Apple Inc. | ') || !got[2].includes('Research report — Apple Inc.')) throw new StepError(`Print & share lists Apple as “${got[2] || 'nothing'}”, with no research report to open`);
       });
-      await step(j, tab, 'The Cash Wheel’s decision record opens from Reports with the contract’s figures', BUDGET.load, async () => {
+      await step(j, tab, 'The Cash Wheel’s decision record opens from Print & share with the contract’s figures', BUDGET.load, async () => {
         await tab.click(`document.getElementById('rp-rec-wheel')`, 'Decision record — Cash Wheel contract');
         await tab.expect(`State.view === 'decisionRecord' && /^Unnamed contract — cash-secured put and covered call$/.test(document.querySelector('main .decision-record h1')?.textContent.trim() || '')`,
           async () => `the Cash Wheel's decision record opened ${await tab.eval('location.pathname')} headed “${await tab.eval(`document.querySelector('main h1')?.textContent || ''`)}”`);
@@ -3060,7 +3060,7 @@ const JOURNEYS = [
         if (off.length) throw new StepError(`the record's figures are not the contract's: ${off.join('; ')}`);
         if (!await tab.eval(`[...document.querySelectorAll('main .decision-record svg')].some(s => s.querySelectorAll('path, polyline, line').length)`)) throw new StepError('the record draws no payoff at expiry');
       });
-      await step(j, tab, 'The Trading Index’s decision record opens from Reports with the evidence’s figures', BUDGET.load + BUDGET.action, async () => {
+      await step(j, tab, 'The Trading Index’s decision record opens from Print & share with the evidence’s figures', BUDGET.load + BUDGET.action, async () => {
         await toReports();
         await tab.click(`document.getElementById('rp-rec-tradingIndex')`, 'Decision record — Trading Index');
         const sym = await tab.eval(`State.qtti.symbol`);
@@ -3070,7 +3070,7 @@ const JOURNEYS = [
         if (figs['Trend regime'] !== regime || figs['Screenshot confidence'] !== '77' || !/^\d+$/.test(figs['First-tranche readiness'] || ''))
           throw new StepError(`the record reads ${JSON.stringify(figs)}, not the trend regime ${regime} and the confidence 77 recorded`);
       });
-      await step(j, tab, 'Apple’s research report opens from Reports', BUDGET.load + BUDGET.action, async () => {
+      await step(j, tab, 'Apple’s research report opens from Print & share', BUDGET.load + BUDGET.action, async () => {
         await toReports();
         await tab.click(`document.querySelector('main a[aria-label="Research report — Apple Inc."]')`, 'Research report — Apple Inc.');
         await tab.expect(`State.view === 'researchReport' && /^\\/company\\/aapl[^/]*\\/report$/.test(location.pathname) && /Apple Inc\\./.test(document.querySelector('main h1')?.textContent || '')`,
