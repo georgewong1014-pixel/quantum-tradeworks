@@ -2340,7 +2340,7 @@ for (const w of [360, 390]) {
      - at 360, 390 and 430 every control the reader can reach in the panel
        is a 44px target both ways (a radio's whole label is its target);
      - at 360×640, the panel's inputs at the top of the screen, the slider
-       being moved and all seven results sit on that one screen, below the
+       being moved and all eight results sit on that one screen, below the
        topbar, with one knob drawn; at 1024 and 1440 all five;
      - at 360, under each of the six comparisons, nothing scrolls sideways;
      - in light and in dark, every bar's fill is 3:1 against its track and
@@ -2489,7 +2489,7 @@ for (const w of [360, 390]) {
 /* THE SCENARIO LAB ON A PHONE AND A DESK, AS THE VERIFICATION OF 4 OCT 2026
    FOUND IT. Each fails on the lab as first built (e91a64f):
      - at 360×640, the Input picker just under the topbar, for each of the
-       five knobs: the slider and all seven results on the screen, and none
+       five knobs: the slider and all eight results on the screen, and none
        of them moved by the first tick of a drag (the first tick added a
        what-if line and a 44px "Back to…" line, and every result jumped 75px
        under the thumb), with the scroll unanchored as in Safari (a line
@@ -2783,7 +2783,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL scenario-lab-verify — the Scenario Lab as the verification found it: ${fails.length} problem(s):`); fails.slice(0, 40).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all seven results on one screen, in the page's font and in Verdana with ${SPARE}px spare (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; "About" (${said.about.size.join('×')}px) opens the renovation's span and note after its tags and closes them; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
+  else console.log(`ok   scenario-lab-verify: at 360×640, the Input picker under the topbar, each of the five knobs keeps its slider and all eight results on one screen, in the page's font and in Verdana with ${SPARE}px spare (the last ending at ${said.knobs.map(([k, b]) => `${k} ${b}`).join(', ')}) and nothing moves on the first tick of a drag; "About" (${said.about.size.join('×')}px) opens the renovation's span and note after its tags and closes them; after "Save B as a scenario" and "Save this property first" the keyboard stays in the panel (${said['Save B as a scenario'].focus}, ${said['Save this property first'].focus}) and the page moves ${said['Save B as a scenario'].dy}px and ${said['Save this property first'].dy}px; in light and dark every part of a stack holds 3:1 where it is told apart and its legend ("${said['dark entry']}") is true of what is drawn; "Open these in the Scenario Lab" is ${said.link.join('×')}px; by touch a swipe up the page leaves the price at ${said.swipe[1]} and a sideways drag moves it to ${said.drag[1]}; at 1440 the focused slider's ring has ${said.ring.leftRoom}px of room for its ${said.ring.reach}px`);
 }
 /* ---- end scenario-lab-verify ---- */
 /* ---- lab-phase2-picker ---- */
@@ -2948,7 +2948,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL batch1-phone — a wide sans on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   batch1-phone: at 360×640 a 0% rate's warning stays whole and in sight and the seven results end on the screen (the last at ${said.lab.map(([f, b]) => `${b} in the ${f}`).join(', ')}); the app bar's Search word is whole or not shown, never cut, its magnifier whole and the button a 44px target (${said.search.join('; ')})`);
+  else console.log(`ok   batch1-phone: at 360×640 a 0% rate's warning stays whole and in sight and the eight results end on the screen (the last at ${said.lab.map(([f, b]) => `${b} in the ${f}`).join(', ')}); the app bar's Search word is whole or not shown, never cut, its magnifier whole and the button a 44px target (${said.search.join('; ')})`);
 }
 /* ---- end batch1-phone ---- */
 /* ---- n3-first-view ---- */
@@ -4304,7 +4304,7 @@ for (const w of [360, 390]) {
        its badge with its word in sight, inside the row's first column and
        clear of the figure's; no figure wraps to a second line; nothing
        scrolls sideways;
-     - at 360×640, where the Lab keeps its slider and all seven results on
+     - at 360×640, where the Lab keeps its slider and all eight results on
        one screen, the badge is its shape, in sight and named by its word
        for a screen reader, clear of the row's words and its figure — and
        it costs the rows nothing: each row is the height it is with the
