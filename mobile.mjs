@@ -4536,10 +4536,22 @@ for (const w of [360, 390]) {
     await send('Network.setBlockedURLs', { urls: [] }, sessionId);
     /* 3.5: from / to /app, the whole sidebar. */
     await load('/');
-    await ev(`document.querySelector('#views .pub-hero a[href="/app"]').click()`);
+    /* QT-D03-02: the hero's one action, "Choose a tool", brings the three
+       products into view with the keyboard's focus on them. */
+    await load('/');
+    const chose = await ev(`(async () => { document.getElementById('pub-choose')?.click(); await new Promise(r => setTimeout(r, 900));
+      const sec = document.getElementById('products'), b = sec?.getBoundingClientRect();
+      return { focus: document.activeElement?.id || null, top: b ? Math.round(b.top) : null, h: innerHeight,
+        cards: [...(sec?.querySelectorAll('article.pub-card') || [])].map(a => a.dataset.product) }; })()`);
+    if (chose.focus !== 'products' || chose.top === null || chose.top < -2 || chose.top > chose.h / 2 || chose.cards.join() !== 'equities,scanner,property')
+      fails.push(`/ → "Choose a tool": ${JSON.stringify(chose)}`);
+    /* The hero's action is "Choose a tool" (QT-D03-02); a returning reader
+       opens the workspace from the header. */
+    await load('/');
+    await ev(`document.querySelector('.pub-cta[href="/app"]').click()`);
     await sleep(1200);
     const side = await ev(`({ path: location.pathname, links: [...document.querySelectorAll('#appnav a.sb-link')].filter(a => a.getClientRects().length).length, labels: [...document.querySelectorAll('#appnav .sb-text')].map(n => n.textContent.trim()) })`);
-    if (side.path !== '/app' || side.links < 8 || !side.labels.includes('My Dashboard') || !side.labels.includes('Property Intelligence')) fails.push(`/ → "Open your workspace": ${JSON.stringify(side)}`);
+    if (side.path !== '/app' || side.links < 8 || !side.labels.includes('My Dashboard') || !side.labels.includes('Property Intelligence')) fails.push(`/ → the header's "Open workspace": ${JSON.stringify(side)}`);
     /* 3.8: the Property card's price moves its three figures. */
     await load('/');
     const moved = await ev(`(async () => {

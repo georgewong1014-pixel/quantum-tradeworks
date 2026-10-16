@@ -7776,7 +7776,7 @@ try {
     /* D5: the kicker is the footer's tagline only; the hero is the h1, the
        lede and one action, with no "Explore products". */
     if (home.kicker != null || home.tagline !== 'Research · Monitor · Model · Plan') p.push(`the kicker on the hero (${JSON.stringify(home.kicker)}) or the footer's tagline (${JSON.stringify(home.tagline)})`);
-    if (home.primary.length !== 1 || home.primary[0][0] !== 'Open your workspace' || !/\/app$/.test(home.primary[0][1] || ''))
+    if (home.primary.length !== 1 || home.primary[0][0] !== 'Choose a tool' || home.primary[0][1] !== '#products')
       p.push(`homepage primary actions: ${JSON.stringify(home.primary)}`);
     if (home.explore !== null) p.push(`"Explore products" is back on the homepage (${home.explore})`);
     if (home.cards.length !== home.want.filter(w => w.path).length) p.push(`${home.cards.length} product cards for ${home.want.filter(w => w.path).length} built products`);

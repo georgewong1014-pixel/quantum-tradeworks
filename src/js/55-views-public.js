@@ -270,12 +270,22 @@ VIEWS.marketing = () => {
   const hero = el('section', { class: 'pub-hero', 'aria-labelledby': 'pub-hero-h' });
   hero.append(el('h1', { class: 'pub-h1', id: 'pub-hero-h' }, 'Make financial decisions with greater clarity.'));
   hero.append(el('p', { class: 'pub-lede' }, POSITIONING.lede));
-  hero.append(el('div', { class: 'pub-ctas' }, pubLink('/app', { class: 'btn btn-primary pub-btn' }, 'Open your workspace', pubArrow())));
+  /* One action, for a first visit: to the three products below, the focus
+     with them (QT-D03-02, the 16 Oct report; the owner kept one button). A
+     returning reader has the header's "Open workspace". A plain in-page
+     link, so it works with no script too. */
+  hero.append(el('div', { class: 'pub-ctas' }, el('a', { class: 'btn btn-primary pub-btn', href: '#products', id: 'pub-choose', onclick: (e) => {
+    const sec = document.getElementById('products');
+    if (!sec) return;
+    e.preventDefault();
+    sec.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    sec.focus({ preventScroll: true });
+  } }, 'Choose a tool', pubArrow())));
   wrap.append(hero);
 
   /* -- 2. the products, in the menu's order --------------------------------
      The question stays for the ear; to the eye the cards are the answer. */
-  const products = el('section', { class: 'pub-section pub-products', id: 'products', 'aria-labelledby': 'pub-products-h' });
+  const products = el('section', { class: 'pub-section pub-products', id: 'products', tabindex: '-1', 'aria-labelledby': 'pub-products-h' });
   products.append(el('h2', { class: 'sr-only', id: 'pub-products-h' }, 'What would you like to do?'));
   const built = PRODUCTS.filter(p => p.path && p.actionPath);
   products.append(el('div', { class: 'pub-cards' }, built.map(pubProductCard)));
