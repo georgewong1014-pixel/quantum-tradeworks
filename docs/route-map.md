@@ -72,7 +72,7 @@ page of its own, with the company's own head (see Company pages, below).
 | `/my/watchlists` | watchlists | app | Watchlists (workspace) | canonical |
 | `/my/theses` | thesis | app | Saved Models (workspace) | canonical |
 | `/my/alerts` | alerts | app | My Alerts (workspace) | canonical |
-| `/my/reports` | reports | app | Reports (workspace) | canonical |
+| `/my/reports` | reports | app | Print & share (workspace; "Reports" until D11) | canonical |
 | `/my/tracked` | tracked | app | Watchlists (workspace) | canonical |
 | `/app/scanner` | scannerDashboard | app | Quantum Scanner (product) | canonical |
 | `/app/scanner/market` | scannerMarket | app | Quantum Scanner (product) | canonical |

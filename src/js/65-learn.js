@@ -716,7 +716,7 @@ function learnTrust() {
 
   const rep = el('div', { class: 'card' });
   rep.append(cardHead('Report an error', 'Every data item in the product is reportable, and a report is tied to the exact item rather than to a general inbox.'));
-  rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the report form'));
+  rep.append(el('button', { class: 'btn btn-primary btn-sm', id: 'open-report-form', onclick: () => openReportError() }, 'Open the error form'));
   wrap.append(rep);
   return wrap;
 }
@@ -992,7 +992,7 @@ function openReportError() {
     State.corrections = [c, ...(State.corrections || [])].slice(0, 100);
     saveCorrections();
     /* The page is redrawn first, so the list on /corrections holds the new
-       case — and that redraw replaced "Open the report form", the button the
+       case — and that redraw replaced "Open the error form", the button the
        drawer was to hand focus back to, so closing the confirmation dropped
        focus on <body>. Focus goes to the button's replacement (or stays on
        an opener the redraw did not touch, like the footer's) before the

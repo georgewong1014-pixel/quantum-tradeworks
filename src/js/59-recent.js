@@ -237,7 +237,7 @@ recentWatch.observe(viewRoot, { childList: true });
 const FURTHEST_KEY = 'furthestStep';
 const FURTHEST_STEPS = {
   equities: [
-    ['Opened a company report', () => State.view === 'research' && !!State.ticker && typeof BY_ID !== 'undefined' && BY_ID.has(State.ticker)],
+    ['Opened a company page', () => State.view === 'research' && !!State.ticker && typeof BY_ID !== 'undefined' && BY_ID.has(State.ticker)],
     ['Compared companies side by side', () => State.view === 'compare'],
     ['Saved a comparison, a case or a watchlist of your own', () => (store.read('comparisons', []) || []).length > 0
       || (State.theses || []).some(t => t && !SEEDED_THESIS_IDS.includes(t.id))
