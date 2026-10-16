@@ -4322,6 +4322,12 @@ try {
                it may not offer what the Lab already shows free. */
             navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(500);
             locked.offer = txt([...document.querySelectorAll('#views p')].find(p => /^Adds /.test(txt(p)) && /Full investor report — proposed/.test(txt(p.parentElement))));
+            /* And Pricing's "What it adds" for the same report (the Lab's phase
+               2, 16 Oct 2026): the two lists name the same things, and
+               neither names what the Lab shows free. */
+            navigate('/pricing'); await w(500);
+            const prow = [...document.querySelectorAll('#views tr')].find(tr => /^Full investor report/.test(txt(tr)));
+            locked.pricing = prow ? txt(prow.querySelectorAll('td')[2]) : null;
             State.propertyReportsBought = [...State.propertyReportsBought, pid];
             const open = await look();
             return { locked, open };
@@ -4343,6 +4349,18 @@ try {
         if (leakedWords.length) p9.push(`locked, the proposal's text names ${leakedWords.join(', ')}`);
         if (!L.offer) p9.push('locked, the calculator offers no full report to set beside the Lab');
         else if (/debt-service cover/i.test(L.offer)) p9.push(`the calculator's offer of the report adds debt-service cover, which the Lab shows free under Risk: "${L.offer.slice(0, 160)}"`);
+        /* What the Lab shows free — debt-service cover under Risk, cash-on-cash
+           in the Yield view — is on neither list, and the lists agree on what
+           the report does add. */
+        if (!L.pricing) p9.push('Pricing has no "Full investor report" row with its "What it adds"');
+        else if (L.offer) {
+          for (const [what, re] of [['debt-service cover', /debt-service cover/i], ['cash-on-cash', /cash-on-cash/i]]) {
+            if (re.test(L.offer)) p9.push(`the calculator's offer adds ${what}, which the Lab shows free`);
+            if (re.test(L.pricing)) p9.push(`Pricing's "What it adds" lists ${what}, which the Lab shows free`);
+          }
+          for (const [what, re] of [['net operating income', /net operating income/i], ['a ten-year scenario', /ten-year scenario/i], ['exit costs', /exit costs/i], ['the equity comparison', /equity comparison/i], ['comparable transactions', /comparable transactions/i]])
+            if (re.test(L.offer) !== re.test(L.pricing)) p9.push(`${what} is on ${re.test(L.offer) ? 'the calculator\'s offer but not Pricing\'s' : 'Pricing\'s list but not the calculator\'s offer'}`);
+        }
         if (O.rows.length !== 10) p9.push(`unlocked, the sale table has ${O.rows.length} rows, not 10: ${JSON.stringify(O.rows.map(x => x.label))}`);
         const missing = PAID_KEYS.filter(k => !O.keys.includes(k));
         if (missing.length) p9.push(`unlocked, the proposal does not print ${missing.join(', ')}`);
@@ -4416,7 +4434,7 @@ try {
         const nodes = [...document.querySelectorAll('#views [data-lab]')];
         for (const n of nodes) {
           const k = n.dataset.lab, fmt = n.dataset.labFmt;
-          const want = !run ? null : k === 'grade' ? run.g.grade : run.m[k];
+          const want = !run ? null : k === 'grade' ? run.g.grade : k === 'monthlyCommitment' ? monthlyCommitment(run.m) : run.m[k];
           const dv = n.getAttribute('data-value');
           const got = dv === '' || dv === null ? null : k === 'grade' ? dv : Number(dv);
           const ok = k === 'grade' ? got === (want ?? null) : near(got, isNum(want) ? want : null);
@@ -4469,6 +4487,11 @@ try {
               if (f.n < 8) out.bad.push(inp.k + ' at ' + v + ': only ' + f.n + ' figures carry data-lab');
             }
           }
+          /* The sweep has moved every knob, the tenure's and the deposit's too
+             (phase 2): the column put back as it was opened before its edge
+             cases are read, a deal with no tenure being one of them. */
+          for (const inp of LAB_INPUTS) { const c = A(); if (c.work[inp.k] !== c.baseInputs[inp.k]) labWrite(c, inp.k, c.baseInputs[inp.k]); }
+          labSchedule(); await frame();
           /* The edge cases, in words. */
           const row = (k) => txt(document.querySelector('#views .lab-row[data-row="' + k + '"] summary'));
           out.rows = { netYield: row('netYield'), breakEvenOccupancy: row('breakEvenOccupancy'), instalment: row('instalment') };
@@ -4710,7 +4733,8 @@ try {
             const r = document.getElementById('lab-r-' + inp.k);
             if (!r) continue;
             const v = col.work[inp.k], t = r.getAttribute('aria-valuetext') || '';
-            const want = inp.k === 'ratePct' ? fmtNum(v, 2) + ' percent a year' : inp.k === 'downPct' ? fmtNum(v, 0) + ' percent' : fmtNum(v, 0) + ' ringgit';
+            const want = inp.k === 'ratePct' ? fmtNum(v, 2) + ' percent a year' : inp.k === 'downPct' ? fmtNum(v, 0) + ' percent'
+              : inp.k === 'tenureYears' || inp.k === 'holdYears' ? v + ' year' : inp.k === 'vacancyPct' ? fmtNum(v, 0) + ' percent vacant' : fmtNum(v, 0) + ' ringgit';
             if (!t.startsWith(want)) out.valuetext.push(inp.k + ': "' + t + '", not "' + want + '…"');
           }
           document.querySelectorAll('#views .lab-row').forEach(d => {
@@ -4726,7 +4750,7 @@ try {
         if (r.unnamed.length) p.push(`unnamed: ${r.unnamed.join(', ')}`);
         r.valuetext.forEach(x => p.push(`aria-valuetext ${x}`));
         r.summaries.forEach(x => p.push(`a summary without its label and value: ${x}`));
-        if (r.rows !== 7) p.push(`${r.rows} chain rows`);
+        if (r.rows !== 8) p.push(`${r.rows} chain rows`);
         for (const want of ['Sliders move', 'Input', 'Compare by']) if (!r.legends.includes(want)) p.push(`no "${want}" legend (${JSON.stringify(r.legends)})`);
         if (p.length) fail('scenario-lab L8: every control and row is named', p);
         else ok(`scenario-lab L8: all ${r.inputs} sliders and boxes are labelled, every slider's aria-valuetext is its value as formatted, all ${r.rows} summaries say their label and value, and the three groups have their legends`);
@@ -5053,6 +5077,96 @@ try {
         if (p.length) fail('scenario-lab L17: the address, an unknown property, a second panel and a place', p);
         else ok(`scenario-lab L17: ?model=&cols=base,<scenario>&by=risk opens those columns and the Risk view; a switch to cash flow wrote the address once (by=cashflow); a compact second panel (map-lab) mounted with no duplicate id and its slider moved its column; a place opened moved the active column to ${r.place.district} with the calculator's deal unchanged and no address written, and an unlisted district was refused; ?model=nope says the property is not saved and shows the deal on the calculator`);
       });
+
+      /* PHASE 2 (plan 4.1, 4.2, 4.5; 16 Oct 2026): the four knobs the Lab
+         gained — the loan tenure, the vacancy allowance, the monthly
+         maintenance and the holding period — are inputs the model already
+         takes, so the checks are of the knobs and not of any arithmetic:
+         each span stays inside what the calculator's own refusal accepts
+         (dealEntryRefused); a column's move travels in the address — the
+         calculator's deal link, which the Lab's commits write (dealToParam)
+         — and comes back the same (applyDealParam); and a refused value in
+         that address is skipped, the rest applied. A refused entry typed
+         into a knob's box keeps its figure; a cash purchase shows the
+         tenure as not applying, in place. Fails on b7ce1a77, which has
+         none of the four knobs. */
+      await lStep('L18', async () => {
+        await lDeal({});
+        const r = await evaluate(`(async () => { ${LH}
+          const out = { missing: [], spans: [], trip: [], refusedTyped: [], dormant: null, link: null, occ: null };
+          const NEW = ['tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
+          for (const k of NEW) if (!LAB_INPUT_BY_K[k] || !document.getElementById('lab-r-' + k)) out.missing.push(k);
+          if (out.missing.length) return out;
+          /* A span, at any anchor, holds only what the calculator takes. */
+          for (const k of NEW) {
+            const inp = LAB_INPUT_BY_K[k];
+            for (const a of [0, 1, 7, 9, 10, 35, 40, 60, 100, 294, 1850, 572000]) {
+              const [lo, hi] = inp.span(a);
+              for (const v of [lo, hi, labSnap((lo + hi) / 2, inp.step)]) {
+                const why = dealEntryRefused(k, v);
+                if (why) out.spans.push(k + ' span at ' + a + ' holds ' + v + ', which the calculator refuses: ' + why);
+                if (inp.whole && !Number.isInteger(v)) out.spans.push(k + ' span at ' + a + ' holds ' + v + ', not whole years');
+                if (k === 'holdYears' && normHoldYears(v) !== v) out.spans.push('holdYears span at ' + a + ' holds ' + v + ', outside the model\\'s limits');
+              }
+            }
+          }
+          /* Real moves, in the active column. */
+          const to = { tenureYears: 30, vacancyPct: 14, maintenance: 340, holdYears: 12 };
+          for (const k of NEW) await setRange(k, to[k]);
+          const col = A();
+          for (const k of NEW) if (col.moves[k] !== to[k]) out.trip.push(k + ' is not a move of the column: ' + JSON.stringify(col.moves[k]));
+          const fresh = () => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} });
+          const param = dealToParam(labNext(col));
+          const back = fresh();
+          applyDealParam(back, param);
+          for (const k of NEW) {
+            if (back[k] !== to[k]) out.trip.push(k + ' went into the address as "' + param + '" and came back ' + back[k] + ', not ' + to[k]);
+            if (!back.touched[k]) out.trip.push(k + ' came back from the address not marked as the reader\\'s own');
+          }
+          out.param = param;
+          /* A refused value in the address is skipped, the rest applied. */
+          const linked = fresh();
+          applyDealParam(linked, 'tenureYears:-5~vacancyPct:101~maintenance:-10~holdYears:12~rent:2100');
+          out.link = { tenure: linked.tenureYears, vac: linked.vacancyPct, maint: linked.maintenance, hold: linked.holdYears, rent: linked.rent,
+            def: [PROPERTY_DEFAULT_DEAL.tenureYears, PROPERTY_DEFAULT_DEAL.vacancyPct, PROPERTY_DEFAULT_DEAL.maintenance] };
+          /* A refused entry typed into a box keeps its figure. */
+          for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3]]) {
+            const was = A().work[k];
+            const n = await typeBox(k, v);
+            if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
+          }
+          const whole = await typeBox('tenureYears', 27.6);
+          if (A().work.tenureYears !== 28) out.refusedTyped.push('a tenure typed as 27.6 years is ' + A().work.tenureYears + ', not whole years (28)');
+          const longHold = await typeBox('holdYears', 99);
+          if (A().work.holdYears !== HOLD_YEARS_MAX) out.refusedTyped.push('a hold typed as 99 is ' + A().work.holdYears + ', not the model\\'s ' + HOLD_YEARS_MAX);
+          /* A cash purchase has no loan: the tenure is shown as not applying, in place. */
+          const rangeBefore = document.getElementById('lab-r-tenureYears');
+          await setRange('downPct', 100);
+          out.dormant = { off: document.getElementById('lab-r-tenureYears').disabled && document.getElementById('lab-n-tenureYears').disabled,
+            same: document.getElementById('lab-r-tenureYears') === rangeBefore, chip: document.getElementById('lab-in-tenureYears').disabled,
+            why: txt(document.getElementById('lab-span-tenureYears')) };
+          await setRange('downPct', 10);
+          out.dormant.on = !document.getElementById('lab-r-tenureYears').disabled && !document.getElementById('lab-in-tenureYears').disabled;
+          /* The vacancy knob says its occupancy: exactly 100 less it. */
+          await setRange('vacancyPct', 14);
+          out.occ = txt(document.querySelector('#lab-knob-vacancyPct .lab-knob-note'));
+          return out;
+        })()`);
+        const p = [];
+        if (r.missing.length) p.push(`the Lab has no slider for ${r.missing.join(', ')}`);
+        else {
+          r.spans.slice(0, 6).forEach(x => p.push(x));
+          r.trip.slice(0, 6).forEach(x => p.push(x));
+          if (r.link.tenure !== r.link.def[0] || r.link.vac !== r.link.def[1] || r.link.maint !== r.link.def[2] || r.link.hold !== 12 || r.link.rent !== 2100)
+            p.push(`an address of refused values was not skipped as they are: ${JSON.stringify(r.link)}`);
+          r.refusedTyped.forEach(x => p.push(x));
+          if (!r.dormant.off || !r.dormant.same || !r.dormant.chip || !/A cash purchase has no loan/.test(r.dormant.why) || !r.dormant.on)
+            p.push(`a deposit of 100% should show the tenure as not applying in place, and back on at 10%: ${JSON.stringify(r.dormant)}`);
+          if (!/Assumed occupancy is exactly 100 less this allowance: 86%/.test(r.occ)) p.push(`the vacancy knob's note reads "${r.occ}"`);
+        }
+        if (p.length) fail('scenario-lab L18: the tenure, vacancy, maintenance and holding-period knobs', p);
+        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy and a negative tenure keep their figures, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
+      });
     } finally {
       await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId).catch(() => {});
       await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
@@ -5107,7 +5221,7 @@ try {
         const m = dealModel(d), g = propertyGrade(d, m), bad = [];
         const nodes = [...document.querySelectorAll('#lab-root [data-lab]')];
         for (const n of nodes) {
-          const k = n.dataset.lab, want = k === 'grade' ? g.grade : m[k], dv = n.getAttribute('data-value');
+          const k = n.dataset.lab, want = k === 'grade' ? g.grade : k === 'monthlyCommitment' ? monthlyCommitment(m) : m[k], dv = n.getAttribute('data-value');
           const got = dv === '' || dv === null ? null : k === 'grade' ? dv : Number(dv);
           const ok = k === 'grade' ? got === (want ?? null) : near(got, isNum(want) ? want : null);
           if (!ok || txt(n) !== LAB_FORMATS[n.dataset.labFmt](want)) bad.push(k + ' shows ' + txt(n) + ', the model ' + LAB_FORMATS[n.dataset.labFmt](want));
@@ -7640,7 +7754,7 @@ try {
     })()`;
     const MINE = { touched: Object.fromEntries(['price', 'rent', 'maintenance', 'sqft', 'downPct', 'ratePct', 'tenureYears', 'vacancyPct', 'apprecPct', 'holdYears'].map(k => [k, true])),
       evidence: { price: 'user', rent: 'user', maintenance: 'user', sqft: 'user', vacancyPct: 'user', apprecPct: 'user', titleType: 'user' }, userStarted: true };
-    const KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly', 'netYield', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct'];
+    const KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly', 'monthlyCommitment', 'netYield', 'breakEvenOccupancy', 'valueLessLoanAtExit', 'irrPct'];
     const keep = await evaluate(`JSON.stringify({ deal: localStorage.getItem('vl.deal'), before: localStorage.getItem('vl.dealBeforeLink') })`);
 
     await ktry('lab-row-kinds K1–K2: each row its kind, by the tiles\' rule', async () => {
@@ -7656,7 +7770,7 @@ try {
       for (const [label, x] of [['the sample', s], ['the reader\'s figures', y]]) for (const [k, kind] of Object.entries(x.tiles)) if (x.rows[k] && x.rows[k].k !== kind) p.push(`${label}: the ${k} tile is ${kind}, its row ${x.rows[k].k}`);
       if (Object.keys(s.tiles).length < 3) p.push(`only ${Object.keys(s.tiles).length} tiles read`);
       if (p.length) fail('lab-row-kinds K1–K2: each row its kind, by the tiles\' rule', p);
-      else ok(`lab-row-kinds K1–K2: the seven rows carry their kind — Illustrative on the sample; on the reader's figures the cash required Placeholder ("${y.rows.safeCashRequired.title.slice(0, 40)}…") and the other six Yours — and each of the ${Object.keys(s.tiles).length} tiles' badges is its row's`);
+      else ok(`lab-row-kinds K1–K2: the eight rows carry their kind — Illustrative on the sample; on the reader's figures the cash required Placeholder ("${y.rows.safeCashRequired.title.slice(0, 40)}…") and the other seven Yours — and each of the ${Object.keys(s.tiles).length} tiles' badges is its row's`);
     });
 
     await ktry('lab-row-kinds K3: no figure, no kind', async () => {

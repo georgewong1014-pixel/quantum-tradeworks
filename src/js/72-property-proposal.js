@@ -263,6 +263,22 @@ function cpPicks(rec) {
   CP_PICK[rec.id] = CP_PICK[rec.id].filter(x => ids.includes(x)).slice(0, 3);
   return CP_PICK[rec.id];
 }
+/* THE SCENARIOS AN ADDRESS NAMES (plan 4.5): the Scenario Lab's "Export PDF /
+   Share with client" opens /property/models/:id/proposal?cols=base,<scenario>,
+   — the saved columns it was showing. Read when the address is new, not at
+   every drawing, so the reader's own ticks in the rail stand; only this
+   property's own saved scenarios count ("base" is the property itself, and
+   anything else is skipped), at most three. The picks stay in this visit's
+   memory, as before: nothing is written. */
+let cpColsSeen = null;
+function cpTakeCols(rec) {
+  const raw = new URLSearchParams(location.search).get('cols');
+  const seen = `${rec.id}|${raw}`;
+  if (raw == null || cpColsSeen === seen) return;
+  cpColsSeen = seen;
+  const own = new Set((rec.scenarios || []).map(s => s.id));
+  CP_PICK[rec.id] = [...new Set(raw.split(',').map(s => s.trim()).filter(id => own.has(id)))].slice(0, 3);
+}
 /* Whether the details card is open across a redraw, once the reader has
    opened or closed it; it starts open while nothing is filled in. */
 let cpDetailsOpen = null;
@@ -759,7 +775,8 @@ function cpFinancingSection(d, m) {
     : m.valuationRule === 'valuation_only' ? 'the valuation' : m.valuationRule === 'lower_of' ? 'the lower of the price and the valuation' : 'the purchase price';
   /* The commitment is the model's figures for it, never one worked out
      here: the instalment owed to the lender each month; the calculator's
-     own "Monthly commitment" — what the owner funds from their income each
+     own "Monthly commitment" (worded by LAB_FIGURES, as the Lab words it) —
+     what the owner funds from their income each
      month (monthlyCommitment, 75-property-grade.js) — and the same over a
      year (its "Costs you … a year to hold"). Without a loan there is no
      rate, tenure or repayment to describe, and nothing here describes one. */
@@ -772,7 +789,7 @@ function cpFinancingSection(d, m) {
     ['Monthly instalment', cpFig('instalment', cpMoney(m.instalment)), !loan ? 'Nothing is owed to a lender: there is no loan.'
       : isNum(m.instalment) ? `Owed to the lender each month: ${cpPct(d.ratePct, 2)} a year over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed: the loan has no repayment schedule at the entered tenure'],
     loan ? ['Loan repayments a year', cpFig('annualDebtService', cpMoney(m.annualDebtService))] : null,
-    !isNum(cf) ? null : ['Monthly commitment', cpFig('monthlyCommitment', cpMoney(mc)), mc > 0
+    !isNum(cf) ? null : [LAB_FIGURES.find(f => f.key === 'monthlyCommitment').label(d), cpFig('monthlyCommitment', cpMoney(mc)), mc > 0
       ? `What the owner pays from their own income each month: ${lets ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`}.`
       : `Nothing from the owner’s income: ${lets ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}.`],
     !isNum(cf) || !(m.annualOwnerSubsidy > 0) ? null : ['From the owner’s own income, a year', cpFig('annualOwnerSubsidy', cpMoney(m.annualOwnerSubsidy)),
@@ -1323,6 +1340,7 @@ VIEWS.propertyProposal = () => {
   cpShown = { id, sig: cpSignature(id) };
   const wrap = el('div', { class: 'cp-page' });
   if (!rec) return cpMissing(wrap, id);
+  cpTakeCols(rec);
   const details = cpDetails(), forWhom = cpFor(rec.id), picks = cpPicks(rec);
   wrap.append(el('div', { class: 'cp-layout' }, [cpRail(rec, details, forWhom, picks), cpDocument(rec, details, forWhom, picks)]));
   wrap.append(el('div', { class: 'cp-foot cp-screen-only' }, [

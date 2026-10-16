@@ -4849,8 +4849,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "922652a829c0081a",
-      "changed": "2026-10-11"
+      "digest": "76e8edffb2c1f4fe",
+      "changed": "2026-10-15"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -4923,18 +4923,18 @@
         ]
       },
       "inert": {
-        "buttons": 31,
-        "fields": 12,
-        "choices": 26,
+        "buttons": 40,
+        "fields": 20,
+        "choices": 30,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 14,
+        "notShown": 19,
         "now": 1,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8f6f98a973ef03ab",
+      "digest": "99d56f602bdc07bc",
       "changed": "2026-10-15"
     },
     "pages/property/areas.html": {
@@ -5068,18 +5068,18 @@
         ]
       },
       "inert": {
-        "buttons": 31,
-        "fields": 12,
-        "choices": 26,
+        "buttons": 40,
+        "fields": 20,
+        "choices": 30,
         "roles": 0,
         "forms": 0,
         "removed": 0,
-        "notShown": 14,
+        "notShown": 19,
         "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "25cb5568e738fb27",
+      "digest": "4015f54df5479cc8",
       "changed": "2026-10-15"
     },
     "pages/property/models.html": {

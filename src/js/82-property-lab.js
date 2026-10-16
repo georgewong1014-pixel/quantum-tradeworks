@@ -72,12 +72,14 @@ function labDelta(fmt, now, was) {
 }
 
 /* ------------------------------------------------------------------- inputs */
-/* THE FIVE KNOBS. Each span is a setting of this page, not market data:
+/* THE NINE KNOBS — price, deposit, rate, rent and renovation, and the loan
+   tenure, the vacancy allowance, the monthly maintenance and the holding
+   period: inputs the model already takes, so no new arithmetic. Each span is a setting of this page, not market data:
    anchored on the column's own figure as saved (or as opened), stated with
    its basis beside the slider, and widened to take any figure typed into
    the box, so the thumb is never pinned at an end it does not belong at. */
 const labSnap = (v, step) => +(Math.round(v / step) * step).toFixed(step < 1 ? 2 : 0);
-const LAB_INPUTS = [
+const LAB_INPUT_LIST = [
   { k: 'price', label: () => ptr('in.price', 'Purchase price (RM)'), say: 'Purchase price', short: 'Price', step: 1000,
     span: (a) => [Math.max(0, labSnap(a * 0.75, 1000)), labSnap(a * 1.25, 1000)],
     basis: '±25% of as saved', why: ', to RM1,000 — five of the sensitivity panel’s 5% steps',
@@ -90,21 +92,60 @@ const LAB_INPUTS = [
     span: (a) => [Math.max(0, labSnap(a - 3, 0.05)), labSnap(a + 3, 0.05)],
     basis: '±3 pp of as saved, never below 0', why: ' — the model’s stress rows',
     shown: (v) => `${fmtNum(v, 2)}% a year`, spoken: (v) => `${fmtNum(v, 2)} percent a year` },
+  /* Whole years. The model prices no schedule at 0 years (the repayment row
+     says so), so the slider starts at 1. A cash purchase has no loan, so
+     nothing uses a tenure (labDormant). */
+  { k: 'tenureYears', label: () => ptr('in.tenureYears', 'Loan tenure (years)'), say: 'Loan tenure', short: 'Tenure', step: 1, whole: true,
+    span: (a) => [Math.max(1, labSnap(a - 10, 1)), Math.max(2, labSnap(a + 10, 1))],
+    basis: '±10 years of as saved, never below 1', why: ' — two of the sensitivity panel’s 5-year steps either way',
+    shown: (v) => labYears(v), spoken: (v) => labYears(v), edge: (v) => labYears(v) },
   { k: 'rent', label: () => ptr('in.rent', 'Expected monthly rent (RM)'), say: 'Rent', short: 'Rent', step: 50,
     span: (a) => [Math.max(0, labSnap(a * 0.5, 50)), labSnap(a * 1.5, 50)],
     basis: '±50% of as saved', why: ', to RM50 — five 10% rent steps',
     shown: (v) => `${labMoney(v)} a month`, spoken: (v) => `${fmtNum(v, 0)} ringgit a month` },
+  /* The model's own vacancy allowance, under the calculator's label. The
+     assumed occupancy the Risk view marks is 100 less this, and the knob's
+     note says so (labOccupancyWords) — no separate occupancy figure is kept. */
+  { k: 'vacancyPct', label: () => ptr('in.vacancyPct', 'Vacancy allowance (%)'), say: 'Vacancy allowance', short: 'Vacancy', step: 1,
+    span: (a) => [0, Math.min(100, Math.max(40, labSnap(a, 1)))], basis: 'nothing to 40%, or as saved if more, never above 100%', why: ' — the model’s deepest vacancy stress row',
+    shown: (v) => labPctIn(v), spoken: (v) => `${fmtNum(v, 0)} percent vacant, ${fmtNum(100 - v, 0)} percent occupied`, edge: (v) => `${fmtNum(v, 0)}%` },
+  { k: 'maintenance', label: () => ptr('in.maintenance', 'Monthly maintenance (RM)'), say: 'Monthly maintenance', short: 'Upkeep', step: 10,
+    span: (a) => [Math.max(0, labSnap(a * 0.6, 10)), labSnap(a * 1.4, 10)],
+    basis: '±40% of as saved', why: ', to RM10 — two of the sensitivity panel’s 20% steps either way',
+    shown: (v) => `${labMoney(v)} a month`, spoken: (v) => `${fmtNum(v, 0)} ringgit a month` },
   { k: 'renovation', label: () => ptr('in.renovation', 'Renovation and furnishing (RM)'), say: 'Renovation', short: 'Reno', step: 500,
     span: (a) => [0, labSnap(a * 2, 500)], basis: 'nothing to twice as saved', why: ' — the model’s +100% overrun row',
     shown: (v) => labMoney(v), spoken: (v) => `${fmtNum(v, 0)} ringgit` },
+  /* Whole years, 1 to the model's own longest hold (HOLD_YEARS_MAX). */
+  { k: 'holdYears', label: () => ptr('in.holdYears', 'Holding period (years)'), say: 'Holding period', short: 'Hold', step: 1, whole: true,
+    span: () => [1, HOLD_YEARS_MAX], basis: 'the model’s own limits on a holding period', why: '',
+    shown: (v) => labYears(v), spoken: (v) => labYears(v), edge: (v) => labYears(v) },
 ];
+/* THE FOUR PHASE 2 KNOBS STAND IN A CLOSED GROUP, "More inputs (4)" (the
+   owner, 16 Oct 2026: the first frame's words and the phone's one screen
+   hold as they were): at 600px and over its button opens them; on a phone
+   there is no group to open — the Input picker lists all nine and one knob
+   shows at a time, as before. The knobs follow the five in this order, the
+   picker's too. */
+const LAB_MORE_KEYS = ['tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
+const LAB_INPUTS = [...LAB_INPUT_LIST.filter(x => !LAB_MORE_KEYS.includes(x.k)), ...LAB_MORE_KEYS.map(k => LAB_INPUT_LIST.find(x => x.k === k))];
 const LAB_INPUT_BY_K = Object.fromEntries(LAB_INPUTS.map(x => [x.k, x]));
+/* The knobs whose typed entry the calculator's own refusal covers
+   (dealEntryRefused, 70-property.js): the four phase 2 added. The first five
+   keep the entry they have always taken. */
+const LAB_REFUSES = new Set(['tenureYears', 'vacancyPct', 'maintenance']);
 /* An end of a span, as the span note prints it. */
-const labEdge = (inp, v) => (inp.k === 'downPct' || inp.k === 'ratePct' ? `${fmtNum(v, inp.k === 'ratePct' ? 2 : 0)}%` : labMoney(v));
+const labEdge = (inp, v) => (inp.edge ? inp.edge(v) : inp.k === 'downPct' || inp.k === 'ratePct' ? `${fmtNum(v, inp.k === 'ratePct' ? 2 : 0)}%` : labMoney(v));
 /* Whether a knob means anything for this column's class: a parcel has no
    tenancy, so nothing uses a rent (propertyInputApplies, 70-property.js). */
 const labApplies = (d, k) => propertyInputApplies(d, k);
-const LAB_NOT_APPLY = { rent: 'A parcel has no tenancy, so nothing uses a rent.' };
+const LAB_NOT_APPLY = { rent: 'A parcel has no tenancy, so nothing uses a rent.', vacancyPct: 'A parcel has no tenancy, so nothing uses a vacancy allowance.',
+  maintenance: 'A parcel has no strata body, so there is no maintenance charge.', tenureYears: 'A cash purchase has no loan, so nothing uses a tenure.' };
+/* A knob that fits the column's class but not its figures as they are now:
+   the tenure of a purchase with no loan (a deposit of 100%). It is shown as
+   not applying in place, by the paint — never by drawing the knob again,
+   which would replace the slider under a finger that is moving the deposit. */
+const labDormant = (d, k) => k === 'tenureYears' && num0(d.downPct) >= 100;
 
 /* ------------------------------------------------------------------ figures */
 /* THE CHAIN, IN THE OWNER'S ORDER. Each row reads one field of the model's
@@ -161,6 +202,27 @@ const LAB_FIGURES = [
       : m.letsToTenant
         ? `NOI ${labMoney(m.noi)} a year ÷ 12 − repayment ${labMoney(m.instalment)} = ${labMoney(m.cashflowMonthly)} a month, before tax on the rent.`
         : `No rent for this class: running costs of ${labMoney(m.opex)} a year ÷ 12 − repayment ${labMoney(m.instalment)} = ${labMoney(m.cashflowMonthly)} a month.`) },
+  /* The calculator's "Monthly commitment" and the proposal's: what the owner
+     funds from their own income each month (monthlyCommitment, 75-property-
+     grade.js), in the calculator's words. It has no METRIC_HELP entry there
+     either, so its row carries no help button. */
+  { key: 'monthlyCommitment', label: () => 'Monthly commitment', fmt: 'money0', help: null,
+    read: (m) => monthlyCommitment(m),
+    /* A note only where there is no figure: "Funded from your income" and
+       "Property funds itself", the calculator's tile lines, are said by the
+       row's opened formula — four words a row the first frame has not got. */
+    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : null),
+    formula: (d, m) => {
+      if (!isNum(m.cashflowMonthly)) return 'Not computable: with no repayment schedule the loan’s monthly cost is unknown, and so is what the owner funds.';
+      const mc = monthlyCommitment(m), loan = m.loan > 0;
+      /* Debt-service cover (the model's dscr; the Risk view bars it against
+         1.00×) is said here, beside the figure it explains: the rent's
+         cover of the repayments, the commitment being what it leaves unmet. */
+      const cover = isNum(m.dscr) ? ` Debt-service cover ${fmtX(m.dscr, 2)}: net operating income ${labMoney(m.noi)} a year ÷ ${labMoney(m.annualDebtService)} of loan repayments a year${m.dscr < 1 ? ' — below 1.00×, so the rent does not meet them' : ''}.` : '';
+      return (mc > 0
+        ? `What the owner pays from their own income each month: ${m.letsToTenant ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`} — the monthly position of ${labMoney(m.cashflowMonthly)} with its sign taken off = ${labMoney(mc)} a month.`
+        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`) + cover;
+    } },
   { key: 'netYield', label: () => 'Net yield', fmt: 'pct2', help: 'netYield',
     read: (m) => m.netYield,
     note: (m) => (m.letsToTenant === false ? 'not a quantity this asset has' : isNum(m.grossYield) ? `gross ${fmtPct(m.grossYield, 2)}` : null),
@@ -793,7 +855,8 @@ function labDraw(P, focusId = null) {
   grid.append(inputs, outputs);
   inputs.append(labColumnPicker(P, lab), labInputPicker(P, lab));
   const col = labActive(lab);
-  LAB_INPUTS.forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
+  LAB_INPUTS.filter(inp => !LAB_MORE_KEYS.includes(inp.k)).forEach(inp => inputs.append(labKnob(P, lab, col, inp)));
+  inputs.append(labMoreInputs(P, lab, col));
   P.els.colsCard = labColumnsCard(P, lab);
   P.els.commitCard = labCommits(P, lab, col);
   P.cardSig = labCardSig(lab);
@@ -994,6 +1057,36 @@ function labIdentityAct(P, lab) {
   else box.append(el('span', { class: 'lab-id-saved' }, 'Saved in this browser'));
   return box;
 }
+/* "EXPORT PDF / SHARE WITH CLIENT" (plan 4.5): the existing client proposal
+   (72-property-proposal.js) of the property the lab is open on, with the
+   saved columns it names — a quiet button in the Keep card, after its Save
+   (the identity line's Save stays the page's one primary, and the first
+   frame, whose words and rows are budgeted, gains nothing). "Share" here means the printable proposal and nothing more:
+   no link is made, nothing is uploaded or hosted. A proposal is made from
+   what is saved, so the button is off — with the reason in sight — while
+   the subject is an unsaved deal, or the column the sliders move holds
+   figures no save has kept (labCanSave's test) or is not a saved property's.
+   The proposal keeps its own rule on the full report's figures (plan 1.4):
+   this opens it, and opens nothing it closes. */
+const LAB_EXPORT_WORDS = 'Export PDF / Share with client';
+const LAB_EXPORT_WHY = 'Save it first — a proposal is made from what is saved';
+const labExportPath = (lab) => {
+  const ids = labOwnIds(lab).filter(id => id !== 'current');
+  return `/property/models/${encodeURIComponent(lab.model)}/proposal${ids.length ? `?cols=${ids.map(encodeURIComponent).join(',')}` : ''}`;
+};
+const labExportReady = (lab, col) => !!lab.model && !!pmFind(lab.model) && !!labColRec(lab, col) && !labCanSave(lab, col);
+function labExport(P, lab, col) {
+  const id = labId(P, 'export');
+  if (labExportReady(lab, col)) {
+    const path = labExportPath(lab);
+    return [el('a', { class: 'btn btn-quiet lab-export', id, href: href(path),
+      onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, LAB_EXPORT_WORDS)];
+  }
+  /* Off: the reason is the Keep card's one line in sight (labCommits), so the
+     card stays within its words — what Save does moves to "How saving works"
+     — and the button is described by it. */
+  return [el('button', { type: 'button', class: 'btn btn-quiet lab-export', id, disabled: '', 'aria-describedby': labId(P, 'export-why') }, LAB_EXPORT_WORDS), LAB_EXPORT_WHY];
+}
 /* THE FOUR TILES. Three of the chain's own figures (LAB_FIGURES: the same
    reading, format and note as its rows, so a tile and a row cannot word or
    compute one differently), each with what it rests on — today's evidence
@@ -1010,6 +1103,7 @@ const LAB_TILE_RESTS = {
   breakEvenOccupancy: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'maintenance'],
   safeCashRequired: ['price', 'downPct', 'ratePct', 'tenureYears', 'maintenance'],
   cashflowMonthly: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'],
+  monthlyCommitment: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance'],
   netYield: ['price', 'rent', 'vacancyPct', 'maintenance'],
   valueLessLoanAtExit: ['price', 'downPct', 'ratePct', 'tenureYears', 'apprecPct', 'holdYears'],
   irrPct: ['price', 'downPct', 'ratePct', 'tenureYears', 'rent', 'vacancyPct', 'maintenance', 'apprecPct', 'holdYears'],
@@ -1586,7 +1680,7 @@ function labInputPicker(P, lab) {
     row.append(el('label', { class: `lab-seg-opt${on ? ' is-on' : ''}${off ? ' is-off' : ''}`, for: id, title: off ? LAB_NOT_APPLY[inp.k] : null }, [
       el('input', { type: 'radio', class: 'lab-radio', name: labId(P, 'in'), id, value: inp.k, checked: on ? '' : null, disabled: off ? '' : null,
         'aria-describedby': off ? labId(P, `off-${inp.k}`) : null,
-        onchange: () => { lab.input = inp.k; labDraw(P, id); } }),
+        onchange: () => { lab.input = inp.k; if (LAB_MORE_KEYS.includes(inp.k)) P.moreOpen = true; labDraw(P, id); } }),
       el('span', {}, inp.short),
     ]));
   }
@@ -1595,6 +1689,38 @@ function labInputPicker(P, lab) {
   return fs;
 }
 
+/* "MORE INPUTS (4)": the phase 2 knobs in a <details> closed by default (so
+   a served page carries them, closed), opened in place by its summary —
+   nothing drawn again — and kept open across a redraw while this tab lives.
+   Choosing one of them in the phone's Input picker opens it too, which is
+   how a keyboard or a script reaches a knob that is not in sight. In a panel
+   under 600px wide there is no summary: the group is open, whatever the
+   reader did, and shows only while its knob is the one chosen (styles.css);
+   a panel's width is watched, so one resized across 600px follows. */
+const labNarrow = (P) => (P.node?.isConnected && P.node.clientWidth ? P.node.clientWidth : innerWidth - 63) < 600;
+function labMoreInputs(P, lab, col) {
+  const g = el('details', { class: 'lab-more', id: labId(P, 'more'), open: P.moreOpen || labNarrow(P) ? '' : null });
+  g.append(el('summary', { class: 'btn btn-quiet lab-more-btn', id: labId(P, 'more-btn') },
+    [el('span', {}, `More inputs (${LAB_MORE_KEYS.length})`), el('span', { class: 'lab-about-chev', 'aria-hidden': 'true', html: icon('chev', 14) })]));
+  /* What the reader chose is kept — by the summary's press alone: a group
+     the width opened or closed (below) is not the reader's choice, and its
+     toggle event must not become one. */
+  g.firstChild.addEventListener('click', () => { if (!labNarrow(P)) P.moreOpen = !g.open; });
+  const body = el('div', { class: 'lab-more-body', id: labId(P, 'more-body') });
+  LAB_MORE_KEYS.forEach(k => body.append(labKnob(P, lab, col, LAB_INPUT_BY_K[k])));
+  g.append(body);
+  P.moreEl = g;
+  if (!P.moreRO && typeof ResizeObserver !== 'undefined') {
+    P.moreRO = new ResizeObserver(() => {
+      const n = P.moreEl;
+      if (!n?.isConnected) return;
+      const want = labNarrow(P) || !!P.moreOpen;
+      if (n.open !== want) n.open = want;
+    });
+    P.moreRO.observe(P.node);
+  }
+  return g;
+}
 /* ONE KNOB: the calculator's own label, a slider and a box beside it. */
 function labSpan(col, inp) {
   const anchor = num0(col.baseInputs[inp.k]);
@@ -1721,8 +1847,12 @@ function labKnob(P, lab, col, inp) {
   /* The span's ends and its basis, and why that basis — the last shown on
      a phone only in the open panel, where it has the room. */
   knob.spanEdges = el('span', {}, '');
-  knob.span.append(knob.spanEdges, el('span', { class: 'lab-span-why' }, inp.why || ''), '.');
+  knob.why = el('span', { class: 'lab-span-why' }, inp.why || '');
+  knob.span.append(knob.spanEdges, knob.why, '.');
   about.append(knob.span);
+  /* The occupancy the Risk view marks is 100 less the vacancy allowance —
+     said here, from the figure itself, so no second figure is kept. */
+  if (k === 'vacancyPct') { knob.occ = el('p', { class: 'metaline lab-knob-note' }); about.append(knob.occ); }
   if (k === 'downPct') about.append(el('p', { class: 'metaline lab-knob-note' }, 'Lender limits on the margin of finance are not modelled: computed, not approved.'));
   if (k === 'renovation') {
     knob.recover = el('p', { class: 'metaline lab-knob-note' });
@@ -1750,6 +1880,17 @@ function labTyped(P, lab, k, num) {
   }
   let v = num0(num.value);
   if (k === 'downPct') v = clamp(v, 0, 100);
+  /* The four knobs added in phase 2 take an entry as the calculator's box
+     does: one the model cannot mean (dealEntryRefused) keeps the box's
+     figure, said; whole years are whole, and a holding period is held to the
+     model's own limits (normHoldYears, as the calculator's box does). */
+  if (inp.whole) v = k === 'holdYears' ? normHoldYears(v) : Math.round(v);
+  const refusal = LAB_REFUSES.has(k) ? dealEntryRefused(k, Number(num.value)) : null;
+  if (refusal) {
+    num.value = String(col.work[k] ?? '');
+    toast(`“${inp.label()}” ${refusal} — it stays at ${isNum(col.work[k]) ? col.work[k] : 'its last figure'}.`);
+    return;
+  }
   /* The box shows the figure the model is given: a deposit typed as 150
      is 100, and the box said 150 while every figure used 100 (F7). */
   if (String(num.value) !== String(v)) num.value = String(v);
@@ -2025,7 +2166,7 @@ function labAlert(P, lab) {
    different deal than the one on screen. */
 function labWhereEntered(lab, col, key) {
   if (labSourceKind(col) !== 'deal') return null;
-  const sec = { instalment: 'financing', safeCashRequired: 'acquisition', cashflowMonthly: 'rental', netYield: 'rental',
+  const sec = { instalment: 'financing', safeCashRequired: 'acquisition', cashflowMonthly: 'rental', monthlyCommitment: 'rental', netYield: 'rental',
     breakEvenOccupancy: 'rental', valueLessLoanAtExit: 'scenarios', irrPct: 'scenarios' }[key];
   const label = (PC_SECTIONS.find(s => s.id === sec) || {}).label || 'the calculator';
   const path = `/property/calculator#${sec}`;
@@ -2436,6 +2577,8 @@ function labCommits(P, lab, col) {
     acts.append(el('button', { type: 'button', class: `btn ${keepCls}`, id: labId(P, 'save-first'),
       onclick: () => labNaming(P, lab, labGuidedNaming(lab)) }, labGuidedWords(lab, col)));
   }
+  const exportAct = labExport(P, lab, col);
+  acts.append(exportAct[0]);
   acts.append(el('button', { type: 'button', class: 'btn btn-ghost', id: labId(P, 'open'), onclick: () => labOpenInCalculator(P, lab) },
     `Open ${col.key} in the calculator${yours}`));
   acts.append(el('button', { type: 'button', class: 'btn btn-quiet', id: labId(P, 'clear'), disabled: n ? null : '', onclick: () => labClear(P, lab, col) },
@@ -2468,7 +2611,11 @@ function labCommits(P, lab, col) {
     : `${col.key} holds the property as saved — move a figure first: a scenario with nothing changed is the property twice.`);
   why.push(`Saving or opening ${col.key} makes the moved figures yours, as typing them in the calculator does: a moved price or rent stops being an illustrative default. `
     + 'Until then nothing moved here is saved or marked as yours. The grade stays U while any figure that drives it — the built-up area and the maintenance too — is still the tool’s starting figure.');
-  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') }, line));
+  /* While Export is off, its reason is the line in sight and what Save does
+     is the first thing under "How saving works" — every word kept. */
+  if (exportAct[1]) why.unshift(line);
+  card.append(el('p', { class: 'metaline lab-commit-line', id: labId(P, 'commit-line') },
+    exportAct[1] ? el('span', { id: labId(P, 'export-why') }, exportAct[1]) : line));
   /* Open stays open while the card is drawn again under a move. */
   const more = el('details', { class: 'pc-more ls-l3 lab-commit-more', id: labId(P, 'commit-more'), open: P.saveMoreOpen ? '' : null }, [
     el('summary', { class: 'pc-more-sum' }, 'How saving works'),
@@ -3345,6 +3492,22 @@ function labComparisonsBlock(P, lab) {
 }
 
 /* ------------------------------------------------------------------ painting */
+/* A KNOB THE FIGURES LEAVE UNUSED, drawn in place (labDormant): written only
+   when it turns, as the span line is written only when the span moves. The
+   knob is neither added nor taken away, so nothing under a moving thumb
+   shifts. */
+function labPaintDormant(P, kn, inp, dormant) {
+  labClass(kn.row, 'is-off', dormant);
+  labAttr(kn.num, 'disabled', dormant ? '' : null);
+  labAttr(kn.range, 'disabled', dormant ? '' : null);
+  labAttr(kn.why, 'hidden', dormant ? '' : null);
+  if (dormant) { kn.spanAt = null; labText(kn.spanEdges, LAB_NOT_APPLY[inp.k].replace(/\.$/, '')); }  const chip = document.getElementById(labId(P, `in-${inp.k}`));
+  if (chip) {
+    labAttr(chip, 'disabled', dormant ? '' : null);
+    labAttr(chip, 'aria-describedby', dormant ? kn.ids.sid : null);
+    chip.parentElement?.classList.toggle('is-off', dormant);
+  }
+}
 /* ONE FRAME. Requests within a frame coalesce into one paint; a position
    passed over between frames is dropped, not queued. */
 let labFrame = 0, labPaints = 0;
@@ -3408,8 +3571,12 @@ function labPaintPanel(P, { initial = false } = {}) {
       if (kn.sayAt !== sayAt) { kn.sayAt = sayAt; labAttr(kn.range, 'aria-valuetext', inp.spoken(v, m)); }
       labStyle(kn.range, '--pos', `${(clamp((v - lo) / (hi - lo), 0, 1) * 100).toFixed(2)}%`);
       if (kn.ticks) [...kn.ticks.children].forEach((t, i) => labStyle(t, '--at', String((inp.ticks[i] - lo) / (hi - lo))));
-      if (kn.spanEdges && kn.spanAt !== `${lo}|${hi}`) { kn.spanAt = `${lo}|${hi}`; labText(kn.spanEdges, `${labEdge(inp, lo)} to ${labEdge(inp, hi)}: ${inp.basis}`); }
+      if (kn.spanEdges && !labDormant(d, inp.k) && kn.spanAt !== `${lo}|${hi}`) { kn.spanAt = `${lo}|${hi}`; labText(kn.spanEdges, `${labEdge(inp, lo)} to ${labEdge(inp, hi)}: ${inp.basis}`); }
     } else if (kn.spanEdges) labText(kn.spanEdges, `Typed into the box; ${inp.basis}`);
+    /* A knob the column's figures leave unused, said in place (labDormant):
+       its box and slider off, its span line the reason, its chip off. */
+    if (inp.k === 'tenureYears' && kn.range) labPaintDormant(P, kn, inp, labDormant(d, inp.k));
+    if (kn.occ) labText(kn.occ, `Assumed occupancy is exactly 100 less this allowance: ${labPctIn(100 - v)}.`);
     /* Moved: the what-if tag in the evidence tag's place, and the way back
        in sight — each in the room it held from the first drawing. */
     if (kn.whatIf) {

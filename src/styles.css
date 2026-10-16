@@ -5198,6 +5198,14 @@ table.dt.cp-sc-table tbody th { min-width: 8rem; }
 .lab-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sm); align-items: start; }
 .lab-inputs { display: flex; flex-direction: column; gap: var(--xs); min-width: 0; }
 .lab-outputs { display: flex; flex-direction: column; gap: var(--md); min-width: 0; }
+/* "More inputs (4)", a <details> so a served page carries its four knobs
+   closed: on a phone it is open and has no button (the Input picker lists
+   every knob and one shows at a time, and the group shows only while its
+   knob is the one chosen); from 600px its button opens the four. */
+.lab-more-body { display: flex; flex-direction: column; gap: var(--xs); }
+.lab-more > summary { display: none; list-style: none; }
+.lab-more > summary::-webkit-details-marker { display: none; }
+.lab-more:not(:has(.lab-knob.is-on)) { display: none; }
 
 /* The pickers: a legend beside a strip of choices, one 44px line on a
    phone. The radio itself is out of sight; its whole label is the target,
@@ -5448,6 +5456,11 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
      first frame instead of gaining it when the script runs. */
   .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
   .lab-knob:not(.is-on) { display: block; }
+  .lab-more:not(:has(.lab-knob.is-on)) { display: block; }
+  .lab-more > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 var(--xs); cursor: pointer; }
+  .lab-more[open] > summary { margin-bottom: var(--xs); }
+  .lab-more > summary .lab-about-chev { transition: transform 160ms ease; }
+  .lab-more[open] > summary .lab-about-chev { transform: rotate(180deg); }
   .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   .lab-seg-by { display: flex; }
   .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -5478,6 +5491,9 @@ input.lab-range[type="range"]::-moz-range-progress { height: 4px; border-radius:
 @media (min-width: 663px) {
   :root[data-served] .lab-pick-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); visibility: hidden; }
   :root[data-served] .lab-knob:not(.is-on) { display: block; }
+  :root[data-served] .lab-more:not(:has(.lab-knob.is-on)) { display: block; }
+  :root[data-served] .lab-more > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 var(--xs); }
+  :root[data-served] .lab-more > summary .lab-about-chev { transition: transform 160ms ease; }
   :root[data-served] .lab-seg-name { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   :root[data-served] .lab-seg-by { display: flex; }
   :root[data-served] .lab-chain { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -6056,18 +6072,25 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .ls-card.lab-tile-next .ls-card-act, .ls-card.lab-tile-next .ls-card-cta { font-size: var(--ls-support); line-height: 18px; }
   .ls-page .lab-knob .lab-tag { line-height: 15px; padding: 2px 8px; }
   .ls-page .lab-chain-card { padding: 0 var(--sm) var(--xs); }
-  .ls-page .lab-chain-hd { line-height: 18px; padding-top: 2px; }
+  /* THE CHAIN CARD'S HEADER IS FOR THE EAR ON A PHONE (the owner, 16 Oct
+     2026: the eighth result, Monthly commitment, needed 23–39px of the
+     360×640 screen): "B — Copy of A" and "Changes vs A" stay in the page for
+     a screen reader — the card is still labelled by them — and the column
+     the sliders move is named in the line above the sliders. */
+  .ls-page .lab-chain-hd { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .ls-page .lab-val { font-size: var(--ls-support); line-height: 18px; }
   /* The figures' column as wide as its widest figure at every move: drawn
      as wide as its words, "unchanged" giving way to "▲ 0.36 pp" at the
      first tick narrowed it, a note took one line less, and every result
      below moved 11px under the thumb. */
   .ls-page .lab-row-fig { min-width: 5.5rem; }
-  .ls-page .lab-grid { gap: var(--xs); }
+  .ls-page .lab-grid { gap: 2px; }
+  .ls-page .lab-inputs { gap: 0; }
+  .ls-page .lab-knob { padding-bottom: 0; }
   /* A row is its 44px; one that wraps grows by its words alone, and a 0%
      rate's warning is set a step tighter (batch 1's wide-sans case). */
   .ls-page .lab-sum { padding: 2px 0; }
-  .ls-page .lab-knob-note.lab-note-warn { line-height: 14px; margin-top: 0; }
+  .ls-page .lab-knob-note.lab-note-warn { line-height: 13px; margin-top: 0; }
   /* The deposit's "Computed, not approved" under its evidence tag, so
      neither is squeezed to a word a line beside the other. */
   .ls-page .lab-tags > .lab-tag-gap { grid-area: 2 / 1; justify-self: start; margin: 4px 0 0; }
@@ -6093,12 +6116,14 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   :root[data-served] .ls-card.lab-tile-next .ls-card-act, :root[data-served] .ls-card.lab-tile-next .ls-card-cta { font-size: var(--ls-support); line-height: 18px; }
   :root[data-served] .ls-page .lab-knob .lab-tag { line-height: 15px; padding: 2px 8px; }
   :root[data-served] .ls-page .lab-chain-card { padding: 0 var(--sm) var(--xs); }
-  :root[data-served] .ls-page .lab-chain-hd { line-height: 18px; padding-top: 2px; }
+  :root[data-served] .ls-page .lab-chain-hd { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   :root[data-served] .ls-page .lab-val { font-size: var(--ls-support); line-height: 18px; }
   :root[data-served] .ls-page .lab-row-fig { min-width: 5.5rem; }
-  :root[data-served] .ls-page .lab-grid { gap: var(--xs); }
+  :root[data-served] .ls-page .lab-grid { gap: 2px; }
+  :root[data-served] .ls-page .lab-inputs { gap: 0; }
+  :root[data-served] .ls-page .lab-knob { padding-bottom: 0; }
   :root[data-served] .ls-page .lab-sum { padding: 2px 0; }
-  :root[data-served] .ls-page .lab-knob-note.lab-note-warn { line-height: 14px; margin-top: 0; }
+  :root[data-served] .ls-page .lab-knob-note.lab-note-warn { line-height: 13px; margin-top: 0; }
   :root[data-served] .ls-page .lab-tags > .lab-tag-gap { grid-area: 2 / 1; justify-self: start; margin: 4px 0 0; }
   :root[data-served] .ls-page .lab-knob .lab-about-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   :root[data-served] .ls-page .lab-knob .lab-about-btn { min-width: 44px; justify-content: center; margin-right: -6px; }
