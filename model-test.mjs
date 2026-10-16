@@ -8695,6 +8695,59 @@ try {
     if (p.length) fail('qt-day3: the Quick and full models count the same review, defaults and blockers', p);
     else ok(`qt-day3: with the price and the rent replaced, Quick, Full and Quick again each read "${r.quick.title}", "${r.quick.cta}", ${r.quick.rows} rows, the defaults "${r.quick.defaults.slice(0, 40)}…" and "${r.quick.gate.slice(0, 45)}…", the deal unmoved`);
   }
+  /* EDITED FIGURES AND THE RESERVE ACROSS THE TWO VIEWS (the 17 Oct Day-4
+     report, Quantum task: "Change purchase price, rent and renovation
+     allowance in Quick model. Open Full model and return to Quick … Use
+     the same actual reserve setting and accurate label."). A test deal,
+     labelled so: the three figures typed in Quick hold in Full and back;
+     a 6-month reserve set in Full is the reserve Quick shows and names;
+     the cash required and the monthly position read the same in both,
+     and are dealModel's own figures on the deal as it stands. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify(State.deal);
+      const t = (n) => (n ? n.textContent.replace(/\\s+/g, ' ').trim() : '');
+      State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, name: 'Model-test deal — not a real property' };
+      saveDeal();
+      const to = async (id) => { document.getElementById(id)?.click(); await w(600); };
+      const set = async (k, v) => { const i = document.getElementById('d-' + k); if (!i) return false; i.focus(); i.value = String(v); i.dispatchEvent(new Event('change', { bubbles: true })); await w(300); return true; };
+      const KEYS = ['price', 'rent', 'renovation'];
+      const read = () => {
+        const quick = !!document.getElementById('pc-quick');
+        const card = (k) => quick ? document.querySelector('#pc-q-answer [data-quick="' + k + '"]') : document.querySelector('#pc-answer [data-answer="' + k + '"]');
+        const m = dealModel(State.deal);
+        return { quick, boxes: Object.fromEntries(KEYS.map(k => [k, document.getElementById('d-' + k)?.value ?? null])),
+          safe: t(card('safe')), monthly: t(card('monthly')), months: m.reserveMonths,
+          model: { safe: m.safeCashRequired, monthly: m.cashflowMonthly } };
+      };
+      navigate('/property/calculator'); await w(500); await to('pc-view-quick');
+      const typed = [];
+      for (const [k, v] of [['price', 480000], ['rent', 2600], ['renovation', 30000]]) typed.push([k, await set(k, v)]);
+      const q1 = read();
+      await to('pc-view-full');
+      const f1 = read();
+      const reserveSet = await set('reserveMonths', 6);
+      const f2 = read();
+      await to('pc-view-quick');
+      const q2 = read();
+      const deal = { price: State.deal.price, rent: State.deal.rent, renovation: State.deal.renovation, reserveMonths: State.deal.reserveMonths };
+      State.deal = JSON.parse(keep); saveDeal(); navigate('/property/calculator?view=full'); await w(300);
+      return JSON.stringify({ typed, reserveSet, q1, f1, f2, q2, deal }); })()`));
+    const p = [];
+    const want = { price: 480000, rent: 2600, renovation: 30000 };
+    if (r.typed.some(([, ok]) => !ok) || !r.reserveSet) p.push(`a box was not found: ${JSON.stringify(r.typed)}, reserve ${r.reserveSet}`);
+    for (const [v, c] of [['Quick', r.q1], ['Full', r.f1], ['Full, reserve set', r.f2], ['back in Quick', r.q2]])
+      for (const [k, x] of Object.entries(want)) if (Number(String(c.boxes[k]).replace(/[^0-9.-]/g, '')) !== x) p.push(`${v}: the ${k} box reads ${c.boxes[k]}, not ${x}`);
+    if (r.q1.safe !== r.f1.safe || r.q1.monthly !== r.f1.monthly) p.push(`Quick and Full disagree before the reserve: ${JSON.stringify([r.q1.safe, r.f1.safe, r.q1.monthly, r.f1.monthly])}`);
+    if (r.q2.safe !== r.f2.safe || r.q2.monthly !== r.f2.monthly) p.push(`Quick and Full disagree after the reserve: ${JSON.stringify([r.q2.safe, r.f2.safe, r.q2.monthly, r.f2.monthly])}`);
+    if (r.f1.months !== 3 || r.f2.months !== 6 || r.q2.months !== 6 || r.deal.reserveMonths !== 6) p.push(`the reserve: ${r.f1.months} then ${r.f2.months}, back in Quick ${r.q2.months}, the deal ${r.deal.reserveMonths}`);
+    if (!/3-month reserve/.test(r.q1.safe) || !/6-month reserve/.test(r.q2.safe) || !/6-month reserve/.test(r.f2.safe)) p.push(`the reserve named: Quick "${r.q1.safe}", Full "${r.f2.safe}", back "${r.q2.safe}"`);
+    if (!(r.q2.model.safe > r.q1.model.safe)) p.push(`a longer reserve did not raise the cash required: ${r.q1.model.safe} → ${r.q2.model.safe}`);
+    if (JSON.stringify({ price: r.deal.price, rent: r.deal.rent, renovation: r.deal.renovation }) !== JSON.stringify(want)) p.push(`the deal moved: ${JSON.stringify(r.deal)}`);
+    if (p.length) fail('qt-day4: edited figures and the reserve hold across the Quick and full models', p);
+    else ok(`qt-day4: a test deal — price 480,000, rent 2,600 and renovation 30,000 typed in Quick — reads the same in Full and back; the reserve set to 6 months in Full is Quick's too, named "${(r.q2.safe.match(/\d+-month reserve/) || [''])[0]}", and the cash required and the monthly position read alike in both views before and after`);
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
