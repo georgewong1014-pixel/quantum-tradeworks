@@ -26637,6 +26637,9 @@ VIEWS.portfolio = () => {
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
     card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
+    /* Kept in each card: a holding left out is named beside the shares it is
+       missing from (WS-06, equity-test) — not said once for both. */
+    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
@@ -26654,9 +26657,6 @@ VIEWS.portfolio = () => {
     ex.append(card);
   });
   wrap.append(ex);
-  /* What was left out, said once under the two cards it applies to: it was
-     the same sentence in each (16 Oct 2026). */
-  if (leftOut) wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, leftOut));
 
   /* ---------- income ---------- */
   /* Four different things, kept apart. Money that has arrived, money declared
@@ -60324,7 +60324,7 @@ VIEWS.scannerBacktest = () => {
   runBtn.disabled = !pick.setup || !universe.length;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'No price history is loaded, so there is nothing to simulate on. The simulation reads only data/price-history.json on your own machine.'));
+    'No price history is loaded, so there is nothing to simulate on. The simulation reads only your own price history.'));
   else if (pick.setup && !universe.length) form.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'No instrument in this setup’s universe holds a series in your history.'));
   wrap.append(form);
 

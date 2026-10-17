@@ -6013,6 +6013,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   .lab-tile .ls-card-label, .lab-tile .ls-badge { line-height: 15px; }
   .lab-tile .ls-card-value { margin-top: 1px; line-height: 1.04; }
   .lab-tile .ls-card-sub { line-height: 15px; margin-top: 0; }
+  .pc-driver.lab-driver { line-height: 14px; margin-top: -2px; }
   .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
   .ls-card.lab-tile-next .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
@@ -6027,6 +6028,7 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
   :root[data-served] .lab-tile .ls-card-label, :root[data-served] .lab-tile .ls-badge { line-height: 15px; }
   :root[data-served] .lab-tile .ls-card-value { margin-top: 1px; line-height: 1.04; }
   :root[data-served] .lab-tile .ls-card-sub { line-height: 15px; margin-top: 0; }
+  :root[data-served] .pc-driver.lab-driver { line-height: 14px; margin-top: -2px; }
   :root[data-served] .lab-status.lab-id-name { font-size: var(--ls-body); line-height: 20px; }
   :root[data-served] .lab-tile-val.lab-next-what { font-size: var(--ls-support); line-height: 18px; margin-top: 3px; }
 }
