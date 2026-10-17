@@ -785,7 +785,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- inputs: identity ---------- */
   const idc = el('div', { class: 'card' });
-  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted on this page; the phase-2 extraction script runs off-page, writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'));
+  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted on this page.'));
   /* `lines` makes it a textarea. A single-line input scrolls its own content,
      which is fine for a ticker and wrong for a sentence: at 390px the
      unidentified-indicators note showed 55% of itself even at full width, and
@@ -1058,7 +1058,7 @@ VIEWS.tradingIndex = () => {
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page (qtti/extract.mjs); it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
+    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page; it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
     el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs the point-in-time backtesting of §20, which this build cannot run without licensed history.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),

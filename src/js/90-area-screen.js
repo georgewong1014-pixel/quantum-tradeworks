@@ -611,7 +611,7 @@ function evidenceFlowCard() {
   const S = efState(), dr = S.draft;
   const card = el('section', { class: 'card ef', id: 'evidence-flow', 'aria-labelledby': 'ef-h' });
   card.append(el('h2', { class: 'h-card', id: 'ef-h' }, 'Record a price or a rent, step by step'));
-  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record, kept in this browser: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
+  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
   const put = (k, v, redraw = false) => { dr[k] = v; if (redraw) renderKeepFocus(); };
   const step = (n, title, body) => el('fieldset', { class: 'ef-step', 'data-ef-step': String(n) }, [
     el('legend', { class: 'ef-legend' }, [el('span', { class: 'ef-n', 'aria-hidden': 'true' }, String(n)), title]), ...body]);
@@ -936,7 +936,7 @@ VIEWS.comparables = () => {
   ].forEach(x => rl.append(el('li', {}, x)));
   rules.append(rl);
   rules.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Held in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right.'));
+    'What you record carries no redistribution right.'));
   wrap.append(rules);
   return wrap;
 };

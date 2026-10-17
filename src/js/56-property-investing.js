@@ -86,7 +86,9 @@ function piCashStack() {
   if (uncertain) fig.append(el('p', { class: 'pi-stack-note' }, uncertain));
   fig.append(el('figcaption', { class: 'pi-stack-cap', id: 'pi-stack-cap' }, [
     el('p', { class: 'pi-src' }, [kindBadge('illustrative', { fine: 'The sample deal', link: false }), el('span', {}, 'Sample deal — not a real listing')]),
-    el('p', { class: 'pi-src-line' }, [`Fees from the fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. `,
+    el('p', { class: 'pi-src-line' }, [/* The rulebook's version and the day it was checked are on /data-sources,
+       where this links (16 Oct 2026). */
+      'Fees from the fee rulebook. ',
       el('a', { class: 'pi-link', href: href('/data-sources#fee-rulebook') }, 'Each line’s source')]),
   ]));
   return fig;
@@ -137,7 +139,7 @@ VIEWS.propertyInvesting = () => {
   /* -- the cost stack ------------------------------------------------------ */
   const cash = el('section', { class: 'pi-section pi-cash', id: 'pi-cash', 'aria-labelledby': 'pi-cash-h' });
   cash.append(el('h2', { class: 'pi-h2', id: 'pi-cash-h' }, 'Where the cash required goes'));
-  cash.append(el('p', { class: 'pi-body' }, `The sample deal’s cash required, by what each part rests on, from the calculator’s model and the fee rulebook ${FEE_TABLE.version}.`));
+  cash.append(el('p', { class: 'pi-body' }, `The sample deal’s cash required, by what each part rests on, from the calculator’s model and the fee rulebook.`));
   cash.append(piCashStack());
   wrap.append(cash);
 

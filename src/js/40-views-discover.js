@@ -1007,8 +1007,9 @@ function myDashFoot() {
     'Everything on this page is read from this browser and the scanner’s own record — there is no account, and nothing syncs. The export on ',
     myDashLink('/my/data', { class: 'dash-inline' }, 'Your data & settings'), ' is the copy that travels.',
   ]);
-  /* The research queue this page used to be, while its address resolves. */
-  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is now the ',
+  /* Where the research queue this page used to be now is, while its address
+     resolves — as a way there, not as a note of what changed (16 Oct 2026). */
+  if (myDashRoutes('/research/queue')) p.append(' Market context and what changed across companies: the ',
     myDashLink('/research/queue', { class: 'dash-inline' }, 'Research queue'), ' tab of Equities Research.');
   return p;
 }

@@ -1432,8 +1432,13 @@ function companySummary(r) {
   };
 
   /* 1. What it does — from the company's own description, kept short. */
-  const does = String(c.desc || '').split(/(?<=\.)\s+/).slice(0, 2).join(' ')
-    || `${c.name} is listed on ${listingOf(c)}. No business description has been recorded for it.`;
+  /* A filed company's description is where its statements came from, which the
+     page's head already says word for word: it is not said again here as what
+     the company does (16 Oct 2026, one note beside what it qualifies). */
+  const filedNote = c.real && /^Audited annual statements retrieved from SEC EDGAR/.test(c.desc || '');
+  const does = filedNote ? 'No business description is recorded for this company.'
+    : String(c.desc || '').split(/(?<=\.)\s+/).slice(0, 2).join(' ')
+      || `${c.name} is listed on ${listingOf(c)}. No business description has been recorded for it.`;
   grid.append(block('What the company does', does,
     `${c.sector}${c.industry && c.industry !== c.sector ? ' · ' + c.industry : ''}`));
 

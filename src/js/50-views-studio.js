@@ -2752,7 +2752,6 @@ VIEWS.portfolio = () => {
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
     card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
-    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
@@ -2770,6 +2769,9 @@ VIEWS.portfolio = () => {
     ex.append(card);
   });
   wrap.append(ex);
+  /* What was left out, said once under the two cards it applies to: it was
+     the same sentence in each (16 Oct 2026). */
+  if (leftOut) wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, leftOut));
 
   /* ---------- income ---------- */
   /* Four different things, kept apart. Money that has arrived, money declared
@@ -2803,7 +2805,7 @@ VIEWS.portfolio = () => {
   ig2.append(el('div', { class: 'panel' }, statTile('Projected, annual', fmtAmount(grossIncome, State.baseCcy),
     { sub: 'Latest declared rate repeated. Not a forecast.' })));
   ig2.append(el('div', { class: 'panel' }, statTile('Projected after withholding', fmtAmount(netIncome, State.baseCcy),
-    { sub: 'Illustrative only — the rate that applies depends on your circumstances.' })));
+    { sub: 'At the illustrative rates you set' })));
   inc.append(ig2);
 
   const selH = el('select', { class: 'select select-sm', id: 'divHold', 'aria-label': 'Holding' });
