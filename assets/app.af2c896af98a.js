@@ -35284,7 +35284,10 @@ const feeKindOf = (r) => (r?.quotedLine ? 'quotation' : r?.line?.category || nul
 function feeBadge(r, amount = r?.amount) {
   const kind = feeKindBadge(r, amount);
   const line = r.line || {};
-  const fine = `${FEE_PROVENANCE[r.provenance]?.word || r.provenance} — ${line.jurisdiction || 'no jurisdiction'}${line.source?.title ? `; ${line.source.title}` : ''}`;
+  /* A line not charged on this deal (no loan, no valuation) says why, not
+     that its rate is verified (the 17 Oct review of the check-pack fixes). */
+  const fine = r.notCharged ? r.why
+    : `${FEE_PROVENANCE[r.provenance]?.word || r.provenance} — ${line.jurisdiction || 'no jurisdiction'}${line.source?.title ? `; ${line.source.title}` : ''}`;
   return kindBadge(kind, { fine });
 }
 /* "Verified · Sarawak — assumes one advocate acts for you and the bank…",
