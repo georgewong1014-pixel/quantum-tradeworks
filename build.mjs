@@ -1892,7 +1892,7 @@ export const HOME_BUDGET = { hero: 15, card: 12, figure: 20, main: 110, visuals:
    (served-check's disclosure-guard holds them word for word on every page, and
    the whole paragraph of 4 Oct 2026 at /terms#full-disclosure; this, on /, in
    CI's first job). */
-export const FOOTER_LEGAL_SHA = 'dce2cbe7c255be42';
+export const FOOTER_LEGAL_SHA = '08b90fb373cce517';
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 /* An HTML page as a tree: tags, their attributes, and their text, enough to
    say what is in sight and what a part of the page holds. */
