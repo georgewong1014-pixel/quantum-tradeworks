@@ -166,8 +166,10 @@ export function signature(doc) {
    health/journeys.json (journeysServed, below), and the workflow commits
    them with the record, rebuilt — so they change with every record, and no
    other page does: the line is never in a tab row, which every page of a
-   product carries. */
-export const ISLAND_PAGES = ['pages/status.html', 'pages/property.html', 'pages/research.html', 'pages/app/scanner.html'];
+   product carries. Since 18 Oct 2026 (the owner, with the public copy
+   cleanup) the product pages carry no journey line: verification detail
+   lives on /status alone, so /status is the one island page. */
+export const ISLAND_PAGES = ['pages/status.html'];
 export const RECORD_FILE = 'health/journeys.json';
 /* The page a commit serves at /: the file its vercel.json rewrites / to
    (pages/home.app.html since plan item 1.2, build.mjs HOME), or index.html
