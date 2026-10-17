@@ -140,6 +140,38 @@ function propertyBreakPoint(d, key, { measure = 'cashflow', lo, hi, iterations =
   return { value: (l + h) / 2 };
 }
 
+/* ------------------------------------------------- the one line in a headline ---
+   WHICH ASSUMPTION DRIVES THE ANSWER MOST, IN A LINE (the owner's "customer
+   outcome" note of 17 Oct 2026, built 17 Oct). A result is read in this
+   order: the cash required and the month; the assumption they depend on
+   most; what evidence is missing; the next step. The second was the one a
+   headline lacked. It is the first row of the model's own ranking above
+   (propertySensitivity) — read, never typed, and no new arithmetic: nothing
+   is shown for a deal whose rate of return cannot be computed, because
+   there is then nothing to rank. The ranking is by the rate of return (see
+   the panel below), so the long form names its measure; the Scenario Lab's
+   header has no room for the long form and says it in the title. Kept per
+   deal and day, as a column's run is (pmCompareRun): it is asked as the
+   page is redrawn. */
+const PD_RUNS = new Map();
+function propertyTopDriver(d) {
+  if (!d) return null;
+  const key = pmRunKey(d);
+  if (PD_RUNS.has(key)) return PD_RUNS.get(key);
+  const s = propertySensitivity(d);
+  const top = s.ok && s.drivers.length ? { label: s.drivers[0].label } : null;
+  PD_RUNS.set(key, top);
+  while (PD_RUNS.size > 24) PD_RUNS.delete(PD_RUNS.keys().next().value);
+  return top;
+}
+const PD_TITLE = 'Each assumption moved one realistic step, ranked by how far it moves the rate of return: the model’s own sensitivity. The full list is “What actually decides this”.';
+function propertyDriverLine(d, { long = false, cls = '' } = {}) {
+  const top = propertyTopDriver(d);
+  if (!top) return null;
+  return el('p', { class: `metaline pc-driver ${cls}`.trim(), title: PD_TITLE },
+    `${long ? 'Biggest swing in the rate of return' : 'Biggest swing'}: ${top.label.toLowerCase()}`);
+}
+
 /* ------------------------------------------------------------------ panel --- */
 function propertySensitivityPanel(d, m) {
   const s = propertySensitivity(d);
