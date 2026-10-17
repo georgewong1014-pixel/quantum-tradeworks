@@ -216,9 +216,9 @@ const METRIC_HELP = {
     context: 'Lower leaves more room for empty months. Above 100% the property cannot cover its costs at this rent however full it is, which is one of the grade’s hard gates.',
     technical: '(Fixed operating costs + annual debt service) ÷ (gross annual rent × (1 − variable cost rate)) × 100. Above 100% the property cannot cover its costs at this rent however full it is.' },
   propValueLessLoan: { label: 'Value less loan, before selling costs',
-    simple: 'What the property would be worth at the end of the hold, less what would still be owed on the loan then. Nothing for the costs of selling is taken off yet.',
+    simple: 'What the property would be worth at the end of the hold, less what would still be owed on the loan when the sale completes. Nothing for the costs of selling is taken off yet.',
     context: 'The value rests on one growth rate — an assumption, not a forecast: this product holds no price history to test it against. It is not the cash a sale returns; the agent, the lawyers, the gains tax and the months carried while selling all come off it first.',
-    technical: 'Price × (1 + growth rate)^years + the share of the renovation a buyer pays for at the sale − the loan balance after years × 12 monthly payments. Unknown where the loan’s schedule cannot be computed.' },
+    technical: 'Price × (1 + growth rate)^years + the share of the renovation a buyer pays for at the sale − the loan balance when the sale completes, after years × 12 monthly payments and those paid while it sells. Unknown where the loan’s schedule cannot be computed.' },
   propNetExit: { label: 'Net sale proceeds',
     simple: 'The cash a sale at the end of the hold would return after the loan is repaid and every cost of selling is paid.',
     context: 'Smaller than value less loan by the agent’s commission, the legal costs, the real property gains tax and the instalments and running costs carried while the property sells.',
@@ -34860,7 +34860,10 @@ const FEE_TABLE = {
                 url: 'https://lpeph.gov.my/fees',
                 citation: 'Act 242; P.U.(A) 64/1986, r. 48(1), Seventh Schedule item 3' },
       checkedOn: '2026-10-09',
-      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, the page still carries injected third-party text (re-read 9 October 2026), and the only full text of the Rules found was a third party’s copy of the 1986 original. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it.',
+      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, the page still carries injected third-party text (re-read 9 October 2026), and the only full text of the Rules found was a third party’s copy of the 1986 original. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it. Not charged without a loan: the valuation is the lender’s, for the loan.',
+      /* What the line reads on a purchase with no loan (dealModel): nought,
+         and why. A behaviour of the line, not a change of its rule. */
+      withoutLoan: 'Not charged without a loan: the valuation is the lender’s, for the loan.',
     },
     chargeStampDuty: {
       label: 'Stamp duty on the charge',
@@ -34949,7 +34952,8 @@ const FEE_TABLE = {
                 url: 'https://pub-359af8e1f79c472292a7e44ec60f3027.r2.dev/Industry%20Guides/EN/Guide%20on%20Professional%20Services%2020210921.pdf',
                 citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
       checkedOn: '2026-10-08',
-      note: 'The rate is verified; the fee it is charged on is an estimate, so the amount is too.',
+      note: 'The rate is verified; the fee it is charged on is an estimate, so the amount is too. Not charged without a loan, as the valuation fee is not.',
+      withoutLoan: 'Not charged without a loan: there is no valuation fee to charge it on.',
     },
     mortgageProtection: {
       label: 'Mortgage protection (MRTA/MLTA)',
@@ -35290,6 +35294,8 @@ function feeProvenanceLine(r) {
   const line = r.line || {};
   /* Gated for the class (1.2.0): what it is, and why. */
   if (r.gated) return `${r.why}${r.gateWhy ? `: ${feeLower(r.gateWhy)}` : ''}`;
+  /* Not charged on this deal (no loan, no lender's valuation): why. */
+  if (r.notCharged) return r.why;
   const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
   if (r.provenance === 'quote') return line.quoteKind === 'quoted' ? `${word} — the lender’s or insurer’s quotation you entered, not the rulebook’s` : `${word} — yours, not the rulebook’s`;
   const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');
@@ -39088,7 +39094,8 @@ function cpAcquisitionSection(d, m, cash) {
   /* Each fee line by its provenance in the fee rulebook (70-property.js). */
   const mark = (r) => {
     const pv = r?.provenance;
-    return pv === 'estimated' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off an official scale.' }, 'estimated')
+    return r?.notCharged ? el('span', { class: 'cp-mark cp-mark-quiet', title: r.why }, 'not charged')
+      : pv === 'estimated' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off an official scale.' }, 'estimated')
       : pv === 'unknown' ? el('span', { class: 'cp-mark', title: 'The rule for this jurisdiction could not be verified from an official source; the amount rests on it — see the fee rulebook.' }, 'unknown rule')
       : pv === 'verified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: `Computed from the official scale the fee rulebook ${FEE_TABLE.version} cites, checked ${feeDay(FEE_TABLE.checkedOn)}.` }, 'verified scale')
       : pv === 'quote' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A figure from a quotation the preparer was given.' }, 'quoted')
@@ -39386,7 +39393,9 @@ function cpSplitItems(d, m, cash, paid = false) {
     const r = it[2], amount = g.lines[j];
     if (!r?.provenance) return;
     if (!isNum(it[1])) { put('missing', cpLineLabel(it[0]), r.gated ? feeGateWords(r.gated) : 'not priced', 'unavailable', r.gated ? (r.gateWhy || null) : (r.why || 'No amount could be worked out.'), 'fee'); return; }
-    if (r.provenance === 'verified') put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived',
+    /* Not charged on this deal (no loan, no lender's valuation): why, not a citation. */
+    if (r.notCharged) put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived', r.why, 'fee');
+    else if (r.provenance === 'verified') put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived',
       `${r.line?.source?.citation || r.line?.source?.title || 'the fee rulebook'} — fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}`, 'fee');
     else if (r.provenance === 'quote') put('facts', cpLineLabel(it[0]), cpMoney(amount), feeKindBadge(r, it[1]), 'A quotation the preparer entered; no rule checks it.', 'fee');
     else put('missing', cpLineLabel(it[0]), cpMoney(amount), 'placeholder',
@@ -41028,7 +41037,16 @@ function dealModel(d) {
      deal, and then every moment is the year it always was. */
   const ndTime = newDevRoute ? ndTimingOf(d) : null;
   const fromSigning = (y) => (ndTime ? ndTime.lead + y : y);
-  const valuationR = feeGate(resolveFee('valuationFee', { price: d.price }), feeClass);
+  /* NO LOAN, NO LENDER'S VALUATION (the calculation check pack, 17 Oct
+     2026). The valuation fee is the lender's, for the loan: a purchase with
+     no loan — a deposit of 100%, or a loan of nought — is not charged it or
+     the service tax on it. Each line stays in the ledger at nought, says why
+     (`notCharged`, the rulebook's own words) and is gated for no class:
+     there is nothing to charge whatever the class. A Derived nought, as the
+     loan's own fees are without a loan, not an estimate. */
+  const notCharged = (r, why) => ({ ...r, amount: 0, provenance: 'verified', status: 'verified', notCharged: true, why });
+  const valuationR = loan > 0 ? feeGate(resolveFee('valuationFee', { price: d.price }), feeClass)
+    : notCharged(resolveFee('valuationFee', { price: d.price }), FEE_TABLE.lines.valuationFee.withoutLoan);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
@@ -41070,7 +41088,8 @@ function dealModel(d) {
         feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
-        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR]),
+        loan > 0 ? feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR])
+          : asLine(notCharged(resolveFee('valuationServiceTax', { valuationFee: 0 }), FEE_TABLE.lines.valuationServiceTax.withoutLoan)),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -41238,6 +41257,9 @@ function dealModel(d) {
     return maintenanceY + sinkingY + statutoryY + insuranceY + mv + (topUp + placementAnnual) + rep;
   };
   const opex = opexAt(effectiveRentN);
+  /* A year's running costs: year 1's, grown 2% a year after it. One
+     function for the year-by-year path and the months spent selling. */
+  const opexInYear = (y) => opex * Math.pow(1.02, y - 1);
   const noiN = effectiveRentN - opex;
   const noi = letsToTenant ? noiN : null;
   /* A loan whose instalment cannot be computed (a tenure of zero, or a
@@ -41256,8 +41278,9 @@ function dealModel(d) {
   const tenureMonths = tenureValid ? num0(d.tenureYears) * 12 : 0;
   const debtInYear = (y) => debtUnknown ? null
     : num0(instalment) * clamp(tenureMonths - (y - 1) * 12, 0, 12);
+  const sellingInstalments = (yrs, months) => clamp(tenureMonths - yrs * 12, 0, months);
   const instalmentWhileSelling = (yrs, months) => debtUnknown ? null
-    : num0(instalment) * clamp(tenureMonths - yrs * 12, 0, months);
+    : num0(instalment) * sellingInstalments(yrs, months);
   /* The balance owed after a number of months: unknown with the debt service,
      nothing without a loan. */
   const balanceAt = (months) => debtUnknown ? null
@@ -41345,12 +41368,24 @@ function dealModel(d) {
      years after VP is grown for the years to VP and y more (ndTimingOf). */
   const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, fromSigning(y)) + renoRecovered;
   const exitValue = exitValueAt(d.holdYears);
-  const outstanding = balanceAt(d.holdYears * 12);
+  const sellMonths = num0(d.sellMonths);
+  /* THE LOAN IS SETTLED WHEN THE SALE COMPLETES, at its balance after the
+     instalments actually paid — the hold's and those paid while it sells
+     (the calculation check pack, 17 Oct 2026). It was settled at the
+     balance before the selling months while their instalments were also
+     deducted (carryWhileSelling), so the principal inside them was paid
+     twice: RM4,912 on the sample. Each instalment is now deducted once —
+     its interest and its principal — and the balance repaid is what is
+     left after it. */
+  const settledAt = (yrs) => balanceAt(yrs * 12 + sellingInstalments(yrs, sellMonths));
+  const outstanding = settledAt(d.holdYears);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
-  const sellMonths = num0(d.sellMonths);
+  /* THE MONTHS SPENT SELLING COST WHAT THE SALE YEAR COSTS (the same
+     pack): that year's running costs, grown as every year of the hold is
+     (opexInYear), not year 1's. */
   const carryWhileSelling = debtUnknown ? null
-    : instalmentWhileSelling(d.holdYears, sellMonths) + sellMonths * (opex / 12);
+    : instalmentWhileSelling(d.holdYears, sellMonths) + sellMonths * (opexInYear(d.holdYears) / 12);
   /* Renovation that is still reflected in the property at disposal is an
      allowable enhancement cost. Leaving it out overstated the gain by whatever
      was spent improving the asset. */
@@ -41382,7 +41417,7 @@ function dealModel(d) {
   const yearFlow = (y) => {
     const rentY = grossAnnualRentN * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
     const effY = rentY * (1 - num0(d.vacancyPct) / 100);
-    const opexY = opex * Math.pow(1.02, y - 1);
+    const opexY = opexInYear(y);
 
     /* WHAT THE REVENUE OFFICE ALLOWS IS NOT WHAT LEFT THE BANK ACCOUNT.
        Two differences, and both run the same way — they make the taxable figure
@@ -41525,10 +41560,11 @@ function dealModel(d) {
   /* ---- five and ten year exits ----------------------------------------- */
   const exitAt = (yrs) => {
     const val = exitValueAt(yrs);
-    const bal = balanceAt(yrs * 12);
+    /* Settled, and carried, as the model's own sale is (above). */
+    const bal = settledAt(yrs);
     const agent = val * num0(d.agentPct) / 100;
     const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
-    const carry = debtUnknown ? null : instalmentWhileSelling(yrs, sellMonths) + sellMonths * (opex / 12);
+    const carry = debtUnknown ? null : instalmentWhileSelling(yrs, sellMonths) + sellMonths * (opexInYear(yrs) / 12);
     const rc = rpgtCharge({
       disposalPrice: val, acquisitionPrice: d.price,
       acquisitionCosts: duty + legal, disposalCosts: agent + lg,
@@ -48643,7 +48679,7 @@ const LAB_FIGURES = [
       /* Timed from VP: the price grows from signing, the years to VP and
          the hold (ndTimingOf). */
       return t
-        ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed ${n} year${n === 1 ? '' : 's'} into its repayments, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
+        ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed when the sale completes, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
         : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
     } },
   { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
