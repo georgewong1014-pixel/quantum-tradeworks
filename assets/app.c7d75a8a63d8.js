@@ -15849,7 +15849,7 @@ function drawPage(samePage) {
      over the skeleton. */
   const flow = !(realPending && viewWaits()) ? propertyFlowNode() : null;
   const section = el('section', { class: lsOn() ? 'view ls-view' : 'view', data: samePage || served ? { active: '1', redrawn: '1' } : { active: '1' },
-    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [flow, journeyLineNode(), startHereNode(), node]));
+    'data-drawn-from': drawnFrom }, el('div', { class: 'shell' }, [flow, startHereNode(), node]));
   /* Every link the page drew, through the one gate before it is shown: a
      link to a tool that cannot be used here becomes text (gateToolLink). */
   gateToolLinks(section);
