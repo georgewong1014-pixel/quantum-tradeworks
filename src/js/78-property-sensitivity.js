@@ -169,7 +169,7 @@ function propertyDriverLine(d, { long = false, cls = '' } = {}) {
   const top = propertyTopDriver(d);
   if (!top) return null;
   return el('p', { class: `metaline pc-driver ${cls}`.trim(), title: PD_TITLE },
-    `${long ? 'Biggest swing in the rate of return' : 'Biggest swing'}: ${top.label.toLowerCase()}`);
+    `${long ? 'Biggest swing in the rate of return' : 'Return driver'}: ${top.label.toLowerCase()}`);
 }
 
 /* ------------------------------------------------------------------ panel --- */

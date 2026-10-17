@@ -1212,7 +1212,7 @@ const HOME_PAGE = read(HOME);
    no check reads. */
 {
   const STRIP = '<strong>Beta preview.</strong> Do not use figures here for investment decisions.';
-  const SHORT = 'Quantum Tradeworks is a research and analysis prototype. It does not give investment advice or execute trades. It has no licensed market prices; its data is SEC-filed or illustrative, and every page labels which.';
+  const SHORT = 'Quantum Tradeworks is a research and analysis prototype. It does not give investment advice or execute trades. It has no licensed market prices; its financial figures are SEC-filed or illustrative, and every page labels which.';
   const LINK_TEXT = 'Full terms and data limits', LINK_HREF = '/terms#full-disclosure';
   const LEGAL = 'Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell any security. Financial figures come from two different places and are labelled on every page: statements filed with the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked illustrative, which are synthetic and created for interface demonstration. No market-data licence is in place for either exchange. A filed company therefore carries no price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act before launch.';
   const text = (html) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -4162,7 +4162,7 @@ const HOME_PAGE = read(HOME);
    - the Trading Index's off-page extraction script, said once, with no file
      name; the Learn dictionary's wait on a contact address;
    - the assumption an answer depends on most (the 17 Oct "customer outcome"
-     note): "Biggest swing: <assumption>" under the Lab's four tiles, and
+     note): "Return driver: <assumption>" (the assumption that moves the rate of return most) under the Lab's four tiles, and
      "Biggest swing in the rate of return: <assumption>" under the Quick
      model's answer and the full model's tiles, from the model's own
      sensitivity — its figures are the model-test's, not held here. */
@@ -4196,7 +4196,7 @@ const HOME_PAGE = read(HOME);
   if ((ti.match(/extraction script/g) || []).length !== 1 || /extract\.mjs|qtti\//.test(ti)) p.push('/trading-index: the off-page extraction script is not said once, without a file name');
   if (/contact address/.test(mainOf('/learn/glossary'))) p.push('/learn/glossary still says the SEC dataset waits on a contact address');
   const lab = text('/property'), quick = text('/property/calculator');
-  if (!/<p class="metaline pc-driver lab-driver"[^>]*>Biggest swing: [a-z ]+<\/p>/.test(lab)) p.push('/property serves no "Biggest swing: <assumption>" line under the four tiles');
+  if (!/<p class="metaline pc-driver lab-driver"[^>]*>Return driver: [a-z ]+<\/p>/.test(lab)) p.push('/property serves no "Return driver: <assumption>" line under the four tiles');
   if (!/<p class="metaline pc-driver"[^>]*>Biggest swing in the rate of return: [a-z ]+<\/p>/.test(quick)) p.push('/property/calculator serves no "Biggest swing in the rate of return: <assumption>" line under the answer');
   judge(p, 'the copy cleanup as served (16 Oct 2026): the rulebook\'s version and day only on /data-sources; the partial notice without the register\'s words; the scanner pages without a data file, "never deployed" or a command in sight (the Unavailable reasons in one sentence); the Trading Index\'s extraction note once; the Learn dictionary without the SEC contact wait; the driver line under the Lab\'s tiles and the Quick model\'s answer',
     'a page serves what the cleanup took out, or lacks what it moved');
