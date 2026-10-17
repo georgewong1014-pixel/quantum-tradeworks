@@ -14528,7 +14528,6 @@ function buildNav() {
    count that strip carried. My Workspace's pages wear the same header, named
    for the workspace, its tabs the workspace's tools (workspaceTabs): the
    personal pages' nameless strip (mySubnav) is gone the same way. */
-const LIVE_AND_BETA_LINE = 'Property Intelligence is live for calculations using figures you enter. Scenario Lab is beta.';
 function renderProductTabs() {
   const host = shellEl.tabsHost;
   if (!host) return;
@@ -14544,11 +14543,7 @@ function renderProductTabs() {
   /* On a page of the layout system (lsOn, 37-layout-system.js) the row is
      its chips under 640px: drawn again when that changes. */
   const chips = lsOn();
-  /* WHICH LABEL IS WHICH (QT-D04-01, the 17 Oct 2026 report). The Scenario
-     Lab's page is the one place the product's Live and the Lab's Beta stand
-     together; one line under the row says what each belongs to. */
-  const both = State.view === 'propertyLab' ? LIVE_AND_BETA_LINE : null;
-  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips, both]);
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips]);
   if (!host.hidden && host.dataset.strip === strip) return;
   const items = tabs.map(t => {
     const n = tabCount(t);
@@ -14557,7 +14552,7 @@ function renderProductTabs() {
   const nav = p
     ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
     : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: chips ? 'ws-tabs ls-chips-row' : 'ws-tabs' });
-  host.replaceChildren(el('div', { class: 'shell' }, [nav, both ? el('p', { class: 'ptabs-note', 'data-live-beta': '' }, both) : null]));
+  host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
   host.dataset.strip = strip;
   wireSectionTabs(nav);
@@ -52251,7 +52246,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Move a slider and every figure below follows.' }));
+    lede: 'Calculations on figures you enter are live; the Scenario Lab is beta.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the

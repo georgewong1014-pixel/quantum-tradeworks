@@ -2847,10 +2847,6 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 }
 @media (max-width: 560px) { .ptabs-inview { margin-left: calc(var(--md) * -1); margin-right: calc(var(--md) * -1); padding: 0 var(--md); } }
 .ptabs-list::-webkit-scrollbar { display: none; }
-/* The one line under /property's row saying which label belongs to what
-   (QT-D04-01): quiet, the row's own measure, a line on a wide screen. */
-.ptabs-note { margin: 0; padding: 0 0 10px; font-size: var(--text-sm); line-height: 1.4; color: var(--ink-2); }
-@container (max-width: 940px) { .ptabs-note { padding-top: 2px; } }
 /* 8px of padding inside each tab, taken back by its margin, so the row's
    spacing is what it was and the focus ring — inset, since the row scrolls
    and would clip an outset one — clears the label instead of crossing its
@@ -22025,7 +22021,6 @@ function buildNav() {
    count that strip carried. My Workspace's pages wear the same header, named
    for the workspace, its tabs the workspace's tools (workspaceTabs): the
    personal pages' nameless strip (mySubnav) is gone the same way. */
-const LIVE_AND_BETA_LINE = 'Property Intelligence is live for calculations using figures you enter. Scenario Lab is beta.';
 function renderProductTabs() {
   const host = shellEl.tabsHost;
   if (!host) return;
@@ -22041,11 +22036,7 @@ function renderProductTabs() {
   /* On a page of the layout system (lsOn, 37-layout-system.js) the row is
      its chips under 640px: drawn again when that changes. */
   const chips = lsOn();
-  /* WHICH LABEL IS WHICH (QT-D04-01, the 17 Oct 2026 report). The Scenario
-     Lab's page is the one place the product's Live and the Lab's Beta stand
-     together; one line under the row says what each belongs to. */
-  const both = State.view === 'propertyLab' ? LIVE_AND_BETA_LINE : null;
-  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips, both]);
+  const strip = JSON.stringify([pid || 'workspace', tabs.map(t => [t.label, t.path, toolState(t.tool)?.status, tabCount(t)]), here?.path ?? null, chips]);
   if (!host.hidden && host.dataset.strip === strip) return;
   const items = tabs.map(t => {
     const n = tabCount(t);
@@ -22054,7 +22045,7 @@ function renderProductTabs() {
   const nav = p
     ? sectionTabs({ label: `${p.name} sections`, pid, tabs: items, cls: [pid === 'scanner' ? 'scan-subnav' : '', chips ? 'ls-chips-row' : ''].filter(Boolean).join(' ') })
     : sectionTabs({ label: `${WORKSPACE_HEAD.name} sections`, name: WORKSPACE_HEAD, tabs: items, cls: chips ? 'ws-tabs ls-chips-row' : 'ws-tabs' });
-  host.replaceChildren(el('div', { class: 'shell' }, [nav, both ? el('p', { class: 'ptabs-note', 'data-live-beta': '' }, both) : null]));
+  host.replaceChildren(el('div', { class: 'shell' }, nav));
   host.hidden = false;
   host.dataset.strip = strip;
   wireSectionTabs(nav);
@@ -59748,7 +59739,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Move a slider and every figure below follows.' }));
+    lede: 'Calculations on figures you enter are live; the Scenario Lab is beta.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
