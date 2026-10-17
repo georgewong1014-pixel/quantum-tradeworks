@@ -2297,6 +2297,8 @@ const HOME_PAGE = read(HOME);
     if (said.hero > 15) p.push(`/: the h1 and the lede are ${said.hero} words, more than 15`);
     const acts = all(hero).filter(n => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button');
     if (acts.length !== 1) p.push(`/: the hero has ${acts.length} calls to action, not one`);
+    /* QT-D03-02: that one action is "Choose a tool", to the products, a link with no script. */
+    else if (!/^Choose a tool\b/.test(sight(acts[0])) || attr(acts[0], 'href') !== '#products' || !home.includes('id="products"')) p.push(`/: the hero's action reads "${sight(acts[0])}" to ${attr(acts[0], 'href')}, not "Choose a tool" to #products`);
   }
   /* 3.3 */
   const cards = hm ? all(hm).filter(n => n.tag === 'article' && has(n, 'pub-card')) : [];
