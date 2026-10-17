@@ -1032,7 +1032,9 @@ try {
   {
     const r = await evaluate(`(() => {
       const m = dealModel({ ...${FRESH}, tenureYears: 5, holdYears: 10 });
-      return { after: m.path.slice(5).map(p => [p.y, p.debt, p.interest, p.balance]), y1: m.path[0].debt, carry: m.carryWhileSelling, opexCarry: m.opex / 12 * 6 };
+      /* The months spent selling carry the sale year's running costs, year
+         10's (calc-fixes CF2), and no instalment. */
+      return { after: m.path.slice(5).map(p => [p.y, p.debt, p.interest, p.balance]), y1: m.path[0].debt, carry: m.carryWhileSelling, opexCarry: m.path[9].opex / 12 * 6 };
     })()`);
     const bad = r.after.filter(([, debt, int]) => debt !== 0 || int !== 0);
     if (bad.length || !(r.y1 > 0)) fail('a repaid loan is still charged, or booked as interest, after its tenure', r);
@@ -4595,7 +4597,11 @@ try {
               if (m.netExitProceeds !== null) bad.push('netExitProceeds is ' + m.netExitProceeds + ' with the debt unknown');
             } else {
               if (!isNum(m.valueLessLoanAtExit) || m.valueLessLoanAtExit !== m.exitValue - m.outstanding) bad.push('valueLessLoanAtExit ' + m.valueLessLoanAtExit + ' is not exitValue − outstanding ' + (m.exitValue - m.outstanding));
-              if (m.path[H - 1].valueLessLoan !== m.valueLessLoanAtExit) bad.push('path[H−1].valueLessLoan ' + m.path[H - 1].valueLessLoan + ' is not valueLessLoanAtExit');
+              /* The loan is settled when the sale completes, after the
+                 instalments paid while it sells (calc-fixes CF1): the
+                 exit's value less loan is the last year's value less that
+                 balance, which is the year-end balance or below it. */
+              if (m.path[H - 1].value - m.outstanding !== m.valueLessLoanAtExit || !(m.outstanding <= m.path[H - 1].balance)) bad.push('path[H−1].value − outstanding ' + (m.path[H - 1].value - m.outstanding) + ' is not valueLessLoanAtExit, or the loan settled (' + m.outstanding + ') is above the year-end balance ' + m.path[H - 1].balance);
               m.path.forEach(p => { if (p.valueLessLoan !== p.value - p.balance) bad.push('year ' + p.y + ': valueLessLoan is not value − balance'); });
               if (!close(m.netExitProceeds, m.valueLessLoanAtExit - m.agentFee - m.exitLegal - m.rpgt - m.carryWhileSelling)) bad.push('netExitProceeds ' + m.netExitProceeds + ' is not value less loan less the costs of selling');
             }
@@ -4606,7 +4612,7 @@ try {
         })()`);
         const bad = r.flatMap(x => x.bad.map(b => `${x.label}: ${b}`));
         if (bad.length) fail('scenario-lab L2: the new fields hold their definitions', bad.slice(0, 12));
-        else ok(`scenario-lab L2: value less loan is the value at the sale less the loan then, in every year's row and at the exit, null with the debt unknown; price + growth on the price + renovation recovered is the value at the sale; net sale proceeds is value less loan less agent, legal, gains tax and the carry — default, taxed, 30-year, 50% recovered, tenure 0 (${r.map(x => `${x.label} ${Number.isFinite(x.vll) ? x.vll.toFixed(0) : 'null'}`).join(', ')})`);
+        else ok(`scenario-lab L2: value less loan is the value less the loan then — in every year's row at the year's end, and at the exit when the sale completes (never above the year-end balance) — null with the debt unknown; price + growth on the price + renovation recovered is the value at the sale; net sale proceeds is value less loan less agent, legal, gains tax and the carry — default, taxed, 30-year, 50% recovered, tenure 0 (${r.map(x => `${x.label} ${Number.isFinite(x.vll) ? x.vll.toFixed(0) : 'null'}`).join(', ')})`);
       });
 
       await lStep('L3', async () => {
@@ -5924,9 +5930,24 @@ try {
          cbcd2f27:31048, land 70c75a39:30812, shophouse 1777f229:31915,
          condoAsCommercial 9442ea1c:32084, taxed 36649ea9:31234, cash
          e5ad62ff:29826, lowValuation fb38716f:31287, noTenure 07ff01a8:28765,
-         managed fb62145e:31114. */
-      const BASE = { sample: 'ace436c6:31200', land: '0f43d4a2:30964', shophouse: 'fdc0d1ec:32067', condoAsCommercial: 'ee82214b:32236',
-        taxed: '3d9d1af4:31386', cash: '98e5de34:29978', lowValuation: '631d6040:31439', noTenure: '4e07c073:28917', managed: '88aa4cd7:31266' };
+         managed fb62145e:31114.
+         Recorded again for three defects the calculation check pack found
+         (the owner, 17 Oct 2026: "fix clear defects"; calc-fixes below):
+         (1) the loan is settled at its balance after the instalments paid
+         while the property sells, not before them, so their principal is
+         no longer paid twice; (5) the months spent selling carry the sale
+         year's running costs, not year 1's; (6) a purchase with no loan is
+         not charged the valuation fee or its service tax, and the
+         rulebook's two lines say so (their note and withoutLoan, which the
+         result carries). With the three put back, every deal prints its
+         previous fingerprint exactly — the only change (handoff
+         scripts/probes/r1-calcfix-diff.mjs). Was: sample ace436c6:31200,
+         land 0f43d4a2:30964, shophouse fdc0d1ec:32067, condoAsCommercial
+         ee82214b:32236, taxed 3d9d1af4:31386, cash 98e5de34:29978,
+         lowValuation 631d6040:31439, noTenure 4e07c073:28917, managed
+         88aa4cd7:31266. */
+      const BASE = { sample: 'a27fbebd:31517', land: '85288185:31396', shophouse: '80e1f5ca:32382', condoAsCommercial: 'c2d3db97:32537',
+        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: '93fc8436:31578' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);
@@ -6900,10 +6921,10 @@ try {
       return JSON.stringify({ sample, withCm, calc, lab });
     })()`));
     const p = [];
-    if (r.sample !== 'ace436c6:31200' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint ace436c6:31200)`);
+    if (r.sample !== 'a27fbebd:31517' || r.withCm !== r.sample) p.push(`the sample prints ${r.sample}, with commercial fields ${r.withCm} (P1 R1's fingerprint a27fbebd:31517)`);
     if (r.calc.section || r.calc.inputs || !r.calc.tenancy || r.lab) p.push(`a residential deal: ${JSON.stringify(r)}`);
     if (p.length) fail('p5 C5: residential deals unchanged', p);
-    else ok('p5 C5: the sample prints P1 R1\'s fingerprint ace436c6:31200 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
+    else ok('p5 C5: the sample prints P1 R1\'s fingerprint a27fbebd:31517 with or without commercial fields; a residential deal draws no commercial section on the calculator or the Lab, and keeps its subsale tenancy fields');
   });
   await p5try('p5 C6: the answers travel in the address in their own words', async () => {
     const r = await evaluate(`(() => {
@@ -7413,7 +7434,8 @@ try {
           property"; every other line is the residential amount; the cash
           required is the hand-worked partial total and names what it
           excludes; a quote stands; a cash purchase has no loan fees to gate.
-     G2 — land: the valuation fee and its tax, the searches and the utility
+     G2 — land: the valuation fee and its tax (with a loan; without one
+          they are not charged, calc-fixes CF3), the searches and the utility
           deposits gated; the partial total by hand; the auction's
           effective cost leaves the gated lines out and names them.
      G3 — residential: no line gated, the figures as they were (P1 R1's
@@ -7448,7 +7470,8 @@ try {
       /* By hand (mode-contracts.md, G1): fixture F as a shophouse. Gated: loan legal 3,900, service tax 584 (charged on it),
          searches 1,170, utility deposits 1,500 → 63,302 − 7,154 = 56,148. Still estimates: valuation 850 + 68 = 918.
          Cash purchase: no loan fees (nothing to charge, so nothing gated); service tax 8% × 3,400 = 272 stands;
-         400,000 + 7,000 + 3,400 + 10 + 272 + 850 + 68 = 411,600 (reserve nought: no instalment, no running cost). */
+         no valuation fee or its tax without a loan (calc-fixes CF3; it was 850 + 68, 411,600);
+         400,000 + 7,000 + 3,400 + 10 + 272 = 410,682 (reserve nought: no instalment, no running cost). */
       const p = [];
       const gate = 'Unavailable — not yet checked for commercial property';
       for (const id of ['loanLegal', 'professionalServiceTax', 'disbursements', 'utilityDeposits']) {
@@ -7462,35 +7485,43 @@ try {
       if (r.words !== 'partial: excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property') p.push(`the partial total says "${r.words}"`);
       if (r.inc.mp?.v !== null || r.inc.mp?.gated !== 'commercial' || !near(r.inc.cash, 56148)) p.push(`mortgage protection included at the estimate: ${JSON.stringify(r.inc)} — gated, the total unchanged`);
       if (!near(r.quo.mp?.v, 4200) || r.quo.mp?.gated || !near(r.quo.cash, 56148 + 4200)) p.push(`a premium quoted: ${JSON.stringify(r.quo)} — it stands, 60,348`);
-      if (r.cashBuy.lines.loanLegal?.gated || !near(r.cashBuy.lines.professionalServiceTax?.v, 272) || !near(r.cashBuy.cash, 411600)
-        || r.cashBuy.words !== 'partial: excludes searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property') p.push(`a cash purchase: ${JSON.stringify({ ll: r.cashBuy.lines.loanLegal, st: r.cashBuy.lines.professionalServiceTax, cash: r.cashBuy.cash, words: r.cashBuy.words })} — by hand 272 of tax, 411,600, two lines excluded`);
+      if (r.cashBuy.lines.loanLegal?.gated || !near(r.cashBuy.lines.professionalServiceTax?.v, 272) || !near(r.cashBuy.cash, 410682)
+        || r.cashBuy.lines.valuationFee?.v !== 0 || r.cashBuy.lines.valuationServiceTax?.v !== 0
+        || r.cashBuy.words !== 'partial: excludes searches and the firm’s disbursements and utility and management deposits — not yet checked for commercial property') p.push(`a cash purchase: ${JSON.stringify({ ll: r.cashBuy.lines.loanLegal, st: r.cashBuy.lines.professionalServiceTax, cash: r.cashBuy.cash, words: r.cashBuy.words })} — by hand 272 of tax, no valuation fee or its tax, 410,682, two lines excluded`);
       if (p.length) fail('val G1: a commercial property — the lines not checked for the class, gated', p);
-      else ok('val G1: a commercial property — the loan legal fees, the tax charged on them, the searches and the utility deposits read "Unavailable — not yet checked for commercial property"; the duties, registration, the purchase legal fees and the valuation are the residential amounts; the cash required is RM56,148 by hand, "partial: excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits"; mortgage protection at the estimate is gated, a RM4,200 quote stands; a cash purchase gates no loan fee (RM411,600, two lines out)');
+      else ok('val G1: a commercial property — the loan legal fees, the tax charged on them, the searches and the utility deposits read "Unavailable — not yet checked for commercial property"; the duties, registration, the purchase legal fees and the valuation are the residential amounts; the cash required is RM56,148 by hand, "partial: excludes loan legal fees, service tax on legal fees, searches and the firm’s disbursements and utility and management deposits"; mortgage protection at the estimate is gated, a RM4,200 quote stands; a cash purchase gates no loan fee (RM410,682 with no valuation fee or its tax, two lines out)');
     });
 
     await gtry('val G2: land — the valuation, the searches and the deposits gated', async () => {
       const r = JSON.parse(await evaluate(`(() => { ${G_SEED}
-        const m = dealModel(L());
+        const m = dealModel(L()), lent = dealModel(L({ downPct: 10 }));
         const au = L({ route: 'auction', auctionComp1: 360000, arrearsQuitRent: 500, auctionLegal: 3000, auctionHoldMonths: 6 });
         const a = auctionModel(au), tx = a.adds.find(s => s.id === 'transaction');
-        return JSON.stringify({ lines: lines(m), cash: m.safeCashRequired, words: cashPartial(m)?.words || null,
+        return JSON.stringify({ lines: lines(m), lent: lines(lent), lentWords: cashPartial(lent)?.words || null, cash: m.safeCashRequired, words: cashPartial(m)?.words || null,
           eff: a.effective, td: a.trueDiscount?.pct, tx: tx.amount, unpriced: tx.unpriced, gated: tx.gated }); })()`));
       /* By hand (G2): a RM300,000 parcel, cash. Charged: duty 1,000 + 4,000 = 5,000; purchase legal 250 + 400 + 450 + 1,600 = 2,700;
-         registration 10; service tax 8% × 2,700 = 216; reserve 3 × 100 = 300; deposit 300,000 → 308,226. Gated: searches, valuation 650
-         and its 52 of tax, utility deposits. At auction (bid 300,000): 5,000 + 3,000 (the quote) + 10 + 8% × 3,000 = 240 → 8,250 priced;
-         + 500 arrears + 6 × 100 holding → 309,350; (360,000 − 309,350) ÷ 360,000 = 14.0694%. */
+         registration 10; service tax 8% × 2,700 = 216; reserve 3 × 100 = 300; deposit 300,000 → 308,226. Gated: searches and
+         utility deposits. No valuation fee or its tax without a loan (calc-fixes CF3): each nought, not gated; with a loan the
+         parcel's valuation 650 and its 52 of tax are gated, as before. At auction (bid 300,000): 5,000 + 3,000 (the quote) + 10 +
+         8% × 3,000 = 240 → 8,250 priced; + 500 arrears + 6 × 100 holding → 309,350; (360,000 − 309,350) ÷ 360,000 = 14.0694%. */
       const p = [];
-      for (const id of ['disbursements', 'valuationFee', 'valuationServiceTax', 'utilityDeposits']) {
-        const x = r.lines[id];
+      const gatedLines = [...['disbursements', 'utilityDeposits'].map(id => [id, r.lines[id]]),
+        ...['disbursements', 'valuationFee', 'valuationServiceTax', 'utilityDeposits'].map(id => [`${id} with a loan`, r.lent[id]])];
+      for (const [id, x] of gatedLines) {
         if (!x || x.v !== null || x.gated !== 'land' || x.why !== 'Unavailable — not yet checked for land') p.push(`${id}: ${JSON.stringify(x)}`);
+      }
+      for (const id of ['valuationFee', 'valuationServiceTax']) {
+        const x = r.lines[id];
+        if (!x || x.v !== 0 || x.gated || !/^Not charged without a loan/.test(x.why || '')) p.push(`${id} on a cash parcel: ${JSON.stringify(x)} — not charged: nought, not gated`);
       }
       for (const [id, v] of Object.entries({ transferStampDuty: 5000, purchaseLegal: 2700, registration: 10, professionalServiceTax: 216, loanLegal: 0 }))
         if (!near(r.lines[id]?.v, v) || r.lines[id]?.gated) p.push(`${id} is ${JSON.stringify(r.lines[id])} — by hand ${v}`);
       if (!near(r.cash, 308226)) p.push(`land's partial cash required ${r.cash} — by hand 308,226`);
-      if (r.words !== 'partial: excludes valuation fee, service tax on the valuation fee, searches and the firm’s disbursements and utility and management deposits — not yet checked for land') p.push(`it says "${r.words}"`);
-      if (!near(r.tx, 8250) || !near(r.eff, 309350) || !near(r.td, 14.069444444, 1e-6) || r.gated !== 3) p.push(`land at auction: transaction ${r.tx} (${r.gated} gated of ${r.unpriced} unpriced), effective ${r.eff}, discount ${r.td} — by hand 8,250 (3 gated), 309,350, 14.0694%`);
+      if (r.words !== 'partial: excludes searches and the firm’s disbursements and utility and management deposits — not yet checked for land') p.push(`it says "${r.words}"`);
+      if (r.lentWords !== 'partial: excludes valuation fee, service tax on the valuation fee, searches and the firm’s disbursements and utility and management deposits — not yet checked for land') p.push(`with a loan it says "${r.lentWords}"`);
+      if (!near(r.tx, 8250) || !near(r.eff, 309350) || !near(r.td, 14.069444444, 1e-6) || r.gated !== 1) p.push(`land at auction: transaction ${r.tx} (${r.gated} gated of ${r.unpriced} unpriced), effective ${r.eff}, discount ${r.td} — by hand 8,250 (1 gated: the searches; no valuation without a loan), 309,350, 14.0694%`);
       if (p.length) fail('val G2: land — the valuation, the searches and the deposits gated', p);
-      else ok('val G2: land — the searches, the valuation fee and its tax and the utility deposits read "Unavailable — not yet checked for land"; the duty, the purchase legal fees, registration and the tax on the legal fees stand; the cash required is RM308,226 by hand, partial and naming the four; at auction the transaction costs are RM8,250 with 3 lines not checked for land, the effective cost RM309,350, a 14.07% true discount');
+      else ok('val G2: land — the searches and the utility deposits read "Unavailable — not yet checked for land", and with a loan the valuation fee and its tax too; bought for cash the valuation fee and its tax are not charged (nought, not gated); the duty, the purchase legal fees, registration and the tax on the legal fees stand; the cash required is RM308,226 by hand, partial and naming the two; at auction the transaction costs are RM8,250 with 1 line not checked for land, the effective cost RM309,350, a 14.07% true discount');
     });
 
     await gtry('val G3: residential — nothing gated, the figures as they were', async () => {
@@ -9148,6 +9179,93 @@ try {
     else ok('qt-quick-full: the full model drawn (?view=full) on a first visit — the ten seeded inputs each tagged "Illustrative default — not yours, and not from any market"; the methodology, the pillar table and every blocker above the sections in closed drawers, the worst in sight; "Cash to complete" and "Monthly position" once above the sections; the two questions answered Residential and Subsale, rows of chips, the objective not chosen, "Residential · Subsale" and Change ahead of them, their first choice the first form control; Illustrative, Placeholder and Derived badges; the sensitivity and the renovation recovery in their approved words', r);
   }
   /* ---- end qt-quick-full ---- */
+
+  /* ---- calc-fixes ---- */
+  /* THREE DEFECTS THE CALCULATION CHECK PACK FOUND (the owner, 17 Oct 2026:
+     "fix clear defects; ask on the rest"; the handoff's
+     results/calc-check-pack). Each worked by hand on the sample from its
+     inputs, not from the model's own functions; each fails on 3f179d96.
+     CF1 — the loan is settled when the sale completes, at its balance after
+           the instalments actually paid: the hold's 120 and the 6 paid while
+           it sells. Net proceeds = value − the balance at the settlement
+           month − agent − legal − gains tax − the months carried; the
+           principal inside the 6 instalments (RM4,912.48) is deducted once,
+           in the carry, and not again in the balance. A loan whose tenure
+           ends 3 months into the sale is settled at nought, its 3 last
+           instalments carried. The five- and ten-year exits settle the same.
+     CF2 — the months spent selling carry the sale year's running costs, year
+           10's on a 10-year hold (RM6,088.10 × 1.02^9 = RM7,275.84 a year),
+           as the year-by-year path does; year 5's on the five-year exit.
+     CF3 — a purchase with no loan is not charged the valuation fee or its
+           service tax: each line reads nought and says it is not charged
+           without a loan, the cash required falls by RM1,289.52 and the
+           unverified share by the same; with a loan both stand. */
+  {
+    const r = JSON.parse(await evaluate(`(() => {
+      const F = (x = {}) => ({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, ...x });
+      const m = dealModel(F()), short = dealModel(F({ tenureYears: 10.25 })), cash = dealModel(F({ downPct: 100 }));
+      const line = (mm, id) => mm.costGroups.flatMap(g => g.items).find(it => it[2]?.id === id);
+      const fee = (mm, id) => { const it = line(mm, id); return it ? { v: it[1], notCharged: !!it[2].notCharged, why: it[2].why, prov: feeProvenanceLine(it[2]) } : null; };
+      return JSON.stringify({
+        m: { owed: m.outstanding, net: m.netExitProceeds, value: m.exitValue, agent: m.agentFee, legal: m.exitLegal, rpgt: m.rpgt, carry: m.carryWhileSelling,
+             inst: m.instalment, opex: m.opex, y10: m.path[9].opex, x5: { owed: m.exits[0].outstanding, carry: m.exits[0].carry }, x10: { owed: m.exits[1].outstanding, net: m.exits[1].net, carry: m.exits[1].carry },
+             lastRow: m.holdVsSell.at(-1).net, vlLoan: m.valueLessLoanAtExit, val: fee(m, 'valuationFee'), vst: fee(m, 'valuationServiceTax') },
+        short: { owed: short.outstanding, carry: short.carryWhileSelling, inst: short.instalment, y10: short.path[9].opex },
+        cash: { carry: cash.carryWhileSelling, y10: cash.path[9].opex, total: cash.safeCashRequired, reserve: cash.reserveCash, unconf: cash.unconfirmedCost,
+                unconfIds: (cash.unconfirmedLines || []).map(x => x.id).sort(), val: fee(cash, 'valuationFee'), vst: fee(cash, 'valuationServiceTax'),
+                missing: (cash.missingCostLines || []).length, split: Object.values(cash.ledgerSplit.kinds).reduce((t, x) => t + x.total, 0) },
+        note: FEE_TABLE.lines.valuationFee.note, stNote: FEE_TABLE.lines.valuationServiceTax.note });
+    })()`));
+    const near = (a, b, tol = 0.005) => typeof a === 'number' && Math.abs(a - b) <= tol;
+    const rmw = (v) => 'RM' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    /* By hand: the sample lends 90% of RM572,000 = RM514,800 at 4.3% over
+       35 years, a level instalment; the balance after k instalments is
+       L(1 + i)^k − instalment × ((1 + i)^k − 1) ÷ i. */
+    const L = 572000 * 0.9, i = 4.3 / 100 / 12, n = 35 * 12;
+    const inst = L * i / (1 - Math.pow(1 + i, -n));
+    const bal = (k, nn = n) => { const pmt = L * i / (1 - Math.pow(1 + i, -nn)); return Math.max(0, L * Math.pow(1 + i, k) - pmt * (Math.pow(1 + i, k) - 1) / i); };
+    /* Year 1's running costs: service charge 294 × 12 + assessment 800 +
+       quit rent 300 + insurance 450 + repair reserve 5% of the rent after 9%
+       vacancy (1,850 × 12 × 0.91 = 20,202) = 6,088.10; grown 2% a year. */
+    const opex1 = 294 * 12 + 800 + 300 + 450 + 1850 * 12 * 0.91 * 0.05;
+    const opexY = (y) => opex1 * Math.pow(1.02, y - 1);
+
+    const p1 = [];
+    if (!near(r.m.inst, inst)) p1.push(`the instalment ${r.m.inst}, by hand ${inst}`);
+    if (!near(r.m.owed, bal(126)) || !near(r.m.owed, 430858.90)) p1.push(`the loan is settled at ${r.m.owed} — by hand its balance after 126 instalments, ${bal(126).toFixed(2)} (after 120 it is ${bal(120).toFixed(2)})`);
+    if (!near(bal(120) - r.m.owed, 4912.48)) p1.push(`the principal in the 6 instalments paid while selling is deducted again: the settled balance is ${(bal(120) - r.m.owed).toFixed(2)} below the year-10 balance, by hand 4,912.48`);
+    if (!near(r.m.net, r.m.value - bal(126) - r.m.agent - r.m.legal - r.m.rpgt - r.m.carry)) p1.push(`net proceeds ${r.m.net} — by hand value ${r.m.value} − the balance at month 126 − agent − legal − gains tax − the carry = ${(r.m.value - bal(126) - r.m.agent - r.m.legal - r.m.rpgt - r.m.carry).toFixed(2)}`);
+    if (!near(r.m.vlLoan, r.m.value - bal(126))) p1.push(`value less loan at the sale ${r.m.vlLoan}, by hand ${(r.m.value - bal(126)).toFixed(2)}`);
+    if (!near(r.m.x5.owed, bal(66)) || !near(r.m.x10.owed, bal(126)) || !near(r.m.x10.net, r.m.net) || !near(r.m.lastRow, r.m.net)) p1.push(`the exits table settles at ${r.m.x5.owed} (5 years) and ${r.m.x10.owed} (10), by hand ${bal(66).toFixed(2)} and ${bal(126).toFixed(2)}; its 10-year net ${r.m.x10.net} and the hold-or-sell row ${r.m.lastRow}, the model's ${r.m.net}`);
+    /* A 10.25-year loan ends 3 months into the sale: 3 instalments carried,
+       nothing owed. Its running costs are the sample's (the tenure moves
+       none), so its carry is 3 of its instalments and the sample's carry
+       less the sample's 6 instalments. */
+    const instShort = L * i / (1 - Math.pow(1 + i, -123));
+    if (!near(r.short.owed, 0) || !near(r.short.carry, 3 * instShort + (r.m.carry - 6 * inst))) p1.push(`a loan ending 3 months into the sale: settled at ${r.short.owed} (by hand 0), carried ${r.short.carry} (by hand 3 × ${instShort.toFixed(2)} + the sample's 6 months of running costs)`);
+    if (p1.length) fail('calc-fixes CF1: the loan is settled at its balance after the instalments paid while the property sells', p1);
+    else ok(`calc-fixes CF1: the sample's loan is settled at ${rmw(r.m.owed)}, its balance after 126 instalments by hand (120 of the hold, 6 while it sells), not ${rmw(bal(120))} — the RM4,912.48 of principal in the 6 is deducted once; net proceeds ${rmw(r.m.net)} = value − that balance − agent − legal − gains tax − the carry; the exits table and the hold-or-sell row settle the same; a loan ending 3 months into the sale is settled at nought, its 3 instalments carried`);
+
+    const p2 = [];
+    if (!near(r.m.opex, opex1) || !near(r.m.y10, opexY(10)) || !near(opexY(10), 7275.84)) p2.push(`running costs ${r.m.opex} in year 1 and ${r.m.y10} in year 10 — by hand ${opex1.toFixed(2)} and ${opexY(10).toFixed(2)}`);
+    if (!near(r.m.carry, 6 * inst + 6 * opexY(10) / 12) || !near(r.m.carry, 17875.66)) p2.push(`the 6 months spent selling carry ${r.m.carry} — by hand 6 instalments + 6 ÷ 12 × year 10's ${opexY(10).toFixed(2)} = ${(6 * inst + 6 * opexY(10) / 12).toFixed(2)} (year 1's would be ${(6 * inst + 6 * opex1 / 12).toFixed(2)})`);
+    if (!near(r.m.x5.carry, 6 * inst + 6 * opexY(5) / 12)) p2.push(`the five-year exit carries ${r.m.x5.carry} — by hand year 5's running costs, ${(6 * inst + 6 * opexY(5) / 12).toFixed(2)}`);
+    if (!near(r.cash.carry, 6 * opexY(10) / 12) || !near(r.cash.carry, 3637.92)) p2.push(`a cash purchase carries ${r.cash.carry} — by hand 6 ÷ 12 × ${opexY(10).toFixed(2)} = 3,637.92 and no instalment`);
+    if (p2.length) fail('calc-fixes CF2: the months spent selling carry the sale year\'s running costs', p2);
+    else ok(`calc-fixes CF2: the 6 months spent selling carry year 10's running costs (RM6,088.10 × 1.02^9 = RM7,275.84 a year), RM17,875.66 with the 6 instalments; year 5's on the five-year exit; RM3,637.92 on a cash purchase`);
+
+    const p3 = [];
+    for (const [k, x] of [['valuation fee', r.cash.val], ['service tax on it', r.cash.vst]])
+      if (!x || x.v !== 0 || !x.notCharged || !/^Not charged without a loan/.test(x.why || '') || x.prov !== x.why) p3.push(`with no loan the ${k} reads ${JSON.stringify(x)} — by hand nought, "Not charged without a loan…" on its line`);
+    const byHand = 572000 + 11160 + 4604 + 10 + 1170 + Math.round(4604 * 8) / 100 + 25000 + 1500 + r.cash.reserve;
+    if (!near(r.cash.total, byHand) || !near(r.cash.split, r.cash.total) || r.cash.missing) p3.push(`a cash purchase requires ${r.cash.total} — by hand the price, duty 11,160, legal 4,604, registration 10, searches 1,170, tax 368.32, renovation 25,000, deposits 1,500 and the reserve ${r.cash.reserve} = ${byHand.toFixed(2)}, with no valuation fee (the five kinds sum to ${r.cash.split}; ${r.cash.missing} lines missing)`);
+    if (!near(r.cash.unconf, 2670) || JSON.stringify(r.cash.unconfIds) !== '["disbursements","utilityDeposits"]') p3.push(`a cash purchase's unverified share is ${r.cash.unconf} on ${r.cash.unconfIds.join(', ')} — by hand 1,170 + 1,500 = 2,670`);
+    if (!near(r.m.val?.v, 1194) || !near(r.m.vst?.v, 95.52) || r.m.val?.notCharged || r.m.vst?.notCharged) p3.push(`with a loan the valuation fee is ${JSON.stringify(r.m.val)} and its tax ${JSON.stringify(r.m.vst)} — by hand 1,194 and 95.52, charged`);
+    if (!/Not charged without a loan/.test(r.note || '') || !/Not charged without a loan/.test(r.stNote || '')) p3.push('the rulebook\'s valuation lines do not say they are not charged without a loan');
+    if (p3.length) fail('calc-fixes CF3: no loan, no valuation fee and no service tax on it', p3);
+    else ok(`calc-fixes CF3: with no loan the valuation fee and its service tax read nought and "${r.cash.val.why}"; the cash purchase requires ${rmw(r.cash.total)} by hand, RM2,670 of it on the two estimates left; with a loan both stand at RM1,194 and RM95.52; the rulebook's two lines say so`);
+  }
+  /* ---- end calc-fixes ---- */
 
 } catch (e) {
   fail('harness error', e.message);
