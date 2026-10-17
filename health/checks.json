@@ -1,11 +1,11 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "3f179d963a7c3900e496ed79a6008db719f8f6c3",
-  "recordedAt": "2026-10-17T11:07:26.149Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/39022469405",
-  "ranAt": "2026-10-17T11:07:16Z",
-  "event": "push",
+  "commit": "f53c44c0b39a40d74fb26b30d1fc55c1bd56ae44",
+  "recordedAt": "2026-10-17T17:54:28.323Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/39047039364",
+  "ranAt": "2026-10-17T17:15:43Z",
+  "event": "workflow_dispatch",
   "conclusion": "success",
   "note": null,
   "suites": [
@@ -15,9 +15,9 @@
       "kind": "numbers",
       "job": "runtime",
       "status": "PASS",
-      "passed": 242,
+      "passed": 245,
       "failed": 0,
-      "said": "all 242 model invariants hold",
+      "said": "all 245 model invariants hold",
       "exit": 0
     },
     {
