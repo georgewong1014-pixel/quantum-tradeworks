@@ -4113,7 +4113,10 @@ VIEWS.property = () => {
      Below the four headline figures it would be a footnote on a number the
      reader has already taken (pcReviewCard). */
   const queue = propertyReviewQueue(d);
-  if (queue.length) free.append(pcReviewCard(d, queue, { sub: 'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.' }));
+  /* No line under the count: the grade card's "Illustrative defaults" above
+     says these are the tool's numbers, and each figure below wears its
+     badge (16 Oct 2026; it gave back the driver line's words). */
+  if (queue.length) free.append(pcReviewCard(d, queue, { sub: null }));
   const summaryCard = free;
 
   /* The four headline numbers, in the section whose inputs make them. */
