@@ -1364,21 +1364,14 @@ const HOME_PAGE = read(HOME);
   }
   const jAt = status.indexOf('>Complete journeys on the live site</h3>'), bAt = status.indexOf('>Checked in your browser now</h3>');
   if (jAt < 0 || bAt < 0 || jAt > bAt) p.push('/status: "Complete journeys on the live site" is not served above "Checked in your browser now"');
+  /* The journey line left the product pages (the owner, 18 Oct 2026: the
+     public copy cleanup — verification detail belongs on /status, which
+     keeps every journey, step and result). None of the three serves one. */
   for (const path of ['/property', '/research', '/app/scanner']) {
-    const body = got.get(path).body || '';
-    const m = new RegExp(`<p class="journey-line"[^>]*\\bdata-journey="${path.replace(/\//g, '\\/')}"[^>]*>([\\s\\S]*?)<\\/p>`).exec(body);
-    if (!m) { p.push(`${path} serves no journey line`); continue; }
-    const tag = m[0].slice(0, m[0].indexOf('>') + 1);
-    if (!/title="[^"]*proves[^"]*not show that any figure[^"]*accurate/.test(tag)) p.push(`${path}: the journey line's title does not say that a journey proves the path works, not that a figure is accurate`);
-    if (want.recorded && m[1] !== want.lines[path]) p.push(`${path}: the journey line is not the record's: served "${words(m[1]).slice(0, 100)}", the record "${words(want.lines[path] || '').slice(0, 100)}"`);
-    if (want.recorded && !/^Journey: .+ · (PASS|DEGRADED|FAIL)\b.* · \d{1,2} [A-Z][a-z]{2} \d{2}:\d{2} UTC · [0-9a-f]{7} · details$/.test(words(m[1]))) p.push(`${path}: the journey line does not read "Journey: <name> · <status> · <time UTC> · <sha> · details": "${words(m[1]).slice(0, 120)}"`);
-    if (!new RegExp(`href="/status#journey-[a-z0-9-]+"`).test(m[1]) && want.recorded) p.push(`${path}: the journey line links no journey on /status`);
-    if (/class="ptabs/.test(m[0])) p.push(`${path}: the journey line is in the tab row`);
+    if (/<p class="journey-line"/.test(got.get(path)?.body || '')) p.push(`${path} still serves a journey line; it lives on /status only`);
   }
   const scan = (rec.journeys || []).find(j => j.id === 'scanner');
   const gated = (scan?.steps || []).some(s => s.gated && /^Evaluate/.test(s.name));
-  const scanLine = words(/<p class="journey-line"[^>]*data-journey="\/app\/scanner"[^>]*>([\s\S]*?)<\/p>/.exec(got.get('/app/scanner').body || '')?.[1] || '');
-  if (gated && !/ · evaluate: gated \(no prices ship\) · /.test(scanLine)) p.push(`/app/scanner: the record gates the evaluate step and the line does not say so: "${scanLine.slice(0, 120)}"`);
   if (LIVE) {
     const age = Date.now() - Date.parse(rec.ranAt);
     if (!(age < 24 * 3600000)) p.push(`the recorded run of ${rec.ranAt} is ${Math.round(age / 3600000)} hours old — over 24`);

@@ -1426,7 +1426,7 @@ try {
             /* The four kinds and CI's line beside the in-browser checks (the
                10 Oct audit), served from the records like the rest. */
             if (!/<li class="kind-row" id="kind-layout"/.test(served.kinds || '') || !/^Runs in your browser when the page loads — results for this commit from CI: /.test((served.ci || '').replace(/<[^>]*>/g, ''))) { said.push(`${at}: served without the four kinds or CI's line: ${JSON.stringify((served.ci || '').replace(/<[^>]*>/g, '').slice(0, 90))}`); continue; }
-          } else if (served.lines !== 1 || !/^<span class="journey-line-label">Journey:<\/span> /.test(served.line || '')) { said.push(`${at}: served with no journey line (${served.lines} lines: ${JSON.stringify((served.line || '').slice(0, 80))})`); continue; }
+          } else if (served.lines !== 0) { said.push(`${at}: served with a journey line; it lives on /status only (the owner, 18 Oct 2026)`); continue; }
           await releaseScript();
           await until(`typeof State !== 'undefined' && !!State.view && document.readyState === 'complete'`);
           await painted();
