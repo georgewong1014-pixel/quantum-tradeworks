@@ -1349,7 +1349,8 @@ for (const w of [360, 390]) {
           const at = `${w}px${dark ? ' dark' : ''} ${p}`;
           if (v.over > 2) fails.push(`${at}: overflow ${v.over}px`);
           if (v.outside.length) fails.push(`${at}: markers past their card: ${v.outside.join('; ')}`);
-          if (p !== '/pricing' && !v.marks) fails.push(`${at}: no "To be supplied" marker`);
+          if ((p === '/privacy' || p === '/terms') && !v.marks) fails.push(`${at}: no "To be supplied" marker`);
+          if ((p === '/about' || p === '/contact') && v.marks) fails.push(`${at}: ${v.marks} "To be supplied" marker(s) on a customer page`);
           if ((p === '/privacy' || p === '/terms') && (v.draftTop == null || v.draftTop > 844 - 60)) fails.push(`${at}: the draft line is at ${v.draftTop}px, not on the first screen`);
           if (v.ctas) fails.push(`${at}: ${v.ctas} plan button(s) under 44px`);
           if (p === '/pricing' && !(v.clipped <= 1)) fails.push(`${at}: the lede that says nothing can be bought is clipped by ${v.clipped}px`);
@@ -1359,7 +1360,7 @@ for (const w of [360, 390]) {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId);
   } catch (e) { fails.push(`the checks threw: ${e.message}`); }
   if (fails.length) { bad++; console.log(`FAIL audit content — the pricing and legal pages on a phone: ${fails.length} problem(s):`); fails.slice(0, 20).forEach(f => console.log(`     ${f}`)); }
-  else console.log('ok   audit content: /privacy, /terms, /about, /contact and /pricing at 360, 390 and 768, light and dark — no overflow, every "To be supplied" marker inside its card, the draft line on the first screen, the plan buttons 44px, the pricing lede whole');
+  else console.log('ok   audit content: /privacy, /terms, /about, /contact and /pricing at 360, 390 and 768, light and dark — no overflow, every "To be supplied" marker (Privacy and Terms; none on About and Contact) inside its card, the draft line on the first screen, the plan buttons 44px, the pricing lede whole');
 }
 /* ---- end audit: content ---- */
 /* ---- audit: slim ---- */

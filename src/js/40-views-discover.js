@@ -554,7 +554,7 @@ function myDashSteps(o) {
     /* The property step opens Property's landing, the Scenario Lab (D12; N3
        made /property the Lab): the price, the rent and the loan moved and
        the figures following, before anything is typed into the calculator. */
-    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
+    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
       note: o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
         : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.',

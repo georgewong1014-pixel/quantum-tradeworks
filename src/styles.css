@@ -2778,6 +2778,10 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 }
 @media (max-width: 560px) { .ptabs-inview { margin-left: calc(var(--md) * -1); margin-right: calc(var(--md) * -1); padding: 0 var(--md); } }
 .ptabs-list::-webkit-scrollbar { display: none; }
+/* The one line under /property's row saying which label belongs to what
+   (QT-D04-01): quiet, the row's own measure, a line on a wide screen. */
+.ptabs-note { margin: 0; padding: 0 0 10px; font-size: var(--text-sm); line-height: 1.4; color: var(--ink-2); }
+@container (max-width: 940px) { .ptabs-note { padding-top: 2px; } }
 /* 8px of padding inside each tab, taken back by its margin, so the row's
    spacing is what it was and the focus ring — inset, since the row scrolls
    and would clip an outset one — clears the label instead of crossing its

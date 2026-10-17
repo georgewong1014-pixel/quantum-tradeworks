@@ -10747,6 +10747,22 @@ try {
       const dr = document.getElementById('drawer');
       out.drawer = dr && !dr.hidden ? { title: document.getElementById('drawerTitle')?.textContent.trim(), text: dr.innerText.slice(0, 600) } : null;
       if (dr && !dr.hidden) closeDrawer({ restore: false });
+      /* A detail supplied while the page runs — set here, restored after, never
+         committed: /contact and /about must show it, with the marker and the
+         interim copy gone, as OPERATOR is the one source (QT-D03-01). */
+      const was = { entity: OPERATOR.entity.value, address: OPERATOR.address.value };
+      try {
+        OPERATOR.entity.value = 'Example Operating Entity';
+        OPERATOR.address.value = '1 Example Street, Example Town';
+        navigate('/contact'); await w(200);
+        out.suppliedContact = main().innerText;
+        out.suppliedContactMarks = main().querySelectorAll('.tbs').length;
+        navigate('/about'); await w(200);
+        out.suppliedAbout = main().innerText;
+        out.suppliedAboutMarks = main().querySelectorAll('.tbs').length;
+      } finally { OPERATOR.entity.value = was.entity; OPERATOR.address.value = was.address; }
+      navigate('/contact'); await w(200);
+      out.restoredContact = main().innerText;
       out.cookie = document.cookie;
       out.contactEmail = LAUNCH.contactEmail;
       return out;
@@ -10756,7 +10772,19 @@ try {
     for (const k of ['privacy', 'terms'])
       if (!/^Draft — not yet reviewed by a lawyer\./.test(r[k].first)) p.push(`${k}: the first thing under the heading is "${r[k].first.slice(0, 80)}"`);
     /* The markers: present, and drawn as gaps rather than as body text. */
-    const need = { privacy: ['entity', 'address', 'email', 'domain', 'bm'], terms: ['entity', 'address', 'email', 'domain'], about: ['entity', 'address'], contact: ['email', 'address', 'entity'] };
+    const need = { privacy: ['entity', 'address', 'email', 'domain', 'bm'], terms: ['entity', 'address', 'email', 'domain'] };
+    /* The customer pages carry none (QT-D03-01): the details empty, no marker
+       and no "To be supplied" words; supplied at run time, they show. */
+    for (const k of ['about', 'contact']) {
+      if (r[k].marks.length || /To be supplied/i.test(r[k].text)) p.push(`${k}: still shows a "To be supplied" marker`);
+    }
+    if (!/Customer support is not available yet\./.test(r.contact.text)) p.push('contact does not say customer support is not available yet');
+    if (!/The operating entity and its registered address are not published yet\./.test(r.about.text)) p.push('about does not say the operating entity and its registered address are not published yet');
+    if (!/Example Operating Entity/.test(r.suppliedContact) || !/1 Example Street, Example Town/.test(r.suppliedContact) || r.suppliedContactMarks || /To be supplied/.test(r.suppliedContact))
+      p.push(`contact, with OPERATOR set at run time, shows "${r.suppliedContact.replace(/\s+/g, ' ').slice(0, 200)}"`);
+    if (!/Example Operating Entity/.test(r.suppliedAbout) || !/1 Example Street, Example Town/.test(r.suppliedAbout) || r.suppliedAboutMarks || /not published yet/.test(r.suppliedAbout))
+      p.push(`about, with OPERATOR set at run time, shows "${r.suppliedAbout.replace(/\s+/g, ' ').slice(0, 200)}"`);
+    if (!/Customer support is not available yet/.test(r.restoredContact)) p.push('contact did not return to the interim copy once OPERATOR was restored');
     for (const [k, keys] of Object.entries(need)) {
       const have = new Set(r[k].marks.map(m => m.key));
       keys.filter(x => !have.has(x)).forEach(x => p.push(`${k}: no "${x}" marker`));
@@ -10826,11 +10854,11 @@ try {
     /* About and Contact: true about who runs this and what works. */
     if (/does not carry on any regulated activity/.test(r.about.text)) p.push('about states a legal conclusion no opinion has given: "does not carry on any regulated activity"');
     if (!/No operating company has been registered/.test(r.about.text)) p.push('about no longer says no entity is registered');
-    if (!/There is no contact address yet/.test(r.contact.text)) p.push('contact does not say there is no contact address yet');
+    if (/mailto:|There is no contact address yet/.test(r.contact.text)) p.push('contact still says the old "no contact address yet" or offers an address');
     if (!r.report || !r.drawer || r.drawer.title !== 'Report a data error' || !/does not send anything/.test(r.drawer.text)) p.push(`contact's Report a data error: button ${r.report}, drawer ${JSON.stringify(r.drawer)?.slice(0, 160)}`);
     if (/most useful thing you can tell us/.test(r.contact.text)) p.push('contact asks the reader to tell "us" with no way to reach anyone');
     if (p.length) fail('audit content C2–C5: Terms and Privacy are marked drafts with their gaps shown as markers, Privacy says what the build processes and gives the PDPA notice, and About and Contact say what is true today', p);
-    else ok(`audit content C2–C5: Terms and Privacy open "Draft — not yet reviewed by a lawyer"; the entity, address, contact email and domain are dashed "To be supplied" markers on all four trust pages; Privacy names all ${keys.size} stored keys, no cookies (none set by any response), ${r.tag ? 'the analytics tag as it is' : 'no analytics'}, and the PDPA 2010 notice in ten parts with the Bahasa Malaysia version to be supplied; Terms cover the service and Malaysian law; About claims no legal conclusion; Contact's Report a data error opens and says it sends nothing`);
+    else ok(`audit content C2–C5: Terms and Privacy open "Draft — not yet reviewed by a lawyer"; the entity, address, contact email and domain are dashed "To be supplied" markers on Terms and Privacy, and About and Contact show none (they say support is not available and the entity is not published, and show a detail the moment it is supplied); Privacy names all ${keys.size} stored keys, no cookies (none set by any response), ${r.tag ? 'the analytics tag as it is' : 'no analytics'}, and the PDPA 2010 notice in ten parts with the Bahasa Malaysia version to be supplied; Terms cover the service and Malaysian law; About claims no legal conclusion; Contact's Report a data error opens and says it sends nothing`);
   }
   /* ---- end audit: content ---- */
   /* ---- furthest-step ---- */
