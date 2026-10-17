@@ -4044,10 +4044,11 @@ const HOME_PAGE = read(HOME);
      registered address are not published yet; neither carries a mailto: link
      or a run of digits that reads as a telephone number. /privacy and /terms
      are drafts for counsel and keep their markers (counted, not forbidden);
-   - /property serves "Property Intelligence is live for calculations using
-     figures you enter. Scenario Lab is beta." once, in the row that holds the
-     product's Live badge, and its Scenario Lab Beta badge sits on the Lab's
-     name; the Property product never wears Beta;
+   - /property serves "Calculations on figures you enter are live; the
+     Scenario Lab is beta." once, as the Lab's lede under its heading and its
+     Beta badge (it replaced "Move a slider and every figure below follows."),
+     with the product's Live badge in the tab row; the Property product never
+     wears Beta;
    - on /app, the property step is "Start a property model in the Scenario
      Lab" and its Beta badge follows those words; no Beta badge on /property
      or /app stands beside Property Intelligence's name. */
@@ -4071,14 +4072,17 @@ const HOME_PAGE = read(HOME);
   const marks = (path) => (html(path).match(/data-tbs=/g) || []).length;
   if (!marks('/privacy') || !marks('/terms')) p.push(`/privacy (${marks('/privacy')}) and /terms (${marks('/terms')}) keep their markers`);
   said.push(`${marks('/privacy')} markers on /privacy and ${marks('/terms')} on /terms`);
-  const LINE = 'Property Intelligence is live for calculations using figures you enter. Scenario Lab is beta.';
+  const LINE = 'Calculations on figures you enter are live; the Scenario Lab is beta.';
   for (const path of ['/property', '/property/lab']) {
     const h = html(path), t = pageText(h);
     const n = t.split(LINE).length - 1;
     if (n !== 1) p.push(`${path} serves the Live/Beta line ${n} times, not once`);
-    const row = (/<div class="shell"><nav class="ptabs[\s\S]*?<p class="ptabs-note"[^>]*>[^<]*<\/p><\/div>/.exec(h) || [''])[0];
-    if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row) || !row.includes(LINE)) p.push(`${path}: the line does not stand in the row that holds Property Intelligence's Live badge`);
-    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"/.test(h)) p.push(`${path}: the Lab's Beta badge does not follow "Scenario Lab"`);
+    if (/Move a slider and every figure below follows/.test(t)) p.push(`${path} still serves the Lab's old lede`);
+    /* The Live badge is the product's, in the tab row; the Beta badge is the
+       Lab's, on its heading; the line is the Lab's lede, under that heading. */
+    const row = (/<nav class="ptabs[\s\S]*?<\/nav>/.exec(h) || [''])[0];
+    if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Live badge is not in the tab row`);
+    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,400}?<p class="body-lg"[^>]*>Calculations on figures you enter are live; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
   }
   /* Every Beta badge on /property and /app: whose is it? */
   const OTHERS = /(Equities Research|Quantum Scanner|Research a company|Create a scanner setup)\s*$/;
@@ -4094,7 +4098,7 @@ const HOME_PAGE = read(HOME);
   }
   const app = html('/app');
   if (!/Start a property model in the Scenario Lab<\/h3>\s*<span class="status-badge status-beta"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the Lab\'s Beta badge');
-  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied", no mailto: and no telephone-like digits, /contact the interim support copy and /about the not-published line; /property serves "${LINE}" once beside the Live badge and the Lab's Beta on its name; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
+  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied", no mailto: and no telephone-like digits, /contact the interim support copy and /about the not-published line; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
     'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');
 }
 /* ---- end contact-status ---- */
