@@ -8828,6 +8828,63 @@ try {
     if (p.length) fail('qt-day4: edited figures and the reserve hold across the Quick and full models', p);
     else ok(`qt-day4: a test deal — price 480,000, rent 2,600 and renovation 30,000 typed in Quick — reads the same in Full and back; the reserve set to 6 months in Full is Quick's too, named "${(r.q2.safe.match(/\d+-month reserve/) || [''])[0]}", and the cash required and the monthly position read alike in both views before and after`);
   }
+  /* SAVE, RESET, REOPEN, EXPORT AND RESTORE (the 18 Oct Day-5 report,
+     Quantum task: "a fresh model with multiple edited inputs. Save, reopen
+     and use the supported export route … inputs, sample/source labels,
+     reserve assumptions and shared outputs remain consistent"). A test
+     property, named so: four figures edited, saved, the calculator reset to
+     the sample, the property reopened; then the backup file written, the
+     saved property removed as a fresh browser would lack it, the file
+     restored and the property reopened again. Each time the inputs, which
+     figures are still the sample's, the reserve and the shared outputs are
+     what they were when saved. The browser's own work is put back after. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keepDeal = JSON.stringify(State.deal), keepWork = JSON.stringify(loadWork());
+      const KEYS = ['price', 'rent', 'renovation', 'reserveMonths', 'maintenance', 'downPct'];
+      const read = () => { const d = State.deal, m = dealModel(d);
+        return { inputs: Object.fromEntries(KEYS.map(k => [k, d[k]])),
+          labels: Object.fromEntries(['price', 'rent', 'renovation', 'maintenance'].map(k => [k, shownEvidence(d, k)])),
+          months: m.reserveMonths, safe: m.safeCashRequired, monthly: m.cashflowMonthly, irr: m.irr ?? m.irrPct ?? null, modelId: d.modelId || null }; };
+      const out = {};
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 480000, rent: 2600, renovation: 30000, reserveMonths: 6 });
+      State.deal.touched = { ...(State.deal.touched || {}), price: true, rent: true, renovation: true, reserveMonths: true };
+      saveDeal();
+      out.edited = read();
+      const rec = saveActiveProperty({ name: 'Model-test property — not a real property' });
+      out.saved = !!rec;
+      out.afterSave = read();
+      newPropertyDeal({ show: false });
+      out.reset = read();
+      out.opened = openPropertyModel(rec.id, { show: false });
+      out.reopened = read();
+      const text = JSON.stringify(backupPayload());
+      out.inFile = JSON.parse(text).data && JSON.stringify(JSON.parse(text).data).includes(rec.id);
+      persistWork(loadWork().filter(x => x.id !== rec.id));
+      newPropertyDeal({ show: false });
+      out.goneBefore = !pmFind(rec.id);
+      const res = restoreBackup(text);
+      out.restoredOk = !!(res && res.ok !== false);
+      out.opened2 = openPropertyModel(rec.id, { show: false });
+      out.restored = read();
+      persistWork(JSON.parse(keepWork)); State.deal = JSON.parse(keepDeal); saveDeal();
+      out.cleaned = !pmFind(rec.id);
+      return JSON.stringify(out); })()`));
+    const p = [];
+    const same = (a, b) => JSON.stringify({ ...a, modelId: null }) === JSON.stringify({ ...b, modelId: null });
+    if (!r.saved) p.push('the test property was not saved');
+    if (r.edited.labels.price === 'illustrative_default' || r.edited.labels.maintenance !== 'illustrative_default') p.push(`labels after editing: ${JSON.stringify(r.edited.labels)} — price yours, maintenance still the sample's`);
+    if (r.edited.months !== 6) p.push(`the reserve after editing is ${r.edited.months} months, not 6`);
+    if (!same(r.edited, r.afterSave)) p.push(`saving moved the deal: ${JSON.stringify([r.edited, r.afterSave])}`);
+    if (r.reset.inputs.price === 480000) p.push('the reset kept the edited price');
+    if (!r.opened || !same(r.edited, r.reopened)) p.push(`reopened: ${JSON.stringify(r.reopened)}, saved ${JSON.stringify(r.edited)}`);
+    if (!r.inFile) p.push('the backup file does not hold the saved property');
+    if (!r.goneBefore || !r.restoredOk || !r.opened2 || !same(r.edited, r.restored)) p.push(`restored from the file: ${JSON.stringify({ gone: r.goneBefore, ok: r.restoredOk, opened: r.opened2, deal: r.restored })}`);
+    if (!r.cleaned) p.push('the test property was left in the browser');
+    if (p.length) fail('qt-day5: an edited property saved, reset, reopened, exported and restored keeps its inputs, labels, reserve and outputs', p);
+    else ok(`qt-day5: a test property — price 480,000, rent 2,600, renovation 30,000 and a 6-month reserve, maintenance left as the sample's — reads the same saved, after a reset and reopen, and after its backup file is restored into a browser without it: the same four labels, the 6-month reserve, cash required ${Math.round(r.edited.safe)} and monthly position ${Math.round(r.edited.monthly)}`);
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
