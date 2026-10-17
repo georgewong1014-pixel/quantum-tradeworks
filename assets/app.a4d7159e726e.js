@@ -12864,7 +12864,7 @@ function toolSource(name) {
   };
   if (name === 'history') {
     const h = typeof scanOpsHistory === 'function' ? scanOpsHistory() : null;
-    if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. The scanner reads data/price-history.json, which is built on your own computer and never deployed; open yours on the Scanner’s dashboard to use it in this tab.');
+    if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. This site ships none; open yours on the Scanner’s dashboard to use it in this tab.');
     const newest = toolNewestBar(h);
     const age = newest && typeof scanDayDiff === 'function' ? scanDayDiff(newest, now.toISOString().slice(0, 10)) : null;
     if (age > HISTORY_BEHIND_DAYS) return { state: 'delayed',
@@ -12873,7 +12873,7 @@ function toolSource(name) {
   }
   if (name === 'alerts') {
     const d = typeof scanOpsAlertsDoc === 'function' ? scanOpsAlertsDoc() : null;
-    if (!d) return absent('No record of matches is loaded here. The worker writes data/scan-alerts.json on the computer it runs on, and it is never deployed; open yours on the Scanner’s dashboard to read it in this tab.');
+    if (!d) return absent('No record of matches is loaded here. The worker keeps it on the computer it runs on; open yours on the Scanner’s dashboard to read it in this tab.');
     return null;
   }
   return null;
@@ -17699,8 +17699,9 @@ function myDashFoot() {
     'Everything on this page is read from this browser and the scanner’s own record — there is no account, and nothing syncs. The export on ',
     myDashLink('/my/data', { class: 'dash-inline' }, 'Your data & settings'), ' is the copy that travels.',
   ]);
-  /* The research queue this page used to be, while its address resolves. */
-  if (myDashRoutes('/research/queue')) p.append(' The equities research queue — market context and what changed across companies — is now the ',
+  /* Where the research queue this page used to be now is, while its address
+     resolves — as a way there, not as a note of what changed (16 Oct 2026). */
+  if (myDashRoutes('/research/queue')) p.append(' Market context and what changed across companies: the ',
     myDashLink('/research/queue', { class: 'dash-inline' }, 'Research queue'), ' tab of Equities Research.');
   return p;
 }
@@ -22064,8 +22065,13 @@ function companySummary(r) {
   };
 
   /* 1. What it does — from the company's own description, kept short. */
-  const does = String(c.desc || '').split(/(?<=\.)\s+/).slice(0, 2).join(' ')
-    || `${c.name} is listed on ${listingOf(c)}. No business description has been recorded for it.`;
+  /* A filed company's description is where its statements came from, which the
+     page's head already says word for word: it is not said again here as what
+     the company does (16 Oct 2026, one note beside what it qualifies). */
+  const filedNote = c.real && /^Audited annual statements retrieved from SEC EDGAR/.test(c.desc || '');
+  const does = filedNote ? 'No business description is recorded for this company.'
+    : String(c.desc || '').split(/(?<=\.)\s+/).slice(0, 2).join(' ')
+      || `${c.name} is listed on ${listingOf(c)}. No business description has been recorded for it.`;
   grid.append(block('What the company does', does,
     `${c.sector}${c.industry && c.industry !== c.sector ? ' · ' + c.industry : ''}`));
 
@@ -26631,7 +26637,6 @@ VIEWS.portfolio = () => {
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
     card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
-    if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
@@ -26649,6 +26654,9 @@ VIEWS.portfolio = () => {
     ex.append(card);
   });
   wrap.append(ex);
+  /* What was left out, said once under the two cards it applies to: it was
+     the same sentence in each (16 Oct 2026). */
+  if (leftOut) wrap.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' }, leftOut));
 
   /* ---------- income ---------- */
   /* Four different things, kept apart. Money that has arrived, money declared
@@ -26682,7 +26690,7 @@ VIEWS.portfolio = () => {
   ig2.append(el('div', { class: 'panel' }, statTile('Projected, annual', fmtAmount(grossIncome, State.baseCcy),
     { sub: 'Latest declared rate repeated. Not a forecast.' })));
   ig2.append(el('div', { class: 'panel' }, statTile('Projected after withholding', fmtAmount(netIncome, State.baseCcy),
-    { sub: 'Illustrative only — the rate that applies depends on your circumstances.' })));
+    { sub: 'At the illustrative rates you set' })));
   inc.append(ig2);
 
   const selH = el('select', { class: 'select select-sm', id: 'divHold', 'aria-label': 'Holding' });
@@ -29223,8 +29231,8 @@ function trustPage(title, lede, blocks, { draft } = {}) {
       level = 'h3';
       return;
     }
-    const [heading, body, pending] = b;
-    const card = el('div', { class: 'card trust-card' });
+    const [heading, body, pending, anchor] = b;
+    const card = el('div', { class: 'card trust-card', ...(anchor ? { id: anchor } : {}) });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
       el(level, { class: 'h-card' }, heading),
       pending ? el('span', { class: 'chip chip-bronze' }, 'not yet established') : null,
@@ -29407,6 +29415,14 @@ VIEWS.terms = () => trustPage('Terms',
        'No operating entity has been registered yet. Until one is, these terms are published so you can see what this build is and is not, and on what footing it is offered.']],
     ['What the service is',
       'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see and change; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
+    /* THE FULL DISCLOSURE, where the footer's "Full terms and data limits"
+       lands (#full-disclosure; the strip's <details> already holds
+       #disclosure). It is the footer paragraph of 4 Oct 2026, word for word —
+       the footer now carries a short version of it — and served-check holds
+       it so: do not reword it here. */
+    ['Disclosure',
+      [el('p', {}, ['Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell any security. Financial figures come from ', el('strong', {}, 'two different places and are labelled on every page'), ': statements filed with the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked illustrative, which are synthetic and created for interface demonstration. ', el('strong', {}, 'No market-data licence is in place for either exchange.'), ' A filed company therefore carries no price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act before launch.'])],
+      false, 'full-disclosure'],
     ['Research, not advice',
       'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property. It is not licensed by the Securities Commission Malaysia and gives no personal recommendation; before acting, consider advice from someone licensed to give it.'],
     ['Illustrative data',
@@ -29548,7 +29564,9 @@ function piCashStack() {
   if (uncertain) fig.append(el('p', { class: 'pi-stack-note' }, uncertain));
   fig.append(el('figcaption', { class: 'pi-stack-cap', id: 'pi-stack-cap' }, [
     el('p', { class: 'pi-src' }, [kindBadge('illustrative', { fine: 'The sample deal', link: false }), el('span', {}, 'Sample deal — not a real listing')]),
-    el('p', { class: 'pi-src-line' }, [`Fees from the fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}. `,
+    el('p', { class: 'pi-src-line' }, [/* The rulebook's version and the day it was checked are on /data-sources,
+       where this links (16 Oct 2026). */
+      'Fees from the fee rulebook. ',
       el('a', { class: 'pi-link', href: href('/data-sources#fee-rulebook') }, 'Each line’s source')]),
   ]));
   return fig;
@@ -29599,7 +29617,7 @@ VIEWS.propertyInvesting = () => {
   /* -- the cost stack ------------------------------------------------------ */
   const cash = el('section', { class: 'pi-section pi-cash', id: 'pi-cash', 'aria-labelledby': 'pi-cash-h' });
   cash.append(el('h2', { class: 'pi-h2', id: 'pi-cash-h' }, 'Where the cash required goes'));
-  cash.append(el('p', { class: 'pi-body' }, `The sample deal’s cash required, by what each part rests on, from the calculator’s model and the fee rulebook ${FEE_TABLE.version}.`));
+  cash.append(el('p', { class: 'pi-body' }, `The sample deal’s cash required, by what each part rests on, from the calculator’s model and the fee rulebook.`));
   cash.append(piCashStack());
   wrap.append(cash);
 
@@ -31586,7 +31604,7 @@ function learnDictionary() {
   ])));
   intro.append(ul);
   intro.append(el('p', { class: 'caption', style: 'max-width:72ch' },
-    'Adding them means widening the ingest and the stored statements, then regenerating the SEC dataset — which waits on a contact address the SEC requires and this build has not been given.'));
+    'Adding them means storing more of each statement than this build holds.'));
   wrap.append(intro);
 
   METRIC_CATEGORIES.forEach(cat => {
@@ -43274,7 +43292,7 @@ function pcReviewCard(d, queue, { sub }) {
     el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
     el('span', { class: 'ls-card-body' }, [
       el('span', { class: 'ls-card-title' }, `${n} sample input${s} need${n === 1 ? 's' : ''} your evidence`),
-      el('span', { class: 'ls-card-sub' }, sub)]),
+      sub ? el('span', { class: 'ls-card-sub' }, sub) : null]),
     el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
   ]);
   det.append(sum);
@@ -43443,6 +43461,10 @@ function pcQuickView(d, m, g, DK) {
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
   ans.append(cards);
+  /* The assumption it depends on most, from the model's own sensitivity,
+     straight under the figures; then what is missing, then the next step. */
+  const driver = propertyDriverLine(d, { long: true });
+  if (driver) ans.append(driver);
   const worst = pcGatesOrdered(g)[0];
   if (worst) ans.append(pcWorstLine(worst));
   /* The sample label and the limitations, beside the figures they qualify. */
@@ -43461,7 +43483,10 @@ function pcQuickView(d, m, g, DK) {
   const flags = pcModelFlags(m);
   if (flags) res.append(flags);
   const queue = propertyReviewQueue(d);
-  if (queue.length) res.append(pcReviewCard(d, queue, { sub: 'These are figures this tool seeded, not figures you gave it. The answer is arithmetic on them.' }));
+  /* No line under the count here: "Illustrative defaults", in the answer
+     above, already says these are the tool's numbers and that the answer
+     is arithmetic on them (16 Oct 2026, one note beside the output). */
+  if (queue.length) res.append(pcReviewCard(d, queue, { sub: null }));
 
   /* The rest of the calculator, one step away. */
   const open = el('div', { class: 'pc-q-open' }, lsActionCard({ title: 'The full model',
@@ -43606,6 +43631,10 @@ VIEWS.property = () => {
     answers.append(card);
   }
   onePage.append(answers);
+  /* Then the assumption they depend on most, from the model's own
+     sensitivity (the review queue and the next step follow below). */
+  const driver = propertyDriverLine(d, { long: true });
+  if (driver) onePage.append(driver);
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
     el('div', {}, [
@@ -46347,6 +46376,38 @@ function propertyBreakPoint(d, key, { measure = 'cashflow', lo, hi, iterations =
   return { value: (l + h) / 2 };
 }
 
+/* ------------------------------------------------- the one line in a headline ---
+   WHICH ASSUMPTION DRIVES THE ANSWER MOST, IN A LINE (the owner's "customer
+   outcome" note of 17 Oct 2026, built 17 Oct). A result is read in this
+   order: the cash required and the month; the assumption they depend on
+   most; what evidence is missing; the next step. The second was the one a
+   headline lacked. It is the first row of the model's own ranking above
+   (propertySensitivity) — read, never typed, and no new arithmetic: nothing
+   is shown for a deal whose rate of return cannot be computed, because
+   there is then nothing to rank. The ranking is by the rate of return (see
+   the panel below), so the long form names its measure; the Scenario Lab's
+   header has no room for the long form and says it in the title. Kept per
+   deal and day, as a column's run is (pmCompareRun): it is asked as the
+   page is redrawn. */
+const PD_RUNS = new Map();
+function propertyTopDriver(d) {
+  if (!d) return null;
+  const key = pmRunKey(d);
+  if (PD_RUNS.has(key)) return PD_RUNS.get(key);
+  const s = propertySensitivity(d);
+  const top = s.ok && s.drivers.length ? { label: s.drivers[0].label } : null;
+  PD_RUNS.set(key, top);
+  while (PD_RUNS.size > 24) PD_RUNS.delete(PD_RUNS.keys().next().value);
+  return top;
+}
+const PD_TITLE = 'Each assumption moved one realistic step, ranked by how far it moves the rate of return: the model’s own sensitivity. The full list is “What actually decides this”.';
+function propertyDriverLine(d, { long = false, cls = '' } = {}) {
+  const top = propertyTopDriver(d);
+  if (!top) return null;
+  return el('p', { class: `metaline pc-driver ${cls}`.trim(), title: PD_TITLE },
+    `${long ? 'Biggest swing in the rate of return' : 'Biggest swing'}: ${top.label.toLowerCase()}`);
+}
+
 /* ------------------------------------------------------------------ panel --- */
 function propertySensitivityPanel(d, m) {
   const s = propertySensitivity(d);
@@ -47122,7 +47183,7 @@ const CAPABILITY_REGISTER = [
   { name:'Company comparison', status:'flagged', path:'/compare',
     brief:['EQ-210'], priority:'P1',
     now:'Filed companies whose latest fiscal years differ compared on the latest year all of them hold, or on each company’s latest with every figure naming its year; reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
-    flag:'Period-end months cannot be aligned until the SEC dataset is regenerated with period ends, and no line-level accounting reconciliation (leases, minorities, associates) is possible from the statements held.',
+    flag:'Companies are compared by fiscal year, not by period-end month, and leases, minorities and associates are not reconciled from the statements held.',
     checks:[{ file:'equity-test.mjs', name:'the comparison states each column' },
             { file:'equity-test.mjs', name:'compare and onboarding do what their labels say' }] },
   { name:'Valuation models', status:'flagged', path:'/company/aapl-apple-inc?tab=valuation',
@@ -47344,10 +47405,13 @@ function flagRowFor(view, tab) {
 }
 function flagNoticeFor(row) {
   return el('div', { class: 'flag-notice', role: 'note', 'aria-label': `${row.name}: partial` }, [
-    el('p', { class: 'flag-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, `${row.priority || ''} · feature-flagged`.replace(/^ · /, '')),
-      el('strong', {}, `${row.name} is partial.`)]),
+    /* No priority code and no "feature-flagged" on the page (16 Oct 2026:
+       the register's own words stay on /status): it says what is partial
+       and what is missing. */
+    el('p', { class: 'flag-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, 'Partial'),
+      el('strong', {}, row.name)]),
     el('p', {}, row.flag),
-    el('p', { class: 'metaline' }, [`Usable as it stands, and not counted as operational until that is built. `,
+    el('p', { class: 'metaline' }, [`Usable as it stands. `,
       el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
   ]);
 }
@@ -49336,9 +49400,11 @@ function labDraw(P, focusId = null) {
    claim is the brief's fixed wording (§8), whole at every width. */
 const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
 /* The page's identity line says the same in one clause (the 9 Oct audit,
-   #5): every denial kept — arithmetic, not advice, not a valuation, not a
-   forecast, nothing ranked — and only the words around them dropped. */
-const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a valuation, not a forecast — nothing here is ranked.';
+   #5): arithmetic, not advice, not a forecast, nothing ranked. "Not a
+   valuation" is said twice before it — the chip and the regulated claim —
+   and is not said a third time (16 Oct 2026: one short note beside the
+   output; the words it gave back are the driver line's, labHeader). */
+const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a forecast — nothing here is ranked.';
 const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
@@ -49371,6 +49437,12 @@ function labHeader(P, lab) {
        83-property-decision.js) after the line that names the property and
        its disclosures, and before the figures their answers lead. */
     hd.append(labIdentity(P, lab, status), labQuestions(P, lab), labTiles(P, lab));
+    /* The assumption the figures depend on most, from the model's own
+       sensitivity, in four words under them: the cash and the month, the
+       one they swing with, and — in the next-step tile and the count above
+       — what is missing and what to do. The subject's, as the tiles are. */
+    const driver = propertyDriverLine(labSubjectInputs(lab), { cls: 'lab-driver' });
+    if (driver) hd.append(driver);
   }
   return hd;
 }
@@ -55167,7 +55239,7 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- inputs: identity ---------- */
   const idc = el('div', { class: 'card' });
-  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted on this page; the phase-2 extraction script runs off-page, writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'));
+  idc.append(cardHead('The chart you are reading', 'Recorded by you from your own screenshot. No image is uploaded, read or extracted on this page.'));
   /* `lines` makes it a textarea. A single-line input scrolls its own content,
      which is fine for a ticker and wrong for a sentence: at 390px the
      unidentified-indicators note showed 55% of itself even at full width, and
@@ -55440,7 +55512,7 @@ VIEWS.tradingIndex = () => {
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page (qtti/extract.mjs); it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
+    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page; it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
     el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs the point-in-time backtesting of §20, which this build cannot run without licensed history.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),
@@ -56944,7 +57016,7 @@ function scanHistoryNeeds(symbols, byTf, history = scanHistoryFile) {
    many more, and what an unknown criterion does. */
 function scanHistoryNeedsBlock(symbols, byTf, { max = 8, history = scanHistoryFile } = {}) {
   const box = el('div', { class: 'scan-needs' });
-  if (!history?.series) { box.append(el('p', { class: 'caption' }, 'No price history is loaded here, so what it holds against what these conditions need cannot be counted — on the deployed site it never is.')); return box; }
+  if (!history?.series) { box.append(el('p', { class: 'caption' }, 'No price history is loaded here, so what it holds against what these conditions need cannot be counted — this site ships none.')); return box; }
   const rows = scanHistoryNeeds(symbols.slice(0, max), byTf, history);
   const ul = el('ul', { class: 'scan-needs-list' });
   rows.forEach(r => ul.append(el('li', {}, [el('p', { class: 'scan-needs-hd' }, r.head),
@@ -57128,7 +57200,7 @@ function scanBotForm() {
   /* ---- instruments ---- */
   const fi = el('fieldset', { class: 'scan-bot-set' });
   fi.append(el('legend', {}, 'Instruments'));
-  if (!syms.length) fi.append(el('p', { class: 'caption' }, 'No price history is loaded here, so there is no instrument to choose — on the deployed site there never is. On the machine the worker runs on, import your OANDA:XAUUSD export into data/price-history.json first.'));
+  if (!syms.length) fi.append(el('p', { class: 'caption' }, 'No price history is loaded here, so there is no instrument to choose — this site ships none. On the machine the worker runs on, import your OANDA:XAUUSD export into data/price-history.json first.'));
   else {
     fi.append(el('p', { class: 'caption', style: 'margin:0 0 6px' }, `The ${scanPlural(syms.length, 'instrument')} your history holds a series for${syms[0] === 'XAUUSD' ? ', XAUUSD — your chart’s — first' : '; XAUUSD, your chart’s, is not among them yet'}. The setups scan every one ticked.`));
     const box = el('div', { class: 'scan-bot-syms' });
@@ -57249,7 +57321,7 @@ VIEWS.scannerSetups = () => {
   const dc = el('div', { class: 'card' });
   const off = drift.filter(r => r.state !== 'IN_STEP');
   dc.append(cardHead('This browser and the worker’s file', scanSetupsFile == null
-    ? 'data/scan-setups.json cannot be seen from here — on the deployed site it never can. This browser’s copy is the only copy until you export it.'
+    ? 'The worker’s setups file cannot be seen from here. This browser’s copy is the only copy until you export it.'
     : !drift.length ? 'Neither this browser nor data/scan-setups.json holds a setup yet.'
     : off.length ? `${scanPlural(off.length, 'setup')} of ${drift.length} ${off.length === 1 ? 'differs' : 'differ'} from data/scan-setups.json. The worker runs the file, not this browser.`
     : `All ${scanPlural(drift.length, 'setup')} in step with data/scan-setups.json.`));
@@ -57358,7 +57430,7 @@ VIEWS.scannerSetups = () => {
   const ev = el('div', { class: 'card' });
   ev.append(cardHead('Evaluate now — nothing recorded', haveHistory
     ? 'Runs the engine the worker runs, here, on data/price-history.json as the worker reads it. The worker writes the record; this writes nothing.'
-    : 'No price history is loaded, so there is nothing to evaluate. On the deployed site there never is: none of the prices this product could ship are licensed for it to redistribute.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
+    : 'No price history is loaded, so there is nothing to evaluate. This site ships none: no price it could ship is licensed for redistribution.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const host = el('div', { style: 'margin-top:var(--sm)' });
   const fileSetups = fileCheck?.setups || [];
   const run = (list, which) => {
@@ -58275,7 +58347,7 @@ function scanBuilder(d, ctx) {
     saveBtn.disabled = !chk.ready;
     copyBtn.disabled = !chk.ready;
     testBtn.disabled = !chk.ready || !haveHistory;
-    testWhy.textContent = !haveHistory ? 'No price history is loaded here, so there is nothing to test against — on the deployed site there never is.' : '';
+    testWhy.textContent = !haveHistory ? 'No price history is loaded here, so there is nothing to test against.' : '';
     testWhy.hidden = haveHistory;
     let what = '';
     if (chk.ready && mode === 'edit') {
@@ -58449,7 +58521,7 @@ VIEWS.scannerAlerts = () => {
   wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first.',
     'A record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
-    wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'data/scan-alerts.json lives on the machine the worker runs on; it is git-ignored and never deployed, so on the published site there is nothing to show — and no unread count, rather than a count of nought. Locally, run node scanner/scan.mjs and reload.', ['/app/scanner/setups', 'Your setups']));
+    wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'The worker’s record of matches lives on the computer it runs on, so on this site there is nothing to show — and no unread count, rather than a count of nought.', ['/app/scanner/setups', 'Your setups']));
     return wrap;
   }
   const all = scanAlertsInOrder();
@@ -58663,7 +58735,7 @@ const SCAN_BAR_STATUS_TEXT = {
 function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } = {}) {
   const bar = scanAlertBar(a), sym = a.symbol;
   const out = { bar, sym, bars: null, at: -1, closes: [], values: [], state: null, text: '' };
-  if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — on the deployed site it never is.' };
+  if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — this site ships none.' };
   if (!history.series[sym]) return { ...out, state: 'NO_SERIES', text: `The history holds no series ${sym}, so the bar cannot be evaluated again.` };
   const since = a.detectedAt || a.recordedAt || null;
   const reg0 = scanRegistryList();
@@ -58822,7 +58894,7 @@ VIEWS.scannerAlert = () => {
   if (!a) {
     wrap.append(scanNotInRecord(`No alert “${want}”`, scanAlertsFile
       ? `data/scan-alerts.json holds ${scanPlural(list.length, 'record')}, and none has that id. An alert’s id is taken from its key, so it does not change; a record removed from the file cannot be shown.`
-      : 'data/scan-alerts.json cannot be seen from here — it lives on the machine the worker runs on and is never deployed.', ['/app/scanner/alerts', 'All alerts'], { page: true }));
+      : 'The worker’s record of matches cannot be seen from here — it lives on the computer the worker runs on.', ['/app/scanner/alerts', 'All alerts'], { page: true }));
     return wrap;
   }
   const id = scanAlertIdOf(a);
@@ -59741,7 +59813,7 @@ VIEWS.scannerDashboard = () => {
   if (st.state === 'current') band.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The last scan ran on the newest bar your history holds, with the setups and the engine as they stand. No exchange calendar is held, so “current” is judged against your own history and a four-day rule, not a trading calendar.`));
   if (first) band.append(el('p', { class: 'body scan-band-why' },
-    'The worker’s run log and record of matches stay on the computer that runs it and are never deployed, so on the public site this page has nothing to read — by design, not by fault.'));
+    'The worker’s run log and record of matches stay on the computer that runs it, so on this site this page has nothing to read — by design, not by fault.'));
   else if (st.state === 'never') {
     band.append(el('p', { class: 'body', style: 'margin-top:10px;font-size:13px;max-width:72ch' },
       'The worker writes its run log (data/scan-runs.json) and its record of matches (data/scan-alerts.json) on the machine that runs it. Neither is ever deployed, so on the public site this page has nothing to read — by design, not by fault. Locally, run the worker once and reload; or open your own files below.'));
@@ -60082,7 +60154,7 @@ VIEWS.scannerMarket = () => {
   runBtn.disabled = !pick.setup || !haveHistory;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'No price history is loaded, so there is nothing to screen. On the deployed site that is by design — none of the prices this product could ship is licensed for redistribution. Locally, the worker’s data/price-history.json is read here.'));
+    'No price history is loaded, so there is nothing to screen. This site ships none: no price it could ship is licensed for redistribution.'));
   wrap.append(form);
 
   const ui = { runBtn, cancelBtn, progress, results, ready: !runBtn.disabled };
@@ -61947,7 +62019,7 @@ function evidenceFlowCard() {
   const S = efState(), dr = S.draft;
   const card = el('section', { class: 'card ef', id: 'evidence-flow', 'aria-labelledby': 'ef-h' });
   card.append(el('h2', { class: 'h-card', id: 'ef-h' }, 'Record a price or a rent, step by step'));
-  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record, kept in this browser: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
+  card.append(el('p', { class: 'metaline ef-lede' }, 'Your own record: a figure you can point at, its source and its date. It is recorded against a locality, never a building, and is never shown as a verified transaction.'));
   const put = (k, v, redraw = false) => { dr[k] = v; if (redraw) renderKeepFocus(); };
   const step = (n, title, body) => el('fieldset', { class: 'ef-step', 'data-ef-step': String(n) }, [
     el('legend', { class: 'ef-legend' }, [el('span', { class: 'ef-n', 'aria-hidden': 'true' }, String(n)), title]), ...body]);
@@ -62272,7 +62344,7 @@ VIEWS.comparables = () => {
   ].forEach(x => rl.append(el('li', {}, x)));
   rules.append(rl);
   rules.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-    'Held in this browser only. It is never sent anywhere, it is not published with the site, and it carries no redistribution right.'));
+    'What you record carries no redistribution right.'));
   wrap.append(rules);
   return wrap;
 };
