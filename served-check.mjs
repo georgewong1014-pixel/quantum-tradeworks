@@ -4143,6 +4143,66 @@ const HOME_PAGE = read(HOME);
 }
 /* ---- end contact-status ---- */
 
+/* ---- copy-cleanup ---- */
+/* THE COPY CLEANUP, AS SERVED (the owner's decision of 16 Oct 2026: public
+   copy helps a reader choose and act; internal records and developer text
+   stay out of primary copy, and what a reader needs moves to the page that
+   holds it). Each move, and what is held where it went:
+   - the footer's paragraph → /terms#full-disclosure (disclosure-guard, above);
+   - the fee rulebook's version and checked day: out of /property-investing,
+     which links /data-sources, where "Version N, checked <day>" is held;
+   - the register's priority code, "feature-flagged" and "not counted as
+     operational": out of the partial-feature notice on /compare, which says
+     "Partial" and "Usable as it stands."; /status still lists the flagged rows;
+   - the scanner's files, "never deployed" and the worker's command: out of
+     the public scanner pages' sight text — what is missing is said in a
+     sentence (an Unavailable reason keeps its sentence); the commands and
+     files stay in /app/scanner's closed "Run the worker on your own
+     computer" (scanner-first-view, above);
+   - the Trading Index's off-page extraction script, said once, with no file
+     name; the Learn dictionary's wait on a contact address;
+   - the assumption an answer depends on most (the 17 Oct "customer outcome"
+     note): "Biggest swing: <assumption>" under the Lab's four tiles, and
+     "Biggest swing in the rate of return: <assumption>" under the Quick
+     model's answer and the full model's tiles, from the model's own
+     sensitivity — its figures are the model-test's, not held here. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const paths = ['/property-investing', '/data-sources', '/compare', '/status', '/trading-index', '/learn/glossary', '/property', '/property/calculator',
+    '/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists'];
+  const got = await getAll(paths);
+  const text = (path) => got.get(path)?.body || '';
+  const mainOf = (path) => { const m = B.allOf(B.htmlTree(text(path))).find(n => n.tag === 'main'); return m ? B.sightText(m) : ''; };
+  for (const path of paths) if (got.get(path)?.status !== 200) p.push(`${path} is served ${got.get(path)?.status}`);
+  const pi = mainOf('/property-investing');
+  if (/fee rulebook \d|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(pi)) p.push(`/property-investing still serves the rulebook's version or checked day: "${(/fee rulebook \d[^.]*|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.exec(pi) || [''])[0]}"`);
+  if (!/Fees from the fee rulebook\./.test(pi)) p.push('/property-investing does not name the fee rulebook');
+  if (!/Version \d+\.\d+\.\d+, checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(mainOf('/data-sources'))) p.push('/data-sources does not carry the fee rulebook\'s "Version N, checked <day>"');
+  const cmp = mainOf('/compare');
+  if (/feature-flagged|not counted as operational|\bP1\b/.test(cmp)) p.push('/compare still serves the register\'s words (feature-flagged, not counted as operational or a priority code)');
+  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Build status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
+  if (!/Flagged: /.test(mainOf('/status'))) p.push('/status no longer lists the flagged rows');
+  for (const path of ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists']) {
+    const t = mainOf(path);
+    if (/never deployed|node scanner\/scan\.mjs|node ingest\/daily/.test(t)) p.push(`${path}: serves "${/never deployed|node scanner\/scan\.mjs|node ingest\/daily/.exec(t)[0]}" in sight`);
+    if (/data\/price-history\.json|data\/scan-alerts\.json/.test(t.replace(/Run the worker on your own computer[\s\S]*$/, ''))) p.push(`${path}: names a data file in an Unavailable reason or a note`);
+  }
+  /* The tab's reason is said to a screen reader (sr-only), so it is read from the markup. */
+  for (const [path, want] of [['/app/scanner/market', /Market \(your series\)[\s\S]{0,300}No price history is loaded here\. This site ships none; open yours on the Scanner’s dashboard/],
+    ['/app/scanner/alerts', /Alerts[\s\S]{0,300}No record of matches is loaded here\. The worker keeps it on the computer it runs on; open yours on the Scanner’s dashboard/]])
+    if (!want.test(text(path))) p.push(`${path}: the Unavailable tab does not keep its one-sentence reason`);
+  const ti = mainOf('/trading-index');
+  if ((ti.match(/extraction script/g) || []).length !== 1 || /extract\.mjs|qtti\//.test(ti)) p.push('/trading-index: the off-page extraction script is not said once, without a file name');
+  if (/contact address/.test(mainOf('/learn/glossary'))) p.push('/learn/glossary still says the SEC dataset waits on a contact address');
+  const lab = text('/property'), quick = text('/property/calculator');
+  if (!/<p class="metaline pc-driver lab-driver"[^>]*>Biggest swing: [a-z ]+<\/p>/.test(lab)) p.push('/property serves no "Biggest swing: <assumption>" line under the four tiles');
+  if (!/<p class="metaline pc-driver"[^>]*>Biggest swing in the rate of return: [a-z ]+<\/p>/.test(quick)) p.push('/property/calculator serves no "Biggest swing in the rate of return: <assumption>" line under the answer');
+  judge(p, 'the copy cleanup as served (16 Oct 2026): the rulebook\'s version and day only on /data-sources; the partial notice without the register\'s words; the scanner pages without a data file, "never deployed" or a command in sight (the Unavailable reasons in one sentence); the Trading Index\'s extraction note once; the Learn dictionary without the SEC contact wait; the driver line under the Lab\'s tiles and the Quick model\'s answer',
+    'a page serves what the cleanup took out, or lacks what it moved');
+}
+/* ---- end copy-cleanup ---- */
+
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);

@@ -1130,7 +1130,7 @@ VIEWS.scannerBacktest = () => {
   runBtn.disabled = !pick.setup || !universe.length;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'No price history is loaded, so there is nothing to simulate on. The simulation reads only data/price-history.json on your own machine.'));
+    'No price history is loaded, so there is nothing to simulate on. The simulation reads only your own price history.'));
   else if (pick.setup && !universe.length) form.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'No instrument in this setup’s universe holds a series in your history.'));
   wrap.append(form);
 
