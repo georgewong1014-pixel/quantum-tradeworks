@@ -4082,7 +4082,7 @@ const HOME_PAGE = read(HOME);
        Lab's, on its heading; the line is the Lab's lede, under that heading. */
     const row = (/<nav class="ptabs[\s\S]*?<\/nav>/.exec(h) || [''])[0];
     if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Live badge is not in the tab row`);
-    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,400}?<p class="body-lg"[^>]*>Calculations on figures you enter are live; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
+    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>Calculations on figures you enter are live; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
   }
   /* Every Beta badge on /property and /app: whose is it? */
   const OTHERS = /(Equities Research|Quantum Scanner|Research a company|Create a scanner setup)\s*$/;
