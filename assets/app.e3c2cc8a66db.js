@@ -26690,7 +26690,7 @@ VIEWS.portfolio = () => {
   ig2.append(el('div', { class: 'panel' }, statTile('Projected, annual', fmtAmount(grossIncome, State.baseCcy),
     { sub: 'Latest declared rate repeated. Not a forecast.' })));
   ig2.append(el('div', { class: 'panel' }, statTile('Projected after withholding', fmtAmount(netIncome, State.baseCcy),
-    { sub: 'At the illustrative rates you set' })));
+    { sub: 'Illustrative rates — yours depend on your circumstances.' })));
   inc.append(ig2);
 
   const selH = el('select', { class: 'select select-sm', id: 'divHold', 'aria-label': 'Holding' });
@@ -46408,7 +46408,7 @@ function propertyDriverLine(d, { long = false, cls = '' } = {}) {
   const top = propertyTopDriver(d);
   if (!top) return null;
   return el('p', { class: `metaline pc-driver ${cls}`.trim(), title: PD_TITLE },
-    `${long ? 'Biggest swing in the rate of return' : 'Biggest swing'}: ${top.label.toLowerCase()}`);
+    `${long ? 'Biggest swing in the rate of return' : 'Return driver'}: ${top.label.toLowerCase()}`);
 }
 
 /* ------------------------------------------------------------------ panel --- */
