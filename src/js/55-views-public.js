@@ -1947,8 +1947,8 @@ function trustPage(title, lede, blocks, { draft } = {}) {
       level = 'h3';
       return;
     }
-    const [heading, body, pending] = b;
-    const card = el('div', { class: 'card trust-card' });
+    const [heading, body, pending, anchor] = b;
+    const card = el('div', { class: 'card trust-card', ...(anchor ? { id: anchor } : {}) });
     card.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
       el(level, { class: 'h-card' }, heading),
       pending ? el('span', { class: 'chip chip-bronze' }, 'not yet established') : null,
@@ -2131,6 +2131,14 @@ VIEWS.terms = () => trustPage('Terms',
        'No operating entity has been registered yet. Until one is, these terms are published so you can see what this build is and is not, and on what footing it is offered.']],
     ['What the service is',
       'A research tool and a property calculator, in beta. It shows the figures companies reported, derives measures from them and models a range of values under assumptions you can see and change; the calculator models a property purchase from figures you enter. It is free to use, needs no account, and is offered as it stands.'],
+    /* THE FULL DISCLOSURE, where the footer's "Full terms and data limits"
+       lands (#full-disclosure; the strip's <details> already holds
+       #disclosure). It is the footer paragraph of 4 Oct 2026, word for word —
+       the footer now carries a short version of it — and served-check holds
+       it so: do not reword it here. */
+    ['Disclosure',
+      [el('p', {}, ['Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell any security. Financial figures come from ', el('strong', {}, 'two different places and are labelled on every page'), ': statements filed with the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked illustrative, which are synthetic and created for interface demonstration. ', el('strong', {}, 'No market-data licence is in place for either exchange.'), ' A filed company therefore carries no price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act before launch.'])],
+      false, 'full-disclosure'],
     ['Research, not advice',
       'Everything here is general information. It does not take account of your objectives, financial situation or needs, and nothing on this site is a recommendation to deal in any security or property. It is not licensed by the Securities Commission Malaysia and gives no personal recommendation; before acting, consider advice from someone licensed to give it.'],
     ['Illustrative data',

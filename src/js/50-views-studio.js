@@ -2752,6 +2752,8 @@ VIEWS.portfolio = () => {
   [['Sector exposure', bySector], ['Business-model exposure', byType]].forEach(([label, obj]) => {
     const card = el('div', { class: 'card' });
     card.append(cardHead(label, 'Share of portfolio value. Concentration is a fact to notice, not a score.', null, PK));
+    /* Kept in each card: a holding left out is named beside the shares it is
+       missing from (WS-06, equity-test) — not said once for both. */
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
@@ -2803,7 +2805,7 @@ VIEWS.portfolio = () => {
   ig2.append(el('div', { class: 'panel' }, statTile('Projected, annual', fmtAmount(grossIncome, State.baseCcy),
     { sub: 'Latest declared rate repeated. Not a forecast.' })));
   ig2.append(el('div', { class: 'panel' }, statTile('Projected after withholding', fmtAmount(netIncome, State.baseCcy),
-    { sub: 'Illustrative only — the rate that applies depends on your circumstances.' })));
+    { sub: 'Illustrative rates — yours depend on your circumstances.' })));
   inc.append(ig2);
 
   const selH = el('select', { class: 'select select-sm', id: 'divHold', 'aria-label': 'Holding' });

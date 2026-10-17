@@ -849,7 +849,7 @@ for (const route of ROUTES) {
     if (path === '/app/scanner') {
       const r = await ev(`({ states: !${hasReg} ? [] : ['market', 'scanAlerts', 'backtest'].map(id => [id, toolState(id).status, toolState(id).note]),
         tabs: [...document.querySelectorAll('#productTabs .scan-subnav .ptab')].map(n => [n.tagName, n.textContent.replace(/\\s+/g, ' ').trim()]) })`);
-      r.states.forEach(([id, st, note]) => { if (st !== 'unavailable' || !/never deployed/.test(note)) p.push(`production: ${id} is ${st} ("${note.slice(0, 60)}"), not unavailable with the reason`); });
+      r.states.forEach(([id, st, note]) => { if (st !== 'unavailable' || !/No price history is loaded|No record of matches is loaded/.test(note)) p.push(`production: ${id} is ${st} ("${note.slice(0, 60)}"), not unavailable with the reason`); });
       for (const label of ['Market', 'Alerts', 'Historical']) {
         const tab = r.tabs.find(([, t]) => t.startsWith(label));
         if (!tab || tab[0] !== 'SPAN' || !/Unavailable/.test(tab[1])) p.push(`production: the scanner's ${label} tab is ${JSON.stringify(tab)}, not text with its badge`);

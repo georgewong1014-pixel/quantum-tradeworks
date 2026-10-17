@@ -982,10 +982,11 @@ for (const w of [360, 390]) {
       navigate('/property/areas'); await w(60); take('#productTabs a', 'property tabs');
       const bad = [];
       for (const [p, where] of seen) {
-        const rt = matchRoute(p.split('?')[0]);
+        /* A place on a page (the footer's /terms#full-disclosure) is the page's. */
+        const rt = matchRoute(p.split(/[?#]/)[0]);
         if (!rt) { bad.push(where + ' ' + p + ': no route'); continue; }
         if (!VIEWS[rt.view]) { bad.push(where + ' ' + p + ': view ' + rt.view + ' is not defined'); continue; }
-        navigate(p); await w(40);
+        navigate(p.split('#')[0]); await w(40);
         if (State.view === 'notfound') bad.push(where + ' ' + p + ': the not-found card');
       }
       const things = [...document.querySelectorAll('a, button')].filter(n => /Business Intelligence/.test(n.textContent));

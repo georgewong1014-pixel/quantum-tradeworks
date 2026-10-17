@@ -619,7 +619,7 @@ VIEWS.scannerDashboard = () => {
   if (st.state === 'current') band.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     `The last scan ran on the newest bar your history holds, with the setups and the engine as they stand. No exchange calendar is held, so “current” is judged against your own history and a four-day rule, not a trading calendar.`));
   if (first) band.append(el('p', { class: 'body scan-band-why' },
-    'The worker’s run log and record of matches stay on the computer that runs it and are never deployed, so on the public site this page has nothing to read — by design, not by fault.'));
+    'The worker’s run log and record of matches stay on the computer that runs it, so on this site this page has nothing to read — by design, not by fault.'));
   else if (st.state === 'never') {
     band.append(el('p', { class: 'body', style: 'margin-top:10px;font-size:13px;max-width:72ch' },
       'The worker writes its run log (data/scan-runs.json) and its record of matches (data/scan-alerts.json) on the machine that runs it. Neither is ever deployed, so on the public site this page has nothing to read — by design, not by fault. Locally, run the worker once and reload; or open your own files below.'));
@@ -960,7 +960,7 @@ VIEWS.scannerMarket = () => {
   runBtn.disabled = !pick.setup || !haveHistory;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'No price history is loaded, so there is nothing to screen. On the deployed site that is by design — none of the prices this product could ship is licensed for redistribution. Locally, the worker’s data/price-history.json is read here.'));
+    'No price history is loaded, so there is nothing to screen. This site ships none: no price it could ship is licensed for redistribution.'));
   wrap.append(form);
 
   const ui = { runBtn, cancelBtn, progress, results, ready: !runBtn.disabled };
@@ -1130,7 +1130,7 @@ VIEWS.scannerBacktest = () => {
   runBtn.disabled = !pick.setup || !universe.length;
   form.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md);align-items:center' }, [runBtn, cancelBtn, progress]));
   if (!haveHistory) form.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:8px' },
-    'No price history is loaded, so there is nothing to simulate on. The simulation reads only data/price-history.json on your own machine.'));
+    'No price history is loaded, so there is nothing to simulate on. The simulation reads only your own price history.'));
   else if (pick.setup && !universe.length) form.append(el('p', { class: 'metaline', style: 'margin-top:8px' }, 'No instrument in this setup’s universe holds a series in your history.'));
   wrap.append(form);
 

@@ -900,9 +900,11 @@ function labDraw(P, focusId = null) {
    claim is the brief's fixed wording (§8), whole at every width. */
 const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a valuation, not a forecast — nothing here is ranked.';
 /* The page's identity line says the same in one clause (the 9 Oct audit,
-   #5): every denial kept — arithmetic, not advice, not a valuation, not a
-   forecast, nothing ranked — and only the words around them dropped. */
-const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a valuation, not a forecast — nothing here is ranked.';
+   #5): arithmetic, not advice, not a forecast, nothing ranked. "Not a
+   valuation" is said twice before it — the chip and the regulated claim —
+   and is not said a third time (16 Oct 2026: one short note beside the
+   output; the words it gave back are the driver line's, labHeader). */
+const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a forecast — nothing here is ranked.';
 const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
@@ -935,6 +937,12 @@ function labHeader(P, lab) {
        83-property-decision.js) after the line that names the property and
        its disclosures, and before the figures their answers lead. */
     hd.append(labIdentity(P, lab, status), labQuestions(P, lab), labTiles(P, lab));
+    /* The assumption the figures depend on most, from the model's own
+       sensitivity, in four words under them: the cash and the month, the
+       one they swing with, and — in the next-step tile and the count above
+       — what is missing and what to do. The subject's, as the tiles are. */
+    const driver = propertyDriverLine(labSubjectInputs(lab), { cls: 'lab-driver' });
+    if (driver) hd.append(driver);
   }
   return hd;
 }

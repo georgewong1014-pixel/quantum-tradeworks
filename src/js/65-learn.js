@@ -78,7 +78,7 @@ function learnDictionary() {
   ])));
   intro.append(ul);
   intro.append(el('p', { class: 'caption', style: 'max-width:72ch' },
-    'Adding them means widening the ingest and the stored statements, then regenerating the SEC dataset — which waits on a contact address the SEC requires and this build has not been given.'));
+    'Adding them means storing more of each statement than this build holds.'));
   wrap.append(intro);
 
   METRIC_CATEGORIES.forEach(cat => {

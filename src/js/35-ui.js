@@ -746,7 +746,7 @@ function toolSource(name) {
   };
   if (name === 'history') {
     const h = typeof scanOpsHistory === 'function' ? scanOpsHistory() : null;
-    if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. The scanner reads data/price-history.json, which is built on your own computer and never deployed; open yours on the Scanner’s dashboard to use it in this tab.');
+    if (!h?.series || !Object.keys(h.series).length) return absent('No price history is loaded here. This site ships none; open yours on the Scanner’s dashboard to use it in this tab.');
     const newest = toolNewestBar(h);
     const age = newest && typeof scanDayDiff === 'function' ? scanDayDiff(newest, now.toISOString().slice(0, 10)) : null;
     if (age > HISTORY_BEHIND_DAYS) return { state: 'delayed',
@@ -755,7 +755,7 @@ function toolSource(name) {
   }
   if (name === 'alerts') {
     const d = typeof scanOpsAlertsDoc === 'function' ? scanOpsAlertsDoc() : null;
-    if (!d) return absent('No record of matches is loaded here. The worker writes data/scan-alerts.json on the computer it runs on, and it is never deployed; open yours on the Scanner’s dashboard to read it in this tab.');
+    if (!d) return absent('No record of matches is loaded here. The worker keeps it on the computer it runs on; open yours on the Scanner’s dashboard to read it in this tab.');
     return null;
   }
   return null;

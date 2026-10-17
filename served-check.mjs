@@ -1200,9 +1200,20 @@ const HOME_PAGE = read(HOME);
    space as one space); the strip's two sentences must stand together, the
    first in <strong>, inside #disclosureText. The script may swap the
    strip's first words for a fuller "Beta preview — …" once the filings
-   load (95-boot.js); that keeps the sentence and is not what a fetch reads. */
+   load (95-boot.js); that keeps the sentence and is not what a fetch reads.
+
+   THE FOOTER IS SHORT NOW (the owner's decision, 16 Oct 2026). Every page's
+   p.footer-legal is SHORT, below — three facts, 34 words — followed by the
+   link "Full terms and data limits" to /terms#full-disclosure; and the
+   whole paragraph of 4 Oct 2026, LEGAL, word for word, is served at that
+   link's target: the "Disclosure" card of /terms, id full-disclosure, one
+   <p>. The strip is unchanged. So the paragraph is still on the site, one
+   click from every page, and neither text can be shortened by an edit that
+   no check reads. */
 {
   const STRIP = '<strong>Beta preview.</strong> Do not use figures here for investment decisions.';
+  const SHORT = 'Quantum Tradeworks is a research and analysis prototype. It does not give investment advice or execute trades. It has no licensed market prices; its financial figures are SEC-filed or illustrative, and every page labels which.';
+  const LINK_TEXT = 'Full terms and data limits', LINK_HREF = '/terms#full-disclosure';
   const LEGAL = 'Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell any security. Financial figures come from two different places and are labelled on every page: statements filed with the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked illustrative, which are synthetic and created for interface demonstration. No market-data licence is in place for either exchange. A filed company therefore carries no price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act before launch.';
   const text = (html) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   const p = [];
@@ -1218,15 +1229,44 @@ const HOME_PAGE = read(HOME);
     const strip = /<summary class="disclosure-in">[\s\S]*?<span id="disclosureText">([\s\S]*?)<\/span> <span id="disclosureFacts">/.exec(r.body)?.[1];
     if (strip == null) p.push(`${path}: serves no #disclosureText`);
     else if (strip.replace(/\s+/g, ' ').trim() !== STRIP) p.push(`${path}: the strip reads "${text(strip).slice(0, 120)}", not "Beta preview. Do not use figures here for investment decisions."`);
-    const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+    const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => m[1]);
     if (legal.length !== 1) p.push(`${path}: serves ${legal.length} p.footer-legal, not one`);
-    else if (legal[0] !== LEGAL) {
-      const at = [...LEGAL].findIndex((c, i) => legal[0][i] !== c);
-      p.push(`${path}: p.footer-legal is not its text of 4 Oct 2026 — from character ${at}: "${legal[0].slice(Math.max(0, at - 20), at + 60)}"`);
+    else {
+      /* The short text, then the link, in that order and nothing else. */
+      const m = /^([\s\S]*?)<a class="footer-legal-link" href="([^"]*)">([\s\S]*?)<\/a>\s*$/.exec(legal[0]);
+      if (!m) p.push(`${path}: p.footer-legal does not end in the link "${LINK_TEXT}"`);
+      else {
+        const short = text(m[1]);
+        if (short !== SHORT) {
+          const at = [...SHORT].findIndex((c, i) => short[i] !== c);
+          p.push(`${path}: p.footer-legal is not the short disclosure of 16 Oct 2026 — from character ${at < 0 ? short.length : at}: "${short.slice(Math.max(0, at - 20), at + 60)}"`);
+        }
+        if (text(m[3]) !== LINK_TEXT) p.push(`${path}: the footer's link reads "${text(m[3])}", not "${LINK_TEXT}"`);
+        if (m[2] !== LINK_HREF) p.push(`${path}: the footer's link goes to ${m[2]}, not ${LINK_HREF}`);
+      }
+      const words = text(legal[0].replace(/<a\b[\s\S]*?<\/a>/g, '')).split(' ').length;
+      if (words > 40) p.push(`${path}: the footer's short disclosure is ${words} words, more than 40`);
     }
   }
-  judge(p, `${paths.length} addresses (every static route, every company's own page, the parameter routes' page and the 404) serve "Beta preview." with "Do not use figures here for investment decisions." and the footer's p.footer-legal word for word as on 4 Oct 2026`,
-    'a served page shortens or drops the disclosure strip or the footer\'s legal text');
+  /* The whole paragraph, at the link's target: the Disclosure card of /terms,
+     one <p>, word for word, in the card the link's fragment names. */
+  {
+    const t = got.get('/terms');
+    const open = `<div class="card trust-card" id="${LINK_HREF.split('#')[1]}">`;
+    const at0 = t && (t.body || '').indexOf(open);
+    if (!t || at0 < 0) p.push(`/terms: serves no card with id ${LINK_HREF.split('#')[1]} (the footer link's target)`);
+    else {
+      const rest = t.body.slice(at0 + open.length), next = rest.indexOf('<div class="card trust-card"');
+      const ps = [...(next < 0 ? rest : rest.slice(0, next)).matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+      if (ps.length !== 1) p.push(`/terms: the full disclosure card holds ${ps.length} paragraphs, not one`);
+      else if (ps[0] !== LEGAL) {
+        const at = [...LEGAL].findIndex((c, i) => ps[0][i] !== c);
+        p.push(`/terms: the full disclosure is not the footer text of 4 Oct 2026 — from character ${at < 0 ? ps[0].length : at}: "${ps[0].slice(Math.max(0, at - 20), at + 60)}"`);
+      }
+    }
+  }
+  judge(p, `${paths.length} addresses (every static route, every company's own page, the parameter routes' page and the 404) serve "Beta preview." with "Do not use figures here for investment decisions." and a footer of the short disclosure of 16 Oct 2026 (34 words, three facts) with the link "${LINK_TEXT}"; /terms#full-disclosure serves the whole paragraph of 4 Oct 2026 word for word`,
+    'a served page shortens or drops the disclosure strip or the footer\'s short text or its link, or /terms does not serve the full paragraph word for word');
 }
 /* ---- end disclosure-guard ---- */
 
@@ -4102,6 +4142,66 @@ const HOME_PAGE = read(HOME);
     'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');
 }
 /* ---- end contact-status ---- */
+
+/* ---- copy-cleanup ---- */
+/* THE COPY CLEANUP, AS SERVED (the owner's decision of 16 Oct 2026: public
+   copy helps a reader choose and act; internal records and developer text
+   stay out of primary copy, and what a reader needs moves to the page that
+   holds it). Each move, and what is held where it went:
+   - the footer's paragraph → /terms#full-disclosure (disclosure-guard, above);
+   - the fee rulebook's version and checked day: out of /property-investing,
+     which links /data-sources, where "Version N, checked <day>" is held;
+   - the register's priority code, "feature-flagged" and "not counted as
+     operational": out of the partial-feature notice on /compare, which says
+     "Partial" and "Usable as it stands."; /status still lists the flagged rows;
+   - the scanner's files, "never deployed" and the worker's command: out of
+     the public scanner pages' sight text — what is missing is said in a
+     sentence (an Unavailable reason keeps its sentence); the commands and
+     files stay in /app/scanner's closed "Run the worker on your own
+     computer" (scanner-first-view, above);
+   - the Trading Index's off-page extraction script, said once, with no file
+     name; the Learn dictionary's wait on a contact address;
+   - the assumption an answer depends on most (the 17 Oct "customer outcome"
+     note): "Return driver: <assumption>" (the assumption that moves the rate of return most) under the Lab's four tiles, and
+     "Biggest swing in the rate of return: <assumption>" under the Quick
+     model's answer and the full model's tiles, from the model's own
+     sensitivity — its figures are the model-test's, not held here. */
+{
+  const p = [];
+  const B = await import('./build.mjs');
+  const paths = ['/property-investing', '/data-sources', '/compare', '/status', '/trading-index', '/learn/glossary', '/property', '/property/calculator',
+    '/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists'];
+  const got = await getAll(paths);
+  const text = (path) => got.get(path)?.body || '';
+  const mainOf = (path) => { const m = B.allOf(B.htmlTree(text(path))).find(n => n.tag === 'main'); return m ? B.sightText(m) : ''; };
+  for (const path of paths) if (got.get(path)?.status !== 200) p.push(`${path} is served ${got.get(path)?.status}`);
+  const pi = mainOf('/property-investing');
+  if (/fee rulebook \d|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(pi)) p.push(`/property-investing still serves the rulebook's version or checked day: "${(/fee rulebook \d[^.]*|checked \d{1,2} [A-Z][a-z]{2} \d{4}/.exec(pi) || [''])[0]}"`);
+  if (!/Fees from the fee rulebook\./.test(pi)) p.push('/property-investing does not name the fee rulebook');
+  if (!/Version \d+\.\d+\.\d+, checked \d{1,2} [A-Z][a-z]{2} \d{4}/.test(mainOf('/data-sources'))) p.push('/data-sources does not carry the fee rulebook\'s "Version N, checked <day>"');
+  const cmp = mainOf('/compare');
+  if (/feature-flagged|not counted as operational|\bP1\b/.test(cmp)) p.push('/compare still serves the register\'s words (feature-flagged, not counted as operational or a priority code)');
+  if (!/Partial\s+Company comparison[\s\S]{0,400}Usable as it stands\. Build status/.test(cmp)) p.push('/compare\'s partial-feature notice does not read "Partial", the feature, what is missing, "Usable as it stands." and the Build status link');
+  if (!/Flagged: /.test(mainOf('/status'))) p.push('/status no longer lists the flagged rows');
+  for (const path of ['/app/scanner', '/app/scanner/market', '/app/scanner/setups', '/app/scanner/alerts', '/app/scanner/backtest', '/app/scanner/settings', '/app/scanner/watchlists']) {
+    const t = mainOf(path);
+    if (/never deployed|node scanner\/scan\.mjs|node ingest\/daily/.test(t)) p.push(`${path}: serves "${/never deployed|node scanner\/scan\.mjs|node ingest\/daily/.exec(t)[0]}" in sight`);
+    if (/data\/price-history\.json|data\/scan-alerts\.json/.test(t.replace(/Run the worker on your own computer[\s\S]*$/, ''))) p.push(`${path}: names a data file in an Unavailable reason or a note`);
+  }
+  /* The tab's reason is said to a screen reader (sr-only), so it is read from the markup. */
+  for (const [path, want] of [['/app/scanner/market', /Market \(your series\)[\s\S]{0,300}No price history is loaded here\. This site ships none; open yours on the Scanner’s dashboard/],
+    ['/app/scanner/alerts', /Alerts[\s\S]{0,300}No record of matches is loaded here\. The worker keeps it on the computer it runs on; open yours on the Scanner’s dashboard/]])
+    if (!want.test(text(path))) p.push(`${path}: the Unavailable tab does not keep its one-sentence reason`);
+  const ti = mainOf('/trading-index');
+  if ((ti.match(/extraction script/g) || []).length !== 1 || /extract\.mjs|qtti\//.test(ti)) p.push('/trading-index: the off-page extraction script is not said once, without a file name');
+  if (/contact address/.test(mainOf('/learn/glossary'))) p.push('/learn/glossary still says the SEC dataset waits on a contact address');
+  const lab = text('/property'), quick = text('/property/calculator');
+  if (!/<p class="metaline pc-driver lab-driver"[^>]*>Return driver: [a-z ]+<\/p>/.test(lab)) p.push('/property serves no "Return driver: <assumption>" line under the four tiles');
+  if (!/<p class="metaline pc-driver"[^>]*>Biggest swing in the rate of return: [a-z ]+<\/p>/.test(quick)) p.push('/property/calculator serves no "Biggest swing in the rate of return: <assumption>" line under the answer');
+  judge(p, 'the copy cleanup as served (16 Oct 2026): the rulebook\'s version and day only on /data-sources; the partial notice without the register\'s words; the scanner pages without a data file, "never deployed" or a command in sight (the Unavailable reasons in one sentence); the Trading Index\'s extraction note once; the Learn dictionary without the SEC contact wait; the driver line under the Lab\'s tiles and the Quick model\'s answer',
+    'a page serves what the cleanup took out, or lacks what it moved');
+}
+/* ---- end copy-cleanup ---- */
 
 
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);

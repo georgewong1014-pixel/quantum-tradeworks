@@ -2927,7 +2927,7 @@ function pcReviewCard(d, queue, { sub }) {
     el('span', { class: 'ls-card-mark', 'aria-hidden': 'true' }, '!'),
     el('span', { class: 'ls-card-body' }, [
       el('span', { class: 'ls-card-title' }, `${n} sample input${s} need${n === 1 ? 's' : ''} your evidence`),
-      el('span', { class: 'ls-card-sub' }, sub)]),
+      sub ? el('span', { class: 'ls-card-sub' }, sub) : null]),
     el('span', { class: 'ls-cta ls-card-cta' }, [`Review ${n} sample input${s}`, el('span', { class: 'ls-arrow', 'aria-hidden': 'true' }, ' →')]),
   ]);
   det.append(sum);
@@ -3096,6 +3096,10 @@ function pcQuickView(d, m, g, DK) {
     kindWithFine(gradeKind, DK.fine, { cls: 'lab-tile-kind ls-badge', attrs: { 'data-kind': gradeKind }, link: false }),
     PC_GRADE_TONE[g.grade]));
   ans.append(cards);
+  /* The assumption it depends on most, from the model's own sensitivity,
+     straight under the figures; then what is missing, then the next step. */
+  const driver = propertyDriverLine(d, { long: true });
+  if (driver) ans.append(driver);
   const worst = pcGatesOrdered(g)[0];
   if (worst) ans.append(pcWorstLine(worst));
   /* The sample label and the limitations, beside the figures they qualify. */
@@ -3114,7 +3118,10 @@ function pcQuickView(d, m, g, DK) {
   const flags = pcModelFlags(m);
   if (flags) res.append(flags);
   const queue = propertyReviewQueue(d);
-  if (queue.length) res.append(pcReviewCard(d, queue, { sub: 'These are figures this tool seeded, not figures you gave it. The answer is arithmetic on them.' }));
+  /* No line under the count here: "Illustrative defaults", in the answer
+     above, already says these are the tool's numbers and that the answer
+     is arithmetic on them (16 Oct 2026, one note beside the output). */
+  if (queue.length) res.append(pcReviewCard(d, queue, { sub: null }));
 
   /* The rest of the calculator, one step away. */
   const open = el('div', { class: 'pc-q-open' }, lsActionCard({ title: 'The full model',
@@ -3259,6 +3266,10 @@ VIEWS.property = () => {
     answers.append(card);
   }
   onePage.append(answers);
+  /* Then the assumption they depend on most, from the model's own
+     sensitivity (the review queue and the next step follow below). */
+  const driver = propertyDriverLine(d, { long: true });
+  if (driver) onePage.append(driver);
 
   onePage.append(el('div', { class: 'row row-wrap', style: 'gap:12px;align-items:baseline;margin-top:var(--md)' }, [
     el('div', {}, [
@@ -4102,7 +4113,10 @@ VIEWS.property = () => {
      Below the four headline figures it would be a footnote on a number the
      reader has already taken (pcReviewCard). */
   const queue = propertyReviewQueue(d);
-  if (queue.length) free.append(pcReviewCard(d, queue, { sub: 'These are figures this tool seeded, not figures you gave it. The result below is arithmetic on them.' }));
+  /* No line under the count: the grade card's "Illustrative defaults" above
+     says these are the tool's numbers, and each figure below wears its
+     badge (16 Oct 2026; it gave back the driver line's words). */
+  if (queue.length) free.append(pcReviewCard(d, queue, { sub: null }));
   const summaryCard = free;
 
   /* The four headline numbers, in the section whose inputs make them. */

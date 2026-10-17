@@ -234,7 +234,7 @@ const CAPABILITY_REGISTER = [
   { name:'Company comparison', status:'flagged', path:'/compare',
     brief:['EQ-210'], priority:'P1',
     now:'Filed companies whose latest fiscal years differ compared on the latest year all of them hold, or on each company’s latest with every figure naming its year; reporting period and accounting basis rows, absolute scale rows in the chosen currency, a stated reason for every absent cell, a banner when periods, bases or illustrative and filed figures are mixed, and named comparisons that say what moved.',
-    flag:'Period-end months cannot be aligned until the SEC dataset is regenerated with period ends, and no line-level accounting reconciliation (leases, minorities, associates) is possible from the statements held.',
+    flag:'Companies are compared by fiscal year, not by period-end month, and leases, minorities and associates are not reconciled from the statements held.',
     checks:[{ file:'equity-test.mjs', name:'the comparison states each column' },
             { file:'equity-test.mjs', name:'compare and onboarding do what their labels say' }] },
   { name:'Valuation models', status:'flagged', path:'/company/aapl-apple-inc?tab=valuation',
@@ -456,10 +456,13 @@ function flagRowFor(view, tab) {
 }
 function flagNoticeFor(row) {
   return el('div', { class: 'flag-notice', role: 'note', 'aria-label': `${row.name}: partial` }, [
-    el('p', { class: 'flag-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, `${row.priority || ''} · feature-flagged`.replace(/^ · /, '')),
-      el('strong', {}, `${row.name} is partial.`)]),
+    /* No priority code and no "feature-flagged" on the page (16 Oct 2026:
+       the register's own words stay on /status): it says what is partial
+       and what is missing. */
+    el('p', { class: 'flag-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, 'Partial'),
+      el('strong', {}, row.name)]),
     el('p', {}, row.flag),
-    el('p', { class: 'metaline' }, [`Usable as it stands, and not counted as operational until that is built. `,
+    el('p', { class: 'metaline' }, [`Usable as it stands. `,
       el('a', { href: href('/status'), onclick: (e) => { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); navigate('/status'); } }, 'Build status')]),
   ]);
 }
