@@ -321,11 +321,11 @@
         "forms": 0,
         "removed": 0,
         "notShown": 1,
-        "now": 1,
+        "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "85029843f16923ca",
+      "digest": "775d6f8217b6740c",
       "changed": "2026-10-17"
     },
     "pages/app/scanner/alerts.html": {
@@ -4930,11 +4930,11 @@
         "forms": 0,
         "removed": 0,
         "notShown": 19,
-        "now": 1,
+        "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e2ec06b55dbd0611",
+      "digest": "feb1ad87941cc8c1",
       "changed": "2026-10-17"
     },
     "pages/property/areas.html": {
@@ -5162,12 +5162,12 @@
         "forms": 0,
         "removed": 0,
         "notShown": 1,
-        "now": 1,
+        "now": 0,
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "07aff2289a0a6b95",
-      "changed": "2026-10-11"
+      "digest": "194eb24d8cb82caf",
+      "changed": "2026-10-17"
     },
     "pages/research/queue.html": {
       "path": "/research/queue",
