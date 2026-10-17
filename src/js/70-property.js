@@ -1911,7 +1911,10 @@ const FEE_TABLE = {
                 url: 'https://lpeph.gov.my/fees',
                 citation: 'Act 242; P.U.(A) 64/1986, r. 48(1), Seventh Schedule item 3' },
       checkedOn: '2026-10-09',
-      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, the page still carries injected third-party text (re-read 9 October 2026), and the only full text of the Rules found was a third party’s copy of the 1986 original. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it.',
+      note: 'Carried at the scale’s ceiling: the Rules say a fee shall not be more than the scale (minimum RM400 a property), so a valuer may charge less. Held as an estimate because the Board’s page could not be confirmed against a gazetted copy — the date its current bands took effect was not found, the page still carries injected third-party text (re-read 9 October 2026), and the only full text of the Rules found was a third party’s copy of the 1986 original. Usually required by the lender and paid by the buyer; confirm whether the lender absorbs it. Not charged without a loan: the valuation is the lender’s, for the loan.',
+      /* What the line reads on a purchase with no loan (dealModel): nought,
+         and why. A behaviour of the line, not a change of its rule. */
+      withoutLoan: 'Not charged without a loan: the valuation is the lender’s, for the loan.',
     },
     chargeStampDuty: {
       label: 'Stamp duty on the charge',
@@ -2000,7 +2003,8 @@ const FEE_TABLE = {
                 url: 'https://pub-359af8e1f79c472292a7e44ec60f3027.r2.dev/Industry%20Guides/EN/Guide%20on%20Professional%20Services%2020210921.pdf',
                 citation: 'P.U.(A) 64/2024, in operation 1 March 2024; Service Tax Act 2018 (Act 807)' },
       checkedOn: '2026-10-08',
-      note: 'The rate is verified; the fee it is charged on is an estimate, so the amount is too.',
+      note: 'The rate is verified; the fee it is charged on is an estimate, so the amount is too. Not charged without a loan, as the valuation fee is not.',
+      withoutLoan: 'Not charged without a loan: there is no valuation fee to charge it on.',
     },
     mortgageProtection: {
       label: 'Mortgage protection (MRTA/MLTA)',
@@ -2341,6 +2345,8 @@ function feeProvenanceLine(r) {
   const line = r.line || {};
   /* Gated for the class (1.2.0): what it is, and why. */
   if (r.gated) return `${r.why}${r.gateWhy ? `: ${feeLower(r.gateWhy)}` : ''}`;
+  /* Not charged on this deal (no loan, no lender's valuation): why. */
+  if (r.notCharged) return r.why;
   const word = FEE_PROVENANCE[r.provenance]?.word || r.provenance;
   if (r.provenance === 'quote') return line.quoteKind === 'quoted' ? `${word} — the lender’s or insurer’s quotation you entered, not the rulebook’s` : `${word} — yours, not the rulebook’s`;
   const parts = [word, line.jurisdiction || null].filter(Boolean).join(' · ');

@@ -722,7 +722,8 @@ function cpAcquisitionSection(d, m, cash) {
   /* Each fee line by its provenance in the fee rulebook (70-property.js). */
   const mark = (r) => {
     const pv = r?.provenance;
-    return pv === 'estimated' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off an official scale.' }, 'estimated')
+    return r?.notCharged ? el('span', { class: 'cp-mark cp-mark-quiet', title: r.why }, 'not charged')
+      : pv === 'estimated' ? el('span', { class: 'cp-mark', title: 'A commonly quoted approximation, not a quotation and not read off an official scale.' }, 'estimated')
       : pv === 'unknown' ? el('span', { class: 'cp-mark', title: 'The rule for this jurisdiction could not be verified from an official source; the amount rests on it — see the fee rulebook.' }, 'unknown rule')
       : pv === 'verified' ? el('span', { class: 'cp-mark cp-mark-quiet', title: `Computed from the official scale the fee rulebook ${FEE_TABLE.version} cites, checked ${feeDay(FEE_TABLE.checkedOn)}.` }, 'verified scale')
       : pv === 'quote' ? el('span', { class: 'cp-mark cp-mark-quiet', title: 'A figure from a quotation the preparer was given.' }, 'quoted')
@@ -1020,7 +1021,9 @@ function cpSplitItems(d, m, cash, paid = false) {
     const r = it[2], amount = g.lines[j];
     if (!r?.provenance) return;
     if (!isNum(it[1])) { put('missing', cpLineLabel(it[0]), r.gated ? feeGateWords(r.gated) : 'not priced', 'unavailable', r.gated ? (r.gateWhy || null) : (r.why || 'No amount could be worked out.'), 'fee'); return; }
-    if (r.provenance === 'verified') put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived',
+    /* Not charged on this deal (no loan, no lender's valuation): why, not a citation. */
+    if (r.notCharged) put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived', r.why, 'fee');
+    else if (r.provenance === 'verified') put('facts', cpLineLabel(it[0]), cpMoney(amount), 'derived',
       `${r.line?.source?.citation || r.line?.source?.title || 'the fee rulebook'} — fee rulebook ${FEE_TABLE.version}, checked ${feeDay(FEE_TABLE.checkedOn)}`, 'fee');
     else if (r.provenance === 'quote') put('facts', cpLineLabel(it[0]), cpMoney(amount), feeKindBadge(r, it[1]), 'A quotation the preparer entered; no rule checks it.', 'fee');
     else put('missing', cpLineLabel(it[0]), cpMoney(amount), 'placeholder',

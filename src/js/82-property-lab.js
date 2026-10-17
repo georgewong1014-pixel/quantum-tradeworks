@@ -246,7 +246,7 @@ const LAB_FIGURES = [
       /* Timed from VP: the price grows from signing, the years to VP and
          the hold (ndTimingOf). */
       return t
-        ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed ${n} year${n === 1 ? '' : 's'} into its repayments, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
+        ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed when the sale completes, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
         : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
     } },
   { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',

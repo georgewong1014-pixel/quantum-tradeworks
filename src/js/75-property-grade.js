@@ -693,7 +693,16 @@ function dealModel(d) {
      deal, and then every moment is the year it always was. */
   const ndTime = newDevRoute ? ndTimingOf(d) : null;
   const fromSigning = (y) => (ndTime ? ndTime.lead + y : y);
-  const valuationR = feeGate(resolveFee('valuationFee', { price: d.price }), feeClass);
+  /* NO LOAN, NO LENDER'S VALUATION (the calculation check pack, 17 Oct
+     2026). The valuation fee is the lender's, for the loan: a purchase with
+     no loan — a deposit of 100%, or a loan of nought — is not charged it or
+     the service tax on it. Each line stays in the ledger at nought, says why
+     (`notCharged`, the rulebook's own words) and is gated for no class:
+     there is nothing to charge whatever the class. A Derived nought, as the
+     loan's own fees are without a loan, not an estimate. */
+  const notCharged = (r, why) => ({ ...r, amount: 0, provenance: 'verified', status: 'verified', notCharged: true, why });
+  const valuationR = loan > 0 ? feeGate(resolveFee('valuationFee', { price: d.price }), feeClass)
+    : notCharged(resolveFee('valuationFee', { price: d.price }), FEE_TABLE.lines.valuationFee.withoutLoan);
   const loanDutyR = resolveFee('loanStampDuty', { loan });
   /* Mortgage protection: quoted, included at the estimate, or out. */
   const mrtaQuoted = isNum(d.mrtaPremium) && d.mrtaPremium > 0;
@@ -735,7 +744,8 @@ function dealModel(d) {
         feeLine('chargeStampDuty', { loanDuty: loanDutyR.amount }),
         asLine(loanLegalR),
         asLine(valuationR),
-        feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR]),
+        loan > 0 ? feeLine('valuationServiceTax', { valuationFee: isNum(valuationR.amount) ? valuationR.amount : null }, { basedOn: [valuationR.provenance] }, [valuationR])
+          : asLine(notCharged(resolveFee('valuationServiceTax', { valuationFee: 0 }), FEE_TABLE.lines.valuationServiceTax.withoutLoan)),
         /* The reader's own quote, when there is one. The financing panel asked
            for the MRTA premium and used it to compare cover — and the ledger
            beside it went on charging the RM8,000 placeholder, so a reader who
@@ -903,6 +913,9 @@ function dealModel(d) {
     return maintenanceY + sinkingY + statutoryY + insuranceY + mv + (topUp + placementAnnual) + rep;
   };
   const opex = opexAt(effectiveRentN);
+  /* A year's running costs: year 1's, grown 2% a year after it. One
+     function for the year-by-year path and the months spent selling. */
+  const opexInYear = (y) => opex * Math.pow(1.02, y - 1);
   const noiN = effectiveRentN - opex;
   const noi = letsToTenant ? noiN : null;
   /* A loan whose instalment cannot be computed (a tenure of zero, or a
@@ -921,8 +934,9 @@ function dealModel(d) {
   const tenureMonths = tenureValid ? num0(d.tenureYears) * 12 : 0;
   const debtInYear = (y) => debtUnknown ? null
     : num0(instalment) * clamp(tenureMonths - (y - 1) * 12, 0, 12);
+  const sellingInstalments = (yrs, months) => clamp(tenureMonths - yrs * 12, 0, months);
   const instalmentWhileSelling = (yrs, months) => debtUnknown ? null
-    : num0(instalment) * clamp(tenureMonths - yrs * 12, 0, months);
+    : num0(instalment) * sellingInstalments(yrs, months);
   /* The balance owed after a number of months: unknown with the debt service,
      nothing without a loan. */
   const balanceAt = (months) => debtUnknown ? null
@@ -1010,12 +1024,24 @@ function dealModel(d) {
      years after VP is grown for the years to VP and y more (ndTimingOf). */
   const exitValueAt = (y) => d.price * Math.pow(1 + d.apprecPct / 100, fromSigning(y)) + renoRecovered;
   const exitValue = exitValueAt(d.holdYears);
-  const outstanding = balanceAt(d.holdYears * 12);
+  const sellMonths = num0(d.sellMonths);
+  /* THE LOAN IS SETTLED WHEN THE SALE COMPLETES, at its balance after the
+     instalments actually paid — the hold's and those paid while it sells
+     (the calculation check pack, 17 Oct 2026). It was settled at the
+     balance before the selling months while their instalments were also
+     deducted (carryWhileSelling), so the principal inside them was paid
+     twice: RM4,912 on the sample. Each instalment is now deducted once —
+     its interest and its principal — and the balance repaid is what is
+     left after it. */
+  const settledAt = (yrs) => balanceAt(yrs * 12 + sellingInstalments(yrs, sellMonths));
+  const outstanding = settledAt(d.holdYears);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
-  const sellMonths = num0(d.sellMonths);
+  /* THE MONTHS SPENT SELLING COST WHAT THE SALE YEAR COSTS (the same
+     pack): that year's running costs, grown as every year of the hold is
+     (opexInYear), not year 1's. */
   const carryWhileSelling = debtUnknown ? null
-    : instalmentWhileSelling(d.holdYears, sellMonths) + sellMonths * (opex / 12);
+    : instalmentWhileSelling(d.holdYears, sellMonths) + sellMonths * (opexInYear(d.holdYears) / 12);
   /* Renovation that is still reflected in the property at disposal is an
      allowable enhancement cost. Leaving it out overstated the gain by whatever
      was spent improving the asset. */
@@ -1047,7 +1073,7 @@ function dealModel(d) {
   const yearFlow = (y) => {
     const rentY = grossAnnualRentN * Math.pow(1 + d.rentGrowthPct / 100, y - 1);
     const effY = rentY * (1 - num0(d.vacancyPct) / 100);
-    const opexY = opex * Math.pow(1.02, y - 1);
+    const opexY = opexInYear(y);
 
     /* WHAT THE REVENUE OFFICE ALLOWS IS NOT WHAT LEFT THE BANK ACCOUNT.
        Two differences, and both run the same way — they make the taxable figure
@@ -1190,10 +1216,11 @@ function dealModel(d) {
   /* ---- five and ten year exits ----------------------------------------- */
   const exitAt = (yrs) => {
     const val = exitValueAt(yrs);
-    const bal = balanceAt(yrs * 12);
+    /* Settled, and carried, as the model's own sale is (above). */
+    const bal = settledAt(yrs);
     const agent = val * num0(d.agentPct) / 100;
     const lg = Math.max(500, val * num0(d.exitLegalPct) / 100);
-    const carry = debtUnknown ? null : instalmentWhileSelling(yrs, sellMonths) + sellMonths * (opex / 12);
+    const carry = debtUnknown ? null : instalmentWhileSelling(yrs, sellMonths) + sellMonths * (opexInYear(yrs) / 12);
     const rc = rpgtCharge({
       disposalPrice: val, acquisitionPrice: d.price,
       acquisitionCosts: duty + legal, disposalCosts: agent + lg,
