@@ -1200,9 +1200,20 @@ const HOME_PAGE = read(HOME);
    space as one space); the strip's two sentences must stand together, the
    first in <strong>, inside #disclosureText. The script may swap the
    strip's first words for a fuller "Beta preview — …" once the filings
-   load (95-boot.js); that keeps the sentence and is not what a fetch reads. */
+   load (95-boot.js); that keeps the sentence and is not what a fetch reads.
+
+   THE FOOTER IS SHORT NOW (the owner's decision, 16 Oct 2026). Every page's
+   p.footer-legal is SHORT, below — three facts, 34 words — followed by the
+   link "Full terms and data limits" to /terms#full-disclosure; and the
+   whole paragraph of 4 Oct 2026, LEGAL, word for word, is served at that
+   link's target: the "Disclosure" card of /terms, id full-disclosure, one
+   <p>. The strip is unchanged. So the paragraph is still on the site, one
+   click from every page, and neither text can be shortened by an edit that
+   no check reads. */
 {
   const STRIP = '<strong>Beta preview.</strong> Do not use figures here for investment decisions.';
+  const SHORT = 'Quantum Tradeworks is a research and analysis prototype. It does not give investment advice or execute trades. It has no licensed market prices; its data is SEC-filed or illustrative, and every page labels which.';
+  const LINK_TEXT = 'Full terms and data limits', LINK_HREF = '/terms#full-disclosure';
   const LEGAL = 'Quantum Tradeworks is a research and analysis prototype. It does not provide investment advice, personal recommendations, or a suitability assessment, and it does not execute trades or connect to brokerage accounts. Nothing here is an offer or inducement to buy or sell any security. Financial figures come from two different places and are labelled on every page: statements filed with the US SEC, which are audited and real, and illustrative figures for the Malaysian companies and any other company marked illustrative, which are synthetic and created for interface demonstration. No market-data licence is in place for either exchange. A filed company therefore carries no price at all, and every measure that needs one — market capitalisation, multiples, yield, difference to model estimate — reads as unavailable rather than estimated. Where a price, market capitalisation or yield does appear, it belongs to an illustrative company and is part of that synthetic dataset; it is not a quote and it is not observed from any market. Nothing here may be used for an investment decision. A production deployment would require licensed market data for both markets and, in Malaysia, written legal classification of each surface under the Capital Markets and Services Act before launch.';
   const text = (html) => html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   const p = [];
@@ -1218,15 +1229,44 @@ const HOME_PAGE = read(HOME);
     const strip = /<summary class="disclosure-in">[\s\S]*?<span id="disclosureText">([\s\S]*?)<\/span> <span id="disclosureFacts">/.exec(r.body)?.[1];
     if (strip == null) p.push(`${path}: serves no #disclosureText`);
     else if (strip.replace(/\s+/g, ' ').trim() !== STRIP) p.push(`${path}: the strip reads "${text(strip).slice(0, 120)}", not "Beta preview. Do not use figures here for investment decisions."`);
-    const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+    const legal = [...r.body.matchAll(/<p class="footer-legal">([\s\S]*?)<\/p>/g)].map(m => m[1]);
     if (legal.length !== 1) p.push(`${path}: serves ${legal.length} p.footer-legal, not one`);
-    else if (legal[0] !== LEGAL) {
-      const at = [...LEGAL].findIndex((c, i) => legal[0][i] !== c);
-      p.push(`${path}: p.footer-legal is not its text of 4 Oct 2026 — from character ${at}: "${legal[0].slice(Math.max(0, at - 20), at + 60)}"`);
+    else {
+      /* The short text, then the link, in that order and nothing else. */
+      const m = /^([\s\S]*?)<a class="footer-legal-link" href="([^"]*)">([\s\S]*?)<\/a>\s*$/.exec(legal[0]);
+      if (!m) p.push(`${path}: p.footer-legal does not end in the link "${LINK_TEXT}"`);
+      else {
+        const short = text(m[1]);
+        if (short !== SHORT) {
+          const at = [...SHORT].findIndex((c, i) => short[i] !== c);
+          p.push(`${path}: p.footer-legal is not the short disclosure of 16 Oct 2026 — from character ${at < 0 ? short.length : at}: "${short.slice(Math.max(0, at - 20), at + 60)}"`);
+        }
+        if (text(m[3]) !== LINK_TEXT) p.push(`${path}: the footer's link reads "${text(m[3])}", not "${LINK_TEXT}"`);
+        if (m[2] !== LINK_HREF) p.push(`${path}: the footer's link goes to ${m[2]}, not ${LINK_HREF}`);
+      }
+      const words = text(legal[0].replace(/<a\b[\s\S]*?<\/a>/g, '')).split(' ').length;
+      if (words > 40) p.push(`${path}: the footer's short disclosure is ${words} words, more than 40`);
     }
   }
-  judge(p, `${paths.length} addresses (every static route, every company's own page, the parameter routes' page and the 404) serve "Beta preview." with "Do not use figures here for investment decisions." and the footer's p.footer-legal word for word as on 4 Oct 2026`,
-    'a served page shortens or drops the disclosure strip or the footer\'s legal text');
+  /* The whole paragraph, at the link's target: the Disclosure card of /terms,
+     one <p>, word for word, in the card the link's fragment names. */
+  {
+    const t = got.get('/terms');
+    const open = `<div class="card trust-card" id="${LINK_HREF.split('#')[1]}">`;
+    const at0 = t && (t.body || '').indexOf(open);
+    if (!t || at0 < 0) p.push(`/terms: serves no card with id ${LINK_HREF.split('#')[1]} (the footer link's target)`);
+    else {
+      const rest = t.body.slice(at0 + open.length), next = rest.indexOf('<div class="card trust-card"');
+      const ps = [...(next < 0 ? rest : rest.slice(0, next)).matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/g)].map(m => text(m[1]));
+      if (ps.length !== 1) p.push(`/terms: the full disclosure card holds ${ps.length} paragraphs, not one`);
+      else if (ps[0] !== LEGAL) {
+        const at = [...LEGAL].findIndex((c, i) => ps[0][i] !== c);
+        p.push(`/terms: the full disclosure is not the footer text of 4 Oct 2026 — from character ${at < 0 ? ps[0].length : at}: "${ps[0].slice(Math.max(0, at - 20), at + 60)}"`);
+      }
+    }
+  }
+  judge(p, `${paths.length} addresses (every static route, every company's own page, the parameter routes' page and the 404) serve "Beta preview." with "Do not use figures here for investment decisions." and a footer of the short disclosure of 16 Oct 2026 (34 words, three facts) with the link "${LINK_TEXT}"; /terms#full-disclosure serves the whole paragraph of 4 Oct 2026 word for word`,
+    'a served page shortens or drops the disclosure strip or the footer\'s short text or its link, or /terms does not serve the full paragraph word for word');
 }
 /* ---- end disclosure-guard ---- */
 

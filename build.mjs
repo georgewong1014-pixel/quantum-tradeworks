@@ -1880,16 +1880,19 @@ export function layoutSystemProblems({ root = ROOT } = {}) {
      data marks (data-v) and a source label in sight (.pub-vis-src);
    - one disclosure line above the footer — the strip's summary, with its
      sentence and "No licensed prices" — and no other in <main>;
-   - p.footer-legal, word for word (FOOTER_LEGAL_SHA).
+   - p.footer-legal, the short disclosure of 16 Oct 2026 and its link, word
+     for word (FOOTER_LEGAL_SHA).
    A word is what a reader reads as one: a run with a letter in it, not a
    number, an amount or a date ("RM572,000", "$416.2B", "FY2025"), and not
    what is hidden, said only to a screen reader (.sr-only), or inside a
    closed <details> (its summary is in sight). served-check reads the
    served / with this same function. */
 export const HOME_BUDGET = { hero: 15, card: 12, figure: 20, main: 110, visuals: 2 };
-/* p.footer-legal's words as on 4 Oct 2026 (served-check's disclosure-guard
-   holds them word for word on every page; this, on /, in CI's first job). */
-export const FOOTER_LEGAL_SHA = 'd73676dac857efbf';
+/* p.footer-legal's words and its link's: the short disclosure of 16 Oct 2026
+   (served-check's disclosure-guard holds them word for word on every page, and
+   the whole paragraph of 4 Oct 2026 at /terms#full-disclosure; this, on /, in
+   CI's first job). */
+export const FOOTER_LEGAL_SHA = 'dce2cbe7c255be42';
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
 /* An HTML page as a tree: tags, their attributes, and their text, enough to
    say what is in sight and what a part of the page holds. */
@@ -2007,12 +2010,12 @@ export function homeBudgets(html) {
   const lines = inMain.filter(n => /^(p|div|li|span|section)$/.test(n.tag) && !allOf(n).some(k => /^(p|div|li|section)$/.test(k.tag)) && !figures.some(f => allOf(f).includes(n)) && DISCLOSURE_WORDS.test(sightText(n)));
   said.disclosures = (strip ? 1 : 0) + lines.length;
   if (lines.length) p.push(`<main> carries ${lines.length} disclosure line${lines.length === 1 ? '' : 's'} besides the strip: "${sightText(lines[0]).slice(0, 120)}"`);
-  /* The footer's legal paragraph, word for word. */
+  /* The footer's short disclosure and its link, word for word. */
   const legal = nodes.filter(n => n.tag === 'p' && hasClass(n, 'footer-legal'));
   const legalSha = legal.length === 1 ? createHash('sha256').update(sightText(legal[0])).digest('hex').slice(0, 16) : null;
   said.legal = legalSha;
   if (legal.length !== 1) p.push(`/ serves ${legal.length} p.footer-legal, not one`);
-  else if (FOOTER_LEGAL_SHA && legalSha !== FOOTER_LEGAL_SHA) p.push(`p.footer-legal is not its text of 4 Oct 2026 (sha ${legalSha}, not ${FOOTER_LEGAL_SHA})`);
+  else if (FOOTER_LEGAL_SHA && legalSha !== FOOTER_LEGAL_SHA) p.push(`p.footer-legal is not the short disclosure of 16 Oct 2026 (sha ${legalSha}, not ${FOOTER_LEGAL_SHA})`);
   return { problems: p, said };
 }
 /* ─── RESEARCH'S FRONT PAGE (the 5 Oct addendum's N7; the owner's D20) ──────

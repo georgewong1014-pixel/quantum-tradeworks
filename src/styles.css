@@ -1430,6 +1430,8 @@ table.dt tbody tr:hover .pin-end { background: color-mix(in srgb, var(--brand) 5
 .footer ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .footer a { font-size:13px; color: var(--ink-2); text-decoration: none; transition: color 160ms ease; }
 .footer a:hover { color: var(--brand); }
+/* The link under the short disclosure: on its own line, underlined so it reads as a link inside a grey paragraph. */
+.footer-legal .footer-legal-link { display: flex; width: fit-content; margin-top: var(--xs, 8px); text-decoration: underline; text-underline-offset: 3px; }
 .footer-legal { margin-top: var(--xl); padding-top: var(--lg); border-top: 1px solid var(--line); font-size:12px; color: var(--ink-3); line-height: 1.65; max-width: 90ch; }
 
 /* ------------------------------------------------------- view-specific grids */
@@ -7078,6 +7080,11 @@ input.au-in[type="text"] { text-align: left; }
 .pc-q-other-k { font-weight: var(--weight-semibold); color: var(--ink); }
 .pc-q-other-boxes { padding-left: var(--sm); border-left: 2px solid var(--line); margin: 2px 0 var(--xs); }
 .pc-q-restore { margin: var(--xs) 0 0; }
+/* The assumption the answer depends on most (propertyDriverLine): a line
+   under the figures in the Quick and the full model's answers, and under the
+   Scenario Lab's four tiles. */
+.pc-driver { margin: var(--sm) 0 0; font-size: var(--ls-support); line-height: 20px; color: var(--ink-2); }
+.pc-driver.lab-driver { margin: 0; font-size: var(--ls-meta); line-height: 18px; }
 .pc-q-limits { margin-top: var(--md); }
 .pc-q-limits > .chip { margin-right: 4px; }
 @media (max-width: 620px) {
