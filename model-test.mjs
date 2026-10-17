@@ -9255,7 +9255,7 @@ try {
     else ok(`calc-fixes CF2: the 6 months spent selling carry year 10's running costs (RM6,088.10 × 1.02^9 = RM7,275.84 a year), RM17,875.66 with the 6 instalments; year 5's on the five-year exit; RM3,637.92 on a cash purchase`);
 
     const p3 = [];
-    for (const [k, x] of [['valuation fee', r.cash.val], ['its service tax', r.cash.vst]])
+    for (const [k, x] of [['valuation fee', r.cash.val], ['service tax on it', r.cash.vst]])
       if (!x || x.v !== 0 || !x.notCharged || !/^Not charged without a loan/.test(x.why || '') || x.prov !== x.why) p3.push(`with no loan the ${k} reads ${JSON.stringify(x)} — by hand nought, "Not charged without a loan…" on its line`);
     const byHand = 572000 + 11160 + 4604 + 10 + 1170 + Math.round(4604 * 8) / 100 + 25000 + 1500 + r.cash.reserve;
     if (!near(r.cash.total, byHand) || !near(r.cash.split, r.cash.total) || r.cash.missing) p3.push(`a cash purchase requires ${r.cash.total} — by hand the price, duty 11,160, legal 4,604, registration 10, searches 1,170, tax 368.32, renovation 25,000, deposits 1,500 and the reserve ${r.cash.reserve} = ${byHand.toFixed(2)}, with no valuation fee (the five kinds sum to ${r.cash.split}; ${r.cash.missing} lines missing)`);
