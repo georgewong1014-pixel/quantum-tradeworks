@@ -4298,6 +4298,8 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
    whole page has one — stands at the head's end and drops under the text
    when the two do not fit side by side. */
 .page-hd .page-lede { margin-top: 8px; max-width: 82ch; }
+/* The Lab's lede says what is live and what is beta (Day-4 QT-D04-01): balanced, so "is beta." is not left alone on a line. */
+.lab-page-hd .page-lede { text-wrap: balance; }
 .page-hd .page-note {
   margin-top: 6px; max-width: 76ch;
   font-size: var(--text-sm); line-height: 1.55; color: var(--ink-3);
