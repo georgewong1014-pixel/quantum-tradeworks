@@ -4033,6 +4033,77 @@ const HOME_PAGE = read(HOME);
 /* ---- end journey-bar-served ---- */
 
 
+/* ---- contact-status ---- */
+/* NO MARKER ON A CUSTOMER PAGE, AND WHICH LABEL IS WHICH (the Day-4 report,
+   17 Oct 2026: QT-D03-01 and QT-D04-01; the owner's 16 Oct rule — public
+   copy helps the customer decide and act, internal placeholders stay out).
+   Held as served:
+   - /contact and /about carry no "To be supplied" text and no marker; /contact
+     says "Customer support is not available yet." and what the correction
+     tool does and does not do, /about that the operating entity and its
+     registered address are not published yet; neither carries a mailto: link
+     or a run of digits that reads as a telephone number. /privacy and /terms
+     are drafts for counsel and keep their markers (counted, not forbidden);
+   - /property serves "Calculations on figures you enter are live; the
+     Scenario Lab is beta." once, as the Lab's lede under its heading and its
+     Beta badge (it replaced "Move a slider and every figure below follows."),
+     with the product's Live badge in the tab row; the Property product never
+     wears Beta;
+   - on /app, the property step is "Start a property model in the Scenario
+     Lab" and its Beta badge follows those words; no Beta badge on /property
+     or /app stands beside Property Intelligence's name. */
+{
+  const p = [], said = [];
+  const got = await getAll(['/contact', '/about', '/privacy', '/terms', '/property', '/property/lab', '/app']);
+  const html = (path) => got.get(path)?.body || '';
+  for (const path of ['/contact', '/about']) {
+    const h = html(path), t = pageText(h);
+    if (got.get(path)?.status !== 200) { p.push(`${path} is served ${got.get(path)?.status}`); continue; }
+    if (/To be supplied/i.test(t) || /data-tbs=/.test(h)) p.push(`${path} still serves a "To be supplied" marker`);
+    const main = (/<main\b[\s\S]*?<\/main>/.exec(h) || [h])[0];
+    if (/mailto:/i.test(main)) p.push(`${path} links a mailto: address`);
+    const body = pageText(main);
+    if (/(\+?\d[\d\s().-]{7,}\d)/.test(body.replace(/\b(19|20)\d{2}\b/g, ''))) p.push(`${path} carries a run of digits that reads as a telephone number: "${/(\+?\d[\d\s().-]{7,}\d)/.exec(body)[0]}"`);
+  }
+  const contact = pageText(html('/contact'));
+  if (!/Customer support is not available yet\. The correction tool saves a case in this browser and prepares text for you to copy\. It does not send the case or notify Quantum Tradeworks\. Do not include confidential or sensitive information\./.test(contact)) p.push('/contact does not serve the interim support copy');
+  if (/<strong>Customer support is not available yet\.<\/strong>/.test(html('/contact')) === false) p.push('/contact does not bold "Customer support is not available yet."');
+  if (!/The operating entity and its registered address are not published yet\./.test(pageText(html('/about')))) p.push('/about does not say the operating entity and its registered address are not published yet');
+  const marks = (path) => (html(path).match(/data-tbs=/g) || []).length;
+  if (!marks('/privacy') || !marks('/terms')) p.push(`/privacy (${marks('/privacy')}) and /terms (${marks('/terms')}) keep their markers`);
+  said.push(`${marks('/privacy')} markers on /privacy and ${marks('/terms')} on /terms`);
+  const LINE = 'Calculations on figures you enter are live; the Scenario Lab is beta.';
+  for (const path of ['/property', '/property/lab']) {
+    const h = html(path), t = pageText(h);
+    const n = t.split(LINE).length - 1;
+    if (n !== 1) p.push(`${path} serves the Live/Beta line ${n} times, not once`);
+    if (/Move a slider and every figure below follows/.test(t)) p.push(`${path} still serves the Lab's old lede`);
+    /* The Live badge is the product's, in the tab row; the Beta badge is the
+       Lab's, on its heading; the line is the Lab's lede, under that heading. */
+    const row = (/<nav class="ptabs[\s\S]*?<\/nav>/.exec(h) || [''])[0];
+    if (!/status-live/.test(row) || !/data-badge-of="property"/.test(row)) p.push(`${path}: Property Intelligence's Live badge is not in the tab row`);
+    if (!/>Scenario Lab<\/h1>\s*<span class="status-badge status-beta"[^>]*>Beta<\/span>[\s\S]{0,1200}?<p class="body-lg page-lede"[^>]*>Calculations on figures you enter are live; the Scenario Lab is beta\.<\/p>/.test(h)) p.push(`${path}: the line is not the lede under "Scenario Lab" and its Beta badge`);
+  }
+  /* Every Beta badge on /property and /app: whose is it? */
+  const OTHERS = /(Equities Research|Quantum Scanner|Research a company|Create a scanner setup)\s*$/;
+  for (const path of ['/property', '/app']) {
+    const h = html(path);
+    for (const m of h.matchAll(/<span class="status-badge status-beta"/g)) {
+      const before = pageText(h.slice(Math.max(0, m.index - 600), m.index));
+      const tail = before.slice(-70);
+      if (/Scenario Lab\s*$/.test(before) || OTHERS.test(before)) continue;
+      p.push(`${path}: a Beta badge after "${tail}" names neither the Scenario Lab nor another product`);
+    }
+    if (/Property Intelligence\s*<\/span>\s*<span class="status-badge status-beta"|Property Intelligence\s*<span class="status-badge status-beta"/.test(h)) p.push(`${path}: Property Intelligence wears Beta`);
+  }
+  const app = html('/app');
+  if (!/Start a property model in the Scenario Lab<\/h3>\s*<span class="status-badge status-beta"/.test(app)) p.push('/app: the property step is not "Start a property model in the Scenario Lab" followed by the Lab\'s Beta badge');
+  judge(p, `no marker on a customer page, and which label is which (17 Oct 2026): /contact and /about serve no "To be supplied", no mailto: and no telephone-like digits, /contact the interim support copy and /about the not-published line; /property serves "${LINE}" once as the Lab's lede, under its Beta badge, the Live badge in the tab row; /app's step is "Start a property model in the Scenario Lab"; ${said.join('; ')} left`,
+    'a customer page serves a placeholder marker, or the Live/Beta labels are not said once');
+}
+/* ---- end contact-status ---- */
+
+
 console.log(`\ndata blocks (data/*.json, the NAPIC extract, /health/journeys.json, /health/checks.json): ${DATA.passed} passed, ${DATA.failed} failed`);
 console.log(`\n${passes} passed, ${failures} failed`);
 process.exit(failures ? 1 : 0);

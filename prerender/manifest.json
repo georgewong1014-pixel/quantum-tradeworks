@@ -64,8 +64,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1083055857acd333",
-      "changed": "2026-10-11"
+      "digest": "950160f6577a6a7a",
+      "changed": "2026-10-17"
     },
     "pages/admin/scanner.html": {
       "path": "/admin/scanner",
@@ -209,8 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "391477b2346f48a1",
-      "changed": "2026-10-16"
+      "digest": "2bccaff99c8d37c9",
+      "changed": "2026-10-17"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -4097,8 +4097,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f3ac81dfd5e41ce1",
-      "changed": "2026-10-04"
+      "digest": "cd41ce0917eacdd2",
+      "changed": "2026-10-17"
     },
     "pages/corrections.html": {
       "path": "/corrections",
@@ -4934,8 +4934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7ec8e04b8c92a5e3",
-      "changed": "2026-10-16"
+      "digest": "f915eca663a191c0",
+      "changed": "2026-10-17"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5079,8 +5079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7191533ed5464f95",
-      "changed": "2026-10-16"
+      "digest": "7980a9ef69f02953",
+      "changed": "2026-10-17"
     },
     "pages/property/models.html": {
       "path": "/property/models",

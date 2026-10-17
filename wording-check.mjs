@@ -315,7 +315,7 @@ if (!liveBad) console.log(`ok    no "live" or "real-time" claim in the text of $
     bad += wrong.length;
     console.error(`FAIL  the legal pages: ${wrong.length} problem(s)`);
     wrong.forEach(x => console.error(`      ${x}`));
-  } else console.log(`ok    the legal pages invent no party: the ${Object.keys(KEYS).length} details come from OPERATOR, none filled in, each shown as a "To be supplied" marker; no email, company, registration or telephone number is written into the trust or plans pages; Terms and Privacy open with the draft line`);
+  } else console.log(`ok    the legal pages invent no party: the ${Object.keys(KEYS).length} details come from OPERATOR, none filled in, each shown as a "To be supplied" marker on Terms and Privacy (About and Contact say plainly what is not available yet); no email, company, registration or telephone number is written into the trust or plans pages; Terms and Privacy open with the draft line`);
 }
 /* ---- end audit: content ---- */
 

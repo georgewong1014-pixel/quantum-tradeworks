@@ -24739,7 +24739,7 @@ function myDashSteps(o) {
     /* The property step opens Property's landing, the Scenario Lab (D12; N3
        made /property the Lab): the price, the rent and the loan moved and
        the figures following, before anything is typed into the calculator. */
-    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model', done: o.dealStarted || o.propertySnaps > 0,
+    { k: 'property', product: 'property', tool: 'lab', title: 'Start a property model in the Scenario Lab', done: o.dealStarted || o.propertySnaps > 0,
       note: o.dealStarted || o.propertySnaps
         ? [o.dealStarted ? 'A deal in progress in the calculator' : '', o.propertySnaps ? `${myDashPlural(o.propertySnaps, 'saved property', 'saved properties')}` : ''].filter(Boolean).join(' · ') + '.'
         : 'Move the price, the rent and the loan in the Scenario Lab; the monthly position, the yield and the cash needed follow.',
@@ -36652,11 +36652,28 @@ const OPERATOR = {
 /* The detail, or its marker. The marker's words are real text — "To be
    supplied: contact email" — so a screen reader hears the gap as a sighted
    reader sees it. */
+const operatorValue = (k) => { const d = OPERATOR[k]; return typeof d.value === 'function' ? d.value() : d.value; };
 function supplied(k) {
   const d = OPERATOR[k];
-  const v = typeof d.value === 'function' ? d.value() : d.value;
+  const v = operatorValue(k);
   if (v) return k === 'email' ? el('a', { href: `mailto:${v}` }, v) : v;
   return el('span', { class: 'tbs', 'data-tbs': k }, [el('span', { class: 'tbs-k' }, 'To be supplied:'), ` ${d.label}`]);
+}
+/* THE CUSTOMER PAGES SHOW NO MARKER (QT-D03-01, the 17 Oct 2026 report; the
+   owner's 16 Oct rule: public copy helps the customer decide and act, and
+   internal placeholders stay out of it). /contact and /about read the same
+   table but, while a detail is empty, say plainly what is true instead of
+   drawing a gap; the moment the owner supplies one it shows there as it
+   does on every other page. Privacy and Terms are drafts for counsel and
+   keep their markers. */
+const supportUnavailable = () => [el('strong', {}, 'Customer support is not available yet.'),
+  ' The correction tool saves a case in this browser and prepares text for you to copy. It does not send the case or notify Quantum Tradeworks. Do not include confidential or sensitive information.'];
+/* The supplied details of the operator, as the words that give them: the
+   entity and the address when either is supplied, else null. */
+function operatorLine() {
+  const e = operatorValue('entity'), a = operatorValue('address');
+  if (!e && !a) return null;
+  return tp(e ? 'Operating entity: ' : null, e ? supplied('entity') : null, e && a ? ' · ' : null, a ? 'Registered address: ' : null, a ? supplied('address') : null);
 }
 /* A paragraph of words and nodes (a marker, a link), and a list. */
 const tp = (...parts) => el('p', {}, parts);
@@ -36733,7 +36750,7 @@ VIEWS.about = () => trustPage('About',
        'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
-       tp('Operating entity: ', supplied('entity'), ' · Registered address: ', supplied('address'))], true],
+       operatorLine() || tp('The operating entity and its registered address are not published yet.')], true],
     ['The people responsible',
       'Not published. Naming a team before there is a registered entity behind it would be a claim without anything standing behind it.', true],
     /* It said the product "does not carry on any regulated activity". That
@@ -36766,15 +36783,21 @@ VIEWS.contact = () => trustPage('Contact',
         const v = OPERATOR.email.value();
         return v
           ? tp('Write to ', supplied('email'), '. Nothing on this site sends a message by itself: the address opens your own email program.')
-          : tp('There is no contact address yet — no email, no form and no telephone number — so nothing you write on this site reaches anyone.');
+          : tp(...supportUnavailable());
       })(),
        tp('One route does work. ', el('strong', {}, 'Report a data error'), ', here and in the footer of every page, records a wrong figure as a case in this browser, with an identifier, the page you were on, the model version and the data date. It does not send the case: the last step hands it to you as text to copy, and every case you record is listed under ', tlink('Corrections', '/corrections'), ', ready to send once there is somewhere to send it.'),
        el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
          el('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-action': 'report-error' }, 'Report a data error'),
        ])]],
-    ['Contact address',
-      [tp('Email: ', supplied('email'), ' · Post: ', supplied('address'), ', for ', supplied('entity'), '.'),
-       'A contact route will be listed here alongside the registered entity rather than before it.'], true],
+    /* Nothing supplied, nothing to list: the card appears with the first
+       detail the owner supplies, and lists only the details there are. */
+    ...(operatorValue('email') || operatorValue('address') || operatorValue('entity') ? [['Contact address',
+      [tp(operatorValue('email') ? 'Email: ' : null, operatorValue('email') ? supplied('email') : null,
+          operatorValue('email') && (operatorValue('address') || operatorValue('entity')) ? ' · ' : null,
+          operatorValue('address') ? 'Post: ' : null, operatorValue('address') ? supplied('address') : null,
+          operatorValue('address') && operatorValue('entity') ? ', for ' : null,
+          !operatorValue('address') && operatorValue('entity') ? 'Operated by ' : null,
+          operatorValue('entity') ? supplied('entity') : null, '.')]]] : []),
     ['What to include',
       'The company or property, the figure, what you believe it should be, and where that comes from. A source makes a correction verifiable rather than a disagreement.'],
     ['The corrections log',
@@ -59716,7 +59739,7 @@ VIEWS.propertyLab = () => {
      itself before it showed anything): where the figures come from — the
      calculator's own model — is the evidence's to say (labEvidence). */
   wrap.append(pageHead({ title: 'Scenario Lab', badge: toolBadge('lab'), cls: 'lab-page-hd',
-    lede: 'Move a slider and every figure below follows.' }));
+    lede: 'Calculations on figures you enter are live; the Scenario Lab is beta.' }));
   for (const P of [...LAB_PANELS]) if (P.address) LAB_PANELS.delete(P);
   wrap.append(scenarioLabPanel(null, { idPrefix: 'lab', address: true }).node);
   /* A record the reader asked to use from the comparables register (the
