@@ -3639,7 +3639,7 @@ function labPaintPanel(P, { initial = false } = {}) {
     const box = P.els.chain.irrPct.paidBox;
     const words = !m ? '' : labPaid(d)
       ? LAB_PAID.map(f => f.formula(d, m)).join(' ')
-      : 'The net proceeds of that sale and the total profit are part of the full investor report, which is a preview: the calculator’s Report section shows it in this browser. Nothing is on sale.';
+      : 'The net proceeds of that sale and the total profit are part of the full investor report, which is a preview: the calculator’s Decide section shows it in this browser. Nothing is on sale.';
     if (box.textContent !== words) box.replaceChildren(el('p', { class: 'lab-formula' }, words));
   }
   for (const f of LAB_PAID) {

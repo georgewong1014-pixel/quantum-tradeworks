@@ -149,16 +149,16 @@ function startHereExample(pid) {
     const chip = el('span', { class: 'chip chip-ok' }, 'filed with the SEC');
     /* The filings are loading, or did not load: Apple is not held, and a
        link would open a page that cannot draw it. */
-    if (!r?.c?.real) return line([el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report'), chip],
+    if (!r?.c?.real) return line([el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s page'), chip],
       typeof realPending !== 'undefined' && realPending ? 'It opens once the filings have loaded.' : 'It needs the filed statements, which did not load here.');
-    /* The report is metered on the Free plan, as the company page says:
-       opening one not yet read this month is one of the month's reports. */
+    /* The company page is metered on the Free plan:
+       opening one not yet read this month is one of the month's reports (D11: the example opens the page, not its /report). */
     const meter = reportAllowed(r.c.id);
     const cap = lim('reportsPerMonth');
-    /* With the month's reports used, the report would open only to say it
-       is not available: the example is named, not linked, as Reports lists a
+    /* With the month's reports used, the page would open only to say it
+       is not available: the example is named, not linked, as Print & share lists a
        refused report, and the note says when it opens. */
-    const ex = meter.ok ? inApp(`${companyPath(r.c)}/report`, 'Apple Inc.’s report') : el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s report');
+    const ex = meter.ok ? inApp(companyPath(r.c), 'Apple Inc.’s page') : el('span', { class: 'start-here-ex start-here-ex-off' }, 'Apple Inc.’s page');
     return line([ex, chip], !Number.isFinite(cap) ? null
       : !meter.ok ? `This month’s ${cap} company reports on this plan are used, so it opens next month.`
       : meter.counted ? `On this plan it is one of this month’s ${cap} company reports.` : null);

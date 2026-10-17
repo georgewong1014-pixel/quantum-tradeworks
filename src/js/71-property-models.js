@@ -644,15 +644,22 @@ function propertyModelBar(d = State.deal) {
    Each opens with what the reader gives it and what it works out, and a
    sticky index reaches each without a route of its own: the address stays
    the deal (syncPropertyUrl). The ids are the anchors other pages link to —
-   /property/calculator#scenarios opens at the Scenarios section. */
+   /property/calculator#scenarios opens at the Scenarios section. The last
+   section reads "Decide" (plan item 6.1(a), the owner's 16 Oct 2026 decision
+   D11): reports are what a decision is shared as, not where the work ends.
+   Its id stays "report" — the anchor every old link, the Reports page and
+   the checks already use — so #report lands on it as it always did, and
+   #decide is taken for it too (propertyArrivalSection). */
 const PC_SECTIONS = [
   { id: 'acquisition', label: 'Acquisition' },
   { id: 'financing',   label: 'Financing' },
   { id: 'rental',      label: 'Rental & expenses' },
   { id: 'scenarios',   label: 'Scenarios' },
-  { id: 'report',      label: 'Report' },
+  { id: 'report',      label: 'Decide' },
 ];
 const PC_CONTRACT_OPEN = new Set();
+/* The other name an address may use for a section. */
+const PC_SECTION_ALIAS = { decide: 'report' };
 /* ON A PHONE, ONE SECTION AT A TIME (the 11 Oct 2026 daily audit, #6,
    owner-approved 12 Oct). The calculator served about 6,200 words in some
    36,000px at 390px: every section, its methodology and its long tables one
@@ -676,7 +683,7 @@ function pcActivate(id) {
   pcMarkCurrent();
   /* An anchor followed with no script (:target) chooses no more once the
      script has chosen. */
-  if (PC_SECTIONS.some(s => `#${s.id}` === location.hash)) history.replaceState(history.state, '', location.pathname + location.search);
+  if (PC_SECTIONS.some(s => `#${s.id}` === location.hash) || location.hash === '#decide') history.replaceState(history.state, '', location.pathname + location.search);
   return true;
 }
 /* The section a control is in, chosen: before it is scrolled to or given
@@ -803,7 +810,7 @@ let pcArrivalSeen = null, pcArrivalWant = null, pcArrivalAt = 0;
    the keyboard in it, in its own section. */
 const PC_FIELD_HASH = /^d-[A-Za-z]+$/;
 function propertyArrivalSection() {
-  const want = location.hash.replace(/^#/, '');
+  const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   const key = location.pathname + location.search + location.hash;
   if ((PC_SECTIONS.some(s => s.id === want) || PC_FIELD_HASH.test(want) || want === 'review') && pcArrivalSeen !== key) { pcArrivalSeen = key; pcArrivalWant = want; pcArrivalAt = Date.now(); }
   if (!pcArrivalWant) return;
@@ -840,18 +847,42 @@ function propertyArrivalSection() {
   setTimeout(go, 0);
 }
 
-/* The Report section's last word: the printable record of the same inputs.
-   The decision record draws whichever tool's work is chosen on it, so the
-   link chooses the property. */
-function propertyReportNext(d = State.deal) {
+/* THE DECIDE SECTION'S LAST WORD: A QUIET SHARE / EXPORT ROW (plan item
+   6.1(a); the owner's 16 Oct 2026 decision, D11). The section ended in two
+   cards — "Take the report with you" and "A proposal for a client" — each a
+   paragraph and a button, below the offer. They are one row of the three
+   actions the section already had, each opening where it always did:
+     - the client proposal, a preview of the property as saved
+       (propertyProposalNext, 72-property-proposal.js) — or, while the deal
+       is not saved, the one thing to do first;
+     - the investor report, which is this section: its first card, or the
+       offer to preview it in this browser while nothing is previewed;
+     - the decision record, the printable record of the same inputs. It
+       draws whichever tool's work is chosen on it, so the link chooses the
+       property.
+   Nothing here is primary, and nothing new is offered. */
+function propertyShareRow(d = State.deal, paid = false) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card ls-section' });
-  card.append(cardHead('Take the report with you',
-    `The decision record prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open. It reads the same inputs as every section above.`));
-  card.append(el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
-    onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
-    'Open the decision record'));
-  return card;
+  const row = el('section', { class: 'pc-share', id: 'pc-share', 'aria-labelledby': 'pc-share-hd' });
+  row.append(el('h3', { class: 'eyebrow pc-share-hd', id: 'pc-share-hd' }, 'Share / Export'));
+  const jump = () => {
+    const card = document.getElementById(paid ? 'property-report-full' : 'property-report-offer');
+    if (!card) return;
+    card.scrollIntoView({ block: 'start' });
+    const h = card.querySelector('h3');
+    if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  };
+  row.append(el('div', { class: 'pc-share-acts' }, [
+    propertyProposalNext(d),
+    el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-share-report',
+      title: paid ? 'The full investor report, in this section, previewed in this browser.' : 'The full investor report, in this section: the offer to preview it in this browser.',
+      onclick: jump }, 'Investor report'),
+    el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
+      title: `Prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open.`,
+      onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },
+      'Decision record'),
+  ]));
+  return row;
 }
 
 /* -------------------------------------------------------------- scenarios */

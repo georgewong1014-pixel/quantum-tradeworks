@@ -2976,7 +2976,7 @@ function pcSwitchView(full, { keep = null } = {}) {
    #d-askingPrice) is the full model's; #review and the Quick model's own
    boxes are both views', and keep the view the address names. */
 function pcArrivalView() {
-  const want = location.hash.replace(/^#/, '');
+  const want = (h => PC_SECTION_ALIAS[h] || h)(location.hash.replace(/^#/, ''));
   if (!want || pcViewIsFull()) return;
   const fullOnly = PC_SECTIONS.some(s => s.id === want) || (PC_FIELD_HASH.test(want) && !PC_QUICK_KEYS.has(want.slice(2)));
   if (!fullOnly) return;
@@ -3091,7 +3091,7 @@ function pcQuickView(d, m, g, DK) {
 
   /* The rest of the calculator, one step away. */
   const open = el('div', { class: 'pc-q-open' }, lsActionCard({ title: 'The full model',
-    line: 'Evidence, management operations, the exit, returns and tax, stress tests, scenarios, the methodology and the report — on this deal, every figure kept.',
+    line: 'Evidence, management operations, the exit, returns and tax, stress tests, scenarios, the methodology and Decide — on this deal, every figure kept.',
     cta: lsCta('Open the full model', { path: pcViewPath(true), id: 'pc-open-full', onclick: () => {
       pcSwitchView(true);
       const sw = document.getElementById('pc-view-full');
@@ -4732,13 +4732,16 @@ VIEWS.property = () => {
        Oct 2026): the Lab's Yield view shows it free, and Pricing's "What it
        adds" no longer lists it either (model-test PP9 holds the two lists
        to the same things). */
-    reportCards.push(upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
+    const offer = upsell(`Full investor report — proposed at RM${PROPERTY_REPORT_PRICE.full}`,
       m.proj.custom
         ? `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags — all computed from the figures you entered. It would contain no comparable transactions and no price or rental range, because none is held for ${m.proj.area}.`
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`));
+        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+    /* The Share / Export row's "Investor report" goes here (propertyShareRow). */
+    offer.id = 'property-report-offer';
+    reportCards.push(offer);
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });
     const included = num0(lim('propertyReports'));
     if (included > 0) {
@@ -4758,7 +4761,9 @@ VIEWS.property = () => {
          the button; it goes to the report's first heading. */
       toast('Previewing the full report in this browser — nothing is on sale, and nothing was charged'); render(); focusAfterRedraw('#property-report-full h3');
     } }, 'Preview this report in this browser'));
-    buy.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => go('plans') }, 'See plans'));
+    /* No second "See plans" here: the offer above carries the page's one
+       (upsell, 05-plans.js), beside its line that nothing is on sale
+       (plan item 6.1(a), the owner's 16 Oct 2026 decision D11). */
     reportCards.push(el('div', {}, buy));
   } else {
     /* ---------- exits and the alternative ---------- */
@@ -5026,7 +5031,7 @@ VIEWS.property = () => {
   rnt.outputs.append(...[headline, propertyClassOf(d) === 'commercial' ? pcCommercial(d) : null, ops, rentBuyCard].filter(Boolean));
   scn.outputs.append(propertyScenariosPanel(d), pcL3('sens', 'What actually decides this: each input moved', sensPanel), stressCard,
     pcL3('returns', 'Return, and tax on the rent, year by year', returnsPanel));
-  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyReportNext(d), propertyProposalNext(d), regNote);
+  rpt.outputs.append(checkCard, pcL3('gates', 'Against the methodology: each gate', gatesPanel), demandCard, envCard, pcL3('rests', 'What this rests on: every driving figure', ev), ...reportCards, propertyShareRow(d, paid), regNote);
   [acq, fnc, rnt, scn, rpt].forEach(s => wrap.append(s.node));
   return wrap;
 };

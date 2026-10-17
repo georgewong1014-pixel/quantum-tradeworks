@@ -535,13 +535,13 @@ function hiwReportBody(r) {
   out.push(el('div', { class: 'hiw-ex-actions' },
     el('a', { class: 'btn btn-ghost pub-btn', href: href(companyPath(r.c)),
       onclick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); openResearch(r.c.id); } },
-      'Open the full report', pubArrow())));
+      'Open the company page', pubArrow())));
   return out;
 }
 function hiwReportPreview() {
   const box = el('div', { class: 'hiw-example' });
-  box.append(el('h4', { class: 'hiw-ex-t' }, 'What a company report contains'));
-  box.append(el('p', { class: 'hiw-ex-b' }, 'Pick one. Five outputs, then the full report.'));
+  box.append(el('h4', { class: 'hiw-ex-t' }, 'What a company page contains'));
+  box.append(el('p', { class: 'hiw-ex-b' }, 'Pick one. Five outputs, then the company page.'));
   const picks = HIW_PICKS.filter(p => BY_ID.has(p.id));
   if (!picks.length) { box.append(el('p', { class: 'metaline' }, 'The example companies are still loading.')); return box; }
   /* 'property' was a pick when this lived on the homepage; its figures are
@@ -670,7 +670,7 @@ function hiwProduct(p) {
    happens. The last step has no link of its own: it is the first step again,
    reached from the match. */
 const HIW_JOURNEY = [
-  ['Research a company', 'Open its report: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
+  ['Research a company', 'Open its page: statements, ratios and a valuation model, each figure with its source.', '/research', productById('equities')?.action || 'Start research'],
   ['Add it to a watchlist', 'One control on the company page. The list is what you follow — and what a setup can check.', '/my/watchlists', 'Watchlists'],
   ['Create a setup', 'Write your own rule, and give it the watchlist as the instruments to check.', '/app/scanner/setups/new', productById('scanner')?.action || 'Create a setup'],
   ['A rule-match alert', 'When the rule holds on a daily close in the history you supplied, the match is recorded with its values. Nothing is sent anywhere.', '/app/scanner/alerts', 'Scanner alerts'],
@@ -804,7 +804,7 @@ const LAUNCH_GOALS = [
     tool:'Property deal calculator' },
   { id:'company', label:'Research a US company',
     blurb:'Audited SEC filings, with every metric showing its formula, its period and what could not be computed.',
-    tool:'Company report' },
+    tool:'Company page' },
   { id:'wheel', label:'Model options cash flow',
     blurb:'A cash-secured put and covered call cycle, from a contract you enter. No chain data is connected.',
     tool:'Options Cash Wheel' },

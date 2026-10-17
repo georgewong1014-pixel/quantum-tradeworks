@@ -4069,6 +4069,15 @@ html:has(.pc-index) { scroll-padding-top: calc(var(--topbar-live, var(--topbar-h
 .pc-sec-hd .h-section { display: inline-block; margin: 0 0 var(--sm); }
 .pc-sec-hd .h-section:focus { outline: none; }
 .pc-sec-hd .h-section:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 4px; }
+/* The Decide section's Share / Export row (71-property-models.js, D11): the
+   proposal, the investor report and the decision record, quiet, under a hairline. */
+.pc-share { margin-top: var(--lg); padding-top: var(--md); border-top: 1px solid var(--line); min-width: 0; }
+.pc-share-hd { margin: 0 0 var(--sm); }
+.pc-share-acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sm) var(--lg); }
+.pc-share-item { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--sm); min-width: 0; max-width: 100%; }
+.pc-share-item .metaline { min-width: 0; overflow-wrap: anywhere; }
+/* Where "Investor report" lands, clear of the topbar and the sticky index. */
+#property-report-offer, #property-report-full { scroll-margin-top: calc(var(--topbar-live, var(--topbar-h)) + var(--pc-index-h) + 12px); }
 .pc-contract { margin: 4px 0 0; max-width: var(--ls-measure); font-size: var(--ls-support); line-height: 1.55; color: var(--ink-2); }
 .pc-contract-k { font-weight: var(--weight-semibold); color: var(--ink); }
 

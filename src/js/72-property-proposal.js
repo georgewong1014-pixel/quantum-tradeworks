@@ -295,28 +295,26 @@ function cpLink(rec, { id = null, cls = 'btn btn-ghost btn-sm', label = 'Client 
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return; e.preventDefault(); navigate(path); } }, label);
 }
 
-/* The calculator's Report section: the proposal of the property on it, or —
-   while the deal is not saved — the one thing to do first. */
+/* The calculator's Decide section, in its Share / Export row
+   (propertyShareRow, 71-property-models.js): the proposal of the property on
+   it, or — while the deal is not saved — the one thing to do first. A
+   proposal sets a saved property out for a client; its grade, gates and risk
+   flags stay on the calculator, which the section's contract says. */
 function propertyProposalNext(d = State.deal) {
   const st = propertyStatus(d);
-  const card = el('div', { class: 'card ls-section', id: 'cp-next' });
+  const item = el('div', { class: 'pc-share-item', id: 'cp-next' });
   if (st.kind !== 'model') {
-    card.append(cardHead('A proposal for a client',
-      'A client proposal is made from a saved property, so that it can be opened again and read the same. Save this property first.'));
-    card.append(el('div', { class: 'row row-wrap', style: 'gap:8px' }, [
+    item.append(
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'cp-next-save',
         onclick: () => { if (saveActiveProperty()) { render(); focusAfterRedraw('#cp-next-open', '#cp-next'); } } }, 'Save this property first'),
-    ]));
-    return card;
+      el('span', { class: 'metaline' }, 'A client proposal is made from a saved property.'));
+    return item;
   }
-  card.append(cardHead('A proposal for a client',
-    `“${st.rec.name}” set out for someone else: who prepared it and for whom, what buying it takes, the loan and the monthly commitment, the rent and the cash flow, up to three of its scenarios side by side and a sale at the end of the hold. Every figure is the calculator’s, from the property as saved${st.dirty ? ' — the changes on the calculator are not saved, so they are not in it until they are' : ''}. The grade, the gates and the risk flags stay here: they are research for you, not a client’s page.`));
-  card.append(el('div', { class: 'row row-wrap', style: 'gap:8px;align-items:center' }, [
+  item.append(
     cpLink(st.rec, { id: 'cp-next-open' }),
     el('span', { class: 'chip chip-bronze' }, 'Preview'),
-    el('span', { class: 'metaline' }, 'Not part of any plan — nothing is on sale.'),
-  ]));
-  return card;
+    el('span', { class: 'metaline' }, `Not part of any plan — nothing is on sale.${st.dirty ? ' Unsaved changes are not in it.' : ''}`));
+  return item;
 }
 
 /* -------------------------------------------------------------- formats */

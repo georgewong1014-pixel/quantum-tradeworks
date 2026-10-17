@@ -3103,6 +3103,84 @@ const HOME_PAGE = read(HOME);
     'the Lab\'s phase 2 inputs, chain rows or export button are not served');
 }
 /* ---- end lab-phase2-served ---- */
+/* ---- d11-renames-served ---- */
+/* THE RENAMES, AS SERVED (plan item 6.1(a); the owner's 16 Oct 2026
+   decision, D11 "(a) renames only"). Reports no longer read as the
+   destination:
+   - the Start-here example on every Equities route opens the company's
+     page, /company/aapl-apple-inc, not its /report (at least the six such
+     routes in the sitemap and every other static route that serves the
+     panel);
+   - /property serves not more than one ">See plans<" (the Lab serves none:
+     the duplicate was in the calculator's Decide section, which is drawn
+     only by the script and is held in model-test, PP-D11), and its first
+     btn-primary is "Save this property";
+   - a btn-primary whose text names a report, a PDF, an export or print is
+     served on /decision-record, a company's /report and the proposal only (and /my/data, whose "Export everything" is the backup, not a report: an exception the brief did not list, held for the owner);
+   - the sidebar's entry for /my/reports reads "Print & share", and so does
+     the page's h1 and title;
+   - "not on sale" beside every Pricing link is held by N8 above.
+   Fails on 3989f389: the example opens …/report on six routes, a
+   btn-primary "Open the report form" is served on /corrections, and the
+   sidebar and h1 read "Reports". */
+{
+  const B = await import('./build.mjs');
+  const all = B.allOf, has = B.hasClass, attr = B.attrOf, sight = B.sightText;
+  const p = [], said = {};
+  const EX = '/company/aapl-apple-inc';
+  const PROPOSAL = /^\/property\/models\/[^/]+\/proposal$/;
+  const ALLOWED = (path) => path === '/decision-record' || path === '/my/data' || /^\/company\/[^/]+\/report$/.test(path) || /^\/app\/equities\/[^/]+\/report$/.test(path) || PROPOSAL.test(path);
+  const REPORTISH = /report|pdf|export|print/i;
+  const pages = [...new Set([...statics, '/company/aapl-apple-inc', '/company/aapl-apple-inc/report', '/property/models/the-sample/proposal'])];
+  const got = await getAll(pages);
+  const isButton = (n) => n.tag === 'a' || n.tag === 'button' || attr(n, 'data-inert') === 'button';
+  const exs = [];
+  const bad = [];
+  for (const path of pages) {
+    const r = got.get(path);
+    if (!r || r.status !== 200) continue;
+    const tree = all(B.htmlTree(r.body));
+    const views = tree.find(n => attr(n, 'id') === 'views');
+    const inside = views ? all(views) : [];
+    const panel = inside.find(n => n.tag === 'section' && has(n, 'start-here') && attr(n, 'data-product') === 'equities');
+    if (panel) {
+      const links = all(panel).filter(n => n.tag === 'a' && has(n, 'start-here-ex'));
+      links.forEach(a => { exs.push(path); if (attr(a, 'href') !== EX) p.push(`${path}: the Start-here example opens ${attr(a, 'href')}, not ${EX}`); });
+    }
+    for (const b of inside.filter(n => isButton(n) && has(n, 'btn-primary') && REPORTISH.test(sight(n))))
+      if (!ALLOWED(path)) bad.push(`${path}: "${sight(b).trim()}"`);
+  }
+  said.examples = exs.length;
+  if (exs.length < 6) p.push(`only ${exs.length} Equities routes serve a Start-here example link (at least six expected): ${exs.join(', ')}`);
+  if (bad.length) p.push(`a btn-primary naming a report, PDF, export or print outside /decision-record, a company's /report and the proposal: ${bad.join('; ')}`);
+  const prop = got.get('/property');
+  if (!prop || prop.status !== 200) p.push('/property: not served');
+  else {
+    const tree = all(B.htmlTree(prop.body));
+    const views = tree.find(n => attr(n, 'id') === 'views');
+    const inside = views ? all(views) : [];
+    said.plans = inside.filter(n => isButton(n) && sight(n).trim() === 'See plans').length;
+    if (said.plans > 1) p.push(`/property serves ${said.plans} "See plans", not more than one`);
+    const first = inside.find(n => isButton(n) && has(n, 'btn-primary'));
+    if (!first || sight(first).trim() !== 'Save this property') p.push(`/property: its first btn-primary is "${first ? sight(first).trim() : 'none'}", not "Save this property"`);
+  }
+  for (const path of ['/property', '/my/reports']) {
+    const r = got.get(path);
+    const tree = r ? all(B.htmlTree(r.body)) : [];
+    const link = tree.find(n => n.tag === 'a' && has(n, 'sb-link') && attr(n, 'data-nav-id') === 'reports');
+    if (!link || sight(link).trim() !== 'Print & share') p.push(`${path}: the sidebar entry for /my/reports reads "${link ? sight(link).trim() : 'nothing'}", not "Print & share"`);
+  }
+  {
+    const r = got.get('/my/reports');
+    const tree = r ? all(B.htmlTree(r.body)) : [];
+    const h1 = tree.find(n => n.tag === 'h1');
+    if (!h1 || sight(h1).trim() !== 'Print & share') p.push(`/my/reports: its h1 reads "${h1 ? sight(h1).trim() : 'nothing'}", not "Print & share"`);
+    if (!/<title>Print &amp; share · /.test(r?.body || '') && !/<title>Print & share · /.test(r?.body || '')) p.push('/my/reports: its title does not begin "Print & share · "');
+  }
+  judge(p, `the D11 renames as served: the Start-here example opens ${EX} on ${said.examples} Equities routes, /property serves ${said.plans} "See plans" and "Save this property" first, no report-ish btn-primary outside /decision-record, a company's /report and the proposal, the sidebar and /my/reports read "Print & share"`,
+    'the D11 renames are not served');
+}
+/* ---- end d11-renames-served ---- */
 
 /* ---- backup-served ---- */
 /* THE BACKUP LINE, SERVED (the 10 Oct 2026 audit, #8). /my/data and the

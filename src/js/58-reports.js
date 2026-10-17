@@ -3,7 +3,7 @@
 
    Every report in the product is a page of the tool that makes it: a
    company's research report (/company/:id/report), a saved property's
-   investor report (the calculator's Report section), its decision record and
+   investor report (the calculator's Decide section), its decision record and
    its client proposal (/property/models/:property/proposal, a preview), and
    the Cash Wheel's and the Trading Index's decision records
    (/decision-record). Each was reached only from inside its tool, so a
@@ -101,7 +101,7 @@ function reportsOpenProperty(rec, to) {
   if (to === 'record') { State.decisionSubject = 'property'; navigate('/decision-record'); return; }
   /* The report is the full model's (QT-003). */
   navigate('/property/calculator?view=full');
-  /* To the Report section once the calculator has settled — its data landing
+  /* To the Decide section once the calculator has settled — its data landing
      redraws the page above the section — as an address naming the section
      is landed on (propertyArrivalSection, 71-property-models.js). */
   const at = Date.now();
@@ -148,7 +148,7 @@ VIEWS.reports = () => {
   wrap.append(mySubnav('reports'));
   /* The workspace's one page head (pageHead, 36-layouts.js): a lede a phone
      shows whole, the rest in the note under it. */
-  wrap.append(pageHead({ title: 'Reports',
+  wrap.append(pageHead({ title: 'Print & share',
     lede: 'Every report your own work in this browser can produce, each opening the real one.',
     note: 'Print one, or save it as PDF through your browser’s print. Nothing is generated on a server and no copy is kept.' }));
 
@@ -224,7 +224,7 @@ VIEWS.reports = () => {
   /* ---------- property reports ---------- */
   const st = propertyStatus(State.deal);
   const ps = reportsSection('rp-properties', `Property reports${props.length ? ` — ${props.length} ${props.length === 1 ? 'property' : 'properties'}` : ''}`,
-    'For each property saved in My properties: its investor report — the calculator’s Report section for it, with the grade, what the answer rests on and the gates still open — its decision record, the one printable page of it, carried to a lender or a lawyer, and its client proposal, the property and up to three of its scenarios set out for a client to read (a preview, in no plan).');
+    'For each property saved in My properties: its investor report — the calculator’s Decide section for it, with the grade, what the answer rests on and the gates still open — its decision record, the one printable page of it, carried to a lender or a lawyer, and its client proposal, the property and up to three of its scenarios set out for a client to read (a preview, in no plan).');
   if (!props.length) ps.append(reportsNone('No property saved yet. Save one on the calculator, and its investor report, decision record and client proposal are listed here.',
     reportLink('/property/calculator', { class: 'btn btn-ghost btn-sm' }, productById('property')?.action || 'Analyse a property')));
   else {

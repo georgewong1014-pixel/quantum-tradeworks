@@ -3422,8 +3422,8 @@ try {
       return out;
     })()`);
     const p = [];
-    /* Release B: Reports follows Saved Models once its page exists (SHOW_REPORTS). */
-    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved Models,${r.reports ? 'Reports,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans`) p.push(`sidebar ${r.labels.join(', ')}`);
+    /* Release B: Print & share (Reports until D11) follows Saved Models once its page exists (SHOW_REPORTS). */
+    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved Models,${r.reports ? 'Print & share,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans`) p.push(`sidebar ${r.labels.join(', ')}`);
     if (r.my.length) p.push(`My workspace's header carries a scanner tab (${r.my.join(', ')})`);
     for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
     if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);
@@ -6735,7 +6735,7 @@ try {
       State.corrections = []; saveCorrections();
       navigate('/corrections'); await w(150);
       const record = async (what) => {
-        await press(btn('Open the report form'), 400);
+        await press(btn('Open the error form'), 400);
         const d = document.getElementById('err-description');
         d.value = what; d.dispatchEvent(new Event('input', { bubbles: true }));
         await press(btn('Record this case'), 400);
@@ -6985,7 +6985,7 @@ try {
       out.comparable = at(); out.oid = oid;
 
       navigate('/corrections'); await w(200);
-      await press(btn('Open the report form'), 400);
+      await press(btn('Open the error form'), 400);
       const d = document.getElementById('err-description');
       d.value = 'bf4 case'; d.dispatchEvent(new Event('input', { bubbles: true }));
       await press(btn('Record this case'), 400);
@@ -11204,14 +11204,14 @@ try {
         return out;
       })()`);
       const p4 = [];
-      if (q.view !== 'reports' || q.h1 !== 'Reports' || !/^Reports · /.test(q.title)) p4.push(`/my/reports is ${q.view} "${q.h1}" titled "${q.title}"`);
+      if (q.view !== 'reports' || q.h1 !== 'Print & share' || !/^Print & share · /.test(q.title)) p4.push(`/my/reports is ${q.view} "${q.h1}" titled "${q.title}"`);
       const at = q.side.items.indexOf('reports');
-      if (at < 0 || q.side.items[at - 1] !== 'workspace') p4.push(`My workspace in the sidebar reads ${q.side.items.join(', ')} — Reports not after Saved Models`);
+      if (at < 0 || q.side.items[at - 1] !== 'workspace') p4.push(`My workspace in the sidebar reads ${q.side.items.join(', ')} — Print & share not after Saved Models`);
       if (q.side.current !== 'reports') p4.push(`the sidebar marks ${q.side.current} on /my/reports`);
       if (!q.tool || q.tool.path !== '/my/reports' || !q.tool.present) p4.push(`TOOLS: ${JSON.stringify(q.tool)}`);
-      if (q.strip !== 'Reports') p4.push(`the workspace header's tabs mark "${q.strip}"`);
+      if (q.strip !== 'Print & share') p4.push(`the workspace header's tabs mark "${q.strip}"`);
       if (p4.length) fail('releaseB reports: /my/reports is a page, in the sidebar after Saved Models, with a TOOLS entry', p4);
-      else ok(`releaseB reports: /my/reports is a page ("${q.title}"), the sidebar's My workspace reads ${q.side.items.join(', ')} with Reports current, TOOLS lists it (${q.tool.state}) and the workspace header's tabs mark it`);
+      else ok(`releaseB reports: /my/reports is a page ("${q.title}"), the sidebar's My workspace reads ${q.side.items.join(', ')} with Print & share current, TOOLS lists it (${q.tool.state}) and the workspace header's tabs mark it`);
 
       const p5 = [];
       for (const [k, c] of Object.entries(q.cos)) {

@@ -431,7 +431,7 @@ const PRODUCTS = [
 const PRODUCT_STATUS = { live: 'Live', beta: 'Beta', demo: 'Demo', soon: 'Coming soon' };
 /* A product that is not built never appears in the app's navigation. */
 const SHOW_UNBUILT = false;
-/* "Reports" sits in My Workspace, after Saved Models, now that the list of
+/* "Print & share" (called "Reports" until the owner's 16 Oct 2026 decision, D11) sits in My Workspace, after Saved Models, now that the list of
    reports exists (/my/reports, 58-reports.js): what the reader's own work can
    print, each opening the real report. It was kept out while a report was
    printed only from its own page and nothing listed them, when an item would
@@ -638,10 +638,10 @@ const TOOLS = [
   { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
-  { id: 'reports', product: null, label: 'Reports', path: '/my/reports', views: ['reports'],
+  { id: 'reports', product: null, label: 'Print & share', path: '/my/reports', views: ['reports'],
     status: 'live', statusNote: 'The reports your own work here can print — a company’s research report, a saved property’s investor report, decision record and client proposal, the Cash Wheel’s and the Trading Index’s records — each saved as PDF through your browser’s print.',
-    proof: { journey: 'records', step: 'The Cash Wheel’s decision record opens from Reports with the contract’s figures' },
-    action: { label: 'Open your reports', path: '/my/reports' } },
+    proof: { journey: 'records', step: 'The Cash Wheel’s decision record opens from Print & share with the contract’s figures' },
+    action: { label: 'Open Print & share', path: '/my/reports' } },
   { id: 'portfolio', product: null, label: 'Portfolio', path: '/my/portfolio', views: ['portfolio'],
     status: 'live', statusNote: 'Holdings kept in this browser, with business performance separated from currency movement.',
     proof: { journey: 'cases', step: 'Add a holding: listed, its price return worked from its cost, its case marked written' },
@@ -923,7 +923,7 @@ const APP_NAV_WORKSPACE = [
   { id: 'watchlists', label: 'Watchlists',   icon: 'list',   path: '/my/watchlists' },
   { id: 'alerts',     label: 'My Alerts',    icon: 'bell',   path: '/my/alerts' },
   { id: 'workspace',  label: 'Saved Models', icon: 'folder', path: '/my/workspace' },
-  ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Reports', icon: 'doc', path: '/my/reports' }] : []),
+  ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Print & share', icon: 'doc', path: '/my/reports' }] : []),
 ];
 const APP_NAV_FOOT = [
   { id: 'userdata', label: 'Your data & settings', icon: 'database', path: '/my/data' },
@@ -1174,7 +1174,7 @@ const ROUTES = [
   { path: '/discover/screener',   view: 'discover',  tab: 'screener',  title: 'Screener' },
   { path: '/discover/value-map',  view: 'discover',  tab: 'radar',     title: 'Quality vs Value Map' },
   { path: '/research',            view: 'researchHome', title: 'Research' },
-  { path: '/company/:id',         view: 'research',  title: 'Company report' },
+  { path: '/company/:id',         view: 'research',  title: 'Company page' },
   /* The print-first research report — one company on one printable page. */
   { path: '/company/:id/report',  view: 'researchReport', title: 'Research report' },
   /* The Phase 2 brief's paths — aliases of the routes around them: the same
@@ -1189,10 +1189,10 @@ const ROUTES = [
   { path: '/app/equities',          view: 'researchHome', title: 'Equities', alias: true },
   { path: '/app/equities/explore',  view: 'researchHome', title: 'Company explorer', alias: true },
   { path: '/app/equities/compare',  view: 'compare',   title: 'Compare companies', alias: true },
-  { path: '/app/equities/:id',      view: 'research',  title: 'Company report' },
+  { path: '/app/equities/:id',      view: 'research',  title: 'Company page' },
   /* Above :tab, which would otherwise read "report" as a tab name. */
   { path: '/app/equities/:id/report', view: 'researchReport', title: 'Research report' },
-  { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company report' },
+  { path: '/app/equities/:id/:tab', view: 'research',  title: 'Company page' },
   { path: '/app/watchlists',        view: 'watchlists', title: 'Watchlists', alias: true },
   { path: '/equities/methodology',  view: 'learn',     tab: 'models',    title: 'Methodology', alias: true },
   { path: '/compare',             view: 'compare',   title: 'Compare' },
@@ -1201,7 +1201,7 @@ const ROUTES = [
   { path: '/my/theses',           view: 'thesis',    title: 'My investment cases' },
   { path: '/my/alerts',           view: 'alerts',    title: 'Alerts' },
   /* Release B: every report the reader's own work can print (58-reports.js). */
-  { path: '/my/reports',          view: 'reports',   title: 'Reports' },
+  { path: '/my/reports',          view: 'reports',   title: 'Print & share' },
   { path: '/my/tracked',          view: 'tracked',   title: 'Tracked' },
   /* Phase 3 — ops */
   /* The scanner's dashboard, its two P1 surfaces and the four operations
@@ -1313,7 +1313,7 @@ const META = {
      the methodology's sentence. */
   discover:  'Screen the SEC-filed US companies on quality, returns on capital and financial strength, each filter and measure explained — and an illustrative Malaysian set, labelled as such. A measure that needs a price is blank where none is held.',
   'discover:radar': 'The Quality vs Value Map: each company placed by business quality against the gap between its price and its base-case model estimate — which needs a price: the illustrative set on sample prices, and any company whose close you supplied.',
-  research:  'A company report where every number shows its formula, its period and its source.',
+  research:  'A company page where every number shows its formula, its period and its source.',
   researchHome: 'A way into the universe by company, market or business model — never a company chosen for you.',
   sarawak: 'Bursa companies that operate in Sarawak, and what you record about them. Inclusion is descriptive and does not indicate preference.',
   compare:   'Compare companies using the measures that fit their business model, not a single generic table.',
@@ -1791,7 +1791,7 @@ function applyRoute() {
        and only then is an unknown slug a 404. */
     else if (realPending) {
       State.view = route.view;
-      setDocumentMeta({ ...route, title: 'Loading company report', pending: true });
+      setDocumentMeta({ ...route, title: 'Loading company page', pending: true });
       render(); return;
     }
     else { State.view = 'notfound'; State.notFoundWhat = `company “${route.params.id}”`; setDocumentMeta(null); render(); return; }

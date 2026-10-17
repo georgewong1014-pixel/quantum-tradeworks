@@ -3434,7 +3434,7 @@ try {
         const p7 = [];
         const order = ['acquisition', 'financing', 'rental', 'scenarios', 'report'];
         if (JSON.stringify(r7.ids) !== JSON.stringify(order)) p7.push(`sections: ${JSON.stringify(r7.ids)}`);
-        if (JSON.stringify(r7.titles) !== JSON.stringify(['Acquisition', 'Financing', 'Rental & expenses', 'Scenarios', 'Report'])) p7.push(`titles: ${JSON.stringify(r7.titles)}`);
+        if (JSON.stringify(r7.titles) !== JSON.stringify(['Acquisition', 'Financing', 'Rental & expenses', 'Scenarios', 'Decide'])) p7.push(`titles: ${JSON.stringify(r7.titles)}`);
         if (!r7.contracts.every(c => JSON.stringify(c) === JSON.stringify(['You provide', 'Quantum calculates']))) p7.push(`contracts: ${JSON.stringify(r7.contracts)}`);
         if (!r7.drawers.every(Boolean)) p7.push(`each contract a closed drawer under its heading (N3): ${JSON.stringify(r7.drawers)}`);
         if (JSON.stringify(r7.links.map(l => l[1])) !== JSON.stringify(order.map(x => '#' + x))) p7.push(`index: ${JSON.stringify(r7.links)}`);
@@ -3443,7 +3443,7 @@ try {
         if (!r7.jump.below || r7.jump.focus !== 'pc-h-rental' || r7.jump.current !== 'rental' || r7.jump.path !== '/property/calculator') p7.push(`the index's Rental link: ${JSON.stringify(r7.jump)}`);
         if (!r7b.inView) p7.push(`/property/calculator#scenarios did not open at Scenarios: ${JSON.stringify(r7b)}`);
         if (p7.length) fail('audit1 property-model A7: the calculator is five sections in the brief\'s order, each with its contract, reached from a sticky index', p7);
-        else ok('audit1 property-model A7: Acquisition, Financing, Rental & expenses, Scenarios and Report, each opening on its own inputs, its "You provide" / "Quantum calculates" a closed drawer under its heading; the sticky index reaches each without a route, the heading clear of it and marked current, and /property/calculator#scenarios opens at Scenarios');
+        else ok('audit1 property-model A7: Acquisition, Financing, Rental & expenses, Scenarios and Decide, each opening on its own inputs, its "You provide" / "Quantum calculates" a closed drawer under its heading; the sticky index reaches each without a route, the heading clear of it and marked current, and /property/calculator#scenarios opens at Scenarios');
       });
 
       /* THE VERIFICATION'S OWN CHECKS (audit1/property-model-verify). Each
@@ -3656,6 +3656,55 @@ try {
         if (r.still !== 'Lutong') pv6.push(`a second New property, over the untouched sample, replaced it (${r.still})`);
         if (pv6.length) fail('audit1 property-model V6: New property keeps the sample aside when the reader has chosen a place or answered the checklist on it', pv6);
         else ok('audit1 property-model V6: New property keeps aside the sample with a district chosen and a checklist question answered on it, and a second New property over the untouched sample leaves that kept deal in place');
+      });
+
+      await step('D11', async () => {
+        /* D11 — THE CALCULATOR'S LAST SECTION IS "DECIDE" (plan item 6.1(a); the
+           owner's 16 Oct 2026 decision). Its address #report is kept: it lands
+           on the section. The section holds one "See plans" and one
+           "Preview this report in this browser" (the offer drew a second
+           "See plans" beside its own), and a quiet Share / Export row with the
+           three actions it already had — the client proposal, the investor
+           report and the decision record — and nothing else. Fails on
+           3989f389: the section is "Report" and holds two "See plans". */
+        /* No report previewed yet: the offer and its buttons are what is counted. */
+        await evaluate(`Object.keys(localStorage).filter(k => /propertyReport/.test(k)).forEach(k => localStorage.removeItem(k)); true`);
+        await reload('/property/calculator#report');
+        const r = await evaluate(`(async () => { const w = (ms) => new Promise(res => setTimeout(res, ms));
+          const txt = (n) => (n ? n.textContent : '').replace(/\\s+/g, ' ').trim();
+          const at = () => { const idx = document.querySelector('.pc-index')?.getBoundingClientRect(); const h = document.getElementById('pc-h-report')?.getBoundingClientRect();
+            return !!idx && !!h && h.top >= idx.bottom - 1 && h.top < innerHeight; };
+          for (let i = 0; i < 40 && !at(); i++) await w(150);
+          const sec = document.getElementById('report');
+          const parts = (sel) => [...sec.querySelectorAll(sel)];
+          const row = document.getElementById('pc-share');
+          return {
+            landed: at(), heading: txt(document.getElementById('pc-h-report')), view: new URLSearchParams(location.search).get('view') || 'quick',
+            index: [...document.querySelectorAll('.pc-index .pc-index-link')].map(a => txt(a)),
+            current: txt(document.querySelector('.pc-index-link[aria-current]')),
+            plans: parts('button, a').filter(n => txt(n) === 'See plans').length,
+            previews: parts('button, a').filter(n => /^Preview .*in this browser$/.test(txt(n))).length,
+            row: row ? { head: txt(row.querySelector('.pc-share-hd')), acts: [...row.querySelectorAll('a, button')].map(n => ({ id: n.id, t: txt(n), href: n.getAttribute('href') })), inSec: sec.contains(row), primary: row.querySelectorAll('.btn-primary').length } : null,
+            next: txt(document.getElementById('pc-next-scenarios')),
+          };
+        })()`);
+        const p = [];
+        if (!r.landed || r.heading !== 'Decide') p.push(`/property/calculator#report: ${JSON.stringify({ landed: r.landed, heading: r.heading })}`);
+        if (r.view !== 'full') p.push(`#report did not open the full model: ${r.view}`);
+        if (JSON.stringify(r.index) !== JSON.stringify(['Acquisition', 'Financing', 'Rental & expenses', 'Scenarios', 'Decide']) || r.current !== 'Decide') p.push(`the section index reads ${JSON.stringify(r.index)}, current "${r.current}"`);
+        if (r.next !== 'Next: Decide →') p.push(`the Scenarios section's way on reads "${r.next}", not "Next: Decide →"`);
+        if (r.plans !== 1) p.push(`the Decide section holds ${r.plans} "See plans", not one`);
+        if (r.previews !== 1) p.push(`the Decide section holds ${r.previews} "Preview … in this browser" buttons, not one`);
+        if (!r.row) p.push('the Decide section has no Share / Export row (#pc-share)');
+        else {
+          if (r.row.head !== 'Share / Export') p.push(`the row's heading reads "${r.row.head}"`);
+          if (!r.row.inSec || r.row.primary) p.push(`the row is ${r.row.inSec ? '' : 'not in the section, '}${r.row.primary ? 'holding a btn-primary' : 'quiet'}`);
+          const names = r.row.acts.map(a => a.t);
+          const first = names[0] === 'Client proposal' || names[0] === 'Save this property first';
+          if (!first || names[1] !== 'Investor report' || names[2] !== 'Decision record' || names.length !== 3) p.push(`the row's actions read ${JSON.stringify(names)}, not the client proposal (or its save-first), the investor report and the decision record`);
+        }
+        if (p.length) fail('D11 property-model: the calculator\'s last section is "Decide", #report lands on it, with one "See plans", one preview button and a quiet Share / Export row', p);
+        else ok('D11 property-model: /property/calculator#report opens the full model at "Decide" (index, "Next: Decide →" and heading agree); the section holds one "See plans", one "Preview … in this browser" button and a quiet Share / Export row of the client proposal, the investor report and the decision record');
       });
     } finally {
       await evaluate(`(() => { const k = ${kept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`);
