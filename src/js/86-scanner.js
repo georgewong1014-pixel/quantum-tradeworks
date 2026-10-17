@@ -1085,7 +1085,7 @@ function scanHistoryNeeds(symbols, byTf, history = scanHistoryFile) {
    many more, and what an unknown criterion does. */
 function scanHistoryNeedsBlock(symbols, byTf, { max = 8, history = scanHistoryFile } = {}) {
   const box = el('div', { class: 'scan-needs' });
-  if (!history?.series) { box.append(el('p', { class: 'caption' }, 'No price history is loaded here, so what it holds against what these conditions need cannot be counted — on the deployed site it never is.')); return box; }
+  if (!history?.series) { box.append(el('p', { class: 'caption' }, 'No price history is loaded here, so what it holds against what these conditions need cannot be counted — this site ships none.')); return box; }
   const rows = scanHistoryNeeds(symbols.slice(0, max), byTf, history);
   const ul = el('ul', { class: 'scan-needs-list' });
   rows.forEach(r => ul.append(el('li', {}, [el('p', { class: 'scan-needs-hd' }, r.head),
@@ -1269,7 +1269,7 @@ function scanBotForm() {
   /* ---- instruments ---- */
   const fi = el('fieldset', { class: 'scan-bot-set' });
   fi.append(el('legend', {}, 'Instruments'));
-  if (!syms.length) fi.append(el('p', { class: 'caption' }, 'No price history is loaded here, so there is no instrument to choose — on the deployed site there never is. On the machine the worker runs on, import your OANDA:XAUUSD export into data/price-history.json first.'));
+  if (!syms.length) fi.append(el('p', { class: 'caption' }, 'No price history is loaded here, so there is no instrument to choose — this site ships none. On the machine the worker runs on, import your OANDA:XAUUSD export into data/price-history.json first.'));
   else {
     fi.append(el('p', { class: 'caption', style: 'margin:0 0 6px' }, `The ${scanPlural(syms.length, 'instrument')} your history holds a series for${syms[0] === 'XAUUSD' ? ', XAUUSD — your chart’s — first' : '; XAUUSD, your chart’s, is not among them yet'}. The setups scan every one ticked.`));
     const box = el('div', { class: 'scan-bot-syms' });
@@ -1390,7 +1390,7 @@ VIEWS.scannerSetups = () => {
   const dc = el('div', { class: 'card' });
   const off = drift.filter(r => r.state !== 'IN_STEP');
   dc.append(cardHead('This browser and the worker’s file', scanSetupsFile == null
-    ? 'data/scan-setups.json cannot be seen from here — on the deployed site it never can. This browser’s copy is the only copy until you export it.'
+    ? 'The worker’s setups file cannot be seen from here. This browser’s copy is the only copy until you export it.'
     : !drift.length ? 'Neither this browser nor data/scan-setups.json holds a setup yet.'
     : off.length ? `${scanPlural(off.length, 'setup')} of ${drift.length} ${off.length === 1 ? 'differs' : 'differ'} from data/scan-setups.json. The worker runs the file, not this browser.`
     : `All ${scanPlural(drift.length, 'setup')} in step with data/scan-setups.json.`));
@@ -1499,7 +1499,7 @@ VIEWS.scannerSetups = () => {
   const ev = el('div', { class: 'card' });
   ev.append(cardHead('Evaluate now — nothing recorded', haveHistory
     ? 'Runs the engine the worker runs, here, on data/price-history.json as the worker reads it. The worker writes the record; this writes nothing.'
-    : 'No price history is loaded, so there is nothing to evaluate. On the deployed site there never is: none of the prices this product could ship are licensed for it to redistribute.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
+    : 'No price history is loaded, so there is nothing to evaluate. This site ships none: no price it could ship is licensed for redistribution.', null, haveHistory ? { kind: 'yours', fine: 'From your own closes' } : { kind: 'unavailable', fine: 'No price history loaded' }));
   const host = el('div', { style: 'margin-top:var(--sm)' });
   const fileSetups = fileCheck?.setups || [];
   const run = (list, which) => {
@@ -2416,7 +2416,7 @@ function scanBuilder(d, ctx) {
     saveBtn.disabled = !chk.ready;
     copyBtn.disabled = !chk.ready;
     testBtn.disabled = !chk.ready || !haveHistory;
-    testWhy.textContent = !haveHistory ? 'No price history is loaded here, so there is nothing to test against — on the deployed site there never is.' : '';
+    testWhy.textContent = !haveHistory ? 'No price history is loaded here, so there is nothing to test against.' : '';
     testWhy.hidden = haveHistory;
     let what = '';
     if (chk.ready && mode === 'edit') {
@@ -2590,7 +2590,7 @@ VIEWS.scannerAlerts = () => {
   wrap.append(scanPageHead('Alerts', 'Every match the worker recorded, newest bar first.',
     'A record in date order, never a ranking. Whether you have read one is kept in this browser; the record file is never edited.'));
   if (!scanAlertsFile) {
-    wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'data/scan-alerts.json lives on the machine the worker runs on; it is git-ignored and never deployed, so on the published site there is nothing to show — and no unread count, rather than a count of nought. Locally, run node scanner/scan.mjs and reload.', ['/app/scanner/setups', 'Your setups']));
+    wrap.append(scanNotInRecord('The alerts file cannot be seen from here', 'The worker’s record of matches lives on the computer it runs on, so on this site there is nothing to show — and no unread count, rather than a count of nought.', ['/app/scanner/setups', 'Your setups']));
     return wrap;
   }
   const all = scanAlertsInOrder();
@@ -2804,7 +2804,7 @@ const SCAN_BAR_STATUS_TEXT = {
 function scanReproduce(a, { history = scanHistoryFile, list = scanAlertList() } = {}) {
   const bar = scanAlertBar(a), sym = a.symbol;
   const out = { bar, sym, bars: null, at: -1, closes: [], values: [], state: null, text: '' };
-  if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — on the deployed site it never is.' };
+  if (!history?.series) return { ...out, state: 'NO_HISTORY', text: 'The price history is not loaded here, so the bar cannot be evaluated again — this site ships none.' };
   if (!history.series[sym]) return { ...out, state: 'NO_SERIES', text: `The history holds no series ${sym}, so the bar cannot be evaluated again.` };
   const since = a.detectedAt || a.recordedAt || null;
   const reg0 = scanRegistryList();
@@ -2963,7 +2963,7 @@ VIEWS.scannerAlert = () => {
   if (!a) {
     wrap.append(scanNotInRecord(`No alert “${want}”`, scanAlertsFile
       ? `data/scan-alerts.json holds ${scanPlural(list.length, 'record')}, and none has that id. An alert’s id is taken from its key, so it does not change; a record removed from the file cannot be shown.`
-      : 'data/scan-alerts.json cannot be seen from here — it lives on the machine the worker runs on and is never deployed.', ['/app/scanner/alerts', 'All alerts'], { page: true }));
+      : 'The worker’s record of matches cannot be seen from here — it lives on the computer the worker runs on.', ['/app/scanner/alerts', 'All alerts'], { page: true }));
     return wrap;
   }
   const id = scanAlertIdOf(a);
