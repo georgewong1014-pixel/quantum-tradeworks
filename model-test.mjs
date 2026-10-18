@@ -8885,6 +8885,50 @@ try {
     if (p.length) fail('qt-day5: an edited property saved, reset, reopened, exported and restored keeps its inputs, labels, reserve and outputs', p);
     else ok(`qt-day5: a test property — price 480,000, rent 2,600, renovation 30,000 and a 6-month reserve, maintenance left as the sample's — reads the same saved, after a reset and reopen, and after its backup file is restored into a browser without it: the same four labels, the 6-month reserve, cash required ${Math.round(r.edited.safe)} and monthly position ${Math.round(r.edited.monthly)}`);
   }
+  /* A SAVE THE BROWSER REFUSES, AND THE RECOVERY (the 18 Oct ecosystem
+     plan's Quantum rehearsal: "saved model, reopened/exported output,
+     failed save/recovery"). The browser's storage refuses every write, as
+     a full or switched-off store does: saving says "Not saved" in
+     STORE_REFUSED's words, no property is listed, the figures on screen
+     are untouched, and nothing says it was kept. Storage restored, the same
+     deal saves and reopens as it was. The browser's own work is put back. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const keepDeal = JSON.stringify(State.deal), keepWork = JSON.stringify(loadWork());
+      const out = {};
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 455000, rent: 2450 });
+      State.deal.touched = { ...(State.deal.touched || {}), price: true, rent: true };
+      saveDeal();
+      const before = { price: State.deal.price, rent: State.deal.rent, safe: dealModel(State.deal).safeCashRequired };
+      const listed = loadWork().length;
+      const setItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function () { throw new DOMException('refused for the test', 'QuotaExceededError'); };
+      let rec;
+      try { rec = saveActiveProperty({ name: 'Model-test property — refused save' }); }
+      finally { Storage.prototype.setItem = setItem; }
+      out.refused = { rec: rec || null, toast: document.getElementById('toast')?.textContent || '', listed: loadWork().length, before,
+        after: { price: State.deal.price, rent: State.deal.rent, safe: dealModel(State.deal).safeCashRequired }, modelId: State.deal.modelId || null };
+      out.listedBefore = listed;
+      const rec2 = saveActiveProperty({ name: 'Model-test property — saved after recovery' });
+      out.recovered = !!rec2;
+      if (rec2) { newPropertyDeal({ show: false }); openPropertyModel(rec2.id, { show: false }); out.reopened = { price: State.deal.price, rent: State.deal.rent }; }
+      persistWork(JSON.parse(keepWork)); State.deal = JSON.parse(keepDeal); saveDeal();
+      out.cleaned = !loadWork().some(x => /Model-test property/.test(x.name || ''));
+      out.want = STORE_REFUSED;
+      return JSON.stringify(out); })()`));
+    const p = [];
+    const x = r.refused;
+    if (x.rec) p.push('a refused save returned a saved property');
+    if (x.toast !== r.want) p.push(`a refused save said "${x.toast}", not "${r.want}"`);
+    if (x.listed !== r.listedBefore) p.push(`a refused save listed a property (${r.listedBefore} → ${x.listed})`);
+    if (x.modelId) p.push('a refused save marked the deal as a saved property');
+    if (JSON.stringify(x.before) !== JSON.stringify(x.after)) p.push(`a refused save moved the figures: ${JSON.stringify(x)}`);
+    if (!r.recovered || !r.reopened || r.reopened.price !== 455000 || r.reopened.rent !== 2450) p.push(`after recovery: saved ${r.recovered}, reopened ${JSON.stringify(r.reopened)}`);
+    if (!r.cleaned) p.push('the test property was left in the browser');
+    if (p.length) fail('qt-recover: a save the browser refuses says so and keeps the figures; with storage back, the same deal saves and reopens', p);
+    else ok('qt-recover: with the browser refusing every write, saving says "Not saved — this browser refused the write…", lists nothing and leaves the figures as they were; with storage back, the same deal (price 455,000, rent 2,450) saves and reopens as it was');
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
