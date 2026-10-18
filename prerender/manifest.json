@@ -209,8 +209,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d29ce1a65b69040b",
-      "changed": "2026-10-17"
+      "digest": "6b555a7674837a4c",
+      "changed": "2026-10-18"
     },
     "pages/app/equities.html": {
       "path": "/app/equities",
@@ -4557,8 +4557,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "bfe85858f5d4621f",
-      "changed": "2026-10-17"
+      "digest": "0e023969eaf1d17f",
+      "changed": "2026-10-18"
     },
     "pages/my/data.html": {
       "path": "/my/data",
@@ -4586,8 +4586,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "81996a80edc1474b",
-      "changed": "2026-10-16"
+      "digest": "fa2b067f33b68579",
+      "changed": "2026-10-18"
     },
     "pages/my/portfolio.html": {
       "path": "/my/portfolio",
@@ -4615,8 +4615,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "8e7066b625413c4f",
-      "changed": "2026-10-17"
+      "digest": "a2283bece95a97de",
+      "changed": "2026-10-18"
     },
     "pages/my/reports.html": {
       "path": "/my/reports",
@@ -4644,8 +4644,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "0899449305533dd6",
-      "changed": "2026-10-16"
+      "digest": "b57b500d07acfaec",
+      "changed": "2026-10-18"
     },
     "pages/my/scanner.html": {
       "path": "/my/scanner",
@@ -4702,8 +4702,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "f95f2bd9ac787e48",
-      "changed": "2026-10-16"
+      "digest": "78987c46480a8422",
+      "changed": "2026-10-18"
     },
     "pages/my/tracked.html": {
       "path": "/my/tracked",
@@ -4731,8 +4731,8 @@
         "cellStops": 111,
         "emptyDetails": 0
       },
-      "digest": "e6c1092797f5e501",
-      "changed": "2026-10-16"
+      "digest": "c37ff5a43ff7ddde",
+      "changed": "2026-10-18"
     },
     "pages/my/watchlists.html": {
       "path": "/my/watchlists",
@@ -4760,8 +4760,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5a2b450b3c71dcf3",
-      "changed": "2026-10-16"
+      "digest": "6d0a72b83a58588c",
+      "changed": "2026-10-18"
     },
     "pages/my/wheel.html": {
       "path": "/my/wheel",
@@ -4818,8 +4818,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "4571b00f2704874b",
-      "changed": "2026-10-17"
+      "digest": "6714edf2a2b708df",
+      "changed": "2026-10-18"
     },
     "pages/pricing.html": {
       "path": "/pricing",
