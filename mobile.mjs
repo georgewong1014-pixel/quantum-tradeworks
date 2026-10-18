@@ -5690,8 +5690,10 @@ await sleep(2500);
       const i = document.getElementById('d-' + k);
       if (!i) { out.push(k + ': no box'); continue; }
       i.focus(); i.scrollIntoView({ block: 'nearest' }); await w(300);
-      if (!inView(i)) out.push(k + ': the focused box is out of view');
-      else if (covered(i) || underDock(i)) out.push(k + ': the focused box is under the dock');
+      const at = () => { const b = i.getBoundingClientRect(), d = dock && dock.getBoundingClientRect();
+        return \` (box \${Math.round(b.top)}–\${Math.round(b.bottom)}, dock \${d ? Math.round(d.top) + '–' + Math.round(d.bottom) : 'none'}, view \${innerHeight}, --dock-h \${getComputedStyle(document.documentElement).getPropertyValue('--dock-h') || 'unset'}, padding-bottom \${getComputedStyle(document.documentElement).scrollPaddingBottom}, \${i.closest('details:not([open])') ? 'in a closed drawer' : 'not in a drawer'}, view \${document.getElementById('pc-quick') ? 'Quick' : 'Full'})\`; };
+      if (!inView(i)) out.push(k + ': the focused box is out of view' + at());
+      else if (covered(i) || underDock(i)) out.push(k + ': the focused box is under the dock' + at());
     }
     const p = document.getElementById('d-price');
     if (p) { p.focus(); p.value = '-5'; p.dispatchEvent(new Event('change', { bubbles: true })); await w(500); }
