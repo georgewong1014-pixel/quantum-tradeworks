@@ -2199,7 +2199,7 @@ try {
       const listed = document.querySelectorAll('.ws-list .ws-row:not(.ws-head)').length;
       /* In My workspace's header since Release B, under the registry's name
          for it (the personal pages' own row called it "Workspace"). */
-      const inNav = [...document.querySelectorAll('#productTabs nav.ws-tabs a[aria-current=page]')].some(a => a.textContent === 'Saved Models');
+      const inNav = [...document.querySelectorAll('#productTabs nav.ws-tabs a[aria-current=page]')].some(a => a.textContent === 'Saved work');
       const doc = exportEverything();
       const exported = ['runs', 'comparisons', 'savedScreens', 'savedWork', 'theses'].filter(k => k in doc.data);
       const run0 = doc.data.runs[0];
@@ -2223,7 +2223,7 @@ try {
     if (r.kinds.join() !== 'comparison,run,screen,thesis,work') p.push(`kinds ${r.kinds}`);
     if (!r.stamped) p.push('an item saved in this run carries no stamp');
     if (r.listed !== r.n) p.push(`the page shows ${r.listed} rows for ${r.n} items`);
-    if (!r.inNav) p.push('Saved Models is not the current tab in My workspace\'s header');
+    if (!r.inNav) p.push('Saved work is not the current tab in My workspace\'s header');
     if (r.exported.length !== 5 || !r.dataVersions?.['us.json']) p.push(`export carries ${r.exported} and data versions ${JSON.stringify(r.dataVersions)}`);
     if (!r.portable) p.push('PORTABLE_KEYS lacks valuation, comparisons or runs');
     if (r.runHas.length !== 4) p.push(`a saved run keeps only ${r.runHas}`);
@@ -3423,7 +3423,7 @@ try {
     })()`);
     const p = [];
     /* Release B: Print & share (Reports until D11) follows Saved Models once its page exists (SHOW_REPORTS). */
-    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved Models,${r.reports ? 'Print & share,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans`) p.push(`sidebar ${r.labels.join(', ')}`);
+    if (r.labels.join() !== `My Dashboard,Watchlists,My Alerts,Saved work,${r.reports ? 'Print & share,' : ''}Equities Research,Quantum Scanner,Property Intelligence,Your data & settings,Plans`) p.push(`sidebar ${r.labels.join(', ')}`);
     if (r.my.length) p.push(`My workspace's header carries a scanner tab (${r.my.join(', ')})`);
     for (const [k, v] of Object.entries(r.cur)) if (v !== 'Quantum Scanner') p.push(`${k} marks ${v}`);
     if (r.trading !== 'Trading Index') p.push(`the Trading Index page's scanner strip marks ${r.trading}`);

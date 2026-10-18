@@ -214,7 +214,7 @@ VIEWS.reports = () => {
         el('strong', { class: 'rp-name' }, c.name),
         el('span', { class: 'metaline' }, [c.tk, why].filter(Boolean).join(' · ')),
         meterSaid ? el('span', { class: 'caption rp-said' }, meterSaid) : null,
-        runs.length > 3 ? el('span', { class: 'caption rp-said' }, `The three newest runs are here; Saved Models lists all ${runs.length}.`) : null,
+        runs.length > 3 ? el('span', { class: 'caption rp-said' }, `The three newest runs are here; Saved work lists all ${runs.length}.`) : null,
       ], acts));
     });
     cs.append(ul);

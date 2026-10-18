@@ -934,7 +934,7 @@ function myDashContinue(o) {
     card.append(el('div', { class: 'dash-empty' }, [
       el('p', { class: 'dash-empty-t' }, 'Nothing saved in this browser yet'),
       el('p', { class: 'caption' }, 'A saved property, a valuation run, a comparison, a screen or an investment case appears here with the action that reopens it.'),
-      myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved models')]));
+      myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved work')]));
   } else {
     card.querySelector('.card-hd').append(myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm dash-all' }, 'All saved work'));
     const ul = el('ul', { class: 'dash-list dash-cont' });

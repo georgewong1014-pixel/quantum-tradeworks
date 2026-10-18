@@ -2415,7 +2415,7 @@ const HOME_PAGE = read(HOME);
   said.views = pagesToCheck.length;
   if (late.length) p.push(`<div id="views"> is not within the first 16kB of ${late.length} served page(s): ${late.slice(0, 6).join(', ')}${late.length > 6 ? ' …' : ''}`);
   const beforeH1 = pageText(home.slice(0, home.indexOf('<h1')));
-  for (const w of ['My Dashboard', 'Saved Models']) if (beforeH1.includes(w)) p.push(`/: "${w}" in its text before the h1`);
+  for (const w of ['My Dashboard', 'Saved work', 'Saved Models']) if (beforeH1.includes(w)) p.push(`/: "${w}" in its text before the h1`);
   if (pageText(got.get('/about')?.body || '').includes('My workspace')) p.push('/about: its text holds "My workspace"');
   const allowed = [P.title, P.oneLiner, P.description, P.lede, P.kicker].filter(Boolean);
   const variants = [];
