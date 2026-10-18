@@ -5680,6 +5680,10 @@ await sleep(2500);
        height (--dock-h), so a focused box must stop above it. */
     for (let i = 0; i < 40 && (document.readyState !== 'complete' || document.getElementById('views')?.hasAttribute('data-served')); i++) await w(100);
     await w(600);
+    /* The Quick model's boxes: an earlier block may have left the
+       calculator in the full model, where a phone keeps them in drawers. */
+    const qv = document.getElementById('pc-view-quick');
+    if (qv && qv.getAttribute('aria-current') !== 'page') { qv.click(); await w(900); }
     const dock = [...document.querySelectorAll('.dock')].find(n => n.getClientRects().length);
     const underDock = (n) => { if (!dock) return false; const b = n.getBoundingClientRect(), d = dock.getBoundingClientRect(); return b.bottom > d.top + 1 && b.top < d.bottom; };
     for (const k of ['price', 'rent', 'renovation']) {
