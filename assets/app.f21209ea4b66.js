@@ -12753,7 +12753,7 @@ const TOOLS = [
     status: 'live', statusNote: 'Both kinds, each labelled: the facts that changed in the research you follow, with their source period, and your price thresholds; and your scanner setups’ matches where the scanner’s record is here. Nothing leaves this browser.',
     proof: { journey: 'cases', step: 'Set a price threshold: crossed, and listed with its source once price moves are shown' },
     action: { label: 'Review your alerts', path: '/my/alerts' } },
-  { id: 'saved', product: null, label: 'Saved Models', path: '/my/workspace', views: ['workspace'],
+  { id: 'saved', product: null, label: 'Saved work', path: '/my/workspace', views: ['workspace'],
     status: 'beta', statusNote: 'Everything you have saved, with the model and data version it was saved against; in this browser only — no account, so nothing follows you to another device.',
     action: { label: 'Open your saved work', path: '/my/workspace' } },
   { id: 'reports', product: null, label: 'Print & share', path: '/my/reports', views: ['reports'],
@@ -13040,7 +13040,7 @@ const APP_NAV_WORKSPACE = [
   { id: 'dashboard',  label: 'My Dashboard', icon: 'layout', path: '/app' },
   { id: 'watchlists', label: 'Watchlists',   icon: 'list',   path: '/my/watchlists' },
   { id: 'alerts',     label: 'My Alerts',    icon: 'bell',   path: '/my/alerts' },
-  { id: 'workspace',  label: 'Saved Models', icon: 'folder', path: '/my/workspace' },
+  { id: 'workspace',  label: 'Saved work', icon: 'folder', path: '/my/workspace' },
   ...(SHOW_REPORTS ? [{ id: 'reports', label: 'Print & share', icon: 'doc', path: '/my/reports' }] : []),
 ];
 const APP_NAV_FOOT = [
@@ -17626,7 +17626,7 @@ function myDashContinue(o) {
     card.append(el('div', { class: 'dash-empty' }, [
       el('p', { class: 'dash-empty-t' }, 'Nothing saved in this browser yet'),
       el('p', { class: 'caption' }, 'A saved property, a valuation run, a comparison, a screen or an investment case appears here with the action that reopens it.'),
-      myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved models')]));
+      myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm' }, 'Saved work')]));
   } else {
     card.querySelector('.card-hd').append(myDashLink('/my/workspace', { class: 'btn btn-ghost btn-sm dash-all' }, 'All saved work'));
     const ul = el('ul', { class: 'dash-list dash-cont' });
@@ -30148,7 +30148,7 @@ VIEWS.reports = () => {
         el('strong', { class: 'rp-name' }, c.name),
         el('span', { class: 'metaline' }, [c.tk, why].filter(Boolean).join(' · ')),
         meterSaid ? el('span', { class: 'caption rp-said' }, meterSaid) : null,
-        runs.length > 3 ? el('span', { class: 'caption rp-said' }, `The three newest runs are here; Saved Models lists all ${runs.length}.`) : null,
+        runs.length > 3 ? el('span', { class: 'caption rp-said' }, `The three newest runs are here; Saved work lists all ${runs.length}.`) : null,
       ], acts));
     });
     cs.append(ul);
