@@ -1407,7 +1407,9 @@ try {
           read: typeof HEALTH !== 'undefined' && !!HEALTH.journeys && !!HEALTH.checks }; })()`;
       const near = (a, b) => (a === null && b === null) || (!!a && !!b && Math.abs(a[0] - b[0]) <= 2 && Math.abs(a[1] - b[1]) <= 2);
       try {
-        for (const [path, metrics] of [['/status', W1280], ['/status', W390], ['/property', W1280], ['/property', W390], ['/research', W1280], ['/app/scanner', W390]]) {
+        /* /status only since 18 Oct 2026: the product pages carry no journey line,
+           and served-check holds that none of the three serves one. */
+        for (const [path, metrics] of [['/status', W1280], ['/status', W390]]) {
           const at = `${path} at ${metrics.width}`;
           await send('Emulation.setDeviceMetricsOverride', metrics, sid);
           await firstVisit({ script: true });

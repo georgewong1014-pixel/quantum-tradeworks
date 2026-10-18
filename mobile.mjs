@@ -507,7 +507,8 @@ await sleep(2500);
    "public log" and the "details" beside each product's badge are links in
    a sentence; on a phone each answers a finger across 44px, and the line it
    sits in keeps its height. */
-for (const path of ['/status', '/property', '/research', '/app/scanner']) {
+/* /status only since 18 Oct 2026: the product pages carry no journey line. */
+for (const path of ['/status']) {
   await send('Page.navigate', { url: BASE + path }, sessionId);
   await sleep(2500);
   const r = await send('Runtime.evaluate', { returnByValue: true, expression: `(() => {
