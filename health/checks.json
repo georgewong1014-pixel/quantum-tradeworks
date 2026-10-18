@@ -1,12 +1,12 @@
 {
   "kind": "quantum-tradeworks-checks",
   "schema": 1,
-  "commit": "e4c3b3f4458566400abb29f54d952e96831552c5",
-  "recordedAt": "2026-10-18T15:00:48.476Z",
-  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/39132477238",
-  "ranAt": "2026-10-18T15:00:39Z",
+  "commit": "8f34596910834e851e431257c7baa292e810dbb0",
+  "recordedAt": "2026-10-18T17:27:16.946Z",
+  "run": "https://github.com/georgewong1014-pixel/quantum-tradeworks/actions/runs/39143636412",
+  "ranAt": "2026-10-18T17:26:38Z",
   "event": "push",
-  "conclusion": "success",
+  "conclusion": "failure",
   "note": null,
   "suites": [
     {
@@ -15,9 +15,9 @@
       "kind": "numbers",
       "job": "runtime",
       "status": "PASS",
-      "passed": 247,
+      "passed": 248,
       "failed": 0,
-      "said": "all 247 model invariants hold",
+      "said": "all 248 model invariants hold",
       "exit": 0
     },
     {
@@ -157,11 +157,11 @@
       "name": "mobile",
       "kind": "layout",
       "job": "runtime",
-      "status": "PASS",
-      "passed": 41,
-      "failed": 0,
-      "said": "no horizontal overflow at any width, and no focus stop hidden (41 ok, 0 FAIL)",
-      "exit": 0
+      "status": "FAIL",
+      "passed": 40,
+      "failed": 1,
+      "said": "1 genuine issues (overflow or hidden focus) (40 ok, 1 FAIL)",
+      "exit": 1
     }
   ]
 }
