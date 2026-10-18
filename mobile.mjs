@@ -5674,12 +5674,20 @@ await sleep(2500);
     const out = [];
     const inView = (n) => { const b = n.getBoundingClientRect(); return b.height > 0 && b.top >= 0 && b.bottom <= innerHeight; };
     const covered = (n) => { const b = n.getBoundingClientRect(); const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return !(t && (t === n || n.contains(t) || t.contains(n))); };
+    /* The page settled first (its first draw is replaced once the script
+       has run), then each box judged against the dock as a whole, not only
+       at its centre: html's scroll-padding-bottom carries the dock's
+       height (--dock-h), so a focused box must stop above it. */
+    for (let i = 0; i < 40 && (document.readyState !== 'complete' || document.getElementById('views')?.hasAttribute('data-served')); i++) await w(100);
+    await w(600);
+    const dock = [...document.querySelectorAll('.dock')].find(n => n.getClientRects().length);
+    const underDock = (n) => { if (!dock) return false; const b = n.getBoundingClientRect(), d = dock.getBoundingClientRect(); return b.bottom > d.top + 1 && b.top < d.bottom; };
     for (const k of ['price', 'rent', 'renovation']) {
       const i = document.getElementById('d-' + k);
       if (!i) { out.push(k + ': no box'); continue; }
       i.focus(); i.scrollIntoView({ block: 'nearest' }); await w(300);
       if (!inView(i)) out.push(k + ': the focused box is out of view');
-      else if (covered(i)) out.push(k + ': the focused box is covered');
+      else if (covered(i) || underDock(i)) out.push(k + ': the focused box is under the dock');
     }
     const p = document.getElementById('d-price');
     if (p) { p.focus(); p.value = '-5'; p.dispatchEvent(new Event('change', { bubbles: true })); await w(500); }
