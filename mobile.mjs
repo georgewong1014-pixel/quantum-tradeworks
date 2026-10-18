@@ -5658,6 +5658,44 @@ for (const w of [360, 390]) {
 /* ---- end d11-decide ---- */
 
 
+/* THE CALCULATOR WITH A PHONE'S KEYBOARD OPEN (the 18 Oct quick-fix note:
+   "inspect every mobile form with the keyboard open. Confirm the active
+   field, validation message and next button remain reachable"). A headless
+   browser opens no keyboard, so the screen is cut to what one leaves on a
+   390px phone: 400px high. Each Quick-model box, focused, is in view and
+   nothing sticky covers it; a refused price says so in view; and the action
+   bar's Save is in view and uncovered. */
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 400, deviceScaleFactor: 1, mobile: true }, sessionId);
+await send('Page.navigate', { url: BASE + '/property/calculator' }, sessionId);
+await sleep(2500);
+{
+  const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+    const w = (ms) => new Promise(res => setTimeout(res, ms));
+    const out = [];
+    const inView = (n) => { const b = n.getBoundingClientRect(); return b.height > 0 && b.top >= 0 && b.bottom <= innerHeight; };
+    const covered = (n) => { const b = n.getBoundingClientRect(); const t = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return !(t && (t === n || n.contains(t) || t.contains(n))); };
+    for (const k of ['price', 'rent', 'renovation']) {
+      const i = document.getElementById('d-' + k);
+      if (!i) { out.push(k + ': no box'); continue; }
+      i.focus(); i.scrollIntoView({ block: 'nearest' }); await w(300);
+      if (!inView(i)) out.push(k + ': the focused box is out of view');
+      else if (covered(i)) out.push(k + ': the focused box is covered');
+    }
+    const p = document.getElementById('d-price');
+    if (p) { p.focus(); p.value = '-5'; p.dispatchEvent(new Event('change', { bubbles: true })); await w(500); }
+    const t = document.getElementById('toast');
+    if (!t || t.dataset.show !== '1' || !t.textContent.trim()) out.push('a refused price shows no message');
+    else if (!inView(t)) out.push('the refused price\\'s message is out of view');
+    const save = document.getElementById('ls-act-save');
+    if (!save) out.push('no Save in the action bar');
+    else if (!inView(save)) out.push('Save is out of view with the keyboard open');
+    else if (covered(save)) out.push('Save is covered');
+    return out; })()` }, sessionId);
+  const v = r.result?.result?.value;
+  if (!v || v.length) { bad++; console.log(`FAIL 390×400 (keyboard open) /property/calculator — ${v ? v.join('; ') : 'not measured'}`); }
+  else console.log('ok   390×400 (keyboard open) /property/calculator — each Quick box focused is in view and uncovered, a refused price says so in view, Save in view');
+}
+await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
