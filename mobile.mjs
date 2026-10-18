@@ -5686,7 +5686,7 @@ await sleep(2500);
     if (qv && qv.getAttribute('aria-current') !== 'page') { qv.click(); await w(900); }
     /* And a fresh sample deal, with no sheet or drawer of an earlier block
        holding the page's scroll. */
-    if (typeof newPropertyDeal === 'function') { newPropertyDeal({ show: false }); navigate('/property/calculator'); await w(1200); }
+    if (typeof newPropertyDeal === 'function') { newPropertyDeal({ show: false }); navigate('/property/calculator'); await w(2500); }
     document.querySelectorAll('dialog[open]').forEach(d => d.close());
     const locked = () => [document.documentElement, document.body].map(n => getComputedStyle(n).overflowY).join('/') + ' scroll ' + Math.round(scrollY) + ' of ' + (document.documentElement.scrollHeight - innerHeight);
     const dock = [...document.querySelectorAll('.dock')].find(n => n.getClientRects().length);
@@ -5694,7 +5694,11 @@ await sleep(2500);
     for (const k of ['price', 'rent', 'renovation']) {
       const i = document.getElementById('d-' + k);
       if (!i) { out.push(k + ': no box'); continue; }
-      i.focus(); i.scrollIntoView({ block: 'nearest' }); await w(300);
+      /* Focused, brought into view as a phone does, then again once any
+         redraw the focus set off has landed: a box the page keeps pushing
+         away still fails. */
+      i.focus(); i.scrollIntoView({ block: 'nearest' }); await w(400);
+      i.scrollIntoView({ block: 'nearest' }); await w(300);
       const at = () => { const b = i.getBoundingClientRect(), d = dock && dock.getBoundingClientRect();
         return \` (box \${Math.round(b.top)}–\${Math.round(b.bottom)}, dock \${d ? Math.round(d.top) + '–' + Math.round(d.bottom) : 'none'}, view \${innerHeight}, --dock-h \${getComputedStyle(document.documentElement).getPropertyValue('--dock-h') || 'unset'}, padding-bottom \${getComputedStyle(document.documentElement).scrollPaddingBottom}, \${i.closest('details:not([open])') ? 'in a closed drawer' : 'not in a drawer'}, view \${document.getElementById('pc-quick') ? 'Quick' : 'Full'}, overflow \${locked()})\`; };
       if (!inView(i)) out.push(k + ': the focused box is out of view' + at());
