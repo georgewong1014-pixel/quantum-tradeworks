@@ -8929,6 +8929,66 @@ try {
     if (p.length) fail('qt-recover: a save the browser refuses says so and keeps the figures; with storage back, the same deal saves and reopens', p);
     else ok('qt-recover: with the browser refusing every write, saving says "Not saved — this browser refused the write…", lists nothing and leaves the figures as they were; with storage back, the same deal (price 455,000, rent 2,450) saves and reopens as it was');
   }
+  /* THE SAVE LIFECYCLE'S REMAINING CASES (the Day-6 brief: "Save, reopen,
+     reload and export … Test cancelled save, duplicate names and storage
+     failure"). qt-day5 holds save → reset → reopen → export → restore and
+     qt-recover a refused write; this holds the rest:
+     - a cancelled name prompt saves nothing and leaves the deal unsaved;
+     - two properties saved under the same name are two records, each
+       reopening its own figures;
+     - a saved property, the page reloaded, reopens with its figures and
+       its results as saved.
+     Synthetic test properties, named so; the browser's own work put back. */
+  {
+    const one = JSON.parse(await evaluate(`(async () => {
+      const out = {};
+      out.keepDeal = JSON.stringify(State.deal); out.keepWork = JSON.stringify(loadWork());
+      const n0 = loadWork().length;
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 512000, rent: 2700, renovation: 18000 });
+      State.deal.touched = { ...(State.deal.touched || {}), price: true, rent: true, renovation: true }; saveDeal();
+      const ask = window.prompt; window.prompt = () => null;
+      let cancelled; try { cancelled = saveActiveProperty(); } finally { window.prompt = ask; }
+      out.cancel = { rec: cancelled || null, listed: loadWork().length - n0, modelId: State.deal.modelId || null };
+      const NAME = 'Model-test property — same name';
+      const a = saveActiveProperty({ name: NAME });
+      newPropertyDeal({ show: false });
+      Object.assign(State.deal, { price: 388000, rent: 2100, renovation: 9000 });
+      State.deal.touched = { ...(State.deal.touched || {}), price: true, rent: true, renovation: true }; saveDeal();
+      const b = saveActiveProperty({ name: NAME });
+      out.dup = { a: a && a.id, b: b && b.id, names: loadWork().filter(x => x.id === a?.id || x.id === b?.id).map(x => x.name) };
+      openPropertyModel(a.id, { show: false }); out.dup.aOpens = { price: State.deal.price, rent: State.deal.rent, renovation: State.deal.renovation };
+      openPropertyModel(b.id, { show: false }); out.dup.bOpens = { price: State.deal.price, rent: State.deal.rent, renovation: State.deal.renovation };
+      openPropertyModel(a.id, { show: false });
+      const m = dealModel(State.deal);
+      out.saved = { id: a.id, price: State.deal.price, rent: State.deal.rent, renovation: State.deal.renovation, safe: m.safeCashRequired, monthly: m.cashflowMonthly };
+      return JSON.stringify(out); })()`));
+    await send('Page.reload', {}, sessionId);
+    for (const t = Date.now(); ; await sleep(150)) {
+      const r = await send('Runtime.evaluate', { expression: 'typeof propertyPagesSettled === "function" && propertyPagesSettled() && typeof pmFind === "function"', returnByValue: true }, sessionId);
+      if (r.result?.result?.value === true) break;
+      if (Date.now() - t > 30000) throw new Error('the page did not come back after the reload');
+    }
+    const two = JSON.parse(await evaluate(`(async () => {
+      const id = ${JSON.stringify(one.saved.id)};
+      const out = { found: !!pmFind(id) };
+      newPropertyDeal({ show: false });
+      out.opened = openPropertyModel(id, { show: false });
+      const m = dealModel(State.deal);
+      out.after = { id, price: State.deal.price, rent: State.deal.rent, renovation: State.deal.renovation, safe: m.safeCashRequired, monthly: m.cashflowMonthly };
+      persistWork(JSON.parse(${JSON.stringify(one.keepWork)})); State.deal = JSON.parse(${JSON.stringify(one.keepDeal)}); saveDeal();
+      out.cleaned = !loadWork().some(x => /Model-test property/.test(x.name || ''));
+      return JSON.stringify(out); })()`));
+    const p = [];
+    if (one.cancel.rec || one.cancel.listed !== 0 || one.cancel.modelId) p.push(`a cancelled name prompt saved something: ${JSON.stringify(one.cancel)}`);
+    if (!one.dup.a || !one.dup.b || one.dup.a === one.dup.b) p.push(`two saves under one name are not two records: ${JSON.stringify(one.dup)}`);
+    if (one.dup.aOpens.price !== 512000 || one.dup.bOpens.price !== 388000) p.push(`a same-named property reopened another's figures: ${JSON.stringify([one.dup.aOpens, one.dup.bOpens])}`);
+    if (!two.found || !two.opened) p.push(`after a reload the saved property is ${two.found ? 'listed but did not open' : 'gone'}`);
+    else if (JSON.stringify(one.saved) !== JSON.stringify(two.after)) p.push(`after a reload: saved ${JSON.stringify(one.saved)}, reopened ${JSON.stringify(two.after)}`);
+    if (!two.cleaned) p.push('the test properties were left in the browser');
+    if (p.length) fail('qt-day6: a cancelled save, two properties of one name and a reload each keep the saved figures and results', p);
+    else ok(`qt-day6: a cancelled name prompt saves nothing; two properties saved as "${one.dup.names[0]}" stay two records, each reopening its own price (512,000 and 388,000); after a page reload the first reopens with the same inputs, cash required ${Math.round(one.saved.safe)} and monthly position ${Math.round(one.saved.monthly)}`);
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
