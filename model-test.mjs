@@ -8861,6 +8861,8 @@ try {
       out.reopened = read();
       const text = JSON.stringify(backupPayload());
       out.inFile = JSON.parse(text).data && JSON.stringify(JSON.parse(text).data).includes(rec.id);
+      /* What the file holds (the Day-7 report: "export contents include named property, edited inputs"): the name and each edited figure, read back out of the file. */
+      out.fileHolds = { name: text.includes('Model-test property — not a real property'), price: /price\\*"?\s*:\s*480000/.test(text), rent: /rent\\*"?\s*:\s*2600/.test(text), renovation: /renovation\\*"?\s*:\s*30000/.test(text), reserve: /reserveMonths\\*"?\s*:\s*6/.test(text) };
       persistWork(loadWork().filter(x => x.id !== rec.id));
       newPropertyDeal({ show: false });
       out.goneBefore = !pmFind(rec.id);
@@ -8880,6 +8882,7 @@ try {
     if (r.reset.inputs.price === 480000) p.push('the reset kept the edited price');
     if (!r.opened || !same(r.edited, r.reopened)) p.push(`reopened: ${JSON.stringify(r.reopened)}, saved ${JSON.stringify(r.edited)}`);
     if (!r.inFile) p.push('the backup file does not hold the saved property');
+    if (Object.values(r.fileHolds || {}).some(v => !v)) p.push(`the backup file is missing the saved property's name or an edited figure: ${JSON.stringify(r.fileHolds)}`);
     if (!r.goneBefore || !r.restoredOk || !r.opened2 || !same(r.edited, r.restored)) p.push(`restored from the file: ${JSON.stringify({ gone: r.goneBefore, ok: r.restoredOk, opened: r.opened2, deal: r.restored })}`);
     if (!r.cleaned) p.push('the test property was left in the browser');
     if (p.length) fail('qt-day5: an edited property saved, reset, reopened, exported and restored keeps its inputs, labels, reserve and outputs', p);
@@ -9158,6 +9161,32 @@ try {
     if (!r.cleaned || !r.restoredKeys) p.push(`the browser's own work was not put back: theses ${r.cleaned}, every key ${r.restoredKeys}${r.differ.length ? `; changed: ${r.differ.join(", ")}` : ""}`);
     if (p.length) fail('qt-day7: a saved investment case, reopened and restored from its backup file, keeps every field, its review and its run; an unstamped sample still reads "Saved before stamping"', p);
     else ok(`qt-day7: a test case on ${r.id} — ${FIELDS.length} fields, two conditions, a linked valuation run with the edited assumption "${r.editKey}", and one decision review — reads the same saved, reopened, and restored twice from its backup file after its three records were cleared (in storage once; its card shows each); the seeded sample without a stamp reads "Saved before stamping" in the list and on the page`);
+  }
+  /* A MALFORMED BACKUP FILE CHANGES NOTHING (the Day-7 report: "Test …
+     malformed backup"). Text that is not JSON, JSON of another format, a
+     backup with no data, and a cut-off file are each refused with a reason,
+     and the browser's saved work and deal are what they were. Runs in the
+     test browser's own profile, never a reader's. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const snap = () => JSON.stringify({ work: loadWork(), deal: store.read('deal', null), theses: store.read('theses', []) });
+      const before = snap();
+      const good = JSON.stringify(backupPayload());
+      const cases = { notJson: 'this is not a backup', otherFormat: JSON.stringify({ format: 'someone-else', data: {} }), noData: JSON.stringify({ format: 'quantum-tradeworks-backup', version: 1 }), cutOff: good.slice(0, Math.floor(good.length / 2)) };
+      const out = {};
+      for (const [k, t] of Object.entries(cases)) {
+        let res; try { res = restoreBackup(t); } catch (e) { res = { threw: String(e && e.message || e) }; }
+        out[k] = { ok: !!(res && res.ok), why: res ? (res.error || res.threw || '') : '', same: snap() === before };
+      }
+      return JSON.stringify(out); })()`));
+    const p = [];
+    for (const [k, x] of Object.entries(r)) {
+      if (x.ok) p.push(`${k}: a malformed file was accepted`);
+      if (!x.why) p.push(`${k}: refused with no reason given`);
+      if (!x.same) p.push(`${k}: the browser's saved work changed`);
+    }
+    if (p.length) fail('qt-day7b: a malformed backup is refused with a reason and changes nothing', p);
+    else ok(`qt-day7b: a backup that is not JSON, of another format, without data, or cut off half-way is refused with a reason ("${String(r.notJson.why).slice(0, 60)}…") and leaves the saved work and the deal as they were`);
   }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
