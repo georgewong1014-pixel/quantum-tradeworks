@@ -1531,7 +1531,7 @@
       ]
     },
     {
-      "source": "/assets/app.c93e888ff28d.css",
+      "source": "/assets/app.3b022c7e36e9.css",
       "headers": [
         {
           "key": "Cache-Control",
@@ -1565,7 +1565,7 @@
       ]
     },
     {
-      "source": "/((?!data/|vendor/|assets/app\\.a7a9eff8cec1\\.js$|assets/app\\.c93e888ff28d\\.css$).*)",
+      "source": "/((?!data/|vendor/|assets/app\\.a7a9eff8cec1\\.js$|assets/app\\.3b022c7e36e9\\.css$).*)",
       "headers": [
         {
           "key": "Cache-Control",
