@@ -5719,6 +5719,69 @@ await sleep(2500);
   else console.log('ok   390×400 (keyboard open) /property/calculator — each Quick box focused is in view and uncovered, a refused price says so in view, Save in view');
 }
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+
+/* THE STRATEGY LENS'S EVIDENCE BANDS ON A PHONE (the 20 Oct Day-7 report,
+   QT-D06-01). Each result now reads "Quality compounder · Evidence band B"
+   where it read "Quality compounder B", and one line stands under the first
+   band. At 360, 390, 430, 768 and 1440, in the page's font and in Verdana
+   (CI's Linux sans is as wide): the page has no sideways scroll, every
+   result sits inside the Lens card, the line is whole and directly under the
+   results, and the opened disclosure's meanings of A to D fit the card. */
+{
+  const fails = [], said = [];
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[360, 640], [390, 844], [430, 932], [768, 1024], [1440, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const font of [null, 'Verdana, sans-serif']) {
+        const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+        await send('Page.navigate', { url: BASE + '/company/aapl-apple-inc' }, sessionId);
+        let ready = false;
+        for (let i = 0; i < 80 && !ready; i++) {
+          await sleep(250);
+          const q = await send('Runtime.evaluate', { returnByValue: true, expression: `!!document.getElementById('band-note') && !document.getElementById('views')?.hasAttribute('data-served')` }, sessionId);
+          ready = q.result?.result?.value === true;
+        }
+        if (!ready) { fails.push(`${at}: the Lens card with its explanation line did not draw`); continue; }
+        const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+          const w = (ms) => new Promise(res => setTimeout(res, ms));
+          ${font ? `const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s);` : ''}
+          await w(200);
+          const card = [...document.querySelectorAll('main .card')].find(c => (c.querySelector('.eyebrow') || {}).textContent === 'Strategy Lens');
+          const cb = card.getBoundingClientRect();
+          const chips = [...card.querySelectorAll('.row-wrap > .chip')].filter(c => c.textContent.includes(' · '));
+          const rowEl = chips[0].parentElement, rb = rowEl.getBoundingClientRect();
+          const note = document.getElementById('band-note'), nb = note.getBoundingClientRect();
+          card.querySelectorAll('details').forEach(d => { d.open = true; });
+          await w(200);
+          const dl = document.getElementById('band-meanings');
+          const dds = [...dl.querySelectorAll('dd')].map(d => ({ r: d.getBoundingClientRect().right, over: d.scrollWidth > d.clientWidth + 1 }));
+          const out = chips.map(c => { const b = c.getBoundingClientRect(); return { t: c.textContent, l: b.left, r: b.right, over: c.scrollWidth > c.clientWidth + 1 }; });
+          return { vw: document.documentElement.clientWidth, scrollW: document.documentElement.scrollWidth, card: { l: cb.left, r: cb.right },
+            chips: out, noteBox: { t: nb.top, b: nb.bottom, l: nb.left, r: nb.right, h: nb.height, over: note.scrollWidth > note.clientWidth + 1 },
+            gap: nb.top - rb.bottom, rowBottom: rb.bottom, dds, dlRight: dl.getBoundingClientRect().right,
+            face: getComputedStyle(note).fontFamily, text: note.textContent }; })()` }, sessionId);
+        const v = r.result?.result?.value;
+        if (!v) { fails.push(`${at}: not measured (${JSON.stringify(r.result?.exceptionDetails?.exception?.description || r.exceptionDetails || '').slice(0, 120)})`); continue; }
+        said.push(at);
+        if (font && !/Verdana/.test(v.face)) fails.push(`${at}: drawn in ${v.face}, not Verdana`);
+        if (v.scrollW > v.vw + 1) fails.push(`${at}: the page is ${v.scrollW}px wide in a ${v.vw}px screen`);
+        if (v.chips.length < 6) fails.push(`${at}: ${v.chips.length} results measured`);
+        v.chips.forEach(c => { if (c.l < v.card.l - 0.5 || c.r > v.card.r + 0.5 || c.over) fails.push(`${at}: "${c.t}" runs ${Math.round(c.l)}–${Math.round(c.r)}px past the card's ${Math.round(v.card.l)}–${Math.round(v.card.r)}px`); });
+        if (v.noteBox.l < v.card.l - 0.5 || v.noteBox.r > v.card.r + 0.5 || v.noteBox.over || v.noteBox.h < 10) fails.push(`${at}: the explanation line is cut: ${JSON.stringify(v.noteBox)}`);
+        if (v.gap < 0 || v.gap > 24) fails.push(`${at}: the explanation line is ${Math.round(v.gap)}px from the results, not directly under them`);
+        v.dds.forEach((d, i) => { if (d.r > v.card.r + 0.5 || d.over) fails.push(`${at}: the meaning of band ${'ABCD'[i]} runs past the card`); });
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL evidence-bands — the Strategy Lens's results on a phone: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   evidence-bands: the Strategy Lens's results read "Evidence band" inside their card, the explanation line is whole and directly under them, and the disclosure's meanings fit, at 360, 390, 430, 768 and 1440 in the page's font and in Verdana (${said.length} frames)`);
+}
 } catch (e) {
   /* An exception mid-loop is a failed run, and the browser must still die. */
   bad++; console.log(`FAIL harness error — ${e.message}`);
