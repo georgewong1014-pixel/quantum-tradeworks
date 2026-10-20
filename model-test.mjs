@@ -8862,7 +8862,7 @@ try {
       const text = JSON.stringify(backupPayload());
       out.inFile = JSON.parse(text).data && JSON.stringify(JSON.parse(text).data).includes(rec.id);
       /* What the file holds (the Day-7 report: "export contents include named property, edited inputs"): the name and each edited figure, read back out of the file. */
-      out.fileHolds = { name: text.includes('Model-test property — not a real property'), price: /price\\*"?\s*:\s*480000/.test(text), rent: /rent\\*"?\s*:\s*2600/.test(text), renovation: /renovation\\*"?\s*:\s*30000/.test(text), reserve: /reserveMonths\\*"?\s*:\s*6/.test(text) };
+      out.fileHolds = { name: text.includes('Model-test property — not a real property'), price: /price\\\\*"?\\s*:\\s*480000/.test(text), rent: /rent\\\\*"?\\s*:\\s*2600/.test(text), renovation: /renovation\\\\*"?\\s*:\\s*30000/.test(text), reserve: /reserveMonths\\\\*"?\\s*:\\s*6/.test(text) };
       persistWork(loadWork().filter(x => x.id !== rec.id));
       newPropertyDeal({ show: false });
       out.goneBefore = !pmFind(rec.id);
