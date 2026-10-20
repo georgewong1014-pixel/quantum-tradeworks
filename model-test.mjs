@@ -8989,6 +8989,176 @@ try {
     if (p.length) fail('qt-day6: a cancelled save, two properties of one name and a reload each keep the saved figures and results', p);
     else ok(`qt-day6: a cancelled name prompt saves nothing; two properties saved as "${one.dup.names[0]}" stay two records, each reopening its own price (512,000 and 388,000); after a page reload the first reopens with the same inputs, cash required ${Math.round(one.saved.safe)} and monthly position ${Math.round(one.saved.monthly)}`);
   }
+  /* AN INVESTMENT CASE KEEPS ITS WHOLE STATE (the 20 Oct Day-7 report,
+     QT-D06-01, task 3: a saved case that reopens, or comes back from the
+     backup file, with every field it held). A case is a record in the
+     "theses" key (50-views-studio.js): the company, the one-sentence case,
+     why the business, the valuation case, catalysts, key risks, unanswered
+     questions, the invalidation conditions, horizon, next review date,
+     confidence, created date, the version stamp, and the id of a linked
+     valuation run. Beside it are two records keyed to it: the decision
+     reviews ("reviews", by the case's id) and the run itself ("runs", by its
+     id, which carries the assumptions as the reader edited them).
+
+     A synthetic case, named as a test, on the first filed company without a
+     case: written through the editor's own controls and the Valuation
+     Studio's own save (conditions have no editor, so one is added to the
+     list), saved, the page's copy dropped and the case read back from storage
+     as a reload does, then the backup file written, the three records
+     removed as a fresh browser would lack them, and the file restored —
+     twice. Each time every field, the review, the run and the assumption the
+     reader edited are what they were, the case is in storage once, and its
+     card shows each of them. A sample case saved before stamping (the seeded
+     case, which carries no stamp) still reads "Saved before stamping" in the
+     workspace's list and on its page. The browser's own work is put back. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      for (let i = 0; i < 160 && (typeof realPending === 'undefined' || realPending || !BY_ID.has('AAPL-SEC')); i++) await w(250);
+      const snap = {};
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vl.')) snap[k] = localStorage.getItem(k); }
+      const keepTheses = JSON.stringify(State.theses);
+      const out = { problems: [] };
+      const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+      const press = async (label) => { const b = [...drawer.querySelectorAll('button')].find(x => x.textContent.trim() === label); if (!b) return false; b.click(); await w(450); return true; };
+      const type = async (id, v) => { const f = document.getElementById(id); if (!f) return false; f.focus(); f.value = v; f.dispatchEvent(new Event(f.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true })); await w(60); return true; };
+      try {
+        const id = ['AAPL-SEC', 'MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].find(x => BY_ID.has(x) && !State.theses.some(t => t.ticker === x));
+        out.id = id || null;
+        if (!id) throw new Error('no filed company without a case');
+        const row = BY_ID.get(id);
+        const WANT = { oneLine: 'Model-test case — not a real investment case', quality: 'Model-test note on the business.',
+          valCase: 'Model-test valuation case, resting on the linked run.',
+          catalysts: ['Model-test catalyst one', 'Model-test catalyst two'],
+          risks: ['Model-test risk one', 'Model-test risk two', 'Model-test risk three'],
+          questions: ['Model-test question one?', 'Model-test question two?'],
+          horizon: '4–6 years', review: '2031-03-15', conf: 'High' };
+        const COND = { type: 'metric', k: 'roe', op: '<', v: 9, label: 'Model-test condition: return on equity falls below 9%' };
+        const REVIEW = 'Model-test review note.';
+
+        /* write: the real creator, then the editor's own controls */
+        addToThesis(id); await w(300);
+        let t = State.theses.find(x => x.ticker === id);
+        out.created = !!t;
+        openThesisEditor(t); await w(300);
+        const typed = [];
+        for (const k of ['oneLine', 'quality', 'valCase', 'horizon', 'review']) typed.push(await type('th-' + k, WANT[k]));
+        for (const k of ['catalysts', 'risks', 'questions']) typed.push(await type('th-' + k, WANT[k].join('\\n')));
+        typed.push(await type('th-conf', WANT.conf));
+        out.typed = typed;
+        out.saveButton = await press('Save');
+        t = State.theses.find(x => x.ticker === id);
+        t.conds = [...t.conds, COND]; saveTheses(); await w(100);
+        /* a valuation run with one assumption the reader edited, linked to the case */
+        const al = assumptionList(row.inputs, row.val.pack.id).filter(a => typeof row.inputs[a.k] === 'number' && row.inputs[a.k] !== 0);
+        out.editKey = al.length ? al[0].k : null;
+        const inputs = { ...row.inputs };
+        if (out.editKey) inputs[out.editKey] = +(row.inputs[out.editKey] * 1.1).toFixed(6);
+        saveValuationRun(row, inputs); await w(300);
+        t = State.theses.find(x => x.ticker === id);
+        /* a decision review */
+        openReview(t); await w(300);
+        out.reviewTyped = await type('rv-0', REVIEW);
+        out.reviewButton = await press('Record review');
+
+        const read = () => { const th = store.read('theses', []).filter(x => x.id === t.id);
+          const rv = (store.read('reviews', {}) || {})[t.id] || [];
+          const runs = (store.read('runs', []) || []).filter(x => x.runId === th[0]?.runRef);
+          return { n: th.length, rec: th[0] || null, reviews: rv.map(x => ({ answers: x.answers.filter(a => a.answer).map(a => a.answer) })), nRuns: runs.length,
+            run: runs[0] ? { assumptions: runs[0].assumptions, inputs: runs[0].inputs, model: runs[0].model, stamp: runs[0].stamp } : null }; };
+        const card = (rec) => { State.theses = store.read('theses', []); const th = State.theses.find(x => x.id === rec.id); return thesisCard(th, true).textContent.replace(/\\s+/g, ' '); };
+        out.saved = read();
+        out.savedCard = card(out.saved.rec);
+
+        /* reopen: the page's copy dropped, the case read back from storage */
+        State.theses = [];
+        out.reopened = read(); out.reopenedCard = card(out.reopened.rec);
+        openThesisEditor(State.theses.find(x => x.id === t.id)); await w(300);
+        out.editorBoxes = Object.fromEntries(['oneLine', 'quality', 'valCase', 'catalysts', 'risks', 'questions', 'horizon', 'review', 'conf'].map(k => [k, (document.getElementById('th-' + k) || {}).value ?? null]));
+        closeDrawer(); await w(250);
+
+        /* export, clear, restore, restore */
+        const text = JSON.stringify(backupPayload());
+        out.inFile = { theses: JSON.stringify(JSON.parse(text).data.theses || []).includes(t.id), reviews: !!(JSON.parse(text).data.reviews || {})[t.id],
+          runs: JSON.stringify(JSON.parse(text).data.runs || []).includes(out.saved.rec.runRef) };
+        store.write('theses', store.read('theses', []).filter(x => x.id !== t.id));
+        const rvAll = store.read('reviews', {}) || {}; delete rvAll[t.id]; store.write('reviews', rvAll);
+        store.write('runs', (store.read('runs', []) || []).filter(x => x.runId !== out.saved.rec.runRef));
+        State.theses = store.read('theses', []);
+        out.gone = read();
+        out.restored1 = restoreBackup(text); State.theses = store.read('theses', []);
+        out.afterRestore = read(); out.afterRestoreCard = card(out.afterRestore.rec);
+        out.restored2 = restoreBackup(text); State.theses = store.read('theses', []);
+        out.afterTwice = read();
+
+        /* an older unstamped sample case */
+        const sample = seedTheses()[0]; delete sample.stamp;
+        State.theses = [sample];
+        const item = workspaceItems().find(i => i.kind === 'thesis' && i.key === sample.id);
+        out.sample = item ? { label: item.diff.label, status: item.diff.status, sample: item.sample } : null;
+        navigate('/my/workspace'); await w(500);
+        out.sampleOnPage = /Saved before stamping/.test((document.getElementById('views') || document.body).textContent);
+        out.stampedLabel = stampDiff(out.saved.rec.stamp).label;
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      /* the browser's own work, put back (after leaving the pages that record a visit) */
+      navigate('/property/calculator?view=full'); await w(500);
+      for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('vl.') && !(k in snap)) localStorage.removeItem(k); }
+      for (const [k, v] of Object.entries(snap)) localStorage.setItem(k, v);
+      State.theses = JSON.parse(keepTheses);
+      out.cleaned = JSON.stringify(store.read('theses', [])) === (snap['vl.theses'] || '[]');
+      out.differ = Object.keys(snap).filter(k => localStorage.getItem(k) !== snap[k]);
+      out.restoredKeys = out.differ.length === 0;
+      return JSON.stringify(out); })()`));
+    const p = [...r.problems];
+    const WANT = { oneLine: 'Model-test case — not a real investment case', quality: 'Model-test note on the business.',
+      valCase: 'Model-test valuation case, resting on the linked run.',
+      catalysts: ['Model-test catalyst one', 'Model-test catalyst two'],
+      risks: ['Model-test risk one', 'Model-test risk two', 'Model-test risk three'],
+      questions: ['Model-test question one?', 'Model-test question two?'],
+      horizon: '4–6 years', review: '2031-03-15', conf: 'High' };
+    const FIELDS = ['id', 'ticker', 'oneLine', 'quality', 'valCase', 'catalysts', 'risks', 'conds', 'horizon', 'review', 'conf', 'questions', 'created', 'stamp', 'runRef'];
+    const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+    if (!r.id || !r.created) p.push('the case was not created');
+    if (r.typed && r.typed.some(x => !x)) p.push(`an editor control was not found: ${JSON.stringify(r.typed)}`);
+    if (!r.saveButton || !r.reviewTyped || !r.reviewButton) p.push(`a control was not found: save ${r.saveButton}, review box ${r.reviewTyped}, record ${r.reviewButton}`);
+    if (!r.editKey) p.push('no valuation assumption could be edited for the linked run');
+    const s = r.saved && r.saved.rec;
+    if (!s) p.push('the case is not in storage after saving');
+    else {
+      for (const k of Object.keys(WANT)) if (canon(s[k]) !== canon(WANT[k])) p.push(`saved ${k} is ${canon(s[k])}, written ${canon(WANT[k])}`);
+      if (!Array.isArray(s.conds) || s.conds.length !== 2 || s.conds[1].label !== 'Model-test condition: return on equity falls below 9%') p.push(`saved conditions: ${canon(s.conds)}`);
+      if (!s.stamp || !s.stamp.model) p.push('the saved case carries no version stamp');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s.created || '')) p.push(`created reads ${s.created}`);
+      if (!s.runRef) p.push('the case holds no linked run');
+      for (const k of Object.keys(s)) if (!FIELDS.includes(k)) p.push(`the case holds a field this check does not know: ${k}`);
+      if (r.saved.nRuns !== 1 || !r.saved.run || !r.saved.run.assumptions || !r.saved.run.assumptions[r.editKey] || r.saved.run.assumptions[r.editKey].edited !== true) p.push(`the linked run does not hold the edited assumption ${r.editKey}: ${canon(r.saved.run && r.saved.run.assumptions && r.saved.run.assumptions[r.editKey])}`);
+      if (canon(r.saved.reviews) !== canon([{ answers: ['Model-test review note.'] }])) p.push(`saved reviews: ${canon(r.saved.reviews)}`);
+      for (const [when, x] of [['reopened', r.reopened], ['restored from the file', r.afterRestore], ['restored a second time', r.afterTwice]]) {
+        if (!x || x.n !== 1) p.push(`${when}: the case is in storage ${x ? x.n : '?'} times, not once`);
+        else {
+          for (const k of FIELDS) if (canon(x.rec[k]) !== canon(s[k])) p.push(`${when}: ${k} is ${canon(x.rec[k])}, saved ${canon(s[k])}`);
+          if (canon(x.reviews) !== canon(r.saved.reviews)) p.push(`${when}: reviews ${canon(x.reviews)}, saved ${canon(r.saved.reviews)}`);
+          if (x.nRuns !== 1 || canon(x.run) !== canon(r.saved.run)) p.push(`${when}: the linked run is ${x.nRuns} record(s) and differs from the saved one`);
+        }
+      }
+      for (const [when, text] of [['saved', r.savedCard], ['reopened', r.reopenedCard], ['restored', r.afterRestoreCard]]) {
+        const need = [WANT.oneLine, WANT.quality, WANT.valCase, ...WANT.catalysts, ...WANT.risks, ...WANT.questions, WANT.horizon, WANT.review, `${WANT.conf} confidence`,
+          s.conds[1].label, `Created ${s.created}`, `Linked run ${s.runRef}`, 'Decision reviews (1)'];
+        const missing = need.filter(x => !(text || '').includes(x));
+        if (missing.length) p.push(`${when}: the case's card does not show ${missing.join(' | ')}`);
+      }
+      for (const k of Object.keys(WANT)) if (canon(k === 'catalysts' || k === 'risks' || k === 'questions' ? (r.editorBoxes[k] || '').split('\n') : r.editorBoxes[k]) !== canon(WANT[k])) p.push(`the reopened editor's ${k} box reads ${canon(r.editorBoxes[k])}`);
+    }
+    if (!r.inFile || !r.inFile.theses || !r.inFile.reviews || !r.inFile.runs) p.push(`the backup file does not hold the case, its review and its run: ${JSON.stringify(r.inFile)}`);
+    if (!r.gone || r.gone.n !== 0 || r.gone.reviews.length || r.gone.nRuns) p.push(`the records were not cleared before the restore: ${JSON.stringify(r.gone && { n: r.gone.n, reviews: r.gone.reviews.length, runs: r.gone.nRuns })}`);
+    if (!r.restored1 || !r.restored1.ok || !r.restored2 || !r.restored2.ok) p.push(`restoreBackup: ${JSON.stringify([r.restored1, r.restored2])}`);
+    if (!r.sample || r.sample.label !== 'Saved before stamping' || r.sample.status !== 'unstamped' || !r.sample.sample) p.push(`the unstamped sample case reads ${JSON.stringify(r.sample)} in the workspace list`);
+    if (!r.sampleOnPage) p.push('the Saved work page does not say "Saved before stamping" for the unstamped sample case');
+    if (r.stampedLabel === 'Saved before stamping') p.push('a case saved now reads "Saved before stamping"');
+    if (!r.cleaned || !r.restoredKeys) p.push(`the browser's own work was not put back: theses ${r.cleaned}, every key ${r.restoredKeys}${r.differ.length ? `; changed: ${r.differ.join(", ")}` : ""}`);
+    if (p.length) fail('qt-day7: a saved investment case, reopened and restored from its backup file, keeps every field, its review and its run; an unstamped sample still reads "Saved before stamping"', p);
+    else ok(`qt-day7: a test case on ${r.id} — ${FIELDS.length} fields, two conditions, a linked valuation run with the edited assumption "${r.editKey}", and one decision review — reads the same saved, reopened, and restored twice from its backup file after its three records were cleared (in storage once; its card shows each); the seeded sample without a stamp reads "Saved before stamping" in the list and on the page`);
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
