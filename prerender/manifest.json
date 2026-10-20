@@ -4934,8 +4934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "feb1ad87941cc8c1",
-      "changed": "2026-10-17"
+      "digest": "5560be0ef246b22d",
+      "changed": "2026-10-20"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5079,8 +5079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "feb1ad87941cc8c1",
-      "changed": "2026-10-17"
+      "digest": "5560be0ef246b22d",
+      "changed": "2026-10-20"
     },
     "pages/property/models.html": {
       "path": "/property/models",

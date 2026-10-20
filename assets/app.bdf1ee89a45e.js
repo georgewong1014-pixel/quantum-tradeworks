@@ -49438,6 +49438,14 @@ const LAB_CLAIM = 'Arithmetic on the figures in each column. Not advice, not a v
    output; the words it gave back are the driver line's, labHeader). */
 const LAB_CLAIM_SHORT = 'Arithmetic, not advice, not a forecast — nothing here is ranked.';
 const LAB_NOT_OFFICIAL ='Not an official property valuation — in Malaysia that must be carried out by a registered valuer.';
+/* THE SAMPLE'S ASSUMPTIONS, UNDER ITS NAME (the Day-8 report's QT-D08-02;
+   the owner's decision of 20 Oct 2026): while the sample deal is open, the
+   line under "Sample deal" says which of its figures are assumptions —
+   growth among them, which the tiles' "Illustrative default" does not name.
+   It replaces "— not a real listing". Held word for word, and outside the
+   Lab's word budget, as the homepage's boundary line is (mobile.mjs
+   lab-words and n3-first-view; served-check n3-property-landing). */
+const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
 function labHeader(P, lab) {
   const hd = el('div', { class: 'lab-hd' });
   const status = el('p', { class: 'lab-status', id: labId(P, 'status') });
@@ -49459,7 +49467,7 @@ function labHeader(P, lab) {
        figures. The status line is the identity line's name. */
     status.classList.add('lab-id-name');
     if (rec) status.append(el('strong', {}, `“${rec.name}”`), ` · saved ${pmWhen(pmUpdated(rec))}`);
-    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'), ' — not a real listing');
+    else if (st.kind === 'sample') status.append(el('strong', {}, 'Sample deal'));
     /* Reached only by a panel given the deal as its subject while the
        calculator holds a saved property: the page itself opens that
        property (labArrive). */
@@ -49468,7 +49476,7 @@ function labHeader(P, lab) {
     /* The two questions and the objective (the decision layer, P1:
        83-property-decision.js) after the line that names the property and
        its disclosures, and before the figures their answers lead. */
-    hd.append(labIdentity(P, lab, status), labQuestions(P, lab), labTiles(P, lab));
+    hd.append(labIdentity(P, lab, status, !rec && st.kind === 'sample'), labQuestions(P, lab), labTiles(P, lab));
     /* The assumption the figures depend on most, from the model's own
        sensitivity, in four words under them: the cash and the month, the
        one they swing with, and — in the next-step tile and the count above
@@ -49541,14 +49549,17 @@ function labGuidedScenario(lab, col) {
   return { key: col.key, on: true, value: cpScenarioName(pmDiff(labNext(col), base), base) || 'Scenario 1' };
 }
 const labGuidedNaming = (lab, at = null) => ({ kind: 'property', at, value: pmNameOf(State.deal), scenario: labGuidedScenario(lab, labActive(lab)) });
-/* THE IDENTITY LINE. The name — "Sample deal — not a real listing", or the
-   property's — with its place, type and size; Save as the page's one
-   primary button; and the regulated claim and the lab's own, whole at
-   every width: "Not a valuation" leads, and the reader is never left to
-   find it under the figures. */
-function labIdentity(P, lab, status) {
+/* THE IDENTITY LINE. The name — "Sample deal", with the line under it that
+   says its figures are assumptions (LAB_SAMPLE_ASSUME), or the property's —
+   with its place, type and size; Save as the page's one primary button; and
+   the regulated claim and the lab's own, whole at every width: "Not a
+   valuation" leads, and the reader is never left to find it under the
+   figures. The sample's line describes the section; its name stays the
+   name. */
+function labIdentity(P, lab, status, sample = false) {
   const d = labSubjectInputs(lab);
-  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status') });
+  const assume = sample ? el('p', { class: 'lab-id-assume', id: labId(P, 'assume') }, el('strong', {}, 'Illustrative scenario:'), LAB_SAMPLE_ASSUME.slice('Illustrative scenario:'.length)) : null;
+  const box = el('section', { class: 'lab-identity', 'aria-labelledby': labId(P, 'status'), 'aria-describedby': assume ? labId(P, 'assume') : null });
   P.els.idAct = labIdentityAct(P, lab);
   /* On a phone the place line carries the two questions' summary and its
      Change (83-property-decision.js): one 44px line, the questions opening
@@ -49561,7 +49572,7 @@ function labIdentity(P, lab, status) {
   if (act?.prop) sum.textContent = `${act.key}: ${sum.textContent}`;
   const meta = !d ? null : P.compact ? el('p', { class: 'lab-id-meta' }, labPlaceLine(d))
     : el('p', { class: 'lab-id-meta has-sum' }, [el('span', { class: 'lab-id-place' }, labPlaceLine(d)), sum, pqChangeButton(P.idPrefix)]);
-  box.append(el('div', { class: 'lab-id-top' }, [status, P.els.idAct, meta]));
+  box.append(el('div', { class: assume ? 'lab-id-top has-assume' : 'lab-id-top' }, [status, assume, P.els.idAct, meta]));
   P.els.idForm = el('div', { class: 'lab-id-form' }, lab.naming?.at === 'identity' ? [labNameForm(P, lab, labActive(lab))] : []);
   box.append(P.els.idForm);
   box.append(el('p', { class: 'lab-claim lab-id-claim' }, [el('span', { class: 'chip chip-bronze' }, 'Not a valuation'), ' ',
