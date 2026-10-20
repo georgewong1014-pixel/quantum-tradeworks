@@ -1160,6 +1160,56 @@ try {
     else ok(`the company page labels what it holds — JPM "${r.labels.jpm}", no directory-tier grades, no role from a D, the share-count break left undiagnosed, the median at the median${r.medianRows.length ? ` (${r.medianRows.length} row)` : ''}, momentum re-basing stated`);
   }
 
+  /* STRATEGY LENS RESULTS ARE EVIDENCE BANDS (the 20 Oct Day-7 report, QT-D06-01:
+     "Show each letter as Evidence band A/B/C … never as a bare letter or as
+     Grade"). Every company page's Lens card: each result that is a letter reads
+     "Evidence band X" and none is a bare letter; the one line saying what a band
+     is and is not stands directly under the first band; the disclosure names
+     the band's meaning for A to D and the word "Grade" is nowhere in the card.
+     Companies from every tier and every state (filed, illustrative, a bank, a
+     REIT, a Bursa company), and the whole filed universe read as data: a letter
+     is always one of the four bands or U. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const ids = ['AAPL-SEC', 'MSFT-SEC', 'JPM-SEC', 'O-SEC', 'XOM-SEC', 'KO-SEC', 'RIVN-SEC', 'TSLA-SEC', 'MAYBANK', 'PGR'].filter(id => BY_ID.get(id));
+      const out = { pages: [], letters: 0, withNote: 0, ids };
+      for (const id of ids) {
+        openResearch(id); await w(250);
+        const card = [...document.querySelectorAll('main .card')].find(c => (c.querySelector('.eyebrow') || {}).textContent === 'Strategy Lens');
+        if (!card) { out.pages.push({ id, none: true }); continue; }
+        const chips = [...card.querySelectorAll('.row-wrap > .chip')].filter(c => c.textContent.includes(' · '));
+        const bare = chips.map(c => c.textContent).filter(t => /[A-DU]$/.test(t) && !/Evidence band [A-DU]$/.test(t));
+        const letters = chips.map(c => c.textContent).filter(t => /Evidence band [A-DU]$/.test(t));
+        const rowEl = chips.length ? chips[0].parentElement : null;
+        const note = card.querySelector('#band-note');
+        const dts = [...card.querySelectorAll('#band-meanings dt')].map(d => d.textContent);
+        const table = [...card.querySelectorAll('table.dt tbody tr')].map(tr => tr.cells[1] && tr.cells[1].textContent);
+        out.pages.push({ id, chips: chips.length, letters: letters.length, bare,
+          noteNext: !!(note && rowEl && rowEl.nextElementSibling === note), noteShown: !!(note && note.offsetParent),
+          noteText: note ? note.textContent : null, dts, bareCells: table.filter(t => /^[A-DU]$/.test(t)),
+          grade: /grade/i.test(card.textContent) ? (card.textContent.match(/.{30}grade.{30}/i) || ['grade'])[0] : null });
+        out.letters += letters.length; if (note) out.withNote++;
+      }
+      return out; })()`);
+    const p = [];
+    const WANT = 'Evidence bands describe how completely the recorded evidence meets this strategy’s research criteria. They are not buy, sell or hold ratings.';
+    if (r.ids.length < 8) p.push(`only ${r.ids.length} sample companies found: ${r.ids.join(', ')}`);
+    if (!r.letters) p.push('no sample company shows a letter result, so nothing here was examined');
+    for (const x of r.pages) {
+      if (x.none) { p.push(`${x.id}: no Strategy Lens card`); continue; }
+      if (x.bare.length) p.push(`${x.id}: a bare letter — ${x.bare.join('; ')}`);
+      if (x.bareCells.length) p.push(`${x.id}: the disclosure's table shows a bare letter (${x.bareCells.join(', ')})`);
+      if (x.letters && (!x.noteNext || !x.noteShown)) p.push(`${x.id}: ${x.letters} band(s) shown but the explanation line is ${x.noteText ? 'not directly under them' : 'missing'}`);
+      if (!x.letters && x.noteText) p.push(`${x.id}: the explanation line is shown with no band beside it`);
+      if (x.noteText && x.noteText !== WANT) p.push(`${x.id}: the explanation line reads "${x.noteText}"`);
+      if (x.dts.join('|') !== 'Evidence band A|Evidence band B|Evidence band C|Evidence band D') p.push(`${x.id}: the disclosure names ${JSON.stringify(x.dts)}`);
+      if (x.grade) p.push(`${x.id}: the Lens card still says "…${x.grade}…"`);
+    }
+    if (p.length) fail('every Strategy Lens letter reads "Evidence band", with its one explanation line beside the first and the meaning of each band in the disclosure', p);
+    else ok(`every Strategy Lens letter reads "Evidence band" — ${r.letters} results across ${r.pages.length} companies, no bare letter, the explanation line directly under the first band on ${r.withNote} page(s), the meanings of A to D in the disclosure, and no "grade" in the card`);
+  }
+
   /* EVERY CONTROL ON THE COMPANY PAGE DOES WHAT IT SAYS. The peers button
      keeps to the plan's Compare limit; the research-home template cards open
      the screener; "Create a price alert" opens the editor on this company;

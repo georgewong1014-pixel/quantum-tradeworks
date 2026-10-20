@@ -163,10 +163,10 @@ const CAPABILITY_REGISTER = [
      ships and the saved strategy plan that does not — so shipping half of it
      left the row wrong about both. Split. */
   { name:'Equity Strategy Lens', status:'active-core', path:'/research',
-    now:'On every company page: instrument type, business archetype, return role, and eight fit grades that separate graded from unassessed, not applicable, not built and illustrative.',
-    gate:'Grades describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
+    now:'On every company page: instrument type, business archetype, return role, and eight evidence bands that separate banded from unassessed, not applicable, not built and illustrative.',
+    gate:'Evidence bands describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
   { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
-    gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens grades the underlying; it does not record what you decided to do about it.' },
+    gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens describes the evidence for the underlying; it does not record what you decided to do about it.' },
   { name:'Bursa universe', status:'data-gated', path:'/research',
     brief:['EQ-202'], priority:'P0',
     gate:() => covText(k => `${k.illustrative} companies carry illustrative figures — ${k.my} Bursa`
@@ -205,7 +205,7 @@ const CAPABILITY_REGISTER = [
      said no history was loaded. */
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
     gate:() => {
-      const tail = 'Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.';
+      const tail = 'Exposure evidence, filings and coverage are not yet recorded, so no evidence band is shown.';
       if (!instruments) return `How many companies are identified is not stated until the instrument registry has loaded. ${tail}`;
       const flagged = (instruments.instruments || []).filter(i => i.sarawak);
       const withHistory = flagged.filter(i => trackedHistory?.series?.[i.symbol]).length;
