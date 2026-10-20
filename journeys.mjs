@@ -2580,8 +2580,10 @@ const JOURNEYS = [
         const r = await line();
         if (r.here !== 'analyse' || r.what !== null || r.route !== null || r.ev !== 'Sample figures: 10 of 10' || r.moves !== 0 || r.state !== 'No unsaved moves' || r.save)
           throw new StepError(`the Lab's line reads ${said(r)}${r.save ? ', Save offered with nothing moved' : ''}, ${r.here} marked`);
-        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
-        if (!/^Sample deal — not a real listing/.test(id.name) || id.route !== 'Residential · Subsale') throw new StepError(`the Lab's heading names “${id.name}”, “${id.route}”`);
+        const id = JSON.parse(await tab.eval(`JSON.stringify({ name: (document.getElementById('lab-status')?.textContent || '').trim(), assume: (document.getElementById('lab-assume')?.textContent || '').trim(), route: (document.getElementById('lab-q-sum')?.textContent || '').trim() })`));
+        if (id.name !== 'Sample deal' || id.route !== 'Residential · Subsale') throw new StepError(`the Lab's heading names “${id.name}”, “${id.route}”`);
+        /* The sample's line under its name (QT-D08-02), word for word. */
+        if (id.assume !== 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.') throw new StepError(`the line under the sample's name reads “${id.assume}”`);
         if (r.lines !== 1) throw new StepError(`the Lab's line takes ${r.lines} lines at 1440, not one`);
         if (await snap() !== before) throw new StepError('opening the Lab wrote to storage');
       });

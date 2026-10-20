@@ -1853,8 +1853,10 @@ const HOME_PAGE = read(HOME);
    - before that control, in this order: the identity line, naming the
      property or "Sample deal", then four tiles labelled Cash required,
      Monthly position, Net yield and Next step, each with a kind tag;
-   - "Not an official property valuation" and "not a real listing" visible
-     before it;
+   - "Not an official property valuation" visible before it, and the
+     sample's line under its name (the Day-8 report's QT-D08-02, the
+     owner's decision of 20 Oct 2026; it took the place of "— not a real
+     listing") word for word, in the identity line, before the tiles;
    - /property/calculator: the methodology ("The score and the grade are
      not the same claim"), the pillar table and the list of blockers inside
      closed <details>, with the worst blocker in sight on one line, and the
@@ -1935,6 +1937,7 @@ const HOME_PAGE = read(HOME);
     return { body, blocks, tags, runs, control, qControl, textOf };
   };
   const p = [], said = {};
+  const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
   const got = await getAll(['/property', '/property/calculator']);
   const land = got.get('/property'), calc = got.get('/property/calculator');
   if (land.status !== 200) p.push(`/property: ${described(land)}`);
@@ -1949,8 +1952,15 @@ const HOME_PAGE = read(HOME);
     if (words > 290) p.push(`/property: ${words} visible words in <main> before the first form control, more than 290`);
     if (proseWords > 228) p.push(`/property: ${proseWords} of them in ${prose.length} blocks of eight words or more, more than 228`);
     const seen = L.runs.filter(r => r.at < L.control.at && r.visible).map(r => r.s).join(' ').replace(/\s+/g, ' ');
-    for (const want of ['Not an official property valuation', 'not a real listing']) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
+    for (const want of ['Not an official property valuation', LAB_SAMPLE_ASSUME]) if (!seen.includes(want)) p.push(`/property: "${want}" is not visible before the first form control`);
     const id = L.tags.find(t => / lab-identity /.test(` ${attr(t.raw, 'class') || ''} `));
+    /* The sample's line under its name (QT-D08-02): word for word, in the
+       identity line, before the figures. */
+    const note = L.tags.find(t => / lab-id-assume /.test(` ${attr(t.raw, 'class') || ''} `));
+    const firstTile = L.tags.find(t => attr(t.raw, 'data-tile') !== null);
+    said.assume = note ? L.textOf(note.at) : null;
+    if (!note || !note.visible || said.assume !== LAB_SAMPLE_ASSUME) p.push(`/property: the sample's line under its name ${!note ? 'is not served (.lab-id-assume)' : !note.visible ? 'is not visible' : `reads "${said.assume}"`}, not "${LAB_SAMPLE_ASSUME}" word for word`);
+    else if ((id && note.at < id.at) || (firstTile && note.at > firstTile.at)) p.push('/property: the sample\'s line under its name is not in the identity line, before the figures');
     if (!id || !id.visible || id.at > L.control.at) p.push(`/property: ${!id ? 'no identity line (.lab-identity)' : !id.visible ? 'its identity line is not visible' : 'its identity line comes after the first form control'}`);
     else {
       const name = L.textOf(L.tags.find(t => t.at > id.at && attr(t.raw, 'id') === 'lab-status')?.at ?? -1);
@@ -1988,7 +1998,7 @@ const HOME_PAGE = read(HOME);
     const n = top.split(k).length - 1;
     if (n !== 1) p.push(`/property/calculator: "${k}" is visible ${n} times, not once`);
   }
-  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and "not a real listing" in sight; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
+  judge(p, `/property opens the Scenario Lab: ${said.words} visible words in <main> before the first form control (≤290), ${said.prose} of them in ${said.proseBlocks} blocks of eight or more (≤228); before it the identity line ("${said.identity}"), then the tiles ${(said.tiles || []).join(', ')}, with "Not an official property valuation" and the sample's line ("${said.assume}") in sight; /property/calculator is served in the Quick model — no methodology, pillar table or blocker served outside a closed drawer, the worst in sight ("${said.worst}…"), the cash required and the monthly position said once (the full model, drawn: model-test qt-quick-full)`,
     '/property is not the Scenario Lab with its identity line and four tiles first, or the calculator\'s top is not compacted (N3, D18)');
 
   /* ---- p1-questions ---- */

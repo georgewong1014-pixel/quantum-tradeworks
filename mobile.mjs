@@ -2973,7 +2973,10 @@ for (const w of [360, 390]) {
    identity line and the tiles; on a phone folded into the identity line's
    one 44px summary line — "Residential · Subsale" and Change — whole on
    the first screen with everything above, and the first slider still whole
-   above the bar, in the page's font and in Verdana. */
+   above the bar, in the page's font and in Verdana.
+   THE SAMPLE'S LINE UNDER ITS NAME (QT-D08-02, 20 Oct 2026) is whole on the
+   first screen too, above the figures, and describes the section the name
+   names. */
 {
   const fails = [], said = [];
   const ev = async (expression) => {
@@ -3009,6 +3012,9 @@ for (const w of [360, 390]) {
         const range = [...document.querySelectorAll('#views input[type=range]')].find(n => n.getClientRects().length);
         return { y: Math.round(scrollY), vw: innerWidth, vh: (() => { const d = document.querySelector('body > .dock'); return d && d.getClientRects().length && getComputedStyle(d).position === 'fixed' ? Math.round(d.getBoundingClientRect().top) : innerHeight; })(), over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           identity: box(document.querySelector('#views .lab-identity')), name: (document.getElementById('lab-status')?.textContent || '').trim(),
+          assume: box(document.querySelector('#views .lab-id-assume')), assumeText: (document.querySelector('#views .lab-id-assume')?.textContent || '').trim(),
+          described: (() => { const s = document.querySelector('#views .lab-identity'), a = document.querySelector('#views .lab-id-assume');
+            return !!(s && a && a.id && s.getAttribute('aria-describedby') === a.id && (document.getElementById(s.getAttribute('aria-labelledby'))?.textContent || '').trim() === 'Sample deal'); })(),
           questions: ['what', 'how'].map(q => box(document.getElementById('lab-q-' + q))),
           summary: box(document.querySelector('#views .lab-id-meta.has-sum')), summaryWords: (document.getElementById('lab-q-sum')?.textContent || '').trim(),
           change: box(document.getElementById('lab-q-change')), folded: document.getElementById('lab-q-change')?.getAttribute('aria-expanded') === 'false',
@@ -3022,6 +3028,13 @@ for (const w of [360, 390]) {
       if (r.y !== 0) fails.push(`${at}: the page opened scrolled to ${r.y}px, not at its top`);
       if (!/^Sample deal/.test(r.name)) fails.push(`${at}: the identity line reads "${r.name.slice(0, 60)}", not the sample deal's on a first visit`);
       if (!whole(r.identity)) fails.push(`${at}: the identity line ${r.identity ? `(${r.identity.t}–${r.identity.b}px)` : '(none)'} is not whole in the first ${r.vh}px`);
+      /* The sample's line under its name (QT-D08-02): whole on the first
+         screen, above the figures, word for word; the section named "Sample
+         deal" and described by it. */
+      if (!whole(r.assume)) fails.push(`${at}: the sample's line under its name ${r.assume ? `(${r.assume.t}–${r.assume.b}px)` : '(none)'} is not whole in the first ${r.vh}px`);
+      if (r.assumeText !== 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.') fails.push(`${at}: the sample's line under its name reads "${r.assumeText}"`);
+      if (r.assume && r.tiles[0]?.at && r.assume.b > r.tiles[0].at.t) fails.push(`${at}: the sample's line under its name stands below the figures`);
+      if (!r.described) fails.push(`${at}: the identity section is not named "Sample deal" and described by the line under it (aria-labelledby, aria-describedby)`);
       const labels = r.tiles.map(t => t.label);
       if (JSON.stringify(labels) !== JSON.stringify(['Cash required', 'Monthly position', 'Net yield', 'Next step'])) fails.push(`${at}: the tiles are ${JSON.stringify(labels)}`);
       r.tiles.forEach(t => { if (!whole(t.at)) fails.push(`${at}: the "${t.label}" tile ${t.at ? `(${t.at.t}–${t.at.b}px)` : ''} is not whole in the first ${r.vh}px`); });
@@ -3040,7 +3053,7 @@ for (const w of [360, 390]) {
         if (!r.save || r.save.h < 43.5 || r.save.w < 43.5) fails.push(`${at}: Save (the action bar's, on a phone) is ${r.save ? `${r.save.w}×${r.save.h}px` : 'not there'}, not a 44px target`);
         if (!r.next || r.next.h < 43.5) fails.push(`${at}: the next step is ${r.next ? `${r.next.w}×${r.next.h}px` : 'not there'}, not a 44px target`);
       }
-      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b}, ${w >= 600 ? `questions to ${r.questions[1]?.b}` : `summary ${r.summary?.t}–${r.summary?.b}`}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
+      said.push(`${at}: identity ${r.identity?.t}–${r.identity?.b} (the sample's line ${r.assume?.t}–${r.assume?.b}), ${w >= 600 ? `questions to ${r.questions[1]?.b}` : `summary ${r.summary?.t}–${r.summary?.b}`}, tiles to ${Math.max(...r.tiles.map(t => t.at?.b || 0))}, slider ${r.slider?.t}–${r.slider?.b} of ${r.vh}`);
     }
   } finally {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
@@ -4147,6 +4160,12 @@ for (const w of [360, 390]) {
        "not a real listing", "Illustrative default" on the tiles and the
        first knob, the cash required's "on unverified lines" and, on a deal
        answered Auction, "Not final: 6 checks open".
+   THE SAMPLE'S LINE UNDER ITS NAME (the Day-8 report's QT-D08-02, the
+   owner's decision of 20 Oct 2026) — "Illustrative scenario: price, rent,
+   growth and some costs are assumptions, not market evidence." — is in
+   sight word for word and is not counted, as the homepage's boundary line
+   is not; it took the place of "— not a real listing" (four words fewer
+   counted), and no bound moved.
    Fails on 58dbc0b4: 189 and 145 words before the slider, 799 and 608 in
    all, the tiles four alike on a phone, the saving prerequisites a
    paragraph of 76 words in sight, and the auction's notes standing open. */
@@ -4169,6 +4188,7 @@ for (const w of [360, 390]) {
   const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
   const TERMS = 'route:auction~reservePrice:420000~auctionDepositPct:10~auctionDepositOf:reserve~auctionBalanceDays:90~auctionComp1:600000~auctionComp2:640000~auctionRepairs:15000~arrearsMaintenance:3000~auctionHoldMonths:3';
   const BOUND = { 1440: { before: 184, all: 574 }, 390: { before: 138, all: 485 } };
+  const LAB_SAMPLE_ASSUME = 'Illustrative scenario: price, rent, growth and some costs are assumptions, not market evidence.';
   /* What the eye can see, as a reader who opens nothing does. */
   const SEEN = `const seen = (n, root = document.querySelector('main') || document.body) => {
       const p = n.nodeType === 3 ? n.parentElement : n;
@@ -4193,10 +4213,13 @@ for (const w of [360, 390]) {
     const tw = document.createTreeWalker(main, NodeFilter.SHOW_TEXT);
     for (let n = tw.nextNode(); n; n = tw.nextNode()) {
       if (!seen(n)) continue;
+      /* The sample's line under its name: held word for word, not counted (QT-D08-02). */
+      if (n.parentElement?.closest('.lab-id-assume')) continue;
       const w = words(n.data).length;
       all += w;
       if (slider && (slider.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_PRECEDING)) before += w;
     }
+    const assumeAt = document.querySelector('#views .lab-id-assume');
     const box = (n) => { if (!n || !n.getClientRects().length) return null; const b = n.getBoundingClientRect(); return { t: Math.round(b.top), b: Math.round(b.bottom), l: Math.round(b.left), r: Math.round(b.right), h: Math.round(b.height) }; };
     const tiles = [...document.querySelectorAll('#views .lab-tile')].map(n => ({ label: (n.querySelector('.lab-tile-label')?.textContent || '').trim(), level: n.dataset.level || (n.dataset.card === 'action' ? 'next' : ''),
       at: box(n), value: parseFloat(getComputedStyle(n.querySelector('.ls-card-value, .lab-next-what') || n).fontSize),
@@ -4213,6 +4236,7 @@ for (const w of [360, 390]) {
       more: more ? { tag: more.tagName, open: more.open, sum: (more.querySelector(':scope > summary')?.textContent || '').trim(), words: words(more.textContent).length } : null,
       commitSeen,
       strip: strip ? seenText(strip) : '', beta: head ? seenText(head) : '', page: seenText(main),
+      assume: assumeAt && seen(assumeAt.firstChild || assumeAt) ? assumeAt.textContent.trim() : null,
       firstKnob: (() => { const k = slider?.closest('.lab-knob'); return k ? seenText(k) : ''; })() };
   })()`;
   try {
@@ -4264,9 +4288,10 @@ for (const w of [360, 390]) {
       if (commitWords > 40) fails.push(`${at}: ${commitWords} words in sight in the commit card ("${r.commitSeen.slice(0, 80)}…"), not its buttons and one line`);
       /* The disclosures in sight, nothing opened. */
       const need = [[r.strip, 'Beta preview.', 'the status strip'], [r.beta, 'Beta', 'the Beta badge beside the title'], [r.page, 'Not a valuation', 'the chip'],
-        [r.page, 'Not an official property valuation', 'the regulated claim'], [r.page, 'not a real listing', 'the sample\'s status'],
+        [r.page, 'Not an official property valuation', 'the regulated claim'],
         [r.page, 'on unverified lines', 'the cash required\'s unverified lines'], [r.firstKnob, 'Illustrative default', 'the first knob\'s evidence tag']];
       for (const [hay, want, what] of need) if (!hay.includes(want)) fails.push(`${at}: ${what} ("${want}") is not in sight`);
+      if (r.assume !== LAB_SAMPLE_ASSUME) fails.push(`${at}: the sample's line under its name reads ${r.assume === null ? 'nothing in sight' : `"${r.assume}"`}, not "${LAB_SAMPLE_ASSUME}" word for word`);
       const tileDefaults = t.filter(x => x.badge === 'Illustrative default').length;
       if (tileDefaults < 3) fails.push(`${at}: ${tileDefaults} tiles show "Illustrative default" on the sample, not every figure's`);
     }
@@ -4296,7 +4321,7 @@ for (const w of [360, 390]) {
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
   if (fails.length) { bad++; console.log(`FAIL lab-words — the Scenario Lab's words before its figures (the 9 Oct audit, #5): ${fails.length} problem(s):`); fails.slice(0, 60).forEach(f => console.log(`     ${f}`)); }
-  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, "not a real listing", the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
+  else console.log(`ok   lab-words: /property in sight on a first visit, in the page's font and in Verdana — ${said.join('; ')} (bounds 184/574 at 1440, 138/485 at 390); on a phone Cash required and Monthly position lead, side by side, the context's figure and the next step a compact row under them with their kind badges, the first slider above the action bar at 390×844; Save's wording one line in sight and how saving works a closed <details>; the status strip, Beta, "Not a valuation", the regulated claim, the sample's assumptions line word for word (not counted), the illustrative-default tags and the unverified lines in sight, and "Not final: 6 checks open" on an auction, its groups' notes closed (L3)`);
 }
 /* ---- end lab-words ---- */
 /* ---- lab-row-kinds ---- */
