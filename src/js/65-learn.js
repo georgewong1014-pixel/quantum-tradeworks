@@ -129,6 +129,7 @@ function learnScoring() {
   const rules = ['Scores are computed inside valid cohorts — market, sector and business model — never against the whole universe alone.',
     'Both the absolute score and the peer percentile are shown.',
     'Missing inputs reduce coverage and re-base the weights; a score is never credited for data it does not have.',
+    'The research composite is classified only at 70% data completeness or more.',
     'Sector-specific input sets are used only where they are economically justified — banks and REITs have their own.',
     'Every score publishes its version, calculation date, source periods and coverage ratio.'];
   const ul = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
@@ -253,7 +254,7 @@ function learnModels() {
    'A zero or negative starting free cash flow raises a warning and points to a scenario model instead.',
    'For banks, long-run growth above what retained earnings can fund at the assumed ROE and payout raises a warning.',
    'For REITs, modelling growth from a distribution that recurring income does not cover raises a warning.',
-   'Data completeness below 80% reduces the confidence grade rather than being filled in.'].forEach(x =>
+   'Data completeness below 80% raises a reduced-confidence warning on the valuation, rather than being filled in.'].forEach(x =>
     gl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   guards.append(gl);
   wrap.append(guards);
