@@ -7087,6 +7087,10 @@ input.au-in[type="text"] { text-align: left; }
    Scenario Lab's four tiles. */
 .pc-driver { margin: var(--sm) 0 0; font-size: var(--ls-support); line-height: 20px; color: var(--ink-2); }
 .pc-driver.lab-driver { margin: 0; font-size: var(--ls-meta); line-height: 18px; }
+/* One line on a desk, whatever the driver is called: a move that names a
+   longer assumption must not push the sliders below it (CI, Verdana, 20 Oct).
+   The full text stays in the page for a screen reader. */
+@media (min-width: 1024px) { .pc-driver.lab-driver { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } }
 .pc-q-limits { margin-top: var(--md); }
 .pc-q-limits > .chip { margin-right: 4px; }
 @media (max-width: 620px) {
