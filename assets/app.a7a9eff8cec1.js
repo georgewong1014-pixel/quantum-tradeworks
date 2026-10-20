@@ -21099,7 +21099,7 @@ const WHEEL_BLANK_CYCLE = {
 function coverageTier(r) {
   const c = r.c;
   if (!c.real) return { id:'unassessed', label:'Unassessed',
-    why:'Financial figures for this company are illustrative, not filed. Nothing here may produce a strategy grade.' };
+    why:'Financial figures for this company are illustrative, not filed. Nothing here may produce an evidence band.' };
   const priced = isNum(c.px?.p);
   const complete = isNum(c.completeness) ? c.completeness : (isNum(r.m?.coverage) ? r.m.coverage / 100 : 0);
   if (priced && complete >= 0.9) return { id:'verified', label:'Verified Core',
@@ -21131,12 +21131,28 @@ function coverageTier(r) {
    illustrative case is a state instead, and it says the figures are synthetic
    rather than implying a result was reached from them. */
 const FIT_STATES = {
-  graded:         { token:null,     label:'Graded',         why:'Evidence was sufficient to grade against the criteria.' },
+  graded:         { token:null,     label:'Graded',         why:'Evidence was sufficient to place in a band against the criteria.' },
   missing:        { token:'U',      label:'Unassessed',     why:'The strategy applies here, but evidence it needs is missing.' },
   not_applicable: { token:'n/a',    label:'Not applicable', why:'The strategy does not apply to this instrument or business. More data would not change it.' },
   not_built:      { token:'—',      label:'Not built',      why:'This prototype does not hold what the test would need, for every company.' },
-  illustrative:   { token:'illus.', label:'Illustrative',   why:'This company’s figures are synthetic, so no grade may be produced from them at all.' },
+  illustrative:   { token:'illus.', label:'Illustrative',   why:'This company’s figures are synthetic, so no evidence band may be produced from them at all.' },
 };
+
+/* WHAT EACH BAND SAYS ABOUT THE EVIDENCE. Read off fitGrade below, which turns
+   a fit's 0 to 100 score into a letter: 80 and over A, 65 B, 50 C, else D, and
+   while evidence the strategy needs is missing a fit is held to B or lower. The
+   letter is a statement about how the recorded evidence meets the strategy's
+   research criteria; none of these is a rating of the security. */
+const BAND_MEANING = {
+  A: 'A score of 80 or more out of 100 against the strategy’s criteria, with none of the evidence it needs missing.',
+  B: 'A score of 65 to 79, or 65 or more while some evidence the strategy needs is missing, which holds a band to B.',
+  C: 'A score of 50 to 64 against the strategy’s criteria.',
+  D: 'A score below 50: the recorded evidence meets the strategy’s criteria poorly.',
+};
+/* A result as it is shown: a letter is always "Evidence band X", never a bare
+   letter. The other tokens (n/a, a dash, illus.) are states, not letters. */
+const bandText = (token) => (/^[A-DU]$/.test(token) ? `Evidence band ${token}` : token);
+const BAND_NOTE = 'Evidence bands describe how completely the recorded evidence meets this strategy’s research criteria. They are not buy, sell or hold ratings.';
 
 /* One fit. Returns a grade, or far more often a state saying why there is none. */
 function fitGrade(r, key, tier) {
@@ -21280,7 +21296,7 @@ function fitGrade(r, key, tier) {
      are statements about the business or the product, not about coverage. */
   if (isNum(out.score) && tier.id === 'directory') {
     out.score = null;
-    out.missing.push('Data coverage above the Basic Directory tier. Identity and partial figures are not enough to grade a strategy.');
+    out.missing.push('Data coverage above the Basic Directory tier. Identity and partial figures are not enough to place a strategy in an evidence band.');
     return out;
   }
 
@@ -21847,13 +21863,15 @@ VIEWS.research = () => {
           /* Two different reasons reach here, and the old single sentence
              claimed the first even when fits had been graded. */
           lens.assessable
-            ? 'Not stated. No return role graded above D, and a weak fit is not a reason to own anything.'
+            ? 'Not stated. No return role has an evidence band above D, and a weak fit is not a reason to own anything.'
             : 'Not stated. No strategy could be assessed from the data held, and naming a return role without one would be a guess dressed as a classification.'),
   ]));
   lensCard.append(idRow);
 
-  /* The fit grades, side by side. Most will read U, and that is the point. */
+  /* The fit results, side by side, each a letter read as an evidence band.
+     Most will read U, and that is the point. */
   const fitRow = el('div', { class: 'row row-wrap', style: 'gap:6px;margin-top:var(--md)' });
+  let firstBand = false;
   lens.fits.forEach(f => {
     const st = FIT_STATES[f.state] || FIT_STATES.missing;
     const token = f.state === 'graded' ? f.grade : st.token;
@@ -21866,9 +21884,12 @@ VIEWS.research = () => {
        and the tooltip then said the evidence was absent. */
     fitRow.append(el('span', { class: tone, title: f.state === 'graded'
       ? `${f.score}/100${f.cap ? ' — ' + f.cap : ''}`
-      : `${st.label}. ${f.cap || f.missing[0] || st.why}` }, `${f.label} ${token}`));
+      : `${st.label}. ${f.cap || f.missing[0] || st.why}` }, `${f.label} · ${bandText(token)}`));
+    if (/^[A-DU]$/.test(token)) firstBand = true;
   });
   lensCard.append(fitRow);
+  /* Beside the first band, in sight: what a band is, and what it is not. */
+  if (firstBand) lensCard.append(el('p', { class: 'metaline', id: 'band-note', style: 'margin-top:6px' }, BAND_NOTE));
 
   /* A grade with nowhere to go.
      The Cash Wheel fit scored this company and the workspace that acts on it sat
@@ -21896,8 +21917,8 @@ VIEWS.research = () => {
   lensCard.append(wsRow);
   lensCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     wheelFitRow && wheelFitRow.state === 'not_applicable'
-      ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither workspace changes any grade above.`
-      : 'Neither workspace changes any grade above. Both record your own plan and are weighted zero in the research composite.'));
+      ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither workspace changes any evidence band above.`
+      : 'Neither workspace changes any evidence band above. Both record your own plan and are weighted zero in the research composite.'));
 
   /* Counted per state, because "not assessable from the data held" was false
      for more than half of them. A strategy that does not apply to this business
@@ -21905,14 +21926,14 @@ VIEWS.research = () => {
   const bs = lens.byState || {};
   const n = lens.fits.length;
   const phrases = [];
-  if (bs.graded) phrases.push(`${bs.graded} graded`);
+  if (bs.graded) phrases.push(`${bs.graded} with an evidence band`);
   if (bs.missing) phrases.push(`${bs.missing} awaiting evidence this product could hold but does not`);
   if (bs.not_applicable) phrases.push(`${bs.not_applicable} that ${bs.not_applicable === 1 ? 'does' : 'do'} not apply to this business at all`);
-  if (bs.not_built) phrases.push(`${bs.not_built} that no company here can be graded on, because the feature is not built`);
+  if (bs.not_built) phrases.push(`${bs.not_built} that no company here can be given an evidence band, because the feature is not built`);
   if (bs.illustrative) phrases.push(`${bs.illustrative} withheld because this company’s figures are synthetic`);
   lensCard.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     bs.illustrative === n
-      ? `No strategy is graded for this company. ${lens.tier.why} A grade computed from figures this product cannot stand behind would look like research and would not be any.`
+      ? `No strategy has an evidence band for this company. ${lens.tier.why} A band computed from figures this product cannot stand behind would look like research and would not be any.`
       : `Of ${n} strategies: ${phrases.join(', ')}.`));
 
   /* The legend, on request rather than always.
@@ -21936,9 +21957,9 @@ VIEWS.research = () => {
 
   /* Each fit opens to what supports it, what weakens it, and what is missing. */
   const det = el('details', { style: 'margin-top:10px' });
-  det.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'What each grade rests on'));
+  det.append(el('summary', { class: 'metaline', style: 'cursor:pointer' }, 'What each evidence band rests on'));
   const ft = el('table', { class: 'dt', style: 'margin-top:8px' });
-  ft.append(el('thead', {}, el('tr', {}, ['Strategy', 'Grade', 'Supports', 'Weakens or missing'].map((h, i) =>
+  ft.append(el('thead', {}, el('tr', {}, ['Strategy', 'Result', 'Supports', 'Weakens or missing'].map((h, i) =>
     el('th', { style: i === 1 ? null : 'text-align:left' }, h)))));
   const fb = el('tbody');
   /* Sentences wrap between words. .caption breaks anywhere, which let the
@@ -21949,7 +21970,7 @@ VIEWS.research = () => {
   const prose = 'text-align:left;white-space:normal;overflow-wrap:normal;min-width:12rem';
   lens.fits.forEach(f => fb.append(el('tr', {}, [
     el('td', { style: 'text-align:left' }, f.label),
-    el('td', {}, f.state === 'graded' ? f.grade : (FIT_STATES[f.state] || FIT_STATES.missing).token),
+    el('td', {}, bandText(f.state === 'graded' ? f.grade : (FIT_STATES[f.state] || FIT_STATES.missing).token)),
     el('td', { class: 'caption', style: prose },
       f.supports.length ? f.supports.join(' ') : '—'),
     el('td', { class: 'caption', style: prose },
@@ -21957,8 +21978,15 @@ VIEWS.research = () => {
   ])));
   ft.append(fb);
   det.append(el('div', { class: 'tablewrap' }, ft));
+  /* What each band says about the evidence, from BAND_MEANING. */
+  const bandDl = el('dl', { class: 'kv', id: 'band-meanings', style: 'margin-top:8px' });
+  Object.entries(BAND_MEANING).forEach(([b, why]) => {
+    bandDl.append(el('dt', {}, `Evidence band ${b}`));
+    bandDl.append(el('dd', { style: 'text-align:left' }, why));
+  });
+  det.append(bandDl);
   det.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'These are research criteria, not instructions. A grade describes how well the evidence meets a strategy’s requirements — it does not say to buy, sell or hold anything, and no allocation is implied by any of them.'));
+    'These are research criteria, not instructions. An evidence band describes how well the evidence meets a strategy’s requirements — it does not say to buy, sell or hold anything, and no allocation is implied by any of them.'));
   lensCard.append(det);
   wrap.append(lensCard);
 
@@ -31655,6 +31683,7 @@ function learnScoring() {
   const rules = ['Scores are computed inside valid cohorts — market, sector and business model — never against the whole universe alone.',
     'Both the absolute score and the peer percentile are shown.',
     'Missing inputs reduce coverage and re-base the weights; a score is never credited for data it does not have.',
+    'The research composite is classified only at 70% data completeness or more.',
     'Sector-specific input sets are used only where they are economically justified — banks and REITs have their own.',
     'Every score publishes its version, calculation date, source periods and coverage ratio.'];
   const ul = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:6px' });
@@ -31779,7 +31808,7 @@ function learnModels() {
    'A zero or negative starting free cash flow raises a warning and points to a scenario model instead.',
    'For banks, long-run growth above what retained earnings can fund at the assumed ROE and payout raises a warning.',
    'For REITs, modelling growth from a distribution that recurring income does not cover raises a warning.',
-   'Data completeness below 80% reduces the confidence grade rather than being filled in.'].forEach(x =>
+   'Data completeness below 80% raises a reduced-confidence warning on the valuation, rather than being filled in.'].forEach(x =>
     gl.append(el('li', { class: 'evidence support', style: 'font-size:13px' }, x)));
   guards.append(gl);
   wrap.append(guards);
@@ -47115,10 +47144,10 @@ const CAPABILITY_REGISTER = [
      ships and the saved strategy plan that does not — so shipping half of it
      left the row wrong about both. Split. */
   { name:'Equity Strategy Lens', status:'active-core', path:'/research',
-    now:'On every company page: instrument type, business archetype, return role, and eight fit grades that separate graded from unassessed, not applicable, not built and illustrative.',
-    gate:'Grades describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
+    now:'On every company page: instrument type, business archetype, return role, and eight evidence bands that separate banded from unassessed, not applicable, not built and illustrative.',
+    gate:'Evidence bands describe how far the evidence meets a strategy’s requirements. They are not an entry plan and imply no allocation.' },
   { name:'Saved strategy plans and leverage stress', status:'queued', path:null,
-    gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens grades the underlying; it does not record what you decided to do about it.' },
+    gate:'P1. Staged entry tranches, invalidation conditions, leverage stress and outcome review, saved against a company and a model version. The Lens describes the evidence for the underlying; it does not record what you decided to do about it.' },
   { name:'Bursa universe', status:'data-gated', path:'/research',
     brief:['EQ-202'], priority:'P0',
     gate:() => covText(k => `${k.illustrative} companies carry illustrative figures — ${k.my} Bursa`
@@ -47157,7 +47186,7 @@ const CAPABILITY_REGISTER = [
      said no history was loaded. */
   { name:'Sarawak Economy Watch', status:'data-gated', path:'/discover/sarawak',
     gate:() => {
-      const tail = 'Exposure evidence, filings and coverage are not yet recorded, so no fit grade is shown.';
+      const tail = 'Exposure evidence, filings and coverage are not yet recorded, so no evidence band is shown.';
       if (!instruments) return `How many companies are identified is not stated until the instrument registry has loaded. ${tail}`;
       const flagged = (instruments.instruments || []).filter(i => i.sarawak);
       const withHistory = flagged.filter(i => trackedHistory?.series?.[i.symbol]).length;
