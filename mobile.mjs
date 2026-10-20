@@ -596,7 +596,7 @@ await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, devi
 for (const [route, heads] of [
   ['/property/calculator?view=full&city=kuching', ['#|Gate|State|Why', 'Source|State|Counts', 'Allowance|Triggered by']],
   ['/methodology/ips', ['IPS §8 says|', '#|Gate|The question it asks', 'Tier|IPS description|']],
-  ['/company/JPM-SEC', ['Strategy|Grade|Supports|Weakens or missing']],
+  ['/company/JPM-SEC', ['Strategy|Result|Supports|Weakens or missing']],
 ]) {
   await send('Page.navigate', { url: BASE + route }, sessionId);
   let ready = false;
