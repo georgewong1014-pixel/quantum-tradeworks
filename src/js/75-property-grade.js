@@ -2278,7 +2278,12 @@ function refurbModel(d, m = dealModel(d)) {
     const upliftIn = has(k.uplift), uplift = upliftIn ? d[k.uplift] : 0;
     const voidMonths = has(k.void) ? d[k.void] : 0;
     const costKind = RF_KIND(d, k.cost, k.basis);
-    if (cost == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['its cost'], kind: 'unavailable', costKind, uplift: upliftIn ? uplift : null, voidMonths: has(k.void) ? voidMonths : null };
+    /* What WAS entered is said as entered (the 20 Oct 2026 sweep,
+       lab-refurb-3): the uplift and the months without rent carry whether
+       they were entered, as the option run in full does, so only what was
+       not entered reads "Not entered". */
+    if (cost == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['its cost'], kind: 'unavailable', costKind, uplift: upliftIn ? uplift : null, upliftIn,
+      voidMonths: has(k.void) ? voidMonths : null, voidIn: has(k.void) };
     const mX = uplift > 0 ? dealModel({ ...d, rent: num0(d.rent) + uplift }) : m;
     const v12 = Math.min(voidMonths, 12);
     const firstYearMonthly = isNum(mX.cashflowMonthly) && burn != null ? (v12 * -burn + (12 - v12) * mX.cashflowMonthly) / 12 : null;

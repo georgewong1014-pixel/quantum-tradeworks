@@ -8244,6 +8244,25 @@ try {
       else ok('refurb F1: Do nothing RM1,000 a month at 6.00%; Refurbish (RM30,000, +RM150, 2 months void) RM791.67 over the first twelve months, RM1,150 once let, 6.00% on RM430,000, RM32,000 cash, payback 16.7 years (RM30,000 ÷ RM1,800); Upgrade (RM80,000, no uplift, 4 months void) RM333.33, 5.00%, RM84,000, payback "Not demonstrated" (and with an uplift of RM0) — Do nothing plainly has the best monthly position; Sell RM78,750 net on the loan as modelled, RM88,750 on a RM350,000 settlement, a RM67,500 shortfall at RM300,000; no cost, Unavailable; land not run');
     });
 
+    /* F1b — "Not entered" only for what was not entered (the 20 Oct 2026
+       sweep, lab-refurb-3). An option with no cost is Unavailable, and the
+       uplift and the months without rent the reader did enter read as
+       entered — they read "Not entered" beside boxes holding them. */
+    await ftry('refurb F1b: an option with no cost says what was entered', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${R_SEED}
+        const up = (x) => refurbModel(F({ ...RF, rfUpgradeCost: null, ...x })).options.find(o => o.id === 'upgrade');
+        const c = (row, o) => { const v = rfCell(row, o, {}); return v.text + ' — ' + v.sub; };
+        const o = up({ rfUpgradeUplift: 500 }), n = up({ rfUpgradeVoid: null });
+        return JSON.stringify({ status: o.status, uplift: c('uplift', o), void: c('void', o), noneUplift: c('uplift', n), noneVoid: c('void', n) }); })()`));
+      const p = [];
+      if (r.status !== 'unavailable') p.push(`an upgrade with no cost is ${r.status}, not Unavailable`);
+      if (r.uplift !== '+RM500 — a month, your figure') p.push(`its uplift of RM500 entered reads "${r.uplift}"`);
+      if (r.void !== '4 months — with no rent while the works run') p.push(`its 4 months entered read "${r.void}"`);
+      if (r.noneUplift !== 'Not entered — no uplift counted' || r.noneVoid !== 'Not entered — none counted') p.push(`with neither entered: "${r.noneUplift}", "${r.noneVoid}"`);
+      if (p.length) fail('refurb F1b: an option with no cost says what was entered', p);
+      else ok(`refurb F1b: an upgrade with no cost is Unavailable, and the uplift and the months entered read as entered ("${r.uplift}", "${r.void}"); "Not entered" only where nothing was`);
+    });
+
     await ftry('refurb F2: on the Lab, the lens never reorders the options', async () => {
       const r = JSON.parse(await evaluate(`(async () => { ${R_SEED}
         const w = (ms) => new Promise(res => setTimeout(res, ms));
