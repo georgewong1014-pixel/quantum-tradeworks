@@ -500,6 +500,11 @@ const PORTABLE_KEYS = [
      (BACKUP_UNCOUNTED). */
   { k:'furthestStep',      label:'How far you have got' },
 ];
+const portableLabel = (k) => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
+/* Which of these kinds this browser holds something of: what a restore of a
+   file without them keeps as it is, and names (openRestoreDrawer, 65-learn.js;
+   the backup's restore, 55-views-public.js). */
+const heldKinds = (keys) => keys.filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length > 0); });
 
 /* The format version this build writes, and the highest it reads in full. */
 const EXPORT_VERSION = 1;
