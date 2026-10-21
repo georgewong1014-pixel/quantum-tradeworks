@@ -700,8 +700,10 @@ table.dt thead th.chg { color: var(--ink-3); }
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 2px var(--md); margin-top: 10px; align-items: end;
 }
-.proof-row .pv { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.proof-row .pv { align-self: start; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
 .proof-row .pk { font-size: 12px; color: var(--ink-3); align-self: end; }
+/* What a figure rests on, under it: the cash required's amount on unverified lines. */
+.proof-row .pv-note { display: block; font-size: 12px; line-height: 1.35; font-weight: 400; letter-spacing: 0; color: var(--ink-3); }
 @media (max-width: 420px) { .proof-row .pv { font-size: 17px; } }
 
 .task-card { display: block; text-decoration: none; color: inherit; }
@@ -3156,9 +3158,20 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
    next. Each label sits on its figure's baseline row. */
 .pub-lab-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr)); align-items: end; gap: 6px 8px; margin: 0; }
 .pub-lab-fig { display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+/* Each figure two rows of the list's grid: its label, on the bottom of the
+   first, so a label on two lines keeps the figures in one line; its figure
+   at the top of the second, with the cash required's note under it (the
+   amount on unverified lines). The note lengthens its own row and moves no
+   figure. Where subgrid is not drawn, the column above stands. */
+@supports (grid-template-rows: subgrid) {
+  .pub-lab-fig { display: grid; grid-template-columns: minmax(0, 1fr); grid-row: span 2; grid-template-rows: subgrid; row-gap: 0; }
+  .pub-lab-fig > dt { align-self: end; }
+  .pub-lab-fig > dd { align-self: start; }
+}
 .pub-lab-figs dt { font-size: var(--ls-meta); line-height: 15px; color: var(--ink-2); min-width: 0; }
 .pub-lab-figs dd { margin: 0; font-size: var(--ls-body); line-height: 22px; font-weight: var(--weight-bold); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pub-lab-figs dd.neg { color: var(--dn-text); }
+.pub-lab-note { display: block; text-wrap: balance; font-size: var(--ls-meta); line-height: 15px; font-weight: var(--weight-body); color: var(--ink-2); white-space: normal; }
 .pub-lab-flow { display: flex; flex-direction: column; gap: 4px; }
 .pub-lab-bars { display: block; }
 .pub-lab-svg { display: block; width: 100%; height: 22px; }
@@ -5662,9 +5675,10 @@ input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 4px colo
    name and product on one line; the journey, its outcome step and the last
    result under the name on a wide screen, the whole width on a phone. */
 .proof-h { margin: var(--md) 0 0; font-size: var(--text-label); font-weight: var(--weight-semibold); color: var(--ink); }
+/* Scoped to the list on /status: the same class names a figure card's grid of labels and values (.proof-row, above), which this was overriding. */
 .proof-list { list-style: none; padding: 0; margin: var(--sm) 0 0; }
-.proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
-.proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
+.proof-list > .proof-row { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.proof-list > .proof-row > .status-badge { flex: none; min-width: 4.75rem; justify-content: center; }
 .proof-name { flex: 1 1 0; min-width: 0; margin: 0; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--ink); overflow-wrap: anywhere; }
 .proof-of { font-weight: var(--weight-body); color: var(--ink-2); }
 .proof-body { flex: 0 0 100%; box-sizing: border-box; padding-left: calc(4.75rem + 12px); }

@@ -27483,6 +27483,12 @@ function pubVisScanner() {
    the reader keeps, so it is the same page for every reader. Moving the
    price redraws the figures in place. */
 const PUB_LAB_KEYS = ['instalment', 'safeCashRequired', 'cashflowMonthly'];
+/* How much of a cash required rests on lines nobody has verified, in the
+   Scenario Lab's words ("RM3,960 on unverified lines", LAB_FIGURES), or null
+   when none does. /data-sources says it is stated wherever the cash required
+   is shown: the homepage's card, /property-investing's, and the two on
+   /how-it-works. */
+const pubUnverified = (m) => (m?.unconfirmedCost > 0 ? `${labMoney(m.unconfirmedCost)} on unverified lines` : null);
 /* The price the reader moved it to, kept in this tab's memory only (never
    stored: the page reads nothing the reader keeps) so a redraw — the
    filings landing a moment after the page opens — leaves it where it was. */
@@ -27512,7 +27518,14 @@ function pubVisProperty({ badgeLink = true } = {}) {
     figs.replaceChildren(...PUB_LAB_KEYS.map(k => {
       const f = LAB_FIGURES.find(x => x.key === k);
       const v = run ? f.read(m) : null;
-      return el('div', { class: 'pub-lab-fig' }, [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' }, LAB_FORMATS[f.fmt](v))]);
+      /* Beside the cash required, how much of it rests on unverified lines,
+         in the Lab's own words (pubUnverified): /data-sources says it is
+         stated wherever the cash required is shown (copy-property-1). Under
+         the figure, in its <dd>, so the three figures stay three (mobile.mjs,
+         journeys.mjs). */
+      const note = k === 'safeCashRequired' && run ? pubUnverified(m) : null;
+      return el('div', { class: 'pub-lab-fig' }, [el('dt', {}, f.label()), el('dd', { class: `num${f.neg && isNum(v) && v < 0 ? ' neg' : ''}`, 'data-figure': k, 'data-v': isNum(v) ? String(v) : '' },
+        [LAB_FORMATS[f.fmt](v), note ? el('span', { class: 'pub-lab-note' }, note) : null])]);
     }));
     /* Where the month's rent goes: the rent, against the repayment and the
        rest of the month's costs (vacancy and running costs, the rent less
@@ -27537,7 +27550,11 @@ function pubVisProperty({ badgeLink = true } = {}) {
     paint(v);
     clearTimeout(said);
     said = setTimeout(() => {
-      const t = [...figs.querySelectorAll('dt')].map((dt, i) => `${dt.textContent} ${figs.querySelectorAll('dd')[i].textContent}`).join(', ');
+      /* Each figure, and the cash required's note apart from it. */
+      const t = [...figs.querySelectorAll('.pub-lab-fig')].map(x => {
+        const dd = x.querySelector('dd'), note = dd?.querySelector('.pub-lab-note');
+        return `${x.querySelector('dt')?.textContent || ''} ${dd?.firstChild?.textContent || ''}${note ? ` (${note.textContent})` : ''}`;
+      }).join(', ');
       const live = document.getElementById('liveStatus');
       if (live) live.textContent = `At ${inp.shown(v)}: ${t}.`;
     }, 700);
@@ -27750,7 +27767,8 @@ function pubProofCard(title, source, rows, note) {
      in one grid line up; nested wrappers do not when one of them wraps. */
   const r = el('div', { class: 'proof-row' });
   rows.forEach(([k]) => r.append(el('span', { class: 'pk' }, k)));
-  rows.forEach(([, v, tone]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null }, v)));
+  rows.forEach(([, v, tone, note]) => r.append(el('span', { class: 'pv', style: tone ? `color:var(${tone})` : null },
+    note ? [v, el('span', { class: 'pv-note' }, note)] : v)));
   c.append(r);
   if (note) c.append(el('p', { class: 'proof-src', style: 'margin-top:8px' }, note));
   return c;
@@ -27771,7 +27789,7 @@ function hiwPropertyCard() {
   const pmShort = (groups) => (pm.missingCostLines || []).some(x => !groups || groups.includes(x.groupId));
   return pubProofCard('Sarawak property', 'your inputs', [
     [pmShort(['acquisition', 'financing']) ? 'Cash to complete so far' : 'Cash to complete', fmtAmount(pm.cashStillRequiredToComplete, 'MYR')],
-    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR')],
+    [cashPartial(pm) ? 'Cash required — partial' : pmShort(null) ? 'Cash required so far' : 'Cash required', fmtAmount(pm.safeCashRequired, 'MYR'), null, pubUnverified(pm)],
     ['Monthly', isNum(pm.cashflowMonthly) ? fmtAmount(pm.cashflowMonthly, 'MYR') : '—',
       isNum(pm.cashflowMonthly) && pm.cashflowMonthly < 0 ? '--dn-text' : null],
   ], 'Computed live from the calculator’s current inputs, which start as illustrative defaults until you replace them.');
@@ -27834,13 +27852,20 @@ function hiwReportBody(r) {
   if (!r.c.real) out.push(el('p', { class: 'metaline hiw-label' }, [
     illusChip(r.c), ` ${r.c.name}: illustrative figures — synthetic, not filed. They show what the report contains, not what the company reported.`]));
   else out.push(el('p', { class: 'metaline hiw-label' }, `${r.c.name}: from audited statements filed with the SEC.`));
-  const score = (s) => (isNum(s?.score) ? `${s.score}/100` : '—');
+  /* A score with none behind it says Unavailable and why, not a bare dash
+     (the five reasons /data-sources promises; copy-property-12). A filed bank's
+     strength reads capital, impaired loans and loans to deposits, which sit in
+     regulatory returns and not in the statements filed with the SEC. */
+  const score = (s) => (isNum(s?.score) ? `${s.score}/100` : 'Unavailable');
+  const why = (s, usual, bank) => (isNum(s?.score) ? usual : r.c.type === 'bank' && bank ? bank : 'its inputs are not in the statements held');
+  const hasRange = isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull);
   out.push(el('div', { class: 'grid grid-5 hiw-tiles' }, [
-    statTile('Business quality', score(r.scores?.quality), { sub: 'margin durability, returns, consistency' }),
-    statTile('Financial strength', score(r.scores?.strength), { sub: 'leverage, cover, liquidity' }),
-    statTile('Valuation range', isNum(r.val?.vals?.bear) && isNum(r.val?.vals?.bull)
+    statTile('Business quality', score(r.scores?.quality), { sub: why(r.scores?.quality, 'margin durability, returns, consistency') }),
+    statTile('Financial strength', score(r.scores?.strength), { sub: why(r.scores?.strength, 'leverage, cover, liquidity',
+      'capital ratio, impaired loans and loan/deposit are not in the SEC statements held') }),
+    statTile('Valuation range', hasRange
       ? `${fmtMoney(r.val.vals.bear, r.c.ccy)} – ${fmtMoney(r.val.vals.bull, r.c.ccy)}` : 'not computable',
-      { sub: r.val?.pack?.name || '—' }),
+      { sub: r.val?.pack?.name || '—', kind: hasRange ? kindFor(r.c, 'modelled') : null, fine: 'The valuation range' }),
     statTile('Principal risks', String((r.flags || []).length || 'none flagged'), { sub: 'raised from the reported figures' }),
     statTile('Data completeness', isNum(r.m?.coverage) ? `${r.m.coverage}%` : '—', { sub: 'computable ÷ applicable metrics' }),
   ]));
@@ -27893,6 +27918,7 @@ function hiwDealCheck() {
   const cashLabel = cashPartial(exm) ? 'Cash required — partial' : (exm.missingCostLines || []).length ? 'Cash required so far' : 'Cash required';
   const cashSub = isNum(exm.reserveCash) ? `deposit, fees, renovation and a ${exm.reserveMonths}-month reserve`
     : 'deposit, fees and renovation — the reserve cannot be priced';
+  const cashUnverified = pubUnverified(exm);
   const box = el('div', { class: 'hiw-example' });
   box.append(el('h4', { class: 'hiw-ex-t' }, 'A Sarawak property deal check'));
   box.append(el('p', { class: 'hiw-ex-b' }, `The calculator’s own model at ${rm0(EX_PRICE)} and ${rm0(EX_RENT)} a month.`));
@@ -27904,7 +27930,7 @@ function hiwDealCheck() {
       statTile('Monthly cash flow', rm0(exm.cashflowMonthly), { sub: 'after instalment, maintenance and vacancy',
         tone: isNum(exm.cashflowMonthly) && exm.cashflowMonthly < 0 ? '--dn-text' : null }),
       statTile('Break-even rent', rm0(exm.breakEvenRent), { sub: 'rent needed to cover every cost' }),
-      statTile(cashLabel, rm0(exm.safeCashRequired), { sub: cashSub }),
+      statTile(cashLabel, rm0(exm.safeCashRequired), { sub: cashUnverified ? `${cashSub} · ${cashUnverified}` : cashSub }),
     ]),
     el('p', { class: 'metaline hiw-label', style: 'margin-top:var(--md)' },
       'Computed by the calculator’s own model from its illustrative defaults at this price and rent — an example, not a listing, with no verified comparables behind it. Enter your own numbers to get your own answer.'),
@@ -29289,8 +29315,8 @@ VIEWS.about = () => trustPage('About',
       /* "Asks nothing about your circumstances" was unqualified, beside a
          property calculator whose loan-readiness check asks for income,
          debts and a credit record. */
-      ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment.',
-       'Not a data vendor. It does not redistribute market data, and where a price is shown its source and licence are stated on the page.']],
+      ['Not advice. It does not tell you what to buy, hold or sell, produces no buy, sell or hold ratings and no single-figure target price, and executes nothing. The equity research asks nothing about your circumstances; the one place that takes figures about you is the property calculator’s optional loan-readiness check, where the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser.',
+       'Not a data vendor. It does not redistribute market-data records; NAPIC’s published ranges are shown as derived figures, with their licence position beside them, and where a price is shown its source and licence are stated on the page.']],
     ['Legal entity and registration',
       ['No operating company has been registered for this product yet, so there is no company number, no registered address and no regulated status to state. This page will carry them once there are.',
        operatorLine() || tp('The operating entity and its registered address are not published yet.')], true],
@@ -29384,7 +29410,7 @@ VIEWS.privacy = () => {
        'There are no accounts in this build, so there is nothing to sign in to and no server-side record of you.']],
     ['What leaves your device',
       [
-        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, and its drawing code, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
+        tp('Only requests for this site’s own files: the page itself and the data files it reads — the SEC filings, the instrument list, the Sarawak map and, when you open a locality on the area screen, NAPIC’s published figures for the division it lies in. Those are one file a division, so the address requested names the division. The Kuching scheme map asks for the Kuching map file, its style, lettering and symbols, its drawing code and NAPIC’s Kuching figures, all from this site and only on that page; it reads the map file in pieces, so the host could infer which part of Kuching you looked at. The security policy this site is served with tells your browser to refuse any request the page itself makes to another address, so this is enforced by your browser, not only promised here.'),
         tp('Each request reaches the company that hosts this site, Vercel, carrying what every web request carries: your IP address, your browser’s name and version, and the address requested. This build does not read or keep those requests; what the host records about them, and for how long, is governed by the host’s own terms.'),
         tp('Some pages keep what is on screen in their address, so that a copied link reproduces it. The property calculator writes the deal’s figures there — the price, the rent and the other inputs you changed, never the borrower profile. An address reaches the host only when a page is loaded with it: a reload, or a link someone opens.'),
         tagged
@@ -29461,7 +29487,7 @@ VIEWS.terms = () => trustPage('Terms',
     ['No execution',
       'Nothing here places, routes or executes an order. There is no brokerage connection, and no instruction you give this site reaches a market, a broker or a bank.'],
     ['Prices and licensing',
-      'No market data is redistributed. Where a price is shown, its source and the right it is shown under are stated on the page.'],
+      'No market-data records are redistributed. NAPIC’s published ranges are shown as derived figures, with their licence position beside them. Where a price is shown, its source and the right it is shown under are stated on the page.'],
     ['Your data stays in your browser',
       [tp('What you enter is kept in this browser’s local storage and nowhere else — see ', tlink('Privacy', '/privacy'), '. Export anything you want to keep: clearing the browser’s storage deletes it, and there is no copy anywhere to restore it from.'),
        'Data you paste in stays under the terms you obtained it on — a broker’s export is still your broker’s data.']],
@@ -46854,7 +46880,7 @@ VIEWS.ips = () => {
     + 'This product publishes neither, and the reason is not stylistic.'));
   dev.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
     'It is research only. It holds no licence to advise and makes no personal recommendation, and the disclosure on every '
-    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. '
+    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser. '
     + 'The substance of section 8 is kept in full; only the verb changes.'));
   const dl = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
   dl.append(el('thead', {}, el('tr', {}, ['IPS §8 says', 'This product says', 'Why it is the same information']
@@ -48396,6 +48422,12 @@ function napicBenchmarks(division, { locality = null, limit = 40 } = {}) {
   return { rows: rows.slice(0, limit), matched, total: rows.length, divisionTotal: all.length };
 }
 
+/* The licence position, in the one line every place that shows NAPIC's
+   ranges says it (the area screen's panel and the scheme map's list and
+   panel), so no two can word it differently. */
+const napicLicenceLine = (napic) => `Licence ${napic.licence.status.replace(/_/g, ' ').toLowerCase()} — derived display only. `
+  + 'Raw files are not published, NAPIC rows are not exported in bulk, and the extraction reconciles to the published Sarawak '
+  + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`;
 const napicUnitLabel = (b) => ({
   RM_PER_UNIT: 'per unit', RM_PER_SQM: 'per m²', RM_PER_HECTARE: 'per hectare',
 }[b.basisUnit] || '') + (b.perMonth ? ' a month' : '');
@@ -48524,10 +48556,7 @@ function officialBenchmarkPanel(city, area) {
     `Source period ${napic.period.code}. ${napic.licence.attribution}. `
     + 'Figures are official NAPIC aggregates or sample-based benchmarks for the stated reporting period. They are not live '
     + 'listings, complete transaction histories or professional valuations.'));
-  card.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' },
-    `Licence ${napic.licence.status.replace(/_/g, ' ').toLowerCase()} — derived display only. `
-    + 'Raw files are not published, NAPIC rows are not exported in bulk, and the extraction reconciles to the published Sarawak '
-    + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' }, napicLicenceLine(napic)));
   return card;
 }
 /* ==========================================================================
@@ -62845,7 +62874,7 @@ function scopeCard() {
    /* Scoped to what is true. It said "any question about your income … or
       circumstances", and the property calculator's loan-readiness check asks
       for income, debts, commitments and a credit record. */
-   'Any question about your goals or risk tolerance. The one input about you is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, held only in this browser, to judge whether a loan is within reach',
+   'Any question about your goals or risk tolerance, apart from the Scenario Lab’s optional objective, which only chooses which figures lead. The one input about your finances is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, to judge whether a loan is within reach. Both are held only in this browser',
    'Output that differs from one user to another — everyone sees the same analysis',
    'Portfolio construction, allocation guidance or rebalancing instructions',
    'Trade execution, brokerage connection or order routing'].forEach(x =>
@@ -64194,8 +64223,14 @@ const KM_NOT = {
   weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap: held for review, not guessed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
-  'not-a-place': { label: 'Not a place', said: 'An extraction label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
+  /* In a customer's words, and as left out of the count of schemes
+     (kmSchemeCount): the three rows are "1st Floor", "2nd Floor" and
+     "3rd Floor" — copy-property-9. */
+  'not-a-place': { label: 'Not a place', said: 'A row NAPIC’s rental table labels by floor, not by scheme: not a scheme’s name, and not counted as a scheme above.' },
 };
+/* The schemes NAPIC's sample names: every row but those that are not a place
+   (a floor of a building), so the count says what it counts. */
+const kmSchemeCount = () => (KM_DATA?.schemes || []).filter(s => s.status !== 'not-a-place').length;
 const kmReason = (s) => (s.status === 'not-a-place' ? 'not-a-place' : s.reason);
 
 /* The page's state for this tab: the map, its mode and what is selected. The
@@ -64256,6 +64291,15 @@ function kmFigures(scheme, { change = false } = {}) {
   ])));
 }
 
+/* THE LICENCE POSITION OF NAPIC'S RANGES, beside them, in the area screen's
+   own line (napicLicenceLine, 81-napic.js): the ranges are shown as derived
+   figures, and /about and /terms say
+   so. Only once NAPIC's file is loaded, which is when the ranges are. */
+function kmLicence() {
+  const doc = napicDoc('Kuching');
+  return doc ? el('p', { class: 'metaline km-licence', style: 'color:var(--bronze)' }, napicLicenceLine(doc)) : null;
+}
+
 /* --------------------------------------------------------------- the page */
 VIEWS.areaMap = () => {
   const wrap = el('div', { class: 'km-page' });
@@ -64263,13 +64307,13 @@ VIEWS.areaMap = () => {
   /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
      under each scheme come with it (loadNapic redraws the page). */
   if (!napicDivisions.has('Kuching')) loadNapic('Kuching');
-  const placed = kmPlaced(), all = KM_DATA.schemes;
+  const placed = kmPlaced();
   wrap.append(pageHead({ title: 'Kuching scheme map',
     /* Its own state, as the register row has it (80-registers.js): the area
        screen's tab is Live, and this view of it is new. */
     badge: el('span', { class: 'status-badge status-beta', title: 'New: positions only, most schemes not yet placed, nothing on the map priced.' }, 'Beta'),
     lede: 'Where NAPIC’s Kuching housing schemes are, wherever OpenStreetMap names them — positions only, never prices.',
-    note: `${placed.length} of ${all.length} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
+    note: `${placed.length} of ${kmSchemeCount()} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
       + 'NAPIC’s observed ranges stay in the list, under each scheme; the map carries no figure.' }));
   wrap.append(areaViewsNav('areaMap'));
 
@@ -64368,6 +64412,8 @@ function kmPanel() {
   panel.append(el('div', { class: 'card-hd-t km-panel-sub' }, [el('h4', { class: 'eyebrow' }, `NAPIC ${KM_DATA.period}, under this name`), kindBadge('filed', { fine: `NAPIC ${KM_DATA.period}` })]));
   panel.append(kmFigures(s.scheme, { change: true }) || el('p', { class: 'metaline' }, 'Loading NAPIC’s Kuching file…'));
   panel.append(el('p', { class: 'metaline' }, 'A range observed across NAPIC’s sample for the half-year: not the scheme’s price, not the latest sale, never a midpoint. A row from one observation is one property in the sample.'));
+  const lic = kmLicence();
+  if (lic) panel.append(lic);
   const acts = el('div', { class: 'km-acts' });
   if (placed) {
     acts.append(kmLabButton(s, 'km-panel-lab'));
@@ -64394,7 +64440,7 @@ function kmOpenLab(s) {
 /* -------------------------------------------------------------- the list */
 function kmList() {
   const card = el('section', { class: 'card km-list-card', id: 'km-list', 'aria-labelledby': 'km-list-h' });
-  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${KM_DATA.schemes.length}`,
+  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${kmSchemeCount()}`,
     'The map’s list, and the way to it from a keyboard or a screen reader: each scheme’s position and evidence, NAPIC’s figures under it, and the Scenario Lab.', null, { kind: 'filed', fine: `NAPIC ${KM_DATA.period}` }));
   const find = el('div', { class: 'km-find' }, [
     el('label', { for: 'km-find' }, 'Find a scheme'),
@@ -64404,6 +64450,8 @@ function kmList() {
   ]);
   card.append(find);
   card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  const lic = kmLicence();
+  if (lic) card.append(lic);
   const groups = [
     ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
     ['weak', null, (s) => kmReason(s) === 'weak'],
@@ -64450,7 +64498,7 @@ function kmFilter(root = document.getElementById('km-list')) {
   }
   for (const g of root.querySelectorAll('.km-group')) g.hidden = !g.querySelector('.km-item:not([hidden])');
   const said = root.querySelector('#km-find-said');
-  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} schemes match “${KM.filter.trim()}”.` : '';
+  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} listed names match “${KM.filter.trim()}”.` : '';
 }
 
 /* -------------------------------------------------------- choosing one */
