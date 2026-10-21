@@ -1498,6 +1498,30 @@ table.dt tbody tr:hover .pin-end { background: color-mix(in srgb, var(--brand) 5
 .thesis-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: var(--md); align-items: start; }
 @media (max-width: 900px) { .thesis-layout { grid-template-columns: minmax(0, 1fr); } }
 
+/* A RESEARCH CASE'S DRAFT LINE, ITS SUGGESTED DEFAULTS AND THE RESEARCH IT WAS
+   SAVED AGAINST (QT-D08-01). The line and each default still the tool's sit
+   at the top of the card, in the amber of a thing to read, not the red of a
+   fault. Confirm is a 44px target at every width, since it is the one control
+   that settles a default; its focus ring is the global one (.btn:focus-visible).
+   Words break where they must, so no row is wider than a phone. */
+.case-draft { margin: 0 0 var(--md); padding: var(--sm) var(--md); border-radius: var(--r-md); min-width: 0;
+  background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 38%, transparent); color: var(--ink); }
+.case-draft-line { margin: 0 0 var(--xs); font-size: 13px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.case-sug { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--xs) var(--md); padding: var(--xs) 0; border-top: 1px solid color-mix(in srgb, var(--warn) 28%, transparent); }
+.case-sug-what { display: flex; flex-direction: column; gap: 2px; flex: 1 1 14rem; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.case-sug-cond { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--sm); margin-top: 4px; }
+.case-confirm { min-height: 44px; min-width: 44px; }
+.case-record { margin-top: var(--md); padding-top: var(--sm); border-top: 1px solid var(--grid); min-width: 0; }
+.case-record .metaline { overflow-wrap: anywhere; }
+.case-moves { margin-top: var(--xs); }
+.case-moves summary { cursor: pointer; font-size: 13px; }
+.case-moves .tablewrap { margin-top: var(--xs); max-height: 22rem; overflow-y: auto; }
+.case-moves td, .case-moves th { overflow-wrap: anywhere; }
+.case-moved td { background: color-mix(in srgb, var(--warn) 9%, transparent); }
+.case-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xs) var(--md); margin-top: var(--sm); }
+.case-review .caption { flex: 1 1 16rem; min-width: 0; margin: 0; }
+.case-review-btn { min-height: 44px; }
+
 /* Sticky company identity + tabs on the research page. */
 /* It comes to rest under the topbar as measured. --topbar-h is the 60px
    single-row design value, but from 781 to 1220px the nav wraps under the
