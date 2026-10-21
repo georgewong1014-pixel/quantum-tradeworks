@@ -1446,7 +1446,7 @@ try {
       set('select[aria-label="Daily Momentum"]', 'bullish'); await wait();
       set('select[aria-label="Daily Momentum"]', 'strong_bullish'); await wait();
       const before = State.qtti.corrections.length;
-      [...document.querySelectorAll('main button')].find(x => /Load the §14 worked example/.test(x.textContent)).click(); await wait();
+      [...document.querySelectorAll('main button')].find(x => /Load the worked example/.test(x.textContent)).click(); await wait();
       out.history = { before, after: State.qtti.corrections.length, last: State.qtti.corrections[State.qtti.corrections.length - 1]?.newValue || null, symbol: State.qtti.symbol };
       const d = qttiWorkedExample(); d.confidence = { metadata:null, panels:null, indicators:null, legibility:null, recency:null };
       State.qtti = d; saveQtti(); State.decisionSubject = 'tradingIndex';

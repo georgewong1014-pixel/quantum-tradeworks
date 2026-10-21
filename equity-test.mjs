@@ -1725,17 +1725,17 @@ try {
     await evaluate(`openResearch('AAPL-SEC', 'snapshot'); true`); await sleep(500);
     const strip = await evaluate(`(() => {
       const chips = () => [...document.querySelectorAll('main .chip')].map(c => c.textContent);
-      const before = chips().filter(t => /ingest/.test(t));
+      const before = chips().filter(t => /^import /.test(t));
       const row = BY_ID.get('AAPL-SEC'); row.c.ingestVersion = 'sec 1.2.0';
       row.c.provenance = { ...row.c.provenance, rev: { ...row.c.provenance.rev, restated: { 2023: { from: 1, to: 2 } } } };
       render();
-      const after = chips().filter(t => /ingest/.test(t));
+      const after = chips().filter(t => /^import /.test(t));
       const restated = [...document.querySelectorAll('main .metaline')].some(p => /Restated in a later filing/.test(p.textContent) && /revenue FY2023/.test(p.textContent));
       row.c.ingestVersion = null; delete row.c.provenance.rev.restated; render();
       return { before, after, restated };
     })()`);
-    if (strip.before.join() !== 'ingest version not in this dataset yet') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
-    if (strip.after.join() !== 'ingest 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
+    if (strip.before.join() !== 'import version not recorded') p.push(`strip without a version: ${JSON.stringify(strip.before)}`);
+    if (strip.after.join() !== 'import 1.2.0' || !strip.restated) p.push(`strip with a version and a restatement: ${JSON.stringify(strip)}`);
     if (p.length) fail('Learn publishes the registry with blocked measures named; the provenance strip carries the ingest version', p);
     else ok(`Learn lists all ${r.n} measures in ${r.cats.length} categories with definition, inputs, unit and period, and ${r.blockedRows.length} blocked rows (${r.blockedRows.join(', ')}); the provenance strip says the shipped file has no ingest version, and names one and a restated year when the record carries them`);
   }
