@@ -5745,6 +5745,80 @@ await sleep(2500);
 }
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
 
+/* WHAT EACH FILE HOLDS, ON /my/data (the 21 Oct Day-8 report, item 4:
+   "explain … exactly what each export includes"). The backup's card and
+   Export everything's each carry a <details> "What the file holds", closed on
+   arrival, under the line that says the file is the only copy. At 390 and
+   1440, in the page's font and in Verdana (CI's Linux sans is as wide): both
+   closed, each summary a 44px target inside its card, the "only copy" line
+   whole and in sight while closed, nothing scrolls the page sideways closed or
+   open, and every line of an opened list stays inside its card. */
+{
+  const fails = [], said = [];
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h] of [[390, 844], [1440, 900]]) {
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: w < 768 }, sessionId);
+      for (const font of [null, 'Verdana, sans-serif']) {
+        const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+        await send('Page.navigate', { url: BASE + '/my/data' }, sessionId);
+        let ready = false;
+        for (let i = 0; i < 80 && !ready; i++) {
+          await sleep(250);
+          const q = await send('Runtime.evaluate', { returnByValue: true, expression: `document.querySelectorAll('details[data-file-holds]').length === 2 && !document.getElementById('views')?.hasAttribute('data-served')` }, sessionId);
+          ready = q.result?.result?.value === true;
+        }
+        if (!ready) { fails.push(`${at}: the two "What the file holds" disclosures did not draw`); continue; }
+        const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression: `(async () => {
+          const w = (ms) => new Promise(res => setTimeout(res, ms));
+          ${font ? `const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s);` : ''}
+          await w(200);
+          const vw = document.documentElement.clientWidth;
+          const out = { vw, face: getComputedStyle(document.body).fontFamily, scrollClosed: document.documentElement.scrollWidth, files: [] };
+          const dets = [...document.querySelectorAll('details[data-file-holds]')];
+          for (const d of dets) {
+            const card = d.closest('.card'), cb = card.getBoundingClientRect(), sm = d.querySelector('summary'), sb = sm.getBoundingClientRect();
+            const only = [...card.querySelectorAll('p, .lede, div')].find(n => !d.contains(n) && /only copy/.test(n.textContent) && n.children.length === 0);
+            const ob = only ? only.getBoundingClientRect() : null;
+            out.files.push({ kind: d.dataset.fileHolds, wasOpen: d.open, summary: sm.textContent.trim(), sh: sb.height, sl: sb.left, sr: sb.right, cl: cb.left, cr: cb.right,
+              only: ob ? { h: ob.height, t: ob.top, over: only.scrollWidth > only.clientWidth + 1 } : null, onlyBeforeDetails: !!only && !!(only.compareDocumentPosition(d) & Node.DOCUMENT_POSITION_FOLLOWING),
+              kinds: d.querySelectorAll('[data-file-kinds] > li').length });
+          }
+          dets.forEach(d => { d.open = true; });
+          await w(200);
+          out.scrollOpen = document.documentElement.scrollWidth;
+          out.opened = dets.map(d => { const card = d.closest('.card').getBoundingClientRect(); return { kind: d.dataset.fileHolds,
+            lines: [...d.querySelectorAll('p, li')].map(n => { const b = n.getBoundingClientRect(); return { t: n.textContent.slice(0, 40), r: b.right, over: n.scrollWidth > n.clientWidth + 1 }; }), cr: card.right }; });
+          return out; })()` }, sessionId);
+        const v = r.result?.result?.value;
+        if (!v) { fails.push(`${at}: not measured (${JSON.stringify(r.result?.exceptionDetails?.exception?.description || '').slice(0, 120)})`); continue; }
+        said.push(at);
+        if (font && !/Verdana/.test(v.face)) fails.push(`${at}: drawn in ${v.face}, not Verdana`);
+        if (v.files.length !== 2) fails.push(`${at}: ${v.files.length} disclosures measured`);
+        if (v.scrollClosed > v.vw + 1) fails.push(`${at}: closed, the page is ${v.scrollClosed}px wide in a ${v.vw}px screen`);
+        if (v.scrollOpen > v.vw + 1) fails.push(`${at}: open, the page is ${v.scrollOpen}px wide in a ${v.vw}px screen`);
+        for (const f of v.files) {
+          if (f.wasOpen) fails.push(`${at}: the ${f.kind} file's disclosure arrives open`);
+          if (f.summary !== 'What the file holds') fails.push(`${at}: the ${f.kind} file's summary reads "${f.summary}"`);
+          if (f.sh < 43.5) fails.push(`${at}: the ${f.kind} file's summary is ${Math.round(f.sh)}px high, not 44`);
+          if (f.sl < f.cl - 0.5 || f.sr > f.cr + 0.5) fails.push(`${at}: the ${f.kind} file's summary runs ${Math.round(f.sl)}–${Math.round(f.sr)}px past its card's ${Math.round(f.cl)}–${Math.round(f.cr)}px`);
+          if (!f.only || f.only.h < 10 || f.only.over || !f.onlyBeforeDetails) fails.push(`${at}: the ${f.kind} card's "only copy" line is not whole and above the disclosure: ${JSON.stringify(f.only)}`);
+        }
+        const every = v.files.find(f => f.kind === 'everything');
+        if (every && every.kinds < 30) fails.push(`${at}: Export everything's disclosure lists ${every.kinds} kinds`);
+        for (const o of v.opened) o.lines.forEach(l => { if (l.r > o.cr + 0.5 || l.over) fails.push(`${at}: the ${o.kind} file's line "${l.t}…" runs past its card`); });
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL file-holds — what each file holds, on /my/data: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   file-holds: on /my/data the backup's card and Export everything's each carry "What the file holds", closed on arrival, its summary a 44px target inside the card, the "only copy" line whole above it, and nothing scrolling the page sideways closed or open, every opened line inside its card, at 390 and 1440 in the page's font and in Verdana (${said.length} frames)`);
+}
+
 /* THE STRATEGY LENS'S EVIDENCE BANDS ON A PHONE (the 20 Oct Day-7 report,
    QT-D06-01). Each result now reads "Quality compounder · Evidence band B"
    where it read "Quality compounder B", and one line stands under the first
