@@ -692,7 +692,9 @@ function dealModel(d) {
      is that many years from signing plus the year. Null on every other
      deal, and then every moment is the year it always was. */
   const ndTime = newDevRoute ? ndTimingOf(d) : null;
-  const fromSigning = (y) => (ndTime ? ndTime.lead + y : y);
+  /* On the auction route with its holding priced, a year of the hold is
+     the holding months from the sale plus the year (auctionLead, below). */
+  const fromSigning = (y) => (ndTime ? ndTime.lead + y : auctionLead ? auctionLead + y : y);
   /* NO LOAN, NO LENDER'S VALUATION (the calculation check pack, 17 Oct
      2026). The valuation fee is the lender's, for the loan: a purchase with
      no loan — a deposit of 100%, or a loan of nought — is not charged it or
@@ -810,7 +812,8 @@ function dealModel(d) {
      at this point. Derived from the groups rather than by re-listing the terms,
      because the previous version matched on label text and would silently drop
      a line the moment one was renamed. */
-  const acquisitionCost = sumPriced(costGroups.flatMap(g => g.items.map(it => it[1])));
+  /* With the auction's holding months added below, once their costs are known. */
+  let acquisitionCost = sumPriced(costGroups.flatMap(g => g.items.map(it => it[1])));
 
   /* Financing coverage as a share of what is actually being paid, which is the
      figure a buyer needs — a 90% margin of finance against a valuation 10%
@@ -934,15 +937,78 @@ function dealModel(d) {
      These give the months of instalment actually owed in a year of the hold,
      and in the months after it while the property sells. */
   const tenureMonths = tenureValid ? num0(d.tenureYears) * 12 : 0;
+  /* THE AUCTION'S HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
+     2026, on the 20 Oct sweep's auction-3, auction-5 and auction-8). The
+     months from the sale until the property earns: no rent; the running
+     costs from the sale — the model's own at no rent, opexAt(0), as the
+     reserve's no-rent month has them; the instalment only from the day the
+     balance falls due, the days the reader entered (a month taken as 30
+     days, as the implied vacancy takes it), when the loan is drawn. Each a
+     month to the sen, and the months after the balance date to the
+     hundredth, so the printed months × amounts give the printed total.
+     One figure, read by everything: the effective cost and the bid ceiling
+     (auctionModel's holding step), the cash required (a line of its own,
+     below) and the flows — the rate of return, the NPV and each year's
+     cash — which, as on a timed new development, count the hold's years
+     from when the property earns: the cash required leaves at the sale,
+     year 1 starts when the holding months end, and the loan has then run
+     `lag` months (negative while the balance is not yet due), so its
+     schedule, its interest and its balance at the sale run from the day
+     it was drawn. It counted every holding month at the full instalment
+     from the sale, in the effective cost and the ceiling only, while the
+     cash required and the flows took rent from completion. Without the
+     days the instalment's start is not known and nothing is assumed: the
+     holding is not priced, and says why. Not on any other route, and not
+     until the holding months are entered: every other deal is the deal
+     it was. */
+  const auctionHold = (() => {
+    if (!auctionRoute || !isNum(d.auctionHoldMonths) || !(d.auctionHoldMonths >= 0)) return null;
+    const months = d.auctionHoldMonths;
+    const days = isNum(d.auctionBalanceDays) && d.auctionBalanceDays >= 0 ? d.auctionBalanceDays : null;
+    const sen = (v) => Math.round(v * 100) / 100;
+    const running = sen(opexAt(0) / 12);
+    /* With no loan there is no instalment to start, and the days do not matter. */
+    if (days == null && loan > 0) return { status: 'unavailable', months, days, running, why: 'Needs the days to pay the balance: the instalment starts when the balance falls due.' };
+    if (debtUnknown) return { status: 'unavailable', months, days, running, why: 'The loan has no schedule of repayments, so its instalment is not known.' };
+    const lag = loan > 0 ? sen(months - days / 30) : 0;
+    const instMonths = loan > 0 ? Math.min(Math.max(0, lag), tenureMonths) : 0;
+    const inst = loan > 0 ? sen(num0(instalment)) : 0;
+    return { status: 'ok', months, days, running, instMonths, instalment: inst, lag, amount: sen(months * running + instMonths * inst) };
+  })();
+  /* In the cash required: what it takes to make the property earn, beside
+     the renovation — or, not priced, a missing line that says why. */
+  if (auctionHold) {
+    const label = `Holding until it earns: ${fmtNum(auctionHold.months, auctionHold.months % 1 ? 2 : 0)} month${auctionHold.months === 1 ? '' : 's'}, no rent`;
+    costGroups.find(g => g.id === 'improvement').items.push([label, auctionHold.status === 'ok' ? auctionHold.amount : null,
+      auctionHold.status === 'ok' ? { id: 'auctionHolding' } : { id: 'auctionHolding', status: 'unset', why: auctionHold.why }]);
+    if (auctionHold.status === 'ok') acquisitionCost += auctionHold.amount;
+    else missingCostLines.push({ group: 'Initial improvement costs', groupId: 'improvement', label, why: auctionHold.why });
+  }
+  const auctionLead = auctionHold?.status === 'ok' ? auctionHold.months / 12 : 0;
+  const lag = auctionHold?.status === 'ok' ? auctionHold.lag : 0;
+  /* The months the loan has run at month t of the hold, on the auction's
+     clock; on every other deal the hold's months are the loan's. */
+  const loanMonthsAt = (t) => clamp(t + lag, 0, tenureMonths);
   const debtInYear = (y) => debtUnknown ? null
+    : lag ? num0(instalment) * (loanMonthsAt(12 * y) - loanMonthsAt(12 * (y - 1)))
     : num0(instalment) * clamp(tenureMonths - (y - 1) * 12, 0, 12);
-  const sellingInstalments = (yrs, months) => clamp(tenureMonths - yrs * 12, 0, months);
+  const sellingInstalments = (yrs, months) => (lag ? loanMonthsAt(yrs * 12 + months) - loanMonthsAt(yrs * 12)
+    : clamp(tenureMonths - yrs * 12, 0, months));
   const instalmentWhileSelling = (yrs, months) => debtUnknown ? null
     : num0(instalment) * sellingInstalments(yrs, months);
   /* The balance owed after a number of months: unknown with the debt service,
      nothing without a loan. */
   const balanceAt = (months) => debtUnknown ? null
-    : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, months) : 0;
+    : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, lag ? loanMonthsAt(months) : months) : 0;
+  /* The interest in a year of the hold, on the auction's clock: the
+     instalments paid in it less the principal they repaid. */
+  const interestOnClock = (y) => {
+    if (!(loan > 0)) return 0;
+    const a = loanMonthsAt(12 * (y - 1)), b = loanMonthsAt(12 * y);
+    if (!(b > a)) return 0;
+    const open = balanceAfter(loan, d.ratePct, d.tenureYears, a), close = balanceAfter(loan, d.ratePct, d.tenureYears, b);
+    return Math.max(0, num0(instalment) * (b - a) - Math.max(0, open - close));
+  };
 
   const grossYield = (letsToTenant && d.price > 0) ? grossAnnualRentN / d.price * 100 : null;
   const netYield = (letsToTenant && d.price > 0) ? noiN / d.price * 100 : null;
@@ -1078,7 +1144,9 @@ function dealModel(d) {
      twice: RM4,912 on the sample. Each instalment is now deducted once —
      its interest and its principal — and the balance repaid is what is
      left after it. */
-  const settledAt = (yrs) => balanceAt(yrs * 12 + sellingInstalments(yrs, sellMonths));
+  /* On the auction's clock, the loan's months run when the sale completes. */
+  const settledAt = (yrs) => (lag ? (debtUnknown ? null : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, loanMonthsAt(yrs * 12 + sellMonths)) : 0)
+    : balanceAt(yrs * 12 + sellingInstalments(yrs, sellMonths)));
   const outstanding = settledAt(d.holdYears);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
@@ -1145,7 +1213,7 @@ function dealModel(d) {
        one. On a 12-month tenancy the two rules are the same. */
     const firstTenancyFee = placementAnnual * scale * clamp((monthsPerCycle - 12 * (y - 1)) / 12, 0, 1);
     const deductibleOpexY = opexY - firstTenancyFee;
-    const interestY = interestInYear(loan, d.ratePct, d.tenureYears, y);
+    const interestY = lag ? interestOnClock(y) : interestInYear(loan, d.ratePct, d.tenureYears, y);
     const taxY = rentalTaxYear({
       effectiveRent: effY, deductibleOpex: deductibleOpexY,
       interest: interestY, marginalTaxPct: d.marginalTaxPct,
@@ -1427,7 +1495,9 @@ function dealModel(d) {
   /* Each flow's moment in years from signing, on a timed new development:
      the equity at 0, a year of the hold at VP + that year. Null otherwise,
      and a flow's index is its year, as it always was. */
-  const timesFor = (fl) => (ndTime ? fl.map((_, i) => (i === 0 ? 0 : fromSigning(i))) : null);
+  /* And on the auction route with its holding priced: the equity at the
+     sale, a year of the hold at the holding months plus that year. */
+  const timesFor = (fl) => (ndTime || auctionLead ? fl.map((_, i) => (i === 0 ? 0 : fromSigning(i))) : null);
   const flowTimes = timesFor(flows);
   const irrResult = irrOf(flows, flowTimes);
   const irrPct = irrResult.rate;
@@ -1561,7 +1631,10 @@ function dealModel(d) {
               was (P1 R1's fingerprints). `saleYears`: the sale's moment,
               and the gains tax's holding period, in years from signing;
               `flowTimes`: each flow's moment, beside `flows`. */
-           ...(ndTime ? { ndTiming: { ...ndTime, saleYears: fromSigning(d.holdYears), flowTimes } } : {}) };
+           ...(ndTime ? { ndTiming: { ...ndTime, saleYears: fromSigning(d.holdYears), flowTimes } } : {}),
+           /* The auction's holding months as priced (above): a key only a deal
+              answered Auction with its holding months entered carries. */
+           ...(auctionHold ? { auctionHolding: { ...auctionHold, saleYears: fromSigning(d.holdYears), flowTimes } } : {}) };
 }
 
 /* The calculator's "Monthly commitment": what the owner funds from their
@@ -1726,9 +1799,11 @@ function solveDealPrice(d, target = dealTarget(d)) {
    costGroups): the statutory, professional and disbursement lines of the
    acquisition and the financing — the reader's legal quote in place of the
    purchase legal fees where entered — and not the deposit, the insurance or
-   the utility deposits. THE HOLDING COST is the months of holding entered
-   times what the property costs its owner a month with no rent coming in
-   (burnWithoutRent: the instalment and the running costs).
+   the utility deposits. THE HOLDING COST is dealModel's own (auctionHolding,
+   the owner's rule of 21 Oct 2026): the months of holding entered with no
+   rent, the running costs from the sale, and the instalment only from the
+   day the balance falls due — the one figure the cash required and the
+   rate of return carry too.
 
    NOT FINAL until every check of the checklist (AUCTION_CHECKS, from the
    Malaysian Bar's guidance) is ticked: `final` is false and `checksOpen`
@@ -1761,7 +1836,9 @@ function auctionModel(d, m = dealModel(d)) {
      named as unpriced beside the sum, not counted in it. */
   const feeKinds = feesPriced.map(it => feeKindBadge(it[2], it[1]) || 'placeholder');
   const holdMonths = has('auctionHoldMonths') ? d.auctionHoldMonths : null;
-  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  /* The holding months as the model prices them (dealModel's
+     auctionHolding): the one figure the cash required and the flows read. */
+  const hold = m.auctionHolding || null;
   const step = (id, label, amount, kind, extra = {}) => ({ id, label, amount, kind: amount == null ? 'unavailable' : kind, ...extra });
   const adds = [
     step('repairs', 'Repairs', has('auctionRepairs') ? d.auctionRepairs : null, kindOf('auctionRepairs'), { key: 'auctionRepairs' }),
@@ -1772,7 +1849,8 @@ function auctionModel(d, m = dealModel(d)) {
       { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
         /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
         gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
-    step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
+    step('holding', 'Holding', hold?.status === 'ok' ? hold.amount : null, 'modelled', { months: holdMonths, running: hold?.running ?? null,
+      instMonths: hold?.instMonths ?? null, instalment: hold?.instalment ?? null, days: hold?.days ?? null, why: hold?.why || null }),
   ];
   const counted = adds.filter(a => a.amount != null);
   const effective = bid != null ? bid + counted.reduce((t, a) => t + a.amount, 0) : null;

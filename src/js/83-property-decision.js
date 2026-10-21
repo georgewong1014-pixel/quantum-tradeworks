@@ -478,6 +478,13 @@ const auBadge = (kind, fine = null) => kindBadge(kind, { fine: fine || (kind ===
 const AUCTION_LEAD = 'Nothing of the sale is assumed: its terms are the ones you enter from the Proclamation of Sale. Not a valuation.';
 const auLower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 const auNotFinal = (a) => (a.final ? '' : ' Not final.');
+/* The holding months' working (the owner's rule of 21 Oct 2026; dealModel's
+   auctionHolding): months × the running costs a month, + the months after
+   the balance falls due × the instalment, each to the sen, so the product
+   printed is the total printed. */
+const auMonths = (n) => `${fmtNum(n, n % 1 ? 2 : 0)} month${n === 1 ? '' : 's'}`;
+const auHoldWorking = (s) => `${auMonths(s.months)} × ${fmtMoney(s.running, 'MYR', 2)} running costs`
+  + (s.instMonths > 0 ? ` + ${auMonths(s.instMonths)} × ${fmtMoney(s.instalment, 'MYR', 2)} instalment` : '');
 
 /* THE INPUTS, in three groups. `answer(k, v)` writes one (the page's own
    writer); `evidence(k, label)` draws where a figure came from, where the
@@ -513,7 +520,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
-      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due. Until you enter your lawyer’s quote, the legal costs are the fee rulebook’s purchase legal fees — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}), so the quote is the way to price it.`
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns: no rent, the running costs from the sale and the instalment from the day the balance falls due — in the effective cost, the cash required and the rate of return. The financing buffer is cash you hold back in case the loan is late or short when the balance falls due. Until you enter your lawyer’s quote, the legal costs are the fee rulebook’s purchase legal fees — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}), so the quote is the way to price it.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step, opts] of g.fields) {
@@ -601,8 +608,9 @@ function auctionWaterfall(a, prefix) {
     const from = add ? (isNum(run) ? run : 0) : 0;
     const to = has ? (add ? from + s.amount : s.amount) : null;
     if (add && has && isNum(run)) run = to;
-    const word = !has ? 'Not entered' : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
-    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : 'The monthly cost is not computable') : null) : null;
+    /* The holding to the sen, so its months × amounts below give it. */
+    const word = !has ? 'Not entered' : s.id === 'holding' ? `+${fmtMoney(s.amount, 'MYR', 2)}` : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
+    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : s.why || 'The monthly cost is not computable') : null) : null;
     const svg = sv('svg', { class: 'au-wf-bar', width: '100%', height: '14', 'aria-hidden': 'true', focusable: 'false' });
     svg.append(sv('rect', { class: 'au-wf-track', x: '0', y: '2', width: '100%', height: '10', rx: '3' }));
     if (has && isNum(from)) {
@@ -614,7 +622,7 @@ function auctionWaterfall(a, prefix) {
     if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
     const label = add ? `+ ${s.label}` : s.label;
     const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
-      : s.id === 'holding' && has ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'} × ${auMoney(s.monthly)}`
+      : s.id === 'holding' && has ? auHoldWorking(s)
       : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
       : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
@@ -703,7 +711,8 @@ function auctionWaterfallFormula(a) {
   const sum = a.adds.filter(x => isNum(x.amount)).map(x => `${x.label.toLowerCase()} ${auMoney(x.amount)}`);
   return `${mv} Reserve price: ${isNum(a.reserve) ? auMoney(a.reserve) : 'not entered'}. Winning bid: the purchase price, ${auMoney(a.bid)}. `
     + `Transaction costs: the ledger’s own fee lines — ${auList(tl)}. `
-    + `Holding: ${hold.months == null ? 'no holding period entered' : `${fmtNum(hold.months, 1)} months × ${auMoney(hold.monthly)} a month with no rent (the instalment and the running costs)`}. `
+    + `Holding: ${hold.months == null ? 'no holding period entered' : !isNum(hold.amount) ? `${auMonths(hold.months)} entered, not priced — ${(hold.why || 'The monthly cost is not computable.').charAt(0).toLowerCase()}${(hold.why || 'The monthly cost is not computable.').slice(1, -1)}`
+      : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs from the sale, the instalment from the day the balance falls due, ${hold.days} days after it (a month taken as 30 days). In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
     + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
     + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
     + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;

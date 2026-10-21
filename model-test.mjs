@@ -6477,7 +6477,11 @@ try {
     auctionLegal: 7000, auctionHoldMonths: 3 })`;
   await p3try('p3 A1: the auction waterfall adds up', async () => {
     const r = JSON.parse(await evaluate(`(() => {
-      const d = ${P3_DEAL};
+      /* The balance due in 90 days, so the holding is priced (the owner's
+         rule of 21 Oct 2026): 3 months of the running costs from the sale,
+         each to the sen, and no instalment — the balance falls due as the
+         3 months end. */
+      const d = { ...${P3_DEAL}, auctionBalanceDays: 90 };
       const m = dealModel(d), a = auctionModel(d, m);
       const items = m.costGroups.filter(g => g.id === 'acquisition' || g.id === 'financing').flatMap(g => g.items);
       const amt = (label) => items.filter(it => it[0] === label).reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
@@ -6485,7 +6489,7 @@ try {
       const transaction = all - amt('Deposit') - amt('Valuation-gap cash') - amt('Arrears the Proclamation passes to you') - amt('Repairs') - amt('Possession cost')
         - items.filter(it => it[2]?.id === 'mortgageProtection').reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
       const burn = m.instalment + (m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12;
-      const holding = 3 * burn;
+      const holding = 3 * Math.round((m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12 * 100) / 100 + Math.max(0, 3 - 90 / 30) * Math.round(m.instalment * 100) / 100;
       const effective = 500000 + 15000 + 4200 + 6000 + transaction + holding;
       const step = (id) => a.steps.find(s => s.id === id)?.amount ?? null;
       const partial = auctionModel({ ...d, auctionRepairs: undefined, arrearsUtilities: undefined, auctionHoldMonths: undefined });
@@ -6507,7 +6511,7 @@ try {
     if (r.reserve !== 420000 || r.bid !== 500000) p.push(`reserve ${r.reserve} and bid ${r.bid}`);
     if (r.repairs !== 15000 || r.arrears !== 4200 || r.possession !== 6000) p.push(`repairs ${r.repairs}, arrears ${r.arrears} (want 4,200), possession ${r.possession}`);
     if (!near(r.transaction, r.wantTransaction) || !(r.transaction > 7000)) p.push(`transaction costs ${r.transaction}, the ledger's fee lines come to ${r.wantTransaction}`);
-    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 × ${r.burn} = ${r.wantHolding} (the model's burn ${r.burnModel})`);
+    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 months of the running costs and none of the instalment = ${r.wantHolding} (the model's burn ${r.burnModel})`);
     if (!near(r.effective, r.wantEffective)) p.push(`effective acquisition cost ${r.effective}, worked out here as ${r.wantEffective}`);
     if (!r.td || !near(r.td.pct, r.wantTd) || !near(r.td.amount, 600000 - r.wantEffective)) p.push(`true discount ${JSON.stringify(r.td)}, want ${r.wantTd}%`);
     if (r.order !== 'market>reserve>bid>repairs>arrears>possession>transaction>holding>effective') p.push(`the steps run ${r.order}`);
@@ -7591,23 +7595,78 @@ try {
           none: c({ ...au, auctionCapKind: null, auctionCapValue: null }).status }); })()`));
       /* By hand (V3): transaction costs at a RM400,000 bid — duty 7,000 + the lawyer's quote 5,000 + registration 20 + searches 1,170
          + service tax 8% × (5,000 + 3,900) = 712 + loan duty 1,800 + the charge 10 + loan legal 3,900 + valuation 850 + 68 = 20,530;
-         holding 4 × RM1,000 = 4,000; effective = 400,000 + 15,000 + 4,000 + 2,000 + 20,530 + 4,000 = 445,530; market value the median
-         of 480k/500k/520k = 500,000; true discount (500,000 − 445,530) ÷ 500,000 = 10.894%. Deposit 10% of the 380,000 reserve = 38,000;
-         balance 362,000, of which 2,000 beyond the 360,000 loan. Ceiling 500,000 × 85% = 425,000: solved on the contract's own formula
-         (hand.mjs, every fee as a function of the bid) — 380,353 (cost RM425,000.00 — its loan legal fees RM2,996.22 × 1.25 = RM3,745.275,
-         a half sen, up: RM3,745.28; at 380,354, RM425,001.02). A cost of 430,000: 385,138. */
+         holding (the owner's rule of 21 Oct 2026): no running costs, and the RM1,000 instalment only from the day the balance falls
+         due — 90 days, 3 months, of the 4 — so 1 × RM1,000 = 1,000 (it was 4 × RM1,000 from the sale); effective = 400,000 + 15,000
+         + 4,000 + 2,000 + 20,530 + 1,000 = 442,530; market value the median of 480k/500k/520k = 500,000; true discount
+         (500,000 − 442,530) ÷ 500,000 = 11.494%. Deposit 10% of the 380,000 reserve = 38,000; balance 362,000, of which 2,000 beyond
+         the 360,000 loan. Ceiling 500,000 × 85% = 425,000, every fee as a function of the bid — at 383,103 (loan 344,792.70): duty
+         on 383,200, 6,664; quote 5,000; registration 20; searches 1,170; loan legal (2,700 + 0.7% × 44,792.70 = 3,013.55) × 1.25 =
+         3,766.94; service tax 8% × 8,766.94 = 701.36; loan duty on 345,000, 1,725; the charge 10; valuation 250 + 0.2% × 283,103 =
+         816.21, its tax 65.30 — 19,938.81; holding 1 × 957.76 (344,792.70 ÷ 360); so 383,103 + 21,000 + 19,938.81 + 957.76 =
+         RM424,999.57, and at 383,104 RM425,000.58. A cost of 430,000: 387,919 (RM429,999.96; at 387,920 RM430,000.98, its loan
+         legal fees RM3,043.90 × 1.25 = RM3,804.875, a half sen, up). Was 380,353 and 385,138 with the holding from the sale. */
       const p = [];
-      if (!near(r.tx, 20530) || !near(r.hold, 4000) || !near(r.eff, 445530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 4,000, 445,530`);
-      if (!near(r.td, 10.894, 1e-9)) p.push(`true discount ${r.td}% — by hand 10.894%`);
+      if (!near(r.tx, 20530) || !near(r.hold, 1000) || !near(r.eff, 442530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 1,000, 442,530`);
+      if (!near(r.td, 11.494, 1e-9)) p.push(`true discount ${r.td}% — by hand 11.494%`);
       if (!near(r.fx, 38000) || !near(r.bal, 362000) || !near(r.cash, 2000)) p.push(`forfeiture ${r.fx}, balance ${r.bal}, cash beyond the loan ${r.cash} — by hand 38,000, 362,000, 2,000`);
       if (r.final) p.push('with no check ticked the auction reads final');
-      if (r.margin.status !== 'solved' || r.margin.bid !== 380353 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 425000) || !near(r.margin.above, 425001.02)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 380,353 (425,000.00; +1 → 425,001.02)`);
-      if (r.cost.status !== 'solved' || r.cost.bid !== 385138) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 385,138`);
+      if (r.margin.status !== 'solved' || r.margin.bid !== 383103 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.57) || !near(r.margin.above, 425000.58)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 383,103 (424,999.57; +1 → 425,000.58)`);
+      if (r.cost.status !== 'solved' || r.cost.bid !== 387919 || !near(r.cost.eff, 429999.96) || !near(r.cost.above, 430000.98)) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 387,919 (429,999.96; +1 → 430,000.98)`);
       if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
-      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 385138) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
+      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
       if (r.none !== 'no-target') p.push(`no ceiling entered is ${r.none}, not "no target"`);
       if (p.length) fail('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', p);
-      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM4,000 of holding make the effective cost RM445,530, a 10.894% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM380,353 at 15% under the market value (RM425,000) and RM385,138 at a cost of RM430,000 — each to the ringgit; a margin with no market value is Unavailable, a cost needs none');
+      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM1,000 of holding (the instalment from the day the balance falls due) make the effective cost RM442,530, an 11.494% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM383,103 at 15% under the market value (RM425,000) and RM387,919 at a cost of RM430,000 — each to the ringgit, worked by hand; a margin with no market value is Unavailable, a cost needs none');
+    });
+
+    /* V3b — THE HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
+       2026; the 20 Oct sweep, auction-3, auction-5, auction-8). On V3's
+       auction (a RM360,000 loan at 0% over 30 years: RM1,000 a month),
+       with RM300 a month of maintenance and RM600 a year of assessment —
+       RM350 a month of running costs with no rent — by hand:
+       - holding 4 months, the balance due in 90 days: 4 × RM350.00 running
+         costs from the sale + (4 − 90 ÷ 30 =) 1 month × RM1,000.00
+         instalment = RM2,400.00, in the effective cost, and in the cash
+         required as a line of its own (+RM2,400.00 on the same deal with
+         no holding entered);
+       - the flows count the hold's years from the end of the 4 months:
+         the cash required at 0, year y at 4 ÷ 12 + y; year 1 pays 12
+         instalments and the loan has run 1 month when it starts, so the
+         sale (10 years + 6 months selling) settles 360,000 − 127 × 1,000
+         = RM233,000;
+       - holding 2 months: the balance falls due a month after it ends, so
+         no instalment in the holding (RM700.00), year 1 pays 11, and the
+         sale settles 360,000 − 125 × 1,000 = RM235,000;
+       - the days not entered: the instalment's start is not known, so the
+         holding is not priced, not counted, and the cash required names
+         it with its reason;
+       - the holding row prints "4 months × RM350.00 running costs + 1
+         month × RM1,000.00 instalment" beside "+RM2,400.00". */
+    await vtry('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const au = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionComp2: 520000, auctionComp3: 480000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90,
+          auctionRepairs: 15000, arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 300, arrearsUtilities: 500, possessionCost: 2000, auctionLegal: 5000, auctionHoldMonths: 4,
+          maintenance: 300, assessment: 600 });
+        const one = (d) => { const m = dealModel(d), a = auctionModel(d, m), h = a.adds.find(s => s.id === 'holding');
+          const line = m.costGroups.flatMap(g => g.items).find(it => it[2]?.id === 'auctionHolding');
+          return { hold: h.amount, eff: a.effective, line: line ? [line[0], line[1]] : null, cash: m.safeCashRequired, missing: m.missingCostLines.map(x => x.label + ': ' + (x.why || '')),
+            times: m.auctionHolding?.flowTimes?.slice(0, 3) || null, flow0: m.flows[0], debt1: m.path[0].debt, out: m.outstanding, notEntered: a.notEntered, holdYears: d.holdYears, sell: d.sellMonths,
+            row: (() => { const fig = typeof auctionWaterfall === 'function' ? auctionWaterfall(a, 'mt') : null; const li = fig?.querySelector?.('[data-step="holding"]'); return li ? li.textContent.replace(/\\s+/g, ' ').trim() : null; })() };
+        };
+        const noHold = { ...au, auctionHoldMonths: null };
+        return JSON.stringify({ four: one(au), two: one({ ...au, auctionHoldMonths: 2 }), noDays: one({ ...au, auctionBalanceDays: null }), none: one(noHold) }); })()`));
+      const p = [], { four, two, noDays, none } = r;
+      if (four.holdYears !== 10 || four.sell !== 6) p.push(`the hold is not the one worked by hand: ${four.holdYears} years, ${four.sell} months selling`);
+      if (!near(four.hold, 2400) || !near(four.eff - none.eff, 2400)) p.push(`holding 4 months: ${four.hold} (effective ${four.eff} against ${none.eff} with none) — by hand RM2,400.00`);
+      if (!four.line || four.line[0] !== 'Holding until it earns: 4 months, no rent' || !near(four.line[1], 2400) || !near(four.cash - none.cash, 2400)) p.push(`the cash required's holding line ${JSON.stringify(four.line)}, the cash required ${four.cash} against ${none.cash} — by hand +RM2,400.00`);
+      if (!four.times || !near(four.times[1], 4 / 12 + 1, 1e-12) || four.times[0] !== 0 || !near(four.flow0, -four.cash)) p.push(`the flows' moments ${JSON.stringify(four.times)}, the first flow ${four.flow0} — by hand 0, 1.3333, the cash required`);
+      if (!near(four.debt1, 12000) || !near(four.out, 233000)) p.push(`4 months: year 1 pays ${four.debt1}, the sale settles ${four.out} — by hand 12,000 and 233,000`);
+      if (!near(two.hold, 700) || !near(two.debt1, 11000) || !near(two.out, 235000)) p.push(`2 months: holding ${two.hold}, year 1 pays ${two.debt1}, the sale settles ${two.out} — by hand 700, 11,000 and 235,000`);
+      if (noDays.hold !== null || !noDays.notEntered.includes('Holding') || !noDays.missing.some(x => /^Holding until it earns: 4 months, no rent: Needs the days to pay the balance/.test(x)) || noDays.times !== null) p.push(`the days not entered: holding ${noDays.hold}, missing ${JSON.stringify(noDays.missing)}`);
+      if (none.line || none.times !== null) p.push('with no holding months entered the deal carries a holding line or a timed hold');
+      if (!r.four.row || !r.four.row.includes('+RM2,400.00') || !r.four.row.includes('4 months × RM350.00 running costs + 1 month × RM1,000.00 instalment')) p.push(`the holding row reads "${r.four.row}"`);
+      if (p.length) fail('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', p);
+      else ok('val V3b: the auction holding months, worked by hand — 4 × RM350.00 running costs from the sale + 1 × RM1,000.00 instalment from the day the balance falls due = RM2,400.00, in the effective cost and the cash required alike; the flows count the hold from the end of the holding (year 1 at 1.33 years), the loan from the day it was drawn (RM233,000 settled); 2 months: no instalment, RM700.00, RM235,000; without the days, not priced and named; the row prints its own working');
     });
 
     await vtry('val V4: new development — construction interest, the completion delay, the templates by asset', async () => {
