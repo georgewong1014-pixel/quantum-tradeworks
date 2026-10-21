@@ -5778,6 +5778,26 @@ try {
         if (p.length) fail('scenario-lab-verify V17: the sweep’s wording defects', p);
         else ok(`scenario-lab-verify V17: with a rate on a loan with no schedule the month after tax reads "${r.t1.twin}", not RM0; a cash purchase's price solve says "${r.s5.sub}"; the proposal's renovation overrun rows read ${r.s3.values.join(' and ')} (the reserve in); the monthly commitment is marked before tax once a rate is entered; the loan still owed is the one when the sale completes`);
       });
+
+      /* V18: the Lab's refusal of a negative rate, rent or renovation leaves
+         a rate of 0% taken — with the calculator's caution in sight — and a
+         100% deposit (no loan) worked, as in the calculator. */
+      await vStep('V18', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          const zeroWarn = () => [...document.querySelectorAll('#lab-root .lab-note-warn')].filter(n => !n.hidden && /^The rate is 0%/.test(txt(n))).length;
+          const n0 = await typeBox('ratePct', 0);
+          const rate = { work: A().work.ratePct, box: n0.value, warn: zeroWarn(), model: A().cur?.m?.zeroRateModelled };
+          const n1 = await typeBox('downPct', 100);
+          const cash = { work: A().work.downPct, box: n1.value, loan: A().cur?.m?.loan, nan: /NaN|Infinity/.test(txt(document.getElementById('lab-root'))), warn: zeroWarn() };
+          return { rate, cash };
+        })()`);
+        const p = [];
+        if (r.rate.work !== 0 || r.rate.box !== '0' || r.rate.warn !== 1 || r.rate.model !== true) p.push(`a rate typed as 0 reads ${JSON.stringify(r.rate)}: it should be taken, with its caution in sight`);
+        if (r.cash.work !== 100 || r.cash.loan !== 0 || r.cash.nan || r.cash.warn !== 0) p.push(`a deposit typed as 100 reads ${JSON.stringify(r.cash)}: it should be taken, with no loan, no NaN and no zero-rate caution`);
+        if (p.length) fail('scenario-lab-verify V18: 0% and a 100% deposit are still taken', p);
+        else ok('scenario-lab-verify V18: a rate typed as 0 is taken and the Lab says "The rate is 0%…" in sight; a deposit typed as 100 is taken with no loan, nothing prints NaN, and the 0% caution goes');
+      });
     } finally {
       await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
     }
