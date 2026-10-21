@@ -38862,7 +38862,8 @@ const CP_IN = {
   tenancyMonths: (v) => cpPlural(v, 'month'), daysToFirstTenant: (v) => cpPlural(v, 'day'), depositMonths: (v) => `${cpPlural(num0(v), 'month')} of rent`,
   repairApprovalLimit: (v) => cpMoneyIn(num0(v)), inspectionsPerYear: (v) => `${cpN(num0(v))} a year`, arrearsChaseDays: (v) => cpPlural(v, 'day'),
   ownerReportCadence: (v) => cpCap(String(v || 'not agreed')), tenantPaysUtilities: (v) => (v ? 'By the tenant' : 'By the owner'),
-  ownUseWeeks: (v) => `${cpPlural(num0(v), 'week')} a year`,
+  /* Recorded, not used: dealModel never reads the weeks, so no figure in this proposal allows for them (the 20 Oct 2026 sweep, taxed-8). */
+  ownUseWeeks: (v) => `${cpPlural(num0(v), 'week')} a year${num0(v) > 0 ? ' — recorded; no figure here allows for it' : ''}`,
   holdYears: (v) => cpPlural(v, 'year'), apprecPct: (v) => `${cpPct(v)} a year`, sellMonths: (v) => cpPlural(num0(v), 'month'),
   agentPct: (v) => cpPct(num0(v)), exitLegalPct: (v) => cpPct(num0(v)),
   disposerCategory: (v) => rpgtCategory(v).label, marginalTaxPct: (v) => (num0(v) > 0 ? cpPct(v) : 'Not entered'),
@@ -39210,9 +39211,12 @@ function cpFinancingSection(d, m) {
     ['Monthly instalment', cpFig('instalment', cpMoney(m.instalment)), !loan ? 'Nothing is owed to a lender: there is no loan.'
       : isNum(m.instalment) ? `Owed to the lender each month: ${cpPct(d.ratePct, 2)} a year over ${cpPlural(d.tenureYears, 'year')}` : 'Not computed: the loan has no repayment schedule at the entered tenure'],
     loan ? ['Loan repayments a year', cpFig('annualDebtService', cpMoney(m.annualDebtService))] : null,
-    !isNum(cf) ? null : [LAB_FIGURES.find(f => f.key === 'monthlyCommitment').label(d), cpFig('monthlyCommitment', cpMoney(mc)), mc > 0
+    /* Before tax on the rent where a rate is entered, as the Lab's row says
+       (the 20 Oct 2026 sweep, lab-refurb-6). */
+    !isNum(cf) ? null : [LAB_FIGURES.find(f => f.key === 'monthlyCommitment').label(d), cpFig('monthlyCommitment', cpMoney(mc)), (mc > 0
       ? `What the owner pays from their own income each month: ${lets ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`}.`
-      : `Nothing from the owner’s income: ${lets ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}.`],
+      : `Nothing from the owner’s income: ${lets ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}.`)
+      + (m.taxComputed ? ' Before tax on the rent.' : '')],
     !isNum(cf) || !(m.annualOwnerSubsidy > 0) ? null : ['From the owner’s own income, a year', cpFig('annualOwnerSubsidy', cpMoney(m.annualOwnerSubsidy)),
       lets ? `The monthly commitment over a year — what the rent, after vacancy and running costs, leaves unpaid${loan ? ' of the loan repayments' : ' of the running costs'} — before any major repair.`
         : `The ${loan ? 'loan repayments and the running costs together' : 'running costs'}: this class earns no rent to meet them.`],
@@ -39514,7 +39518,16 @@ function cpSplitItems(d, m, cash, paid = false) {
   if (isNum(m.cashflowMonthly) && m.cashflowMonthly < 0) put('risks', 'Monthly position as modelled', `${cpSignedMoney(m.cashflowMonthly)} a month`, sample.size ? 'illustrative' : 'modelled', 'Met from the owner’s own income every month.', 'position');
   if (loan) for (const r of (m.stress?.rate || []).slice(1)) stressRow(`Interest rate ${r.label} (${cpPct(r.ratePct, 2)})`, r.monthly, 'The monthly position with the rate raised and everything else held.');
   if (lets) for (const r of (m.stress?.vacancy || []).slice(1)) stressRow(`Vacancy at ${r.label}`, r.monthly, 'The monthly position with that share of the year empty.');
-  if (num0(d.renovation) > 0) for (const r of (m.stress?.renovation || []).slice(1, 3)) put('risks', `Renovation ${r.label}`, `${cpMoney(r.cash)} cash required`, sample.size ? 'illustrative' : 'modelled', `The renovation at ${cpMoney(r.renovation)}; every other line as entered.`, 'stress');
+  /* An overrun row's cash is the ledger before the reserve (the model's
+     stress rows; the calculator's "Cash before reserve", QT-002). Printed as
+     "cash required" it read RM2,138 under the headline that counts the
+     reserve (the 20 Oct 2026 sweep, stress-3): with the reserve added back,
+     as the calculator's "Cash required including reserve" column does, it
+     is the headline's figure at that renovation — and where the reserve
+     cannot be priced, it is said to be without it. */
+  if (num0(d.renovation) > 0) for (const r of (m.stress?.renovation || []).slice(1, 3)) put('risks', `Renovation ${r.label}`,
+    isNum(m.reserveCash) ? `${cpMoney(r.cash + m.reserveCash)} cash required` : `${cpMoney(r.cash)} cash before the reserve`, sample.size ? 'illustrative' : 'modelled',
+    `The renovation at ${cpMoney(r.renovation)}; every other line as entered${isNum(m.reserveCash) ? `, the ${cpMoney(m.reserveCash)} reserve included` : ''}.`, 'stress');
   if (cashPartial(m)) put('risks', 'Cash required — partial', cpMoney(cash.total), 'unavailable', `${cpCap(cashPartial(m).words)}: the total is short by whatever ${cashPartial(m).n === 1 ? 'that line comes' : 'those lines come'} to.`, 'gated');
   if (cm && !cm.lease.missing.length) for (const s of cm.lease.scenarios || []) {
     if (s.status === 'unavailable') continue;
@@ -47083,7 +47096,7 @@ const CAPABILITY_REGISTER = [
   { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
     now:'A/B/C/D/U with hard gates and evidence caps.' },
   { name:'Scenario Lab', status:'beta', path:'/property/lab',
-    now:'Five inputs moved live; seven results from the calculator’s model; up to three scenarios compared six ways.',
+    now:'Nine inputs moved live; eight results from the calculator’s model; up to three scenarios compared six ways.',
     gate:'Moves are kept in this tab until saved as a scenario. Appreciation is your assumption; no price history is held.' },
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
     now:'Records real candidates with source, availability date, four separate prices, grade and a next action with an owner.',
@@ -48663,9 +48676,14 @@ const LAB_MORE_KEYS = ['tenureYears', 'vacancyPct', 'maintenance', 'holdYears'];
 const LAB_INPUTS = [...LAB_INPUT_LIST.filter(x => !LAB_MORE_KEYS.includes(x.k)), ...LAB_MORE_KEYS.map(k => LAB_INPUT_LIST.find(x => x.k === k))];
 const LAB_INPUT_BY_K = Object.fromEntries(LAB_INPUTS.map(x => [x.k, x]));
 /* The knobs whose typed entry the calculator's own refusal covers
-   (dealEntryRefused, 70-property.js): the four phase 2 added. The first five
-   keep the entry they have always taken. */
-const LAB_REFUSES = new Set(['tenureYears', 'vacancyPct', 'maintenance']);
+   (dealEntryRefused, 70-property.js, QT-001–003), with its reasons: the
+   rate, the rent and the renovation, and the four phase 2 added. A negative
+   rate, rent or renovation was taken here and priced — a repayment, a cash
+   required and a rate of return the calculator's own boxes refuse to make
+   (the 20 Oct 2026 sweep, lab-refurb-2). The price keeps its rule — 0 runs
+   no model and says it needs a price (L15) — and the deposit its clamp to
+   0–100 (F7). */
+const LAB_REFUSES = new Set(['ratePct', 'rent', 'renovation', 'tenureYears', 'vacancyPct', 'maintenance']);
 /* An end of a span, as the span note prints it. */
 const labEdge = (inp, v) => (inp.edge ? inp.edge(v) : inp.k === 'downPct' || inp.k === 'ratePct' ? `${fmtNum(v, inp.k === 'ratePct' ? 2 : 0)}%` : labMoney(v));
 /* Whether a knob means anything for this column's class: a parcel has no
@@ -48689,6 +48707,13 @@ const labWhose = (d, k) => (isTouched(d, k) ? 'your assumption' : 'sample assump
    development timed from vacant possession (ndTimingOf, 75-property-
    grade.js), "10 years after VP". */
 const labSaleWhen = (d) => { const n = normHoldYears(d?.holdYears); return d && ndTimingOf(d) ? `${n} year${n === 1 ? '' : 's'} after VP` : `year ${n}`; };
+/* What the yearly cash flows are after, in a row's words: tax on the rent
+   only where a marginal rate is entered (taxComputed, 75-property-grade.js),
+   as the monthly position's note says it. The rate of return and the total
+   profit said "after tax" with no rate entered, on flows no tax was taken
+   from (the 20 Oct 2026 sweep: taxed-7, land-commercial-6, stress-8). */
+const labFlowTax = (d, m) => (m.letsToTenant === false ? 'with no rent to tax'
+  : m.taxComputed ? `after tax on the rent at ${labPctIn(d.marginalTaxPct)}` : 'before tax on the rent (no marginal rate entered)');
 const LAB_FIGURES = [
   { key: 'instalment', label: () => 'Monthly repayment', fmt: 'money0', help: 'propInstalment',
     read: (m) => m.instalment,
@@ -48742,8 +48767,12 @@ const LAB_FIGURES = [
     read: (m) => monthlyCommitment(m),
     /* A note only where there is no figure: "Funded from your income" and
        "Property funds itself", the calculator's tile lines, are said by the
-       row's opened formula — four words a row the first frame has not got. */
-    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : null),
+       row's opened formula — four words a row the first frame has not got.
+       And where a marginal rate is entered: the commitment is the monthly
+       position's, before tax on the rent, under a row that gives the month
+       after it (the 20 Oct 2026 sweep, lab-refurb-6). With no rate, every
+       figure is before tax and the row says nothing more. */
+    note: (m) => (!isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown' : m.taxComputed ? 'before tax on the rent' : null),
     formula: (d, m) => {
       if (!isNum(m.cashflowMonthly)) return 'Not computable: with no repayment schedule the loan’s monthly cost is unknown, and so is what the owner funds.';
       const mc = monthlyCommitment(m), loan = m.loan > 0;
@@ -48751,9 +48780,11 @@ const LAB_FIGURES = [
          1.00×) is said here, beside the figure it explains: the rent's
          cover of the repayments, the commitment being what it leaves unmet. */
       const cover = isNum(m.dscr) ? ` Debt-service cover ${fmtX(m.dscr, 2)}: net operating income ${labMoney(m.noi)} a year ÷ ${labMoney(m.annualDebtService)} of loan repayments a year${m.dscr < 1 ? ' — below 1.00×, so the rent does not meet them' : ''}.` : '';
+      const taxed = m.taxComputed && isNum(m.path?.[0]?.cf)
+        ? ` That is before tax on the rent: after tax at ${labPctIn(d.marginalTaxPct)}, year 1’s position is ${labMoney(m.path[0].cf / 12)} a month.` : '';
       return (mc > 0
         ? `What the owner pays from their own income each month: ${m.letsToTenant ? `the part of the ${loan ? 'instalment and the running costs' : 'running costs'} that the rent, after vacancy, does not meet` : `the ${loan ? 'instalment and the running costs' : 'running costs'}, as this class earns no rent`} — the monthly position of ${labMoney(m.cashflowMonthly)} with its sign taken off = ${labMoney(mc)} a month.`
-        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`) + cover;
+        : `Nothing from the owner’s income: ${m.letsToTenant ? `the rent, after vacancy, meets the running costs${loan ? ' and the instalment' : ''}` : 'there is no instalment or running cost to meet'}. The monthly position is ${labMoney(m.cashflowMonthly)}.`) + taxed + cover;
     } },
   { key: 'netYield', label: () => 'Net yield', fmt: 'pct2', help: 'netYield',
     read: (m) => m.netYield,
@@ -48774,12 +48805,17 @@ const LAB_FIGURES = [
     read: (m) => m.valueLessLoanAtExit,
     note: (m) => (isNum(m.valueLessLoanAtExit) ? null : 'Not computable — the loan has no schedule'),
     formula: (d, m) => {
-      const n = normHoldYears(d.holdYears), t = m.ndTiming;
+      const n = normHoldYears(d.holdYears), t = m.ndTiming, sm = num0(d.sellMonths);
       /* Timed from VP: the price grows from signing, the years to VP and
-         the hold (ndTimingOf). */
+         the hold (ndTimingOf). The loan is the one still owed when the sale
+         completes — after the instalments paid while it sells (settledAt,
+         75-property-grade.js) — and the words say so on both branches: the
+         subsale's said "the loan still owed", read as year N's balance,
+         which the full report's year table prints RM4,912 higher on the
+         sample (the 20 Oct 2026 sweep, lab-refurb-7). */
       return t
         ? `Value ${n} year${n === 1 ? '' : 's'} after vacant possession ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — from signing: ${ndYears(t.saleYears)} years, vacant possession being ${t.vpAt} months after signing; plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed when the sale completes, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`
-        : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
+        : `Value at year ${n} ${labMoney(m.exitValue)} (${labMoney(num0(d.price))} grown at ${fmtNum(num0(d.apprecPct), 1)}% a year — ${labWhose(d, 'apprecPct')} — for ${labYears(n)}, plus ${labMoney(m.renoRecovered)} of the renovation recovered) less the loan still owed when the sale completes${sm > 0 ? `, ${sm} month${sm === 1 ? '' : 's'} after year ${n}` : ''}, ${isNum(m.outstanding) ? labMoney(m.outstanding) : 'which cannot be computed'}.`;
     } },
   { key: 'irrPct', label: (d) => `If sold ${labSaleWhen(d).replace(/^year/, 'in year')}`, fmt: 'pct2', help: 'propIrr',
     read: (m) => m.irrPct,
@@ -48788,8 +48824,8 @@ const LAB_FIGURES = [
       const n = normHoldYears(d.holdYears), rr = m.rpgtResult, t = m.ndTiming;
       const sale = t ? `a sale ${n} year${n === 1 ? '' : 's'} after vacant possession` : `a sale in year ${n}`;
       return (isNum(m.irrPct) ? (t
-          ? `The rate of return that sets every year’s cash flow after tax from vacant possession, ${t.vpAt} months after signing, and ${sale} — ${ndYears(t.saleYears)} years after signing — against the ${labMoney(m.equityOut)} committed at signing (the reserve comes back at the sale). No rent and no instalment come before vacant possession. The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth from signing — ${labWhose(d, 'apprecPct')}. `
-          : `The rate of return that sets every year’s cash flow after tax, and ${sale}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `)
+          ? `The rate of return that sets every year’s cash flow ${labFlowTax(d, m)} from vacant possession, ${t.vpAt} months after signing, and ${sale} — ${ndYears(t.saleYears)} years after signing — against the ${labMoney(m.equityOut)} committed at signing (the reserve comes back at the sale). No rent and no instalment come before vacant possession. The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth from signing — ${labWhose(d, 'apprecPct')}. `
+          : `The rate of return that sets every year’s cash flow ${labFlowTax(d, m)}, and ${sale}, against the ${labMoney(m.equityOut)} committed at the start (the reserve comes back at the sale). The sale is priced at ${fmtNum(num0(d.apprecPct), 1)}% a year growth — ${labWhose(d, 'apprecPct')}. `)
         : `No rate of return: ${m.irrWhy || 'the flows do not give one'}. `)
         + (rr ? `${t ? `Selling ${n} year${n === 1 ? '' : 's'} after vacant possession, ${ndYears(t.saleYears)} years after the SPA — gains tax counts from the SPA date` : `Selling in year ${n}`}: ${rr.why} ${rr.tax > 0 ? `That is ${labMoney(rr.tax)} on a gain of ${labMoney(rr.chargeableGain)} after ${labMoney(rr.allowable)} of allowable costs.` : 'Nothing is charged on this scenario.'} `
           + 'Rates are cited to Schedule 5 of the Real Property Gains Tax Act and have not been verified against the current schedule or any exemption order in force. Confirm before relying on the figure.' : '');
@@ -48801,7 +48837,7 @@ const LAB_PAID = [
   { key: 'netExitProceeds', label: 'Net sale proceeds', fmt: 'money0', help: 'propNetExit',
     formula: (d, m) => `${labMoney(m.valueLessLoanAtExit)} value less loan − agent ${labMoney(m.agentFee)} − legal ${labMoney(m.exitLegal)} − gains tax ${labMoney(m.rpgt)} − months carried while selling ${labMoney(m.carryWhileSelling)} = ${labMoney(m.netExitProceeds)}.` },
   { key: 'totalProfit', label: 'Total profit', fmt: 'money0', help: null,
-    formula: (d, m) => `Every year’s cash flow after tax, plus the net sale proceeds, less the ${labMoney(m.acquisitionCost)} of cash the purchase took (everything paid out but the reserve): ${labMoney(m.totalProfit)}.` },
+    formula: (d, m) => `Every year’s cash flow ${labFlowTax(d, m)}, plus the net sale proceeds, less the ${labMoney(m.acquisitionCost)} of cash the purchase took (everything paid out but the reserve): ${labMoney(m.totalProfit)}.` },
 ];
 const labPaid = (d) => !!d && propertyReportUnlocked(d.projectId);
 
@@ -50431,10 +50467,11 @@ function labTyped(P, lab, k, num) {
   }
   let v = num0(num.value);
   if (k === 'downPct') v = clamp(v, 0, 100);
-  /* The four knobs added in phase 2 take an entry as the calculator's box
-     does: one the model cannot mean (dealEntryRefused) keeps the box's
-     figure, said; whole years are whole, and a holding period is held to the
-     model's own limits (normHoldYears, as the calculator's box does). */
+  /* The rate, the rent, the renovation and the four knobs added in phase 2
+     take an entry as the calculator's box does: one the model cannot mean
+     (dealEntryRefused) keeps the box's figure, said; whole years are whole,
+     and a holding period is held to the model's own limits (normHoldYears,
+     as the calculator's box does). */
   if (inp.whole) v = k === 'holdYears' ? normHoldYears(v) : Math.round(v);
   const refusal = LAB_REFUSES.has(k) ? dealEntryRefused(k, Number(num.value)) : null;
   if (refusal) {
@@ -50781,13 +50818,18 @@ function labMetricView(metric, lab) {
       rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? fmtPct(r.m.netYield, 2) : 'not computed yet', r.m ? fmtPct(r.m.grossYield, 2) : '—', r.m ? fmtPct(r.m.cashOnCash, 2) : '—']) };
   } else if (metric === 'cashflow') {
     const anyTax = rows.some(r => r.m?.taxComputed);
+    /* Year 1's month after tax, where the model has one: with a rate entered
+       on a loan with no schedule it has none (path[0].cf null), and null ÷ 12
+       printed RM0 beside a position of "—" (the 20 Oct 2026 sweep, taxed-1). */
+    const afterTax = (m) => (m.taxComputed && isNum(m.path?.[0]?.cf) ? m.path[0].cf / 12 : null);
     vm.tables.push(one('cashflowMonthly', 'money0', r => r.m.cashflowMonthly, {
-      ticks: r => (r.m.taxComputed && isNum(r.m.path?.[0]?.cf) ? [{ value: r.m.path[0].cf / 12, label: 'after tax' }] : []),
-      note: r => (r.m.taxComputed ? `after tax on the rent ${labMoney(r.m.path[0].cf / 12)}` : 'before tax on the rent'),
+      ticks: r => (isNum(afterTax(r.m)) ? [{ value: afterTax(r.m), label: 'after tax' }] : []),
+      note: r => (!r.m.taxComputed ? 'before tax on the rent' : isNum(afterTax(r.m)) ? `after tax on the rent ${labMoney(afterTax(r.m))}` : 'after tax on the rent: not computable — the loan has no schedule'),
       table: { form: 'diverging', title: 'Monthly position, about nought' } }));
     if (!anyTax) vm.words.push('Every column is before tax on the rent: no marginal tax rate is entered.');
     vm.twin = { caption: 'Show every figure in this view', headers: ['Column', 'Monthly position', 'After tax on the rent'],
-      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? labMoney(r.m.cashflowMonthly) : 'not computed yet', r.m?.taxComputed ? labMoney(r.m.path[0].cf / 12) : 'no tax rate entered']) };
+      rows: () => rows.map(r => [`${r.key} — ${esc(r.name)}`, r.m ? labMoney(r.m.cashflowMonthly) : 'not computed yet',
+        !r.m ? '—' : !r.m.taxComputed ? 'no tax rate entered' : isNum(afterTax(r.m)) ? labMoney(afterTax(r.m)) : 'not computable']) };
   } else if (metric === 'entry') {
     vm.tables.push(one('safeCashRequired', 'money0', r => r.m.safeCashRequired, {
       parts: r => [{ part: 'transactionCash', value: r.m.transactionCash, label: 'to complete' },
@@ -51902,7 +51944,7 @@ function labRefurbCard(P, lab) {
     num('rfSettlement', 'Loan settlement (RM)', 1000, 'not entered — the loan as modelled'), basis('rfSettlementBasis', 'The settlement figure is')]));
   box.append(sf);
   const how = el('details', { class: 'pc-more ls-l3 au-more', id: labId(P, 'rf-how') }, [el('summary', { class: 'pc-more-sum' }, 'How each option is worked out'),
-    el('p', { class: 'pc-more-body au-note' }, 'Once let, an option’s monthly position and net operating income are the calculator’s own at your rent plus the uplift, every other figure held; its net yield is that income over the price plus the works. The monthly position shown averages the first twelve months: the months without rent cost what the property costs with no rent coming in (the instalment and the running costs). Cash required is the works plus those months. Improvement payback is the works’ cost ÷ the net operating income they add a year — “Not demonstrated” when they add none, or no uplift is entered. A sale is your price less the calculator’s agent’s and legal percentages and the loan settlement — your figure, or the loan as modelled before any repayment — before gains tax, which turns on how long you have held it.')]);
+    el('p', { class: 'pc-more-body au-note' }, 'Every option is worked on the column you are in, its moves included. Once let, an option’s monthly position and net operating income are the calculator’s at that column’s rent plus the uplift, every other figure held; its net yield is that income over the price plus the works. The monthly position shown averages the first twelve months: the months without rent cost what the property costs with no rent coming in (the instalment and the running costs). Cash required is the works plus those months. Improvement payback is the works’ cost ÷ the net operating income they add a year — “Not demonstrated” when they add none, or no uplift is entered. A sale is your price less the calculator’s agent’s and legal percentages and the loan settlement — your figure, or the loan as modelled before any repayment — before gains tax, which turns on how long you have held it.')]);
   box.append(how);
   /* The lens: which rows lead, never the options' order. */
   const fs = el('fieldset', { class: 'lab-pick lab-pick-lens' });
@@ -51945,13 +51987,19 @@ function labRfPaint(P, lab) {
   const lens = LAB_LENS_BY_ID[lab.lens] ? lab.lens : LAB_LENS_DEFAULT;
   const rows = RF_LENS_ORDER[lens].map((id, i) => ({ id, label: RF_ROW_LABEL[id], level: i < 2 ? 1 : 2, cells: r.options.map(o => rfCell(id, o, { d })) }));
   const pending = !!lab.model && labAnswersPending(lab);
-  const sig = JSON.stringify([lens, rows.map(x => [x.id, x.cells.map(c => [c.text, c.sub, c.kind, !!c.na])]), pending]);
-  labText(rf.say, `${rfWords(r)} ${LAB_LENS_BY_ID[lens].label} lens: ${RF_ROW_SHORT[rows[0].id]} and ${RF_ROW_SHORT[rows[1].id]} lead; the options keep their order.`);
+  /* WHOSE FIGURES, SAID (the 20 Oct 2026 sweep, lab-refurb-4). Every option
+     is worked on the active column — on a saved property B, a scenario or a
+     copy carrying the reader's moves — and the card called Do nothing "the
+     property as modelled" without naming it. The say line and Do nothing's
+     header name the column, as the chain's header does. */
+  const named = `${col.key} — ${labShownName(lab, col)}`;
+  const sig = JSON.stringify([lens, named, rows.map(x => [x.id, x.cells.map(c => [c.text, c.sub, c.kind, !!c.na])]), pending]);
+  labText(rf.say, `Worked on ${named}${labMoveCount(col) ? ', with its unsaved moves' : ''}. ${rfWords(r)} ${LAB_LENS_BY_ID[lens].label} lens: ${RF_ROW_SHORT[rows[0].id]} and ${RF_ROW_SHORT[rows[1].id]} lead; the options keep their order.`);
   if (rf.sig === sig) return;
   rf.sig = sig;
   const pre = labId(P, 'rf');
   const kids = [el('div', { class: 'lab-xr-row lab-xr-cols' }, r.options.map(o => el('div', { class: 'lab-xr-colhd lab-rf-colhd', 'data-col': o.id, 'data-option': o.id }, [
-    el('strong', { class: 'lab-xr-colname' }, o.label), el('span', { class: 'lab-xr-ra' }, o.id === 'none' ? 'the property as modelled' : o.id === 'sell' ? 'your price, less selling costs and the loan' : 'your cost, uplift and void')])))];
+    el('strong', { class: 'lab-xr-colname' }, o.label), el('span', { class: 'lab-xr-ra' }, o.id === 'none' ? `column ${col.key}, as it stands` : o.id === 'sell' ? 'your price, less selling costs and the loan' : 'your cost, uplift and void')])))];
   rows.forEach(row => {
     const hid = `${pre}-row-${row.id}`;
     const rowEl = el('div', { class: `lab-xr-row is-l${row.level}`, role: 'group', 'aria-labelledby': hid, 'data-row': row.id });
@@ -52242,7 +52290,10 @@ function labPaintPanel(P, { initial = false } = {}) {
       const moved = (f) => LAB_FORMATS[f.fmt](f.read(m, d)) !== LAB_FORMATS[f.fmt](f.read(ref, col.baseInputs));
       const movedRows = LAB_FIGURES.filter(moved).map(f => f.label(d).replace(/ \(before selling costs\)$/, '').toLowerCase().replace(/\bvp\b/g, 'VP'));
       if (labPaid(d)) LAB_PAID.forEach(f => { if (LAB_FORMATS[f.fmt](m[f.key]) !== LAB_FORMATS[f.fmt](ref[f.key])) movedRows.push(f.label.toLowerCase()); });
-      s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the seven'}.`;
+      /* "None of the results", not a count: "none of the seven" stood after
+         the chain grew to eight rows, ten with the report's two (the 20 Oct
+         2026 sweep, lab-refurb-8). */
+      s = `Moved by ${col.key}’s moves (${moves.join(', ')}): ${movedRows.length ? movedRows.join('; ') : 'none of the results'}.`;
       /* WHAT RENOVATION DOES NOT MOVE, said and nothing more. "Renovation
          moves only the cash required and the rate of return" was false
          wherever any of it is recovered at the sale (value less loan and
@@ -52687,6 +52738,35 @@ function priceGapFormula(g) {
     + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a price of this kind of property.` : '')
     + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
 }
+/* WHAT MOVES THE MEASURE WITH THE PRICE, by its cause (the 20 Oct 2026
+   sweep, stress-5). Every solve said the loan and its repayment rise with
+   the price, and every unbounded one that a valuation held the loan — a
+   purchase with no loan and no valuation included, where nothing in the
+   monthly position moves with the price at all. The loan is a share of the
+   price, of the lower of it and an entered valuation, or of the valuation
+   alone (dealModel's lender basis); net yield is before the loan. */
+function priceSolveLoan(d) {
+  if (num0(d?.downPct) >= 100) return { kind: 'none' };
+  const val = isNum(d?.bankValuation) && d.bankValuation > 0 ? d.bankValuation : null;
+  const rule = d?.valuationRule || 'lower_of';
+  if (val != null && rule === 'valuation_only') return { kind: 'valuation', val };
+  if (val != null && rule === 'lower_of') return { kind: 'capped', val };
+  return { kind: 'price' };
+}
+function priceSolveMoves(t, d) {
+  if (t.id !== 'monthly') return 'as the price rises the net yield falls, so the target holds below one price and fails above it';
+  const L = priceSolveLoan(d);
+  if (L.kind === 'none') return 'with no loan, nothing in the monthly position moves with the price, so the target holds at every price or at none';
+  if (L.kind === 'valuation') return `the loan is lent on the ${pqMoney(L.val)} valuation you entered, not on the price, so nothing in the monthly position moves with the price: the target holds at every price or at none`;
+  if (L.kind === 'capped') return `as the price rises the loan and its repayment rise up to the ${pqMoney(L.val)} valuation you entered and no further, so the monthly position falls until then and holds after it`;
+  return 'as the price rises the loan and its repayment rise and the monthly position falls, so the target holds below one price and fails above it';
+}
+function priceSolveUnboundedWhy(s, d) {
+  const t = s.target, L = t.id === 'monthly' ? priceSolveLoan(d) : { kind: 'yield' };
+  if (L.kind === 'none') return 'With no loan, the price does not move the monthly position.';
+  if (L.kind === 'valuation' || (L.kind === 'capped' && L.val < s.ceiling)) return 'A loan held to an entered valuation stops following the price.';
+  return `At ${pqMoney(s.ceiling)} the ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}.`;
+}
 /* The solve, in words. */
 function priceSolveWords(s, d) {
   const t = s.target;
@@ -52702,13 +52782,13 @@ function priceSolveWords(s, d) {
     sub: t.id === 'monthly' ? 'The rent, the running costs or the loan terms, not the price, stand in the way.' : 'The rent and the running costs, not the price, stand in the way.' };
   if (s.status === 'unbounded') return { figure: `Above ${pqMoney(s.ceiling)}`,
     finding: `The figures you entered give ${t.words} of at least ${t.fmt(s.value)} at every price up to ${pqMoney(s.ceiling)}, the top of the range tried.`,
-    sub: 'A loan held to an entered valuation stops following the price.' };
+    sub: priceSolveUnboundedWhy(s, d) };
   return { figure: '—', finding: s.why || 'Not computable for these inputs.', sub: null };
 }
 function priceSolveFormula(s, d) {
   if (!s || s.status === 'no-target') return 'Set a target — a monthly position or a net yield — and the price that meets it is found by running the calculator’s own model at trial prices, every other input held.';
   const t = s.target && { ...s.target, fmt: s.target.id === 'monthly' ? (v) => fmtMoney(v, 'MYR', 2) : (v) => fmtPct(v, 4) };
-  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: as the price rises the loan and its repayment rise and the net yield falls, so the target holds below one price and fails above it.`;
+  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: ${priceSolveMoves(t || {}, d)}.`;
   if (s.status === 'solved') return `${how} Tolerance: one ringgit on the price, none on the target — at ${pqMoney(s.price)} ${t.label.toLowerCase()} is ${t.fmt(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price + 1)} it is ${t.fmt(s.above)}${s.aboveMeets ? '' : ', short of it'}. ${s.runs} runs of the model.`;
   if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)} — so no price in the range meets it. ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
   if (s.status === 'unbounded') return `${how} At ${pqMoney(s.ceiling)}, the top of the range, ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}. ${s.runs} runs of the model.`;
@@ -53660,11 +53740,14 @@ function cmSustainWords(c) {
 const CM_UNIT_OPEN = new Set();
 function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, fold = false }) {
   const box = el('div', { class: 'au-inputs cm-inputs', id: `${prefix}-cm-inputs` });
-  const field = (k, label, control, fine = null) => {
+  /* `note`: a line in sight under the field, for what its badge's title
+     alone cannot carry to a phone. */
+  const field = (k, label, control, fine = null, note = null) => {
     const kind = auKindOfInput(d, k);
     return el('div', { class: 'au-field', 'data-cm': k, 'data-kind': kind }, [
       el('label', { for: `${prefix}-cm-${k}`, class: 'au-label' }, label), control,
-      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null])]);
+      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null]),
+      note ? el('p', { class: 'au-note', 'data-cm-note': k }, note) : null]);
   };
   const input = (k, attrs) => el('input', { class: 'input au-in', id: `${prefix}-cm-${k}`, value: d[k] ?? '', placeholder: 'Not entered',
     onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); }, ...attrs });
@@ -53705,7 +53788,12 @@ function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, 
     vacant ? null : field('cmRentFreeMonths', 'Rent-free months still to run', input('cmRentFreeMonths', { type: 'number', min: '0', max: '120', step: '1', inputmode: 'numeric', class: 'input au-in num' }), d.cmRentFreeMonths == null ? 'not entered — none counted' : 'from now, as the tenancy grants them'),
     vacant ? null : field('cmServiceCharge', 'Service charge the tenant pays you (RM a month)', money('cmServiceCharge', 10), d.cmServiceCharge == null ? 'not entered — none counted' : 'as the tenancy states it'),
     field('cmFitOut', 'Fit-out for a re-let (RM)', money('cmFitOut', 500), 'what letting it again would cost you'),
-    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal')),
+    /* Words, not figures (70-property.js): the escalation is the tenancy's
+       record and moves no figure — the contract rent is held flat to the
+       expiry (cmTermFormula, cmLeaseDownFormula). Said beside the field, not
+       on the Learn page alone (the 20 Oct 2026 sweep, land-commercial-3). */
+    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal'),
+      'recorded with the tenancy — no figure uses it', 'Recorded only: no figure applies it, and the contract rent is held flat to the expiry.'),
     vacant ? null : field('cmDeposit', 'Deposit held (months of rent)', input('cmDeposit', { type: 'number', min: '0', step: '0.5', inputmode: 'decimal', class: 'input au-in num' })),
     vacant ? null : field('cmTenant', 'Current tenant', text('cmTenant', 'As you know them')),
     field('cmBusiness', vacant ? 'Business the unit suits' : 'Tenant’s business', text('cmBusiness', 'e.g. clinic, café, office')),
@@ -53843,7 +53931,7 @@ function cmTermCard(c) {
     badge: auBadge(t.kind, ok ? 'the contract rent, its rent-free months and service charge as you entered them' : t.status === 'vacant' ? 'vacant — no contract' : 'not entered'),
     value: ok && isNum(t.effYield) ? `${fmtPct(t.effYield, 2)} a year` : 'Unavailable', attrs: { 'data-cm-fig': 'term', 'data-status': t.status },
     valueAttrs: { 'data-value': ok && isNum(t.effYield) ? String(auR4(t.effYield)) : '', 'data-monthly': ok && isNum(t.monthly) ? String(auR4(t.monthly)) : '' },
-    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
+    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry, the contract rent held flat — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
       : t.status === 'vacant' ? 'The unit is vacant: there is no contract rent to run.'
         : t.status === 'expired' ? 'The lease expiry you entered has passed: no contract months are left to run.'
           : `Enter ${auList(t.missing)} — never assumed.` });
@@ -53853,7 +53941,7 @@ function cmTermFormula(c) {
   if (t.status !== 'ok') return t.status === 'vacant' ? 'The unit is vacant: no contract rent, so no contract cash flow.' : t.status === 'expired' ? 'The lease expiry has passed: no contract months remain.' : `Unavailable until you enter ${auList(t.missing)}.`;
   return `Over the ${t.months} months from ${cmMonthAt(L.now)} to the expiry: rent ${pqMoney(c.contract)} × (${t.months} − ${t.free} rent-free) = ${pqMoney(t.rentIn)}, of which ${fmtNum(L.rentKept * 100, 1)}% is kept after the management and repair shares; service charge received ${pqMoney(t.serviceCharge)} × ${t.months} = ${pqMoney(t.scIn)}, in full; fixed running costs ${pqMoney(L.fixedMonthly)} × ${t.months} = ${pqMoney(t.costs)}. `
     + `Net ${pqMoney(t.net)} ÷ ${fmtNum(t.months / 12, 2)} years ÷ the price ${pqMoney(L.price)} = ${fmtPct(t.effYield, 2)} a year; ${pqMoney(t.net)} ÷ ${t.months} − the instalment ${isNum(t.monthly) ? `= ${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))} a month` : 'cannot be worked out'}. `
-    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. What the figures you entered imply — not a forecast.';
+    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. The contract rent is held flat to the expiry: an escalation you record is not applied. What the figures you entered imply — not a forecast.';
 }
 
 /* THE FIGURES: L1 and L2. `why` holds what each "How … is worked out"
@@ -62218,8 +62306,12 @@ VIEWS.comparables = () => {
   admin.append(actorRow);
   /* The integrity line. A history that cannot account for the figures beside
      it is worse than no history, because it invites trust it has not earned. */
+  /* Not on an empty register: "replaying all 0 events reproduces every one
+     of the 0 records held" stood above "No changes recorded yet" (the 20
+     Oct 2026 sweep, copy-property-19). With nothing held there is nothing
+     for the history to account for; a mismatch is still said. */
   const integ = registerIntegrity();
-  admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
+  if (!(integ.state === 'ok' && !integ.held)) admin.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
     integ.state === 'ok'
       ? `History checked: replaying all ${integ.events} events reproduces every one of the ${integ.held} record${integ.held === 1 ? '' : 's'} held, exactly.`
       : integ.state === 'unverifiable'
@@ -62251,8 +62343,14 @@ VIEWS.comparables = () => {
     head.append(el('div', { class: tiles.length > 4 ? 'grid grid-5' : 'grid g-4', style: 'margin-top:var(--md)' },
       tiles.map(([k, v]) => el('div', { class: 'panel' }, statTile(k, String(v))))));
   } else {
+    /* What the data-sources page reviews, counted from the list it prints
+       (SARAWAK_TRANSACTION_SOURCES, 19-data-licence.js). "Roughly forty
+       sources were tested" named a review published nowhere; that page
+       reviews seven, of transactions (the 20 Oct 2026 sweep,
+       copy-property-8). */
+    const nSources = SARAWAK_TRANSACTION_SOURCES.length;
     head.append(el('p', { class: 'body', style: 'font-size:13px;margin-top:var(--md);max-width:60ch' },
-      'Roughly forty sources were tested for Sarawak transaction and rental evidence and none can be redistributed by this product — the review is on the data-sources page. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.'));
+      `The data-sources page reviews ${['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][nSources] || nSources} sources of Sarawak transaction evidence, and none can be redistributed by this product. That leaves one honest option: evidence a person gathers and can point at. Record it in the five steps above, or from the district panel on the calculator.`));
     head.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' }, WORKED_EXAMPLE_NOTE));
     head.append(workedExampleControls({ primary: false }));
     head.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:var(--md)' }, [
@@ -62261,7 +62359,7 @@ VIEWS.comparables = () => {
         'Open the calculator to record one'),
       el('a', { class: 'btn btn-ghost btn-sm', href: href('/data-sources'),
         onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/data-sources'); } },
-        'Why nothing can be loaded'),
+        'Why no market data can be loaded'),
     ]));
   }
   wrap.append(head);
@@ -62379,7 +62477,7 @@ VIEWS.comparables = () => {
   const rules = el('div', { class: 'card' });
   rules.append(cardHead('What this register will not do', 'Named, because each one is a way a comparables list normally goes wrong.'));
   const rl = el('ul', { class: 'ticklist blocklist' });
-  ['Ship with rows already in it. A populated register on a build that holds no licensed Sarawak evidence would be inventing the market this layer exists because nobody publishes.',
+  ['Ship with rows already in it. No licensed Sarawak evidence is held here, so rows put in before yours could only be invented.',
    'Republish anyone\'s listing or transaction data. What is here is what you recorded from something you can point at.',
    'Average asking against achieved. A quoted rent and a signed tenancy are different facts about different things.',
    'Rank districts or call one a better area. It reports what was recorded and how many readings that is.',

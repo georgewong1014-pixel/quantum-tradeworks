@@ -4934,8 +4934,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5560be0ef246b22d",
-      "changed": "2026-10-20"
+      "digest": "6a21273ffe110fc2",
+      "changed": "2026-10-21"
     },
     "pages/property/areas.html": {
       "path": "/property/areas",
@@ -5050,8 +5050,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "363594c3e76b88de",
-      "changed": "2026-10-17"
+      "digest": "1e5a79609915bd3f",
+      "changed": "2026-10-21"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -5079,8 +5079,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "5560be0ef246b22d",
-      "changed": "2026-10-20"
+      "digest": "6a21273ffe110fc2",
+      "changed": "2026-10-21"
     },
     "pages/property/models.html": {
       "path": "/property/models",
@@ -5282,8 +5282,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "d22b8e71dfc1767c",
-      "changed": "2026-10-20"
+      "digest": "c459125a7b698eb4",
+      "changed": "2026-10-21"
     },
     "pages/terms.html": {
       "path": "/terms",
