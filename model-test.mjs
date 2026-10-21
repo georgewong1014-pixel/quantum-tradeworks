@@ -5184,12 +5184,22 @@ try {
           applyDealParam(linked, 'tenureYears:-5~vacancyPct:101~maintenance:-10~holdYears:12~rent:2100');
           out.link = { tenure: linked.tenureYears, vac: linked.vacancyPct, maint: linked.maintenance, hold: linked.holdYears, rent: linked.rent,
             def: [PROPERTY_DEFAULT_DEAL.tenureYears, PROPERTY_DEFAULT_DEAL.vacancyPct, PROPERTY_DEFAULT_DEAL.maintenance] };
-          /* A refused entry typed into a box keeps its figure. */
-          for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3]]) {
-            const was = A().work[k];
-            const n = await typeBox(k, v);
-            if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
-          }
+          /* A refused entry typed into a box keeps its figure — the rate,
+             the rent and the renovation's too, as the calculator's boxes
+             refuse them, with the calculator's reason in the toast (the 20
+             Oct 2026 sweep, lab-refurb-2: a rate of −1%, a rent of −RM500
+             and a renovation of −RM20,000 were taken and priced). */
+          const toasts = [], realToast = window.toast;
+          window.toast = (m) => { toasts.push(String(m)); };
+          try {
+            for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3], ['ratePct', -1], ['ratePct', 101], ['rent', -500], ['renovation', -20000]]) {
+              const was = A().work[k];
+              toasts.length = 0;
+              const n = await typeBox(k, v);
+              if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
+              else if (!toasts.some(t => t.includes(dealEntryRefused(k, v)))) out.refusedTyped.push(k + ' typed ' + v + ' was refused without the calculator\\'s reason ("' + dealEntryRefused(k, v) + '"): ' + JSON.stringify(toasts));
+            }
+          } finally { window.toast = realToast; }
           const whole = await typeBox('tenureYears', 27.6);
           if (A().work.tenureYears !== 28) out.refusedTyped.push('a tenure typed as 27.6 years is ' + A().work.tenureYears + ', not whole years (28)');
           const longHold = await typeBox('holdYears', 99);
@@ -5220,7 +5230,7 @@ try {
           if (!/Assumed occupancy is exactly 100 less this allowance: 86%/.test(r.occ)) p.push(`the vacancy knob's note reads "${r.occ}"`);
         }
         if (p.length) fail('scenario-lab L18: the tenure, vacancy, maintenance and holding-period knobs', p);
-        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy and a negative tenure keep their figures, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
+        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy, a negative tenure, a rate of −1% or 101%, a rent of −RM500 and a renovation of −RM20,000 keep their figures, each refused with the calculator's reason, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
       });
     } finally {
       await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId).catch(() => {});
@@ -5252,12 +5262,17 @@ try {
            report is locked (F9);
        V10 Open and Update say what they do to whose figures, and the toast
            says the grade stays U while a driving figure is the tool's (F10);
-       V11 the unlocked total profit reads as a sentence (F11);
+       V11 the unlocked total profit reads as a sentence (F11), its flows
+           before tax on the rent where no rate is entered (the 20 Oct 2026
+           sweep, taxed-7);
        V12 a "Sliders move" radio is named by its letter, and a chain row's
            name does not begin with its chevron (interaction F6, F7);
        V13 a budget typed into an empty renovation draws its slider
            (interaction F12);
-       V14 a reference line stands inside its scale (interaction F13). */
+       V14 a reference line stands inside its scale (interaction F13);
+       V16 with no row moved, "Moved by" counts no rows by hand (the 20 Oct
+           2026 sweep, lab-refurb-8: "none of the seven" after the chain
+           grew to eight). */
   {
     const VKEYS = ['savedWork', 'deal', 'dealBeforeLink', 'propertyReportsBought', 'plan', 'observations', 'lang', 'propertyReportLog', 'servedReads'];
     const vKept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(VKEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
@@ -5618,7 +5633,10 @@ try {
           State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== State.deal.projectId); render(); await frame();
           return out;
         })()`);
-        if (!/Every year’s cash flow after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
+        /* The sample enters no marginal rate, so its yearly flows are before
+           tax on the rent, and the sentence says so (the 20 Oct 2026 sweep,
+           taxed-7: it said "after tax" with none computed). */
+        if (!/Every year’s cash flow before tax on the rent/.test(s) || /after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
         else ok(`scenario-lab-verify V11: "${(s.match(/Every year’s cash flow[^.]*\./) || [s])[0]}"`);
       });
 
@@ -5708,6 +5726,77 @@ try {
         }
         if (p.length) fail('scenario-lab-verify V15: a property opened with labOpen stays open, and the address names it', p.slice(0, 6));
         else ok(`scenario-lab-verify V15: a property opened with labOpen stays open through a theme change and render(), at ${r.drawn.url}`);
+      });
+
+      /* V16: a purchase for cash has no loan, so a move of its rate moves no
+         printed row — and "Moved by" says so without a count of rows kept by
+         hand ("none of the seven" stood after the chain grew to eight). */
+      await vStep('V16', async () => {
+        await vDeal({ downPct: 100 });
+        const r = await evaluate(`(async () => { ${VH}
+          await setRange('ratePct', 6); await frame(); await w(100);
+          return { s: txt(document.getElementById('lab-movedby')), loan: A().cur?.m?.loan ?? null, rows: LAB_FIGURES.length, rate: A().work.ratePct };
+        })()`);
+        if (r.loan !== 0 || r.rate !== 6) fail('scenario-lab-verify V16: the check could not run', r);
+        else if (!/\(interest rate\): none of the results\./.test(r.s) || /none of the seven/.test(r.s)) fail('scenario-lab-verify V16: with no row moved, "Moved by" says so without a count kept by hand', r);
+        else ok(`scenario-lab-verify V16: a purchase for cash with its rate moved to 6% reads "${r.s}" — none of the ${r.rows} rows moved, and no count is kept by hand`);
+      });
+
+      /* V17: the words and figures the 20 Oct 2026 sweep found wrong, each
+         probed on the page's own functions (no calculation is asked to
+         change): taxed-1, stress-3, stress-5, lab-refurb-6, lab-refurb-7. */
+      await vStep('V17', async () => {
+        const r = await evaluate(`(async () => {
+          const out = {};
+          /* taxed-1: a rate on a loan with no schedule has no month after tax; it is not RM0. */
+          const d1 = { ...PROPERTY_DEFAULT_DEAL, marginalTaxPct: 24, tenureYears: 0 };
+          const m1 = dealModel(d1);
+          const vm = labMetricView('cashflow', { cols: [{ key: 'A', cur: { m: m1 }, work: d1 }] });
+          out.t1 = { cf: m1.path[0].cf, note: vm.tables[0].rows[0].note, twin: vm.twin.rows()[0][2] };
+          /* stress-5: no loan, no valuation — the price moves nothing. */
+          const dC = { ...PROPERTY_DEFAULT_DEAL, downPct: 100, bankValuation: 0, targetKind: 'monthly', targetValue: 1000 };
+          const sC = solveDealPrice(dC);
+          out.s5 = { status: sC.status, sub: priceSolveWords(sC, dC).sub, formula: priceSolveFormula(sC, dC) };
+          /* stress-3: an overrun row's cash is the headline's, with the reserve. */
+          const dR = { ...PROPERTY_DEFAULT_DEAL, renovation: 25000 };
+          const mR = dealModel(dR);
+          const risk = cpSplitItems(dR, mR, cpCash(mR), false).risks.filter(x => /^Renovation/.test(x.label));
+          out.s3 = { values: risk.map(x => x.value), want: mR.stress.renovation.slice(1, 3).map(x => Math.round(x.cash + mR.reserveCash)), safe: mR.safeCashRequired };
+          /* lab-refurb-6 and -7: a tax-marked commitment, a loan "when the sale completes". */
+          const dT = { ...PROPERTY_DEFAULT_DEAL, marginalTaxPct: 24 };
+          const mT = dealModel(dT), fT = LAB_FIGURES.find(f => f.key === 'monthlyCommitment');
+          out.r6 = { note: fT.note(mT), formula: fT.formula(dT, mT), plain: LAB_FIGURES.find(f => f.key === 'monthlyCommitment').note(dealModel(PROPERTY_DEFAULT_DEAL)) };
+          out.r7 = LAB_FIGURES.find(f => f.key === 'valueLessLoanAtExit').formula(PROPERTY_DEFAULT_DEAL, dealModel(PROPERTY_DEFAULT_DEAL));
+          return out;
+        })()`);
+        const p = [];
+        if (r.t1.cf !== null || /RM0/.test(r.t1.note) || r.t1.twin === 'RM0' || !/not computable/.test(r.t1.note)) p.push(`taxed-1: a rate on a loan with no schedule reads "${r.t1.note}" and "${r.t1.twin}" (the month after tax is ${r.t1.cf})`);
+        if (r.s5.status !== 'unbounded' || !/^With no loan, the price does not move the monthly position/.test(r.s5.sub) || /valuation/.test(r.s5.sub) || /the loan and its repayment rise/.test(r.s5.formula)) p.push(`stress-5: a cash purchase's unbounded solve says "${r.s5.sub}" / "${r.s5.formula.slice(150, 400)}"`);
+        if (r.s3.values.length !== 2 || r.s3.values.some((v, i) => v !== 'RM' + r.s3.want[i].toLocaleString('en-US') + ' cash required')) p.push(`stress-3: the overrun rows read ${JSON.stringify(r.s3.values)}, the cash with the reserve is ${JSON.stringify(r.s3.want)}`);
+        if (r.r6.note !== 'before tax on the rent' || !/That is before tax on the rent: after tax at 24%/.test(r.r6.formula) || r.r6.plain !== null) p.push(`lab-refurb-6: the commitment's note reads "${r.r6.note}" with a rate, "${r.r6.plain}" without; formula "${r.r6.formula.slice(-160)}"`);
+        if (!/less the loan still owed when the sale completes, 6 months after year 10, RM/.test(r.r7)) p.push(`lab-refurb-7: the subsale row's words read "${r.r7.slice(-150)}"`);
+        if (p.length) fail('scenario-lab-verify V17: the sweep’s wording defects', p);
+        else ok(`scenario-lab-verify V17: with a rate on a loan with no schedule the month after tax reads "${r.t1.twin}", not RM0; a cash purchase's price solve says "${r.s5.sub}"; the proposal's renovation overrun rows read ${r.s3.values.join(' and ')} (the reserve in); the monthly commitment is marked before tax once a rate is entered; the loan still owed is the one when the sale completes`);
+      });
+
+      /* V18: the Lab's refusal of a negative rate, rent or renovation leaves
+         a rate of 0% taken — with the calculator's caution in sight — and a
+         100% deposit (no loan) worked, as in the calculator. */
+      await vStep('V18', async () => {
+        await vDeal({});
+        const r = await evaluate(`(async () => { ${VH}
+          const zeroWarn = () => [...document.querySelectorAll('#lab-root .lab-note-warn')].filter(n => !n.hidden && /^The rate is 0%/.test(txt(n))).length;
+          const n0 = await typeBox('ratePct', 0);
+          const rate = { work: A().work.ratePct, box: n0.value, warn: zeroWarn(), model: A().cur?.m?.zeroRateModelled };
+          const n1 = await typeBox('downPct', 100);
+          const cash = { work: A().work.downPct, box: n1.value, loan: A().cur?.m?.loan, nan: /NaN|Infinity/.test(txt(document.getElementById('lab-root'))), warn: zeroWarn() };
+          return { rate, cash };
+        })()`);
+        const p = [];
+        if (r.rate.work !== 0 || r.rate.box !== '0' || r.rate.warn !== 1 || r.rate.model !== true) p.push(`a rate typed as 0 reads ${JSON.stringify(r.rate)}: it should be taken, with its caution in sight`);
+        if (r.cash.work !== 100 || r.cash.loan !== 0 || r.cash.nan || r.cash.warn !== 0) p.push(`a deposit typed as 100 reads ${JSON.stringify(r.cash)}: it should be taken, with no loan, no NaN and no zero-rate caution`);
+        if (p.length) fail('scenario-lab-verify V18: 0% and a 100% deposit are still taken', p);
+        else ok('scenario-lab-verify V18: a rate typed as 0 is taken and the Lab says "The rate is 0%…" in sight; a deposit typed as 100 is taken with no loan, nothing prints NaN, and the 0% caution goes');
       });
     } finally {
       await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
@@ -7985,6 +8074,8 @@ try {
         if (ranked) p.push(`lens ${s.lens}: the card says "${ranked[0]}"`);
       }
       if (!/The figures you entered imply/.test(r.seen[0].text) || !/nothing here is ranked/.test(r.seen[0].text)) p.push('the card does not say "the figures you entered imply" and that nothing is ranked');
+      /* The column the options are worked on is named (the 20 Oct 2026 sweep, lab-refurb-4). */
+      if (!/Worked on [AB] — /.test(r.seen[0].text) || !/column [AB], as it stands/.test(r.seen[0].text)) p.push('the card does not name the column it is worked on: ' + r.seen[0].text.slice(0, 160));
       if (/supplier|contractor|vendor|company name|brand/i.test(r.inputs)) p.push(`a supplier is asked for: "${r.inputs.match(/supplier|contractor|vendor|company name|brand/i)[0]}"`);
       if (p.length) fail('refurb F2: on the Lab, the lens never reorders the options', p);
       else ok(`refurb F2: through ${r.seen.length - 1} lens switches the options read Do nothing, Refurbish, Upgrade, Sell every time; each lens leads with its own two rows (cash flow: the monthly position and the net yield; risk: the cash required and the months without rent); "The figures you entered imply", "nothing here is ranked", no ranking word, no supplier asked for`);
