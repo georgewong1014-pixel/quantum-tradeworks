@@ -2253,8 +2253,14 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
     if (!Array.isArray(line.scale) || !isNum(base)) { out.why = 'The scale has not been filled in.'; return out; }
     out.amount = feeScaleAmount(line.scale, base, { unit: line.unit, minimumFee: line.minimumFee });
     /* The share of the scale the rule charges in the case the line assumes
-       (Sarawak's rule 7: the full scale plus one-quarter). */
-    if (isNum(line.multiplier)) out.amount = Math.round(out.amount * line.multiplier * 100) / 100;
+       (Sarawak's rule 7: the full scale plus one-quarter), rounded to the
+       sen. IN WHOLE SEN (the 20 Oct 2026 sweep, auction-4): the scale is
+       already to the sen, so it is taken as a whole number of sen, and a
+       whole number × 1.25 is exact in binary — a true half sen rounds up.
+       In ringgit, 3,367.02 × 1.25 × 100 came to 420,877.49999999994, and
+       RM4,208.775 rounded down to RM4,208.77 at about 6% of bids, up at
+       the rest. */
+    if (isNum(line.multiplier)) out.amount = Math.round(Math.round(out.amount * 100) * line.multiplier) / 100;
   }
   if (isNum(out.amount)) out.status = provenance === 'verified' ? 'verified' : provenance === 'quote' ? 'quote' : 'placeholder';
   return out;

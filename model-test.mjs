@@ -585,7 +585,7 @@ try {
         loanDuty: [514800, 400000, 400001, 0].map(l => fee('loanStampDuty', { loan: l })),
         sarawak: [10000, 50000, 100000, 300000, 572000, 700000, 1200000, 15000].map(sw),
         purchaseLegal: fee('purchaseLegal', { price: 572000 }),
-        loanLegal: [514800, 0].map(l => fee('loanLegal', { loan: l })),
+        loanLegal: [514800, 0, 395288.10, 342317.70].map(l => fee('loanLegal', { loan: l })),
         sst: fee('professionalServiceTax', { legalFees: 9858.5 }),
         peninsular: pen ? [572000, 30000, 8000000].map(v => scaled(pen.scale, v, { minimumFee: pen.minimumFee })) : null,
         valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { price: p }) * 100) / 100),
@@ -606,7 +606,11 @@ try {
       /* RM10,000 is 2.5%, RM250 — under the minimum scale charge, RM500. */
       sarawak: [500, 650, 1100, 2700, 4604, 5500, 8500, 500],
       purchaseLegal: 4604,
-      loanLegal: [5254.5, 0],
+      /* Rule 7's 1.25 on the scale, to the sen — and a true half sen up (the
+         20 Oct 2026 sweep, auction-4): RM3,367.02 × 1.25 = RM4,208.775 and
+         RM2,996.22 × 1.25 = RM3,745.275, which read RM4,208.77 and RM3,745.27
+         in floating point (3,367.02 × 1.25 × 100 = 420,877.49999999994). */
+      loanLegal: [5254.5, 0, 4208.78, 3745.28],
       sst: 788.68,
       peninsular: [6970, 500, 81250],
       valuation: [1194, 400, 400, 5716.67],
@@ -7530,13 +7534,14 @@ try {
          holding 4 × RM1,000 = 4,000; effective = 400,000 + 15,000 + 4,000 + 2,000 + 20,530 + 4,000 = 445,530; market value the median
          of 480k/500k/520k = 500,000; true discount (500,000 − 445,530) ÷ 500,000 = 10.894%. Deposit 10% of the 380,000 reserve = 38,000;
          balance 362,000, of which 2,000 beyond the 360,000 loan. Ceiling 500,000 × 85% = 425,000: solved on the contract's own formula
-         (hand.mjs, every fee as a function of the bid) — 380,353 (cost RM424,999.99; at 380,354, RM425,001.02). A cost of 430,000: 385,138. */
+         (hand.mjs, every fee as a function of the bid) — 380,353 (cost RM425,000.00 — its loan legal fees RM2,996.22 × 1.25 = RM3,745.275,
+         a half sen, up: RM3,745.28; at 380,354, RM425,001.02). A cost of 430,000: 385,138. */
       const p = [];
       if (!near(r.tx, 20530) || !near(r.hold, 4000) || !near(r.eff, 445530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 4,000, 445,530`);
       if (!near(r.td, 10.894, 1e-9)) p.push(`true discount ${r.td}% — by hand 10.894%`);
       if (!near(r.fx, 38000) || !near(r.bal, 362000) || !near(r.cash, 2000)) p.push(`forfeiture ${r.fx}, balance ${r.bal}, cash beyond the loan ${r.cash} — by hand 38,000, 362,000, 2,000`);
       if (r.final) p.push('with no check ticked the auction reads final');
-      if (r.margin.status !== 'solved' || r.margin.bid !== 380353 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.99) || !near(r.margin.above, 425001.02)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 380,353 (424,999.99; +1 → 425,001.02)`);
+      if (r.margin.status !== 'solved' || r.margin.bid !== 380353 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 425000) || !near(r.margin.above, 425001.02)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 380,353 (425,000.00; +1 → 425,001.02)`);
       if (r.cost.status !== 'solved' || r.cost.bid !== 385138) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 385,138`);
       if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
       if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 385138) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
