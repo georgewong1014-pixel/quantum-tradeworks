@@ -582,11 +582,18 @@ const DEAL_BOX_KEYS = new Set(['sqft', 'landSqft', 'parking', 'price', 'bankValu
   'repairReservePct', 'leasingFeeMonths', 'renewalFeeMonths', 'mgmtMinMonthly', 'tenancyMonths', 'daysToFirstTenant', 'depositMonths', 'repairApprovalLimit',
   'inspectionsPerYear', 'arrearsChaseDays', 'apprecPct', 'sellMonths', 'agentPct', 'exitLegalPct', 'equityReturnPct']);
 const DEAL_SHARE = new Set(['renoRentUpliftPct', 'renoValueRecoveryPct', 'downPct', 'ratePct', 'vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct']);
+/* A TENANCY OF AT LEAST A MONTH (the 20 Oct 2026 sweep, managed-5). The
+   placement fee is charged once a tenancy, so the model counts tenancies a
+   year as 12 ÷ the months. A 0 or a half was taken and silently counted as
+   one month — twelve placement fees a year, the whole gross rent of the
+   sample — while the box still said 0. Refused at the box and skipped in a
+   link, as a price of 0 is. */
 function dealEntryRefused(k, v) {
   if (!Number.isFinite(v)) return 'needs a number';
   if (k === 'price' && !(v > 0)) return 'needs a price above 0 — the model cannot price a purchase with no price';
   if (DEAL_SIGNED.has(k)) return null;
   if (v < 0) return 'cannot be negative';
+  if (k === 'tenancyMonths' && v < 1) return 'needs at least 1 month — the placement fee is charged once a tenancy, so a shorter one cannot be priced';
   if (DEAL_SHARE.has(k) && v > 100) return 'cannot be above 100%';
   return null;
 }

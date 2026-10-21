@@ -2738,6 +2738,51 @@ try {
     else ok(`fixwave P9b: the reserve's no-rent burn is the instalment and the model's own running costs at no rent — RM${r.burn.toFixed(2)} a month on the sample managed at 8% with a RM150 minimum (worked by hand; = the month at 100% vacancy), the reserve RM${r.reserve.toLocaleString('en')}, six months with no rent RM${r.six.toLocaleString('en')}`);
   }
 
+  /* P9c — A TENANCY OF AT LEAST A MONTH (the 20 Oct 2026 sweep, managed-5;
+           the box refusals of QT-001, dealEntryRefused). The placement fee
+           is charged once a tenancy, so tenancies a year are 12 ÷ the
+           months: a 0 or a 0.5 was taken and counted as one month, twelve
+           placement fees a year — RM22,200, the whole gross rent of the
+           sample managed at 8% — beside a box still reading 0. Refused at
+           the box with its reason, the box keeping its figure and the
+           figures unmoved, and skipped in a link; 1 month and more taken. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const said = [], was = window.toast;
+      window.toast = (m) => { said.push(String(m)); };
+      State.deal = { ...window.__fwKept.deal, selfManaged: false, mgmtPct: 8, tenancyMonths: 24 }; saveDeal();
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
+      const placement0 = dealModel(State.deal).placementAnnual;
+      const typed = [];
+      for (const v of ['0', '0.5', '1']) {
+        const n = document.getElementById('d-tenancyMonths'); n.focus(); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        typed.push({ v, kept: State.deal.tenancyMonths, box: document.getElementById('d-tenancyMonths')?.value, placement: dealModel(State.deal).placementAnnual });
+      }
+      window.toast = was;
+      const linked = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked, 'tenancyMonths:0~rent:2000');
+      const linked2 = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked2, 'tenancyMonths:12');
+      return { unit: [0, 0.5, 0.99, 1, 6, 24].map(v => [v, dealEntryRefused('tenancyMonths', v)]), placement0, typed, said,
+        link: { t: linked.tenancyMonths, rent: linked.rent, t12: linked2.tenancyMonths, def: PROPERTY_DEFAULT_DEAL.tenancyMonths } };
+    })()`);
+    await fwPut();
+    const p = [];
+    for (const [v, why] of r.unit) {
+      if (v < 1 && !/at least 1 month/.test(why || '')) p.push(`a tenancy of ${v} month(s) is not refused with its reason (${why})`);
+      if (v >= 1 && why !== null) p.push(`a tenancy of ${v} months is refused: ${why}`);
+    }
+    const [t0, tHalf, t1] = r.typed;
+    if (t0.kept !== 24 || t0.box !== '24' || t0.placement !== r.placement0 || tHalf.kept !== 24 || tHalf.placement !== r.placement0) p.push(`typed 0 then 0.5: ${JSON.stringify([t0, tHalf])} (RM${r.placement0} of placement a year before)`);
+    if (r.said.length < 2 || !r.said.slice(0, 2).every(s => /at least 1 month/.test(s) && /placement fee/.test(s) && /stays at 24/.test(s))) p.push(`what the box said: ${JSON.stringify(r.said)}`);
+    if (t1.kept !== 1 || !(Math.abs(t1.placement - 1850 * 12) < 1e-6)) p.push(`typed 1: ${JSON.stringify(t1)} — one placement fee a month, RM22,200 a year`);
+    if (r.link.t !== r.link.def || r.link.rent !== 2000 || r.link.t12 !== 12) p.push(`a link's tenancy of 0 ${r.link.t === r.link.def ? 'skipped' : 'taken'} (rent ${r.link.rent}); 12 gives ${r.link.t12}`);
+    if (p.length) fail('fixwave P9c: an expected tenancy under one month is refused with its reason, at the box and in a link', p);
+    else ok(`fixwave P9c: an expected tenancy of 0 or 0.5 months is refused at the box ("${(r.said[0] || '').slice(0, 90)}…"), the box keeping 24 and the placement RM${r.placement0} a year; a link's 0 is skipped and the rest applied; 1 month and more are taken`);
+  }
+
   /* P11 — "Application structure" is not scored from nothing. It scored 70
            as soon as an income existed, with a basis that said the applicant
            count and tenure fit were "recorded"; the page has no control for
