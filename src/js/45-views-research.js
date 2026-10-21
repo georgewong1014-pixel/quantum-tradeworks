@@ -804,7 +804,7 @@ function companyActions(r) {
   box.append(acts);
   box.append(el('p', { class: 'metaline', id: `scan-off-${c.id}`, style: 'margin-top:6px;text-align:right' },
     on ? `A setup is kept in this browser and checked only on price history you supplied${scanHistoryFile.series[sym] ? `, which holds ${sym}` : `, which holds no series for ${sym}`}.`
-       : 'A setup is kept in this browser and checked only on price history you supply; none is loaded here.'));
+       : 'A setup stays in this browser, checked only on price history you supply; none loaded here.'));
   return box;
 }
 

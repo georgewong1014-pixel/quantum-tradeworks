@@ -1412,12 +1412,12 @@ function researchRecord(t, r) {
   const action = () => sample || !r ? null : el('div', { class: 'case-review' }, [
     el('button', { class: 'btn btn-ghost btn-sm case-review-btn', id: `case-review-${t.id}`, onclick: retake }, 'Review against today’s research'),
     el('p', { class: 'caption' }, snap
-      ? 'Replaces the saved research above with today’s. Your conditions, assumptions and notes are not changed.'
+      ? 'Replaces the saved research above with today’s; your assumptions stay.'
       : 'Saves today’s research with this case. Your conditions, assumptions and notes are not changed.'),
   ]);
   if (!snap) {
     box.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:4px' }, 'Saved before snapshots'));
-    box.append(el('p', { class: 'caption' }, 'This case holds no record of the research as it stood when it was saved.'));
+    box.append(el('p', { class: 'caption' }, 'No record of the research when it was saved.'));
     const a = action(); if (a) box.append(a);
     return box;
   }
@@ -1434,7 +1434,7 @@ function researchRecord(t, r) {
     const nowBy = key(now);
     const moved = then.filter(([l, x]) => nowBy.has(l) && nowBy.get(l) !== x).length;
     const det = el('details', { class: 'case-moves' });
-    det.append(el('summary', {}, moved ? `Beside today’s research — ${moved} of ${then.length} figures moved` : `Beside today’s research — none of ${then.length} figures moved`));
+    det.append(el('summary', {}, moved ? `Beside today’s: ${moved} of ${then.length} moved` : `Beside today’s: none of ${then.length} moved`));
     const tab = el('table', { class: 'dt' });
     tab.append(el('thead', {}, el('tr', {}, ['Figure', 'When saved', 'Today'].map(h => el('th', { style: 'text-align:left' }, h)))));
     const tb = el('tbody');
@@ -1514,7 +1514,7 @@ function sevenSteps(r, t) {
          would prove the reader wrong. */
       ok: !sample && !!(t && t.conds?.length > suggestedConds(t).length && t.oneLine),
       note: sample ? 'The case here is a sample written into this browser, not yours — this step is open until you write your own.'
-        : t ? `${t.conds.length} invalidation condition(s)${suggestedConds(t).length ? ` (${suggestedConds(t).length} suggested by the tool, not yet confirmed by you)` : ''}${t.oneLine ? '' : ', but no investment case written yet'}.`
+        : t ? `${t.conds.length} invalidation condition(s)${suggestedConds(t).length ? ` (${suggestedConds(t).length} suggested, not confirmed)` : ''}${t.oneLine ? '' : ', but no investment case written yet'}.`
               : 'No thesis written for this company yet.',
       go: () => openResearch(c.id, 'thesis') },
     /* A review date that has passed is a check that was missed, not one that
@@ -1525,7 +1525,7 @@ function sevenSteps(r, t) {
       note: sample ? 'The review date here is the sample case’s, not one you set.'
         : !t?.review ? 'No review date set.'
         : t.review < localDay() ? `The review date ${t.review} has passed. Set the next one.`
-        : `Next review ${t.review}${isSuggested(t, 'review') ? ' (suggested, not yet confirmed by you)' : ''}, horizon ${t.horizon}${isSuggested(t, 'horizon') ? ' (suggested, not yet confirmed by you)' : ''}.`,
+        : `Next review ${t.review}${isSuggested(t, 'review') ? ' (suggested, unconfirmed)' : ''}, horizon ${t.horizon}${isSuggested(t, 'horizon') ? ' (suggested, unconfirmed)' : ''}.`,
       go: () => openResearch(c.id, 'thesis') },
   ];
 }
@@ -1535,7 +1535,7 @@ function sevenStepCard(r, t) {
   const done = steps.filter(s => s.ok).length;
   const card = el('div', { class: 'card', style: 'margin-bottom:var(--md)' });
   card.append(cardHead(`Seven-step review — ${done} of 7 satisfied`,
-    'An original review sequence. Each step reports a status computed from the work done in the product, so it reflects what has actually been checked rather than what has been ticked.'));
+    'An original review sequence. Each status is computed from work done here, not ticked.'));
   const bar = el('div', { class: 'pillbar', style: 'height:8px;margin-bottom:var(--md)' });
   steps.forEach(s => bar.append(el('i', { style: `width:${100 / 7}%;background:var(${s.ok ? '--ok' : '--line-2'})`, title: s.title })));
   card.append(bar);
@@ -1633,7 +1633,7 @@ function thesisCard(t, expanded) {
     ? el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openSavedRun(t) },
         `Linked run ${linkedRun.runId} · ${linkedRun.saved}`)
     : el('p', { class: 'metaline' },
-        'No valuation run linked yet. Save a run in the Valuation Studio and it attaches to this thesis automatically.')));
+        'No valuation run linked. A run saved in the Valuation Studio attaches here.')));
   right.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Key risks'));
   const rl = el('ul', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:5px' });
   (t.risks.length ? t.risks : ['—']).forEach(x => rl.append(el('li', { class: 'evidence counter', style: 'font-size:13px' }, x)));
@@ -1642,7 +1642,7 @@ function thesisCard(t, expanded) {
   card.append(g);
 
   /* invalidation conditions, evaluated live */
-  card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Invalidation conditions — evaluated against the latest data'));
+  card.append(el('h4', { class: 'eyebrow', style: 'margin-bottom:6px' }, 'Invalidation conditions, against the latest data'));
   const tw = el('div', { class: 'tablewrap' });
   const tab = el('table', { class: 'dt' });
   tab.append(el('thead', {}, el('tr', {}, [el('th', {}, 'Condition'), el('th', {}, 'Threshold'), el('th', {}, 'Current'),
@@ -1703,7 +1703,7 @@ function thesisCard(t, expanded) {
      table does not lead with. (It restated Breached, Approaching and Within in
      forty words, to make room for the research record below.) */
   card.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    'A condition with no current value, or one resting on stale statements, is never counted as passing.'));
+    'No current value, or stale statements: never counted as passing.'));
   card.append(researchRecord(t, r));
 
   if (t.questions?.length) {
@@ -1719,7 +1719,7 @@ function thesisCard(t, expanded) {
     reviewCount ? `Decision reviews (${reviewCount})` : 'Run a decision review'));
   foot.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openResearch(t.ticker, 'valuation') }, 'Re-run valuation'));
   foot.append(el('span', { class: 'spacer' }));
-  foot.append(el('span', { class: 'metaline' }, 'Alerts fire only when a condition above changes state — they describe the change, never an action.'));
+  foot.append(el('span', { class: 'metaline' }, 'Alerts describe a change in a condition, never an action.'));
   card.append(foot);
   return card;
 }
