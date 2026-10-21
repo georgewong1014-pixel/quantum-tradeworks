@@ -2387,7 +2387,16 @@ function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   /* A kind whose lines are all unpriced (gated for the class, or not
      priced) is not "none" (the 20 Oct 2026 sweep, land-commercial-1). */
   const unpriced = new Set((m.costGroups || []).flatMap(g => g.items).filter(it => !isNum(it[1]) && it[2]?.provenance).map(it => feeKindOf(it[2])).filter(Boolean));
-  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) + (unpriced.has(k) ? ' so far' : '') : unpriced.has(k) ? 'not priced' : 'none'}`);
+  /* What of a kind rests on a line not checked — estimated, or under a rule
+     not known — said beside it (the 20 Oct 2026 sweep, copy-property-14),
+     so the kinds and the "rests on unverified or unknown lines" total the
+     paragraph gives after them agree: the valuation fee and its tax are
+     professional fees on a published scale AND estimated. The estimates'
+     own kind is all of it. */
+  const unchecked = (k) => (s.kinds[k]?.lines || []).filter(l => l.provenance && l.provenance !== 'verified' && l.provenance !== 'quote');
+  const est = (k) => { const xs = unchecked(k); if (!xs.length || k === 'estimate') return '';
+    return ` (${money(xs.reduce((t, l) => t + l.amount, 0))} of it ${xs.every(l => l.provenance === 'estimated') ? 'estimated' : 'unverified or unknown'})`; };
+  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) + (unpriced.has(k) ? ' so far' : '') + est(k) : unpriced.has(k) ? 'not priced' : 'none'}`);
   parts.push(`your own money and figures (the deposit, the renovation, the reserve and what you entered) ${money(s.kinds.own.total)}`);
   const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
   return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;

@@ -897,6 +897,32 @@ try {
     else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Cash required (with a 3-month reserve)" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
   }
 
+  /* 19b — THE LEDGER BY KIND AND ITS ESTIMATED SHARE AGREE (the 20 Oct 2026
+           sweep, copy-property-14). One paragraph gave the estimates' kind
+           as RM2,670 and then "RM3,960 of it rests on unverified or unknown
+           lines": the valuation fee and its tax are estimated too, inside
+           the kinds they are charged as. Each kind now says its estimated
+           share. By hand on the sample: the valuation fee 0.25% × 100,000
+           + 0.2% × 472,000 = RM1,194 (professional fees on a published
+           scale), its service tax 8% = RM95.52 (statutory charges), and the
+           estimates' own RM1,170 + RM1,500 = RM2,670 — RM3,959.52 in all,
+           the paragraph's unverified total. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const m = dealModel(d);
+      return { words: ledgerSplitWords(m, labMoney), unconfirmed: m.unconfirmedCost, price: d.price, down: d.downPct };
+    })()`);
+    const p = [];
+    if (r.price !== 572000) p.push(`the sample is not the one worked by hand (price ${r.price})`);
+    const fee = 0.0025 * 100000 + 0.002 * 472000, tax = Math.round(fee * 8) / 100;
+    if (Math.abs(r.unconfirmed - (fee + tax + 1170 + 1500)) > 1e-6) p.push(`the unverified total is ${r.unconfirmed}, by hand ${fee + tax + 2670}`);
+    if (!r.words.includes('statutory charges RM14,649 (RM96 of it estimated)') || !r.words.includes(`professional fees on a published scale RM11,053 (RM1,194 of it estimated)`) || !r.words.includes('estimates RM2,670;') || /estimates RM2,670 \(/.test(r.words))
+      p.push(`the ledger by kind reads "${r.words.slice(0, 260)}"`);
+    if (p.length) fail('19b: the ledger by kind says each kind\'s estimated share, so it agrees with the unverified total', p);
+    else ok(`19b: the ledger by kind says each kind's estimated share — RM96 of the statutory charges, RM1,194 of the published-scale fees, the RM2,670 of estimates — RM${r.unconfirmed.toFixed(2)} in all, the paragraph's unverified total, by hand`);
+  }
+
   /* 20 — every class the land-risk consequences and blockers name exists in
          the attribute registry that records it. 'refused' did not. */
   {
