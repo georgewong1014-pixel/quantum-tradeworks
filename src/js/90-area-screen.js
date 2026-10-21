@@ -1394,7 +1394,7 @@ function scopeCard() {
    /* Scoped to what is true. It said "any question about your income … or
       circumstances", and the property calculator's loan-readiness check asks
       for income, debts, commitments and a credit record. */
-   'Any question about your goals or risk tolerance. The one input about you is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, held only in this browser, to judge whether a loan is within reach',
+   'Any question about your risk tolerance or circumstances. The Scenario Lab’s optional objective, held only in this browser, only chooses which figures lead; the one input about your finances is optional: the property calculator’s loan-readiness check, which uses the income, debts and credit record you choose to enter, held only in this browser, to judge whether a loan is within reach',
    'Output that differs from one user to another — everyone sees the same analysis',
    'Portfolio construction, allocation guidance or rebalancing instructions',
    'Trade execution, brokerage connection or order routing'].forEach(x =>

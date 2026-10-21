@@ -233,7 +233,7 @@ VIEWS.ips = () => {
     + 'This product publishes neither, and the reason is not stylistic.'));
   dev.append(el('p', { class: 'body', style: 'margin-top:var(--md)' },
     'It is research only. It holds no licence to advise and makes no personal recommendation, and the disclosure on every '
-    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. '
+    + 'page rests on that. The one place it takes figures about you is the property calculator’s optional loan-readiness check: the income, debts and credit record you choose to enter stay in this browser and are used only to judge whether a loan is within reach — a diagnostic, not a suitability assessment. The Scenario Lab’s optional objective only chooses which figures lead, and stays in this browser. '
     + 'The substance of section 8 is kept in full; only the verb changes.'));
   const dl = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
   dl.append(el('thead', {}, el('tr', {}, ['IPS §8 says', 'This product says', 'Why it is the same information']
