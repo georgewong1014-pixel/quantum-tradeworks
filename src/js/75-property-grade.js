@@ -1305,7 +1305,14 @@ function dealModel(d) {
      are charged as a percentage of rent collected, so they accrue in the
      with-rent case and not in the without-rent case — the previous version
      excluded them from both, which understated the with-rent burn and
-     contradicted cashflowMonthly on the same screen. */
+     contradicted cashflowMonthly on the same screen.
+     WITHOUT RENT, THE MODEL'S OWN RUNNING COSTS AT NO RENT (the 20 Oct
+     2026 sweep, managed-4): opexAt(0), the composition the 100%-vacancy
+     stress uses — no percentage fee and no repair reserve, the minimum
+     monthly fee in full (owed whatever is collected), the placement as
+     amortised. It kept only the minimum's top-up at the entered rent, and
+     nothing of it when the percentage passed the floor, so a reserve beside
+     a RM100 floor was short by up to RM100 a month of it. */
   const rentLinkedMonthly = (mgmtY + repairY) / 12;
   /* NOT WITHOUT THE INSTALMENT. With a loan tenure of 0 the instalment is
      null, and null added as nought: a RM514,800 loan contributed nothing, and
@@ -1316,7 +1323,7 @@ function dealModel(d) {
   const ownerFixedMonthly = burnable ? instalment + (opex - mgmtY - repairY) / 12 : null;
   const stressedRentMonthly = effectiveRentN / 12;
   const burnWithRent = burnable ? Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly) : null;
-  const burnWithoutRent = ownerFixedMonthly;
+  const burnWithoutRent = burnable ? instalment + opexAt(0) / 12 : null;
   /* The larger of the two, at full value. An earlier draft of this line scaled
      the no-rent case by 0.6, which had no basis and made the reserve smaller
      than the case it is meant to survive — understating required liquidity,

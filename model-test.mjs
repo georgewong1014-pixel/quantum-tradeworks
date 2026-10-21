@@ -2709,6 +2709,35 @@ try {
     else ok(`fixwave P9: with no instalment the burn and the reserve scenarios are not computed, and the paragraph says so ("${r.para.slice(0, 70)}…")`);
   }
 
+  /* P9b — WITH NO RENT, THE MODEL'S OWN RUNNING COSTS AT NO RENT (the 20 Oct
+           2026 sweep, managed-4). The reserve's no-rent burn is the
+           instalment and opexAt(0) — the 100%-vacancy month's costs: no
+           percentage fee, no repair reserve, the minimum fee in full, the
+           placement as amortised. On the sample managed at 8% with a RM150
+           minimum a month, worked by hand: RM2,372.9565 of instalment
+           (RM514,800 at 4.3% over 35 years) + (5,078 of maintenance,
+           assessment, quit rent and insurance + the RM1,800 floor + RM925 of
+           placement) ÷ 12 = RM3,023.21 a month, the reserve 3 × that,
+           RM9,070. It charged only the floor's top-up at the entered rent:
+           RM2,888.53 and RM8,666. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150 };
+      const m = dealModel(d), empty = dealModel({ ...d, vacancyPct: 100 });
+      return { rent: d.rent, price: d.price, burn: m.burnWithoutRent, withRent: m.burnWithRent, reserve: m.reserve, months: m.reserveMonths,
+        six: m.reserveScenarios.find(s => s.months === 6)?.noRent, empty: empty.cashflowMonthly };
+    })()`);
+    const i = 0.043 / 12, inst = 514800 * i / (1 - Math.pow(1 + i, -420));
+    const want = inst + (294 * 12 + 800 + 300 + 450 + 150 * 12 + 1850 * 12 / 24) / 12;
+    const p = [];
+    if (r.rent !== 1850 || r.price !== 572000) p.push(`the sample is not the one worked by hand (rent ${r.rent}, price ${r.price})`);
+    if (!(Math.abs(r.burn - want) < 1e-6)) p.push(`the no-rent burn is ${r.burn}, worked by hand ${want.toFixed(4)}`);
+    if (!(Math.abs(r.burn + r.empty) < 1e-9)) p.push(`the no-rent burn ${r.burn} is not the model's own month at 100% vacancy, ${r.empty}`);
+    if (r.months !== 3 || r.reserve !== Math.round(3 * Math.max(want, r.withRent)) || r.six !== Math.round(6 * want)) p.push(`the reserve ${r.reserve} and six months with no rent ${r.six}, want ${Math.round(3 * want)} and ${Math.round(6 * want)}`);
+    if (p.length) fail('fixwave P9b: the reserve\'s no-rent burn is the model\'s own running costs at no rent, the minimum fee in full', p);
+    else ok(`fixwave P9b: the reserve's no-rent burn is the instalment and the model's own running costs at no rent — RM${r.burn.toFixed(2)} a month on the sample managed at 8% with a RM150 minimum (worked by hand; = the month at 100% vacancy), the reserve RM${r.reserve.toLocaleString('en')}, six months with no rent RM${r.six.toLocaleString('en')}`);
+  }
+
   /* P11 — "Application structure" is not scored from nothing. It scored 70
            as soon as an income existed, with a basis that said the applicant
            count and tenure fit were "recorded"; the page has no control for
