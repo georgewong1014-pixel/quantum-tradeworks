@@ -121,6 +121,12 @@ function napicBenchmarks(division, { locality = null, limit = 40 } = {}) {
   return { rows: rows.slice(0, limit), matched, total: rows.length, divisionTotal: all.length };
 }
 
+/* The licence position, in the one line every place that shows NAPIC's
+   ranges says it (the area screen's panel and the scheme map's list and
+   panel), so no two can word it differently. */
+const napicLicenceLine = (napic) => `Licence ${napic.licence.status.replace(/_/g, ' ').toLowerCase()} — derived display only. `
+  + 'Raw files are not published, NAPIC rows are not exported in bulk, and the extraction reconciles to the published Sarawak '
+  + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`;
 const napicUnitLabel = (b) => ({
   RM_PER_UNIT: 'per unit', RM_PER_SQM: 'per m²', RM_PER_HECTARE: 'per hectare',
 }[b.basisUnit] || '') + (b.perMonth ? ' a month' : '');
@@ -249,9 +255,6 @@ function officialBenchmarkPanel(city, area) {
     `Source period ${napic.period.code}. ${napic.licence.attribution}. `
     + 'Figures are official NAPIC aggregates or sample-based benchmarks for the stated reporting period. They are not live '
     + 'listings, complete transaction histories or professional valuations.'));
-  card.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' },
-    `Licence ${napic.licence.status.replace(/_/g, ' ').toLowerCase()} — derived display only. `
-    + 'Raw files are not published, NAPIC rows are not exported in bulk, and the extraction reconciles to the published Sarawak '
-    + `total of ${fmtNum(napic.reconciliation.target.count, 0)} transactions exactly.`));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:4px;color:var(--bronze)' }, napicLicenceLine(napic)));
   return card;
 }

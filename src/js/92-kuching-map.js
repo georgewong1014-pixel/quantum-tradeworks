@@ -65,8 +65,14 @@ const KM_NOT = {
   weak: { label: 'Not placed — a partial or ambiguous match', said: 'Only a partial or ambiguous match in OpenStreetMap: held for review, not guessed.' },
   street: { label: 'Not placed — named after a street', said: 'A street is a line, often kilometres long; a neighbourhood’s mark on it would claim more than the name says.' },
   none: { label: 'Not placed — no OpenStreetMap match', said: 'No OpenStreetMap name matches it, and no other source this map may use places it.' },
-  'not-a-place': { label: 'Not a place', said: 'An extraction label from NAPIC’s rental table — a floor of a building — not a scheme’s name.' },
+  /* In a customer's words, and as left out of the count of schemes
+     (kmSchemeCount): the three rows are "1st Floor", "2nd Floor" and
+     "3rd Floor" — copy-property-9. */
+  'not-a-place': { label: 'Not a place', said: 'A row NAPIC’s rental table labels by floor, not by scheme: not a scheme’s name, and not counted as a scheme above.' },
 };
+/* The schemes NAPIC's sample names: every row but those that are not a place
+   (a floor of a building), so the count says what it counts. */
+const kmSchemeCount = () => (KM_DATA?.schemes || []).filter(s => s.status !== 'not-a-place').length;
 const kmReason = (s) => (s.status === 'not-a-place' ? 'not-a-place' : s.reason);
 
 /* The page's state for this tab: the map, its mode and what is selected. The
@@ -127,6 +133,15 @@ function kmFigures(scheme, { change = false } = {}) {
   ])));
 }
 
+/* THE LICENCE POSITION OF NAPIC'S RANGES, beside them, in the area screen's
+   own line (napicLicenceLine, 81-napic.js): the ranges are shown as derived
+   figures, and /about and /terms say
+   so. Only once NAPIC's file is loaded, which is when the ranges are. */
+function kmLicence() {
+  const doc = napicDoc('Kuching');
+  return doc ? el('p', { class: 'metaline km-licence', style: 'color:var(--bronze)' }, napicLicenceLine(doc)) : null;
+}
+
 /* --------------------------------------------------------------- the page */
 VIEWS.areaMap = () => {
   const wrap = el('div', { class: 'km-page' });
@@ -134,13 +149,13 @@ VIEWS.areaMap = () => {
   /* NAPIC's Kuching file, asked for as the page is first drawn: the figures
      under each scheme come with it (loadNapic redraws the page). */
   if (!napicDivisions.has('Kuching')) loadNapic('Kuching');
-  const placed = kmPlaced(), all = KM_DATA.schemes;
+  const placed = kmPlaced();
   wrap.append(pageHead({ title: 'Kuching scheme map',
     /* Its own state, as the register row has it (80-registers.js): the area
        screen's tab is Live, and this view of it is new. */
     badge: el('span', { class: 'status-badge status-beta', title: 'New: positions only, most schemes not yet placed, nothing on the map priced.' }, 'Beta'),
     lede: 'Where NAPIC’s Kuching housing schemes are, wherever OpenStreetMap names them — positions only, never prices.',
-    note: `${placed.length} of ${all.length} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
+    note: `${placed.length} of ${kmSchemeCount()} residential schemes in NAPIC’s ${KM_DATA.period} sample are placed, each with its evidence and how sure it is. `
       + 'NAPIC’s observed ranges stay in the list, under each scheme; the map carries no figure.' }));
   wrap.append(areaViewsNav('areaMap'));
 
@@ -239,6 +254,8 @@ function kmPanel() {
   panel.append(el('div', { class: 'card-hd-t km-panel-sub' }, [el('h4', { class: 'eyebrow' }, `NAPIC ${KM_DATA.period}, under this name`), kindBadge('filed', { fine: `NAPIC ${KM_DATA.period}` })]));
   panel.append(kmFigures(s.scheme, { change: true }) || el('p', { class: 'metaline' }, 'Loading NAPIC’s Kuching file…'));
   panel.append(el('p', { class: 'metaline' }, 'A range observed across NAPIC’s sample for the half-year: not the scheme’s price, not the latest sale, never a midpoint. A row from one observation is one property in the sample.'));
+  const lic = kmLicence();
+  if (lic) panel.append(lic);
   const acts = el('div', { class: 'km-acts' });
   if (placed) {
     acts.append(kmLabButton(s, 'km-panel-lab'));
@@ -265,7 +282,7 @@ function kmOpenLab(s) {
 /* -------------------------------------------------------------- the list */
 function kmList() {
   const card = el('section', { class: 'card km-list-card', id: 'km-list', 'aria-labelledby': 'km-list-h' });
-  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${KM_DATA.schemes.length}`,
+  card.append(cardHead(`Every Kuching residential scheme in NAPIC’s ${KM_DATA.period} sample — ${kmSchemeCount()}`,
     'The map’s list, and the way to it from a keyboard or a screen reader: each scheme’s position and evidence, NAPIC’s figures under it, and the Scenario Lab.', null, { kind: 'filed', fine: `NAPIC ${KM_DATA.period}` }));
   const find = el('div', { class: 'km-find' }, [
     el('label', { for: 'km-find' }, 'Find a scheme'),
@@ -275,6 +292,8 @@ function kmList() {
   ]);
   card.append(find);
   card.append(el('p', { class: 'metaline km-figs-say' }, `Under each scheme, NAPIC’s observed ranges for ${KM_DATA.period} once the page’s script has loaded NAPIC’s Kuching file; a row from one observation says so.`));
+  const lic = kmLicence();
+  if (lic) card.append(lic);
   const groups = [
     ['placed', `Placed on the map — ${kmPlaced().length}`, (s) => s.status === 'placed'],
     ['weak', null, (s) => kmReason(s) === 'weak'],
@@ -321,7 +340,7 @@ function kmFilter(root = document.getElementById('km-list')) {
   }
   for (const g of root.querySelectorAll('.km-group')) g.hidden = !g.querySelector('.km-item:not([hidden])');
   const said = root.querySelector('#km-find-said');
-  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} schemes match “${KM.filter.trim()}”.` : '';
+  if (said) said.textContent = q ? `${shown} of ${KM_DATA.schemes.length} listed names match “${KM.filter.trim()}”.` : '';
 }
 
 /* -------------------------------------------------------- choosing one */
