@@ -9203,7 +9203,8 @@ try {
      existing process as it is, do not add a merge). Runs in the test
      browser's own profile, and puts back every key it found. */
   {
-    const r = JSON.parse(await evaluate(`(async () => {
+    let r = null, reloadedOver = null;
+    try { r = JSON.parse(await evaluate(`(async () => {
       const w = (ms) => new Promise(r => setTimeout(r, ms));
       const NAME = 'Model-test property — not a real property', NAME2 = 'Model-test property two — not a real property';
       const SCNAME = 'Model-test scenario — rent 3,100';
@@ -9388,14 +9389,40 @@ try {
         const S2 = snapAll();
         let applied = null, threwE = null;
         try { applied = refuse(() => impF.apply()); } catch (e) { threwE = String(e && e.message || e); }
-        out.failEvery = { threw: threwE, returned: applied === undefined ? 'nothing' : JSON.stringify(applied), writes: out.writes, same: sameSnap(S2, snapAll()), notWritten: impF.incoming.filter(k => localStorage.getItem('vl.' + k) !== JSON.stringify(eDoc.data[k])), kinds: impF.incoming.length };
+        out.failEvery = { threw: threwE, ok: applied ? applied.ok : null, error: applied && applied.error || '', writes: out.writes, same: sameSnap(S2, snapAll()), changed: diffKeys(S2, snapAll()), kinds: impF.incoming.length };
+        /* The restore drawer: the same refusal through its own Restore button. The reason is said in the drawer, the drawer stays open and the page is not reloaded (a marker on window survives). */
+        putBack(S2);
+        const S3 = snapAll();
+        window.__t4mark = 1;
+        const onHide = () => { try { sessionStorage.setItem('__t4reload', '1'); putBack(S0); } catch { /* nothing to do */ } };
+        window.addEventListener('pagehide', onHide);
+        const realConfirm = window.confirm; window.confirm = () => true;
+        openRestoreDrawer(); await w(200);
+        const ta2 = drawerBody.querySelector('textarea'), go2 = [...drawerBody.querySelectorAll('button')].find(b => b.textContent.trim() === 'Check this file');
+        if (ta2 && go2) { ta2.value = JSON.stringify(eDoc); go2.click(); await w(250); }
+        const rb = [...drawerBody.querySelectorAll('button')].find(b => /^Restore [0-9]+ item/.test(b.textContent.trim()));
+        if (rb) refuse(() => rb.click());
+        window.confirm = realConfirm;
+        await w(1200);
+        window.removeEventListener('pagehide', onHide);
+        const said = drawerBody.querySelector('[data-restore-refused]');
+        out.drawerFail = { found: !!rb, marker: window.__t4mark === 1, said: said ? said.textContent : null, open: !drawer.hidden, same: sameSnap(S3, snapAll()), changed: diffKeys(S3, snapAll()) };
+        delete window.__t4mark;
+        closeDrawer({ restore: false }); await w(350);
       } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
       finally { Storage.prototype.setItem = realSet; }
       navigate('/property/calculator?view=full'); await w(500);
       State.deal = JSON.parse(keepDeal); saveDeal(); putBack(S0);
       out.cleaned = sameSnap(snapAll(), S0);
       out.differ = diffKeys(snapAll(), S0);
-      return JSON.stringify(out); })()`));
+      return JSON.stringify(out); })()`)); } catch (e) { reloadedOver = String(e && e.message || e); }
+    if (reloadedOver) {
+      /* The drawer reloaded the page over a refused restore: the page's pagehide handler (below) put the browser's own keys back and left a mark. */
+      let mark = null;
+      for (let i = 0; i < 80 && mark === null; i++) { await sleep(250); try { mark = await evaluate(`sessionStorage.getItem('__t4reload') || ''`); } catch { /* still loading */ } }
+      try { await evaluate(`sessionStorage.removeItem('__t4reload'); true`); } catch { /* ignored */ }
+      fail('qt-day8: a refused "Export everything" restore leaves the browser as it was', [`the restore drawer reloaded the page over a refused restore (the browser answered: ${reloadedOver}; mark ${mark === '1' ? 'seen' : 'not seen'})`]);
+    } else {
     const p = [...r.problems];
     const SC = 'Model-test scenario — rent 3,100';
     /* 1 */
@@ -9457,13 +9484,23 @@ try {
     if (!fb || fb.threw || fb.ok !== false || !fb.error || fb.restored !== 0) p.push(`backup, the third write refused: ${JSON.stringify(fb)}`);
     else if (!fb.same) p.push(`backup, the third write refused: the restore was refused ("${String(fb.error).slice(0, 60)}…") but these keys are not as they were: ${fb.changed.join(', ')}`);
     if (!fb || fb.writes < 3) p.push(`backup, the third write was never reached (${fb && fb.writes} writes)`);
-    if (!fe || fe.threw) p.push(`Export everything, the third write refused: ${JSON.stringify(fe)}`);
+    if (!fe || fe.threw || fe.ok !== false || !/^Not restored — this browser refused part of the file/.test(fe.error)) p.push(`Export everything, the third write refused: apply returned ${JSON.stringify(fe)}, not a refusal with a reason`);
+    else if (!fe.same) p.push(`Export everything, the third write refused: the restore was refused ("${String(fe.error).slice(0, 50)}…") but these keys are not as they were: ${fe.changed.join(', ')}`);
+    const dr = r.drawerFail;
+    if (!dr || !dr.found) p.push('the restore drawer offered no Restore button for the file');
+    else {
+      if (!dr.said || !/refused part of the file/.test(dr.said)) p.push(`the restore drawer, the third write refused, shows no reason: ${JSON.stringify(dr.said)}`);
+      if (!dr.marker) p.push('the restore drawer reloaded the page over a refused restore');
+      if (!dr.open) p.push('the restore drawer closed over a refused restore');
+      if (!dr.same) p.push(`the restore drawer, the third write refused, left these keys changed: ${dr.changed.join(', ')}`);
+    }
     if (!fe || fe.writes < 3) p.push(`Export everything, the third write was never reached (${fe && fe.writes} writes)`);
     if (!r.cleaned) p.push(`the browser's own work was not put back; changed: ${(r.differ || []).join(', ')}`);
     if (p.length) fail('qt-day8: a backup and an "Export everything" file each hold the property, its scenario, evidence and actual; restore them whole, older files too; a refused write and a conflict leave what the page says', p);
     else {
       const h = r.holds.backup, k = r.kinds;
-      ok(`qt-day8: a test property — six edited inputs (price 480,000, rent 2,600, renovation 30,000, 6-month reserve, vacancy 12%, management 8%), evidence marks on price, rent and vacancy, one scenario (rent 3,100, vacancy 5%) and one actual (rent 2,550 for January 2026) — is in both files: the backup (${k.backup} kinds) and Export everything (${k.everything} kinds) each carry the name, all six inputs, the scenario with its figures, the evidence marks and the actual, through saved work and the recorded actuals; the backup alone also carries ${k.backupOnly.length} kind(s) Export everything does not (${k.backupOnly.join(', ')}; the fingerprint and last-export time are left out of it); each restores through its own restore, every field once, and reopened the base and the scenario give the same ${r.fig.n} model figures; a backup from before the record grew, and two Export everything files an earlier build wrote, restore and open with their figures, the page naming what it keeps as it is (the actuals, and saved work for the first build's file); with the third write refused the backup says why and every key is as it was; a backup taken at 480,000 restores P1 at 480,000, once, and removes P2 saved after it (the saved-work list and the recorded actuals are replaced whole, as the page says: "replaces what this browser holds now … under the same names"). Export everything's restore, with the third write refused, ${r.failEvery.same ? 'leaves every key as it was' : `goes on past the refused write: it writes ${r.failEvery.kinds - r.failEvery.notWritten.length} of its ${r.failEvery.kinds} kinds, leaves ${r.failEvery.notWritten.join(', ')} as it was and says nothing, so it is not all or nothing (reported, not changed)`}`);
+      ok(`qt-day8: a test property — six edited inputs (price 480,000, rent 2,600, renovation 30,000, 6-month reserve, vacancy 12%, management 8%), evidence marks on price, rent and vacancy, one scenario (rent 3,100, vacancy 5%) and one actual (rent 2,550 for January 2026) — is in both files: the backup (${k.backup} kinds) and Export everything (${k.everything} kinds) each carry the name, all six inputs, the scenario with its figures, the evidence marks and the actual, through saved work and the recorded actuals; the backup alone also carries ${k.backupOnly.length} kind(s) Export everything does not (${k.backupOnly.join(', ')}; the fingerprint and last-export time are left out of it); each restores through its own restore, every field once, and reopened the base and the scenario give the same ${r.fig.n} model figures; a backup from before the record grew, and two Export everything files an earlier build wrote, restore and open with their figures, the page naming what it keeps as it is (the actuals, and saved work for the first build's file); with the third write refused the backup says why and every key is as it was; a backup taken at 480,000 restores P1 at 480,000, once, and removes P2 saved after it (the saved-work list and the recorded actuals are replaced whole, as the page says: "replaces what this browser holds now … under the same names"). Export everything's restore, with the third write refused, is refused with a reason ("${String(r.failEvery.error).slice(0, 50)}…") and every key is as it was, and so through the restore drawer, which shows the reason, stays open and does not reload`);
+    }
     }
   }
   /* ---- end qt-day1 ---- */
