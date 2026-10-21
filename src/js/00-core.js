@@ -338,7 +338,13 @@ const STORE_SHAPES = {
   portfolios: { list: true, nonEmpty: true, what: 'a portfolio with a list of holdings',
                 item: (p) => isRecord(p) && Array.isArray(p.holdings) && p.holdings.every(isRecord),
                 emptied: () => [{ id: 'pf-user', name: 'My portfolio', cash: 0, cashCcy: 'MYR', holdings: [] }] },
-  /* The case card and its evaluation read these three lists unguarded. */
+  /* The case card and its evaluation read these three lists unguarded. The
+     fields a case gained in Day 8 (QT-D08-01) — `suggested` (which defaults
+     are still the tool's), `suggested` on a condition, and `snapshot` (the
+     research when it was started) — are optional and every reader guards
+     them, so they are not required here: a case from before them is as
+     valid as one with them, and neither is refused for lacking or holding
+     them. */
   theses: { list: true, what: 'an investment case with its lists of conditions, catalysts and risks',
             item: (t) => isRecord(t) && ['conds', 'catalysts', 'risks'].every(k => Array.isArray(t[k])), emptied: () => [] },
   /* migrateWatchlists makes the one empty list of the reader's own. */
