@@ -5741,6 +5741,43 @@ try {
         else if (!/\(interest rate\): none of the results\./.test(r.s) || /none of the seven/.test(r.s)) fail('scenario-lab-verify V16: with no row moved, "Moved by" says so without a count kept by hand', r);
         else ok(`scenario-lab-verify V16: a purchase for cash with its rate moved to 6% reads "${r.s}" — none of the ${r.rows} rows moved, and no count is kept by hand`);
       });
+
+      /* V17: the words and figures the 20 Oct 2026 sweep found wrong, each
+         probed on the page's own functions (no calculation is asked to
+         change): taxed-1, stress-3, stress-5, lab-refurb-6, lab-refurb-7. */
+      await vStep('V17', async () => {
+        const r = await evaluate(`(async () => {
+          const out = {};
+          /* taxed-1: a rate on a loan with no schedule has no month after tax; it is not RM0. */
+          const d1 = { ...PROPERTY_DEFAULT_DEAL, marginalTaxPct: 24, tenureYears: 0 };
+          const m1 = dealModel(d1);
+          const vm = labMetricView('cashflow', { cols: [{ key: 'A', cur: { m: m1 }, work: d1 }] });
+          out.t1 = { cf: m1.path[0].cf, note: vm.tables[0].rows[0].note, twin: vm.twin.rows()[0][2] };
+          /* stress-5: no loan, no valuation — the price moves nothing. */
+          const dC = { ...PROPERTY_DEFAULT_DEAL, downPct: 100, bankValuation: 0, targetKind: 'monthly', targetValue: 1000 };
+          const sC = solveDealPrice(dC);
+          out.s5 = { status: sC.status, sub: priceSolveWords(sC, dC).sub, formula: priceSolveFormula(sC, dC) };
+          /* stress-3: an overrun row's cash is the headline's, with the reserve. */
+          const dR = { ...PROPERTY_DEFAULT_DEAL, renovation: 25000 };
+          const mR = dealModel(dR);
+          const risk = cpSplitItems(dR, mR, cpCash(mR), false).risks.filter(x => /^Renovation/.test(x.label));
+          out.s3 = { values: risk.map(x => x.value), want: mR.stress.renovation.slice(1, 3).map(x => Math.round(x.cash + mR.reserveCash)), safe: mR.safeCashRequired };
+          /* lab-refurb-6 and -7: a tax-marked commitment, a loan "when the sale completes". */
+          const dT = { ...PROPERTY_DEFAULT_DEAL, marginalTaxPct: 24 };
+          const mT = dealModel(dT), fT = LAB_FIGURES.find(f => f.key === 'monthlyCommitment');
+          out.r6 = { note: fT.note(mT), formula: fT.formula(dT, mT), plain: LAB_FIGURES.find(f => f.key === 'monthlyCommitment').note(dealModel(PROPERTY_DEFAULT_DEAL)) };
+          out.r7 = LAB_FIGURES.find(f => f.key === 'valueLessLoanAtExit').formula(PROPERTY_DEFAULT_DEAL, dealModel(PROPERTY_DEFAULT_DEAL));
+          return out;
+        })()`);
+        const p = [];
+        if (r.t1.cf !== null || /RM0/.test(r.t1.note) || r.t1.twin === 'RM0' || !/not computable/.test(r.t1.note)) p.push(`taxed-1: a rate on a loan with no schedule reads "${r.t1.note}" and "${r.t1.twin}" (the month after tax is ${r.t1.cf})`);
+        if (r.s5.status !== 'unbounded' || !/^With no loan, the price does not move the monthly position/.test(r.s5.sub) || /valuation/.test(r.s5.sub) || /the loan and its repayment rise/.test(r.s5.formula)) p.push(`stress-5: a cash purchase's unbounded solve says "${r.s5.sub}" / "${r.s5.formula.slice(150, 400)}"`);
+        if (r.s3.values.length !== 2 || r.s3.values.some((v, i) => v !== 'RM' + r.s3.want[i].toLocaleString('en-US') + ' cash required')) p.push(`stress-3: the overrun rows read ${JSON.stringify(r.s3.values)}, the cash with the reserve is ${JSON.stringify(r.s3.want)}`);
+        if (r.r6.note !== 'before tax on the rent' || !/That is before tax on the rent: after tax at 24%/.test(r.r6.formula) || r.r6.plain !== null) p.push(`lab-refurb-6: the commitment's note reads "${r.r6.note}" with a rate, "${r.r6.plain}" without; formula "${r.r6.formula.slice(-160)}"`);
+        if (!/less the loan still owed when the sale completes, 6 months after year 10, RM/.test(r.r7)) p.push(`lab-refurb-7: the subsale row's words read "${r.r7.slice(-150)}"`);
+        if (p.length) fail('scenario-lab-verify V17: the sweep’s wording defects', p);
+        else ok(`scenario-lab-verify V17: with a rate on a loan with no schedule the month after tax reads "${r.t1.twin}", not RM0; a cash purchase's price solve says "${r.s5.sub}"; the proposal's renovation overrun rows read ${r.s3.values.join(' and ')} (the reserve in); the monthly commitment is marked before tax once a rate is entered; the loan still owed is the one when the sale completes`);
+      });
     } finally {
       await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
     }
@@ -8017,6 +8054,8 @@ try {
         if (ranked) p.push(`lens ${s.lens}: the card says "${ranked[0]}"`);
       }
       if (!/The figures you entered imply/.test(r.seen[0].text) || !/nothing here is ranked/.test(r.seen[0].text)) p.push('the card does not say "the figures you entered imply" and that nothing is ranked');
+      /* The column the options are worked on is named (the 20 Oct 2026 sweep, lab-refurb-4). */
+      if (!/Worked on [AB] — /.test(r.seen[0].text) || !/column [AB], as it stands/.test(r.seen[0].text)) p.push('the card does not name the column it is worked on: ' + r.seen[0].text.slice(0, 160));
       if (/supplier|contractor|vendor|company name|brand/i.test(r.inputs)) p.push(`a supplier is asked for: "${r.inputs.match(/supplier|contractor|vendor|company name|brand/i)[0]}"`);
       if (p.length) fail('refurb F2: on the Lab, the lens never reorders the options', p);
       else ok(`refurb F2: through ${r.seen.length - 1} lens switches the options read Do nothing, Refurbish, Upgrade, Sell every time; each lens leads with its own two rows (cash flow: the monthly position and the net yield; risk: the cash required and the months without rent); "The figures you entered imply", "nothing here is ranked", no ranking word, no supplier asked for`);
