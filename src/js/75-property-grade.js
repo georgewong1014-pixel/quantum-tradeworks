@@ -3119,9 +3119,15 @@ function pcArrivalView() {
 /* THE QUICK MODEL'S BOXES, in the order a purchase is costed: the price
    and the loan; the rent and what it takes to run; the other running costs
    as one line that opens in place to their own boxes; the renovation. */
+/* THE FEE AND WHO MANAGES, SIDE BY SIDE (the 20 Oct 2026 sweep,
+   managed-2). The sample is self-managed, and a self-managed owner pays no
+   letting and management fee — so a fee typed in the Quick model, which
+   had the box and not the tick, changed no figure and nothing said so. The
+   full model's own tick sits under the fee box here: the fee's state is in
+   sight and can be changed where the fee is typed. */
 const PC_QUICK_GROUPS = [
   ['Purchase and loan', ['price', 'downPct', 'ratePct', 'tenureYears']],
-  ['Rent and running costs', ['rent', 'vacancyPct', 'maintenance', 'mgmtPct']],
+  ['Rent and running costs', ['rent', 'vacancyPct', 'maintenance', 'mgmtPct', 'selfManaged']],
 ];
 const PC_QUICK_OTHER = ['sinkingFund', 'assessment', 'quitRent', 'insurance', 'repairReservePct'];
 const PC_QUICK_KEYS = new Set([...PC_QUICK_GROUPS.flatMap(([, ks]) => ks), ...PC_QUICK_OTHER, 'renovation']);

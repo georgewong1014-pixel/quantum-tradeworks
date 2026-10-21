@@ -5358,7 +5358,9 @@ for (const w of [360, 390]) {
     const firstInput = document.querySelector('#pc-quick .pc-q-inputs input')?.getBoundingClientRect();
     const name = (n) => (n.id ? '#' + n.id : n.tagName.toLowerCase() + (n.getAttribute('class') ? '.' + n.getAttribute('class').trim().split(/\\s+/)[0] : '')) + ' “' + (n.textContent || n.getAttribute('aria-label') || '').trim().slice(0, 30) + '”';
     const small = []; let controls = 0;
-    for (const c of main.querySelectorAll('a[href], button, input:not([type="hidden"]), select, summary, [role="button"]')) {
+    /* A checkbox's target is its whole label (.checkline, 44px on a phone),
+       as the other checks here count it: the tick beside the fee box. */
+    for (const c of main.querySelectorAll('a[href], button, input:not([type="hidden"]):not([type="checkbox"]), label.checkline, select, summary, [role="button"]')) {
       if (!shown(c) || !c.checkVisibility({ checkVisibilityCSS: true })) continue;
       if (c.closest('p, li') && c.tagName === 'A' && !c.matches('.btn, .ls-cta, .kind-badge, .pc-view-link')) continue;
       controls++;

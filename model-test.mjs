@@ -9729,6 +9729,51 @@ try {
   }
   /* ---- end qt-quick ---- */
 
+  /* qt-quick-fee — THE FEE AND WHO MANAGES, SIDE BY SIDE (the 20 Oct 2026
+     sweep, managed-2). The sample is self-managed, so a letting and
+     management fee typed in the Quick model — which had the box and not
+     the tick — changed no figure, and nothing said so. The full model's
+     own tick, "I will manage this property myself", is drawn in the Quick
+     model right after the fee box, ticked on the sample; unticking it
+     there charges the fee: on the sample with 8% typed, the month falls
+     by (8% of the RM20,202 collected + half a month's RM1,850 placement a
+     year) ÷ 12 = RM211.76, worked by hand. Fails on 68f3da44: no tick in
+     the Quick model. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+      const out = {};
+      try {
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, mgmtPct: 8 };
+        saveDeal(); navigate('/property/calculator'); setPropertyView(false); render(); await w(400);
+        const fee = document.querySelector('#pc-quick #d-mgmtPct'), tick = document.querySelector('#pc-quick #d-selfManaged');
+        out.quick = !!document.getElementById('pc-quick');
+        out.drawn = { fee: !!fee, tick: !!tick };
+        out.next = !!(fee && tick) && fee.closest('.assumption')?.nextElementSibling === tick.closest('label');
+        out.label = tick ? tick.closest('label').textContent.trim() : null;
+        out.before = { checked: tick ? tick.checked : null, monthly: dealModel(State.deal).cashflowMonthly };
+        if (tick) { tick.click(); await w(400); }
+        const t2 = document.querySelector('#pc-quick #d-selfManaged');
+        out.after = { self: State.deal.selfManaged, checked: t2 ? t2.checked : null, monthly: dealModel(State.deal).cashflowMonthly, quick: !!document.getElementById('pc-quick') };
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate('/property/calculator'); render(); await w(250);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.quick || !r.drawn.fee || !r.drawn.tick) p.push(`the Quick model draws ${r.drawn.fee ? 'the fee box' : 'no fee box'} and ${r.drawn.tick ? 'the tick' : 'no "I will manage this property myself" tick'}`);
+    else {
+      if (!r.next) p.push('the tick is not right after the fee box');
+      if (r.label !== 'I will manage this property myself') p.push(`the tick reads "${r.label}"`);
+      const want = (0.08 * 1850 * 12 * 0.91 + 1 * 1850 * 12 / 24) / 12;
+      if (r.before.checked !== true || r.after.self !== false || r.after.checked !== false || !r.after.quick) p.push(`ticked ${r.before.checked} on the sample; after a click the deal is ${r.after.self ? 'self-managed' : 'managed'}, the tick ${r.after.checked}, ${r.after.quick ? 'in Quick' : 'out of Quick'}`);
+      if (!(Math.abs((r.before.monthly - r.after.monthly) - want) < 1e-6)) p.push(`unticked, the month moved ${(r.before.monthly - r.after.monthly).toFixed(4)}, by hand ${want.toFixed(4)} (the fee charged)`);
+    }
+    if (p.length) fail('qt-quick-fee: the Quick model shows who manages beside the fee, and the tick charges the fee', p);
+    else ok(`qt-quick-fee: the Quick model draws "I will manage this property myself" right after the fee box, ticked on the sample; unticked there, the 8% typed is charged — the month falls RM${(r.before.monthly - r.after.monthly).toFixed(2)}, worked by hand`);
+  }
+
   /* ---- qt-quick-full ---- */
   /* WHAT THE CALCULATOR WAS SERVED WITH, THE FULL MODEL DRAWS (QT-003).
      /property/calculator is served in the Quick model since QT-003, so what
