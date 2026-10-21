@@ -3046,7 +3046,7 @@ function pcDealField(d, k) {
     f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
       'Illustrative default — not yours, and not from any market'));
   /* The exit's legal costs have a floor the percentage does not say. */
-  if (k === 'exitLegalPct') f.append(el('span', { class: 'a-note' }, 'At least RM500.'));
+  if (k === 'exitLegalPct') f.append(el('span', { class: 'metaline', style: 'grid-column:1 / -1;margin-top:-4px' }, 'At least RM500.'));
   /* On a new development, where the holding period counts from — the
      keys once both months are entered (ndTimingOf), signing until then. */
   if (k === 'holdYears' && dealRoute(d) === 'newdev') {
