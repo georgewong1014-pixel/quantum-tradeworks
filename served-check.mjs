@@ -2068,6 +2068,38 @@ const HOME_PAGE = read(HOME);
   /* ---- end p1-questions ---- */
 }
 /* ---- end n3-property-landing ---- */
+/* ---- cash-required-estimates ---- */
+/* WHEREVER THE CASH REQUIRED IS SHOWN, THE AMOUNT ON UNVERIFIED LINES IS
+   BESIDE IT (Day-8 report, copy-property-1; /data-sources promises it). The
+   sample card on / and on /property-investing, and the worked deal and the
+   live card on /how-it-works, each serve "on unverified lines" with an
+   amount. And the scheme map's count of schemes leaves out the rows that are
+   not a place (copy-property-9). */
+{
+  const p = [];
+  const M = await import('./map-assets.mjs');
+  /* What the page serves, in a closed <details> too (the worked examples). */
+  const text = (html) => html.slice(html.indexOf('<div id="views"')).replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/\s+/g, ' ');
+  const got = await getAll(['/', '/property-investing', '/how-it-works', '/property/areas/map']);
+  const want = { '/': 1, '/property-investing': 1, '/how-it-works': 2 };
+  for (const [path, n] of Object.entries(want)) {
+    const r = got.get(path);
+    if (r.status !== 200) { p.push(`${path}: ${described(r)}`); continue; }
+    const hits = (text(r.body).match(/RM\s?[\d,]+ on unverified lines/g) || []).length;
+    if (hits < n) p.push(`${path}: serves the amount on unverified lines ${hits} time${hits === 1 ? '' : 's'} beside a cash required, not ${n}`);
+  }
+  const doc = JSON.parse(read(M.SCHEMES_FILE));
+  const schemes = doc.schemes.filter(s => s.status !== 'not-a-place').length;
+  const map = got.get('/property/areas/map');
+  if (map.status !== 200) p.push(`/property/areas/map: ${described(map)}`);
+  else {
+    const t = text(map.body);
+    if (!t.includes(`of ${schemes} residential schemes`) || !t.includes(`sample — ${schemes}`)) p.push(`/property/areas/map: its count of schemes is not ${schemes}, the rows that are a place (${doc.schemes.length} listed, ${doc.schemes.length - schemes} not a place)`);
+  }
+  judge(p, 'the amount resting on unverified lines is served beside the cash required on /, /property-investing and /how-it-works, and the scheme map counts only the rows that are a place',
+    'the cash required is served without the amount resting on unverified lines, or the map counts rows that are not a place (Day-8 report, copy-property-1 and 9)');
+}
+/* ---- end cash-required-estimates ---- */
 /* ---- layout-system ---- */
 /* THE PAGES ON THE LAYOUT SYSTEM, AS SERVED (the owner's decision, 7 Oct
    2026; 37-layout-system.js). /property, /property/calculator and, since
