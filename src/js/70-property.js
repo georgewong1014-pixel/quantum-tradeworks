@@ -3554,14 +3554,18 @@ const PROPERTY_I18N = {
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
   'in.rent':      { en:'Expected monthly rent (RM)', ms:'Jangkaan sewa bulanan (RM)', zh:'预计月租 (RM)' },
   'in.rentGrowthPct':{ en:'Annual rent growth (%)', ms:'Pertumbuhan sewa tahunan (%)', zh:'年租金涨幅 (%)' },
-  'in.vacancyPct':{ en:'Vacancy allowance (%)', ms:'Peruntukan kekosongan (%)', zh:'空置预留 (%)' },
+  /* EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8 report, its
+     item 4): the vacancy of the year; the fee and the reserve of the rent
+     collected, after vacancy (dealModel's mgmtY and repairY); the exit
+     costs of the sale price (its RM500 minimum in the box's note). */
+  'in.vacancyPct':{ en:'Vacancy allowance (% of the year)', ms:'Peruntukan kekosongan (% setahun)', zh:'空置预留 (占全年 %)' },
   'in.maintenance':{ en:'Monthly maintenance (RM)', ms:'Penyelenggaraan bulanan (RM)', zh:'每月维修费 (RM)' },
   'in.sinkingFund':{ en:'Monthly sinking fund (RM)', ms:'Sinking fund bulanan (RM)', zh:'每月储备金 (RM)' },
   'in.assessment':{ en:'Annual assessment (RM)', ms:'Cukai pintu tahunan (RM)', zh:'每年门牌税 (RM)' },
   'in.quitRent':  { en:'Annual quit rent (RM)', ms:'Cukai tanah tahunan (RM)', zh:'每年地税 (RM)' },
   'in.insurance': { en:'Annual insurance (RM)', ms:'Insurans tahunan (RM)', zh:'每年保险费 (RM)' },
-  'in.mgmtPct':   { en:'Letting and management fee (% of rent)', ms:'Fi sewaan dan pengurusan (% sewa)', zh:'出租与管理费 (占租金 %)' },
-  'in.repairReservePct':{ en:'Repair reserve (% of rent)', ms:'Rizab pembaikan (% sewa)', zh:'维修储备 (占租金 %)' },
+  'in.mgmtPct':   { en:'Letting and management fee (% of rent collected)', ms:'Fi sewaan dan pengurusan (% sewa yang dikutip)', zh:'出租与管理费 (占实收租金 %)' },
+  'in.repairReservePct':{ en:'Repair reserve (% of rent collected)', ms:'Rizab pembaikan (% sewa yang dikutip)', zh:'维修储备 (占实收租金 %)' },
   'in.selfManaged':{ en:'I will manage this property myself', ms:'Saya akan mengurus hartanah ini sendiri', zh:'我将自行管理此产业' },
   'in.leasingFeeMonths':{ en:'Tenant placement fee (months of rent)', ms:'Fi mendapatkan penyewa (bulan sewa)', zh:'招租费（月租金数）' },
   'in.renewalFeeMonths':{ en:'Renewal fee (months of rent)', ms:'Fi pembaharuan sewaan (bulan sewa)', zh:'续约费（月租金数）' },
@@ -3582,8 +3586,8 @@ const PROPERTY_I18N = {
   'in.holdYears': { en:'Holding period (years)', ms:'Tempoh pegangan (tahun)', zh:'持有期 (年)' },
   'in.apprecPct': { en:'Annual capital growth (%)', ms:'Pertumbuhan modal tahunan (%)', zh:'年资本增值 (%)' },
   'in.sellMonths':{ en:'Expected months to sell', ms:'Jangkaan bulan untuk menjual', zh:'预计出售月数' },
-  'in.agentPct':  { en:'Agent commission on exit (%)', ms:'Komisen ejen semasa jualan (%)', zh:'出售时经纪佣金 (%)' },
-  'in.exitLegalPct':{ en:'Legal costs on exit (%)', ms:'Kos guaman semasa jualan (%)', zh:'出售时律师费 (%)' },
+  'in.agentPct':  { en:'Agent commission on exit (% of the sale price)', ms:'Komisen ejen semasa jualan (% harga jualan)', zh:'出售时经纪佣金 (占售价 %)' },
+  'in.exitLegalPct':{ en:'Legal costs on exit (% of the sale price)', ms:'Kos guaman semasa jualan (% harga jualan)', zh:'出售时律师费 (占售价 %)' },
   'in.equityReturnPct':{ en:'Assumed equity return (% a year)', ms:'Andaian pulangan ekuiti (% setahun)', zh:'假设股票回报 (每年 %)' },
   /* acquisition costs and the limitation statements */
   'c.deposit':      { en:'Deposit', ms:'Deposit', zh:'头期款' },

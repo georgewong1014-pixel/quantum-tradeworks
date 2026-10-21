@@ -10071,6 +10071,45 @@ try {
     else ok(`qt-words: "Negative even at 0%: the loan’s repayment is more than the rent leaves" (RM${inst0.toFixed(2)} against RM${left.toFixed(2)}, by hand); "At fixed vacancy levels"; "Larger move"; the RM300 minimum named, owed whatever is collected, ${r.money} above 8% at this rent`);
   }
 
+  /* qt-bases — EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8
+     report, item 4), and the model charges it on that: the fee and the
+     reserve on the rent collected after vacancy, the exit costs on the sale
+     price (the legal costs at least RM500), the vacancy of the year. By
+     hand, on the sample managed at 8% with 25% vacancy: rent collected
+     1,850 × 12 × 0.75 = RM16,650, the fee 8% of it RM1,332 and the reserve
+     5% RM832.50 (on the gross RM22,200 they would be RM1,776 and RM1,110);
+     a 2-year hold of a RM50,000 parcel at 3% growth sells at RM53,045, its
+     agent 2% RM1,060.90 and its legal costs RM500, not 0.5% (RM265.23).
+     The labels in English, Malay and Chinese; the RM500 floor in the
+     box's note. */
+  {
+    const r = await evaluate(`(() => {
+      const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const m = dealModel({ ...base, selfManaged: false, mgmtPct: 8, vacancyPct: 25 });
+      const x = dealModel({ ...base, propertyType: 'Land', landSqft: 4000, sqft: 0, price: 50000, downPct: 100, holdYears: 2, apprecPct: 3 });
+      const keys = ['vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct'];
+      return { mgmtY: m.mgmtY, repairY: m.repairY, exitValue: x.exitValue, agent: x.agentFee, legal: x.exitLegal,
+        labels: Object.fromEntries(keys.map(k => [k, { def: PC_FIELD_DEF[k][1], ...PROPERTY_I18N['in.' + k] }])),
+        note: pcDealField(base, 'exitLegalPct').textContent.replace(/\\s+/g, ' ').trim() };
+    })()`);
+    const p = [], near = (a, b) => Math.abs(a - b) < 1e-6;
+    if (!near(r.mgmtY, 1332) || !near(r.repairY, 832.5)) p.push(`the fee ${r.mgmtY} and the reserve ${r.repairY} — by hand 1,332 and 832.50, on the rent collected`);
+    if (!near(r.exitValue, 50000 * 1.03 * 1.03) || !near(r.agent, 50000 * 1.03 * 1.03 * 0.02) || r.legal !== 500) p.push(`the exit: value ${r.exitValue}, agent ${r.agent}, legal ${r.legal} — by hand 53,045, 1,060.90 and 500`);
+    const want = {
+      vacancyPct: ['Vacancy allowance (% of the year)', 'Peruntukan kekosongan (% setahun)', '空置预留 (占全年 %)'],
+      mgmtPct: ['Letting and management fee (% of rent collected)', 'Fi sewaan dan pengurusan (% sewa yang dikutip)', '出租与管理费 (占实收租金 %)'],
+      repairReservePct: ['Repair reserve (% of rent collected)', 'Rizab pembaikan (% sewa yang dikutip)', '维修储备 (占实收租金 %)'],
+      agentPct: ['Agent commission on exit (% of the sale price)', 'Komisen ejen semasa jualan (% harga jualan)', '出售时经纪佣金 (占售价 %)'],
+      exitLegalPct: ['Legal costs on exit (% of the sale price)', 'Kos guaman semasa jualan (% harga jualan)', '出售时律师费 (占售价 %)'],
+    };
+    for (const [k, [en, ms, zh]] of Object.entries(want)) {
+      const l = r.labels[k];
+      if (l.def !== en || l.en !== en || l.ms !== ms || l.zh !== zh) p.push(`${k} reads ${JSON.stringify(l)}`);
+    }
+    if (!/At least RM500\./.test(r.note) || /RM500/.test(r.labels.exitLegalPct.en)) p.push(`the legal costs' box: "${r.note}"`);
+    if (p.length) fail('qt-bases: each percentage says what it is a percentage of, and is charged on it', p);
+    else ok('qt-bases: the fee and the reserve on the rent collected (RM1,332 and RM832.50 at 25% vacancy, by hand), the exit costs on the sale price (RM1,060.90; the legal costs RM500 at least), the vacancy of the year — each label saying so in English, Malay and Chinese');
+  }
 
   /* ---- qt-quick-full ---- */
   /* WHAT THE CALCULATOR WAS SERVED WITH, THE FULL MODEL DRAWS (QT-003).

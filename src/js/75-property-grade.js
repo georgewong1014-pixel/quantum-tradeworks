@@ -2908,7 +2908,7 @@ const PC_GROUPS = [
   ['rental', 'Income', [
     ['rent', 'Expected monthly rent (RM)', 50],
     ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
-    ['vacancyPct', 'Vacancy allowance (%)', 1],
+    ['vacancyPct', 'Vacancy allowance (% of the year)', 1],
   ]],
   ['rental', 'Running costs', [
     ['maintenance', 'Monthly maintenance (RM)', 10],
@@ -2916,8 +2916,8 @@ const PC_GROUPS = [
     ['assessment', 'Annual assessment (RM)', 50],
     ['quitRent', 'Annual quit rent (RM)', 25],
     ['insurance', 'Annual insurance (RM)', 50],
-    ['mgmtPct', 'Letting and management fee (% of rent)', 0.5],
-    ['repairReservePct', 'Repair reserve (% of rent)', 0.5],
+    ['mgmtPct', 'Letting and management fee (% of rent collected)', 0.5],
+    ['repairReservePct', 'Repair reserve (% of rent collected)', 0.5],
   ]],
   /* A fee percentage says what management costs and nothing about what it
      does. These are the terms that decide both — and the ones a landlord has
@@ -2940,8 +2940,8 @@ const PC_GROUPS = [
     ['holdYears', 'Holding period (years)', 1],
     ['apprecPct', 'Annual capital growth (%)', 0.25],
     ['sellMonths', 'Expected months to sell', 1],
-    ['agentPct', 'Agent commission on exit (%)', 0.25],
-    ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
+    ['agentPct', 'Agent commission on exit (% of the sale price)', 0.25],
+    ['exitLegalPct', 'Legal costs on exit (% of the sale price)', 0.1],
   ]],
   ['scenarios', 'Comparison', [
     ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
@@ -3045,6 +3045,8 @@ function pcDealField(d, k) {
   if (inputIsSeeded(d, k))
     f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
       'Illustrative default — not yours, and not from any market'));
+  /* The exit's legal costs have a floor the percentage does not say. */
+  if (k === 'exitLegalPct') f.append(el('span', { class: 'a-note' }, 'At least RM500.'));
   /* On a new development, where the holding period counts from — the
      keys once both months are entered (ndTimingOf), signing until then. */
   if (k === 'holdYears' && dealRoute(d) === 'newdev') {
