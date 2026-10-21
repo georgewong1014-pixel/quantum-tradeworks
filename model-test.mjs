@@ -9348,7 +9348,7 @@ try {
         impC.apply();
         old.everyC = { ok: !!impC.ok, kinds: impC.incoming ? impC.incoming.length : 0, missing: impC.missing || [], ...afterOld() };
         out.old = old;
-        out.labelsOf = { actuals: portableLabel('propertyActuals'), work: portableLabel('savedWork') };
+        out.labelsOf = { actuals: PORTABLE_KEYS.find(x => x.k === 'propertyActuals').label, work: PORTABLE_KEYS.find(x => x.k === 'savedWork').label };
 
         /* ---- 5. conflicting records ---- */
         const conflict = async (kind) => {
@@ -9374,7 +9374,7 @@ try {
 
         /* ---- 4. storage refusing the third write ---- */
         const refuse = (fn) => { let n = 0; Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('vl.') && ++n === 3) throw new DOMException('quota', 'QuotaExceededError'); return realSet.call(this, k, v); }; try { return fn(); } finally { Storage.prototype.setItem = realSet; out.writes = n; } };
-        const differing = (keys) => keys.slice(0, 2).forEach(k => localStorage.setItem('vl.' + k, JSON.stringify({ modelTestDiffers: k })));
+        const differing = (keys, n = 2) => keys.slice(0, n).forEach(k => localStorage.setItem('vl.' + k, JSON.stringify({ modelTestDiffers: k })));
         const writable = (data) => Object.keys(data).filter(k => data[k] === null || !storedShapeFault(k, data[k]));
         restoreBackup(backupText);
         differing(writable(bDoc.data));
@@ -9384,7 +9384,7 @@ try {
         out.failBackup = { ok: resF && resF.ok, error: resF && resF.error || '', restored: resF && resF.restored, threw: threwF, writes: out.writes, same: sameSnap(S1, snapAll()), changed: diffKeys(S1, snapAll()), differedFirstTwo: writable(bDoc.data).slice(0, 2).length };
         putBack(S1);
         const impF = importEverything(eDoc);
-        differing(impF.incoming);
+        differing(impF.incoming, 3);
         const S2 = snapAll();
         let applied = null, threwE = null;
         try { applied = refuse(() => impF.apply()); } catch (e) { threwE = String(e && e.message || e); }
@@ -9392,7 +9392,7 @@ try {
       } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
       finally { Storage.prototype.setItem = realSet; }
       navigate('/property/calculator?view=full'); await w(500);
-      putBack(S0); State.deal = JSON.parse(keepDeal); saveDeal();
+      State.deal = JSON.parse(keepDeal); saveDeal(); putBack(S0);
       out.cleaned = sameSnap(snapAll(), S0);
       out.differ = diffKeys(snapAll(), S0);
       return JSON.stringify(out); })()`));
@@ -9463,7 +9463,7 @@ try {
     if (p.length) fail('qt-day8: a backup and an "Export everything" file each hold the property, its scenario, evidence and actual; restore them whole, older files too; a refused write and a conflict leave what the page says', p);
     else {
       const h = r.holds.backup, k = r.kinds;
-      ok(`qt-day8: a test property — six edited inputs (price 480,000, rent 2,600, renovation 30,000, 6-month reserve, vacancy 12%, management 8%), evidence marks on price, rent and vacancy, one scenario (rent 3,100, vacancy 5%) and one actual (rent 2,550 for January 2026) — is in both files: the backup (${k.backup} kinds) and Export everything (${k.everything} kinds) each carry the name, all six inputs, the scenario with its figures, the evidence marks and the actual, through saved work and the recorded actuals; the backup alone also carries ${k.backupOnly.length} kinds Export everything does not (${k.backupOnly.join(', ')}; the fingerprint and last-export time are left out of it); each restores through its own restore, every field once, and reopened the base and the scenario give the same ${r.fig.n} model figures; a backup from before the record grew, and two Export everything files an earlier build wrote, restore and open with their figures, the page naming what it keeps as it is (the actuals, and saved work for the first build's file); with the third write refused the backup says why and every key is as it was; a backup taken at 480,000 restores P1 at 480,000, once, and removes P2 saved after it (the saved-work list and the recorded actuals are replaced whole, as the page says: "replaces what this browser holds now … under the same names"). Export everything's restore, with the third write refused, ${r.failEvery.same ? 'leaves every key as it was' : `goes on past the refused write: it writes ${r.failEvery.kinds - r.failEvery.notWritten.length} of its ${r.failEvery.kinds} kinds, leaves ${r.failEvery.notWritten.join(', ')} as it was and says nothing, so it is not all or nothing (reported, not changed)`}`);
+      ok(`qt-day8: a test property — six edited inputs (price 480,000, rent 2,600, renovation 30,000, 6-month reserve, vacancy 12%, management 8%), evidence marks on price, rent and vacancy, one scenario (rent 3,100, vacancy 5%) and one actual (rent 2,550 for January 2026) — is in both files: the backup (${k.backup} kinds) and Export everything (${k.everything} kinds) each carry the name, all six inputs, the scenario with its figures, the evidence marks and the actual, through saved work and the recorded actuals; the backup alone also carries ${k.backupOnly.length} kind(s) Export everything does not (${k.backupOnly.join(', ')}; the fingerprint and last-export time are left out of it); each restores through its own restore, every field once, and reopened the base and the scenario give the same ${r.fig.n} model figures; a backup from before the record grew, and two Export everything files an earlier build wrote, restore and open with their figures, the page naming what it keeps as it is (the actuals, and saved work for the first build's file); with the third write refused the backup says why and every key is as it was; a backup taken at 480,000 restores P1 at 480,000, once, and removes P2 saved after it (the saved-work list and the recorded actuals are replaced whole, as the page says: "replaces what this browser holds now … under the same names"). Export everything's restore, with the third write refused, ${r.failEvery.same ? 'leaves every key as it was' : `goes on past the refused write: it writes ${r.failEvery.kinds - r.failEvery.notWritten.length} of its ${r.failEvery.kinds} kinds, leaves ${r.failEvery.notWritten.join(', ')} as it was and says nothing, so it is not all or nothing (reported, not changed)`}`);
     }
   }
   /* ---- end qt-day1 ---- */
