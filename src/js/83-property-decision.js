@@ -487,7 +487,7 @@ function pcPriceEvidence(d) {
    Proclamation's terms — the reserve price, the deposit and what it is a
    share of, the days to pay the balance, the arrears it passes to the
    buyer; the market value's comparables; and the reader's estimates —
-   repairs, possession, the legal and search costs, a financing buffer and
+   repairs, possession, the lawyer's legal fees, a financing buffer and
    the holding period. The winning bid is the purchase price the model runs
    on (on the Lab, the Price slider).
    Outputs on the layout system: L1 the effective acquisition cost and the
@@ -507,6 +507,13 @@ const auBadge = (kind, fine = null) => kindBadge(kind, { fine: fine || (kind ===
 const AUCTION_LEAD = 'Nothing of the sale is assumed: its terms are the ones you enter from the Proclamation of Sale. Not a valuation.';
 const auLower = (s) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 const auNotFinal = (a) => (a.final ? '' : ' Not final.');
+/* The holding months' working (the owner's rule of 21 Oct 2026; dealModel's
+   auctionHolding): months × the running costs a month, + the months after
+   the balance falls due × the instalment, each to the sen, so the product
+   printed is the total printed. */
+const auMonths = (n) => `${fmtNum(n, n % 1 ? 2 : 0)} month${n === 1 ? '' : 's'}`;
+const auHoldWorking = (s) => `${auMonths(s.months)} × ${fmtMoney(s.running, 'MYR', 2)} running costs`
+  + (s.instMonths > 0 ? ` + ${auMonths(s.instMonths)} × ${fmtMoney(s.instalment, 'MYR', 2)} instalment` : '');
 
 /* THE INPUTS, in three groups. `answer(k, v)` writes one (the page's own
    writer); `evidence(k, label)` draws where a figure came from, where the
@@ -527,7 +534,7 @@ const AU_GROUPS = (d = null) => [
   { id: 'costs', legend: 'Your estimates',
     note: null,
     fields: [['auctionRepairs', 'Repairs (RM)', 500], ['possessionCost', 'Possession cost (RM)', 500], ['possessionMonths', 'Possession time (months)', 1],
-      ['auctionLegal', 'Legal and search costs — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
+      ['auctionLegal', 'Legal fees — your lawyer’s quote (RM)', 100], ['auctionBuffer', 'Financing buffer (RM)', 1000], ['auctionHoldMonths', 'Holding period (months)', 1]] },
   /* The bid ceiling (the validation pass, audit #4): the reader's, never a
      default. */
   { id: 'ceiling', legend: 'Your bid ceiling',
@@ -542,7 +549,7 @@ function auctionInputs({ d, prefix, answer, evidence = null, extra = {} }) {
     const fs = el('fieldset', { class: `au-group au-group-${g.id}`, id: `${prefix}-au-${g.id}` });
     fs.append(el('legend', { class: 'au-legend' }, g.legend));
     const note = g.id === 'costs'
-      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns or is sold; each costs ${auMoney(m.burnWithoutRent)}, what it costs you a month with no rent coming in (the instalment and the running costs). The financing buffer is cash you hold back in case the loan is late or short when the balance falls due. Until you enter your lawyer’s quote, the legal costs are the fee rulebook’s purchase legal fees — rule 1’s full scale on the bid; Sarawak’s rules do not settle the purchaser’s share at auction (fee rulebook ${FEE_TABLE.version}), so the quote is the way to price it.`
+      ? `The winning bid you expect is the purchase price, ${auMoney(num0(d.price))} — every figure is worked from it. The holding period is the months from the sale until the property earns: no rent, the running costs from the sale and the instalment from the day the balance falls due — in the effective cost, the cash required and the rate of return. The financing buffer is cash you set aside for the part of the balance the loan does not cover. Until you enter your lawyer’s quote, the legal fees are the fee rulebook’s — rule 1’s full scale on the bid, which Sarawak’s rules do not settle at auction (fee rulebook ${FEE_TABLE.version}); the searches stay its separate estimate.`
       : g.note;
     const grid = el('div', { class: 'au-grid' });
     for (const [k, label, step, opts] of g.fields) {
@@ -630,8 +637,9 @@ function auctionWaterfall(a, prefix) {
     const from = add ? (isNum(run) ? run : 0) : 0;
     const to = has ? (add ? from + s.amount : s.amount) : null;
     if (add && has && isNum(run)) run = to;
-    const word = !has ? 'Not entered' : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
-    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : 'The monthly cost is not computable') : null) : null;
+    /* The holding to the sen, so its months × amounts below give it. */
+    const word = !has ? 'Not entered' : s.id === 'holding' ? `+${fmtMoney(s.amount, 'MYR', 2)}` : add ? `+${auMoney(s.amount)}` : auMoney(s.amount);
+    const why = !has ? (s.id === 'market' ? 'No comparable entered or named' : s.id === 'bid' ? 'No purchase price' : s.id === 'transaction' ? 'No line priced' : s.id === 'holding' ? (s.months == null ? null : s.why || 'The monthly cost is not computable') : null) : null;
     const svg = sv('svg', { class: 'au-wf-bar', width: '100%', height: '14', 'aria-hidden': 'true', focusable: 'false' });
     svg.append(sv('rect', { class: 'au-wf-track', x: '0', y: '2', width: '100%', height: '10', rx: '3' }));
     if (has && isNum(from)) {
@@ -643,7 +651,7 @@ function auctionWaterfall(a, prefix) {
     if (isNum(a.market) && s.id !== 'market') svg.append(sv('line', { class: 'au-wf-mv', x1: `${X(a.market)}%`, x2: `${X(a.market)}%`, y1: '0', y2: '14' }));
     const label = add ? `+ ${s.label}` : s.label;
     const sub = s.id === 'market' && has ? `the median of ${a.marketFrom.named.length + a.marketFrom.typed.length} comparable${a.marketFrom.named.length + a.marketFrom.typed.length === 1 ? '' : 's'}`
-      : s.id === 'holding' && has ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'} × ${auMoney(s.monthly)}`
+      : s.id === 'holding' && has ? auHoldWorking(s)
       : s.id === 'transaction' && has && s.unpriced ? `${s.unpriced} line${s.unpriced === 1 ? '' : 's'} not priced${s.gated ? ` — ${s.gated === s.unpriced ? '' : `${s.gated} of them `}not yet checked for ${FEE_CLASS_WORD[s.gatedCls]}` : ''}`
       : s.id === 'arrears' && has && s.partsMissing.length ? `${s.partsMissing.length} of ${s.parts.length} not entered`
       : s.id === 'possession' && has && isNum(s.months) ? `${fmtNum(s.months, s.months % 1 ? 1 : 0)} month${s.months === 1 ? '' : 's'}` : why;
@@ -698,25 +706,32 @@ function auctionResults({ a, prefix, why = {}, toChecklist = null }) {
 }
 
 /* THE BID CEILING'S CARD (L2): the bid, its kind, and what it leaves out. */
-const auCeilingTarget = (c) => (c.kind === 'margin' ? `${fmtNum(c.value, c.value % 1 ? 1 : 0)}% under the market value your comparables imply` : `an effective cost of ${auMoney(c.value)}, all in`);
+/* The ceiling as its arithmetic has it (the 20 Oct 2026 sweep, auction-6):
+   a cap that is not a whole ringgit to the sen, beside the costs to the
+   sen, and a margin to the places it was entered. */
+const auCap = (v) => (Math.abs(v - Math.round(v)) < 0.005 ? auMoney(v) : fmtMoney(v, 'MYR', 2));
+const auMargin = (v) => fmtNum(v, Number.isInteger(v) ? 0 : Number.isInteger(Math.round(v * 1e6) / 1e5) ? 1 : 2);
+const auCeilingTarget = (c) => (c.kind === 'margin' ? `${auMargin(c.value)}% under the market value your comparables imply` : `an effective cost of ${auCap(c.value)}, all in`);
 function auctionCeilingCard(c, a) {
   const ok = c.status === 'solved';
   const left = [c.notEntered?.length ? `Not entered, not counted: ${auList(c.notEntered.map(x => x.toLowerCase()))}` : null,
     c.unpriced ? `${c.unpriced} fee line${c.unpriced === 1 ? '' : 's'} not priced` : null].filter(Boolean);
   const sen = (v) => fmtMoney(v, 'MYR', 2);
   const sub = ok
-    ? `The figures you entered imply a winning bid of at most ${auMoney(c.bid)} to keep the effective cost at or under ${auMoney(c.cap)} — ${auCeilingTarget(c)}${c.kind === 'margin' ? ` (${auMoney(a.market)})` : ''}. At that bid it is ${sen(c.effective)}; one ringgit more, ${sen(c.above)}.${left.length ? ` ${left.join('; ')}.` : ''}${auNotFinal(a)}`
+    ? `The figures you entered imply a winning bid of at most ${auMoney(c.bid)} to keep the effective cost at or under ${auCap(c.cap)} — ${auCeilingTarget(c)}${c.kind === 'margin' ? ` (${auMoney(a.market)})` : ''}. At that bid it is ${sen(c.effective)}; one ringgit more, ${sen(c.above)}.${left.length ? ` ${left.join('; ')}.` : ''}${auNotFinal(a)}`
+    : c.status === 'below-reserve' ? `No winning bid fits these costs: a bid wins only at or above the ${auMoney(c.reserve)} reserve, and there the effective cost is ${sen(c.atReserve)}, over your ${auCap(c.cap)} ceiling — ${auCeilingTarget(c)}. The ceiling works out at ${auMoney(c.bid)}, below the reserve.${auNotFinal(a)}`
     : c.status === 'unavailable' ? `Unavailable: ${c.why}.`
-      : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auMoney(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
+      : c.status === 'infeasible' ? `Even a bid of ${auMoney(c.floor)} gives an effective cost of ${auMoney(c.atFloor)}, over the ${auCap(c.cap)} ceiling: the costs you entered, not the bid, stand in the way.`
         : c.why || 'Not computable for these inputs.';
-  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok ? c.resultKind : 'unavailable', ok ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
-    value: ok ? auMoney(c.bid) : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
+  return lsMetricCard({ label: 'Bid ceiling', level: 2, cls: 'au-card au-ceiling', badge: auBadge(ok || c.status === 'below-reserve' ? c.resultKind : 'unavailable', ok || c.status === 'below-reserve' ? 'your ceiling, and the effective cost this model works out at each bid' : c.status === 'unavailable' ? 'no market value' : 'not computable'),
+    value: ok ? auMoney(c.bid) : c.status === 'below-reserve' ? 'No winning bid' : 'Unavailable', attrs: { 'data-au-fig': 'ceiling', 'data-status': c.status, 'data-final': a.final ? 'true' : 'false' },
     valueAttrs: { 'data-value': ok ? String(c.bid) : '' }, sub });
 }
 function auctionCeilingFormula(c, a) {
   if (!c || c.status === 'no-target') return 'No ceiling entered: choose what it is — a cost of your own, all in, or a margin under the market value — and its figure. Nothing is assumed.';
   if (c.status === 'unavailable' || c.status === 'invalid') return `Unavailable: ${c.why}. A margin is taken off the market value your comparables imply, never off a market figure.`;
-  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${fmtNum(c.value, 2)}%) = ${auMoney(c.cap)}` : `your cost, ${auMoney(c.cap)}`;
+  const cap = c.kind === 'margin' ? `the market value ${auMoney(a.market)} × (1 − ${auMargin(c.value)}%) = ${auCap(c.cap)}` : `your cost, ${auCap(c.cap)}`;
+  if (c.status === 'below-reserve') return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held: the cost stays at or under it up to ${auMoney(c.bid)} — below the ${auMoney(a.reserve)} reserve, where no bid can win. At the reserve the effective cost is ${fmtMoney(c.atReserve, 'MYR', 2)}, over it, so no winning bid fits these costs.`;
   if (c.status !== 'solved') return `Ceiling: ${cap}. ${c.status === 'infeasible' ? `At a bid of ${auMoney(c.floor)} the effective cost is already ${auMoney(c.atFloor)}.` : 'Not computable for these inputs.'}`;
   return `Ceiling: ${cap}. The model is run at trial bids, to the ringgit, every other figure held — the transfer duty, the scale fees and the loan follow the bid; the repairs, arrears and possession do not. At ${auMoney(c.bid)} the effective cost is ${fmtMoney(c.effective, 'MYR', 2)}, at or under the ceiling; at ${auMoney(c.bid + 1)} it is ${fmtMoney(c.above, 'MYR', 2)}, over it. What the figures you entered imply — not a recommendation to bid.`;
 }
@@ -732,7 +747,8 @@ function auctionWaterfallFormula(a) {
   const sum = a.adds.filter(x => isNum(x.amount)).map(x => `${x.label.toLowerCase()} ${auMoney(x.amount)}`);
   return `${mv} Reserve price: ${isNum(a.reserve) ? auMoney(a.reserve) : 'not entered'}. Winning bid: the purchase price, ${auMoney(a.bid)}. `
     + `Transaction costs: the ledger’s own fee lines — ${auList(tl)}. `
-    + `Holding: ${hold.months == null ? 'no holding period entered' : `${fmtNum(hold.months, 1)} months × ${auMoney(hold.monthly)} a month with no rent (the instalment and the running costs)`}. `
+    + `Holding: ${hold.months == null ? 'no holding period entered' : !isNum(hold.amount) ? `${auMonths(hold.months)} entered, not priced — ${(hold.why || 'The monthly cost is not computable.').charAt(0).toLowerCase()}${(hold.why || 'The monthly cost is not computable.').slice(1, -1)}`
+      : `${auMonths(hold.months)} from the sale with no rent, ${auHoldWorking(hold)} = ${fmtMoney(hold.amount, 'MYR', 2)}: the running costs from the sale, the instalment from the day the balance falls due, ${hold.days} days after it (a month taken as 30 days). In the cash required too, and the rate of return counts the hold’s years from the end of these months`}. `
     + `Effective acquisition cost = the bid${sum.length ? ` + ${sum.join(' + ')}` : ''} = ${auMoney(a.effective)}${a.notEntered.length ? `; not entered and not counted: ${auList(a.notEntered.map(x => x.toLowerCase()))}` : ''}. `
     + (a.trueDiscount ? `True discount = (market value − effective cost) ÷ market value = (${auMoney(a.market)} − ${auMoney(a.effective)}) ÷ ${auMoney(a.market)} = ${a.trueDiscount.amount < 0 ? '−' : ''}${auPct(a.trueDiscount.pct)}. ` : '')
     + `${auctionFeeNote()} Every figure is yours or the fee rulebook’s, as each badge says. Not a valuation.`;

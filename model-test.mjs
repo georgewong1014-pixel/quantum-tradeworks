@@ -217,6 +217,89 @@ try {
     else ok(`breakEvenRent is a true zero of the monthly position — RM${r.rent.toFixed(2)}`, r);
   }
 
+  /* 3b — THE BREAK-EVENS ON A MANAGED DEAL (the 20 Oct 2026 sweep:
+          managed-1, stress-1, lab-refurb-1, managed-3, stress-2, taxed-3).
+          Check 3 holds the break-even rent on the sample, which is self-
+          managed: no fee, no minimum and no placement, so the terms that
+          move with the answer are nought on it. Here, deals that carry them,
+          against figures worked by hand from their inputs (the annuity, the
+          running costs and the fee rules written out below, not the app's):
+          - M: the sample managed at 8% with a RM200 minimum a month, a
+            month's placement fee per 24-month tenancy, a 70% deposit. The
+            minimum binds at both answers, so the fee is the floor, RM2,400 a
+            year, and the placement is half a month's rent a year:
+              rent      = (5,078 + 2,400 + ADS) ÷ (12 × 0.91 × 0.95 − 1 × 12/24)
+              occupancy = (5,078 + 925 + 2,400 + ADS) ÷ (22,200 × 0.95)
+            where 5,078 is the maintenance (294 × 12), assessment, quit rent
+            and insurance, 925 the placement at the entered RM1,850, and ADS
+            twelve instalments on RM171,600 at 4.3% over 35 years. At each,
+            the model's own monthly position is nil to the sen, and the
+            occupancy is 100 less the model's "Survives vacancy to".
+          - S: the sample managed at 8% (no minimum), the 90% loan: the fee
+            is the percentage, so rent = (5,078 + ADS) ÷ (12 × 0.91 × 0.87 −
+            0.5) — RM3,727.9985, where the old closed form gave RM3,629.16,
+            at which the month was −RM74.13.
+          - G: the grade's "Cannot break even" gate follows the model: rent
+            RM2,000, 30% vacancy, 8% with a RM200 minimum, price RM283,113 —
+            the month at full occupancy is +RM19.00, so the gate does not
+            fire (it fired at "102%" on the frozen top-up).
+          - T: the after-tax gap is tax alone: at the break-even rent of S
+            at 24%, and of a managed cash purchase (10%, 6-month tenancies,
+            25%), year 1's cash flow before tax is nil, and the after-tax
+            break-even is above it (the cash purchase's read RM178 BELOW it,
+            printed "more"). */
+  {
+    const r = await evaluate(`(() => {
+      const base = { ...window.__T.base, evidence: { ...window.__T.base.evidence }, checks: {}, touched: {} };
+      const M = { ...base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, leasingFeeMonths: 1, tenancyMonths: 24, downPct: 70 };
+      const S = { ...base, selfManaged: false, mgmtPct: 8 };
+      const G = { ...base, rent: 2000, vacancyPct: 30, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, price: 283113 };
+      const C = { ...base, downPct: 100, selfManaged: false, mgmtPct: 10, tenancyMonths: 6, marginalTaxPct: 25 };
+      const T = { ...S, marginalTaxPct: 24 };
+      const mM = dealModel(M), mS = dealModel(S), mG = dealModel(G);
+      const at = (d, k, v) => dealModel({ ...d, [k]: v });
+      const after = (d) => { const m = dealModel(d); const bp = propertyBreakPoint(d, 'rent', { measure: 'cashflowAfterTax', lo: 0, hi: Math.max(d.rent * 6, 30000) });
+        return { pre: m.breakEvenRent, post: bp.value, preTaxMonthAtPre: isNum(m.breakEvenRent) ? at(d, 'rent', m.breakEvenRent).path[0].cfPreTax / 12 : null }; };
+      return { base: { rent: base.rent, price: base.price },
+        M: { rent: mM.breakEvenRent, occ: mM.breakEvenOccupancy, atRent: at(M, 'rent', mM.breakEvenRent).cashflowMonthly,
+             atOcc: at(M, 'vacancyPct', 100 - mM.breakEvenOccupancy).cashflowMonthly, survives: mM.breakEvenVacancy, why: mM.breakEvenVacancyWhy },
+        S: { rent: mS.breakEvenRent, atRent: at(S, 'rent', mS.breakEvenRent).cashflowMonthly },
+        G: { occ: mG.breakEvenOccupancy, full: at(G, 'vacancyPct', 0).cashflowMonthly, gates: propertyGrade(G, mG).gates.map(g => g.id) },
+        T: after(T), C: after(C),
+        /* The Lab's working of M's occupancy: its own terms — the minimum
+           among the fixed costs, the repair reserve the only share. */
+        lab: { text: LAB_FIGURES.find(f => f.key === 'breakEvenOccupancy').formula(M, mM),
+               fixed: labMoney(5078 + 925 + 2400), occ: fmtPct(mM.breakEvenOccupancy, 1) } };
+    })()`);
+    const i = 0.043 / 12, pmt = (P) => P * i / (1 - Math.pow(1 + i, -420));
+    const F0 = 294 * 12 + 800 + 300 + 450;
+    const adsM = 12 * pmt(572000 * 0.30), adsS = 12 * pmt(572000 * 0.90);
+    const want = {
+      Mrent: (F0 + 2400 + adsM) / (12 * 0.91 * 0.95 - 1 * 12 / 24),
+      Mocc: (F0 + 1850 * 12 / 24 + 2400 + adsM) / (1850 * 12 * 0.95) * 100,
+      Srent: (F0 + adsS) / (12 * 0.91 * 0.87 - 1 * 12 / 24),
+    };
+    const p = [];
+    if (r.base.rent !== 1850 || r.base.price !== 572000) p.push(`the sample is not the one worked by hand (rent ${r.base.rent}, price ${r.base.price})`);
+    /* The worked figures' own premises: the minimum binds at M's answers. */
+    if (!(0.08 * 12 * 0.91 * want.Mrent < 2400) || !(0.08 * 1850 * 12 * want.Mocc / 100 < 2400)) p.push('the hand-worked case does not bind the minimum: the test is wrong');
+    if (!(Math.abs(r.M.rent - want.Mrent) < 0.005)) p.push(`M: break-even rent ${r.M.rent}, worked by hand ${want.Mrent.toFixed(4)}`);
+    if (!(Math.abs(r.M.atRent) < 0.005)) p.push(`M: at the break-even rent the monthly position is ${r.M.atRent}, not nil`);
+    if (!(Math.abs(r.M.occ - want.Mocc) < 1e-6)) p.push(`M: break-even occupancy ${r.M.occ}%, worked by hand ${want.Mocc.toFixed(6)}%`);
+    if (!(Math.abs(r.M.atOcc) < 0.005)) p.push(`M: at the break-even occupancy the monthly position is ${r.M.atOcc}, not nil`);
+    if (r.M.why !== 'crosses' || !(Math.abs(100 - r.M.survives - r.M.occ) < 1e-6)) p.push(`M: "Survives vacancy to" ${r.M.survives}% (${r.M.why}) beside a break-even occupancy of ${r.M.occ}%`);
+    if (!(Math.abs(r.S.rent - want.Srent) < 0.005) || !(Math.abs(r.S.atRent) < 0.005)) p.push(`S: break-even rent ${r.S.rent} (by hand ${want.Srent.toFixed(4)}), the month there ${r.S.atRent}`);
+    if (!(r.G.occ < 100) || !(r.G.full > 0) || r.G.gates.includes('breakeven')) p.push(`G: break-even occupancy ${r.G.occ}%, the month at full occupancy ${r.G.full}, gates ${r.G.gates.join(', ')}`);
+    if (!r.lab.text.includes(`(${r.lab.fixed} fixed costs + `) || !r.lab.text.includes('(1 − 5.0% variable costs)') || !r.lab.text.endsWith(`= ${r.lab.occ}.`))
+      p.push(`M: the Lab's working does not print the terms of its figure — "${r.lab.text}" (want ${r.lab.fixed} fixed costs, 5.0% variable costs, = ${r.lab.occ})`);
+    for (const k of ['T', 'C']) {
+      const x = r[k];
+      if (!isFinite(x.post) || !(Math.abs(x.preTaxMonthAtPre) < 0.005) || !(x.post > x.pre)) p.push(`${k}: before tax ${x.pre}, after tax ${x.post}; year 1's month before tax at the first ${x.preTaxMonthAtPre}`);
+    }
+    if (p.length) fail('the break-evens on a managed deal are zeros of the model\'s own monthly position, worked by hand', p);
+    else ok(`the break-evens on a managed deal are zeros of the model's own monthly position, worked by hand — a binding RM200 minimum and a month's placement: RM${r.M.rent.toFixed(2)} and ${r.M.occ.toFixed(4)}% (= 100 − "Survives vacancy to"), the month nil at each, the Lab's working on its own terms; managed at 8%: RM${r.S.rent.toFixed(2)}; the "Cannot break even" gate follows (${r.G.occ.toFixed(2)}%, +RM${r.G.full.toFixed(2)} at full occupancy); the after-tax gap is tax alone (RM${(r.T.post - r.T.pre).toFixed(2)}, RM${(r.C.post - r.C.pre).toFixed(2)} on a managed cash purchase)`);
+  }
+
   /* 4 — a solved break-point is a zero of the thing it breaks. */
   {
     const r = await evaluate(`(() => {
@@ -288,6 +371,34 @@ try {
 
       if (r.drivers.length !== r.declared) fail(`${r.declared} drivers declared, ${r.drivers.length} survived — one has a zero step`, r);
     }
+  }
+
+  /* 7b — ONLY DRIVERS THIS DEAL HAS (the 20 Oct 2026 sweep,
+          land-commercial-5). With no loan the rate and the tenure move
+          nothing, so they are not ranked, and no break-point is solved for
+          the rate: a cash purchase read "the two that move it least are
+          interest rate and loan tenure, at 0.00 and 0.00 points". With a
+          loan both stay. */
+  {
+    const r = await evaluate(`(() => {
+      const cash = { ...window.__T.base, downPct: 100 };
+      const s = propertySensitivity(cash), sl = propertySensitivity(window.__T.base);
+      const text = propertySensitivityPanel(cash, dealModel(cash)).textContent;
+      const textLoan = propertySensitivityPanel(window.__T.base, dealModel(window.__T.base)).textContent;
+      return { ok: s.ok, loan: s.base.loan, drivers: s.drivers.map(x => ({ k: x.k, span: x.span })), withLoan: sl.drivers.map(x => x.k),
+        least: (text.match(/The two that move it least are [^.]*\\./) || [''])[0], rateRow: /Interest rate/.test(text),
+        says: /With no loan, the interest rate and the loan tenure move nothing/.test(text), loanSays: /Interest rate is quoted by a bank/.test(textLoan) };
+    })()`);
+    const p = [];
+    if (!r.ok || r.loan !== 0) p.push(`the cash purchase did not run (${JSON.stringify({ ok: r.ok, loan: r.loan })})`);
+    if (r.drivers.some(x => x.k === 'ratePct' || x.k === 'tenureYears')) p.push(`with no loan the ranking still has ${r.drivers.filter(x => x.k === 'ratePct' || x.k === 'tenureYears').map(x => x.k).join(' and ')}`);
+    if (r.drivers.some(x => !(x.span > 1e-6))) p.push(`a ranked driver moves nothing: ${JSON.stringify(r.drivers.filter(x => !(x.span > 1e-6)))}`);
+    if (/interest rate|loan tenure/.test(r.least)) p.push(`"${r.least}"`);
+    if (r.rateRow) p.push('with no loan the panel still ranks, or solves a break-point for, the interest rate');
+    if (!r.says) p.push('the panel does not say why the rate and the tenure are not ranked');
+    if (!r.withLoan.includes('ratePct') || !r.withLoan.includes('tenureYears') || !r.loanSays) p.push(`with a loan the rate and the tenure are gone: ${r.withLoan.join(', ')}`);
+    if (p.length) fail('with no loan the sensitivity ranks no rate and no tenure', p);
+    else ok(`with no loan the sensitivity ranks ${r.drivers.length} drivers, each moving the return, and no rate or tenure — "${r.least}"; with a loan both are ranked`);
   }
 
   /* 9 — sixteen model runs and nothing leaked into State. */
@@ -502,7 +613,7 @@ try {
         loanDuty: [514800, 400000, 400001, 0].map(l => fee('loanStampDuty', { loan: l })),
         sarawak: [10000, 50000, 100000, 300000, 572000, 700000, 1200000, 15000].map(sw),
         purchaseLegal: fee('purchaseLegal', { price: 572000 }),
-        loanLegal: [514800, 0].map(l => fee('loanLegal', { loan: l })),
+        loanLegal: [514800, 0, 395288.10, 342317.70].map(l => fee('loanLegal', { loan: l })),
         sst: fee('professionalServiceTax', { legalFees: 9858.5 }),
         peninsular: pen ? [572000, 30000, 8000000].map(v => scaled(pen.scale, v, { minimumFee: pen.minimumFee })) : null,
         valuation: [572000, 100000, 120000, 3000000].map(p => Math.round(fee('valuationFee', { price: p }) * 100) / 100),
@@ -523,7 +634,11 @@ try {
       /* RM10,000 is 2.5%, RM250 — under the minimum scale charge, RM500. */
       sarawak: [500, 650, 1100, 2700, 4604, 5500, 8500, 500],
       purchaseLegal: 4604,
-      loanLegal: [5254.5, 0],
+      /* Rule 7's 1.25 on the scale, to the sen — and a true half sen up (the
+         20 Oct 2026 sweep, auction-4): RM3,367.02 × 1.25 = RM4,208.775 and
+         RM2,996.22 × 1.25 = RM3,745.275, which read RM4,208.77 and RM3,745.27
+         in floating point (3,367.02 × 1.25 × 100 = 420,877.49999999994). */
+      loanLegal: [5254.5, 0, 4208.78, 3745.28],
       sst: 788.68,
       peninsular: [6970, 500, 81250],
       valuation: [1194, 400, 400, 5716.67],
@@ -780,6 +895,32 @@ try {
     }
     if (p.length) fail('fee rulebook: every fee line shows its provenance badge, the headline its unverified or unknown share, and /data-sources the rulebook', p);
     else ok(`fee rulebook: ${r.lines.length} fee lines in the calculator's ledger each wear their badge (${[...new Set(r.lines.map(l => l.badge))].join(', ')}) and provenance; "Cash required (with a 3-month reserve)" says ${r.want} rests on unverified or unknown lines; /data-sources lists all ${r.ids.length} lines under version ${r.version}, checked ${r.checked}`);
+  }
+
+  /* 19b — THE LEDGER BY KIND AND ITS ESTIMATED SHARE AGREE (the 20 Oct 2026
+           sweep, copy-property-14). One paragraph gave the estimates' kind
+           as RM2,670 and then "RM3,960 of it rests on unverified or unknown
+           lines": the valuation fee and its tax are estimated too, inside
+           the kinds they are charged as. Each kind now says its estimated
+           share. By hand on the sample: the valuation fee 0.25% × 100,000
+           + 0.2% × 472,000 = RM1,194 (professional fees on a published
+           scale), its service tax 8% = RM95.52 (statutory charges), and the
+           estimates' own RM1,170 + RM1,500 = RM2,670 — RM3,959.52 in all,
+           the paragraph's unverified total. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const m = dealModel(d);
+      return { words: ledgerSplitWords(m, labMoney), unconfirmed: m.unconfirmedCost, price: d.price, down: d.downPct };
+    })()`);
+    const p = [];
+    if (r.price !== 572000) p.push(`the sample is not the one worked by hand (price ${r.price})`);
+    const fee = 0.0025 * 100000 + 0.002 * 472000, tax = Math.round(fee * 8) / 100;
+    if (Math.abs(r.unconfirmed - (fee + tax + 1170 + 1500)) > 1e-6) p.push(`the unverified total is ${r.unconfirmed}, by hand ${fee + tax + 2670}`);
+    if (!r.words.includes('statutory charges RM14,649 (RM96 of it estimated)') || !r.words.includes(`professional fees on a published scale RM11,053 (RM1,194 of it estimated)`) || !r.words.includes('estimates RM2,670;') || /estimates RM2,670 \(/.test(r.words))
+      p.push(`the ledger by kind reads "${r.words.slice(0, 260)}"`);
+    if (p.length) fail('19b: the ledger by kind says each kind\'s estimated share, so it agrees with the unverified total', p);
+    else ok(`19b: the ledger by kind says each kind's estimated share — RM96 of the statutory charges, RM1,194 of the published-scale fees, the RM2,670 of estimates — RM${r.unconfirmed.toFixed(2)} in all, the paragraph's unverified total, by hand`);
   }
 
   /* 20 — every class the land-risk consequences and blockers name exists in
@@ -1576,6 +1717,116 @@ try {
     if (!(r.placement > 0)) fail('the managed deal carries no placement fee, so this check is vacuous', r);
     else if (r.said !== r.principal) fail('the instalment understatement is not the year-one principal', r);
     else ok(`deducting the instalment understates taxable income by the principal alone — ${r.said}`, r);
+  }
+
+  /* P3b — THE FIRST TENANT'S FEE IS NOT DEDUCTIBLE, A REPLACEMENT'S IS,
+           WHATEVER THE TENANCY LENGTH (the 20 Oct 2026 sweep: taxed-2,
+           managed-8, taxed-6). The model spreads each placement fee over
+           its tenancy (a fee every so many months), so the first tenant's
+           fee is the part of each year's charge in the first tenancy's
+           months, and that part is left out of the deduction. Worked by
+           hand on the sample bought for cash, managed at 8% with a month's
+           placement, taxed at 30% — running costs RM8,629.26 in year one
+           (5,078 + 8% and 5% of RM20,202 collected + the placement), grown
+           2% a year; rent grown 2.5%:
+           - 24-month tenancies: RM925 left out in year one AND RM943.50 in
+             year two (it left out year one's only, so half the first fee
+             was deducted in year two) — year two's tax RM3,854.61, not
+             RM3,571.56;
+           - 6-month tenancies: RM1,850 left out in year one, one fee (it
+             left out RM3,700, a replacement's too) — tax RM3,194.32;
+           - 12-month tenancies: RM1,850 in year one, as before.
+           The panel says each part only where the deal has it: no
+           instalment on a cash purchase ("pays RM0 to the bank …
+           understating it by RM0"), the loan's last split from the year it
+           ends, the fee where one is left out; and the after-tax break-even
+           names the reasons the deal has. */
+  {
+    const r = await evaluate(`(() => {
+      const T5 = { ...window.__T.base, downPct: 100, marginalTaxPct: 30, selfManaged: false, mgmtPct: 8, leasingFeeMonths: 1 };
+      const left = (m, y) => { const p = m.path[y - 1]; return p.taxable - (p.rent - p.opex - p.interest); };
+      const run = (d) => { const m = dealModel(d); return { m, l1: left(m, 1), l2: left(m, 2), l3: left(m, 3), t1: m.path[0].tax, t2: m.path[1].tax }; };
+      const a = run({ ...T5, tenancyMonths: 24 }), b = run({ ...T5, tenancyMonths: 6 }), c = run({ ...T5, tenancyMonths: 12 });
+      const text = (d) => returnsAndTaxPanel(d, dealModel(d)).textContent;
+      const sens = (d) => propertySensitivityPanel(d, dealModel(d)).textContent;
+      const cashSelf = { ...window.__T.base, downPct: 100, marginalTaxPct: 30 };
+      const shortLoan = { ...window.__T.taxed, tenureYears: 5, holdYears: 10 };
+      const pick = (x) => ({ l1: x.l1, l2: x.l2, l3: x.l3, t1: x.t1, t2: x.t2 });
+      return { base: { rent: window.__T.base.rent, maint: window.__T.base.maintenance, rr: window.__T.base.repairReservePct, v: window.__T.base.vacancyPct, g: window.__T.base.rentGrowthPct },
+        a: pick(a), b: pick(b), c: pick(c),
+        cashManaged: text({ ...T5, tenancyMonths: 24 }), cashSelf: text(cashSelf), shortLoan: text(shortLoan),
+        shortLast: (() => { const m = dealModel(shortLoan); const p = m.path[4]; return { y: p.y, i: fmtMoney(p.interest, 'MYR', 0), pr: fmtMoney(p.principal, 'MYR', 0), after: m.path[5].debt }; })(),
+        sensSelf: sens(cashSelf), sensManaged: sens({ ...T5, tenancyMonths: 24 }), sensLoan: sens(window.__T.taxed) };
+    })()`);
+    const p = [];
+    if (r.base.rent !== 1850 || r.base.maint !== 294 || r.base.rr !== 5 || r.base.v !== 9 || r.base.g !== 2.5) p.push(`the sample is not the one worked by hand: ${JSON.stringify(r.base)}`);
+    const eff1 = 1850 * 12 * 0.91, eff2 = eff1 * 1.025;
+    const opex1 = (pl) => 294 * 12 + 800 + 300 + 450 + eff1 * 0.08 + pl + eff1 * 0.05;
+    const tax = (eff, opexY, out) => Math.max(0, eff - (opexY - out)) * 0.30;
+    const want = {
+      a: { l1: 925, l2: 925 * 1.02, l3: 0, t2: tax(eff2, opex1(925) * 1.02, 925 * 1.02) },
+      b: { l1: 1850, l2: 0, t1: tax(eff1, opex1(3700), 1850) },
+      c: { l1: 1850, l2: 0 },
+    };
+    const near = (x, y, e = 0.005) => Math.abs(x - y) < e;
+    if (!near(r.a.l1, want.a.l1) || !near(r.a.l2, want.a.l2) || !near(r.a.l3, 0) || !near(r.a.t2, want.a.t2)) p.push(`24-month tenancies: left out ${r.a.l1} / ${r.a.l2} / ${r.a.l3}, year two's tax ${r.a.t2}; by hand 925 / 943.50 / 0 and ${want.a.t2.toFixed(2)}`);
+    if (!near(r.b.l1, want.b.l1) || !near(r.b.l2, 0) || !near(r.b.t1, want.b.t1)) p.push(`6-month tenancies: left out ${r.b.l1} / ${r.b.l2}, year one's tax ${r.b.t1}; by hand 1,850 / 0 and ${want.b.t1.toFixed(2)}`);
+    if (!near(r.c.l1, want.c.l1) || !near(r.c.l2, 0)) p.push(`12-month tenancies: left out ${r.c.l1} / ${r.c.l2}; by hand 1,850 / 0`);
+    if (/to the bank|The instalment is not deductible|is principal/.test(r.cashManaged)) p.push('a cash purchase is told about an instalment it does not pay');
+    if (!/The first tenant’s placement fee is not deductible either/.test(r.cashManaged) || !/RM925 in year one/.test(r.cashManaged) || !/24-month tenancy/.test(r.cashManaged)) p.push('the managed cash purchase does not say its first tenant\'s fee is left out (RM925 in year one, over its 24-month tenancy)');
+    if (/not deductible|to the bank/.test(r.cashSelf)) p.push('a cash purchase with no placement fee shows the box');
+    if (!r.shortLoan.includes(`in its last year, year ${r.shortLast.y}, the split is ${r.shortLast.i} interest to ${r.shortLast.pr} principal. After it there is no instalment.`) || r.shortLast.after !== 0 || /widens every year/.test(r.shortLoan)) p.push(`a 5-year loan in a 10-year hold: the split is not from its last year (${JSON.stringify(r.shortLast)})`);
+    if (/not breaking even after tax|whole instalment/.test(r.sensSelf) || !/no tax on the rent is due, so it is the after-tax break-even too/.test(r.sensSelf)) p.push('the after-tax break-even of a cash purchase with no placement fee: ' + (r.sensSelf.match(/Covering the outgoings[^.]*\./) || ['—'])[0]);
+    if (!/first tenant’s placement fee has been paid but is not deductible/.test(r.sensManaged) || /whole instalment/.test(r.sensManaged)) p.push('the after-tax break-even of a managed cash purchase does not give its own reason (the first tenant\'s fee), or speaks of an instalment');
+    if (!/whole instalment has left the account/.test(r.sensLoan)) p.push('the after-tax break-even of a financed deal no longer explains the principal');
+    if (p.length) fail('the first tenant\'s placement fee is left out of the deduction whatever the tenancy length, and the panels say each part only where the deal has it', p);
+    else ok(`the first tenant's placement fee is left out of the deduction whatever the tenancy length, worked by hand — 24-month tenancies RM${r.a.l1.toFixed(2)} and RM${r.a.l2.toFixed(2)} (year two's tax RM${r.a.t2.toFixed(2)}), 6-month RM${r.b.l1.toFixed(2)} (RM${r.b.t1.toFixed(2)}), 12-month RM${r.c.l1.toFixed(2)}; no instalment words on a cash purchase; a 5-year loan's last split from year ${r.shortLast.y}`);
+  }
+
+  /* P3c — WHAT IS BEFORE TAX AND WHAT IS AFTER IT, SAID (the 20 Oct 2026
+           sweep, taxed-4, taxed-5). With a marginal rate entered, the
+           calculator's monthly figures stay before tax on the rent by
+           design, and say so beside them; the report's year-by-year
+           scenario is after tax, so the tax is a column and the row adds up
+           (effective rent − operating costs − debt service − tax = net cash
+           flow after tax), and the cash-on-cash tile says its year-1 cash
+           flow is before tax. Without a rate, none of it is said. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal'), bought = State.propertyReportsBought;
+      const read = async (d) => {
+        State.deal = d; saveDeal();
+        State.propertyReportsBought = [...bought, d.projectId];
+        navigate('/property/calculator?view=full', { replace: true }); render(); await w(450);
+        const text = (document.querySelector('main')?.textContent || '').replace(/\\s+/g, ' ');
+        const table = [...document.querySelectorAll('table')].find(t => [...t.querySelectorAll('thead th')].some(th => th.textContent.trim() === 'Loan balance'));
+        const heads = table ? [...table.querySelectorAll('thead th')].map(th => th.textContent.trim()) : null;
+        const row = table ? [...table.querySelector('tbody tr').children].map(td => td.textContent.trim()) : null;
+        const m = dealModel(d);
+        return { text, heads, row, y1: m.path[0], monthlySub: pcAnswerFigs(d, m).monthly[2] };
+      };
+      let taxed, plain;
+      try {
+        taxed = await read({ ...window.__T.taxed });
+        plain = await read({ ...window.__T.base });
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); State.propertyReportsBought = bought; saveDeal(); navigate(back, { replace: true }); render(); await w(250);
+      }
+      return { taxed, plain, fmt: { tax: fmtAmount(taxed.y1.tax, 'MYR'), cf: fmtAmount(taxed.y1.cf, 'MYR') } };
+    })()`);
+    const p = [], t = r.taxed, b = r.plain;
+    for (const s of ['After costs, vacancy and the loan, before tax on the rent', 'Rent needed to cover everything, before tax on the rent', 'Year 1’s cash flow before tax ÷ cash required including reserve'])
+      if (!t.text.includes(s)) p.push(`with a rate entered the page does not say "${s}"`);
+    if (!/before tax on the rent$/.test(t.monthlySub)) p.push(`the answer's monthly position reads "${t.monthlySub}"`);
+    if (!t.heads || !t.heads.includes('Tax on the rent') || !t.heads.includes('Net cash flow after tax')) p.push(`the scenario table's headings: ${JSON.stringify(t.heads)}`);
+    else {
+      const i = t.heads.indexOf('Tax on the rent'), j = t.heads.indexOf('Net cash flow after tax');
+      if (t.row[i] !== r.fmt.tax || t.row[j] !== r.fmt.cf || !(Math.abs(t.y1.rent - t.y1.opex - t.y1.debt - t.y1.tax - t.y1.cf) < 1e-6)) p.push(`year 1 reads tax ${t.row[i]}, net ${t.row[j]} (the model's ${r.fmt.tax}, ${r.fmt.cf}) — the row must add up`);
+    }
+    if (/After costs, vacancy and the loan, before tax|Rent needed to cover everything, before tax|Net cash flow after tax/.test(b.text) || (b.heads && b.heads.includes('Tax on the rent'))) p.push('with no rate entered the page still speaks of tax on the rent');
+    if (p.length) fail('P3c: with a rate entered, the monthly figures say they are before tax and the scenario table carries the tax', p);
+    else ok(`P3c: with a rate entered the monthly figures and the break-even say "before tax on the rent", the cash-on-cash its year-1 cash flow before tax, and the scenario table a "Tax on the rent" column beside "Net cash flow after tax" (year 1: ${r.fmt.tax} and ${r.fmt.cf}, the row adding up); without a rate, none of it`);
   }
 
   /* P4 — "the figure shown is the first one found" only beside a figure. */
@@ -2630,6 +2881,80 @@ try {
     if (/burns RM|months with no rent is RM/.test(r.para)) p.push(`the paragraph reads "${r.para.slice(0, 160)}"`);
     if (p.length) fail('fixwave P9: with a loan tenure of 0 the reserve paragraph prices a burn that leaves the loan out', p);
     else ok(`fixwave P9: with no instalment the burn and the reserve scenarios are not computed, and the paragraph says so ("${r.para.slice(0, 70)}…")`);
+  }
+
+  /* P9b — WITH NO RENT, THE MODEL'S OWN RUNNING COSTS AT NO RENT (the 20 Oct
+           2026 sweep, managed-4). The reserve's no-rent burn is the
+           instalment and opexAt(0) — the 100%-vacancy month's costs: no
+           percentage fee, no repair reserve, the minimum fee in full, the
+           placement as amortised. On the sample managed at 8% with a RM150
+           minimum a month, worked by hand: RM2,372.9565 of instalment
+           (RM514,800 at 4.3% over 35 years) + (5,078 of maintenance,
+           assessment, quit rent and insurance + the RM1,800 floor + RM925 of
+           placement) ÷ 12 = RM3,023.21 a month, the reserve 3 × that,
+           RM9,070. It charged only the floor's top-up at the entered rent:
+           RM2,888.53 and RM8,666. */
+  {
+    const r = await evaluate(`(() => {
+      const d = { ...window.__T.base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 150 };
+      const m = dealModel(d), empty = dealModel({ ...d, vacancyPct: 100 });
+      return { rent: d.rent, price: d.price, burn: m.burnWithoutRent, withRent: m.burnWithRent, reserve: m.reserve, months: m.reserveMonths,
+        six: m.reserveScenarios.find(s => s.months === 6)?.noRent, empty: empty.cashflowMonthly };
+    })()`);
+    const i = 0.043 / 12, inst = 514800 * i / (1 - Math.pow(1 + i, -420));
+    const want = inst + (294 * 12 + 800 + 300 + 450 + 150 * 12 + 1850 * 12 / 24) / 12;
+    const p = [];
+    if (r.rent !== 1850 || r.price !== 572000) p.push(`the sample is not the one worked by hand (rent ${r.rent}, price ${r.price})`);
+    if (!(Math.abs(r.burn - want) < 1e-6)) p.push(`the no-rent burn is ${r.burn}, worked by hand ${want.toFixed(4)}`);
+    if (!(Math.abs(r.burn + r.empty) < 1e-9)) p.push(`the no-rent burn ${r.burn} is not the model's own month at 100% vacancy, ${r.empty}`);
+    if (r.months !== 3 || r.reserve !== Math.round(3 * Math.max(want, r.withRent)) || r.six !== Math.round(6 * want)) p.push(`the reserve ${r.reserve} and six months with no rent ${r.six}, want ${Math.round(3 * want)} and ${Math.round(6 * want)}`);
+    if (p.length) fail('fixwave P9b: the reserve\'s no-rent burn is the model\'s own running costs at no rent, the minimum fee in full', p);
+    else ok(`fixwave P9b: the reserve's no-rent burn is the instalment and the model's own running costs at no rent — RM${r.burn.toFixed(2)} a month on the sample managed at 8% with a RM150 minimum (worked by hand; = the month at 100% vacancy), the reserve RM${r.reserve.toLocaleString('en')}, six months with no rent RM${r.six.toLocaleString('en')}`);
+  }
+
+  /* P9c — A TENANCY OF AT LEAST A MONTH (the 20 Oct 2026 sweep, managed-5;
+           the box refusals of QT-001, dealEntryRefused). The placement fee
+           is charged once a tenancy, so tenancies a year are 12 ÷ the
+           months: a 0 or a 0.5 was taken and counted as one month, twelve
+           placement fees a year — RM22,200, the whole gross rent of the
+           sample managed at 8% — beside a box still reading 0. Refused at
+           the box with its reason, the box keeping its figure and the
+           figures unmoved, and skipped in a link; 1 month and more taken. */
+  {
+    await fwKeep(FW_KEYS);
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const said = [], was = window.toast;
+      window.toast = (m) => { said.push(String(m)); };
+      State.deal = { ...window.__fwKept.deal, selfManaged: false, mgmtPct: 8, tenancyMonths: 24 }; saveDeal();
+      navigate('/property/calculator' + (State.view === 'property' && new URLSearchParams(location.search).get('view') === 'full' ? '' : '?view=full')); await w(400);
+      const placement0 = dealModel(State.deal).placementAnnual;
+      const typed = [];
+      for (const v of ['0', '0.5', '1']) {
+        const n = document.getElementById('d-tenancyMonths'); n.focus(); n.value = v; n.dispatchEvent(new Event('change', { bubbles: true })); await w(250);
+        typed.push({ v, kept: State.deal.tenancyMonths, box: document.getElementById('d-tenancyMonths')?.value, placement: dealModel(State.deal).placementAnnual });
+      }
+      window.toast = was;
+      const linked = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked, 'tenancyMonths:0~rent:2000');
+      const linked2 = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      applyDealParam(linked2, 'tenancyMonths:12');
+      return { unit: [0, 0.5, 0.99, 1, 6, 24].map(v => [v, dealEntryRefused('tenancyMonths', v)]), placement0, typed, said,
+        link: { t: linked.tenancyMonths, rent: linked.rent, t12: linked2.tenancyMonths, def: PROPERTY_DEFAULT_DEAL.tenancyMonths } };
+    })()`);
+    await fwPut();
+    const p = [];
+    for (const [v, why] of r.unit) {
+      if (v < 1 && !/at least 1 month/.test(why || '')) p.push(`a tenancy of ${v} month(s) is not refused with its reason (${why})`);
+      if (v >= 1 && why !== null) p.push(`a tenancy of ${v} months is refused: ${why}`);
+    }
+    const [t0, tHalf, t1] = r.typed;
+    if (t0.kept !== 24 || t0.box !== '24' || t0.placement !== r.placement0 || tHalf.kept !== 24 || tHalf.placement !== r.placement0) p.push(`typed 0 then 0.5: ${JSON.stringify([t0, tHalf])} (RM${r.placement0} of placement a year before)`);
+    if (r.said.length < 2 || !r.said.slice(0, 2).every(s => /at least 1 month/.test(s) && /placement fee/.test(s) && /stays at 24/.test(s))) p.push(`what the box said: ${JSON.stringify(r.said)}`);
+    if (t1.kept !== 1 || !(Math.abs(t1.placement - 1850 * 12) < 1e-6)) p.push(`typed 1: ${JSON.stringify(t1)} — one placement fee a month, RM22,200 a year`);
+    if (r.link.t !== r.link.def || r.link.rent !== 2000 || r.link.t12 !== 12) p.push(`a link's tenancy of 0 ${r.link.t === r.link.def ? 'skipped' : 'taken'} (rent ${r.link.rent}); 12 gives ${r.link.t12}`);
+    if (p.length) fail('fixwave P9c: an expected tenancy under one month is refused with its reason, at the box and in a link', p);
+    else ok(`fixwave P9c: an expected tenancy of 0 or 0.5 months is refused at the box ("${(r.said[0] || '').slice(0, 90)}…"), the box keeping 24 and the placement RM${r.placement0} a year; a link's 0 is skipped and the rest applied; 1 month and more are taken`);
   }
 
   /* P11 — "Application structure" is not scored from nothing. It scored 70
@@ -6034,9 +6359,24 @@ try {
          land 0f43d4a2:30964, shophouse fdc0d1ec:32067, condoAsCommercial
          ee82214b:32236, taxed 3d9d1af4:31386, cash 98e5de34:29978,
          lowValuation 631d6040:31439, noTenure 4e07c073:28917, managed
-         88aa4cd7:31266. */
+         88aa4cd7:31266.
+         Recorded again for "managed" only, for two fixes of the 20 Oct 2026
+         sweep (track T1, Day 8), each shown alone by a probe run commit by
+         commit on these nine deals (no other deal moves at any commit of the
+         branch, the sample a27fbebd:31517 throughout):
+         (managed-1 and five more) the break-even rent and occupancy are
+         zeros of the model's own month — managed's minimum fee and
+         placement now move with the answer: breakEvenRent, breakEvenOccupancy
+         and the key breakEvenOccupancyTerms, which only a managed deal with
+         a minimum fee carries (93fc8436:31578 -> 71f592ad:31631); (managed-4)
+         the reserve's no-rent burn is the instalment and the running costs
+         at no rent, opexAt(0), the RM150 minimum in full: burnWithoutRent,
+         and from it the reserve, the cash required and everything measured
+         on it — cash-on-cash, the flows, the rate of return, the NPV, the
+         exits and the equities comparison (-> e5b40f7a:31632). Was: managed
+         93fc8436:31578. */
       const BASE = { sample: 'a27fbebd:31517', land: '85288185:31396', shophouse: '80e1f5ca:32382', condoAsCommercial: 'c2d3db97:32537',
-        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: '93fc8436:31578' };
+        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: 'e5b40f7a:31632' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);
@@ -6136,6 +6476,38 @@ try {
     if (p.length) fail('p2 R3: the price that makes this work meets its target in the model\'s own figures, to the ringgit', p);
     else ok(`p2 R3: the price solved for ${r.out.length} targets meets each in dealModel's own figures and RM1 more does not (${r.out.map(x => `${x.name} → RM${x.price}, ${x.runs} runs`).join('; ')}); RM5,000 a month is out of reach and says so ("${r.inf.finding.slice(0, 80)}…"); a parcel's yield is not applicable, a loan with no schedule unknown, a loan held to a valuation unbounded; the deal on the calculator untouched`);
   });
+
+  /* R3b — WHICHEVER WAY THE NET YIELD MOVES WITH THE PRICE (the 20 Oct 2026
+           sweep, stress-4). The net operating income does not move with the
+           price, so on a negative income a higher price makes the yield
+           less negative: a target at or below nought is met from a price
+           UP. Worked by hand on the sample let at RM400: RM4,368 collected
+           (400 × 12 × 0.91) less RM5,078 of running costs and RM218.40 of
+           repair reserve is −RM928.40 a year, so a net yield of at least
+           −0.5% is met at RM185,680 (928.40 × 100 ÷ 0.5) and above, the
+           entered RM572,000 among them, and at RM185,679 it is not. It said
+           "No price … at any price from RM1,000". A yield of nought or more
+           a negative income reaches at no price, and says so. */
+  await p1try("p2 R3b: a net-yield target on a negative income is met from a price up", async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rent: 400 };
+      const s = solveDealPrice(d, { kind: 'yield', value: -0.5 }), w = priceSolveWords(s, d);
+      const zero = solveDealPrice(d, { kind: 'yield', value: 0 });
+      return JSON.stringify({ noi: dealModel(d).noi, entered: dealModel(d).netYield, status: s.status, price: s.price,
+        at: dealModel({ ...d, price: s.price }).netYield, under: dealModel({ ...d, price: s.price - 1 }).netYield,
+        achieved: s.achieved, belowMeets: s.belowMeets, figure: w.figure, finding: w.finding,
+        zero: { status: zero.status, figure: priceSolveWords(zero, d).figure } });
+    })()`));
+    const p = [];
+    if (Math.abs(r.noi - (400 * 12 * 0.91 - 5078 - 400 * 12 * 0.91 * 0.05)) > 1e-6) p.push(`the income is ${r.noi}, by hand −928.40`);
+    if (!(r.entered >= -0.5)) p.push(`the entered price's own yield ${r.entered}% does not meet −0.5%: the case is wrong`);
+    if (r.status !== 'from' || r.price !== 185680 || !(r.at >= -0.5) || r.under >= -0.5 || r.achieved !== r.at || r.belowMeets) p.push(`a yield of at least −0.5%: ${r.status} at RM${r.price} (${r.at}%; RM1 less ${r.under}%) — by hand RM185,680 and up`);
+    if (r.figure === 'No price' || !/At RM185,680 or more/.test(r.finding)) p.push(`the card reads "${r.figure}" — "${r.finding}"`);
+    if (r.zero.status !== 'infeasible' || r.zero.figure !== 'No price') p.push(`a yield of nought or more on a negative income: ${JSON.stringify(r.zero)} — it is met at no price`);
+    if (p.length) fail('p2 R3b: a net-yield target on a negative income is met from a price up, worked by hand', p);
+    else ok(`p2 R3b: on an income of −RM928.40 a year a net yield of at least −0.50% is met from RM${r.price.toLocaleString('en')} up, worked by hand, and RM1 less is not — never "No price" ("${r.finding.slice(0, 60)}…"); a yield of nought or more is met at no price, and says so`);
+  });
+
   await p1try("p2 R4: the price gap is worked out only from the comparables named", async () => {
     const r = await evaluate(`(() => {
       const keep = State.observations;
@@ -6281,15 +6653,19 @@ try {
     auctionLegal: 7000, auctionHoldMonths: 3 })`;
   await p3try('p3 A1: the auction waterfall adds up', async () => {
     const r = JSON.parse(await evaluate(`(() => {
-      const d = ${P3_DEAL};
+      /* The balance due in 90 days, so the holding is priced (the owner's
+         rule of 21 Oct 2026): 3 months of the running costs from the sale,
+         each to the sen, and no instalment — the balance falls due as the
+         3 months end. */
+      const d = { ...${P3_DEAL}, auctionBalanceDays: 90 };
       const m = dealModel(d), a = auctionModel(d, m);
       const items = m.costGroups.filter(g => g.id === 'acquisition' || g.id === 'financing').flatMap(g => g.items);
       const amt = (label) => items.filter(it => it[0] === label).reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
       const all = items.reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
-      const transaction = all - amt('Deposit') - amt('Valuation-gap cash') - amt('Arrears the Proclamation passes to you') - amt('Repairs') - amt('Possession cost')
+      const transaction = all - amt('Deposit') - amt('Down payment') - amt('Valuation-gap cash') - amt('Arrears the Proclamation passes to you') - amt('Repairs') - amt('Possession cost')
         - items.filter(it => it[2]?.id === 'mortgageProtection').reduce((t, it) => t + (Number.isFinite(it[1]) ? it[1] : 0), 0);
       const burn = m.instalment + (m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12;
-      const holding = 3 * burn;
+      const holding = 3 * Math.round((m.maintenanceY + m.sinkingY + m.statutoryY + m.insuranceY) / 12 * 100) / 100 + Math.max(0, 3 - 90 / 30) * Math.round(m.instalment * 100) / 100;
       const effective = 500000 + 15000 + 4200 + 6000 + transaction + holding;
       const step = (id) => a.steps.find(s => s.id === id)?.amount ?? null;
       const partial = auctionModel({ ...d, auctionRepairs: undefined, arrearsUtilities: undefined, auctionHoldMonths: undefined });
@@ -6303,7 +6679,7 @@ try {
         partial: { effective: partial.effective, notEntered: partial.notEntered, arrears: partial.steps.find(s => s.id === 'arrears').amount, missing: partial.steps.find(s => s.id === 'arrears').partsMissing },
         partialWant: 500000 + 3600 + 6000 + partial.steps.find(s => s.id === 'transaction').amount,
         noComps: auctionModel({ ...d, auctionComp1: undefined, auctionComp2: undefined, auctionComp3: undefined }).trueDiscount,
-        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|your quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
+        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|lawyer’s quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
     })()`));
     const near = (x, y) => Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) < 1e-6;
     const p = [];
@@ -6311,7 +6687,7 @@ try {
     if (r.reserve !== 420000 || r.bid !== 500000) p.push(`reserve ${r.reserve} and bid ${r.bid}`);
     if (r.repairs !== 15000 || r.arrears !== 4200 || r.possession !== 6000) p.push(`repairs ${r.repairs}, arrears ${r.arrears} (want 4,200), possession ${r.possession}`);
     if (!near(r.transaction, r.wantTransaction) || !(r.transaction > 7000)) p.push(`transaction costs ${r.transaction}, the ledger's fee lines come to ${r.wantTransaction}`);
-    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 × ${r.burn} = ${r.wantHolding} (the model's burn ${r.burnModel})`);
+    if (!near(r.burnModel, r.burn) || !near(r.holding, r.wantHolding)) p.push(`holding ${r.holding}, want 3 months of the running costs and none of the instalment = ${r.wantHolding} (the model's burn ${r.burnModel})`);
     if (!near(r.effective, r.wantEffective)) p.push(`effective acquisition cost ${r.effective}, worked out here as ${r.wantEffective}`);
     if (!r.td || !near(r.td.pct, r.wantTd) || !near(r.td.amount, 600000 - r.wantEffective)) p.push(`true discount ${JSON.stringify(r.td)}, want ${r.wantTd}%`);
     if (r.order !== 'market>reserve>bid>repairs>arrears>possession>transaction>holding>effective') p.push(`the steps run ${r.order}`);
@@ -6323,6 +6699,30 @@ try {
     if (r.subsale !== 0) p.push(`the same deal as a subsale still carries ${r.subsale} auction line(s)`);
     if (p.length) fail('p3 A1: the auction waterfall adds up', p);
     else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × ${Math.round(r.burn)}) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
+  });
+  /* A1b — THE LAWYER'S QUOTE IS LEGAL FEES ONLY (the owner, 21 Oct 2026;
+           the 20 Oct sweep, auction-2). The input, its ledger line and its
+           note say legal fees; the searches stay the rulebook's separate
+           estimate, charged beside the quote; the service tax is 8% of the
+           legal fees — the quote and the loan's — and of nothing else. No
+           figure changes: on P3's deal, by hand, RM1,170 of searches and
+           8% × (7,000 + the loan legal fees). */
+  await p3try('p3 A1b: the lawyer\'s quote is legal fees only', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = ${P3_DEAL};
+      const m = dealModel(d), items = m.costGroups.flatMap(g => g.items);
+      const by = (id) => items.find(it => it[2]?.id === id);
+      const q = by('auctionLegal'), loanLegal = by('loanLegal'), tax = by('professionalServiceTax'), search = by('disbursements');
+      const field = AU_GROUPS(d).flatMap(g => g.fields).find(f => f[0] === 'auctionLegal');
+      return JSON.stringify({ label: q?.[0], note: q?.[2]?.note || '', quote: q?.[1], field: field?.[1], search: search?.[1], tax: tax?.[1], loanLegal: loanLegal?.[1],
+        words: PM_FIELD_WORDS?.auctionLegal || null, feeNote: auctionFeeNote() });
+    })()`));
+    const p = [];
+    if (r.label !== 'Legal fees — your lawyer’s quote' || r.field !== 'Legal fees — your lawyer’s quote (RM)') p.push(`the ledger line reads "${r.label}" and the input "${r.field}"`);
+    if (/search/i.test(r.label + r.field + (r.words || '')) || !/the searches stay the rulebook’s separate estimate/.test(r.note) || !/the searches stay the rulebook’s separate estimate/.test(r.feeNote)) p.push(`the words still put the searches in the quote: "${r.note}" / "${r.feeNote.slice(-160)}" / "${r.words}"`);
+    if (r.quote !== 7000 || r.search !== 1170 || Math.abs(r.tax - Math.round((7000 + r.loanLegal) * 8) / 100) > 1e-9) p.push(`quote ${r.quote}, searches ${r.search}, service tax ${r.tax} — by hand 7,000, 1,170 and 8% × (7,000 + ${r.loanLegal})`);
+    if (p.length) fail('p3 A1b: the lawyer\'s quote is legal fees only', p);
+    else ok(`p3 A1b: the lawyer's quote is legal fees only — "${r.field}", its ledger line "${r.label}"; the RM1,170 searches estimate stays beside it and the service tax is 8% of the legal fees alone (RM${r.tax.toFixed(2)}), no figure changed`);
   });
   await p3try('p3 A2: the forfeiture exposure is the deposit at the terms entered', async () => {
     const r = JSON.parse(await evaluate(`(() => {
@@ -7395,22 +7795,121 @@ try {
           none: c({ ...au, auctionCapKind: null, auctionCapValue: null }).status }); })()`));
       /* By hand (V3): transaction costs at a RM400,000 bid — duty 7,000 + the lawyer's quote 5,000 + registration 20 + searches 1,170
          + service tax 8% × (5,000 + 3,900) = 712 + loan duty 1,800 + the charge 10 + loan legal 3,900 + valuation 850 + 68 = 20,530;
-         holding 4 × RM1,000 = 4,000; effective = 400,000 + 15,000 + 4,000 + 2,000 + 20,530 + 4,000 = 445,530; market value the median
-         of 480k/500k/520k = 500,000; true discount (500,000 − 445,530) ÷ 500,000 = 10.894%. Deposit 10% of the 380,000 reserve = 38,000;
-         balance 362,000, of which 2,000 beyond the 360,000 loan. Ceiling 500,000 × 85% = 425,000: solved on the contract's own formula
-         (hand.mjs, every fee as a function of the bid) — 380,353 (cost RM424,999.99; at 380,354, RM425,001.02). A cost of 430,000: 385,138. */
+         holding (the owner's rule of 21 Oct 2026): no running costs, and the RM1,000 instalment only from the day the balance falls
+         due — 90 days, 3 months, of the 4 — so 1 × RM1,000 = 1,000 (it was 4 × RM1,000 from the sale); effective = 400,000 + 15,000
+         + 4,000 + 2,000 + 20,530 + 1,000 = 442,530; market value the median of 480k/500k/520k = 500,000; true discount
+         (500,000 − 442,530) ÷ 500,000 = 11.494%. Deposit 10% of the 380,000 reserve = 38,000; balance 362,000, of which 2,000 beyond
+         the 360,000 loan. Ceiling 500,000 × 85% = 425,000, every fee as a function of the bid — at 383,103 (loan 344,792.70): duty
+         on 383,200, 6,664; quote 5,000; registration 20; searches 1,170; loan legal (2,700 + 0.7% × 44,792.70 = 3,013.55) × 1.25 =
+         3,766.94; service tax 8% × 8,766.94 = 701.36; loan duty on 345,000, 1,725; the charge 10; valuation 250 + 0.2% × 283,103 =
+         816.21, its tax 65.30 — 19,938.81; holding 1 × 957.76 (344,792.70 ÷ 360); so 383,103 + 21,000 + 19,938.81 + 957.76 =
+         RM424,999.57, and at 383,104 RM425,000.58. A cost of 430,000: 387,919 (RM429,999.96; at 387,920 RM430,000.98, its loan
+         legal fees RM3,043.90 × 1.25 = RM3,804.875, a half sen, up). Was 380,353 and 385,138 with the holding from the sale. */
       const p = [];
-      if (!near(r.tx, 20530) || !near(r.hold, 4000) || !near(r.eff, 445530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 4,000, 445,530`);
-      if (!near(r.td, 10.894, 1e-9)) p.push(`true discount ${r.td}% — by hand 10.894%`);
+      if (!near(r.tx, 20530) || !near(r.hold, 1000) || !near(r.eff, 442530)) p.push(`transaction ${r.tx}, holding ${r.hold}, effective ${r.eff} — by hand 20,530, 1,000, 442,530`);
+      if (!near(r.td, 11.494, 1e-9)) p.push(`true discount ${r.td}% — by hand 11.494%`);
       if (!near(r.fx, 38000) || !near(r.bal, 362000) || !near(r.cash, 2000)) p.push(`forfeiture ${r.fx}, balance ${r.bal}, cash beyond the loan ${r.cash} — by hand 38,000, 362,000, 2,000`);
       if (r.final) p.push('with no check ticked the auction reads final');
-      if (r.margin.status !== 'solved' || r.margin.bid !== 380353 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.99) || !near(r.margin.above, 425001.02)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 380,353 (424,999.99; +1 → 425,001.02)`);
-      if (r.cost.status !== 'solved' || r.cost.bid !== 385138) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 385,138`);
+      if (r.margin.status !== 'solved' || r.margin.bid !== 383103 || !near(r.margin.cap, 425000) || !near(r.margin.eff, 424999.57) || !near(r.margin.above, 425000.58)) p.push(`the ceiling at 15% under the market value: ${JSON.stringify(r.margin)} — by hand 383,103 (424,999.57; +1 → 425,000.58)`);
+      if (r.cost.status !== 'solved' || r.cost.bid !== 387919 || !near(r.cost.eff, 429999.96) || !near(r.cost.above, 430000.98)) p.push(`the ceiling at a cost of 430,000: ${JSON.stringify(r.cost)} — by hand 387,919 (429,999.96; +1 → 430,000.98)`);
       if (r.noMv.status !== 'unavailable' || !/market value/.test(r.noMv.why || '')) p.push(`a margin with no market value: ${JSON.stringify(r.noMv)} — not Unavailable`);
-      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 385138) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
+      if (r.costNoMv.status !== 'solved' || r.costNoMv.bid !== 387919) p.push(`a cost ceiling needs no market value: ${JSON.stringify(r.costNoMv)}`);
       if (r.none !== 'no-target') p.push(`no ceiling entered is ${r.none}, not "no target"`);
       if (p.length) fail('val V3: auction × residential — effective cost, discount, forfeiture and the bid ceiling', p);
-      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM4,000 of holding make the effective cost RM445,530, a 10.894% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM380,353 at 15% under the market value (RM425,000) and RM385,138 at a cost of RM430,000 — each to the ringgit; a margin with no market value is Unavailable, a cost needs none');
+      else ok('val V3: auction × residential — RM20,530 of transaction costs and RM1,000 of holding (the instalment from the day the balance falls due) make the effective cost RM442,530, an 11.494% true discount on the RM500,000 the comparables imply; RM38,000 at risk, Not final; the bid ceiling is RM383,103 at 15% under the market value (RM425,000) and RM387,919 at a cost of RM430,000 — each to the ringgit, worked by hand; a margin with no market value is Unavailable, a cost needs none');
+    });
+
+    /* V3b — THE HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
+       2026; the 20 Oct sweep, auction-3, auction-5, auction-8). On V3's
+       auction (a RM360,000 loan at 0% over 30 years: RM1,000 a month),
+       with RM300 a month of maintenance and RM600 a year of assessment —
+       RM350 a month of running costs with no rent — by hand:
+       - holding 4 months, the balance due in 90 days: 4 × RM350.00 running
+         costs from the sale + (4 − 90 ÷ 30 =) 1 month × RM1,000.00
+         instalment = RM2,400.00, in the effective cost, and in the cash
+         required as a line of its own (+RM2,400.00 on the same deal with
+         no holding entered);
+       - the flows count the hold's years from the end of the 4 months:
+         the cash required at 0, year y at 4 ÷ 12 + y; year 1 pays 12
+         instalments and the loan has run 1 month when it starts, so the
+         sale (10 years + 6 months selling) settles 360,000 − 127 × 1,000
+         = RM233,000;
+       - holding 2 months: the balance falls due a month after it ends, so
+         no instalment in the holding (RM700.00), year 1 pays 11, and the
+         sale settles 360,000 − 125 × 1,000 = RM235,000;
+       - the days not entered: the instalment's start is not known, so the
+         holding is not priced, not counted, and the cash required names
+         it with its reason;
+       - the holding row prints "4 months × RM350.00 running costs + 1
+         month × RM1,000.00 instalment" beside "+RM2,400.00". */
+    await vtry('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const au = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionComp2: 520000, auctionComp3: 480000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90,
+          auctionRepairs: 15000, arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 300, arrearsUtilities: 500, possessionCost: 2000, auctionLegal: 5000, auctionHoldMonths: 4,
+          maintenance: 300, assessment: 600 });
+        const one = (d) => { const m = dealModel(d), a = auctionModel(d, m), h = a.adds.find(s => s.id === 'holding');
+          const line = m.costGroups.flatMap(g => g.items).find(it => it[2]?.id === 'auctionHolding');
+          return { hold: h.amount, eff: a.effective, line: line ? [line[0], line[1]] : null, cash: m.safeCashRequired, missing: m.missingCostLines.map(x => x.label + ': ' + (x.why || '')),
+            times: m.auctionHolding?.flowTimes?.slice(0, 3) || null, flow0: m.flows[0], debt1: m.path[0].debt, out: m.outstanding, notEntered: a.notEntered, holdYears: d.holdYears, sell: d.sellMonths,
+            row: (() => { const fig = typeof auctionWaterfall === 'function' ? auctionWaterfall(a, 'mt') : null; const li = fig?.querySelector?.('[data-step="holding"]'); return li ? li.textContent.replace(/\\s+/g, ' ').trim() : null; })() };
+        };
+        const noHold = { ...au, auctionHoldMonths: null };
+        return JSON.stringify({ four: one(au), two: one({ ...au, auctionHoldMonths: 2 }), noDays: one({ ...au, auctionBalanceDays: null }), none: one(noHold) }); })()`));
+      const p = [], { four, two, noDays, none } = r;
+      if (four.holdYears !== 10 || four.sell !== 6) p.push(`the hold is not the one worked by hand: ${four.holdYears} years, ${four.sell} months selling`);
+      if (!near(four.hold, 2400) || !near(four.eff - none.eff, 2400)) p.push(`holding 4 months: ${four.hold} (effective ${four.eff} against ${none.eff} with none) — by hand RM2,400.00`);
+      if (!four.line || four.line[0] !== 'Holding until it earns: 4 months, no rent' || !near(four.line[1], 2400) || !near(four.cash - none.cash, 2400)) p.push(`the cash required's holding line ${JSON.stringify(four.line)}, the cash required ${four.cash} against ${none.cash} — by hand +RM2,400.00`);
+      if (!four.times || !near(four.times[1], 4 / 12 + 1, 1e-12) || four.times[0] !== 0 || !near(four.flow0, -four.cash)) p.push(`the flows' moments ${JSON.stringify(four.times)}, the first flow ${four.flow0} — by hand 0, 1.3333, the cash required`);
+      if (!near(four.debt1, 12000) || !near(four.out, 233000)) p.push(`4 months: year 1 pays ${four.debt1}, the sale settles ${four.out} — by hand 12,000 and 233,000`);
+      if (!near(two.hold, 700) || !near(two.debt1, 11000) || !near(two.out, 235000)) p.push(`2 months: holding ${two.hold}, year 1 pays ${two.debt1}, the sale settles ${two.out} — by hand 700, 11,000 and 235,000`);
+      if (noDays.hold !== null || !noDays.notEntered.includes('Holding') || !noDays.missing.some(x => /^Holding until it earns: 4 months, no rent: Needs the days to pay the balance/.test(x)) || noDays.times !== null) p.push(`the days not entered: holding ${noDays.hold}, missing ${JSON.stringify(noDays.missing)}`);
+      if (none.line || none.times !== null) p.push('with no holding months entered the deal carries a holding line or a timed hold');
+      if (!r.four.row || !r.four.row.includes('+RM2,400.00') || !r.four.row.includes('4 months × RM350.00 running costs + 1 month × RM1,000.00 instalment')) p.push(`the holding row reads "${r.four.row}"`);
+      if (p.length) fail('val V3b: the auction holding months — one rule in the effective cost, the cash required and the flows', p);
+      else ok('val V3b: the auction holding months, worked by hand — 4 × RM350.00 running costs from the sale + 1 × RM1,000.00 instalment from the day the balance falls due = RM2,400.00, in the effective cost and the cash required alike; the flows count the hold from the end of the holding (year 1 at 1.33 years), the loan from the day it was drawn (RM233,000 settled); 2 months: no instalment, RM700.00, RM235,000; without the days, not priced and named; the row prints its own working');
+    });
+
+    /* V3c — THE AUCTION'S WORDS SAY WHAT ITS FIGURES ARE (the 20 Oct 2026
+       sweep, auction-1, auction-6, auction-7, auction-9). On V3's auction:
+       - a ceiling below the reserve: with the reserve at RM390,000 the
+         15% ceiling works out at RM383,103 (val V3), a bid that cannot win
+         that sale, so it reads "No winning bid" and gives the effective
+         cost at the reserve, over the ceiling — by hand, at RM390,000:
+         duty 6,800 + 5,000 + 20 + 1,170 + loan legal (2,700 + 0.7% ×
+         51,000 = 3,057) × 1.25 = 3,821.25 + service tax 8% × 8,821.25 =
+         705.70 + loan duty 1,755 + 10 + valuation 830 + 66.40 = 20,178.35;
+         holding 1 × RM975.00; so 390,000 + 21,000 + 20,178.35 + 975 =
+         RM432,153.35, over RM425,000;
+       - a cap that is not a whole ringgit is printed to the sen beside the
+         costs to the sen, and a margin to the places entered (10.05%);
+       - the financing buffer is the cash set aside for the part of the
+         balance the loan does not cover, which is what it is set against;
+       - the loan's deposit is the down payment on the auction route, beside
+         the Proclamation's "Deposit (%)": in the calculator's box and the
+         ledger. */
+    await vtry('val V3c: the auction ceiling, buffer and deposit words say what their figures are', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${V_SEED}
+        const au = F({ route: 'auction', reservePrice: 380000, auctionComp1: 500000, auctionComp2: 520000, auctionComp3: 480000, auctionDepositPct: 10, auctionDepositOf: 'reserve', auctionBalanceDays: 90,
+          auctionRepairs: 15000, arrearsMaintenance: 3000, arrearsQuitRent: 200, arrearsAssessment: 300, arrearsUtilities: 500, possessionCost: 2000, auctionLegal: 5000, auctionHoldMonths: 4,
+          auctionCapKind: 'margin', auctionCapValue: 15 });
+        const card = (d) => { const a = auctionModel(d), c = auctionBidCeiling(d, a); const n = auctionCeilingCard(c, a);
+          return { status: c.status, bid: c.bid ?? null, atReserve: c.atReserve ?? null, text: n.textContent.replace(/\\s+/g, ' '), formula: auctionCeilingFormula(c, a) }; };
+        const high = card({ ...au, reservePrice: 390000 });
+        const odd = card({ ...au, auctionComp1: 500001, auctionCapValue: 10.05 });
+        const notes = auctionInputs({ d: au, prefix: 'mt', answer: () => {} }).textContent.replace(/\\s+/g, ' ');
+        const down = pcDealField(au, 'downPct').textContent.trim();
+        const ledger = dealModel(au).costGroups.flatMap(g => g.items).map(it => it[0]);
+        const sub = pcDealField({ ...au, route: undefined }, 'downPct').textContent.trim();
+        return JSON.stringify({ high, odd, notes, down, sub, ledger: ledger.slice(0, 3), cap: 500001 * (1 - 10.05 / 100) }); })()`));
+      const p = [], h = r.high, o = r.odd;
+      if (h.status !== 'below-reserve' || h.bid !== 383103 || !near(h.atReserve, 432153.35)) p.push(`with a RM390,000 reserve: ${h.status} at ${h.bid}, the cost at the reserve ${h.atReserve} — by hand below the reserve, RM432,153.35`);
+      if (!/No winning bid/.test(h.text) || !/No winning bid fits these costs/.test(h.text) || !h.text.includes('RM432,153.35') || /a winning bid of at most/.test(h.text)) p.push(`the card reads "${h.text.slice(0, 260)}"`);
+      if (!/no winning bid fits these costs/.test(h.formula)) p.push(`the working reads "${h.formula.slice(0, 200)}"`);
+      if (!near(r.cap, 449750.8995, 1e-6) || !o.text.includes('10.05% under the market value') || !o.text.includes('at or under RM449,750.90')) p.push(`a 10.05% margin on RM500,001: "${o.text.slice(0, 260)}"`);
+      if (!/The financing buffer is cash you set aside for the part of the balance the loan does not cover\./.test(r.notes) || /late or short/.test(r.notes)) p.push('the buffer is not defined as what it is set against');
+      if (r.down !== 'Down payment (%)' || r.ledger[0] !== 'Down payment' || r.sub !== 'Deposit (%)') p.push(`the loan's deposit on the auction route reads "${r.down}" and "${r.ledger[0]}" (on a subsale "${r.sub}")`);
+      if (p.length) fail('val V3c: the auction ceiling, buffer and deposit words say what their figures are', p);
+      else ok('val V3c: a ceiling below the reserve reads "No winning bid", the cost at the reserve RM432,153.35 worked by hand; a 10.05% margin prints as entered beside its cap; the buffer is the cash for the balance beyond the loan; the loan\'s deposit is the down payment on the auction route');
     });
 
     await vtry('val V4: new development — construction interest, the completion delay, the templates by asset', async () => {
@@ -7471,6 +7970,54 @@ try {
       if (!near(r.market, 360000) || !near(r.hold, 600)) p.push(`land at auction: market ${r.market}, holding ${r.hold} — by hand 360,000 and 600`);
       if (p.length) fail('val V5: land — subsale, auction, and new development gated', p);
       else ok('val V5: land — −RM100 a month, no net yield and no price that gives one; at auction the quit-rent arrears count and maintenance arrears are not asked or counted, RM600 of holding; New development is gated for a bare parcel: no premium, interest or exit, and the cash required is the subsale’s to the sen');
+    });
+
+    /* V5b — A PARCEL'S WORDS GIVE ITS OWN REASONS, AND A SHORT TOTAL SAYS
+       SO (the 20 Oct 2026 sweep, land-commercial-1, land-commercial-2). On
+       V5's parcel, with an agent entered (8%, a RM120 minimum) and a sinking
+       fund and repair reserve typed — none of which a parcel is charged:
+       - the break-even rent is "Not a quantity this asset has", not "not
+         computable";
+       - the management card says no management is charged because the
+         class has no tenancy, not that the reader manages it, and lists no
+         tenancy duties;
+       - the cash to make it ready is not called rent-ready;
+       - the Quick model's other running costs name only what is counted:
+         assessment, quit rent and insurance;
+       - every total short of a line not priced says "so far — without"
+         and names the lines of its own groups; the ledger by kind does not
+         call a kind whose lines are all unpriced "none". */
+    await vtry('val V5b: a parcel\'s words give its own reasons, and a short total says so', async () => {
+      const r = JSON.parse(await evaluate(`(async () => { ${V_SEED}
+        const w = (ms) => new Promise(res => setTimeout(res, ms));
+        const d = L({ selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 120, sinkingFund: 40, repairReservePct: 5 });
+        const m = dealModel(d), figs = pcAnswerFigs(d, m);
+        const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+        let full = '', quick = '';
+        try {
+          State.deal = d; saveDeal();
+          navigate('/property/calculator?view=full', { replace: true }); render(); await w(450);
+          full = (document.querySelector('main')?.textContent || '').replace(/\\s+/g, ' ');
+          navigate('/property/calculator', { replace: true }); setPropertyView(false); render(); await w(400);
+          quick = (document.querySelector('#pc-q-other > summary')?.textContent || '').replace(/\\s+/g, ' ');
+        } finally { State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate(back, { replace: true }); render(); await w(250); }
+        const kinds = Object.keys(FEE_TABLE.categories);
+        const unpricedKinds = [...new Set(m.costGroups.flatMap(g => g.items).filter(it => !isNum(it[1]) && it[2]?.provenance).map(it => feeKindOf(it[2])).filter(Boolean))];
+        const split = ledgerSplitWords(m);
+        return JSON.stringify({ be: figs.breakeven, complete: figs.complete[2], short: m.missingCostLines.filter(x => x.groupId === 'acquisition' || x.groupId === 'financing').map(x => x.label.toLowerCase()),
+          impShort: m.missingCostLines.filter(x => x.groupId === 'improvement').length, full, quick, otherY: m.statutoryY + m.insuranceY,
+          split, unpricedWords: unpricedKinds.map(k => FEE_TABLE.categories[k].toLowerCase()) }); })()`));
+      const p = [];
+      if (r.be[2] !== 'Not a quantity this asset has') p.push(`the break-even rent reads "${r.be[2]}"`);
+      if (!r.full.includes('No management is charged: this class has no tenancy to manage.') || /You have said you will manage|What you are taking on by managing it yourself|What the manager is agreeing to do/.test(r.full)) p.push('the management card gives the wrong reason, or lists tenancy duties, on a parcel');
+      if (!r.full.includes('Cash to make it ready') || r.full.includes('Cash to make rent-ready')) p.push('the parcel\'s cash to make it ready is called rent-ready');
+      if (!r.quick.includes('a year: assessment, quit rent and insurance') || /sinking fund|repair reserve/.test(r.quick)) p.push(`the Quick model's other running costs read "${r.quick}"`);
+      if (!r.short.length) p.push('the parcel has no line not priced in its completion groups: the case is vacuous');
+      else if (!r.complete.includes('so far — without') || !r.short.every(x => r.complete.toLowerCase().includes(x))) p.push(`the cash to complete reads "${r.complete}" (short by ${r.short.join(', ')})`);
+      if (!r.full.includes('Cash still to complete') || !/Cash before reserve: RM[^ ]+ — completion and making it ready together; so far — without/.test(r.full)) p.push('the cash before reserve does not say it is short');
+      for (const k of r.unpricedWords) if (new RegExp(`${k} none`).test(r.split)) p.push(`the ledger by kind calls ${k} "none": "${r.split}"`);
+      if (p.length) fail('val V5b: a parcel\'s words give its own reasons, and a short total says so', p);
+      else ok(`val V5b: on a parcel the break-even rent is "Not a quantity this asset has", no management is charged for want of a tenancy, the cash is "to make it ready", the Quick model's other running costs are assessment, quit rent and insurance, and the short totals say "so far — without" the ${r.short.length} lines not priced`);
     });
 
     await vtry('val V6: the new inputs travel in their own words and are drawn with their badges', async () => {
@@ -8045,6 +8592,25 @@ try {
       if (!r.land.gated || !/bare parcel/.test(r.land.why)) p.push(`land is run: ${JSON.stringify(r.land).slice(0, 100)}`);
       if (p.length) fail('refurb F1: the four options, worked by hand', p);
       else ok('refurb F1: Do nothing RM1,000 a month at 6.00%; Refurbish (RM30,000, +RM150, 2 months void) RM791.67 over the first twelve months, RM1,150 once let, 6.00% on RM430,000, RM32,000 cash, payback 16.7 years (RM30,000 ÷ RM1,800); Upgrade (RM80,000, no uplift, 4 months void) RM333.33, 5.00%, RM84,000, payback "Not demonstrated" (and with an uplift of RM0) — Do nothing plainly has the best monthly position; Sell RM78,750 net on the loan as modelled, RM88,750 on a RM350,000 settlement, a RM67,500 shortfall at RM300,000; no cost, Unavailable; land not run');
+    });
+
+    /* F1b — "Not entered" only for what was not entered (the 20 Oct 2026
+       sweep, lab-refurb-3). An option with no cost is Unavailable, and the
+       uplift and the months without rent the reader did enter read as
+       entered — they read "Not entered" beside boxes holding them. */
+    await ftry('refurb F1b: an option with no cost says what was entered', async () => {
+      const r = JSON.parse(await evaluate(`(() => { ${R_SEED}
+        const up = (x) => refurbModel(F({ ...RF, rfUpgradeCost: null, ...x })).options.find(o => o.id === 'upgrade');
+        const c = (row, o) => { const v = rfCell(row, o, {}); return v.text + ' — ' + v.sub; };
+        const o = up({ rfUpgradeUplift: 500 }), n = up({ rfUpgradeVoid: null });
+        return JSON.stringify({ status: o.status, uplift: c('uplift', o), void: c('void', o), noneUplift: c('uplift', n), noneVoid: c('void', n) }); })()`));
+      const p = [];
+      if (r.status !== 'unavailable') p.push(`an upgrade with no cost is ${r.status}, not Unavailable`);
+      if (r.uplift !== '+RM500 — a month, your figure') p.push(`its uplift of RM500 entered reads "${r.uplift}"`);
+      if (r.void !== '4 months — with no rent while the works run') p.push(`its 4 months entered read "${r.void}"`);
+      if (r.noneUplift !== 'Not entered — no uplift counted' || r.noneVoid !== 'Not entered — none counted') p.push(`with neither entered: "${r.noneUplift}", "${r.noneVoid}"`);
+      if (p.length) fail('refurb F1b: an option with no cost says what was entered', p);
+      else ok(`refurb F1b: an upgrade with no cost is Unavailable, and the uplift and the months entered read as entered ("${r.uplift}", "${r.void}"); "Not entered" only where nothing was`);
     });
 
     await ftry('refurb F2: on the Lab, the lens never reorders the options', async () => {
@@ -10591,6 +11157,133 @@ try {
     else ok('qt-day8-case: "Start a research case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged; the snapshot also keeps each default\'s state, the methodology and model version and the dates of the statements and price, and the company with least data and one with no model start a case with nothing invented', A.id);
   }
   /* ---- end qt-day8-case ---- */
+  /* qt-quick-fee — THE FEE AND WHO MANAGES, SIDE BY SIDE (the 20 Oct 2026
+     sweep, managed-2). The sample is self-managed, so a letting and
+     management fee typed in the Quick model — which had the box and not
+     the tick — changed no figure, and nothing said so. The full model's
+     own tick, "I will manage this property myself", is drawn in the Quick
+     model right after the fee box, ticked on the sample; unticking it
+     there charges the fee: on the sample with 8% typed, the month falls
+     by (8% of the RM20,202 collected + half a month's RM1,850 placement a
+     year) ÷ 12 = RM211.76, worked by hand. Fails on 68f3da44: no tick in
+     the Quick model. */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+      const out = {};
+      try {
+        State.deal = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, mgmtPct: 8 };
+        saveDeal(); navigate('/property/calculator', { replace: true }); setPropertyView(false); render(); await w(400);
+        const fee = document.querySelector('#pc-quick #d-mgmtPct'), tick = document.querySelector('#pc-quick #d-selfManaged');
+        out.quick = !!document.getElementById('pc-quick');
+        out.drawn = { fee: !!fee, tick: !!tick };
+        out.next = !!(fee && tick) && fee.closest('.assumption')?.nextElementSibling === tick.closest('label');
+        out.label = tick ? tick.closest('label').textContent.trim() : null;
+        out.before = { checked: tick ? tick.checked : null, monthly: dealModel(State.deal).cashflowMonthly };
+        if (tick) { tick.click(); await w(400); }
+        const t2 = document.querySelector('#pc-quick #d-selfManaged');
+        out.after = { self: State.deal.selfManaged, checked: t2 ? t2.checked : null, monthly: dealModel(State.deal).cashflowMonthly, quick: !!document.getElementById('pc-quick') };
+      } finally {
+        State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate(back, { replace: true }); render(); await w(250);
+      }
+      return out;
+    })()`);
+    const p = [];
+    if (!r.quick || !r.drawn.fee || !r.drawn.tick) p.push(`the Quick model draws ${r.drawn.fee ? 'the fee box' : 'no fee box'} and ${r.drawn.tick ? 'the tick' : 'no "I will manage this property myself" tick'}`);
+    else {
+      if (!r.next) p.push('the tick is not right after the fee box');
+      if (r.label !== 'I will manage this property myself') p.push(`the tick reads "${r.label}"`);
+      const want = (0.08 * 1850 * 12 * 0.91 + 1 * 1850 * 12 / 24) / 12;
+      if (r.before.checked !== true || r.after.self !== false || r.after.checked !== false || !r.after.quick) p.push(`ticked ${r.before.checked} on the sample; after a click the deal is ${r.after.self ? 'self-managed' : 'managed'}, the tick ${r.after.checked}, ${r.after.quick ? 'in Quick' : 'out of Quick'}`);
+      if (!(Math.abs((r.before.monthly - r.after.monthly) - want) < 1e-6)) p.push(`unticked, the month moved ${(r.before.monthly - r.after.monthly).toFixed(4)}, by hand ${want.toFixed(4)} (the fee charged)`);
+    }
+    if (p.length) fail('qt-quick-fee: the Quick model shows who manages beside the fee, and the tick charges the fee', p);
+    else ok(`qt-quick-fee: the Quick model draws "I will manage this property myself" right after the fee box, ticked on the sample; unticked there, the 8% typed is charged — the month falls RM${(r.before.monthly - r.after.monthly).toFixed(2)}, worked by hand`);
+  }
+
+  /* qt-words — THE CALCULATOR'S WORDS SAY WHAT ITS FIGURES ARE (the 20 Oct
+     2026 sweep, stress-6, stress-7, stress-9, managed-6, managed-7):
+     - the "Breaks even at" tile on the sample says what was computed: no
+       rate down to 0% makes the month positive, because at 0% the loan's
+       repayment (RM514,800 ÷ 420 = RM1,225.71) is more than the rent
+       leaves (RM1,176.16), not that "the interest rate is not what makes
+       this negative" — interest is most of the shortfall;
+     - the vacancy rows are captioned as the fixed levels they are;
+     - the sensitivity table's last column is the larger one-step move it
+       holds, not a "swing" between the ends beside it;
+     - on the sample managed at 8% with a RM300 minimum (8% of the RM20,202
+       collected is RM1,616.16, under RM3,600), the management cost tile
+       names the minimum, and the note says the minimum is owed whatever is
+       collected, RM1,983.84 above the percentage at this rent, more as
+       collections fall — not that the top-up "does not fall with rent". */
+  {
+    const r = await evaluate(`(async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const back = location.pathname + location.search, keep = JSON.stringify(State.deal), stored = localStorage.getItem('vl.deal');
+      const read = async (d) => { State.deal = d; saveDeal(); navigate('/property/calculator?view=full', { replace: true }); render(); await w(450);
+        return (document.querySelector('main')?.textContent || '').replace(/\\s+/g, ' '); };
+      const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      let sample = '', managed = '', mm = null;
+      try {
+        sample = await read(base);
+        const md = { ...base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 300 };
+        managed = await read(md); mm = dealModel(md);
+      } finally { State.deal = JSON.parse(keep); if (stored) localStorage.setItem('vl.deal', stored); saveDeal(); navigate(back, { replace: true }); render(); await w(250); }
+      const sens = propertySensitivityPanel(base, dealModel(base)).textContent.replace(/\\s+/g, ' ');
+      return { sample, managed, sens, topUp: mm.mgmtMinTopUp, money: fmtAmount(3600 - 0.08 * 1850 * 12 * 0.91, 'MYR'), floor: fmtAmount(3600, 'MYR'), min: fmtAmount(300, 'MYR') };
+    })()`);
+    const p = [];
+    const inst0 = 514800 / 420, left = (1850 * 12 * 0.91 - (294 * 12 + 800 + 300 + 450 + 1850 * 12 * 0.91 * 0.05)) / 12;
+    if (!(inst0 > left)) p.push(`the sample's repayment at 0% (${inst0.toFixed(2)}) is not more than the rent leaves (${left.toFixed(2)}): the case is wrong`);
+    if (!r.sample.includes('Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.') || r.sample.includes('The interest rate is not what makes this negative')) p.push('the "Breaks even at" tile does not say what was computed');
+    if (!r.sample.includes('At fixed vacancy levels') || r.sample.includes('If it sits empty for longer')) p.push('the vacancy rows are not captioned as fixed levels');
+    if (!/Larger move/.test(r.sens) || /\bSwing\b/.test(r.sens)) p.push('the sensitivity table still calls the larger one-step move a swing');
+    if (!r.managed.includes(`the ${r.min} monthly minimum plus placement`)) p.push(`the management cost tile does not name the minimum it charges (${r.min})`);
+    if (!r.managed.includes(`less than the ${r.floor} a year minimum you entered, which is owed whatever the property collects — ${r.money} more than the percentage at this rent, and more as collections fall.`) || /does not fall with rent|treats it as fixed/.test(r.managed)) p.push(`the minimum fee's note: by hand ${r.floor} owed, ${r.money} above 8% of RM20,202`);
+    if (p.length) fail('qt-words: the calculator\'s tiles, captions and notes say what their figures are', p);
+    else ok(`qt-words: "Negative even at 0%: the loan’s repayment is more than the rent leaves" (RM${inst0.toFixed(2)} against RM${left.toFixed(2)}, by hand); "At fixed vacancy levels"; "Larger move"; the RM300 minimum named, owed whatever is collected, ${r.money} above 8% at this rent`);
+  }
+
+  /* qt-bases — EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8
+     report, item 4), and the model charges it on that: the fee and the
+     reserve on the rent collected after vacancy, the exit costs on the sale
+     price (the legal costs at least RM500), the vacancy of the year. By
+     hand, on the sample managed at 8% with 25% vacancy: rent collected
+     1,850 × 12 × 0.75 = RM16,650, the fee 8% of it RM1,332 and the reserve
+     5% RM832.50 (on the gross RM22,200 they would be RM1,776 and RM1,110);
+     a 2-year hold of a RM50,000 parcel at 3% growth sells at RM53,045, its
+     agent 2% RM1,060.90 and its legal costs RM500, not 0.5% (RM265.23).
+     The labels in English, Malay and Chinese; the RM500 floor in the
+     box's note. */
+  {
+    const r = await evaluate(`(() => {
+      const base = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {} };
+      const m = dealModel({ ...base, selfManaged: false, mgmtPct: 8, vacancyPct: 25 });
+      const x = dealModel({ ...base, propertyType: 'Land', landSqft: 4000, sqft: 0, price: 50000, downPct: 100, holdYears: 2, apprecPct: 3 });
+      const keys = ['vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct'];
+      return { mgmtY: m.mgmtY, repairY: m.repairY, exitValue: x.exitValue, agent: x.agentFee, legal: x.exitLegal,
+        labels: Object.fromEntries(keys.map(k => [k, { def: PC_FIELD_DEF[k][1], ...PROPERTY_I18N['in.' + k] }])),
+        note: pcDealField(base, 'exitLegalPct').textContent.replace(/\\s+/g, ' ').trim() };
+    })()`);
+    const p = [], near = (a, b) => Math.abs(a - b) < 1e-6;
+    if (!near(r.mgmtY, 1332) || !near(r.repairY, 832.5)) p.push(`the fee ${r.mgmtY} and the reserve ${r.repairY} — by hand 1,332 and 832.50, on the rent collected`);
+    if (!near(r.exitValue, 50000 * 1.03 * 1.03) || !near(r.agent, 50000 * 1.03 * 1.03 * 0.02) || r.legal !== 500) p.push(`the exit: value ${r.exitValue}, agent ${r.agent}, legal ${r.legal} — by hand 53,045, 1,060.90 and 500`);
+    const want = {
+      vacancyPct: ['Vacancy allowance (% of the year)', 'Peruntukan kekosongan (% setahun)', '空置预留 (占全年 %)'],
+      mgmtPct: ['Letting and management fee (% of rent collected)', 'Fi sewaan dan pengurusan (% sewa yang dikutip)', '出租与管理费 (占实收租金 %)'],
+      repairReservePct: ['Repair reserve (% of rent collected)', 'Rizab pembaikan (% sewa yang dikutip)', '维修储备 (占实收租金 %)'],
+      agentPct: ['Agent commission on exit (% of the sale price)', 'Komisen ejen semasa jualan (% harga jualan)', '出售时经纪佣金 (占售价 %)'],
+      exitLegalPct: ['Legal costs on exit (% of the sale price)', 'Kos guaman semasa jualan (% harga jualan)', '出售时律师费 (占售价 %)'],
+    };
+    for (const [k, [en, ms, zh]] of Object.entries(want)) {
+      const l = r.labels[k];
+      if (l.def !== en || l.en !== en || l.ms !== ms || l.zh !== zh) p.push(`${k} reads ${JSON.stringify(l)}`);
+    }
+    if (!/At least RM500\./.test(r.note) || /RM500/.test(r.labels.exitLegalPct.en)) p.push(`the legal costs' box: "${r.note}"`);
+    if (p.length) fail('qt-bases: each percentage says what it is a percentage of, and is charged on it', p);
+    else ok('qt-bases: the fee and the reserve on the rent collected (RM1,332 and RM832.50 at 25% vacancy, by hand), the exit costs on the sale price (RM1,060.90; the legal costs RM500 at least), the vacancy of the year — each label saying so in English, Malay and Chinese');
+  }
 
   /* ---- qt-quick-full ---- */
   /* WHAT THE CALCULATOR WAS SERVED WITH, THE FULL MODEL DRAWS (QT-003).

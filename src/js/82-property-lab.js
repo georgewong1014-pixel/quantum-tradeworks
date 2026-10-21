@@ -254,7 +254,7 @@ const LAB_FIGURES = [
       : m.breakEvenOccupancy > 100 ? 'cannot break even at this rent, however full' : null),
     formula: (d, m) => (!isNum(m.breakEvenOccupancy)
       ? (m.letsToTenant === false ? 'Not a quantity this asset has: there is no rent to fill.' : 'Not computable: the loan’s annual cost is unknown, or there is no rent to divide by.')
-      : `(${labMoney(m.fixedOperatingCosts)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct(m.variableCostRate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
+      : `(${labMoney((m.breakEvenOccupancyTerms || { fixed: m.fixedOperatingCosts }).fixed)} fixed costs + ${labMoney(m.annualDebtService)} debt service) ÷ (${labMoney(m.grossAnnualRent)} rent × (1 − ${fmtPct((m.breakEvenOccupancyTerms || { rate: m.variableCostRate }).rate * 100, 1)} variable costs)) = ${fmtPct(m.breakEvenOccupancy, 1)}.`
         + (m.breakEvenOccupancy > 100 ? ' Above 100% the property cannot cover its costs at this rent however full it is.' : '')) },
   { key: 'valueLessLoanAtExit', label: (d) => `Value less loan, ${labSaleWhen(d)} (before selling costs)`, fmt: 'money0', help: 'propValueLessLoan',
     read: (m) => m.valueLessLoanAtExit,

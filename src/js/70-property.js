@@ -337,8 +337,10 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    own — the subsale's lines, said. */
 /* On the auction route the rulebook's lines stand as for a transfer on the
    winning bid, with one exception the reader makes: their lawyer's quote
-   for the legal and search costs, once entered, takes the place of the
-   purchase legal fees (an auction has no SPA). */
+   for the legal fees, once entered, takes the place of the purchase legal
+   fees (an auction has no SPA). The searches stay the rulebook's separate
+   estimate, and the service tax is on the legal fees only (the owner, 21
+   Oct 2026: the quote is legal fees only). */
 /* On the new-development route the rulebook's lines stand as on any SPA:
    it prices the SPA, the loan and the transfer on the SPA price. A legal
    fee the developer pays, a cash rebate or another incentive is the
@@ -348,7 +350,7 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    the route, so the rulebook's line stands and the reader's lawyer's quote
    takes its place once entered. */
 const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. Its purchase legal fees are rule 1’s full scale; Sarawak’s rules charge three-quarters where your lawyer acts on the SPA alone, or the transfer alone (rules 2 and 3), so which applies turns on your lawyer’s engagement and is not decided here — enter your lawyer’s quote and it takes the rulebook’s place. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
-const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price. Its purchase legal fees are rule 1’s full scale, which presumes an SPA; Sarawak’s rules do not settle the purchaser’s advocate’s share at auction (rules 3 and 13(b)), so it is not decided here — your lawyer’s quote for the legal and search costs, once entered, takes its place. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
+const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price. Its purchase legal fees are rule 1’s full scale, which presumes an SPA; Sarawak’s rules do not settle the purchaser’s advocate’s share at auction (rules 3 and 13(b)), so it is not decided here — your lawyer’s quote for the legal fees, once entered, takes its place; the searches stay the rulebook’s separate estimate. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
   : null);
@@ -582,11 +584,18 @@ const DEAL_BOX_KEYS = new Set(['sqft', 'landSqft', 'parking', 'price', 'bankValu
   'repairReservePct', 'leasingFeeMonths', 'renewalFeeMonths', 'mgmtMinMonthly', 'tenancyMonths', 'daysToFirstTenant', 'depositMonths', 'repairApprovalLimit',
   'inspectionsPerYear', 'arrearsChaseDays', 'apprecPct', 'sellMonths', 'agentPct', 'exitLegalPct', 'equityReturnPct']);
 const DEAL_SHARE = new Set(['renoRentUpliftPct', 'renoValueRecoveryPct', 'downPct', 'ratePct', 'vacancyPct', 'mgmtPct', 'repairReservePct', 'agentPct', 'exitLegalPct']);
+/* A TENANCY OF AT LEAST A MONTH (the 20 Oct 2026 sweep, managed-5). The
+   placement fee is charged once a tenancy, so the model counts tenancies a
+   year as 12 ÷ the months. A 0 or a half was taken and silently counted as
+   one month — twelve placement fees a year, the whole gross rent of the
+   sample — while the box still said 0. Refused at the box and skipped in a
+   link, as a price of 0 is. */
 function dealEntryRefused(k, v) {
   if (!Number.isFinite(v)) return 'needs a number';
   if (k === 'price' && !(v > 0)) return 'needs a price above 0 — the model cannot price a purchase with no price';
   if (DEAL_SIGNED.has(k)) return null;
   if (v < 0) return 'cannot be negative';
+  if (k === 'tenancyMonths' && v < 1) return 'needs at least 1 month — the placement fee is charged once a tenancy, so a shorter one cannot be priced';
   if (DEAL_SHARE.has(k) && v > 100) return 'cannot be above 100%';
   return null;
 }
@@ -2246,8 +2255,14 @@ function resolveFee(lineId, bases = {}, { basedOn = null } = {}) {
     if (!Array.isArray(line.scale) || !isNum(base)) { out.why = 'The scale has not been filled in.'; return out; }
     out.amount = feeScaleAmount(line.scale, base, { unit: line.unit, minimumFee: line.minimumFee });
     /* The share of the scale the rule charges in the case the line assumes
-       (Sarawak's rule 7: the full scale plus one-quarter). */
-    if (isNum(line.multiplier)) out.amount = Math.round(out.amount * line.multiplier * 100) / 100;
+       (Sarawak's rule 7: the full scale plus one-quarter), rounded to the
+       sen. IN WHOLE SEN (the 20 Oct 2026 sweep, auction-4): the scale is
+       already to the sen, so it is taken as a whole number of sen, and a
+       whole number × 1.25 is exact in binary — a true half sen rounds up.
+       In ringgit, 3,367.02 × 1.25 × 100 came to 420,877.49999999994, and
+       RM4,208.775 rounded down to RM4,208.77 at about 6% of bids, up at
+       the rest. */
+    if (isNum(line.multiplier)) out.amount = Math.round(Math.round(out.amount * 100) * line.multiplier) / 100;
   }
   if (isNum(out.amount)) out.status = provenance === 'verified' ? 'verified' : provenance === 'quote' ? 'quote' : 'placeholder';
   return out;
@@ -2369,7 +2384,19 @@ function feeUncertainWords(m, money = (v) => fmtAmount(v, 'MYR')) {
 function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   const s = m?.ledgerSplit;
   if (!s) return '';
-  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) : 'none'}`);
+  /* A kind whose lines are all unpriced (gated for the class, or not
+     priced) is not "none" (the 20 Oct 2026 sweep, land-commercial-1). */
+  const unpriced = new Set((m.costGroups || []).flatMap(g => g.items).filter(it => !isNum(it[1]) && it[2]?.provenance).map(it => feeKindOf(it[2])).filter(Boolean));
+  /* What of a kind rests on a line not checked — estimated, or under a rule
+     not known — said beside it (the 20 Oct 2026 sweep, copy-property-14),
+     so the kinds and the "rests on unverified or unknown lines" total the
+     paragraph gives after them agree: the valuation fee and its tax are
+     professional fees on a published scale AND estimated. The estimates'
+     own kind is all of it. */
+  const unchecked = (k) => (s.kinds[k]?.lines || []).filter(l => l.provenance && l.provenance !== 'verified' && l.provenance !== 'quote');
+  const est = (k) => { const xs = unchecked(k); if (!xs.length || k === 'estimate') return '';
+    return ` (${money(xs.reduce((t, l) => t + l.amount, 0))} of it ${xs.every(l => l.provenance === 'estimated') ? 'estimated' : 'unverified or unknown'})`; };
+  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) + (unpriced.has(k) ? ' so far' : '') + est(k) : unpriced.has(k) ? 'not priced' : 'none'}`);
   parts.push(`your own money and figures (the deposit, the renovation, the reserve and what you entered) ${money(s.kinds.own.total)}`);
   const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
   return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;
@@ -3530,18 +3557,24 @@ const PROPERTY_I18N = {
   'cl.excludes':{ en:'What it excludes', ms:'Apa yang tidak termasuk', zh:'不包括的内容' },
   'cl.import':{ en:'Import a cost schedule — a .json or .csv file in the published format', ms:'Import jadual kos — fail .json atau .csv dalam format yang diterbitkan', zh:'导入成本明细表——已发布格式的 .json 或 .csv 文件' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
+  /* On the auction route, beside the Proclamation's own deposit (auction-9). */
+  'in.downPctAuction':{ en:'Down payment (%)', ms:'Bayaran pendahuluan (%)', zh:'首付 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
   'in.rent':      { en:'Expected monthly rent (RM)', ms:'Jangkaan sewa bulanan (RM)', zh:'预计月租 (RM)' },
   'in.rentGrowthPct':{ en:'Annual rent growth (%)', ms:'Pertumbuhan sewa tahunan (%)', zh:'年租金涨幅 (%)' },
-  'in.vacancyPct':{ en:'Vacancy allowance (%)', ms:'Peruntukan kekosongan (%)', zh:'空置预留 (%)' },
+  /* EACH PERCENTAGE SAYS WHAT IT IS A PERCENTAGE OF (the Day-8 report, its
+     item 4): the vacancy of the year; the fee and the reserve of the rent
+     collected, after vacancy (dealModel's mgmtY and repairY); the exit
+     costs of the sale price (its RM500 minimum in the box's note). */
+  'in.vacancyPct':{ en:'Vacancy allowance (% of the year)', ms:'Peruntukan kekosongan (% setahun)', zh:'空置预留 (占全年 %)' },
   'in.maintenance':{ en:'Monthly maintenance (RM)', ms:'Penyelenggaraan bulanan (RM)', zh:'每月维修费 (RM)' },
   'in.sinkingFund':{ en:'Monthly sinking fund (RM)', ms:'Sinking fund bulanan (RM)', zh:'每月储备金 (RM)' },
   'in.assessment':{ en:'Annual assessment (RM)', ms:'Cukai pintu tahunan (RM)', zh:'每年门牌税 (RM)' },
   'in.quitRent':  { en:'Annual quit rent (RM)', ms:'Cukai tanah tahunan (RM)', zh:'每年地税 (RM)' },
   'in.insurance': { en:'Annual insurance (RM)', ms:'Insurans tahunan (RM)', zh:'每年保险费 (RM)' },
-  'in.mgmtPct':   { en:'Letting and management fee (% of rent)', ms:'Fi sewaan dan pengurusan (% sewa)', zh:'出租与管理费 (占租金 %)' },
-  'in.repairReservePct':{ en:'Repair reserve (% of rent)', ms:'Rizab pembaikan (% sewa)', zh:'维修储备 (占租金 %)' },
+  'in.mgmtPct':   { en:'Letting and management fee (% of rent collected)', ms:'Fi sewaan dan pengurusan (% sewa yang dikutip)', zh:'出租与管理费 (占实收租金 %)' },
+  'in.repairReservePct':{ en:'Repair reserve (% of rent collected)', ms:'Rizab pembaikan (% sewa yang dikutip)', zh:'维修储备 (占实收租金 %)' },
   'in.selfManaged':{ en:'I will manage this property myself', ms:'Saya akan mengurus hartanah ini sendiri', zh:'我将自行管理此产业' },
   'in.leasingFeeMonths':{ en:'Tenant placement fee (months of rent)', ms:'Fi mendapatkan penyewa (bulan sewa)', zh:'招租费（月租金数）' },
   'in.renewalFeeMonths':{ en:'Renewal fee (months of rent)', ms:'Fi pembaharuan sewaan (bulan sewa)', zh:'续约费（月租金数）' },
@@ -3562,8 +3595,8 @@ const PROPERTY_I18N = {
   'in.holdYears': { en:'Holding period (years)', ms:'Tempoh pegangan (tahun)', zh:'持有期 (年)' },
   'in.apprecPct': { en:'Annual capital growth (%)', ms:'Pertumbuhan modal tahunan (%)', zh:'年资本增值 (%)' },
   'in.sellMonths':{ en:'Expected months to sell', ms:'Jangkaan bulan untuk menjual', zh:'预计出售月数' },
-  'in.agentPct':  { en:'Agent commission on exit (%)', ms:'Komisen ejen semasa jualan (%)', zh:'出售时经纪佣金 (%)' },
-  'in.exitLegalPct':{ en:'Legal costs on exit (%)', ms:'Kos guaman semasa jualan (%)', zh:'出售时律师费 (%)' },
+  'in.agentPct':  { en:'Agent commission on exit (% of the sale price)', ms:'Komisen ejen semasa jualan (% harga jualan)', zh:'出售时经纪佣金 (占售价 %)' },
+  'in.exitLegalPct':{ en:'Legal costs on exit (% of the sale price)', ms:'Kos guaman semasa jualan (% harga jualan)', zh:'出售时律师费 (占售价 %)' },
   'in.equityReturnPct':{ en:'Assumed equity return (% a year)', ms:'Andaian pulangan ekuiti (% setahun)', zh:'假设股票回报 (每年 %)' },
   /* acquisition costs and the limitation statements */
   'c.deposit':      { en:'Deposit', ms:'Deposit', zh:'头期款' },

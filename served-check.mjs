@@ -3125,11 +3125,11 @@ const HOME_PAGE = read(HOME);
     if (!group) p.push('/property/lab serves no "More inputs" group');
     else {
       if (attr(group, 'open') !== null) p.push('the "More inputs" group is served open');
-      if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (%)', 'Monthly maintenance (RM)', 'Holding period (years)']))
+      if (JSON.stringify(grouped) !== JSON.stringify(['Loan tenure (years)', 'Vacancy allowance (% of the year)', 'Monthly maintenance (RM)', 'Holding period (years)']))
         p.push(`the "More inputs" group holds ${grouped.join(' | ') || 'no input'}, not tenure, vacancy, maintenance and holding period`);
       if (!all(group).some(n => /^More inputs \(4\)$/.test(rawText(n).trim()))) p.push('the group\'s button does not read "More inputs (4)"');
     }
-    for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (%)', 'Holding period (years)'])
+    for (const want of ['Loan tenure (years)', 'Monthly maintenance (RM)', 'Vacancy allowance (% of the year)', 'Holding period (years)'])
       if (!labels.includes(want)) p.push(`/property/lab does not list the input “${want}”`);
     /* A row's whole text, its closed body too: the cover is said in the body, one tap away. */
     const rows = inside.filter(n => n.tag === 'details' && B.hasClass(n, 'lab-row')).map(n => [attr(n, 'data-row'), sight(all(n).find(x => x.tag === 'summary') || n), rawText(n)]);

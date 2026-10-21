@@ -640,9 +640,15 @@ function dealModel(d) {
      absent from the missing-lines list because it had a number. A tax on
      an unknown fee is unknown, and no better than the fee it is on. */
   /* THE AUCTION ROUTE (the decision layer, P3): the reader's lawyer's quote
-     for the legal and search costs, once entered, takes the place of the
-     rulebook's purchase legal fees — an auction has no SPA — and is marked
-     as theirs, as an MRTA quote is. Not entered, the rulebook's line stands. */
+     for the legal fees, once entered, takes the place of the rulebook's
+     purchase legal fees — an auction has no SPA — and is marked as theirs,
+     as an MRTA quote is. Not entered, the rulebook's line stands. LEGAL FEES
+     ONLY (the owner, 21 Oct 2026; the 20 Oct sweep, auction-2): it was
+     asked for and labelled as the legal AND search costs while the
+     rulebook's searches estimate was charged beside it and the service tax
+     on all of it. The searches stay the rulebook's separate estimate, and
+     the service tax is on the legal fees, as it always was charged: the
+     words change, no figure. */
   const auctionRoute = dealRoute(d) === 'auction';
   const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
   /* THE NEW-DEVELOPMENT ROUTE'S OWN QUOTE (the fee rulebook 1.3.0): which
@@ -655,8 +661,8 @@ function dealModel(d) {
      (ROUTE_ASSET_GATES 'newdev|land'). */
   const ndLegalQuote = !auctionRoute && dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land' && isNum(d.ndLegal) && d.ndLegal >= 0 ? d.ndLegal : null;
   const purchaseLegalR = legalQuote != null
-    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
-        note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
+    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal fees — your lawyer’s quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+        note: 'Your lawyer’s quote for the legal fees of the auction purchase: the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA; the searches stay the rulebook’s separate estimate.' }
     : ndLegalQuote != null
     ? { id: 'ndLegal', amount: ndLegalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Purchase legal fees — your lawyer’s quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the developer purchase: the SPA and the transfer, as your lawyer is engaged for them. In place of the rulebook’s purchase legal fees, which charge rule 1’s full scale.' }
@@ -692,7 +698,9 @@ function dealModel(d) {
      is that many years from signing plus the year. Null on every other
      deal, and then every moment is the year it always was. */
   const ndTime = newDevRoute ? ndTimingOf(d) : null;
-  const fromSigning = (y) => (ndTime ? ndTime.lead + y : y);
+  /* On the auction route with its holding priced, a year of the hold is
+     the holding months from the sale plus the year (auctionLead, below). */
+  const fromSigning = (y) => (ndTime ? ndTime.lead + y : auctionLead ? auctionLead + y : y);
   /* NO LOAN, NO LENDER'S VALUATION (the calculation check pack, 17 Oct
      2026). The valuation fee is the lender's, for the loan: a purchase with
      no loan — a deposit of 100%, or a loan of nought — is not charged it or
@@ -715,7 +723,12 @@ function dealModel(d) {
   const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
-        ['Deposit', deposit],
+        /* On the auction route the Proclamation has a deposit of its own (the
+           forfeiture's), so the loan's is the down payment there (the 20 Oct
+           2026 sweep, auction-9): one name for each figure, once that deposit is
+           entered — a deal answered Auction with nothing entered is the deal
+           it was, line for line (P1 R1). */
+        [auctionRoute && isNum(d.auctionDepositPct) ? 'Down payment' : 'Deposit', deposit],
         /* Only when it exists. A zero row for a gap there isn't would train the
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
@@ -810,7 +823,8 @@ function dealModel(d) {
      at this point. Derived from the groups rather than by re-listing the terms,
      because the previous version matched on label text and would silently drop
      a line the moment one was renamed. */
-  const acquisitionCost = sumPriced(costGroups.flatMap(g => g.items.map(it => it[1])));
+  /* With the auction's holding months added below, once their costs are known. */
+  let acquisitionCost = sumPriced(costGroups.flatMap(g => g.items.map(it => it[1])));
 
   /* Financing coverage as a share of what is actually being paid, which is the
      figure a buyer needs — a 90% margin of finance against a valuation 10%
@@ -871,14 +885,16 @@ function dealModel(d) {
   const sinkingY = strataCharges ? num0(d.sinkingFund) * 12 : 0;
   const statutoryY = num0(d.assessment) + num0(d.quitRent);
   const insuranceY = num0(d.insurance);
-  /* MANAGEMENT, SPLIT THE WAY THE BREAK-EVEN NEEDS IT.
+  /* MANAGEMENT, SPLIT THE WAY THE BREAK-EVENS NEED IT.
 
-     A percentage of collected rent scales with rent; a minimum monthly fee and
-     a tenant-placement fee do not. The break-even calculation below depends on
-     that distinction — it puts rent-linked costs in the denominator as a rate
-     and fixed costs in the numerator — so folding a flat fee into the
-     percentage would reintroduce exactly the defect the note down there
-     describes.
+     Three parts, and each moves with something different. The percentage is
+     a share of the rent collected, so it moves with the rent and with the
+     vacancy. The minimum monthly fee is a floor under that percentage: what
+     is owed is the larger of the two, so the top-up to the floor is not a
+     fixed cost — it grows as collections fall and vanishes once the
+     percentage passes the floor. The placement fee is so many months of the
+     asking rent each tenancy: it moves with the rent, and not with the
+     vacancy. The break-evens below solve on exactly this composition.
 
      Placement is charged once per tenancy cycle and amortised. It assumes the
      tenant leaves at the end of every tenancy, which is the conservative case;
@@ -932,15 +948,78 @@ function dealModel(d) {
      These give the months of instalment actually owed in a year of the hold,
      and in the months after it while the property sells. */
   const tenureMonths = tenureValid ? num0(d.tenureYears) * 12 : 0;
+  /* THE AUCTION'S HOLDING MONTHS, ONE RULE EVERYWHERE (the owner, 21 Oct
+     2026, on the 20 Oct sweep's auction-3, auction-5 and auction-8). The
+     months from the sale until the property earns: no rent; the running
+     costs from the sale — the model's own at no rent, opexAt(0), as the
+     reserve's no-rent month has them; the instalment only from the day the
+     balance falls due, the days the reader entered (a month taken as 30
+     days, as the implied vacancy takes it), when the loan is drawn. Each a
+     month to the sen, and the months after the balance date to the
+     hundredth, so the printed months × amounts give the printed total.
+     One figure, read by everything: the effective cost and the bid ceiling
+     (auctionModel's holding step), the cash required (a line of its own,
+     below) and the flows — the rate of return, the NPV and each year's
+     cash — which, as on a timed new development, count the hold's years
+     from when the property earns: the cash required leaves at the sale,
+     year 1 starts when the holding months end, and the loan has then run
+     `lag` months (negative while the balance is not yet due), so its
+     schedule, its interest and its balance at the sale run from the day
+     it was drawn. It counted every holding month at the full instalment
+     from the sale, in the effective cost and the ceiling only, while the
+     cash required and the flows took rent from completion. Without the
+     days the instalment's start is not known and nothing is assumed: the
+     holding is not priced, and says why. Not on any other route, and not
+     until the holding months are entered: every other deal is the deal
+     it was. */
+  const auctionHold = (() => {
+    if (!auctionRoute || !isNum(d.auctionHoldMonths) || !(d.auctionHoldMonths >= 0)) return null;
+    const months = d.auctionHoldMonths;
+    const days = isNum(d.auctionBalanceDays) && d.auctionBalanceDays >= 0 ? d.auctionBalanceDays : null;
+    const sen = (v) => Math.round(v * 100) / 100;
+    const running = sen(opexAt(0) / 12);
+    /* With no loan there is no instalment to start, and the days do not matter. */
+    if (days == null && loan > 0) return { status: 'unavailable', months, days, running, why: 'Needs the days to pay the balance: the instalment starts when the balance falls due.' };
+    if (debtUnknown) return { status: 'unavailable', months, days, running, why: 'The loan has no schedule of repayments, so its instalment is not known.' };
+    const lag = loan > 0 ? sen(months - days / 30) : 0;
+    const instMonths = loan > 0 ? Math.min(Math.max(0, lag), tenureMonths) : 0;
+    const inst = loan > 0 ? sen(num0(instalment)) : 0;
+    return { status: 'ok', months, days, running, instMonths, instalment: inst, lag, amount: sen(months * running + instMonths * inst) };
+  })();
+  /* In the cash required: what it takes to make the property earn, beside
+     the renovation — or, not priced, a missing line that says why. */
+  if (auctionHold) {
+    const label = `Holding until it earns: ${fmtNum(auctionHold.months, auctionHold.months % 1 ? 2 : 0)} month${auctionHold.months === 1 ? '' : 's'}, no rent`;
+    costGroups.find(g => g.id === 'improvement').items.push([label, auctionHold.status === 'ok' ? auctionHold.amount : null,
+      auctionHold.status === 'ok' ? { id: 'auctionHolding' } : { id: 'auctionHolding', status: 'unset', why: auctionHold.why }]);
+    if (auctionHold.status === 'ok') acquisitionCost += auctionHold.amount;
+    else missingCostLines.push({ group: 'Initial improvement costs', groupId: 'improvement', label, why: auctionHold.why });
+  }
+  const auctionLead = auctionHold?.status === 'ok' ? auctionHold.months / 12 : 0;
+  const lag = auctionHold?.status === 'ok' ? auctionHold.lag : 0;
+  /* The months the loan has run at month t of the hold, on the auction's
+     clock; on every other deal the hold's months are the loan's. */
+  const loanMonthsAt = (t) => clamp(t + lag, 0, tenureMonths);
   const debtInYear = (y) => debtUnknown ? null
+    : lag ? num0(instalment) * (loanMonthsAt(12 * y) - loanMonthsAt(12 * (y - 1)))
     : num0(instalment) * clamp(tenureMonths - (y - 1) * 12, 0, 12);
-  const sellingInstalments = (yrs, months) => clamp(tenureMonths - yrs * 12, 0, months);
+  const sellingInstalments = (yrs, months) => (lag ? loanMonthsAt(yrs * 12 + months) - loanMonthsAt(yrs * 12)
+    : clamp(tenureMonths - yrs * 12, 0, months));
   const instalmentWhileSelling = (yrs, months) => debtUnknown ? null
     : num0(instalment) * sellingInstalments(yrs, months);
   /* The balance owed after a number of months: unknown with the debt service,
      nothing without a loan. */
   const balanceAt = (months) => debtUnknown ? null
-    : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, months) : 0;
+    : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, lag ? loanMonthsAt(months) : months) : 0;
+  /* The interest in a year of the hold, on the auction's clock: the
+     instalments paid in it less the principal they repaid. */
+  const interestOnClock = (y) => {
+    if (!(loan > 0)) return 0;
+    const a = loanMonthsAt(12 * (y - 1)), b = loanMonthsAt(12 * y);
+    if (!(b > a)) return 0;
+    const open = balanceAfter(loan, d.ratePct, d.tenureYears, a), close = balanceAfter(loan, d.ratePct, d.tenureYears, b);
+    return Math.max(0, num0(instalment) * (b - a) - Math.max(0, open - close));
+  };
 
   const grossYield = (letsToTenant && d.price > 0) ? grossAnnualRentN / d.price * 100 : null;
   const netYield = (letsToTenant && d.price > 0) ? noiN / d.price * 100 : null;
@@ -969,27 +1048,70 @@ function dealModel(d) {
 
      Only the fixed costs belong in the numerator. The rent-linked costs scale
      with the answer, so they belong in the denominator as a rate. */
+  /* The running costs at the entered rent, split into what is charged as a
+     share of the rent collected and the rest. Exact at the entered rent and
+     occupancy, and read there (the commercial lease-down; the Lab's working
+     of the break-even occupancy). Not the break-evens' split: see below. */
   const variableCostRate = ((managed ? num0(d.mgmtPct) : 0) + num0(d.repairReservePct)) / 100;
-  /* The flat half of management belongs here, with the other costs that do not
-     move with rent — a minimum fee and a placement fee are owed whatever the
-     rent turns out to be. */
   const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtFixedAnnual;
+  /* THE BREAK-EVENS ARE ZEROS OF THIS MODEL'S OWN MONTHLY POSITION (the
+     20 Oct 2026 sweep: managed-1, stress-1, lab-refurb-1, managed-3,
+     stress-2, taxed-3). The break-even rent is the year-1 rent at which the
+     monthly position is nil; the break-even occupancy the share of the year
+     let at the entered rent at which it is nil. Both are solved on opexAt's
+     own composition, in closed form, exactly:
+       - the placement fee is months of the very rent being solved for, so
+         on the break-even rent it is a rate on the answer (months × tenancies
+         a year), taken off the denominator; on the occupancy it is fixed —
+         it is charged on the asking rent, however full the year;
+       - the management fee is the larger of the minimum and the percentage
+         of the rent collected, so each break-even is solved twice — the
+         percentage owed, then the minimum — and the answer is the one whose
+         own fee is the fee it assumed. The monthly position rises with the
+         rent and the occupancy (while the percentage branch's rate is
+         positive), so exactly one of the two holds.
+     They had frozen the top-up to the minimum, and the placement fee, at
+     their values at the entered rent: a figure at which the model's own
+     month was not nil (−RM74 a month at the "break-even rent" of the sample
+     managed at 8%), an occupancy that disagreed with the vacancy crossing on
+     the same page ("Survives vacancy to", below), and an after-tax gap that
+     was partly this error rather than tax. On a self-managed deal — no fee,
+     no minimum, no placement — every term below is the old one, bit for bit. */
+  const beBase = maintenanceY + sinkingY + statutoryY + insuranceY;
   const beDenominator = 12 * (1 - num0(d.vacancyPct) / 100) * (1 - variableCostRate);
+  const placementPerRent = managed ? num0(d.leasingFeeMonths) * cyclesPerYear : 0;
+  const minimumBinds = (collected) => mgmtMinAnnual > 0 && collected * (managed ? num0(d.mgmtPct) : 0) / 100 < mgmtMinAnnual;
   /* No break-even while the debt service is unknown: adding a null loan
      payment added nothing, and the page quoted the rent that covers the
-     running costs alone as the rent that covers "everything". */
-  const breakEvenRent = (letsToTenant && beDenominator > 0 && !debtUnknown)
-    ? (fixedOperatingCosts + annualDebtService) / beDenominator
-    : null;
+     running costs alone as the rent that covers "everything". And none
+     where a higher rent adds no more than its own placement fee takes. */
+  const breakEvenRent = (() => {
+    if (!letsToTenant || debtUnknown || !(beDenominator - placementPerRent > 0)) return null;
+    const r = (beBase + annualDebtService) / (beDenominator - placementPerRent);
+    if (!minimumBinds(12 * (1 - num0(d.vacancyPct) / 100) * r)) return r;
+    return (beBase + mgmtMinAnnual + annualDebtService)
+      / (12 * (1 - num0(d.vacancyPct) / 100) * (1 - num0(d.repairReservePct) / 100) - placementPerRent);
+  })();
 
-  /* Occupancy at which the property covers its fixed costs and the loan, per
+  /* Occupancy at which the property covers its costs and the loan, per
      31.5. Above 100% means it cannot break even at the entered rent however
      full it is — which is a different and more serious statement than a thin
-     margin, and one of the grade's hard gates. */
+     margin, and one of the grade's hard gates. 100 less it is the vacancy
+     at which the month crosses nought ("Survives vacancy to"), where that
+     lies between none and all. */
+  /* With the terms it was solved on — the costs that do not move with the
+     occupancy, and the share of the rent collected that is charged — so a
+     working can print the arithmetic that gives the figure. */
   const beOccDenominator = letsToTenant ? grossAnnualRentN * (1 - variableCostRate) : 0;
-  const breakEvenOccupancy = (beOccDenominator > 0 && !debtUnknown)
-    ? (fixedOperatingCosts + annualDebtService) / beOccDenominator * 100
-    : null;
+  const beOcc = (() => {
+    if (!(beOccDenominator > 0) || debtUnknown) return null;
+    const o = (beBase + placementAnnual + annualDebtService) / beOccDenominator * 100;
+    if (!minimumBinds(grossAnnualRentN * o / 100)) return { value: o, fixed: beBase + placementAnnual, rate: variableCostRate };
+    const rate = num0(d.repairReservePct) / 100;
+    return { value: (beBase + placementAnnual + mgmtMinAnnual + annualDebtService) / (grossAnnualRentN * (1 - rate)) * 100,
+      fixed: beBase + placementAnnual + mgmtMinAnnual, rate };
+  })();
+  const breakEvenOccupancy = beOcc ? beOcc.value : null;
   /* What the owner pays each year to hold a property that does not pay for
      itself. Shown rather than buried in a negative cash-flow figure, because
      "minus RM1,200 a month" and "RM14,400 a year out of your pocket, RM72,000
@@ -1033,7 +1155,9 @@ function dealModel(d) {
      twice: RM4,912 on the sample. Each instalment is now deducted once —
      its interest and its principal — and the balance repaid is what is
      left after it. */
-  const settledAt = (yrs) => balanceAt(yrs * 12 + sellingInstalments(yrs, sellMonths));
+  /* On the auction's clock, the loan's months run when the sale completes. */
+  const settledAt = (yrs) => (lag ? (debtUnknown ? null : loan > 0 ? balanceAfter(loan, d.ratePct, d.tenureYears, loanMonthsAt(yrs * 12 + sellMonths)) : 0)
+    : balanceAt(yrs * 12 + sellingInstalments(yrs, sellMonths)));
   const outstanding = settledAt(d.holdYears);
   const agentFee = exitValue * num0(d.agentPct) / 100;
   const exitLegal = Math.max(500, exitValue * num0(d.exitLegalPct) / 100);
@@ -1088,9 +1212,19 @@ function dealModel(d) {
        that it is spent; if it is genuinely banked and not spent, the deduction
        belongs in the year it is finally used. */
     const scale = Math.pow(1.02, y - 1);
-    const firstTenancyFee = y === 1 ? placementAnnual * scale : 0;
+    /* THE FIRST TENANT'S FEE, AND ONLY IT (the 20 Oct 2026 sweep: taxed-2,
+       managed-8). The placement fee is spread over its tenancy as a running
+       cost (placementAnnual: a fee every monthsPerCycle months), so the
+       first tenant's fee is the part of each year's charge that falls in
+       the first tenancy's months — 1 to monthsPerCycle — and that part is
+       left out of the deduction; every later fee is a replacement tenant's
+       and is deducted. It left out year one's whole charge and nothing
+       after: on a 24-month tenancy half the first fee was deducted in year
+       two; on a 6-month tenancy a replacement's fee was left out in year
+       one. On a 12-month tenancy the two rules are the same. */
+    const firstTenancyFee = placementAnnual * scale * clamp((monthsPerCycle - 12 * (y - 1)) / 12, 0, 1);
     const deductibleOpexY = opexY - firstTenancyFee;
-    const interestY = interestInYear(loan, d.ratePct, d.tenureYears, y);
+    const interestY = lag ? interestOnClock(y) : interestInYear(loan, d.ratePct, d.tenureYears, y);
     const taxY = rentalTaxYear({
       effectiveRent: effY, deductibleOpex: deductibleOpexY,
       interest: interestY, marginalTaxPct: d.marginalTaxPct,
@@ -1260,7 +1394,14 @@ function dealModel(d) {
      are charged as a percentage of rent collected, so they accrue in the
      with-rent case and not in the without-rent case — the previous version
      excluded them from both, which understated the with-rent burn and
-     contradicted cashflowMonthly on the same screen. */
+     contradicted cashflowMonthly on the same screen.
+     WITHOUT RENT, THE MODEL'S OWN RUNNING COSTS AT NO RENT (the 20 Oct
+     2026 sweep, managed-4): opexAt(0), the composition the 100%-vacancy
+     stress uses — no percentage fee and no repair reserve, the minimum
+     monthly fee in full (owed whatever is collected), the placement as
+     amortised. It kept only the minimum's top-up at the entered rent, and
+     nothing of it when the percentage passed the floor, so a reserve beside
+     a RM100 floor was short by up to RM100 a month of it. */
   const rentLinkedMonthly = (mgmtY + repairY) / 12;
   /* NOT WITHOUT THE INSTALMENT. With a loan tenure of 0 the instalment is
      null, and null added as nought: a RM514,800 loan contributed nothing, and
@@ -1271,7 +1412,7 @@ function dealModel(d) {
   const ownerFixedMonthly = burnable ? instalment + (opex - mgmtY - repairY) / 12 : null;
   const stressedRentMonthly = effectiveRentN / 12;
   const burnWithRent = burnable ? Math.max(0, ownerFixedMonthly + rentLinkedMonthly - stressedRentMonthly) : null;
-  const burnWithoutRent = ownerFixedMonthly;
+  const burnWithoutRent = burnable ? instalment + opexAt(0) / 12 : null;
   /* The larger of the two, at full value. An earlier draft of this line scaled
      the no-rent case by 0.6, which had no basis and made the reserve smaller
      than the case it is meant to survive — understating required liquidity,
@@ -1365,7 +1506,9 @@ function dealModel(d) {
   /* Each flow's moment in years from signing, on a timed new development:
      the equity at 0, a year of the hold at VP + that year. Null otherwise,
      and a flow's index is its year, as it always was. */
-  const timesFor = (fl) => (ndTime ? fl.map((_, i) => (i === 0 ? 0 : fromSigning(i))) : null);
+  /* And on the auction route with its holding priced: the equity at the
+     sale, a year of the hold at the holding months plus that year. */
+  const timesFor = (fl) => (ndTime || auctionLead ? fl.map((_, i) => (i === 0 ? 0 : fromSigning(i))) : null);
   const flowTimes = timesFor(flows);
   const irrResult = irrOf(flows, flowTimes);
   const irrPct = irrResult.rate;
@@ -1450,6 +1593,11 @@ function dealModel(d) {
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
            reserveComputable, tenureValid, zeroRateModelled,
            breakEvenOccupancy, annualOwnerSubsidy, fixedOperatingCosts, variableCostRate,
+           /* The break-even occupancy's own terms, where they are not the
+              entered-rent split beside it: on a managed deal with a minimum
+              fee, whose top-up moves with the rent collected. A key no other
+              deal carries (P1 R1's fingerprints). */
+           ...(managed && mgmtMinAnnual > 0 && beOcc ? { breakEvenOccupancyTerms: { fixed: beOcc.fixed, rate: beOcc.rate } } : {}),
            inputRatePct: d.ratePct, tenureYears: d.tenureYears,
            bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
            financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,
@@ -1494,7 +1642,10 @@ function dealModel(d) {
               was (P1 R1's fingerprints). `saleYears`: the sale's moment,
               and the gains tax's holding period, in years from signing;
               `flowTimes`: each flow's moment, beside `flows`. */
-           ...(ndTime ? { ndTiming: { ...ndTime, saleYears: fromSigning(d.holdYears), flowTimes } } : {}) };
+           ...(ndTime ? { ndTiming: { ...ndTime, saleYears: fromSigning(d.holdYears), flowTimes } } : {}),
+           /* The auction's holding months as priced (above): a key only a deal
+              answered Auction with its holding months entered carries. */
+           ...(auctionHold ? { auctionHolding: { ...auctionHold, saleYears: fromSigning(d.holdYears), flowTimes } } : {}) };
 }
 
 /* The calculator's "Monthly commitment": what the owner funds from their
@@ -1543,12 +1694,15 @@ function renovationReturn(d, m) {
    every other input held. No second model, no shortcut formula: what the
    page shows at the solved price is what the solve tested.
 
-   WHY BISECTION IS ENOUGH. With every other input held, both measures can
-   only fall as the price rises: the loan is a share of the price (or of the
-   lower of the price and an entered valuation), so the repayment rises and
-   the monthly position falls or stays; the net operating income does not
-   depend on the price, so the net yield is it divided by a larger price.
-   So "meets the target" holds below some price and fails above it.
+   WHY BISECTION IS ENOUGH. With every other input held, each measure moves
+   one way only as the price rises: the loan is a share of the price (or of
+   the lower of the price and an entered valuation), so the repayment rises
+   and the monthly position falls or stays; the net operating income does
+   not depend on the price, so the net yield is it divided by a larger price
+   — falling while that income is positive, RISING towards nought while it
+   is negative. So "meets the target" holds below some price and fails above
+   it, or (a negative income, a yield target at or below nought) fails below
+   some price and holds above it; the two ends of the range say which.
 
    TOLERANCE: ONE RINGGIT, ON THE PRICE — NONE ON THE TARGET. The search is
    over whole ringgit, between RM1,000 and four times the larger of the
@@ -1556,7 +1710,11 @@ function renovationReturn(d, m) {
    is the highest whole-ringgit price at which the model's figure meets the
    target exactly (>=, no allowance), and at one ringgit more it does not;
    both runs are returned, so a test or a reader can see it. Said otherwise:
-   - infeasible — the target is not met even at RM1,000 (the rent, the
+   - from — met from a price up, not below it: the LOWEST whole-ringgit
+     price that meets it, and one ringgit less does not (a net yield on a
+     negative income);
+   - infeasible — the target is met at no price: not at RM1,000, and not at
+     the top of the range, widened while the measure rises (the rent, the
      running costs or the loan terms, not the price, stand in the way);
    - unbounded — it is met even at the top of the range (a loan held to an
      entered valuation stops following the price);
@@ -1568,6 +1726,7 @@ const PRICE_TARGETS = {
   yield: { id: 'yield', label: 'Net yield', field: 'netYield', words: 'a net yield', fmt: (v) => fmtPct(v, 2), unit: '%' },
 };
 const PRICE_SOLVE_FLOOR = 1000;
+const PRICE_SOLVE_TOP = 4e11;
 const dealTarget = (d) => (d && PRICE_TARGETS[d.targetKind] && isNum(d.targetValue) ? { kind: d.targetKind, value: d.targetValue } : null);
 function solveDealPrice(d, target = dealTarget(d)) {
   const t = target && PRICE_TARGETS[target.kind];
@@ -1582,10 +1741,39 @@ function solveDealPrice(d, target = dealTarget(d)) {
   const mLo = at(lo);
   if (!isNum(reads(mLo))) return { status: 'unknown', target: t, value: target.value, runs,
     why: 'The model cannot compute this figure for these inputs: the loan has no schedule of repayments (a tenure of 0).' };
-  if (!meets(mLo)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
   let hi = Math.ceil(Math.max(num0(d.price), num0(d.askingPrice), 100000) * 4);
-  const mHi = at(hi);
-  if (meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
+  let mHi = at(hi);
+  /* WHICHEVER WAY THE MEASURE MOVES WITH THE PRICE (the 20 Oct 2026 sweep,
+     stress-4). A net yield is the net operating income over the price, and
+     that income does not move with the price: when it is negative, a higher
+     price makes the yield less negative, so a target at or below nought is
+     met from some price UP — and "No price" was said of a target the
+     entered price itself met. So the measure is read at both ends first.
+     Rising with the price and short at the top, the range is widened (ten
+     times, up to RM400 billion) until the target is met or plainly is not:
+     a negative income never reaches a yield of nought or more, at any
+     price. */
+  let failsAt = lo;
+  if (!meets(mLo) && !meets(mHi) && reads(mHi) > reads(mLo)) {
+    while (hi < PRICE_SOLVE_TOP && !meets(mHi)) { failsAt = hi; hi *= 10; mHi = at(hi); }
+  }
+  if (!meets(mLo) && !meets(mHi)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
+  if (meets(mLo) && meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
+  if (!meets(mLo)) {
+    /* Met at the top and not at the bottom: the LOWEST whole-ringgit price
+       at which it is met, and at one ringgit less it is not. */
+    lo = failsAt;
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (meets(at(mid))) hi = mid; else lo = mid;
+    }
+    const m = at(hi), under = at(hi - 1);
+    return { status: 'from', target: t, value: target.value, price: hi, achieved: reads(m), below: reads(under), belowMeets: meets(under),
+      vsPrice: num0(d.price) > 0 ? hi - num0(d.price) : null,
+      vsAsking: isNum(d.askingPrice) && d.askingPrice > 0 ? hi - d.askingPrice : null, runs,
+      why: `At ${fmtMoney(hi, 'MYR', 0)} or more, the figures you entered give ${t.words} of at least ${t.fmt(target.value)}: `
+        + `the rent does not cover the running costs, so a higher price spreads that loss thinner. At ${fmtMoney(hi - 1, 'MYR', 0)} it falls short.` };
+  }
   while (hi - lo > 1) {
     const mid = Math.floor((lo + hi) / 2);
     if (meets(at(mid))) lo = mid; else hi = mid;
@@ -1622,9 +1810,11 @@ function solveDealPrice(d, target = dealTarget(d)) {
    costGroups): the statutory, professional and disbursement lines of the
    acquisition and the financing — the reader's legal quote in place of the
    purchase legal fees where entered — and not the deposit, the insurance or
-   the utility deposits. THE HOLDING COST is the months of holding entered
-   times what the property costs its owner a month with no rent coming in
-   (burnWithoutRent: the instalment and the running costs).
+   the utility deposits. THE HOLDING COST is dealModel's own (auctionHolding,
+   the owner's rule of 21 Oct 2026): the months of holding entered with no
+   rent, the running costs from the sale, and the instalment only from the
+   day the balance falls due — the one figure the cash required and the
+   rate of return carry too.
 
    NOT FINAL until every check of the checklist (AUCTION_CHECKS, from the
    Malaysian Bar's guidance) is ticked: `final` is false and `checksOpen`
@@ -1657,7 +1847,9 @@ function auctionModel(d, m = dealModel(d)) {
      named as unpriced beside the sum, not counted in it. */
   const feeKinds = feesPriced.map(it => feeKindBadge(it[2], it[1]) || 'placeholder');
   const holdMonths = has('auctionHoldMonths') ? d.auctionHoldMonths : null;
-  const burn = isNum(m.burnWithoutRent) ? m.burnWithoutRent : null;
+  /* The holding months as the model prices them (dealModel's
+     auctionHolding): the one figure the cash required and the flows read. */
+  const hold = m.auctionHolding || null;
   const step = (id, label, amount, kind, extra = {}) => ({ id, label, amount, kind: amount == null ? 'unavailable' : kind, ...extra });
   const adds = [
     step('repairs', 'Repairs', has('auctionRepairs') ? d.auctionRepairs : null, kindOf('auctionRepairs'), { key: 'auctionRepairs' }),
@@ -1668,7 +1860,8 @@ function auctionModel(d, m = dealModel(d)) {
       { lines: fees.map(it => ({ label: it[0], amount: isNum(it[1]) ? it[1] : null, provenance: it[2].provenance, ...(it[2].gated ? { gated: it[2].gated } : {}) })), unpriced: fees.length - feesPriced.length,
         /* Of those, the ones not yet checked for the class (the rulebook 1.2.0). */
         gated: fees.filter(it => it[2]?.gated).length, gatedCls: fees.find(it => it[2]?.gated)?.[2].gated || null }),
-    step('holding', 'Holding', holdMonths != null && burn != null ? holdMonths * burn : null, 'modelled', { months: holdMonths, monthly: burn }),
+    step('holding', 'Holding', hold?.status === 'ok' ? hold.amount : null, 'modelled', { months: holdMonths, running: hold?.running ?? null,
+      instMonths: hold?.instMonths ?? null, instalment: hold?.instalment ?? null, days: hold?.days ?? null, why: hold?.why || null }),
   ];
   const counted = adds.filter(a => a.amount != null);
   const effective = bid != null ? bid + counted.reduce((t, a) => t + a.amount, 0) : null;
@@ -1758,9 +1951,17 @@ function auctionBidCeiling(d, a = auctionModel(d)) {
     if (eff(at(mid)) <= cap) lo = mid; else hi = mid;
   }
   const mAt = at(lo), mOver = at(lo + 1);
-  return { ...base, status: 'solved', runs, bid: lo, effective: eff(mAt), above: eff(mOver),
+  const solved = { ...base, status: 'solved', runs, bid: lo, effective: eff(mAt), above: eff(mOver),
     vsBid: num0(d?.price) > 0 ? lo - num0(d.price) : null,
     resultKind: kindFirst([base.capKind, a.effectiveKind]) || 'derived' };
+  /* NO WINNING BID BELOW THE RESERVE (the 20 Oct 2026 sweep, auction-1).
+     A bid under the reserve price the reader entered cannot win that sale,
+     so a ceiling there is not "a winning bid of at most" anything: no
+     winning bid fits these costs, and the effective cost at the reserve
+     says by how much. The cost rises with the bid, so at the reserve it is
+     over the ceiling too. */
+  if (isNum(a.reserve) && lo < a.reserve) return { ...solved, status: 'below-reserve', reserve: a.reserve, atReserve: eff(at(a.reserve)) };
+  return solved;
 }
 
 /* THE DEVELOPER PREMIUM MODEL (the property decision layer, P4).
@@ -2174,7 +2375,12 @@ function refurbModel(d, m = dealModel(d)) {
     const upliftIn = has(k.uplift), uplift = upliftIn ? d[k.uplift] : 0;
     const voidMonths = has(k.void) ? d[k.void] : 0;
     const costKind = RF_KIND(d, k.cost, k.basis);
-    if (cost == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['its cost'], kind: 'unavailable', costKind, uplift: upliftIn ? uplift : null, voidMonths: has(k.void) ? voidMonths : null };
+    /* What WAS entered is said as entered (the 20 Oct 2026 sweep,
+       lab-refurb-3): the uplift and the months without rent carry whether
+       they were entered, as the option run in full does, so only what was
+       not entered reads "Not entered". */
+    if (cost == null) return { id: o.id, label: o.label, status: 'unavailable', missing: ['its cost'], kind: 'unavailable', costKind, uplift: upliftIn ? uplift : null, upliftIn,
+      voidMonths: has(k.void) ? voidMonths : null, voidIn: has(k.void) };
     const mX = uplift > 0 ? dealModel({ ...d, rent: num0(d.rent) + uplift }) : m;
     const v12 = Math.min(voidMonths, 12);
     const firstYearMonthly = isNum(mX.cashflowMonthly) && burn != null ? (v12 * -burn + (12 - v12) * mX.cashflowMonthly) / 12 : null;
@@ -2702,7 +2908,7 @@ const PC_GROUPS = [
   ['rental', 'Income', [
     ['rent', 'Expected monthly rent (RM)', 50],
     ['rentGrowthPct', 'Annual rent growth (%)', 0.25],
-    ['vacancyPct', 'Vacancy allowance (%)', 1],
+    ['vacancyPct', 'Vacancy allowance (% of the year)', 1],
   ]],
   ['rental', 'Running costs', [
     ['maintenance', 'Monthly maintenance (RM)', 10],
@@ -2710,8 +2916,8 @@ const PC_GROUPS = [
     ['assessment', 'Annual assessment (RM)', 50],
     ['quitRent', 'Annual quit rent (RM)', 25],
     ['insurance', 'Annual insurance (RM)', 50],
-    ['mgmtPct', 'Letting and management fee (% of rent)', 0.5],
-    ['repairReservePct', 'Repair reserve (% of rent)', 0.5],
+    ['mgmtPct', 'Letting and management fee (% of rent collected)', 0.5],
+    ['repairReservePct', 'Repair reserve (% of rent collected)', 0.5],
   ]],
   /* A fee percentage says what management costs and nothing about what it
      does. These are the terms that decide both — and the ones a landlord has
@@ -2734,8 +2940,8 @@ const PC_GROUPS = [
     ['holdYears', 'Holding period (years)', 1],
     ['apprecPct', 'Annual capital growth (%)', 0.25],
     ['sellMonths', 'Expected months to sell', 1],
-    ['agentPct', 'Agent commission on exit (%)', 0.25],
-    ['exitLegalPct', 'Legal costs on exit (%)', 0.1],
+    ['agentPct', 'Agent commission on exit (% of the sale price)', 0.25],
+    ['exitLegalPct', 'Legal costs on exit (% of the sale price)', 0.1],
   ]],
   ['scenarios', 'Comparison', [
     ['equityReturnPct', 'Assumed equity return (% a year)', 0.5],
@@ -2763,7 +2969,12 @@ function pcTypePause(n) {
 
 /* One box of the deal, as the full model and the Quick model both draw it. */
 function pcDealField(d, k) {
-  const [, label, step] = PC_FIELD_DEF[k];
+  const [, defLabel, step] = PC_FIELD_DEF[k];
+  /* The loan's deposit is the down payment on the auction route, beside the
+     Proclamation's own "Deposit (%)" (auction-9). */
+  const auctionDown = k === 'downPct' && dealRoute(d) === 'auction';
+  const label = auctionDown ? 'Down payment (%)' : defLabel;
+  const pkey = auctionDown ? 'in.downPctAuction' : `in.${k}`;
   const f = el('div', { class: 'assumption' });
   /* Two non-numeric kinds, because a management mandate is made of
      commitments and cadences as well as amounts. */
@@ -2771,18 +2982,18 @@ function pcDealField(d, k) {
     const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;align-items:flex-start' });
     l.append(el('input', { type: 'checkbox', id: `d-${k}`, checked: d[k] ? '' : null,
       onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); renderKeepFocus(); } }));
-    l.append(el('span', {}, ptr(`in.${k}`, label)));
+    l.append(el('span', {}, ptr(pkey, label)));
     return l;
   }
   if (Array.isArray(step)) {
-    f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+    f.append(el('label', { for: `d-${k}` }, ptr(pkey, label)));
     const s = el('select', { class: 'select select-sm', id: `d-${k}`,
       onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); renderKeepFocus(); } });
     step.forEach(o => s.append(el('option', { value: o, selected: d[k] === o ? '' : null }, o)));
     f.append(s);
     return f;
   }
-  f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+  f.append(el('label', { for: `d-${k}` }, ptr(pkey, label)));
   /* The renovation as cost lines (QT-03): their total is the figure,
      so the box holds it and is not typed over while there are lines. */
   const linesOn = k === 'renovation' && costLinesExplicit(d, 'renovation');
@@ -2834,6 +3045,8 @@ function pcDealField(d, k) {
   if (inputIsSeeded(d, k))
     f.append(el('span', { class: 'metaline', style: 'flex-basis:100%;color:var(--bronze);margin-top:2px' },
       'Illustrative default — not yours, and not from any market'));
+  /* The exit's legal costs have a floor the percentage does not say. */
+  if (k === 'exitLegalPct') f.append(el('span', { class: 'metaline', style: 'grid-column:1 / -1;margin-top:-4px' }, 'At least RM500.'));
   /* On a new development, where the holding period counts from — the
      keys once both months are entered (ndTimingOf), signing until then. */
   if (k === 'holdYears' && dealRoute(d) === 'newdev') {
@@ -2847,6 +3060,20 @@ function pcDealField(d, k) {
 /* ---------------------------------------------- the one-page answer's parts */
 /* The four answer cards' label, figure, line and tone, for the full model's
    one-page answer; the Quick model shows two of them as they are. */
+/* Said beside a monthly figure, a break-even and a commitment when a
+   marginal rate is entered (the 20 Oct 2026 sweep, taxed-5): the
+   calculator's monthly figures are before tax on the rent by design, as
+   the Lab, the proposal and the decision record say of them. */
+const pcBeforeTax = (m) => (m?.taxComputed ? ', before tax on the rent' : '');
+/* A TOTAL SHORT OF A LINE SAYS SO, WHEREVER IT IS SHOWN (the 20 Oct 2026
+   sweep, land-commercial-1): the lines of the groups it adds up that are
+   not priced — gated for the class or unpriced — named after it, as the
+   cash required and the decision record already say them. '' when none. */
+function pcShortOf(m, groups = null) {
+  const xs = (m?.missingCostLines || []).filter(x => !groups || groups.includes(x.groupId));
+  return xs.length ? xs.map(x => feeLower(x.label)) : null;
+}
+const pcShortWords = (m, groups) => { const xs = pcShortOf(m, groups); return xs ? `; so far — without ${feeList(xs)}, not priced` : ''; };
 function pcAnswerFigs(d, m) {
   const unpricedLines = m.missingCostLines || [];
   return {
@@ -2863,12 +3090,13 @@ function pcAnswerFigs(d, m) {
         : 'Including rent-ready and the reserve')
       + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
     monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
+      (m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs') + pcBeforeTax(m),
       isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
     complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve'],
+      (m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve')
+        + pcShortWords(m, ['acquisition', 'financing'])],
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-      isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+      m.letsToTenant === false ? 'Not a quantity this asset has' : isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
   };
 }
 const PC_GRADE_TONE = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' };
@@ -3015,9 +3243,15 @@ function pcArrivalView() {
 /* THE QUICK MODEL'S BOXES, in the order a purchase is costed: the price
    and the loan; the rent and what it takes to run; the other running costs
    as one line that opens in place to their own boxes; the renovation. */
+/* THE FEE AND WHO MANAGES, SIDE BY SIDE (the 20 Oct 2026 sweep,
+   managed-2). The sample is self-managed, and a self-managed owner pays no
+   letting and management fee — so a fee typed in the Quick model, which
+   had the box and not the tick, changed no figure and nothing said so. The
+   full model's own tick sits under the fee box here: the fee's state is in
+   sight and can be changed where the fee is typed. */
 const PC_QUICK_GROUPS = [
   ['Purchase and loan', ['price', 'downPct', 'ratePct', 'tenureYears']],
-  ['Rent and running costs', ['rent', 'vacancyPct', 'maintenance', 'mgmtPct']],
+  ['Rent and running costs', ['rent', 'vacancyPct', 'maintenance', 'mgmtPct', 'selfManaged']],
 ];
 const PC_QUICK_OTHER = ['sinkingFund', 'assessment', 'quitRent', 'insurance', 'repairReservePct'];
 const PC_QUICK_KEYS = new Set([...PC_QUICK_GROUPS.flatMap(([, ks]) => ks), ...PC_QUICK_OTHER, 'renovation']);
@@ -3061,7 +3295,9 @@ function pcQuickView(d, m, g, DK) {
   other.addEventListener('toggle', () => { pcQuickOtherOpen = other.open; });
   other.append(el('summary', { class: 'pc-more-sum pc-q-other-sum' }, [
     el('span', { class: 'pc-q-other-k' }, 'Other running costs'), ' ',
-    el('span', {}, `${fmtMoney(otherY, 'MYR', 0)} a year: sinking fund, assessment, quit rent, insurance, repair reserve`)]));
+    /* What is counted, named (land-commercial-2): a parcel has no sinking
+       fund, and a class with no tenancy no repair reserve. */
+    el('span', {}, `${fmtMoney(otherY, 'MYR', 0)} a year: ${feeList([m.strataCharges !== false ? 'sinking fund' : null, 'assessment', 'quit rent', 'insurance', m.letsToTenant !== false ? 'repair reserve' : null].filter(Boolean))}`)]));
   const otherBoxes = el('div', { class: 'pc-q-other-boxes' });
   PC_QUICK_OTHER.forEach(k => otherBoxes.append(pcDealField(d, k)));
   other.append(otherBoxes);
@@ -4100,7 +4336,7 @@ VIEWS.property = () => {
     [tr('netCashFlow'),      isNum(m.cashflowMonthly) ? `${fmtAmount(m.cashflowMonthly, 'MYR')} ${sc.perMonth}` : '—'],
     [tr('breakEvenRent'),    fmtAmount(m.breakEvenRent, 'MYR')],
     [tr('monthlyInstalment'),fmtAmount(m.instalment, 'MYR')],
-    [tr('totalInitialCash'), fmtAmount(m.totalInitialCash, 'MYR')],
+    [pcShortOf(m) ? `${tr('totalInitialCash')} — partial` : tr('totalInitialCash'), fmtAmount(m.totalInitialCash, 'MYR')],
   ];
   const sumT = el('table', { class: 'dt' });
   sumT.append(el('tbody', {}, srows.map(([k, v]) => el('tr', {}, [
@@ -4126,8 +4362,8 @@ VIEWS.property = () => {
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
-    { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
-  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
+    { sub: `After costs, vacancy and the loan${pcBeforeTax(m)}`, tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: `Rent needed to cover everything${pcBeforeTax(m)}` })));
   headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
@@ -4425,10 +4661,11 @@ VIEWS.property = () => {
         ? [['Cash already paid', m.cashAlreadyPaid, 'Booking deposit handed over at offer. Part of the down payment, not on top of it.']]
         : []),
    ['Cash still to complete', m.cashStillRequiredToComplete,
-     m.cashAlreadyPaid > 0
+     (m.cashAlreadyPaid > 0
        ? `Completion needs ${fmtAmount(m.transactionCash, 'MYR')} in total, less what you have already paid.`
-       : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
-   ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
+       : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.') + pcShortWords(m, ['acquisition', 'financing'])],
+   [m.letsToTenant === false ? 'Cash to make it ready' : 'Cash to make rent-ready', m.improvementCash,
+     (m.letsToTenant === false ? 'Spent after completion: renovation and deposits.' : 'Spent after completion before the property can earn: renovation, furnishing and deposits.') + pcShortWords(m, ['improvement'])],
    /* Unknown when it cannot be priced, and the tile says why rather than
       printing RM0 beside "3 months of instalment". One month is "1 month",
       as the ledger above already says; the tile read "1 months". */
@@ -4464,7 +4701,7 @@ VIEWS.property = () => {
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     /* The tile above already says the reserve is paid to no one; this line
        names the figure before it (QT-002's label), and nothing twice. */
-    `Cash before reserve: ${fmtAmount(m.acquisitionCost, 'MYR')} — completion and rent-ready together; the reserve is on top of that.`));
+    `Cash before reserve: ${fmtAmount(m.acquisitionCost, 'MYR')} — completion and ${m.letsToTenant === false ? 'making it ready' : 'rent-ready'} together${pcShortWords(m, ['acquisition', 'financing', 'improvement'])}; the reserve is on top of that.`));
   buyCard.append(cash);
 
   /* ---------- Sarawak checklist ---------- */
@@ -4588,7 +4825,12 @@ VIEWS.property = () => {
     v => fmtPct(v, 2), {
       neverValue: 'no rate', alwaysValue: 'any rate',
       crosses: e => `Interest rate at which monthly cash flow reaches zero. You entered ${fmtPct(e, 2)}.`,
-      never: 'Negative at every rate down to 0%. The interest rate is not what makes this negative.',
+      /* What was computed: no rate down to 0% makes the month positive (the
+         20 Oct 2026 sweep, stress-7) — and why, not that the rate is not the
+         cause: on the sample the interest is most of the shortfall. */
+      never: !m.letsToTenant ? 'Negative even at 0%: with no rent coming in, no rate cut makes it positive.'
+        : isNum(m.noi) && m.noi <= 0 ? 'Negative even at 0%: the rent does not cover the running costs, so no rate cut fixes it.'
+        : 'Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.',
       always: 'Stays positive at every rate tested, up to 25%.',
       good: (v, e) => v > e + 1,
     }));
@@ -4605,7 +4847,7 @@ VIEWS.property = () => {
         good: (v, e) => v > e + 10,
       }));
     stressGrid.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
-      { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
+      { sub: `Rent needed to cover everything${pcBeforeTax(m)}. You expect ${fmtAmount(d.rent, 'MYR')}.`,
         tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
   }
   stressCard.append(stressGrid);
@@ -4630,7 +4872,9 @@ VIEWS.property = () => {
     { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
-  if (m.letsToTenant) stressCard.append(stressTable('If it sits empty for longer', m.stress.vacancy, [
+  /* Fixed levels, not moves from the entered vacancy (the 20 Oct 2026
+     sweep, stress-6): above 15% entered, a row reads better than the base. */
+  if (m.letsToTenant) stressCard.append(stressTable('At fixed vacancy levels', m.stress.vacancy, [
     { label: 'Vacancy', get: r2 => r2.label },
     { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
@@ -4640,23 +4884,27 @@ VIEWS.property = () => {
     /* Its basis said (QT-002): the rows are the ledger less the reserve —
        the cash the overrun consumes — and read "Cash required" beside a
        headline that includes the reserve. The reserve is added back beside. */
-    { label: 'Cash before reserve', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
-    ...(isNum(m.reserveCash) ? [{ label: 'Cash required including reserve', num: true, get: r2 => fmtAmount(r2.cash + m.reserveCash, 'MYR') }] : []),
+    { label: pcShortOf(m, ['acquisition', 'financing', 'improvement']) ? 'Cash before reserve, so far' : 'Cash before reserve', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    ...(isNum(m.reserveCash) ? [{ label: pcShortOf(m) ? 'Cash required including reserve, so far' : 'Cash required including reserve', num: true, get: r2 => fmtAmount(r2.cash + m.reserveCash, 'MYR') }] : []),
     { label: 'Cash-on-cash', num: true, get: r2 => isNum(r2.cashOnCash) ? fmtPct(r2.cashOnCash, 2) : '—',
       tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
   ]));
 
   /* ---------- management operations ---------- */
   const ops = el('div', { class: 'card ls-section' });
-  ops.append(cardHead(m.managed ? 'Management operations' : 'Management operations — self-managed',
-    m.managed
+  /* A class with no tenancy has nothing to manage, whatever the tick says
+     (the 20 Oct 2026 sweep, land-commercial-2): said for its own reason. */
+  ops.append(cardHead(m.managed || m.letsToTenant === false ? 'Management operations' : 'Management operations — self-managed',
+    m.letsToTenant === false ? 'No management is charged: this class has no tenancy to manage.'
+    : m.managed
       ? 'What the service costs, and what it has to do for it. A percentage alone is not comparable between two agents; cost per occupied month and cost per tenancy are.'
       : 'You have said you will manage this property yourself, so no management cost is charged below. The work does not disappear with the fee — it is listed here so it is a decision rather than an omission.', null, DK));
 
   if (m.managed) {
     ops.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' }, [
       el('div', { class: 'panel ls-fig' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
-        { sub: `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
+        /* Names the floor where the floor is what is charged (managed-6). */
+        { sub: m.mgmtMinTopUp > 0 ? `the ${fmtAmount(num0(d.mgmtMinMonthly), 'MYR')} monthly minimum plus placement` : `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
       el('div', { class: 'panel ls-fig' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
         { sub: 'what it costs for each month the property is actually let' })),
       el('div', { class: 'panel ls-fig' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
@@ -4669,8 +4917,11 @@ VIEWS.property = () => {
       + `${fmtAmount(m.renewalAnnual, 'MYR')} a year rather than ${fmtAmount(m.placementAnnual, 'MYR')} — a difference of `
       + `${fmtAmount(m.placementAnnual - m.renewalAnnual, 'MYR')} a year. The conservative case is the one modelled.`));
     if (m.mgmtMinTopUp > 0) ops.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `The minimum fee bites: ${fmtPct(num0(d.mgmtPct), 1)} of this rent is less than the floor you entered, so `
-      + `${fmtAmount(m.mgmtMinTopUp, 'MYR')} a year is owed regardless of what the property collects. That part does not fall with rent, and the break-even above treats it as fixed.`));
+      /* The floor is what is owed whatever is collected, not the top-up,
+         which grows as collections fall (managed-7); and the break-evens
+         follow it now (managed-1, managed-3). */
+      `The minimum fee bites: ${fmtPct(num0(d.mgmtPct), 1)} of this rent is less than the ${fmtAmount(num0(d.mgmtMinMonthly) * 12, 'MYR')} a year minimum you entered, which is owed whatever the property collects — `
+      + `${fmtAmount(m.mgmtMinTopUp, 'MYR')} more than the percentage at this rent, and more as collections fall.`));
   }
 
   /* The placement target and the vacancy allowance describe the same thing.
@@ -4708,7 +4959,7 @@ VIEWS.property = () => {
   duties.append(dl);
   if (d.ownerReportCadence === 'not agreed') duties.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
     'No reporting cadence has been agreed. Owner statements are the only routine evidence that the rest of this list is happening.'));
-  ops.append(duties);
+  if (m.letsToTenant !== false) ops.append(duties);
 
   /* ---------- evidence quality ---------- */
   const ev = el('div', { class: 'card ls-section' });
@@ -4900,7 +5151,7 @@ VIEWS.property = () => {
          ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
          ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
          ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
-         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} cash required instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
+         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} cash required instead of ${fmtAmount(rr.cashWith, 'MYR')}${pcShortOf(m) ? ', so far' : ''}`],
         ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel ls-fig' }, statTile(k, v, { sub }))));
         card.append(g);
         card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
@@ -4971,7 +5222,7 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: m.taxComputed ? 'Year 1’s cash flow before tax ÷ cash required including reserve' : 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
@@ -4980,7 +5231,7 @@ VIEWS.property = () => {
      [`Effective rent after ${fmtPct(d.vacancyPct, 0)} vacancy`, fmtAmount(m.effectiveRent, 'MYR')],
      ['Operating costs', fmtAmount(m.opex, 'MYR')],
      ['Annual debt service', fmtAmount(m.annualDebtService, 'MYR')],
-     ['Cash invested at acquisition', fmtAmount(m.acquisitionCost, 'MYR')]]
+     [pcShortOf(m, ['acquisition', 'financing', 'improvement']) ? 'Cash invested at acquisition, so far' : 'Cash invested at acquisition', fmtAmount(m.acquisitionCost, 'MYR')]]
      .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
     inv.append(kv);
     reportCards.push(inv);
@@ -4991,11 +5242,15 @@ VIEWS.property = () => {
       `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.${ntm ? ` Each year is a year after vacant possession, ${ntm.vpAt} months after signing; the value grows from signing.` : ''}`, null, DK));
     const stw = el('div', { class: 'tablewrap' });
     const st = el('table', { class: 'dt' });
-    st.append(el('thead', {}, el('tr', {}, [ntm ? 'Year after VP' : 'Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
+    /* With a rate entered the net cash flow is after tax on the rent, so
+       the tax is a column and the heading says so (taxed-4): the row adds up. */
+    const taxCol = !!m.taxComputed;
+    st.append(el('thead', {}, el('tr', {}, [ntm ? 'Year after VP' : 'Year', 'Effective rent', 'Operating costs', 'Debt service', ...(taxCol ? ['Tax on the rent'] : []), taxCol ? 'Net cash flow after tax' : 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
     st.append(el('tbody', {}, m.path.map(p2 => el('tr', {}, [
       el('td', { class: 'ident' }, ntm ? `VP+${p2.y}` : `Year ${p2.y}`),
       el('td', {}, fmtAmount(p2.rent, 'MYR')), el('td', {}, fmtAmount(p2.opex, 'MYR')),
       el('td', {}, fmtAmount(p2.debt, 'MYR')),
+      ...(taxCol ? [el('td', {}, fmtAmount(p2.tax, 'MYR'))] : []),
       el('td', { class: signClass(p2.cf) }, fmtAmount(p2.cf, 'MYR')),
       el('td', { class: signClass(p2.cum) }, fmtAmount(p2.cum, 'MYR')),
       el('td', {}, fmtAmount(p2.value, 'MYR')), el('td', {}, fmtAmount(p2.balance, 'MYR')),
@@ -5023,7 +5278,7 @@ VIEWS.property = () => {
     eg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly commitment',
       isNum(m.cashflowMonthly) ? fmtAmount(monthlyCommitment(m), 'MYR') : '—',
       { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
-        : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
+        : m.cashflowMonthly >= 0 ? `Property funds itself${pcBeforeTax(m)}` : `Funded from your income${pcBeforeTax(m)}` })));
     eq2.append(eg);
     /* THE READER'S OWN ALTERNATIVE, NOT A PICK LIST. This table was the five
        Bursa names with the highest dividend yield in the dataset — sorted,
