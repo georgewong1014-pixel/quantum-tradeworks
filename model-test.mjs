@@ -265,7 +265,11 @@ try {
              atOcc: at(M, 'vacancyPct', 100 - mM.breakEvenOccupancy).cashflowMonthly, survives: mM.breakEvenVacancy, why: mM.breakEvenVacancyWhy },
         S: { rent: mS.breakEvenRent, atRent: at(S, 'rent', mS.breakEvenRent).cashflowMonthly },
         G: { occ: mG.breakEvenOccupancy, full: at(G, 'vacancyPct', 0).cashflowMonthly, gates: propertyGrade(G, mG).gates.map(g => g.id) },
-        T: after(T), C: after(C) };
+        T: after(T), C: after(C),
+        /* The Lab's working of M's occupancy: its own terms — the minimum
+           among the fixed costs, the repair reserve the only share. */
+        lab: { text: LAB_FIGURES.find(f => f.key === 'breakEvenOccupancy').formula(M, mM),
+               fixed: labMoney(5078 + 925 + 2400), occ: fmtPct(mM.breakEvenOccupancy, 1) } };
     })()`);
     const i = 0.043 / 12, pmt = (P) => P * i / (1 - Math.pow(1 + i, -420));
     const F0 = 294 * 12 + 800 + 300 + 450;
@@ -286,12 +290,14 @@ try {
     if (r.M.why !== 'crosses' || !(Math.abs(100 - r.M.survives - r.M.occ) < 1e-6)) p.push(`M: "Survives vacancy to" ${r.M.survives}% (${r.M.why}) beside a break-even occupancy of ${r.M.occ}%`);
     if (!(Math.abs(r.S.rent - want.Srent) < 0.005) || !(Math.abs(r.S.atRent) < 0.005)) p.push(`S: break-even rent ${r.S.rent} (by hand ${want.Srent.toFixed(4)}), the month there ${r.S.atRent}`);
     if (!(r.G.occ < 100) || !(r.G.full > 0) || r.G.gates.includes('breakeven')) p.push(`G: break-even occupancy ${r.G.occ}%, the month at full occupancy ${r.G.full}, gates ${r.G.gates.join(', ')}`);
+    if (!r.lab.text.includes(`(${r.lab.fixed} fixed costs + `) || !r.lab.text.includes('(1 − 5.0% variable costs)') || !r.lab.text.endsWith(`= ${r.lab.occ}.`))
+      p.push(`M: the Lab's working does not print the terms of its figure — "${r.lab.text}" (want ${r.lab.fixed} fixed costs, 5.0% variable costs, = ${r.lab.occ})`);
     for (const k of ['T', 'C']) {
       const x = r[k];
       if (!isFinite(x.post) || !(Math.abs(x.preTaxMonthAtPre) < 0.005) || !(x.post > x.pre)) p.push(`${k}: before tax ${x.pre}, after tax ${x.post}; year 1's month before tax at the first ${x.preTaxMonthAtPre}`);
     }
     if (p.length) fail('the break-evens on a managed deal are zeros of the model\'s own monthly position, worked by hand', p);
-    else ok(`the break-evens on a managed deal are zeros of the model's own monthly position, worked by hand — a binding RM200 minimum and a month's placement: RM${r.M.rent.toFixed(2)} and ${r.M.occ.toFixed(4)}% (= 100 − "Survives vacancy to"), the month nil at each; managed at 8%: RM${r.S.rent.toFixed(2)}; the "Cannot break even" gate follows (${r.G.occ.toFixed(2)}%, +RM${r.G.full.toFixed(2)} at full occupancy); the after-tax gap is tax alone (RM${(r.T.post - r.T.pre).toFixed(2)}, RM${(r.C.post - r.C.pre).toFixed(2)} on a managed cash purchase)`);
+    else ok(`the break-evens on a managed deal are zeros of the model's own monthly position, worked by hand — a binding RM200 minimum and a month's placement: RM${r.M.rent.toFixed(2)} and ${r.M.occ.toFixed(4)}% (= 100 − "Survives vacancy to"), the month nil at each, the Lab's working on its own terms; managed at 8%: RM${r.S.rent.toFixed(2)}; the "Cannot break even" gate follows (${r.G.occ.toFixed(2)}%, +RM${r.G.full.toFixed(2)} at full occupancy); the after-tax gap is tax alone (RM${(r.T.post - r.T.pre).toFixed(2)}, RM${(r.C.post - r.C.pre).toFixed(2)} on a managed cash purchase)`);
   }
 
   /* 4 — a solved break-point is a zero of the thing it breaks. */
