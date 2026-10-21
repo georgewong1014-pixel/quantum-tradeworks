@@ -2875,7 +2875,7 @@ const HOME_PAGE = read(HOME);
   const sitemap = (await get('/sitemap.xml')).body;
   const mine = statics.filter(path => myWorkspace({ path, head: router.headAt(path) }));
   const SAMPLE_BANNER = /Sample data These holdings, investment cases, watchlists and price alerts were written into this browser .* They are not yours/;
-  const NONE = { '/my/reports': /No reports yet/, '/my/watchlists': /None of your own yet/, '/my/alerts': /Price alerts — none of your own yet/, '/my/data': /Saved work — none yet/ };
+  const NONE = { '/my/reports': /No reports yet/, '/my/watchlists': /None of your own yet/, '/my/alerts': /Price alerts — none of your own yet/, '/my/data': /Tool snapshots — none yet/ };
   const pages = await getAll(mine);
   for (const path of mine) {
     const r = pages.get(path);

@@ -668,8 +668,12 @@ function buildFeed() {
        between a synthetic price and a model of synthetic figures — under
        real company names. "PCHEM sits at a 69% discount", green, read as a
        pick (the claims audit of 11 Oct 2026). */
+    /* The figure is (estimate − price) ÷ price, a distance measured against
+       the price, so it is said that way round: "the sample price is 69%
+       below" its estimate overstated a price about 41% below it (the 20 Oct
+       2026 sweep, copy-equities-2). */
     if (val.mos && val.mos.base > 18 && val.confBand !== 'Low')
-      feed.push({ kind:'valuation', sev:'info', id:c.id, title:`${c.tk}: the sample price is ${fmtPct(val.mos.base,0)} below its base-case model estimate`,
+      feed.push({ kind:'valuation', sev:'info', id:c.id, title:`${c.tk}: the base-case model estimate is ${fmtPct(val.mos.base,0)} above the sample price`,
         detail:`Illustrative figures and a sample price, not a market quotation; a gap to a model is not a recommendation. ${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,
@@ -785,12 +789,15 @@ function withholdMisassembled(r, fin) {
     const row = fin[k]; if (!row) return;
     const p = r.provenance || {};
     const L = p.debtL?.byYear?.[y], C = p.debtC?.byYear?.[y];
+    /* Each reason in a reader's words — the filing tags behind it are in
+       the line's source drawer, not in the sentence (the 20 Oct 2026 sweep,
+       copy-equities-9). */
     if (row[F.DEBT] != null && C && !L) { row[F.DEBT] = null;
-      note('debt', y, `no long-term debt line resolved, so the stored figure is the current portion (${C}) alone`); }
+      note('debt', y, 'only the current portion of debt was stored, not the total'); }
     else if (row[F.DEBT] != null && C && L === 'LongTermDebt') { row[F.DEBT] = null;
-      note('debt', y, `the stored figure adds the current portion (${C}) to LongTermDebt, which already includes current maturities`); }
+      note('debt', y, 'the stored figure counts the current portion of debt twice'); }
     if (row[F.SH] != null && p.sh?.byYear?.[y] === 'CommonStockSharesIssued') { row[F.SH] = null;
-      note('sh', y, 'the stored count is CommonStockSharesIssued, which includes treasury stock, not shares outstanding'); }
+      note('sh', y, 'the stored count includes treasury stock, which shares outstanding exclude'); }
   });
   for (const w of Object.values(withheld)) w.why = [...w.why].join('; ');
   return withheld;
@@ -802,7 +809,7 @@ function realToCompany(r) {
   const fin = r.fin.map(row => row.map(v => (v == null ? null : v)));
   const withheld = withholdMisassembled(r, fin);
   const withheldGaps = Object.entries(withheld).map(([line, w]) => ({ line, withheld: true,
-    reason: `withheld for ${w.years.map(y => `FY${y}`).join(', ')} — ${w.why}. The ingest rule has been corrected; the figure returns when the statements are regenerated.` }));
+    reason: `withheld for ${w.years.map(y => `FY${y}`).join(', ')} — ${w.why}. It returns with the next data update.` }));
   /* Order matters. A curated entry wins, then the filer's own SIC registration,
      then Unclassified. Without the SIC step every newly ingested company fell
      back to "mature" — which routes a bank into a free-cash-flow DCF, an answer
@@ -832,7 +839,7 @@ function realToCompany(r) {
     px, fin, years: r.years, periodEnds: r.periodEnds || null,
     real: true, cik: r.cik, provenance: r.provenance, gaps: [...(r.gaps || []), ...withheldGaps],
     basis: r.basis || null, withheld,
-    sectorWithheld: sectorWithheld ? `The shipped classification (${r.sector} / ${r.industry}) came from a SIC rule since corrected, and SIC ${r.sic} does not belong there. It is withheld until the statements are regenerated.` : null,
+    sectorWithheld: sectorWithheld ? `The stored sector (${r.sector} / ${r.industry}) does not match this filer’s SEC industry code (SIC ${r.sic}), so it is withheld until the next data update.` : null,
     /* Recounted where a cell was withheld, so the "lines present" chip does not
        count a figure the page no longer shows. */
     completeness: withheldGaps.length ? +(fin.flat().filter(v => v != null).length / fin.flat().length).toFixed(3) : r.completeness,

@@ -492,7 +492,7 @@ function hiwWheelCard() {
 /* The Trading Index on the specification's published example. */
 function hiwTradingCard() {
   const qr = qttiRun(qttiWorkedExample());
-  return pubProofCard('QT Trading Index', 'worked example §14', [
+  return pubProofCard('QT Trading Index', 'worked example', [
     ['Trend regime', String(qr.regime)],
     ['Tranche ready', String(qr.tranche), '--dn-text'],
     ['Screenshot conf.', String(qr.confidence)],
@@ -1286,7 +1286,7 @@ VIEWS.userdata = () => {
   const sw = el('div', { class: 'card' });
   /* None is said as none, not as a nought (D12's rule, on My Workspace's
      pages since they are served pre-rendered: the 9 Oct 2026 audit, #7). */
-  sw.append(cardHead(recs.length ? `Saved work — ${recs.length}` : 'Saved work — none yet',
+  sw.append(cardHead(recs.length ? `Tool snapshots — ${recs.length}` : 'Tool snapshots — none yet',
     recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
                 : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.',
     /* The tools' snapshots are one kind of saved thing among five; the
@@ -1294,7 +1294,7 @@ VIEWS.userdata = () => {
        moved. */
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } },
-      'Everything saved, in the Workspace')));
+      'Everything saved, in Saved work')));
   if (recs.length) {
     const tw2 = el('div', { class: 'tablewrap' });
     const t2 = el('table', { class: 'dt' });
@@ -1541,7 +1541,7 @@ VIEWS.watchlists = () => {
      above it, the one page of the four that looked like a different
      product. */
   wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
-    note: 'Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.' }));
+    note: 'Adding one here does not imply a view on it — it decides which companies the What changed list shows first, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when

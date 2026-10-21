@@ -885,7 +885,7 @@ VIEWS.tradingIndex = () => {
     const x = r.tfs[tf.k];
     const done = QTTI_GROUPS.filter(g => qttiCell(p.timeframes?.[tf.k]?.[g.k]).known).length;
     c.append(cardHead(`${tf.label} panel (${tf.tf})`,
-      `${tf.why} Needs about ${tf.minBars} completed bars visible. Score: ${Math.round(x.score)}, coverage ${fmtPct(x.coverage * 100, 0)}.`,
+      `${tf.why} Needs about ${tf.minBars} completed bars visible. ${x.coverage > 0 ? `Score: ${Math.round(x.score)}, coverage ${fmtPct(x.coverage * 100, 0)}.` : 'Score: none yet — nothing recorded.'}`,
       /* The count belongs in the header, where a reader deciding whether to open
          this card can see whether it is worth opening. */
       el('span', { class: done === QTTI_GROUPS.length ? 'chip chip-ok' : 'chip',
@@ -1034,8 +1034,8 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- fixture + boundary ---------- */
   const tools = el('div', { class: 'card' });
-  tools.append(cardHead('Check this against the specification',
-    'Loads §14 — the worked BTC/USDC perpetual example — with its published evidence. It should return 38, 35 and 77.'));
+  tools.append(cardHead('Try the worked example',
+    'Loads a worked BTC/USDC perpetual example with its recorded evidence.'));
   tools.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
     /* The fixture replaces the evidence, not the history. Assigning it
        outright emptied the append-only correction log — a reader who had
@@ -1045,9 +1045,9 @@ VIEWS.tradingIndex = () => {
     /* Quiet: the save above is the page's one primary action (E4). */
     el('button', { class: 'btn btn-quiet btn-sm', id: 'q-load-worked', onclick: () => {
       const next = qttiWorkedExample();
-      next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the §14 worked example' }).corrections;
+      next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the worked example' }).corrections;
       State.qtti = next; save(); toast('Worked example loaded');
-    } }, 'Load the §14 worked example'),
+    } }, 'Load the worked example'),
     el('button', { class: 'btn btn-quiet btn-sm', id: 'q-clear-evidence', onclick: () => {
       State.qtti = qttiClearedPlan(State.qtti, { keepRules: true });
       save(); toast('Evidence cleared — your template and capital rules are kept');
@@ -1059,7 +1059,7 @@ VIEWS.tradingIndex = () => {
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
     el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page; it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
-    el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs the point-in-time backtesting of §20, which this build cannot run without licensed history.'),
+    el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs point-in-time backtesting on licensed price history, which is not available here.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),
     el('li', {}, 'A low regime score is not a short signal. A short needs its own borrow, derivative, liquidity and approval gate.'),

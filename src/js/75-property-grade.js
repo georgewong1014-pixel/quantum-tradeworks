@@ -2366,7 +2366,7 @@ VIEWS.sarawak = () => {
     roster.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
       anyHistory
         ? 'The price columns are computed from closes held in this browser. They are not licensed market data, are not redistributed, and no price ships with this site.'
-        : 'No price history is loaded, so the price columns are empty. This site ships none: the closes it could ship are not licensed for it to redistribute. Your own are a different question — paste them under Your data and every column here fills in.'));
+        : 'No price history is loaded, so the price columns are empty. This site ships none: the closes it could ship are not licensed for it to redistribute. Your own are a different question — paste them under Your data & settings and the price columns fill in.'));
     roster.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
       '"Financial statements: none held" is the honest state of every row. Bursa Malaysia publishes no machine-readable statements this product can reach, so no valuation, scorecard or coverage figure is offered for any of these companies.'));
     if (!anyHistory) roster.append(el('a', { class: 'btn btn-sm', style: 'margin-top:10px', href: href('/my/data'),
@@ -2431,7 +2431,7 @@ VIEWS.sarawak = () => {
   queueMicrotask(syncTheme);
   add.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     swkCands.length
-      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from the instrument registry, which carries their name, listing code and price — not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
+      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from the instrument registry, which carries their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
       : 'No company has been flagged as having Sarawak operations in the instrument registry.'));
   wrap.append(add);
 

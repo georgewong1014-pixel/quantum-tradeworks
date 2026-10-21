@@ -2018,7 +2018,7 @@ const METRICS = [
   { k: 'icov', g: 'Financial risk', cat: 'leverage', label: 'Interest cover',
     unit: 'x', dp: 1, kind: 'calculated', counted: true,
     formula: 'EBIT ÷ net interest expense', inputs: ['ebit'], needs: ['interest expense'], period: 'latest',
-    blocked: 'Interest expense is resolved by the SEC ingest but has no column in the stored statements, so interest cover is reported missing for every company, never estimated.',
+    blocked: 'Interest expense has no column in the stored statements, so interest cover is reported missing for every company, never estimated.',
     miss: 'Interest expense is not carried in the statement tuple, filed or illustrative — reported missing, never estimated.',
     help: { simple: 'How many times over operating profit pays the interest on the company’s debt.',
       context: 'The first test of whether borrowing is affordable: below about 2×, a modest fall in profit leaves interest unpaid. Not computed anywhere in this build — the interest line is not stored.',
@@ -2208,31 +2208,31 @@ const METRICS = [
      column offers a figure that can never arrive. */
   { k: 'gm', cat: 'profitability', label: 'Gross margin', unit: 'pct', kind: 'calculated', screener: false,
     formula: '(revenue − cost of revenue) ÷ revenue', inputs: ['rev'], needs: ['gross profit or cost of revenue'], period: 'latest',
-    blocked: 'Neither gross profit nor cost of revenue is ingested, so gross margin cannot be computed for any company.',
+    blocked: 'Neither gross profit nor cost of revenue is held, so gross margin cannot be computed for any company.',
     help: { simple: 'Out of every dollar or ringgit of sales, how much is left after the direct cost of the goods or services sold.',
       context: 'The first line of pricing power. Not available here: the stored statements carry no cost-of-revenue line.',
       technical: '(Revenue − cost of revenue) ÷ revenue. Blocked: no gross profit or cost of revenue line is stored.' } },
   { k: 'roa', cat: 'returns', label: 'Return on assets', unit: 'pct', kind: 'calculated', screener: false,
     formula: 'net income ÷ average total assets', inputs: ['ni'], needs: ['total assets'], period: 'latest',
-    blocked: 'Total assets are not ingested, so return on assets cannot be computed for any company.',
+    blocked: 'Total assets are not held, so return on assets cannot be computed for any company.',
     help: { simple: 'How much profit the company earns on everything it owns.',
       context: 'The natural return measure for banks and insurers. Not available here: the stored statements carry no total-assets line.',
       technical: 'Net income ÷ average total assets. Blocked: total assets are not stored.' } },
   { k: 'cr', cat: 'liquidity', label: 'Current ratio', unit: 'x', kind: 'calculated', screener: false,
     formula: 'current assets ÷ current liabilities', inputs: [], needs: ['current assets', 'current liabilities'], period: 'latest',
-    blocked: 'Current assets and current liabilities are resolved by the SEC ingest but have no column in the stored statements, and the shipped file predates them.',
+    blocked: 'Current assets and current liabilities have no column in the stored statements, and the statements held here predate them.',
     help: { simple: 'Whether what the company will turn into cash within a year covers what it must pay within a year.',
       context: 'Below 1× short-term bills exceed short-term assets. Not available here: the two lines are not stored.',
       technical: 'Current assets ÷ current liabilities. Blocked: neither line is a column of the stored statements.' } },
   { k: 'qr', cat: 'liquidity', label: 'Quick ratio', unit: 'x', kind: 'calculated', screener: false,
     formula: '(current assets − inventory) ÷ current liabilities', inputs: [], needs: ['current assets', 'inventory', 'current liabilities'], period: 'latest',
-    blocked: 'Current assets, inventory and current liabilities are not in the stored statements, and no ingest chain names inventory.',
+    blocked: 'Current assets, inventory and current liabilities are not in the stored statements, and no source line is named for inventory.',
     help: { simple: 'The current ratio without stock, which can be slow or impossible to sell quickly.',
       context: 'A stricter test of short-term cover. Not available here: the lines are not stored.',
       technical: '(Current assets − inventory) ÷ current liabilities. Blocked: none of the three lines is stored.' } },
   { k: 'evebitda', cat: 'valuation', label: 'EV / EBITDA', unit: 'x', kind: 'market', screener: false,
     formula: '(market cap + net debt) ÷ (EBIT + depreciation and amortisation)', inputs: ['price', 'sh', 'debt', 'cash', 'ebit'], needs: ['depreciation and amortisation'], period: 'latestPx',
-    blocked: 'Depreciation and amortisation are not ingested, so EBITDA cannot be formed. EV / EBIT, which needs no such line, stands in the screener.',
+    blocked: 'Depreciation and amortisation are not held, so EBITDA cannot be formed. EV / EBIT, which needs no such line, stands in the screener.',
     help: { simple: 'What the whole business costs compared with its operating profit before depreciation.',
       context: 'Common in deal work because it ignores how assets are depreciated. Not available here: no depreciation line is stored; EV / EBIT is published instead.',
       technical: '(Market capitalisation + total debt − cash) ÷ (EBIT + D&A). Blocked: depreciation and amortisation are not stored.' } },
@@ -2392,6 +2392,12 @@ function modelMoveText(then) {
   return moved.length ? moved.join(', ') : `${then} → ${MODEL_VERSION}`;
 }
 const shortHash = (h) => h ? String(h).slice(0, 7) : 'unrecorded';
+/* A dataset named as a reader knows it, not by its file (the 20 Oct 2026
+   sweep, copy-equities-24): Saved work said "this build: us.json a635756".
+   The key stays the file's, so a stamp still compares; only its name in a
+   sentence changes. */
+const DATA_NAME = { 'us.json': 'SEC filings', 'personal-fundamentals.json': 'your statements' };
+const dataName = (k) => DATA_NAME[k] || k;
 function stampDiff(stamp, legacy = null) {
   if (!stamp || typeof stamp !== 'object' || !stamp.model) {
     const model = legacy?.model || null;
@@ -2411,7 +2417,7 @@ function stampDiff(stamp, legacy = null) {
   if (modelMoved) parts.push(`Model moved: ${modelMoveText(stamp.model)}.`);
   moved.forEach(m => parts.push(m.key === ILLUS_SET
     ? `Data moved: the illustrative set was dated ${m.then}; it is now dated ${m.now}.`
-    : `Data moved: saved against ${m.key} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; this build carries ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
+    : `Data moved: saved against ${dataName(m.key)} ${shortHash(m.then)}${m.generated ? ` (generated ${String(m.generated).slice(0, 10)})` : ''}; this build carries ${shortHash(m.now)}${m.key === 'us.json' && filingsGenerated() ? ` (generated ${String(filingsGenerated()).slice(0, 10)})` : ''}.`));
   const status = modelMoved && dataMoved ? 'both' : modelMoved ? 'model' : dataMoved ? 'data' : 'current';
   return { status, stamped: true, modelMoved, dataMoved, moved,
     label: { both: 'Model and data moved', model: 'Model moved', data: 'Data moved', current: 'Current' }[status],
@@ -2421,7 +2427,7 @@ function stampDiff(stamp, legacy = null) {
 function stampDataText(stamp) {
   if (!stamp?.data) return 'not recorded';
   const bits = Object.entries(stamp.data).map(([k, d]) => k === ILLUS_SET ? `illustrative set ${d.v}`
-    : d.v ? `${k} ${shortHash(d.v)}${d.generated ? ` (${String(d.generated).slice(0, 10)})` : ''}` : `${k} (${d.note || 'unversioned'})`);
+    : d.v ? `${dataName(k)} ${shortHash(d.v)}${d.generated ? ` (${String(d.generated).slice(0, 10)})` : ''}` : `${dataName(k)} (${d.note || 'unversioned'})`);
   return bits.length ? bits.join(' · ') : 'no dataset — your own inputs';
 }
 /* The data this build carries now, in the same words — for an export
@@ -3313,22 +3319,40 @@ const anchor = (v, lo, hi, invert = false) => {
    strength pillar is section 14's separate balance-sheet weight. Moat is absent
    from both, as declared in the coverage table below.
    ========================================================================== */
+/* NAMED FOR WHAT IT AVERAGES (the 20 Oct 2026 sweep, copy-equities-3). The
+   first pillar was "Business Quality", the name the Scorecard beside it uses
+   for one of the three scores averaged here: Apple read 78 here and 93
+   there, and a filed REIT with no business-quality score at all read
+   "Business Quality 54" over a note naming three pillars when two were
+   averaged. The name now says what the figure is, and the note names the
+   Scorecard scores it averaged and any it could not. Weights and arithmetic
+   are unchanged. */
+const QUALITY_PARTS = [['quality', 'business quality'], ['growth', 'growth quality'], ['capital', 'capital allocation']];
 const COMPOSITE_PILLARS = [
-  { id:'quality', label:'Business Quality', w:35,
+  { id:'quality', label:'Quality, growth and capital allocation', w:35,
     get: (r) => {
       /* Equal thirds of the section 7 pillars this build actually scores. */
       const parts = [r.scores.quality?.score, r.scores.growth?.score, r.scores.capital?.score].filter(isNum);
       return parts.length ? parts.reduce((a, b) => a + b, 0) / parts.length : null;
     },
-    from: 'the business quality, growth quality and capital allocation pillars' },
+    from: (r) => {
+      const held = QUALITY_PARTS.filter(([k]) => isNum(r.scores[k]?.score)).map(([, n]) => n);
+      const not = QUALITY_PARTS.filter(([k]) => !isNum(r.scores[k]?.score)).map(([, n]) => n);
+      return `The average of the Scorecard’s ${andList(held)} scores${not.length ? ` only — ${andList(not)} could not be scored` : ''}.`;
+    },
+    absent: 'None of the Scorecard’s business quality, growth quality and capital allocation scores could be computed.' },
+  /* A pillar not tested says why, as the two below it do: the Source cell
+     was empty. */
   { id:'value',  label:'Valuation Evidence', w:30, get: (r) => r.scores.value?.score,
-    from: 'the valuation pillar' },
+    from: 'the valuation pillar',
+    absent: (r) => isNum(r.c.px?.p) ? 'None of the valuation inputs could be computed.' : 'Every valuation input needs a price, and none is held for this company.' },
   { id:'risk',   label:'Balance Sheet and Risk', w:15, get: (r) => r.scores.strength?.score,
-    from: 'the financial strength pillar' },
+    from: 'the financial strength pillar',
+    absent: 'None of the financial strength inputs could be computed.' },
   { id:'catalysts', label:'Catalysts and Change', w:10, get: () => null,
-    absent:'The catalyst registry of section 11 does not exist, so no catalyst has been counted, dated or expired for any company.' },
+    absent:'No catalyst registry exists in this build, so no catalyst has been counted, dated or expired for any company.' },
   { id:'macro',  label:'Macro and Sector Context', w:10, get: () => null,
-    absent:'The macro engine of section 6 does not exist — no cycle state, rate context, currency exposure or policy evidence is carried.' },
+    absent:'No macro engine exists in this build — no cycle state, rate context, currency exposure or policy evidence is carried.' },
 ];
 
 /* Section 14.2, in the section 2 language: a state, never an instruction. */
@@ -3564,7 +3588,11 @@ function riskFlags(c, d) {
   if (c.type === 'reit' && isNum(m.gearing) && m.gearing > 40)
     add('warning', 'Gearing approaching the regulatory ceiling', `Gearing of ${fmtPct(m.gearing)} leaves limited headroom for debt-funded acquisition.`, 'gearing');
   if (c.flags?.pn17) add('critical', 'PN17 status', 'Company is classified under Practice Note 17 and is subject to a regularisation plan.', null);
-  if (c.qrisk) add('warning', 'Qualitative risk (analyst review)', c.qrisk, null);
+  /* A filer's qualitative risk was named "(analyst review)" over a line
+     saying nobody had researched it (the 20 Oct 2026 sweep,
+     copy-equities-34). The illustrative set's is written text and keeps
+     its name. The flag and its weight are unchanged. */
+  if (c.qrisk) add('warning', c.real ? 'Qualitative risk (not researched)' : 'Qualitative risk (analyst review)', c.qrisk, null);
   return out;
 }
 
@@ -4056,45 +4084,51 @@ function spread(values) {
    its selection reason, its assumptions, and its limitations.
    ========================================================================== */
 
+/* Each `why` opens with whom the pack is for, not with a statement about the
+   company it is routed to. "Mature, profitable … with positive and
+   reasonably predictable free cash flow" printed on Air Products' card read
+   as a fact about Air Products, above "Free cash flow in the latest year for
+   APD is negative" (the 20 Oct 2026 sweep, copy-equities-5). The pack is
+   routed by business type alone. */
 const MODEL_PACKS = {
   dcf: {
     id:'dcf', name:'FCFF discounted cash flow',
-    why:'Mature, profitable non-financial business with positive and reasonably predictable free cash flow.',
+    why:'For a mature, profitable non-financial business with positive and reasonably predictable free cash flow.',
     secondary:['EV / EBIT', 'Free cash flow yield', 'Historical multiple range'],
     limits:['Terminal value typically carries more than half of the total — small changes in the terminal assumption move the answer a long way.','Assumes the capital structure and reinvestment rate stay broadly stable.','Enterprise value is not adjusted for leases, minority interests, associates or non-controlling interests — those lines are not carried in this dataset.'] },
   dcfMid: {
     id:'dcfMid', name:'Mid-cycle normalised FCFF',
-    why:'Cyclical or commodity-linked business. Free cash flow is normalised to the five-year average so the model is not anchored to a peak or a trough year.',
+    why:'For a cyclical or commodity-linked business. Free cash flow is normalised to the five-year average so the model is not anchored to a peak or a trough year.',
     secondary:['Cycle-adjusted EV / EBIT', 'Replacement asset value', 'Price / book through the cycle'],
     limits:['A five-year window may not span a full cycle for this industry.','Normalisation deliberately ignores the current spot price environment.'] },
   scenario: {
     id:'scenario', name:'Scenario revenue → margin → FCF',
-    why:'High-growth business where current cash flow is small relative to the opportunity. Revenue, operating margin and cash conversion are modelled separately so the margin the business settles at is an explicit assumption rather than something buried inside one cash-flow growth rate.',
+    why:'For a high-growth business where current cash flow is small relative to the opportunity. Revenue, operating margin and cash conversion are modelled separately so the margin the business settles at is an explicit assumption rather than something buried inside one cash-flow growth rate.',
     secondary:['EV / revenue against growth and margin peers', 'Base-case EV against terminal-year operating profit', 'Rule-of-40 style checks'],
     limits:['Value is dominated by the terminal margin assumption, which has no observed history at the modelled scale.','Competitive response is not modelled — the revenue path is independent of what rivals do.','Share issuance is modelled as a constant annual rate, not as discrete raises.'] },
   ri: {
     id:'ri', name:'Residual income / justified price-to-book',
-    why:'Deposit-taking institution. Free cash flow is not meaningful for a bank balance sheet, so value is built from book equity and the spread of return on equity over the cost of equity.',
+    why:'For a deposit-taking institution. Free cash flow is not meaningful for a bank balance sheet, so value is built from book equity and the spread of return on equity over the cost of equity.',
     secondary:['Price / earnings against sustainable ROE', 'Dividend capacity at target CET1'],
     limits:['Assumes a sustainable ROE through the credit cycle, not the latest reported ROE.','Ignores the option value and the tail risk in the loan book.'] },
   ddm: {
     id:'ddm', name:'Distribution discount / AFFO',
-    why:'Real estate investment trust. Income is contracted and distributed, so the distribution stream discounted at a required return is the primary model.',
+    why:'For a real estate investment trust. Income is contracted and distributed, so the distribution stream discounted at a required return is the primary model.',
     secondary:['Price / net asset value', 'Distribution yield spread over the 10-year government bond', 'Implied capitalisation rate'],
     limits:['Assumes the distribution policy and the gearing level hold.','Asset revaluation gains are excluded — only recurring income is modelled.'] },
   insurer: {
     id:'insurer', name:'Residual income with an underwriting check',
-    why:'Insurer. Free cash flow is not meaningful for a balance sheet built on float and reserves, so value is built from book equity and the spread of a sustainable return on equity over the cost of equity — with the combined ratio carried as the underwriting quality check.',
+    why:'For an insurer. Free cash flow is not meaningful for a balance sheet built on float and reserves, so value is built from book equity and the spread of a sustainable return on equity over the cost of equity — with the combined ratio carried as the underwriting quality check.',
     secondary:['Combined ratio against the peer set', 'Price / book against sustainable ROE', 'Solvency headroom over the required capital ratio'],
     limits:['Reserve adequacy is an estimate made by the company; a valuation built on reported book value inherits that estimate.','Embedded value is not disclosed in this dataset, so a life-style embedded-value model cannot be run.','Investment portfolio risk is not modelled separately from underwriting.'] },
   early: {
     id:'early', name:'Probability-weighted scenario with financing need',
-    why:'Loss-making or early-stage business. A single discounted-cash-flow path would imply precision that does not exist, so a success case is modelled explicitly, the financing needed to reach it is priced as dilution, and the result is weighted against a downside floor.',
+    why:'For a loss-making or early-stage business. A single discounted-cash-flow path would imply precision that does not exist, so a success case is modelled explicitly, the financing needed to reach it is priced as dilution, and the result is weighted against a downside floor.',
     secondary:['Cash runway against the burn rate', 'EV / revenue against loss-making peers', 'Liquidation or net-cash floor'],
     limits:['The probability of success is a judgement, not an observable — it is exposed as an input for that reason.','New shares are assumed to be issued at today’s price; a real raise would very likely price lower.','The downside floor assumes an orderly outcome, which a distressed restructuring may not deliver.'] },
   sotp: {
     id:'sotp', name:'Consolidated FCFF with a holding-company discount',
-    why:'Holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which this dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
+    why:'For a holding company with unlike operating segments. A true sum of the parts needs segment-level earnings and capital, which this dataset does not carry — so the group is valued on consolidated cash flow and an explicit holding-company discount is applied rather than implied.',
     secondary:['Segment peer multiples once segment financials are available', 'Observed discounts at comparable listed holding companies'],
     limits:['This is not a true sum of the parts. Segment disclosure here is revenue-weighted only, so the parts cannot be valued separately.','The holding-company discount is a judgement, not an observable — it is exposed as an input for exactly that reason.','A single blended discount rate is applied to businesses with different risk profiles.'] },
 };
@@ -4119,16 +4153,19 @@ function defaultInputs(c, d) {
   const beta = { mature:0.95, growth:1.45, saas:1.20, cyclical:1.30, bank:0.95, reit:0.85, holding:1.10 }[c.type] || 1;
   const coe = riskFree + beta * erp;
   /* A line the loader withheld from the shipped file (withholdMisassembled in
-     the universe module) is named as withheld, not left to read as unreported. */
+     the universe module) is named as withheld, not left to read as unreported
+     — in place of "carry no share count", which a withheld count is not, and
+     in a reader's words: the rule and file it came from are not theirs (the
+     20 Oct 2026 sweep, copy-equities-9). */
   const heldBack = (line) => { const fy = last(c.years || []), w = c.withheld?.[line];
-    return w && w.years.includes(fy) ? ` The figure for FY${fy} is withheld rather than unreported: ${w.why}. The ingest rule has been corrected, and it returns when the statements are regenerated.` : ''; };
+    return w && w.years.includes(fy) ? `its FY${fy} ${line === 'sh' ? 'share count' : 'debt figure'} is withheld until the next data update, because ${w.why}` : ''; };
 
   /* BOOK VALUE PER SHARE IS THE BASE OF BOTH RESIDUAL-INCOME MODELS. Without
      a share count there is none — and `null * justifiedPB` is nought, which
      valued Berkshire at $0.00 a share under a named model with a confidence
      grade. No estimate, and the reason, instead. */
   if ((pack.id === 'ri' || pack.id === 'insurer') && !isNum(m.bvps)) return { model:'unavailable', pack: pack.id,
-    reason: `Book value per share could not be computed for ${c.tk || c.code}: the latest statements carry no share count. A residual-income estimate is not available, and no figure has been assumed.${heldBack('sh')}` };
+    reason: `Book value per share could not be computed for ${c.tk || c.code}: ${heldBack('sh') || 'the latest statements carry no share count'}. A residual-income estimate is not available, and no figure has been assumed.` };
   /* THE SUSTAINABLE ROE IS A HAIRCUT ON THE REPORTED ONE, OR THERE IS NONE.
      With the return on equity withheld — Schwab's, because its earnings and
      dividend disagree on scale by a thousand — the model ran on a flat 10%
@@ -4171,9 +4208,10 @@ function defaultInputs(c, d) {
     /* The downside floor is net cash per share and the equity bridge is net
        debt; neither exists without both balance-sheet lines. */
     if (!isNum(m.netDebt) || !isNum(last(d.cash))) return { model:'unavailable', pack: pack.id,
-      reason: `Net debt could not be established for ${c.tk || c.code}: the latest statements carry no debt or cash line. A financing-adjusted estimate is not available, and no balance has been assumed.${heldBack('debt')}` };
+      reason: `Net debt could not be established for ${c.tk || c.code}: ${heldBack('debt') || 'the latest statements carry no debt or cash line'}. A financing-adjusted estimate is not available, and no balance has been assumed.` };
     if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
-      reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.${heldBack('sh')}` };
+      reason: heldBack('sh') ? `Nothing can be stated per share for ${c.tk || c.code}: ${heldBack('sh')}.`
+        : `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share.` };
     /* Years to break even, from the current loss and the assumed improvement. */
     const burn = c.early?.burn ?? Math.max(0.05, -last(d.fcf) || 0.2);
     const cashNow = last(d.cash);
@@ -4228,9 +4266,16 @@ function defaultInputs(c, d) {
      error string, which every caller checks. Using it here means the company
      loads, its statements and scorecard work, and only the valuation reports
      itself unavailable — which is the truthful outcome and the useful one. */
+  /* Which line is missing, said as it is. Free cash flow needs both lines in
+     one year, and Eli Lilly's card said its statements carry no operating
+     cash flow line beside a snapshot showing one: it is the capital-
+     expenditure line that is absent (the 20 Oct 2026 sweep, copy-equities-4). */
+  const anyOcf = (d.ocf || []).some(isNum), anyCapex = (d.capex || []).some(isNum);
   if (!isNum(baseFcf)) return { model:'unavailable', pack: pack.id,
     reason: !anyFcf
-      ? `No free cash flow could be computed for ${c.tk || c.code}: the statements carry no operating cash flow line for any year retrieved. A discounted-cash-flow estimate is not available, and no substitute has been assumed.`
+      ? `No free cash flow could be computed for ${c.tk || c.code}: ${!anyOcf ? 'the statements carry no operating cash flow line for any year retrieved'
+        : !anyCapex ? 'the statements carry no capital-expenditure line for any year retrieved'
+        : 'no year retrieved carries both an operating cash flow and a capital-expenditure line'}. A discounted-cash-flow estimate is not available, and no substitute has been assumed.`
       : pack.id === 'dcfMid'
       ? `The mid-cycle model averages five years of free cash flow and ${c.tk || c.code} does not carry all five — a capital-expenditure line is absent in at least one. Averaging the years that exist would be a different measure under the same name, so no estimate is shown.`
       : `Free cash flow for ${c.tk || c.code}'s latest year could not be computed — its capital-expenditure line is absent — and an older year is not a substitute for it. No estimate is shown.` };
@@ -4248,7 +4293,8 @@ function defaultInputs(c, d) {
   if (pack.id !== 'scenario' && baseFcf <= 0) return { model:'unavailable', pack: pack.id,
     reason: `${pack.id === 'dcfMid' ? 'The five-year average of free cash flow' : 'Free cash flow in the latest year'} for ${c.tk || c.code} is ${baseFcf < 0 ? 'negative' : 'nil'} (${fmtCap(baseFcf, c.ccy)}). A discounted-cash-flow model grows its starting cash flow into perpetuity, so from this base it values a loss, not the business — no estimate is shown, and no other year has been substituted.` };
   if (!(last(d.sh) > 0)) return { model:'unavailable', pack: pack.id,
-    reason: `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.${heldBack('sh')}` };
+    reason: heldBack('sh') ? `Nothing can be stated per share for ${c.tk || c.code}: ${heldBack('sh')}. No estimate is shown.`
+      : `No share count is carried for ${c.tk || c.code} in the latest year, so nothing can be stated per share. No estimate is shown.` };
   /* NET DEBT IS THE BRIDGE, AND A MISSING BRIDGE IS NOT A ZERO-LENGTH ONE.
      ---------------------------------------------------------------------
      `ev - (netDebt || 0)` valued twelve filers — Ford, General Motors and
@@ -5103,7 +5149,7 @@ function scanBarStatus(market, sessionDate, capturedAt, heldAt = null) {
 }
 
 /* ------------------------------------------------------------- timeframes -- */
-const SCAN_INTRADAY_WHY = 'intraday data is not held — your history carries one bar per session, and intraday bars need a licensed feed (SC-317)';
+const SCAN_INTRADAY_WHY = 'intraday data is not held — your history carries one bar per session, and intraday bars need a licensed feed';
 const SCAN_TIMEFRAMES = {
   '1D': { id: '1D', label: 'Daily', built: true, legacy: 'daily', note: 'one bar per session, dated by the exchange session in its own time zone' },
   '1W': { id: '1W', label: 'Weekly', built: true, legacy: 'weekly', derivedFrom: '1D',
@@ -10091,8 +10137,12 @@ function buildFeed() {
        between a synthetic price and a model of synthetic figures — under
        real company names. "PCHEM sits at a 69% discount", green, read as a
        pick (the claims audit of 11 Oct 2026). */
+    /* The figure is (estimate − price) ÷ price, a distance measured against
+       the price, so it is said that way round: "the sample price is 69%
+       below" its estimate overstated a price about 41% below it (the 20 Oct
+       2026 sweep, copy-equities-2). */
     if (val.mos && val.mos.base > 18 && val.confBand !== 'Low')
-      feed.push({ kind:'valuation', sev:'info', id:c.id, title:`${c.tk}: the sample price is ${fmtPct(val.mos.base,0)} below its base-case model estimate`,
+      feed.push({ kind:'valuation', sev:'info', id:c.id, title:`${c.tk}: the base-case model estimate is ${fmtPct(val.mos.base,0)} above the sample price`,
         detail:`Illustrative figures and a sample price, not a market quotation; a gap to a model is not a recommendation. ${val.pack.name}, ${val.confBand.toLowerCase()} confidence. Largest driver: ${driverImpact(c, r.d, r.inputs)[0].label}.` });
     if (isNum(m.cashPayout) && m.cashPayout > 100)
       feed.push({ kind:'dividend', sev:'serious', id:c.id, title:`${c.tk} distribution is ${fmtPct(m.cashPayout,0)} of free cash flow`,
@@ -10208,12 +10258,15 @@ function withholdMisassembled(r, fin) {
     const row = fin[k]; if (!row) return;
     const p = r.provenance || {};
     const L = p.debtL?.byYear?.[y], C = p.debtC?.byYear?.[y];
+    /* Each reason in a reader's words — the filing tags behind it are in
+       the line's source drawer, not in the sentence (the 20 Oct 2026 sweep,
+       copy-equities-9). */
     if (row[F.DEBT] != null && C && !L) { row[F.DEBT] = null;
-      note('debt', y, `no long-term debt line resolved, so the stored figure is the current portion (${C}) alone`); }
+      note('debt', y, 'only the current portion of debt was stored, not the total'); }
     else if (row[F.DEBT] != null && C && L === 'LongTermDebt') { row[F.DEBT] = null;
-      note('debt', y, `the stored figure adds the current portion (${C}) to LongTermDebt, which already includes current maturities`); }
+      note('debt', y, 'the stored figure counts the current portion of debt twice'); }
     if (row[F.SH] != null && p.sh?.byYear?.[y] === 'CommonStockSharesIssued') { row[F.SH] = null;
-      note('sh', y, 'the stored count is CommonStockSharesIssued, which includes treasury stock, not shares outstanding'); }
+      note('sh', y, 'the stored count includes treasury stock, which shares outstanding exclude'); }
   });
   for (const w of Object.values(withheld)) w.why = [...w.why].join('; ');
   return withheld;
@@ -10225,7 +10278,7 @@ function realToCompany(r) {
   const fin = r.fin.map(row => row.map(v => (v == null ? null : v)));
   const withheld = withholdMisassembled(r, fin);
   const withheldGaps = Object.entries(withheld).map(([line, w]) => ({ line, withheld: true,
-    reason: `withheld for ${w.years.map(y => `FY${y}`).join(', ')} — ${w.why}. The ingest rule has been corrected; the figure returns when the statements are regenerated.` }));
+    reason: `withheld for ${w.years.map(y => `FY${y}`).join(', ')} — ${w.why}. It returns with the next data update.` }));
   /* Order matters. A curated entry wins, then the filer's own SIC registration,
      then Unclassified. Without the SIC step every newly ingested company fell
      back to "mature" — which routes a bank into a free-cash-flow DCF, an answer
@@ -10255,7 +10308,7 @@ function realToCompany(r) {
     px, fin, years: r.years, periodEnds: r.periodEnds || null,
     real: true, cik: r.cik, provenance: r.provenance, gaps: [...(r.gaps || []), ...withheldGaps],
     basis: r.basis || null, withheld,
-    sectorWithheld: sectorWithheld ? `The shipped classification (${r.sector} / ${r.industry}) came from a SIC rule since corrected, and SIC ${r.sic} does not belong there. It is withheld until the statements are regenerated.` : null,
+    sectorWithheld: sectorWithheld ? `The stored sector (${r.sector} / ${r.industry}) does not match this filer’s SEC industry code (SIC ${r.sic}), so it is withheld until the next data update.` : null,
     /* Recounted where a cell was withheld, so the "lines present" chip does not
        count a figure the page no longer shows. */
     completeness: withheldGaps.length ? +(fin.flat().filter(v => v != null).length / fin.flat().length).toFixed(3) : r.completeness,
@@ -14939,11 +14992,15 @@ const UNIVERSE_VIEWS = new Set([
    pack. Drawn before the filings land, it listed the illustrative
    stand-ins a filer replaces as they load — "AAPL · illustrative", "JPM ·
    illustrative", seventeen companies whose own pages say Filed — and that
-   first draw was what /methodology served. So that one tab of Learn waits
-   for the filings as the views above do, and is served drawn with them in;
-   the other four read no company and draw at once. Every "does this page
+   first draw was what /methodology served. So that tab of Learn waits
+   for the filings as the views above do, and is served drawn with them in.
+   The metric dictionary (/learn, /learn/glossary) reads every company too —
+   its Computable column counts them — and was served over the 36 stand-ins,
+   price measures computable for 34 of 36, where no filed company carries a
+   price (the 20 Oct 2026 sweep, copy-property-3); it waits as well. The
+   other four read no company and draw at once. Every "does this page
    wait" asks viewWaits, here and in prerender.mjs and coverage-frames.mjs. */
-const UNIVERSE_TABS = { learn: ['models'] };
+const UNIVERSE_TABS = { learn: ['models', 'dictionary'] };
 function viewWaits(view = State.view) {
   if (UNIVERSE_VIEWS.has(view)) return true;
   if (view !== State.view || !UNIVERSE_TABS[view]) return false;
@@ -15301,11 +15358,15 @@ const SERVED_READS = {
      opens on a filed company (HIW_PICKS, 55-views-public.js): the
      calculator's deal its "Your calculator, as it stands" card reads. */
   howItWorks: ['deal'],
-  /* /methodology, the one tab of Learn that waits (UNIVERSE_TABS): the
+  /* /methodology, a tab of Learn that waits (UNIVERSE_TABS): the
      router table reads the universe and nothing this browser keeps. Keyed
      view:tab (servedKeyOf), so Learn's other tabs, which do not wait, are
      served as before. */
   'learn:models': [],
+  /* /learn and /learn/glossary, the metric dictionary, which waits too: its
+     Computable column counts the companies a measure is computable for,
+     and a price typed in or closes pasted make price measures computable. */
+  'learn:dictionary': ['manualPrices', 'userData'],
 };
 /* The SERVED_READS row of the page on screen: a view's, or — for a tab
    that waits (UNIVERSE_TABS) — that tab's. */
@@ -16771,6 +16832,11 @@ function marketSummary(mkt) {
 /* Whether the active watchlist is still the seeded sample (isSeededWL,
    50-views-studio.js). */
 const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeof isSeededWL === 'function' && isSeededWL(w); } catch { return false; } };
+/* A company on the seeded list is on a sample list, not on the reader's:
+   Apple's page said "On your watchlist" on a first visit, beside Watchlists
+   saying "None of your own yet" (the 20 Oct 2026 sweep, copy-equities-26).
+   A list the reader has changed is theirs (isSeededWL). */
+const watchingLabel = () => (activeWLIsSample() ? '✓ On the sample watchlist' : '✓ On your watchlist');
 VIEWS.researchQueue = () => {
   const wrap = el('div');
 
@@ -16926,7 +16992,7 @@ VIEWS.researchQueue = () => {
     const acts = el('div', { class: 'row', style: 'gap:4px;margin-top:6px' });
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(f.id) }, 'Open research'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(f.id, 'valuation') }, 'Valuation'));
-    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => addToThesis(f.id) }, 'Add to thesis'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => addToThesis(f.id) }, 'Add to investment case'));
     body.append(acts);
     item.append(body);
     list.append(item);
@@ -16968,11 +17034,19 @@ VIEWS.researchQueue = () => {
       nm.append(el('div', { class: 'row row-wrap', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, pk === 'illustrative' ? null : dataChip(r.c), kindBadge(pk, { link: false, fine: 'The price and its move' })]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
-      row.append(sparkline(priceHistory(r.c)));
-      const pv = el('div', { style: 'text-align:right' });
-      pv.append(el('div', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
-      pv.append(el('div', { class: 'metaline ' + signClass(r.c.px.d1) }, withSign(r.c.px.d1, 2)));
-      row.append(pv);
+      /* Unavailable says why beside it, as the badge's own title promises
+         and the company page does: AAPL and NVDA read "Unavailable" over
+         three bare dashes (the 20 Oct 2026 sweep, copy-equities-30). One
+         short caption in place of the chart and the price, so the column
+         is no wider than it was. */
+      if (!isNum(r.c.px?.p)) row.append(el('span', { class: 'metaline', style: 'white-space:nowrap' }, 'no licensed price'));
+      else {
+        row.append(sparkline(priceHistory(r.c)));
+        const pv = el('div', { style: 'text-align:right' });
+        pv.append(el('div', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
+        pv.append(el('div', { class: 'metaline ' + signClass(r.c.px.d1) }, withSign(r.c.px.d1, 2)));
+        row.append(pv);
+      }
       t.append(row);
     });
     wl.append(t);
@@ -17022,7 +17096,7 @@ VIEWS.researchQueue = () => {
   const lastOpened = (State.recentCompanies || []).map(id => BY_ID.get(id)).find(Boolean) || null;
   const companyStep = (tab) => () => lastOpened ? openResearch(lastOpened.c.id, tab) : go('researchHome');
   const steps = [['Discover candidates', () => go('discover')], ['Inspect evidence', companyStep(null), true],
-    ['Build a valuation range', companyStep('valuation'), true], ['Save a thesis', () => go('thesis')],
+    ['Build a valuation range', companyStep('valuation'), true], ['Save an investment case', () => go('thesis')],
     ['Monitor changes', () => go('alerts')], ['Review decision quality', () => go('thesis')]];
   const ol = el('ol', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:2px' });
   steps.forEach(([label, act, onCompany], i) => {
@@ -17949,7 +18023,11 @@ const SCREEN_TEMPLATES = [
      claims five is the failure this product exists to avoid. */
   { id:'my_quality_reasonable_value_v1', name:'Quality at reasonable valuation', version:'1.0.0',
     spec:'section 18.1',
-    why:'Business quality of 80 or better, valuation evidence of 60 or better, and a price at least 20% below the base-case model estimate — on companies with at least 80% data completeness.',
+    /* The third rule is mosBase ≥ 20, (estimate − price) ÷ price: an
+       estimate at least 20% above the price, which is a price about 16.7%
+       below the estimate, not 20% — a price-discount screen, said as the
+       measure it tests (DECISIONS 3; the 20 Oct 2026 sweep, copy-equities-2). */
+    why:'Business quality of 80 or better, valuation evidence of 60 or better, and a base-case model estimate at least 20% above the price — on companies with at least 80% data completeness.',
     untestable:[{ rule:'governance_critical_flags == 0',
       because:'No governance event register exists in this build, so the flag cannot be evaluated. Under section 4.1 an untested hard gate is manual review, not a pass — check governance yourself before treating a match as complete.' }],
     apply: (s) => { s.minCoverage = 80;
@@ -18062,7 +18140,7 @@ function evaluateScreen(row, sc) {
   if (sc.universe === 'MY' && c.mkt !== 'MY') fails.push('Not in the Bursa universe');
   if (sc.universe === 'watchlist' && !State.watchlist.includes(c.id)) fails.push('Not on the watchlist');
   if (sc.sectors.length && !sc.sectors.includes(c.sector)) fails.push(`Sector ${c.sector} is not selected`);
-  if (sc.types.length && !sc.types.includes(c.type)) fails.push(`Business model "${c.type}" is not selected`);
+  if (sc.types.length && !sc.types.includes(c.type)) fails.push(`Business model "${archetypeName(c.type)}" is not selected`);
   if (m.coverage < sc.minCoverage) fails.push(`Data completeness ${m.coverage}% is below the ${sc.minCoverage}% threshold`);
   if (sc.local.shariahOnly && c.flags.shariah !== true) fails.push('Not recorded as Shariah-compliant in this dataset');
   if (sc.local.excludePn17 && c.flags.pn17) fails.push('Classified under PN17');
@@ -18134,7 +18212,7 @@ function activeFilters(sc) {
     { US:'United States', MY:'Bursa Malaysia', watchlist:'Only companies I follow' }[sc.universe] || sc.universe }`,
     clear: () => { sc.universe = 'all'; } });
   if (sc.minCoverage > 0) active.push({ label: `Data completeness ≥ ${sc.minCoverage}%`, clear: () => { sc.minCoverage = 0; } });
-  (sc.types || []).forEach(t => active.push({ label: `Type: ${t}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
+  (sc.types || []).forEach(t => active.push({ label: `Type: ${archetypeName(t)}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
   (sc.sectors || []).forEach(t => active.push({ label: `Sector: ${t}`, clear: () => { sc.sectors = sc.sectors.filter(x => x !== t); } }));
   Object.entries(sc.crit || {}).forEach(([k, c3]) => {
     if (!c3 || (c3.min == null && c3.max == null)) return;
@@ -18358,9 +18436,11 @@ function renderScreener() {
   const bmRow = el('div', { class: 'row row-wrap', role: 'group', 'aria-labelledby': 'scr-bm-label', style: 'gap:5px' });
   [...new Set(U.map(r => r.c.type))].forEach(t => {
     const on = sc.types.includes(t);
-    /* aria-pressed: the on state was only the chip's colour. */
+    /* aria-pressed: the on state was only the chip's colour. Named as the
+       company pages name the class ("Software and subscription"), not by
+       its key ("saas"); the key stays the filter's value. */
     bmRow.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer', 'aria-pressed': on ? 'true' : 'false',
-      onclick: () => { sc.types = on ? sc.types.filter(x => x !== t) : [...sc.types, t]; render(); } }, t));
+      'data-type': t, onclick: () => { sc.types = on ? sc.types.filter(x => x !== t) : [...sc.types, t]; render(); } }, archetypeName(t)));
   });
   bm.append(bmRow);
   railRules.append(bm);
@@ -19155,7 +19235,7 @@ function metricStatus(r, k) {
      withheld (withholdMisassembled) is not a tag that failed to resolve. */
   const fyNow = c?.real ? latestFy(c) : null;
   const heldBack = inputs.filter(l => c?.withheld?.[l]?.years?.includes(fyNow));
-  if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' It returns with the next data update.');
   /* As at an earlier year (statementsAt, 15-derivation.js; Compare's common
      year): the rows the measure reads run off the start of the statements
      held, and derive() computes nothing over fewer. */
@@ -19397,7 +19477,7 @@ function lineFiling(c, l, fy) {
   out.end = out.end || fyEndOf(c, fy);
   return out;
 }
-const NOT_YET_HELD = 'not in this dataset yet — the shipped statements predate the ingest that records it, and it fills in here when they are regenerated';
+const NOT_YET_HELD = 'not in this dataset yet — the statements held were stored before it was recorded, and it fills in here with the next data update';
 function filingText(c, l, fy) {
   if (!c?.real) return 'None — a synthetic sample statement is not a filing.';
   if (c.personal) return 'None held — annual statements you supplied, with no filing index behind them.';
@@ -19474,7 +19554,7 @@ function edgarLinkRow(c, opts) {
   /* Said beside the links, where the missing one would have been. */
   if (opts?.fy != null && !links.some(x => x.exact)) return el('div', {}, [row,
     el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `No link to the exact filing: that needs its accession number, which the ingest does not record yet. The FY${opts.fy} annual report is in the list above — the one whose period matches.`)]);
+      `No link to the exact filing: that needs its accession number, which is not held yet. The FY${opts.fy} annual report is in the list above — the one whose period matches.`)]);
   return row;
 }
 
@@ -19499,7 +19579,7 @@ function lineCellStatus(r, line, i) {
   const why = (reason, text) => ({ id: 'unavailable', available: false, reason, label: ABSENCE[reason].short, text });
   const keys = line.derived ? line.inputs : [line.key];
   const held = keys.filter(k => c.withheld?.[k]?.years?.includes(fy));
-  if (held.length) return why('withheld', held.map(k => `${LINE_LABEL[k]} for FY${fy} is withheld: ${c.withheld[k].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  if (held.length) return why('withheld', held.map(k => `${LINE_LABEL[k]} for FY${fy} is withheld: ${c.withheld[k].why}.`).join(' ') + ' It returns with the next data update.');
   if (line.derived) {
     const missing = line.inputs.filter(k => !isNum(c.fin?.[i]?.[LINE_COL[k]]));
     if (missing.length) return why('not reported', `${missing.map(k => LINE_LABEL[k]).join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not in the stored statements for FY${fy}, and a derived line needs every input from the same year. Nothing is imputed.`);
@@ -20201,7 +20281,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
      refused, which leaves the list as it was. */
   const watchBtn = el('button', { class: 'btn btn-ghost btn-sm' });
   const showWatch = () => { const on = State.watchlist.includes(id);
-    watchBtn.textContent = on ? '✓ On your watchlist' : 'Add to watchlist'; watchBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    watchBtn.textContent = on ? watchingLabel() : 'Add to watchlist'; watchBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
   watchBtn.addEventListener('click', () => { toggleWatch(id); showWatch(); });
   showWatch();
   acts.append(watchBtn);
@@ -20711,6 +20791,11 @@ const BUSINESS_ARCHETYPES = {
   growth:'Secular grower', saas:'Software and subscription', cyclical:'Cyclical or commodity-linked',
   holding:'Holding company', early:'Early-stage or loss-making',
 };
+/* A business model by the name a reader sees, never its key: the screener's
+   chips, the peers' caption, Compare and the portfolio said "saas" and
+   "mature" beside pages saying "Software and subscription" (the 20 Oct 2026
+   sweep, copy-equities-20). */
+const archetypeName = (t) => BUSINESS_ARCHETYPES[t] || t;
 const RETURN_ROLES = {
   income:     { label:'Dividend income',        why:'Recurring distributions supported by earnings and a balance sheet that can keep paying them.' },
   compounder: { label:'Long-term compounding',  why:'Growth in per-share earnings and business value over several years.' },
@@ -21279,9 +21364,12 @@ function fitGrade(r, key, tier) {
   else if (key === 'value') {
     if (!need(priced, 'A price. Without one there is no gap between price and model to measure.')) return out;
     if (!need(!r.val?.err && isNum(r.val?.mos?.base), 'A valuation model that could be built.')) return out;
+    /* (estimate − price) ÷ price, said that way round: "Price sits 69%
+       below the estimate" overstated a price about 41% below it (the 20 Oct
+       2026 sweep, copy-equities-2). The grade is unchanged. */
     const mos = r.val.mos.base;
-    if (mos > 20) out.supports.push(`Price sits ${fmtPct(mos, 0)} below the base-case model estimate.`);
-    else out.weakens.push(`Price is ${fmtPct(Math.abs(mos), 0)} ${mos < 0 ? 'above' : 'below'} the base-case estimate.`);
+    if (mos > 20) out.supports.push(`The base-case model estimate is ${fmtPct(mos, 0)} above the price.`);
+    else out.weakens.push(`The base-case model estimate is ${fmtPct(Math.abs(mos), 0)} ${mos < 0 ? 'below' : 'above'} the price.`);
     out.missing.push('A named mechanism and time path for the gap to close.');
     out.score = Math.round(clamp(50 + mos, 0, 100));
   }
@@ -21302,8 +21390,11 @@ function fitGrade(r, key, tier) {
     const q = r.scores?.quality?.score;
     if (!need(isNum(q), 'A business-quality assessment of the underlying.')) return out;
     out.missing.push('A verified contract, its deliverable, an authorised quote and your full collateral. Those are entered in the Wheel workspace, and no chain data exists in this build.');
+    /* The evidence and the strategy's own threshold, never a verdict on the
+       company: "a business you would not want to own" was said of 54 named
+       filers below 60 (the 20 Oct 2026 sweep, copy-equities-1). */
     if (q >= 60) out.supports.push(`Business quality ${q}/100 — the Wheel means being willing to own this company.`);
-    else out.weakens.push(`Business quality ${q}/100. A Wheel on a business you would not want to own is a way of acquiring it anyway.`);
+    else out.weakens.push(`Business quality ${q}/100, below this strategy’s 60. A Wheel means being willing to own the company at the strike.`);
     out.cap = 'Underlying assessment only. Wheel fit itself is decided in the workspace, where collateral is checked.';
     out.score = Math.round(clamp(q, 0, 100));
   }
@@ -21407,7 +21498,7 @@ const RESEARCH_TABS = [
 /* Where the Malaysian set's Shariah and PN17 flags come from (the claims
    audit of 11 Oct 2026, R-22): only an illustrative company carries one. */
 const FLAG_PROVENANCE = 'Authored for the illustrative set — not checked against the Securities Commission’s list of Shariah-compliant securities or Bursa’s PN17 and GN3 lists.';
-const EXCH_UNKNOWN = 'SEC companyfacts carries no listing venue. The ingest records it from the filer’s submissions record, and it appears here once data/us.json is regenerated.';
+const EXCH_UNKNOWN = 'The SEC filings held here do not record the listing venue. It appears here with the next data update.';
 const listingOf = (c) => (c.cik && !c.exchKnown ? 'an exchange not recorded in this dataset' : c.exch);
 
 /* The one toggle in the app, on top of the watchlist service — so a company
@@ -21447,7 +21538,7 @@ function companyActions(r) {
      control in use again by id first, and by its words it found nothing and
      left focus on <main> after every press (35-ui.js, giveFocusBack). */
   acts.append(el('button', { class: `btn ${watching ? 'btn-ghost' : 'btn-primary'} btn-sm`, id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
-    onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
+    onclick: () => toggleWatch(c.id) }, watching ? watchingLabel() : 'Add to watchlist'));
   /* Compare adds this company to the selection already held, rather than
      replacing it, and drops the oldest when the plan's cap is reached — with a
      toast naming it, so a comparison is never cut silently. */
@@ -21816,11 +21907,12 @@ VIEWS.research = () => {
       isNum(c.fin?.length) && c.fin.length < 6
         ? el('span', { class: 'chip chip-bronze' }, `${c.fin.length} years held`) : null,
       /* The rules that wrote the record. A filed company from the shipped
-         file has none, and the chip says the stamp is not in this dataset yet
-         rather than implying the current rules produced it. */
+         file has none, and the chip says the version is not recorded
+         rather than implying the current rules produced it — in a reader's
+         words, not the pipeline's (the 20 Oct 2026 sweep, copy-equities-9). */
       !c.personal ? (c.ingestVersion
-        ? el('span', { class: 'chip', title: 'The version of the SEC ingest rules that produced these statements.' }, `ingest ${c.ingestVersion.replace(/^sec /, '')}`)
-        : el('span', { class: 'chip chip-bronze', title: 'This file was written before the ingest stamped its version, under rules since corrected — the misassembled figures are withheld on the page. A regeneration writes the version here.' }, 'ingest version not in this dataset yet')) : null,
+        ? el('span', { class: 'chip', title: 'The version of the rules that read these statements from the SEC filings.' }, `import ${c.ingestVersion.replace(/^sec /, '')}`)
+        : el('span', { class: 'chip chip-bronze', title: 'These statements were stored before each import recorded its version. Figures known to have been read wrongly are withheld on this page; the next data update records the version here.' }, 'import version not recorded')) : null,
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
           : sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`))
@@ -21958,6 +22050,7 @@ VIEWS.research = () => {
   lensCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     wheelFitRow && wheelFitRow.state === 'not_applicable'
       ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither workspace changes any evidence band above.`
+      : wsLinks.length === 1 ? 'This workspace changes no evidence band above. It records your own plan and is weighted zero in the research composite.'
       : 'Neither workspace changes any evidence band above. Both record your own plan and are weighted zero in the research composite.'));
 
   /* Counted per state, because "not assessable from the data held" was false
@@ -22054,7 +22147,7 @@ VIEWS.research = () => {
   /* A tablist with arrow keys between the tabs (tabStrip, 40-views-discover).
      Through the address, so Back returns to the previous tab and a link
      carries the one it was copied from. */
-  stick.append(tabStrip(`Sections of the ${c.name} report`, RESEARCH_TABS, State.researchTab,
+  stick.append(tabStrip(`Sections of the ${c.name} page`, RESEARCH_TABS, State.researchTab,
     id => openResearch(State.ticker, id)));
   wrap.append(stick);
 
@@ -22161,7 +22254,7 @@ function companySummary(r) {
     attention.length
       ? attention.map(f => el('p', { class: 'body', style: 'margin:0 0 4px' }, [
           el('span', { class: `chip chip-${f.sev === 'serious' || f.sev === 'critical' ? 'critical' : 'warn'}`,
-                       style: 'margin-right:6px' }, f.sev), f.t || f.title || '']))
+                       style: 'margin-right:6px' }, SEV_STYLE[f.sev]?.label || f.sev), f.t || f.title || '']))
       : ['No risk threshold is crossed on the reported figures.'],
     attention.length ? 'Open Risks for what each one is measuring.' : null));
 
@@ -22171,7 +22264,7 @@ function companySummary(r) {
     el('span', { class: m.coverage >= 90 ? 'chip chip-ok' : m.coverage >= 70 ? 'chip' : 'chip chip-bronze' },
       `${m.coverage}% complete`),
     val?.confBand ? el('span', { class: val.confBand === 'High' ? 'chip chip-ok' : val.confBand === 'Low' ? 'chip chip-bronze' : 'chip' },
-      `${val.confBand} confidence`) : null,
+      `${val.confBand} valuation confidence`) : null,
     c.real ? el('span', { class: 'chip' }, 'audited filings') : el('span', { class: 'chip chip-bronze' }, 'sample data'),
   ]));
   const gaps = [];
@@ -22243,7 +22336,7 @@ function overviewTiles(r) {
        there, and says why it holds no figure. */
     if (!line) {
       g.append(el('div', { class: 'tile-static' }, statTile(label, 'not shown',
-        { sub: 'Not a meaningful measure for a deposit-taking balance sheet, so the statements omit it for a bank.' })));
+        { sub: 'Not a meaningful measure for a deposit-taking balance sheet, so this page does not show it for a bank.' })));
       return;
     }
     const v = line.arr[i], st = lineCellStatus(r, line, i), ch = lineChange(r, line, i);
@@ -22296,12 +22389,12 @@ function peerSet(r, n) {
   const Kind = kind[0].toUpperCase() + kind.slice(1);
   const mktName = c.mkt === 'US' ? 'United States' : c.mkt === 'MY' ? 'Bursa Malaysia' : c.mkt;
   const rule = !peers.length
-    ? `No other ${kind} company of the ${c.type} business model is carried here.`
+    ? `No other ${kind} company of the ${archetypeName(c.type)} business model is carried here.`
     : inSector === peers.length
-    ? `Matched on business model (${c.type}) and sector (${c.sector}), ${kind} companies only, nearest in latest-year revenue first.`
+    ? `Matched on business model (${archetypeName(c.type)}) and sector (${c.sector}), ${kind} companies only, nearest in latest-year revenue first.`
     : `${inSector
-        ? `${inSector} ${inSector === 1 ? 'shares' : 'share'} the business model (${c.type}) and sector (${c.sector}); too few do, so ${peers.length - inSector} more`
-        : `None shares the business model (${c.type}) and ${classified ? `sector (${c.sector})` : 'a sector — this one is unclassified here'}, so these ${peers.length}`} share the business model and market (${mktName}). ${Kind} companies only, nearest in latest-year revenue first.`;
+        ? `${inSector} ${inSector === 1 ? 'shares' : 'share'} the business model (${archetypeName(c.type)}) and sector (${c.sector}); too few do, so ${peers.length - inSector} more`
+        : `None shares the business model (${archetypeName(c.type)}) and ${classified ? `sector (${c.sector})` : 'a sector — this one is unclassified here'}, so these ${peers.length}`} share the business model and market (${mktName}). ${Kind} companies only, nearest in latest-year revenue first.`;
   return { peers, inSector, rule };
 }
 /* "Open full comparison" from a peer set. Both peer buttons cut the set to
@@ -22358,7 +22451,8 @@ function tabSnapshot(r) {
       el('td', { style: isNum(p.score) ? '' : 'color:var(--ink-3)' }, p.label),
       el('td', { class: 'num' }, `${p.w}%`),
       el('td', { class: 'num' }, isNum(p.score) ? fmtNum(p.score, 0) : 'not tested'),
-      el('td', { class: 'metaline' }, isNum(p.score) ? `From ${p.from}.` : p.absent),
+      el('td', { class: 'metaline' }, isNum(p.score) ? (typeof p.from === 'function' ? p.from(r) : `From ${p.from}.`)
+        : (typeof p.absent === 'function' ? p.absent(r) : p.absent) || null),
     ]));
   });
   pt.append(pb);
@@ -22548,7 +22642,7 @@ function tabSnapshot(r) {
     pc.append(cardHead('Price history', 'Not available for this company.'));
     pc.append(el('p', { class: 'body', style: 'font-size:13px' },
       c.real
-        ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
+        ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed, or closes you add under Your data & settings. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
         : 'No price series is attached to this company.'));
   } else {
     /* priceHistory is a seeded walk pinned to the sample price, range and
@@ -22595,10 +22689,18 @@ function tabSnapshot(r) {
     [r, ...peers].forEach(p => {
       const tr = el('tr', p.c.id === c.id ? { style: 'background:color-mix(in srgb, var(--brand) 7%, transparent)' } : {});
       const td0 = el('td', { class: 'pin ident' }); td0.append(tickerCell(p)); tr.append(td0);
-      const cells = isB ? [fmtPct(p.m.roe), fmtPct(p.m.cet1), fmtPct(p.m.npl, 2), fmtX(p.m.pb, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality)]
-                  : isR ? [fmtPct(p.m.occ), fmtPct(p.m.gearing), fmtX(p.m.pnav, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`]
-                        : [isNum(p.m.roic) ? fmtPct(p.m.roic) : absentMark(p, 'roic'), isNum(p.m.om) ? fmtPct(p.m.om) : absentMark(p, 'om'),
-                           isNum(p.m.pe) ? fmtX(p.m.pe) : absentMark(p, 'pe'), isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : absentMark(p, 'fcfy'), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
+      /* A cell that is empty says why (copy-equities-7, the 20 Oct 2026
+         sweep): a measure the screener lists takes its short reason
+         (absentMark); one it does not list says "not reported", with its
+         sentence as the title. The row used to print bare dashes under a line
+         saying none is shown "rather than a row of dashes". */
+      const peerCell = (k, fmt) => isNum(p.m[k]) ? fmt(p.m[k])
+        : FIELD_BY_K[k] ? absentMark(p, k)
+        : '<span class="caption cell-absent" title="Not carried in the statements held for this company.">not reported</span>';
+      const vsBase = isNum(p.val.mos?.base) ? `<span class="${diffClass(p.val.mos.base)}">${withSign(p.val.mos.base, 0)}</span>` : absentMark(p, 'mosBase');
+      const cells = isB ? [peerCell('roe', fmtPct), peerCell('cet1', fmtPct), peerCell('npl', v => fmtPct(v, 2)), peerCell('pb', v => fmtX(v, 2)), peerCell('dy', v => fmtPct(v, 2)), scorePill(p.scores.quality.score, p.pct.quality)]
+                  : isR ? [peerCell('occ', fmtPct), peerCell('gearing', fmtPct), peerCell('pnav', v => fmtX(v, 2)), peerCell('dy', v => fmtPct(v, 2)), scorePill(p.scores.quality.score, p.pct.quality), vsBase]
+                        : [peerCell('roic', fmtPct), peerCell('om', fmtPct), peerCell('pe', fmtX), peerCell('fcfy', v => fmtPct(v, 2)), scorePill(p.scores.quality.score, p.pct.quality), vsBase];
       cells.forEach(v => tr.append(el('td', { html: v })));
       tb2.append(tr);
     });
@@ -22689,7 +22791,7 @@ function tabBusiness(r) {
   const prof = el('div', { class: 'card' });
   prof.append(cardHead('Business profile', 'How this company is classified, and what that means for the models it is routed to.'));
   const kv = el('dl', { class: 'kv' });
-  [['Business model', c.type], ['Model pack', r.val.pack.name], ['Reporting currency', c.ccy],
+  [['Business model', archetypeName(c.type)], ['Model pack', r.val.pack.name], ['Reporting currency', c.ccy],
    ['Primary listing', `${listingOf(c)} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
@@ -23050,7 +23152,7 @@ function tabFinancials(r) {
     wrap.append(el('div', { class: 'card' },
       [cardHead('Quarterly figures', 'Not carried in this build.'),
        el('p', { class: 'body', style: 'font-size:13px' }, c.cik
-         ? 'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.'
+         ? 'Only annual figures — periods of a year — are held for filed companies, and no quarterly line is held for any of them. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.'
          : 'Only annual statements were loaded for this company, so there is no quarterly line to draw and none is invented.')]));
     return wrap;
   }
@@ -23550,7 +23652,7 @@ function tabFilings(r) {
     }
 
     const acts = el('div', { class: 'row', style: 'gap:6px;margin-top:var(--md)' });
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => addToThesis(c.id) }, 'Add to thesis'));
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => addToThesis(c.id) }, 'Add to investment case'));
     /* This went to the alerts page and toasted "Alert rule builder opened",
        with no builder open and nothing about the company carried. The only
        rule editor that exists is the price alert, so the button opens it here,
@@ -25015,9 +25117,9 @@ function openRunDrawer(runId, ticker, from = 'workspace') {
 
 function seedTheses() {
   return [
-    { id:'t1', ticker:'MAYBANK', oneLine:'A low-cost deposit franchise that should sustain a mid-teens return on equity while paying most of it out.',
-      quality:'CASA of 36.5% funds the book below peers, and the domestic branch network is not economically replicable at current returns.',
-      valCase:'Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity supports a justified price-to-book above the current multiple.',
+    { id:'t1', ticker:'MAYBANK', oneLine:'Invented example — not a view on Malayan Banking Berhad: the test is whether a low-cost deposit franchise can sustain a mid-teens return on equity while paying most of it out.',
+      quality:'The test is whether a CASA ratio of 36.5% keeps funding the book below peers, and whether the domestic branch network can be replicated at current returns.',
+      valCase:'Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity, set beside the current price-to-book, is the test this example case would run.',
       catalysts:['Net interest margin stabilising as the rate cycle turns', 'Loan growth returning to nominal GDP', 'Credit costs normalising below the guided range'],
       risks:['Regional credit variance from the Indonesian book', 'Payout near the top of policy leaves less retained capital'],
       conds:[
@@ -25029,9 +25131,9 @@ function seedTheses() {
       horizon:'3–5 years', review:'2026-10-30', conf:'Medium',
       questions:['How much of the margin improvement is structural rather than cyclical?', 'What is the through-cycle credit cost for the Indonesian book?'],
       created:'2026-05-14' },
-    { id:'t2', ticker:'AXREIT', oneLine:'Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.',
-      quality:'Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.',
-      valCase:'Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price.',
+    { id:'t2', ticker:'AXREIT', oneLine:'Invented example — not a view on Axis Real Estate Investment Trust: the test is whether industrial rent reversion outruns unit issuance — distribution per unit, not total distributions.',
+      quality:'Logistics demand and rent reversion are the evidence this example case would check. The assets themselves are replicable, so its moat rating would be set low.',
+      valCase:'A distribution discount model on a 2% growth assumption against a required return near 8%, set beside the current unit price, is the test this example case would run.',
       catalysts:['A full year without a placement', 'Occupancy recovering above 96%'],
       risks:['Continued unit issuance diluting distribution per unit', 'Gearing rising toward the ceiling'],
       conds:[
@@ -25045,6 +25147,28 @@ function seedTheses() {
   ];
 }
 if (!State.theses) { State.theses = seedTheses(); store.write('theses', State.theses); }
+/* The seeded cases once stated conclusions about two named companies in the
+   product's voice ("supports a justified price-to-book above the current
+   multiple"). They now open "Invented example — not a view on <company>:" and
+   word each conclusion as the test the case would run (owner decision, 21 Oct
+   2026; the 20 Oct sweep, copy-equities-17). A browser that stored the earlier
+   wording gets the new, but only where a field is still exactly the seeded
+   text, so a case a reader has edited or made is never touched. */
+const SEED_WORDING_BEFORE = {
+  t1: { oneLine: "A low-cost deposit franchise that should sustain a mid-teens return on equity while paying most of it out.",
+    quality: "CASA of 36.5% funds the book below peers, and the domestic branch network is not economically replicable at current returns.",
+    valCase: "Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity supports a justified price-to-book above the current multiple." },
+  t2: { oneLine: "Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.",
+    quality: "Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.",
+    valCase: "Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price." },
+};
+(function refreshSeedWording() {
+  let changed = false;
+  const now = Object.fromEntries(seedTheses().map(t => [t.id, t]));
+  State.theses.forEach(t => { const before = SEED_WORDING_BEFORE[t?.id];
+    if (before) for (const k of Object.keys(before)) if (t[k] === before[k] && now[t.id]) { t[k] = now[t.id][k]; changed = true; } });
+  if (changed) store.write('theses', State.theses);
+})();
 
 function saveTheses() { store.write('theses', State.theses); }
 
@@ -25615,7 +25739,7 @@ VIEWS.thesis = () => {
   /* The one head (pageHead, 36-layouts.js), under My workspace's header. */
   wrap.append(pageHead({ title: 'What you believe, and what would prove you wrong', lede: 'Your investment cases, each checked against the latest data held.',
     note: 'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.',
-    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }) }));
+    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New case from a screen` }) }));
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
   appendSampleBanner(wrap);
@@ -25639,7 +25763,7 @@ VIEWS.thesis = () => {
      every thesis has one — a new thesis starts without. */
   const covered = State.watchlist.filter(id => State.theses.some(t => t.ticker === id)).length;
   const linked = State.theses.filter(t => t.runRef).length;
-  [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
+  [['Open cases', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
    ['Reviews due within 30 days', String(dueSoon), 'Overdue included. Review discipline is scored, not returns'],
    ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
@@ -25737,7 +25861,7 @@ function fyAlignment(rows) {
   const same = labels.length === 1;
   const ends = known.map((x, i) => (i && same ? `${x.tk}’s ends ${FY_MONTHS[x.month]}` : `${x.tk}’s FY${x.fy} ends ${FY_MONTHS[x.month]}`));
   const notHeld = !unknown.length ? ''
-    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the shipped statements predate the ingest that records it — so ${known.length
+    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the statements held were stored before it was recorded — so ${known.length
       ? `${unknown.length === 1 ? 'that column' : 'those columns'} cannot be placed against the others`
       : `whether ${same ? `these FY${labels[0]} columns` : 'these columns'} cover the same twelve months cannot be checked here`}.`;
   if (known.length >= 2 && months.size > 1)
@@ -26159,7 +26283,7 @@ VIEWS.compare = () => {
     el('p', { class: 'body', style: 'flex:1 1 320px;font-size:13px;margin:0' }, pack.why),
   ]));
   if (pack.id === 'general' && kinds.length > 1) packNote.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `The selection mixes ${kinds.join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
+    `The selection mixes ${kinds.map(archetypeName).join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
   wrap.append(packNote);
 
   /* Totals in the chosen currency, converted at the rate the chip above
@@ -26214,7 +26338,7 @@ VIEWS.compare = () => {
   const METRIC_ROWS = [
     ['Price', r => isNum(r.c.px?.p) ? fmtMoney(r.c.px.p, r.c.ccy) : absentCell('needs a price', NO_PRICE)],
     ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy), 'mcap'],
-    ['Business model', r => r.c.type],
+    ['Business model', r => archetypeName(r.c.type)],
     /* Which twelve months, and under which standard — so a column is read as
        what it is before any figure in it is compared. Where the filed
        columns' latest years differ, whether this is the company's latest. */
@@ -26262,7 +26386,7 @@ VIEWS.compare = () => {
     el('p', { class: 'metaline', style: 'flex:1 1 260px;margin:0' },
       `Kept in this browser only, with the model and data versions and every cell as it reads now, so reopening it shows what has moved. ${nSaved ? `${nSaved} saved so far.` : ''}`),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
-      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Workspace'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Saved work'),
   ]));
   wrap.append(saveBar);
 
@@ -26342,7 +26466,7 @@ VIEWS.compare = () => {
      a common year the chart says it does not. */
   const chartYears = yrs.mode === 'common' && shown.some(r => r.c.asAt)
     ? ` Each company’s latest year, against a price held now — not FY${yrs.common}.` : '';
-  mx.append(cardHead('Quality against valuation', `Same axes as the Value Radar, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
+  mx.append(cardHead('Quality against valuation', `Same axes as the Quality vs Value Map, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
   const host = el('div', { style: 'width:100%' });
   mx.append(host);
   mx.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -26631,7 +26755,7 @@ VIEWS.portfolio = () => {
                      : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
       tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text', ...(totalCost ? PK : { kind: 'unavailable', fine: 'No priced holding' }) })));
   const withThesis = pos.filter(p => p.thesis);
-  tiles.append(el('div', { class: 'card' }, statTile('Covered by a thesis', `${withThesis.length}/${pos.length}`,
+  tiles.append(el('div', { class: 'card' }, statTile('Covered by a case', `${withThesis.length}/${pos.length}`,
     { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—', ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Transaction costs paid', fmtAmount(feeTotal, State.baseCcy),
     { sub: 'Fees net of rebates, included in the cost base', ...PK })));
@@ -26709,15 +26833,17 @@ VIEWS.portfolio = () => {
        missing from (WS-06, equity-test) — not said once for both. */
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
+    /* A business model by its name, not its key (copy-equities-20). */
+    const nameOf = label === 'Business-model exposure' ? archetypeName : (x => x);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
        is pre-rendered, and a served page must match its render on Linux and Windows. */
-    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: k })));
+    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: nameOf(k) })));
     card.append(bar);
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
       el('span', { class: 'legend-key', style: `background:var(${SERIES[i % 8]})` }),
-      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, k),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, nameOf(k)),
       el('span', { class: 'spacer' }),
       el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtPct(v / totalVal * 100, 1)),
     ])));
@@ -27844,7 +27970,7 @@ function hiwWheelCard() {
 /* The Trading Index on the specification's published example. */
 function hiwTradingCard() {
   const qr = qttiRun(qttiWorkedExample());
-  return pubProofCard('QT Trading Index', 'worked example §14', [
+  return pubProofCard('QT Trading Index', 'worked example', [
     ['Trend regime', String(qr.regime)],
     ['Tranche ready', String(qr.tranche), '--dn-text'],
     ['Screenshot conf.', String(qr.confidence)],
@@ -28638,7 +28764,7 @@ VIEWS.userdata = () => {
   const sw = el('div', { class: 'card' });
   /* None is said as none, not as a nought (D12's rule, on My Workspace's
      pages since they are served pre-rendered: the 9 Oct 2026 audit, #7). */
-  sw.append(cardHead(recs.length ? `Saved work — ${recs.length}` : 'Saved work — none yet',
+  sw.append(cardHead(recs.length ? `Tool snapshots — ${recs.length}` : 'Tool snapshots — none yet',
     recs.length ? 'Named snapshots you took inside the tools. Each carries the model version and data date it was taken against.'
                 : 'Nothing saved yet. The Property, Cash Wheel and Trading Index tools each have a Save control.',
     /* The tools' snapshots are one kind of saved thing among five; the
@@ -28646,7 +28772,7 @@ VIEWS.userdata = () => {
        moved. */
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
       onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } },
-      'Everything saved, in the Workspace')));
+      'Everything saved, in Saved work')));
   if (recs.length) {
     const tw2 = el('div', { class: 'tablewrap' });
     const t2 = el('table', { class: 'dt' });
@@ -28893,7 +29019,7 @@ VIEWS.watchlists = () => {
      above it, the one page of the four that looked like a different
      product. */
   wrap.append(pageHead({ title: 'Watchlists', lede: 'Companies you follow, in lists of your own.',
-    note: 'Adding one here does not imply a view on it — it decides what the daily change feed covers, and a list can be handed to the scanner as its universe.' }));
+    note: 'Adding one here does not imply a view on it — it decides which companies the What changed list shows first, and a list can be handed to the scanner as its universe.' }));
   appendSampleBanner(wrap);
   const lists = Array.isArray(State.watchlists) ? State.watchlists : [];
   /* A control of the page drawn again, by its label — where focus goes when
@@ -29917,7 +30043,7 @@ VIEWS.workspace = () => {
     el('span', { class: 'chip' }, 'No account, no sync, no sharing'),
   ]));
   lim.append(el('p', { class: 'body', style: 'font-size:13px;max-width:72ch' },
-    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (this build: ${currentDataText()}).`));
+    `Nothing here leaves this device. A cleared browser, private mode or a second machine starts empty; the export on Your data & settings is the only copy that travels, and it carries every kind listed here. “Model moved” means the arithmetic has changed since the item was saved (now ${MODEL_VERSION}); “Data moved” means the statements under it are not the ones it was built on (this build: ${currentDataText()}).`));
   lim.append(el('a', { class: 'btn btn-ghost btn-sm', style: 'margin-top:var(--sm)', href: href('/my/data'),
     onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/data'); } },
     'Export or restore everything'));
@@ -29939,6 +30065,7 @@ VIEWS.workspace = () => {
      filter" over two saved cases. The filter goes back to All. */
   if (W.kind !== 'all' && !counts[W.kind]) W.kind = 'all';
   const moved = all.filter(i => ['model', 'data', 'both'].includes(i.diff.status)).length;
+  const unstamped = all.filter(i => i.diff.status === 'unstamped').length;
   const bar = el('div', { class: 'card ws-filters' });
   const seg = el('div', { class: 'segmented', role: 'group', 'aria-label': 'Show saved items of one kind', style: 'flex-wrap:wrap' });
   [{ id: 'all', label: 'All' }, ...WORKSPACE_KINDS].forEach(k => {
@@ -29963,7 +30090,10 @@ VIEWS.workspace = () => {
   const samplesN = all.filter(i => i.sample).length;
   const samplesSaid = !samplesN ? '' : samplesN === all.length ? (all.length === 1 ? ', a sample — not yours' : ', all samples — not yours') : `, ${samplesN} of them sample${samplesN === 1 ? '' : 's'} — not yours`;
   bar.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : '; none saved under a model or data version this build has since replaced'}.`));
+    `${all.length} saved item${all.length === 1 ? '' : 's'}${samplesSaid}${moved ? `; ${moved} saved under a model or data version this build no longer carries` : ''}${unstamped ? `; ${unstamped} saved before version stamping, so whether the data under ${unstamped === 1 ? 'it' : 'them'} has moved cannot be said` : ''}${moved || unstamped ? '' : '; none saved under a model or data version this build has since replaced'}.`));
+  /* The summary counted only the stamped items, so one saved before stamping
+     read as current while its row said it cannot be told (the 20 Oct 2026
+     sweep, copy-equities-25). */
   wrap.append(bar);
 
   const needle = W.q.trim().toLowerCase();
@@ -31532,7 +31662,7 @@ VIEWS.alerts = () => {
       b.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:6px' }, [
         el('span', { class: 'metaline' }, a.source),
         el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(a.id) }, 'Open evidence'),
-        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review thesis'),
+        el('button', { class: 'btn btn-quiet btn-sm', onclick: () => go('thesis') }, 'Review case'),
       ]));
       item.append(b);
       l.append(item);
@@ -31557,7 +31687,7 @@ VIEWS.alerts = () => {
        My Workspace's pages since they are served pre-rendered: the 9 Oct
        2026 audit, #7). */
     pac.append(cardHead(`Price alerts — ${ownAlertCount() ? `${ownAlertCount()}/${LIMITS.priceAlerts}` : `none of your own yet, ${LIMITS.priceAlerts} on this plan`}${samplePA ? ` · ${samplePA} sample${samplePA === 1 ? '' : 's'}` : ''}`,
-      'Research alerts you set yourself: thresholds that fire on price alone, which is why they are the one alert type off by default in the list below.',
+      'Research alerts you set yourself: thresholds that fire on price alone, which is why Price move is off by default in the list below.',
       el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openPriceAlertEditor(), html: `${icon('plus', 13)} Add` })));
     if (!State.priceAlerts.length) pac.append(el('p', { class: 'caption' }, 'No price alerts set.'));
     const pal = el('div', { style: 'display:flex;flex-direction:column' });
@@ -42854,7 +42984,7 @@ VIEWS.sarawak = () => {
     roster.append(el('p', { class: 'metaline', style: 'margin-top:10px' },
       anyHistory
         ? 'The price columns are computed from closes held in this browser. They are not licensed market data, are not redistributed, and no price ships with this site.'
-        : 'No price history is loaded, so the price columns are empty. This site ships none: the closes it could ship are not licensed for it to redistribute. Your own are a different question — paste them under Your data and every column here fills in.'));
+        : 'No price history is loaded, so the price columns are empty. This site ships none: the closes it could ship are not licensed for it to redistribute. Your own are a different question — paste them under Your data & settings and the price columns fill in.'));
     roster.append(el('p', { class: 'metaline', style: 'margin-top:4px' },
       '"Financial statements: none held" is the honest state of every row. Bursa Malaysia publishes no machine-readable statements this product can reach, so no valuation, scorecard or coverage figure is offered for any of these companies.'));
     if (!anyHistory) roster.append(el('a', { class: 'btn btn-sm', style: 'margin-top:10px', href: href('/my/data'),
@@ -42919,7 +43049,7 @@ VIEWS.sarawak = () => {
   queueMicrotask(syncTheme);
   add.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     swkCands.length
-      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from the instrument registry, which carries their name, listing code and price — not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
+      ? `${swkCands.length} companies with Sarawak operations are listed first. They are identified from the instrument registry, which carries their name and listing code — not a price, not their financial statements, and not their exposure. Both of those are still research, and the fields below are where it goes.`
       : 'No company has been flagged as having Sarawak operations in the instrument registry.'));
   wrap.append(add);
 
@@ -46902,6 +47032,7 @@ function rentVersusBuyPanel(d, m) {
        reader saying the words on screen reached nothing (WCAG 2.5.3). */
     /* renderKeepFocus, for the reason the demand selects above use it. */
     onchange: e => { State.deal.ownUseWeeks = Number(e.target.value) || 0; saveDeal(); renderKeepFocus(); } }));
+  f.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, 'Used here only: every other figure assumes no own use.'));
   card.append(f);
 
   const r = rentVersusBuy(d, m, weeks > 0 ? weeks : null);
@@ -46924,8 +47055,7 @@ function rentVersusBuyPanel(d, m) {
   card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:6px' }, r.why));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Classifying a purchase as consumption is not a judgement about whether to make it. People buy things they enjoy, and that is a '
-    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns, '
-    + 'and every figure elsewhere in this report would inherit that.'));
+    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns.'));
   return card;
 }
 
@@ -46937,7 +47067,7 @@ VIEWS.ips = () => {
     el('h1', {}, 'Investment Policy Statement'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'The governing document. Everything this product computes is an execution of what is written here, and where the two '
-      + 'ever disagree, this page is what is wrong — not the code.'),
+      + 'ever disagree, that is a defect — report it under Corrections.'),
     el('p', { class: 'metaline', style: 'margin-top:6px' }, IPS_VERSION),
   ])));
 
@@ -47063,7 +47193,7 @@ VIEWS.ips = () => {
       const ul = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
       [
         'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC transaction data can be sourced and analysed; record-level republication is licence-pending, and the data-sources page lists the seven permissions still to be confirmed.',
-        'IPS §5 — the equity engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
+        'IPS §5 — the engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
         'IPS §7 — cross-asset comparison of after-cost risk-adjusted forward return is not built.',
         'IPS §9 — portfolio-level correlation, concentration and stress testing across positions is not built.',
         'IPS §6.2 — the mortgage stress test here uses three percentage points, not the one point the IPS specifies. The more conservative figure was already in place and has been kept; this is a deliberate departure and not an oversight.',
@@ -48027,7 +48157,7 @@ VIEWS.wheel = () => {
 
     /* Downside scenarios. */
     const sc = el('div', { class: 'card' });
-    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.', null, WK));
+    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at each move below.', null, WK));
     const st = el('table', { class: 'dt' });
     st.append(el('thead', {}, el('tr', {}, ['Underlying move', 'Price at expiry', 'Put result'].map(h => el('th', {}, h)))));
     const stb = el('tbody');
@@ -55551,7 +55681,7 @@ VIEWS.tradingIndex = () => {
     const x = r.tfs[tf.k];
     const done = QTTI_GROUPS.filter(g => qttiCell(p.timeframes?.[tf.k]?.[g.k]).known).length;
     c.append(cardHead(`${tf.label} panel (${tf.tf})`,
-      `${tf.why} Needs about ${tf.minBars} completed bars visible. Score: ${Math.round(x.score)}, coverage ${fmtPct(x.coverage * 100, 0)}.`,
+      `${tf.why} Needs about ${tf.minBars} completed bars visible. ${x.coverage > 0 ? `Score: ${Math.round(x.score)}, coverage ${fmtPct(x.coverage * 100, 0)}.` : 'Score: none yet — nothing recorded.'}`,
       /* The count belongs in the header, where a reader deciding whether to open
          this card can see whether it is worth opening. */
       el('span', { class: done === QTTI_GROUPS.length ? 'chip chip-ok' : 'chip',
@@ -55700,8 +55830,8 @@ VIEWS.tradingIndex = () => {
 
   /* ---------- fixture + boundary ---------- */
   const tools = el('div', { class: 'card' });
-  tools.append(cardHead('Check this against the specification',
-    'Loads §14 — the worked BTC/USDC perpetual example — with its published evidence. It should return 38, 35 and 77.'));
+  tools.append(cardHead('Try the worked example',
+    'Loads a worked BTC/USDC perpetual example with its recorded evidence.'));
   tools.append(el('div', { class: 'row row-wrap', style: 'gap:8px;margin-top:8px' }, [
     /* The fixture replaces the evidence, not the history. Assigning it
        outright emptied the append-only correction log — a reader who had
@@ -55711,9 +55841,9 @@ VIEWS.tradingIndex = () => {
     /* Quiet: the save above is the page's one primary action (E4). */
     el('button', { class: 'btn btn-quiet btn-sm', id: 'q-load-worked', onclick: () => {
       const next = qttiWorkedExample();
-      next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the §14 worked example' }).corrections;
+      next.corrections = qttiClearedPlan(State.qtti, { keepRules: false, as: 'replaced by the worked example' }).corrections;
       State.qtti = next; save(); toast('Worked example loaded');
-    } }, 'Load the §14 worked example'),
+    } }, 'Load the worked example'),
     el('button', { class: 'btn btn-quiet btn-sm', id: 'q-clear-evidence', onclick: () => {
       State.qtti = qttiClearedPlan(State.qtti, { keepRules: true });
       save(); toast('Evidence cleared — your template and capital rules are kept');
@@ -55725,7 +55855,7 @@ VIEWS.tradingIndex = () => {
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
     el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page; it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
-    el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs the point-in-time backtesting of §20, which this build cannot run without licensed history.'),
+    el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs point-in-time backtesting on licensed price history, which is not available here.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),
     el('li', {}, 'A low regime score is not a short signal. A short needs its own borrow, derivative, liquidity and approval gate.'),
@@ -57499,11 +57629,11 @@ function scanBoundaryDetails() {
   const det = el('details', { class: 'card scan-boundary' });
   det.append(el('summary', { class: 'h-card' }, 'What this will and will not do'));
   det.append(el('ul', { class: 'ticklist', style: 'margin-top:var(--sm)' }, [
-    el('li', {}, 'It reads only your own price history — data/price-history.json, built from your screen or your export under your subscription. No feed is licensed to this product, so no other data is scanned and none of this is offered to anyone else.'),
+    el('li', {}, 'It reads only your own price history, built from your screen or your export under your subscription. No feed is licensed to this product, so no other data is scanned and none of this is offered to anyone else.'),
     el('li', {}, 'A match is a record that the conditions you wrote held on a completed bar, with the values. It is not a signal, and no indicator here has been validated on point-in-time data, so none is claimed to work.'),
     el('li', {}, 'Nothing is ranked or sorted by strength. Matches appear in date order, then in the order of your setups and your instruments.'),
     el('li', {}, 'Nothing is delivered. The worker writes a file; these pages read it. Email, Telegram and push need a server and a contact address held under a privacy notice, and this build has neither.'),
-    el('li', {}, 'Setups are kept in this browser and in git-ignored files on this machine. That is not access control: there are no accounts, and anyone with this machine or browser profile can read them.'),
+    el('li', {}, 'Setups are kept in this browser and in files on this machine. That is not access control: there are no accounts, and anyone with this machine or browser profile can read them.'),
     /* It said weekly and monthly bars were "derived from" the daily ones
        after the engine had begun reading the reader's imported weeks and
        months wherever the history holds them (scanFrameBars). */
@@ -57587,7 +57717,7 @@ VIEWS.scannerSetups = () => {
     e.append(el('h2', { class: 'h-card' }, 'No setups saved in this browser'));
     e.append(el('p', { class: 'body', style: 'margin:6px auto 0' }, fileOnly.length
       ? `The worker’s file holds ${scanPlural(fileOnly.length, 'setup')} this browser has not adopted. Adopt them above to see their versions here and edit them in the builder, or write a new one.`
-      : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales. A committed example of the file is at scanner/setups.example.json.'));
+      : 'Write a setup from conditions you choose — the builder offers every indicator and operator the engine evaluates, and refuses a comparison of two unrelated scales.'));
     /* One primary action on the page (Release B, B5): the head's "New setup"
        is it, and this, the same address, stays quiet beside the words. */
     e.append(el('div', { class: 'row row-wrap', style: 'gap:8px;justify-content:center;margin-top:var(--md)' }, scanLink('/app/scanner/setups/new', 'Write a setup', { class: 'btn btn-ghost btn-sm' })));
@@ -58613,7 +58743,7 @@ VIEWS.scannerWatchlists = () => {
       el('button', { class: 'btn btn-ghost btn-sm', 'aria-label': 'Export for the scanner (watchlists.json)', onclick: () => {
         scanExportWatchlists(); toast('Exported — save it as data/watchlists.json on the machine the worker runs on'); scanRender();
       } }, 'Export for the scanner')));
-    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json (git-ignored) where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
+    xc.append(el('p', { class: 'metaline', style: 'max-width:80ch' }, 'Save the download as data/watchlists.json where the worker runs. A setup set to resolve from your latest export reads its list from that file at every run; the worker cannot read this browser, so the list it sees is the one you last exported, and a setup whose list is not in the file is evaluated on its own snapshot and the run marked partial. Setups on a snapshot never read the file.'));
     wrap.append(xc);
   }
   const history = scanHistoryFile;
@@ -59337,7 +59467,7 @@ VIEWS.scannerAlert = () => {
    /app/scanner/settings
    ===================================================================== */
 const SCAN_CHANNELS = [
-  { id: 'EMAIL', label: 'Email', why: 'No server, and no contact address is held under a privacy notice. Delivery by email waits on an operating entity and a backend.' },
+  { id: 'EMAIL', label: 'Email', why: 'No server, and no contact address is held under a privacy notice. Email delivery is not available.' },
   { id: 'TELEGRAM', label: 'Telegram', why: 'A Telegram bot token has to live on a server, and there is none.' },
   { id: 'PUSH', label: 'Push', why: 'Push needs a push service and a live scanner; neither exists in this build.' },
 ];
@@ -59401,7 +59531,7 @@ VIEWS.scannerSettings = () => {
   g.append(pick('Recorded values', prefs.precision, [['full', 'As computed — twelve significant digits'], ['rounded', 'Rounded as the tables round']], 'precision'));
   c2.append(g);
   wrap.append(c2);
-  wrap.append(el('p', { class: 'caption' }, 'Kept under scanPrefs, scanAlertState and scanSetups in this browser’s storage, and carried by the export on the Your data page. A second device keeps its own.'));
+  wrap.append(el('p', { class: 'caption' }, 'Kept in this browser’s storage, and carried by the export on Your data & settings. A second device keeps its own.'));
   return wrap;
 };
 /* ==========================================================================
@@ -60351,7 +60481,7 @@ VIEWS.scannerMarket = () => {
     ...mk.list.map(m => el('option', { value: m.market, selected: S.market === m.market ? '' : null }, `${m.market}${m.label ? ` — ${m.label}` : ''} (${m.series} of your series)`)),
   ]);
   g.append(el('div', { class: 'field' }, [el('label', { for: 'scan-market-pick' }, 'Market'), msel,
-    el('p', { class: 'metaline' }, `Markets as the instrument registry (data/instruments.json) places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
+    el('p', { class: 'metaline' }, `Markets as the instrument registry places your series, alphabetically.${mk.unplaced ? ` ${scanOpsPlural(mk.unplaced, 'series', 'series')} with no registry row can be screened only under “everything”.` : ''}`)]));
   /* A replay is of a session that has happened: the worker refuses an
      --as-of after today, and so does the screen (below). */
   const today = scanOpsNow().slice(0, 10);
@@ -60507,7 +60637,7 @@ VIEWS.scannerBacktest = () => {
   const sim = el('section', { class: 'scan-sim', role: 'note', 'aria-label': 'This is a simulation' }, [
     el('p', { class: 'scan-notice-hd' }, [el('span', { class: 'chip chip-bronze' }, 'Simulation'), el('strong', {}, 'A simulation of when the conditions held — not a backtest of performance.')]),
     el('p', {}, SCAN_SIMULATION_NOTE),
-    el('p', { class: 'scan-lookahead' }, 'No look-ahead: the row for a bar is computed from the bars up to and including that bar, never from any bar after it. The checks evaluate every bar both ways — on the full history and on the history cut at that bar — and fail if a single row differs.'),
+    el('p', { class: 'scan-lookahead' }, 'No look-ahead: the row for a bar is computed from the bars up to and including that bar, never from any bar after it.'),
   ]);
   wrap.append(sim);
 
