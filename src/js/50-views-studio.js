@@ -1246,7 +1246,7 @@ function evaluateThesis(t) {
                  ("Review against today's research"). Values, not functions;
                  a figure the page did not have is null, never a number. A
                  case with none reads "Saved before snapshots". */
-const CASE_DRAFT_LINE = 'Draft created in this browser. Review every assumption before treating this as your case.';
+const CASE_DRAFT_LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
 const SUGGESTED_MARK = 'Suggested default — not yet confirmed by you.';
 const SUGGESTED_FIELDS = [['review', 'Next review date'], ['horizon', 'Intended holding horizon'], ['conf', 'Confidence']];
 /* Still the tool's: only a flag that is true. false is confirmed; absent is a
@@ -1261,8 +1261,13 @@ function settleSuggested(t, k) { if (isRecord(t.suggested) && t.suggested[k] ===
 /* Every figure the case page and the company page draw from, as they stand
    now, for the snapshot to keep and for the case to be set beside. Each comes
    from the page's own function; no score, weight or threshold is touched. */
-function caseSnapshot(r) {
+function caseSnapshot(r, t = null) {
   const c = r.c;
+  /* Each default's confirmation as the case holds it: 'suggested' until the
+     reader confirms or changes it, 'confirmed' after, and null where the case
+     does not track it (a case from before the flags, or none given). */
+  const stateOf = (flag) => flag === true ? 'suggested' : flag === false ? 'confirmed' : null;
+  const fy = latestFy(c);
   const num = (v) => isNum(v) ? v : null;
   const rc = researchComposite(r);
   const lens = strategyLens(r);
@@ -1293,6 +1298,12 @@ function caseSnapshot(r) {
       conf: priced ? num(v.conf) : null, confBand: priced ? (v.confBand ?? null) : null,
     },
     edits: over,
+    /* What the figures rest on: the methodology and model version, and the
+       dates of the statements and the price. */
+    methodology: { version: MODEL_VERSION, valuationModel: v.pack?.name ?? null, valuationModelId: v.pack?.id ?? null },
+    sources: { retrieved: c.retrieved ?? null, fy: num(fy), fyEnd: (num(fy) !== null ? fyEndOf(c, fy) : null) ?? null, priceAsOf: c.px?.asOf ?? null },
+    defaults: { review: stateOf(t?.suggested?.review), horizon: stateOf(t?.suggested?.horizon), conf: stateOf(t?.suggested?.conf),
+      conditions: (Array.isArray(t?.conds) ? t.conds : []).map(cd => stateOf(isRecord(cd) ? cd.suggested : undefined)) },
   }));
 }
 
@@ -1316,8 +1327,8 @@ function addToThesis(id) {
        was written against is worth keeping: the workspace can then say the
        model or the statements have moved under it. */
     stamp: buildStamp(r.c),
-    snapshot: caseSnapshot(r),
   };
+  made.snapshot = caseSnapshot(r, made);
   State.theses = [...State.theses, made];
   saveTheses();
   go('thesis');
@@ -1396,6 +1407,26 @@ function snapshotRows(s, r) {
   return rows;
 }
 
+/* What a snapshot was taken against, in words: the dates of the statements and
+   the price, the valuation model, and each default's state when it was saved.
+   A snapshot from before these were kept says nothing of them. */
+function savedWith(s) {
+  const bits = [];
+  const src = isRecord(s.sources) ? s.sources : null;
+  if (src) {
+    bits.push(src.retrieved ? `Statements retrieved ${src.retrieved}` : 'Statements retrieval date not held');
+    if (isNum(src.fy)) bits.push(`FY${src.fy}${src.fyEnd ? ` ended ${src.fyEnd}` : ''}`);
+    bits.push(src.priceAsOf ? `Price as of ${src.priceAsOf}` : 'No price');
+  }
+  if (isRecord(s.methodology) && s.methodology.valuationModel) bits.push(`Valuation model: ${s.methodology.valuationModel}`);
+  const d = isRecord(s.defaults) ? s.defaults : null;
+  if (d) {
+    const named = [['review date', d.review], ['horizon', d.horizon], ['confidence', d.conf], ...(Array.isArray(d.conditions) ? d.conditions : []).map((x, i) => [`condition ${i + 1}`, x])].filter(([, x]) => x);
+    if (named.length) bits.push(`When saved: ${named.map(([k, x]) => `${k} ${x}`).join(', ')}`);
+  }
+  return bits.join(' · ');
+}
+
 /* The case card's research record: what was saved, under which versions, and
    how today's research reads beside it. */
 function researchRecord(t, r) {
@@ -1405,7 +1436,7 @@ function researchRecord(t, r) {
   const retake = () => {
     const co = BY_ID.get(t.ticker);
     if (!co) return;
-    t.snapshot = caseSnapshot(co); saveTheses(); render();
+    t.snapshot = caseSnapshot(co, t); saveTheses(); render();
     document.getElementById(`case-review-${t.id}`)?.focus({ preventScroll: true });
     toast('Saved research replaced with today’s');
   };
@@ -1446,6 +1477,8 @@ function researchRecord(t, r) {
     });
     tab.append(tb);
     det.append(el('div', { class: 'tablewrap' }, tab));
+    const said = savedWith(snap);
+    if (said) det.append(el('p', { class: 'caption case-saved-with' }, said));
     box.append(det);
   }
   const a = action(); if (a) box.append(a);

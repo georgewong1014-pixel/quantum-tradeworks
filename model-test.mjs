@@ -9449,8 +9449,9 @@ try {
      through the company page's own button, in this browser's own profile,
      and everything it found put back:
      - the button reads "Start a research case", opens My investment cases
-       and toasts "Draft created in this browser. Review every assumption
-       before treating this as your case."; the draft line is on the case;
+       and toasts "Draft created in this browser. Review the suggested
+       assumptions before treating this as your research case."; the draft
+       line is on the case;
      - the review date, the horizon, the confidence and the condition the
        tool added are marked "Suggested default — not yet confirmed by you."
        and the condition is awaiting (no price), never counted as passing,
@@ -9484,7 +9485,7 @@ try {
       for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vl.')) own[k] = localStorage.getItem(k); }
       const out = { own, keepTheses: JSON.stringify(State.theses), keepQtti: JSON.stringify(State.qtti), problems: [] };
       const text = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : '');
-      const parts = (cid) => { const r = document.getElementById('thesis-record-' + cid); return r ? { head: text(r.querySelector('h4')), meta: text(r.querySelector('.metaline')), after: text(r.querySelector('.metaline + .caption')), cap: text(r.querySelector('.case-review .caption')), summary: text(r.querySelector('summary')), btn: text(r.querySelector('.case-review-btn')), chip: text(r.querySelector('.metaline .chip')), movedRows: [...r.querySelectorAll('tr.case-moved td:first-child')].map(text) } : null; };
+      const parts = (cid) => { const r = document.getElementById('thesis-record-' + cid); return r ? { head: text(r.querySelector('h4')), meta: text(r.querySelector('.metaline')), after: text(r.querySelector('.metaline + .caption')), cap: text(r.querySelector('.case-review .caption')), summary: text(r.querySelector('summary')), btn: text(r.querySelector('.case-review-btn')), chip: text(r.querySelector('.metaline .chip')), movedRows: [...r.querySelectorAll('tr.case-moved td:first-child')].map(text), savedWith: text(r.querySelector('.case-saved-with')) } : null; };
       const MARK = 'Suggested default — not yet confirmed by you.';
       try {
         const row = ['AAPL-SEC', 'MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.real && !isNum(x.c.px?.p) && !State.theses.some(t => t.ticker === x.c.id));
@@ -9504,7 +9505,7 @@ try {
         const card = () => document.getElementById('thesis-card-' + cid);
         const box = () => document.getElementById('thesis-draft-' + cid);
         out.line = text(box()?.querySelector('.case-draft-line'));
-        const q = box()?.getBoundingClientRect();
+        const q = box()?.querySelector('.case-draft-line')?.getBoundingClientRect();
         out.lineInSight = !!q && q.top >= 0 && q.bottom <= innerHeight;
         out.suggested0 = JSON.parse(JSON.stringify(t.suggested || null));
         out.cond0 = JSON.parse(JSON.stringify(t.conds));
@@ -9520,6 +9521,7 @@ try {
         out.nowComposite = (() => { const rc = researchComposite(row); return { score: rc.score, classified: rc.classified, testedWeight: rc.testedWeight, pillars: rc.parts.map(p => isNum(p.score) ? p.score : null), gates: rc.gates.map(g => g.state) }; })();
         out.nowLenses = strategyLens(row).fits.map(f => [f.key, f.score]);
         out.nowScores = Object.fromEntries(['quality', 'growth', 'strength', 'capital', 'value'].map(k => [k, row.scores[k]?.score ?? null]));
+        out.nowSources = { retrieved: row.c.retrieved ?? null, fy: latestFy(row.c), fyEnd: fyEndOf(row.c, latestFy(row.c)) ?? null, priceAsOf: row.c.px?.asOf ?? null, model: MODEL_VERSION, pack: row.val.pack?.name ?? null, packId: row.val.pack?.id ?? null };
         out.nowVal = { base: row.val.vals?.base ?? null, bear: row.val.vals?.bear ?? null, bull: row.val.vals?.bull ?? null, conf: row.val.conf, band: row.val.confBand, tier: coverageTier(row).label };
 
         /* Confirm one (the review date, by its button) */
@@ -9558,7 +9560,7 @@ try {
         out.assumptionWhileMoved = kept();
         document.querySelector('#thesis-record-' + cid + ' .case-review-btn').click(); await w(400);
         const t2 = State.theses.find(x => x.id === cid);
-        out.retaken = { at: t2.snapshot.at, score: t2.snapshot.composite.score, model: t2.snapshot.stamp.model, edits: JSON.parse(JSON.stringify(t2.snapshot.edits)), suggested: JSON.parse(JSON.stringify(t2.suggested)), conds: JSON.parse(JSON.stringify(t2.conds)) };
+        out.retaken = { defaults: JSON.parse(JSON.stringify(t2.snapshot.defaults)), at: t2.snapshot.at, score: t2.snapshot.composite.score, model: t2.snapshot.stamp.model, edits: JSON.parse(JSON.stringify(t2.snapshot.edits)), suggested: JSON.parse(JSON.stringify(t2.suggested)), conds: JSON.parse(JSON.stringify(t2.conds)) };
         out.nowComposite2 = researchComposite(row).score;
         out.recordAfter = parts(cid);
         out.assumptionAfter = kept();
@@ -9626,6 +9628,27 @@ try {
         navigate('/my/workspace'); await w(400);
         out.sampleRow = text([...document.querySelectorAll('.ws-list .ws-row')].find(x => /Investment case/.test(x.textContent)));
 
+        /* a company with little to go on: the case is made without a throw, and what is missing is null, not a number */
+        const thin = U.filter(x => x.c.real && !State.theses.some(y => y.ticker === x.c.id)).sort((a, b) => (a.m.coverage ?? 0) - (b.m.coverage ?? 0))[0];
+        const noModel = U.find(x => x.c.real && x.inputs.model === 'unavailable' && !State.theses.some(y => y.ticker === x.c.id));
+        out.missing = [];
+        for (const m of [thin, noModel].filter(Boolean)) {
+          const rec = { id: m.c.id, threw: null };
+          try {
+            addToThesis(m.c.id); await w(300);
+            const mt = State.theses.find(y => y.ticker === m.c.id);
+            const sn = mt.snapshot;
+            rec.coverage = sn.composite.dataCompleteness; rec.base = sn.valuation.base; rec.conf = sn.valuation.conf; rec.confBand = sn.valuation.confBand;
+            rec.nullPillars = sn.composite.pillars.filter(x => x.score === null).length; rec.zeroPillars = sn.composite.pillars.filter(x => x.score === 0).length + sn.scorecard.filter(x => x.score === 0).length;
+            rec.noNaN = !/undefined|NaN|Infinity/.test(JSON.stringify(sn));
+            rec.rendered = /^Research when saved, /.test(parts(mt.id)?.head || '');
+            rec.cond = evaluateThesis(mt).ok.map(c => conditionState(c).label);
+            rec.suggested = JSON.parse(JSON.stringify(sn.defaults));
+            rec.errorModel = !!m.val.err;
+            State.theses = State.theses.filter(y => y.id !== mt.id); saveTheses();
+          } catch (e) { rec.threw = String(e && e.message || e); }
+          out.missing.push(rec);
+        }
         /* a timing workspace entry does not change the research composite */
         const cmp = () => canon({ rc: (() => { const rc = researchComposite(row); return { score: rc.score, classified: rc.classified, tw: rc.testedWeight, parts: rc.parts.map(p => isNum(p.score) ? p.score : null), gates: rc.gates.map(g => g.state) }; })(), snap: (() => { const s = caseSnapshot(row); return { composite: s.composite, lenses: s.lenses, scorecard: s.scorecard }; })() });
         const c0 = cmp();
@@ -9651,7 +9674,7 @@ try {
     };
     const A = await evaluate(`(${d8a.toString()})()`);
     const p = [...A.problems];
-    const LINE = 'Draft created in this browser. Review every assumption before treating this as your case.';
+    const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
     const MARK = 'Suggested default — not yet confirmed by you.';
     const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
     let B = null;
@@ -9685,6 +9708,10 @@ try {
         if (s.tier.label !== A.nowVal.tier) p.push(`coverage tier ${canon(s.tier)} against ${A.nowVal.tier}`);
         const v = s.valuation;
         if (v.base !== A.nowVal.base || v.bear !== A.nowVal.bear || v.bull !== A.nowVal.bull || v.conf !== A.nowVal.conf || v.confBand !== A.nowVal.band) p.push(`the snapshot's valuation ${canon(v)} is not the page's ${canon(A.nowVal)}`);
+        const ns = A.nowSources;
+        if (canon(s.sources) !== canon({ retrieved: ns.retrieved, fy: ns.fy, fyEnd: ns.fyEnd, priceAsOf: ns.priceAsOf }) || !s.sources.retrieved || s.sources.priceAsOf !== null) p.push(`the snapshot's source dates ${canon(s.sources)} are not the page's ${canon(ns)} (and a filed company with no price has no price date)`);
+        if (canon(s.methodology) !== canon({ version: ns.model, valuationModel: ns.pack, valuationModelId: ns.packId }) || s.stamp.model !== ns.model) p.push(`the snapshot's methodology ${canon(s.methodology)} and model version ${s.stamp.model} are not the page's ${canon(ns)}`);
+        if (canon(s.defaults) !== canon({ review: 'suggested', horizon: 'suggested', conf: 'suggested', conditions: ['suggested'] })) p.push(`the snapshot keeps the defaults' state as ${canon(s.defaults)}, not all suggested`);
         if (s.edits !== null) p.push(`the snapshot of a company with no edited assumption holds ${canon(s.edits)}, not null`);
         if (/undefined|NaN|Infinity/.test(JSON.stringify(s))) p.push('the snapshot holds a value that is not a value');
       }
@@ -9702,6 +9729,8 @@ try {
       if (!mv || mv.btn !== 'Review against today’s research' || !/^Replaces the saved research above with today’s; your assumptions stay.$/.test(mv.cap)) p.push(`"Review against today's research" says ${canon(mv && { btn: mv.btn, cap: mv.cap })}`);
       const rt = A.retaken;
       if (rt.score !== A.nowComposite2 || rt.model === 'metrics 0.0.1 · scores 0.0.1 · valuation 0.0.1' || rt.at === A.snapBefore || !rt.edits || rt.edits[A.editKey] !== A.editedValue || A.assumptionAfter !== A.editedValue) p.push(`the new snapshot holds ${canon(rt)}, today's score being ${A.nowComposite2} and the edit ${A.editKey} ${A.editedValue}`);
+      if (canon(rt.defaults) !== canon({ review: 'confirmed', horizon: 'confirmed', conf: 'suggested', conditions: ['suggested'] })) p.push(`the new snapshot keeps the defaults' state as ${canon(rt.defaults)}, not the review date and horizon confirmed with the confidence and condition suggested`);
+      if (!/When saved: review date confirmed, horizon confirmed, confidence suggested, condition 1 suggested/.test(A.recordAfter && A.recordAfter.savedWith || '') || !/Statements retrieved \d{4}-\d{2}-\d{2} · FY\d{4}/.test(A.recordAfter.savedWith) || !/No price/.test(A.recordAfter.savedWith) || !/Valuation model: /.test(A.recordAfter.savedWith)) p.push(`the record's line of what it was saved against reads "${A.recordAfter && A.recordAfter.savedWith}"`);
       if (canon(rt.suggested) !== canon({ review: false, horizon: false, conf: true }) || rt.conds.length !== 1 || rt.conds[0].suggested !== true) p.push(`taking a new snapshot changed the defaults' state: ${canon({ s: rt.suggested, c: rt.conds })}`);
       if (!A.recordAfter || !/^Beside today’s: none of \d+ moved$/.test(A.recordAfter.summary)) p.push(`after the new snapshot the card says ${canon(A.recordAfter)}`);
       /* a real reload, then the backups */
@@ -9728,13 +9757,18 @@ try {
       if (!o || o.steps[1][1] !== 'Next review 2027-01-19, horizon 3–5 years.' || o.steps[0][1] !== '1 invalidation condition(s), but no investment case written yet.') p.push(`an old case's steps 6 and 7 read ${canon(o && o.steps)}`);
       if (B.sample?.record?.head !== 'Saved before snapshots' || B.sample.button) p.push(`the seeded sample reads ${canon(B.sample)}`);
       if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before stamping/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
+      if (!B.missing || !B.missing.length) p.push('no company with little data was found for the missing-data case');
+      for (const m of B.missing || []) {
+        if (m.threw || !m.noNaN || !m.rendered || m.zeroPillars || (m.errorModel && (m.base !== null || m.conf !== null || m.confBand !== null))) p.push(`a case on ${m.id} (coverage ${m.coverage}%, model unavailable ${m.errorModel}): ${canon(m)}`);
+        if (m.cond.some(x => x !== 'Awaiting update' && x !== 'Data unavailable') || canon(m.suggested.conditions) !== canon(['suggested'])) p.push(`on ${m.id} the condition reads ${canon(m.cond)}, never to pass`);
+      }
       if (!B.timing || !B.timing.entered || !B.timing.same) p.push(`a timing workspace entry ${B.timing && B.timing.entered ? 'changed' : 'was not made, so did not test'} the research composite and the snapshot's figures`);
     }
     const C = await evaluate(`(${d8c.toString()})(${JSON.stringify({ own: A.own, keepTheses: A.keepTheses, keepQtti: A.keepQtti, id: A.id || null })})`);
     p.push(...C.problems);
     if (C.differ?.length || C.extra?.length) p.push(`the browser's own work was not put back: ${canon({ differ: C.differ, extra: C.extra })}`);
     if (p.length) fail('qt-day8-case: a research case is a draft whose defaults are marked suggested until confirmed, keeps the research as it stood, and survives a reload and both backups', p);
-    else ok('qt-day8-case: "Start a research case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged', A.id);
+    else ok('qt-day8-case: "Start a research case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged; the snapshot also keeps each default\'s state, the methodology and model version and the dates of the statements and price, and the company with least data and one with no model start a case with nothing invented', A.id);
   }
   /* ---- end qt-day8-case ---- */
 

@@ -3613,7 +3613,7 @@ const JOURNEYS = [
       'Reopen from Saved work: the research when saved, with its versions'],
     async run(j, tab) {
       const CO = 'AAPL-SEC', MARK = 'Suggested default — not yet confirmed by you.';
-      const LINE = 'Draft created in this browser. Review every assumption before treating this as your case.';
+      const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
       let id = null;
       await step(j, tab, 'Open a filed company', BUDGET.load, async () => {
         await tab.goto('/research');
@@ -3628,7 +3628,7 @@ const JOURNEYS = [
         await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && State.theses.some(t => t.ticker === ${JSON.stringify(CO)})`,
           '“Start a research case” did not open My investment cases with a case on the company');
         id = await tab.eval(`State.theses.find(t => t.ticker === ${JSON.stringify(CO)}).id`);
-        const r = await tab.eval(`(() => { const box = document.getElementById('thesis-draft-' + ${JSON.stringify(id)}); const q = box?.getBoundingClientRect();
+        const r = await tab.eval(`(() => { const box = document.getElementById('thesis-draft-' + ${JSON.stringify(id)}); const q = box?.querySelector('.case-draft-line')?.getBoundingClientRect();
           const card = document.getElementById('thesis-card-' + ${JSON.stringify(id)});
           const cond = card ? [...card.querySelectorAll('table.dt tbody tr')].map(tr => [...tr.cells].map(td => td.textContent.replace(/\\s+/g, ' ').trim())) : [];
           return { toast: document.getElementById('toast')?.textContent || '', line: box?.querySelector('.case-draft-line')?.textContent || null,

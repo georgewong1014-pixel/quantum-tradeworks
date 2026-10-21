@@ -5697,6 +5697,15 @@ for (const w of [360, 390]) {
         }
         if (seen.size < 5) fails.push(`${at} ${path}: the keyboard walk through the card reached only ${seen.size} controls`);
         if (hidden.length) fails.push(`${at} ${path}: ${hidden.length} of ${seen.size} focus stops hidden: ${hidden.slice(0, 4).join('; ')}`);
+        /* Operated by the keyboard alone: Enter on the first Confirm settles its
+           default, and focus is still in the page afterwards. */
+        const nBefore = await ev(`document.querySelectorAll('#${r.id} .case-confirm').length`);
+        const focused = await ev(`(() => { const b = document.querySelector('#${r.id} .case-confirm'); b.focus(); return document.activeElement === b; })()`);
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+        await sleep(500);
+        const key = await ev(`({ n: document.querySelectorAll('#${r.id} .case-confirm').length, focus: !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('main') })`);
+        if (!focused || key.n !== nBefore - 1 || !key.focus) fails.push(`${at} ${path}: Enter on a Confirm left ${key.n} of ${nBefore} Confirm controls, focus kept ${key.focus}`);
         said.push(`${at.replace(' in Verdana', ' V')} ${want === 'theses' ? 'cases' : 'tab'}: ${r.n} controls, ${seen.size} stops`);
       }
     }
