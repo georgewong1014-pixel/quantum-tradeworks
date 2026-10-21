@@ -424,6 +424,34 @@ const store = {
 };
 const STORE_REFUSED = 'Not saved — this browser refused the write (its storage is full or switched off), so nothing was kept.';
 
+/* A RESTORE FROM A FILE IS KEPT WHOLE, OR NOT AT ALL. "Restore from a file"
+   wrote one stored record per kind its file carries, one after the other, and
+   checked none: a browser that refused the third write (its storage full, or
+   switched off part-way) kept the first two from the file and the rest as
+   they were, and the page reloaded into that mixture, saying nothing — the
+   half-merged state the backup's restore (restoreBackup, 15-derivation.js)
+   already refuses to make. A refused write now puts back every record already
+   written, as it was, and the caller says the restore did not happen. Returns
+   { ok:true }, or { ok:false, unrestored }: how many of the records already
+   written could not be put back. */
+function writeAllOrNothing(entries) {
+  const before = [];
+  for (const [k, v] of entries) {
+    let prior = null;
+    try { prior = localStorage.getItem('vl.' + k); } catch { /* storage unreadable: the write below is refused too */ }
+    if (!store.write(k, v)) {
+      let unrestored = 0;
+      before.reverse().forEach(([key, raw]) => {
+        try { if (raw === null) localStorage.removeItem('vl.' + key); else localStorage.setItem('vl.' + key, raw); }
+        catch { unrestored++; }
+      });
+      return { ok:false, unrestored };
+    }
+    before.push([k, prior]);
+  }
+  return { ok:true };
+}
+
 /* EVERYTHING A READER HAS MADE, IN ONE PLACE.
    ---------------------------------------------------------------------------
    All of it lives in this browser's localStorage. A cleared browser, a second
@@ -501,6 +529,11 @@ const PORTABLE_KEYS = [
      (BACKUP_UNCOUNTED). */
   { k:'furthestStep',      label:'How far you have got' },
 ];
+const portableLabel = (k) => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k;
+/* Which of these kinds this browser holds something of: what a restore of a
+   file without them keeps as it is, and names (openRestoreDrawer, 65-learn.js;
+   the backup's restore, 55-views-public.js). */
+const heldKinds = (keys) => keys.filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length > 0); });
 
 /* The format version this build writes, and the highest it reads in full. */
 const EXPORT_VERSION = 1;
@@ -564,7 +597,14 @@ function importEverything(doc) {
   const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
   return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
     model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
-    apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
+    /* Every kind replaced, or none (writeAllOrNothing): { ok:true }, or
+       { ok:false, error } with what this browser held left as it was. */
+    apply() {
+      const w = writeAllOrNothing(incoming.map(k => [k, doc.data[k]]));
+      if (w.ok) return { ok:true, restored: incoming.length };
+      return { ok:false, error: 'Not restored — this browser refused part of the file (its storage is full or switched off), so what it held before is left as it was.'
+        + (w.unrestored ? ` ${w.unrestored} of the items already written could not be put back as they were.` : '') };
+    } };
 }
 
 /* ==========================================================================
@@ -28488,6 +28528,15 @@ function askClearSamples(focusAfter = '#views h1') {
     label: 'Clear the samples', run: () => { clearSeededData(); focusAfterRedraw(focusAfter); } });
 }
 
+/* WHAT A FILE HOLDS (the 21 Oct 2026 Day-8 report, item 4: "explain …
+   exactly what each export includes"). The backup's card and Export
+   everything's each say it in full, in a disclosure closed on arrival —
+   its summary a 44px target (details.explain) — under the line that says
+   the file is the only copy, which stays in sight. */
+const FILE_HOLDS_P = 'font-size:13px;margin-top:var(--xs)';
+const fileHolds = (kind, body) => el('details', { class: 'explain', 'data-file-holds': kind },
+  [el('summary', {}, 'What the file holds'), ...body]);
+
 VIEWS.userdata = () => {
   const wrap = el('div', { style: 'display:flex;flex-direction:column;gap:var(--md)' });
   wrap.append(pageHead({ title: 'Bring your own prices', lede: 'Your prices, your backups and your settings, kept in this browser.',
@@ -28512,7 +28561,7 @@ VIEWS.userdata = () => {
      is just an apology in advance. */
   const bk = el('div', { class: 'card' });
   bk.append(cardHead('Back up everything in this browser',
-    'One file with every calculation, saved deal, watchlist, screen and correction case this browser holds. There is no server copy, so this file is the only copy.'));
+    'Everything this browser keeps for Quantum Tradeworks, in one file. Nothing is kept on a server, so this file is the only copy.'));
   /* When a file last left this browser, and what has changed since
      (backupHealth): kept in sight, never a modal. */
   bk.append(backupLine());
@@ -28544,9 +28593,14 @@ VIEWS.userdata = () => {
       const sibling = siblingFileOf(doc);
       if (!doc || (sibling !== 'backup')) { const res = restoreBackup(text); if (!res.ok) toast(res.error); return; }
       const n = Object.keys(doc.data || {}).length;
+      /* A backup without some kinds — one taken before they existed — leaves
+         what this browser holds of them as it is, and says which, as
+         "Restore from a file" does (heldKinds, 00-core.js). */
+      const keptHere = heldKinds(PORTABLE_KEYS.map(x => x.k).filter(k => !(k in (doc.data || {})))).map(portableLabel);
       confirmClear({ title: 'Restore this backup', lead: `The backup taken ${String(doc.takenAt || '').slice(0, 16).replace('T', ' ') || 'at an unstated time'} UTC replaces what this browser holds now for each of the ${n} item${n === 1 ? '' : 's'} it carries:`,
         removes: ['every saved item, list, case, comparison and setting this browser holds under the same names'],
-        keeps: 'Anything the backup does not carry is kept as it is here.', label: 'Restore and reload', run: () => {
+        keeps: keptHere.length ? `Not in this backup, so kept as this browser holds them: ${keptHere.join(', ')}. Anything else it does not carry is kept too.`
+          : 'Anything the backup does not carry is kept as it is here.', label: 'Restore and reload', run: () => {
           const res = restoreBackup(text);
           if (!res.ok) { toast(res.error); return; }
           const left = res.refused || [];
@@ -28560,8 +28614,22 @@ VIEWS.userdata = () => {
     'Restore from a backup'));
   bkRow.append(fileIn);
   bk.append(bkRow);
+  /* Everything backupPayload (15-derivation.js) reads off this browser's
+     storage, and the two records it leaves out, in its words. */
+  bk.append(fileHolds('backup', [
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Everything this browser keeps for Quantum Tradeworks, as it keeps it:'),
+    el('ul', { class: 'explain-list' }, [
+      el('li', {}, 'every kind Export everything carries, listed on its card below, samples included;'),
+      el('li', {}, 'everything else the pages keep here — settings such as the theme, density and language, what you had open, the Start here panels you hid, and the deal kept aside for “Restore my previous deal”.'),
+    ]),
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Left out, because they belong to this browser:'),
+    el('ul', { class: 'explain-list' }, [
+      el('li', {}, 'a fingerprint of what this browser keeps, which the pages make again from the rest;'),
+      el('li', {}, 'when this browser last exported — a file restored elsewhere was not exported from there.'),
+    ]),
+  ]));
   bk.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },
-    'Restoring overwrites what this browser currently holds for any key present in the file, then reloads. '
+    'Restoring replaces whatever this browser holds of each kind the file carries, then reloads. '
     + 'Nothing is merged, because a half-merged calculation is a figure nobody entered.'));
   wrap.append(bk);
 
@@ -28672,7 +28740,7 @@ VIEWS.userdata = () => {
      the longest was the work most easily lost. */
   const all = el('div', { class: 'card' });
   all.append(cardHead('Everything you have made',
-    'All of it is held in this browser and nowhere else. This is the only copy that survives a cleared browser, a second machine, or private mode closing. Display preferences — theme, density, the companies in a comparison — are not in it; the backup above carries those too.'));
+    'All of it is held in this browser and nowhere else, so this file is the only copy that survives a cleared browser, a second machine or private mode closing.'));
 
   const held = PORTABLE_KEYS.map(({ k, label }) => {
     const v = store.read(k, null);
@@ -28700,6 +28768,12 @@ VIEWS.userdata = () => {
     /* Recorded as the last export (backupHealth), and the line above says so. */
     el('button', { class: 'btn btn-primary btn-sm', id: 'ud-export-all', onclick: () => { if (downloadEverything()) redrawKeepFocus(); } }, 'Export everything'),
     el('button', { class: 'btn btn-ghost btn-sm', onclick: () => openRestoreDrawer() }, 'Restore from a file'),
+  ]));
+  /* Every kind exportEverything (00-core.js) carries, by its label. */
+  all.append(fileHolds('everything', [
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Each of these that this browser holds, samples included and marked as samples:'),
+    el('ul', { class: 'explain-list', 'data-file-kinds': '' }, PORTABLE_KEYS.map(x => el('li', {}, x.label))),
+    el('p', { class: 'body', style: FILE_HOLDS_P }, 'Not in it: everything else the pages keep — settings such as the theme and density, the companies in a comparison, and the deal kept aside for “Restore my previous deal”. The backup above carries them.'),
   ]));
   all.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     'The file never leaves your machine unless you send it. It is plain JSON — you can read it, and so can anyone you give it to.'));
@@ -32406,7 +32480,7 @@ function openRestoreDrawer() {
        where this browser holds something for it — kept as it is. */
     if (r.newer) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-newer': '' },
       `This file was written by a later build (format ${r.version}; this build writes ${EXPORT_VERSION}). Only what this build recognises is restored.`));
-    const keptHere = (r.missing || []).filter(k => { const v = store.read(k, null); return v !== null && v !== undefined && (!Array.isArray(v) || v.length); });
+    const keptHere = heldKinds(r.missing || []);
     if (keptHere.length) report.append(el('p', { class: 'metaline', style: 'margin-top:6px', 'data-restore-missing': '' },
       `Not in this file, so kept as this browser holds them: ${keptHere.map(k => (PORTABLE_KEYS.find(x => x.k === k) || {}).label || k).join(', ')}.${r.model && r.model !== MODEL_VERSION ? ` The file was exported under model ${r.model}; this build is ${MODEL_VERSION}.` : ''}`));
 
@@ -32418,7 +32492,14 @@ function openRestoreDrawer() {
       el('button', { class: 'btn btn-ghost btn-sm', 'data-export-first': '', onclick: () => { if (downloadEverything()) toast('Exported what this browser holds now — the file is in your downloads'); } }, 'Export first'),
       el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
         if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
-        r.apply();
+        /* Refused part-way, nothing is replaced (apply, 00-core.js): the
+           reason is said here, and the page is not reloaded over it. */
+        const done = r.apply();
+        if (!done.ok) {
+          report.querySelector('[data-restore-refused]')?.remove();
+          report.append(el('p', { class: 'body', role: 'alert', 'data-restore-refused': '', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' }, done.error));
+          return;
+        }
         closeDrawer();
         /* A full reload rather than render(): half this state was read into
            module-level variables at boot, and repainting over them would show a
