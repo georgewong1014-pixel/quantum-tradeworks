@@ -723,7 +723,12 @@ function dealModel(d) {
   const asLine = (r) => [r.label, r.amount, r];
   const costGroups = [
     { id:'acquisition', label:'Acquisition costs', items:[
-        ['Deposit', deposit],
+        /* On the auction route the Proclamation has a deposit of its own (the
+           forfeiture's), so the loan's is the down payment there (the 20 Oct
+           2026 sweep, auction-9): one name for each figure, once that deposit is
+           entered — a deal answered Auction with nothing entered is the deal
+           it was, line for line (P1 R1). */
+        [auctionRoute && isNum(d.auctionDepositPct) ? 'Down payment' : 'Deposit', deposit],
         /* Only when it exists. A zero row for a gap there isn't would train the
            reader to skip the line that matters when there is one. */
         ...(valuationGapCash > 0 ? [['Valuation-gap cash', valuationGapCash]] : []),
@@ -1946,9 +1951,17 @@ function auctionBidCeiling(d, a = auctionModel(d)) {
     if (eff(at(mid)) <= cap) lo = mid; else hi = mid;
   }
   const mAt = at(lo), mOver = at(lo + 1);
-  return { ...base, status: 'solved', runs, bid: lo, effective: eff(mAt), above: eff(mOver),
+  const solved = { ...base, status: 'solved', runs, bid: lo, effective: eff(mAt), above: eff(mOver),
     vsBid: num0(d?.price) > 0 ? lo - num0(d.price) : null,
     resultKind: kindFirst([base.capKind, a.effectiveKind]) || 'derived' };
+  /* NO WINNING BID BELOW THE RESERVE (the 20 Oct 2026 sweep, auction-1).
+     A bid under the reserve price the reader entered cannot win that sale,
+     so a ceiling there is not "a winning bid of at most" anything: no
+     winning bid fits these costs, and the effective cost at the reserve
+     says by how much. The cost rises with the bid, so at the reserve it is
+     over the ceiling too. */
+  if (isNum(a.reserve) && lo < a.reserve) return { ...solved, status: 'below-reserve', reserve: a.reserve, atReserve: eff(at(a.reserve)) };
+  return solved;
 }
 
 /* THE DEVELOPER PREMIUM MODEL (the property decision layer, P4).
@@ -2956,7 +2969,12 @@ function pcTypePause(n) {
 
 /* One box of the deal, as the full model and the Quick model both draw it. */
 function pcDealField(d, k) {
-  const [, label, step] = PC_FIELD_DEF[k];
+  const [, defLabel, step] = PC_FIELD_DEF[k];
+  /* The loan's deposit is the down payment on the auction route, beside the
+     Proclamation's own "Deposit (%)" (auction-9). */
+  const auctionDown = k === 'downPct' && dealRoute(d) === 'auction';
+  const label = auctionDown ? 'Down payment (%)' : defLabel;
+  const pkey = auctionDown ? 'in.downPctAuction' : `in.${k}`;
   const f = el('div', { class: 'assumption' });
   /* Two non-numeric kinds, because a management mandate is made of
      commitments and cadences as well as amounts. */
@@ -2964,18 +2982,18 @@ function pcDealField(d, k) {
     const l = el('label', { class: 'checkline', style: 'gap:8px;display:flex;align-items:flex-start' });
     l.append(el('input', { type: 'checkbox', id: `d-${k}`, checked: d[k] ? '' : null,
       onchange: e => { d[k] = e.target.checked; markTouched(d, k); saveDeal(); renderKeepFocus(); } }));
-    l.append(el('span', {}, ptr(`in.${k}`, label)));
+    l.append(el('span', {}, ptr(pkey, label)));
     return l;
   }
   if (Array.isArray(step)) {
-    f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+    f.append(el('label', { for: `d-${k}` }, ptr(pkey, label)));
     const s = el('select', { class: 'select select-sm', id: `d-${k}`,
       onchange: e => { d[k] = e.target.value; markTouched(d, k); saveDeal(); renderKeepFocus(); } });
     step.forEach(o => s.append(el('option', { value: o, selected: d[k] === o ? '' : null }, o)));
     f.append(s);
     return f;
   }
-  f.append(el('label', { for: `d-${k}` }, ptr(`in.${k}`, label)));
+  f.append(el('label', { for: `d-${k}` }, ptr(pkey, label)));
   /* The renovation as cost lines (QT-03): their total is the figure,
      so the box holds it and is not typed over while there are lines. */
   const linesOn = k === 'renovation' && costLinesExplicit(d, 'renovation');
@@ -3040,6 +3058,20 @@ function pcDealField(d, k) {
 /* ---------------------------------------------- the one-page answer's parts */
 /* The four answer cards' label, figure, line and tone, for the full model's
    one-page answer; the Quick model shows two of them as they are. */
+/* Said beside a monthly figure, a break-even and a commitment when a
+   marginal rate is entered (the 20 Oct 2026 sweep, taxed-5): the
+   calculator's monthly figures are before tax on the rent by design, as
+   the Lab, the proposal and the decision record say of them. */
+const pcBeforeTax = (m) => (m?.taxComputed ? ', before tax on the rent' : '');
+/* A TOTAL SHORT OF A LINE SAYS SO, WHEREVER IT IS SHOWN (the 20 Oct 2026
+   sweep, land-commercial-1): the lines of the groups it adds up that are
+   not priced — gated for the class or unpriced — named after it, as the
+   cash required and the decision record already say them. '' when none. */
+function pcShortOf(m, groups = null) {
+  const xs = (m?.missingCostLines || []).filter(x => !groups || groups.includes(x.groupId));
+  return xs.length ? xs.map(x => feeLower(x.label)) : null;
+}
+const pcShortWords = (m, groups) => { const xs = pcShortOf(m, groups); return xs ? `; so far — without ${feeList(xs)}, not priced` : ''; };
 function pcAnswerFigs(d, m) {
   const unpricedLines = m.missingCostLines || [];
   return {
@@ -3056,12 +3088,13 @@ function pcAnswerFigs(d, m) {
         : 'Including rent-ready and the reserve')
       + (m.unconfirmedCost > 0 ? `. ${feeUncertainHeadline(m)}` : '')],
     monthly: ['Monthly position', isNum(m.cashflowMonthly) ? fmtAmount(m.cashflowMonthly, 'MYR') : '—',
-      m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs',
+      (m.annualOwnerSubsidy > 0 ? `Costs you ${fmtAmount(m.annualOwnerSubsidy, 'MYR')} a year to hold` : 'After vacancy and normal costs') + pcBeforeTax(m),
       isNum(m.cashflowMonthly) && m.cashflowMonthly < 0 ? '--dn-text' : null],
     complete: ['Cash to complete', fmtAmount(m.cashStillRequiredToComplete, 'MYR'),
-      m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve'],
+      (m.cashAlreadyPaid > 0 ? `Paid out on completion day, after ${fmtAmount(m.cashAlreadyPaid, 'MYR')} paid at offer — before renovation and the reserve` : 'Paid out on completion day — before renovation and the reserve')
+        + pcShortWords(m, ['acquisition', 'financing'])],
     breakeven: ['Break-even rent', isNum(m.breakEvenRent) ? fmtAmount(m.breakEvenRent, 'MYR') : '—',
-      isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
+      m.letsToTenant === false ? 'Not a quantity this asset has' : isNum(m.breakEvenOccupancy) ? `or ${fmtPct(m.breakEvenOccupancy, 0)} occupancy at the entered rent` : 'not computable'],
   };
 }
 const PC_GRADE_TONE = { A:'--ok-text', B:'--bronze', C:'--bronze', D:'--dn-text', U:'--ink-2' };
@@ -3260,7 +3293,9 @@ function pcQuickView(d, m, g, DK) {
   other.addEventListener('toggle', () => { pcQuickOtherOpen = other.open; });
   other.append(el('summary', { class: 'pc-more-sum pc-q-other-sum' }, [
     el('span', { class: 'pc-q-other-k' }, 'Other running costs'), ' ',
-    el('span', {}, `${fmtMoney(otherY, 'MYR', 0)} a year: sinking fund, assessment, quit rent, insurance, repair reserve`)]));
+    /* What is counted, named (land-commercial-2): a parcel has no sinking
+       fund, and a class with no tenancy no repair reserve. */
+    el('span', {}, `${fmtMoney(otherY, 'MYR', 0)} a year: ${feeList([m.strataCharges !== false ? 'sinking fund' : null, 'assessment', 'quit rent', 'insurance', m.letsToTenant !== false ? 'repair reserve' : null].filter(Boolean))}`)]));
   const otherBoxes = el('div', { class: 'pc-q-other-boxes' });
   PC_QUICK_OTHER.forEach(k => otherBoxes.append(pcDealField(d, k)));
   other.append(otherBoxes);
@@ -4299,7 +4334,7 @@ VIEWS.property = () => {
     [tr('netCashFlow'),      isNum(m.cashflowMonthly) ? `${fmtAmount(m.cashflowMonthly, 'MYR')} ${sc.perMonth}` : '—'],
     [tr('breakEvenRent'),    fmtAmount(m.breakEvenRent, 'MYR')],
     [tr('monthlyInstalment'),fmtAmount(m.instalment, 'MYR')],
-    [tr('totalInitialCash'), fmtAmount(m.totalInitialCash, 'MYR')],
+    [pcShortOf(m) ? `${tr('totalInitialCash')} — partial` : tr('totalInitialCash'), fmtAmount(m.totalInitialCash, 'MYR')],
   ];
   const sumT = el('table', { class: 'dt' });
   sumT.append(el('tbody', {}, srows.map(([k, v]) => el('tr', {}, [
@@ -4325,8 +4360,8 @@ VIEWS.property = () => {
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Gross yield', fmtPct(m.grossYield, 2), { sub: 'Annual rent ÷ purchase price' })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly instalment', fmtAmount(m.instalment, 'MYR'), { sub: `${fmtPct(d.ratePct, 2)} over ${d.tenureYears} years` })));
   fg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly cash flow', fmtAmount(m.cashflowMonthly, 'MYR'),
-    { sub: 'After costs, vacancy and the loan', tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
-  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: 'Rent needed to cover everything' })));
+    { sub: `After costs, vacancy and the loan${pcBeforeTax(m)}`, tone: m.cashflowMonthly >= 0 ? '--ok-text' : '--dn-text' })));
+  fg.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'), { sub: `Rent needed to cover everything${pcBeforeTax(m)}` })));
   headline.append(fg);
 
   /* THE SAME PRICE, IN THE UNITS IT WILL BE ARGUED IN.
@@ -4624,10 +4659,11 @@ VIEWS.property = () => {
         ? [['Cash already paid', m.cashAlreadyPaid, 'Booking deposit handed over at offer. Part of the down payment, not on top of it.']]
         : []),
    ['Cash still to complete', m.cashStillRequiredToComplete,
-     m.cashAlreadyPaid > 0
+     (m.cashAlreadyPaid > 0
        ? `Completion needs ${fmtAmount(m.transactionCash, 'MYR')} in total, less what you have already paid.`
-       : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.'],
-   ['Cash to make rent-ready', m.improvementCash, 'Spent after completion before the property can earn: renovation, furnishing and deposits.'],
+       : 'Paid out at completion: deposit, any valuation gap, duties, legal fees and financing costs.') + pcShortWords(m, ['acquisition', 'financing'])],
+   [m.letsToTenant === false ? 'Cash to make it ready' : 'Cash to make rent-ready', m.improvementCash,
+     (m.letsToTenant === false ? 'Spent after completion: renovation and deposits.' : 'Spent after completion before the property can earn: renovation, furnishing and deposits.') + pcShortWords(m, ['improvement'])],
    /* Unknown when it cannot be priced, and the tile says why rather than
       printing RM0 beside "3 months of instalment". One month is "1 month",
       as the ledger above already says; the tile read "1 months". */
@@ -4663,7 +4699,7 @@ VIEWS.property = () => {
   cash.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
     /* The tile above already says the reserve is paid to no one; this line
        names the figure before it (QT-002's label), and nothing twice. */
-    `Cash before reserve: ${fmtAmount(m.acquisitionCost, 'MYR')} — completion and rent-ready together; the reserve is on top of that.`));
+    `Cash before reserve: ${fmtAmount(m.acquisitionCost, 'MYR')} — completion and ${m.letsToTenant === false ? 'making it ready' : 'rent-ready'} together${pcShortWords(m, ['acquisition', 'financing', 'improvement'])}; the reserve is on top of that.`));
   buyCard.append(cash);
 
   /* ---------- Sarawak checklist ---------- */
@@ -4787,7 +4823,12 @@ VIEWS.property = () => {
     v => fmtPct(v, 2), {
       neverValue: 'no rate', alwaysValue: 'any rate',
       crosses: e => `Interest rate at which monthly cash flow reaches zero. You entered ${fmtPct(e, 2)}.`,
-      never: 'Negative at every rate down to 0%. The interest rate is not what makes this negative.',
+      /* What was computed: no rate down to 0% makes the month positive (the
+         20 Oct 2026 sweep, stress-7) — and why, not that the rate is not the
+         cause: on the sample the interest is most of the shortfall. */
+      never: !m.letsToTenant ? 'Negative even at 0%: with no rent coming in, no rate cut makes it positive.'
+        : isNum(m.noi) && m.noi <= 0 ? 'Negative even at 0%: the rent does not cover the running costs, so no rate cut fixes it.'
+        : 'Negative even at 0%: the loan’s repayment is more than the rent leaves, so no rate cut alone fixes it.',
       always: 'Stays positive at every rate tested, up to 25%.',
       good: (v, e) => v > e + 1,
     }));
@@ -4804,7 +4845,7 @@ VIEWS.property = () => {
         good: (v, e) => v > e + 10,
       }));
     stressGrid.append(el('div', { class: 'panel ls-fig' }, statTile('Break-even rent', fmtAmount(m.breakEvenRent, 'MYR'),
-      { sub: `Rent needed to cover everything. You expect ${fmtAmount(d.rent, 'MYR')}.`,
+      { sub: `Rent needed to cover everything${pcBeforeTax(m)}. You expect ${fmtAmount(d.rent, 'MYR')}.`,
         tone: !isNum(m.breakEvenRent) ? null : d.rent > m.breakEvenRent ? '--ok-text' : '--dn-text' })));
   }
   stressCard.append(stressGrid);
@@ -4829,7 +4870,9 @@ VIEWS.property = () => {
     { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
   ]));
-  if (m.letsToTenant) stressCard.append(stressTable('If it sits empty for longer', m.stress.vacancy, [
+  /* Fixed levels, not moves from the entered vacancy (the 20 Oct 2026
+     sweep, stress-6): above 15% entered, a row reads better than the base. */
+  if (m.letsToTenant) stressCard.append(stressTable('At fixed vacancy levels', m.stress.vacancy, [
     { label: 'Vacancy', get: r2 => r2.label },
     { label: 'Monthly cash flow', num: true, get: r2 => fmtAmount(r2.monthly, 'MYR'),
       tone: r2 => r2.monthly >= 0 ? 'pos' : 'neg' },
@@ -4839,23 +4882,27 @@ VIEWS.property = () => {
     /* Its basis said (QT-002): the rows are the ledger less the reserve —
        the cash the overrun consumes — and read "Cash required" beside a
        headline that includes the reserve. The reserve is added back beside. */
-    { label: 'Cash before reserve', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
-    ...(isNum(m.reserveCash) ? [{ label: 'Cash required including reserve', num: true, get: r2 => fmtAmount(r2.cash + m.reserveCash, 'MYR') }] : []),
+    { label: pcShortOf(m, ['acquisition', 'financing', 'improvement']) ? 'Cash before reserve, so far' : 'Cash before reserve', num: true, get: r2 => fmtAmount(r2.cash, 'MYR') },
+    ...(isNum(m.reserveCash) ? [{ label: pcShortOf(m) ? 'Cash required including reserve, so far' : 'Cash required including reserve', num: true, get: r2 => fmtAmount(r2.cash + m.reserveCash, 'MYR') }] : []),
     { label: 'Cash-on-cash', num: true, get: r2 => isNum(r2.cashOnCash) ? fmtPct(r2.cashOnCash, 2) : '—',
       tone: r2 => isNum(r2.cashOnCash) && r2.cashOnCash >= 0 ? 'pos' : 'neg' },
   ]));
 
   /* ---------- management operations ---------- */
   const ops = el('div', { class: 'card ls-section' });
-  ops.append(cardHead(m.managed ? 'Management operations' : 'Management operations — self-managed',
-    m.managed
+  /* A class with no tenancy has nothing to manage, whatever the tick says
+     (the 20 Oct 2026 sweep, land-commercial-2): said for its own reason. */
+  ops.append(cardHead(m.managed || m.letsToTenant === false ? 'Management operations' : 'Management operations — self-managed',
+    m.letsToTenant === false ? 'No management is charged: this class has no tenancy to manage.'
+    : m.managed
       ? 'What the service costs, and what it has to do for it. A percentage alone is not comparable between two agents; cost per occupied month and cost per tenancy are.'
       : 'You have said you will manage this property yourself, so no management cost is charged below. The work does not disappear with the fee — it is listed here so it is a decision rather than an omission.', null, DK));
 
   if (m.managed) {
     ops.append(el('div', { class: 'grid g-4', style: 'margin-top:var(--md)' }, [
       el('div', { class: 'panel ls-fig' }, statTile('Management cost a year', fmtAmount(m.mgmtTotalAnnual, 'MYR'),
-        { sub: `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
+        /* Names the floor where the floor is what is charged (managed-6). */
+        { sub: m.mgmtMinTopUp > 0 ? `the ${fmtAmount(num0(d.mgmtMinMonthly), 'MYR')} monthly minimum plus placement` : `${fmtPct(num0(d.mgmtPct), 1)} of collected rent plus placement` })),
       el('div', { class: 'panel ls-fig' }, statTile('Cost per occupied month', fmtAmount(m.mgmtCostPerOccupiedMonth, 'MYR'),
         { sub: 'what it costs for each month the property is actually let' })),
       el('div', { class: 'panel ls-fig' }, statTile('Cost per tenancy signed', isNum(m.mgmtCostPerTenancy)
@@ -4868,8 +4915,11 @@ VIEWS.property = () => {
       + `${fmtAmount(m.renewalAnnual, 'MYR')} a year rather than ${fmtAmount(m.placementAnnual, 'MYR')} — a difference of `
       + `${fmtAmount(m.placementAnnual - m.renewalAnnual, 'MYR')} a year. The conservative case is the one modelled.`));
     if (m.mgmtMinTopUp > 0) ops.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `The minimum fee bites: ${fmtPct(num0(d.mgmtPct), 1)} of this rent is less than the floor you entered, so `
-      + `${fmtAmount(m.mgmtMinTopUp, 'MYR')} a year is owed regardless of what the property collects. That part does not fall with rent, and the break-even above treats it as fixed.`));
+      /* The floor is what is owed whatever is collected, not the top-up,
+         which grows as collections fall (managed-7); and the break-evens
+         follow it now (managed-1, managed-3). */
+      `The minimum fee bites: ${fmtPct(num0(d.mgmtPct), 1)} of this rent is less than the ${fmtAmount(num0(d.mgmtMinMonthly) * 12, 'MYR')} a year minimum you entered, which is owed whatever the property collects — `
+      + `${fmtAmount(m.mgmtMinTopUp, 'MYR')} more than the percentage at this rent, and more as collections fall.`));
   }
 
   /* The placement target and the vacancy allowance describe the same thing.
@@ -4907,7 +4957,7 @@ VIEWS.property = () => {
   duties.append(dl);
   if (d.ownerReportCadence === 'not agreed') duties.append(el('p', { class: 'metaline', style: 'margin-top:8px;color:var(--bronze)' },
     'No reporting cadence has been agreed. Owner statements are the only routine evidence that the rest of this list is happening.'));
-  ops.append(duties);
+  if (m.letsToTenant !== false) ops.append(duties);
 
   /* ---------- evidence quality ---------- */
   const ev = el('div', { class: 'card ls-section' });
@@ -5099,7 +5149,7 @@ VIEWS.property = () => {
          ['Payback from rent alone', isNum(rr.paybackYears) ? `${fmtNum(rr.paybackYears, 1)} years` : 'never — no rent is attributed to it', 'cost ÷ the rent it produces'],
          ['Recovered at the sale', fmtAmount(rr.valueRecovered, 'MYR'), `${fmtPct(rr.recoveryPct, 0)} of the spend, added to the exit value`],
          ['Rate of return with it', isNum(rr.irrWith) ? fmtPct(rr.irrWith, 2) : 'no rate', 'this deal as entered'],
-         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} cash required instead of ${fmtAmount(rr.cashWith, 'MYR')}`],
+         ['Rate of return without it', isNum(rr.irrWithout) ? fmtPct(rr.irrWithout, 2) : 'no rate', `${fmtAmount(rr.cashWithout, 'MYR')} cash required instead of ${fmtAmount(rr.cashWith, 'MYR')}${pcShortOf(m) ? ', so far' : ''}`],
         ].forEach(([k, v, sub]) => g.append(el('div', { class: 'panel ls-fig' }, statTile(k, v, { sub }))));
         card.append(g);
         card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
@@ -5170,7 +5220,7 @@ VIEWS.property = () => {
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net operating income', fmtAmount(m.noi, 'MYR'), { sub: 'Effective rent less operating costs, before the loan' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Net yield', fmtPct(m.netYield, 2), { sub: 'NOI ÷ purchase price' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Cash-on-cash', isNum(m.cashOnCash) ? fmtPct(m.cashOnCash, 2) : '—',
-      { sub: 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
+      { sub: m.taxComputed ? 'Year 1’s cash flow before tax ÷ cash required including reserve' : 'Annual cash flow ÷ cash required including reserve', tone: (m.cashOnCash ?? 0) >= 0 ? '--ok-text' : '--dn-text' })));
     ig.append(el('div', { class: 'panel ls-fig' }, statTile('Debt-service cover', isNum(m.dscr) ? fmtX(m.dscr, 2) : '—',
       { sub: 'NOI ÷ annual instalments', tone: (m.dscr ?? 0) >= 1 ? '--ok-text' : '--dn-text' })));
     inv.append(ig);
@@ -5179,7 +5229,7 @@ VIEWS.property = () => {
      [`Effective rent after ${fmtPct(d.vacancyPct, 0)} vacancy`, fmtAmount(m.effectiveRent, 'MYR')],
      ['Operating costs', fmtAmount(m.opex, 'MYR')],
      ['Annual debt service', fmtAmount(m.annualDebtService, 'MYR')],
-     ['Cash invested at acquisition', fmtAmount(m.acquisitionCost, 'MYR')]]
+     [pcShortOf(m, ['acquisition', 'financing', 'improvement']) ? 'Cash invested at acquisition, so far' : 'Cash invested at acquisition', fmtAmount(m.acquisitionCost, 'MYR')]]
      .forEach(([k, v]) => { kv.append(el('dt', {}, k)); kv.append(el('dd', {}, v)); });
     inv.append(kv);
     reportCards.push(inv);
@@ -5190,11 +5240,15 @@ VIEWS.property = () => {
       `Capital growth of ${fmtPct(d.apprecPct, 2)} and rent growth of ${fmtPct(d.rentGrowthPct, 2)} a year. A scenario, not a prediction — change either input and the whole path changes.${ntm ? ` Each year is a year after vacant possession, ${ntm.vpAt} months after signing; the value grows from signing.` : ''}`, null, DK));
     const stw = el('div', { class: 'tablewrap' });
     const st = el('table', { class: 'dt' });
-    st.append(el('thead', {}, el('tr', {}, [ntm ? 'Year after VP' : 'Year', 'Effective rent', 'Operating costs', 'Debt service', 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
+    /* With a rate entered the net cash flow is after tax on the rent, so
+       the tax is a column and the heading says so (taxed-4): the row adds up. */
+    const taxCol = !!m.taxComputed;
+    st.append(el('thead', {}, el('tr', {}, [ntm ? 'Year after VP' : 'Year', 'Effective rent', 'Operating costs', 'Debt service', ...(taxCol ? ['Tax on the rent'] : []), taxCol ? 'Net cash flow after tax' : 'Net cash flow', 'Cumulative', 'Property value', 'Loan balance'].map(h => el('th', {}, h)))));
     st.append(el('tbody', {}, m.path.map(p2 => el('tr', {}, [
       el('td', { class: 'ident' }, ntm ? `VP+${p2.y}` : `Year ${p2.y}`),
       el('td', {}, fmtAmount(p2.rent, 'MYR')), el('td', {}, fmtAmount(p2.opex, 'MYR')),
       el('td', {}, fmtAmount(p2.debt, 'MYR')),
+      ...(taxCol ? [el('td', {}, fmtAmount(p2.tax, 'MYR'))] : []),
       el('td', { class: signClass(p2.cf) }, fmtAmount(p2.cf, 'MYR')),
       el('td', { class: signClass(p2.cum) }, fmtAmount(p2.cum, 'MYR')),
       el('td', {}, fmtAmount(p2.value, 'MYR')), el('td', {}, fmtAmount(p2.balance, 'MYR')),
@@ -5222,7 +5276,7 @@ VIEWS.property = () => {
     eg.append(el('div', { class: 'panel ls-fig' }, statTile('Monthly commitment',
       isNum(m.cashflowMonthly) ? fmtAmount(monthlyCommitment(m), 'MYR') : '—',
       { sub: !isNum(m.cashflowMonthly) ? 'Not computable — the loan’s instalment is unknown'
-        : m.cashflowMonthly >= 0 ? 'Property funds itself' : 'Funded from your income' })));
+        : m.cashflowMonthly >= 0 ? `Property funds itself${pcBeforeTax(m)}` : `Funded from your income${pcBeforeTax(m)}` })));
     eq2.append(eg);
     /* THE READER'S OWN ALTERNATIVE, NOT A PICK LIST. This table was the five
        Bursa names with the highest dividend yield in the dataset — sorted,

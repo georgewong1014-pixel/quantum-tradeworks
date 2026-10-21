@@ -2384,7 +2384,10 @@ function feeUncertainWords(m, money = (v) => fmtAmount(v, 'MYR')) {
 function ledgerSplitWords(m, money = (v) => fmtAmount(v, 'MYR')) {
   const s = m?.ledgerSplit;
   if (!s) return '';
-  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) : 'none'}`);
+  /* A kind whose lines are all unpriced (gated for the class, or not
+     priced) is not "none" (the 20 Oct 2026 sweep, land-commercial-1). */
+  const unpriced = new Set((m.costGroups || []).flatMap(g => g.items).filter(it => !isNum(it[1]) && it[2]?.provenance).map(it => feeKindOf(it[2])).filter(Boolean));
+  const parts = Object.keys(FEE_TABLE.categories).map(k => `${FEE_TABLE.categories[k].toLowerCase()} ${s.kinds[k]?.lines.length ? money(s.kinds[k].total) + (unpriced.has(k) ? ' so far' : '') : unpriced.has(k) ? 'not priced' : 'none'}`);
   parts.push(`your own money and figures (the deposit, the renovation, the reserve and what you entered) ${money(s.kinds.own.total)}`);
   const out = (s.optionalOut || []).map(x => `${x.label.replace(/^Optional: /, '')} is not included`);
   return `By kind: ${parts.join('; ')}.${out.length ? ` Optional, left out: ${out.join('; ')}.` : ''}`;
@@ -3545,6 +3548,8 @@ const PROPERTY_I18N = {
   'cl.excludes':{ en:'What it excludes', ms:'Apa yang tidak termasuk', zh:'不包括的内容' },
   'cl.import':{ en:'Import a cost schedule — a .json or .csv file in the published format', ms:'Import jadual kos — fail .json atau .csv dalam format yang diterbitkan', zh:'导入成本明细表——已发布格式的 .json 或 .csv 文件' },
   'in.downPct':   { en:'Deposit (%)', ms:'Deposit (%)', zh:'头期 (%)' },
+  /* On the auction route, beside the Proclamation's own deposit (auction-9). */
+  'in.downPctAuction':{ en:'Down payment (%)', ms:'Bayaran pendahuluan (%)', zh:'首付 (%)' },
   'in.ratePct':   { en:'Loan interest rate (%)', ms:'Kadar faedah pinjaman (%)', zh:'贷款利率 (%)' },
   'in.tenureYears':{ en:'Loan tenure (years)', ms:'Tempoh pinjaman (tahun)', zh:'贷款期限 (年)' },
   'in.rent':      { en:'Expected monthly rent (RM)', ms:'Jangkaan sewa bulanan (RM)', zh:'预计月租 (RM)' },

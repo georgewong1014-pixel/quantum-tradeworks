@@ -214,7 +214,10 @@ function propertySensitivityPanel(d, m) {
   card.append(block);
 
   const t = el('table', { class: 'dt', style: 'margin-top:var(--md)' });
-  t.append(el('thead', {}, el('tr', {}, ['Assumption', 'One step down', 'One step up', 'Swing']
+  /* The larger of the two one-step moves, which the ranking is by — not the
+     distance between the two ends beside it (the 20 Oct 2026 sweep,
+     stress-9). */
+  t.append(el('thead', {}, el('tr', {}, ['Assumption', 'One step down', 'One step up', 'Larger move']
     .map((h, i) => el('th', { style: i ? null : 'text-align:left' }, h)))));
   t.append(el('tbody', {}, s.drivers.map(x => el('tr', {}, [
     el('th', { scope: 'row', style: 'text-align:left' }, [
