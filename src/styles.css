@@ -3170,7 +3170,7 @@ table.dt-pagesticky thead th { top: var(--topbar-live, var(--topbar-h)); }
 .pub-lab-figs dt { font-size: var(--ls-meta); line-height: 15px; color: var(--ink-2); min-width: 0; }
 .pub-lab-figs dd { margin: 0; font-size: var(--ls-body); line-height: 22px; font-weight: var(--weight-bold); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pub-lab-figs dd.neg { color: var(--dn-text); }
-.pub-lab-note { display: block; font-size: var(--ls-meta); line-height: 15px; font-weight: var(--weight-body); color: var(--ink-2); white-space: normal; }
+.pub-lab-note { display: block; text-wrap: balance; font-size: var(--ls-meta); line-height: 15px; font-weight: var(--weight-body); color: var(--ink-2); white-space: normal; }
 .pub-lab-flow { display: flex; flex-direction: column; gap: 4px; }
 .pub-lab-bars { display: block; }
 .pub-lab-svg { display: block; width: 100%; height: 22px; }
