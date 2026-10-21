@@ -871,14 +871,16 @@ function dealModel(d) {
   const sinkingY = strataCharges ? num0(d.sinkingFund) * 12 : 0;
   const statutoryY = num0(d.assessment) + num0(d.quitRent);
   const insuranceY = num0(d.insurance);
-  /* MANAGEMENT, SPLIT THE WAY THE BREAK-EVEN NEEDS IT.
+  /* MANAGEMENT, SPLIT THE WAY THE BREAK-EVENS NEED IT.
 
-     A percentage of collected rent scales with rent; a minimum monthly fee and
-     a tenant-placement fee do not. The break-even calculation below depends on
-     that distinction — it puts rent-linked costs in the denominator as a rate
-     and fixed costs in the numerator — so folding a flat fee into the
-     percentage would reintroduce exactly the defect the note down there
-     describes.
+     Three parts, and each moves with something different. The percentage is
+     a share of the rent collected, so it moves with the rent and with the
+     vacancy. The minimum monthly fee is a floor under that percentage: what
+     is owed is the larger of the two, so the top-up to the floor is not a
+     fixed cost — it grows as collections fall and vanishes once the
+     percentage passes the floor. The placement fee is so many months of the
+     asking rent each tenancy: it moves with the rent, and not with the
+     vacancy. The break-evens below solve on exactly this composition.
 
      Placement is charged once per tenancy cycle and amortised. It assumes the
      tenant leaves at the end of every tenancy, which is the conservative case;
@@ -969,27 +971,70 @@ function dealModel(d) {
 
      Only the fixed costs belong in the numerator. The rent-linked costs scale
      with the answer, so they belong in the denominator as a rate. */
+  /* The running costs at the entered rent, split into what is charged as a
+     share of the rent collected and the rest. Exact at the entered rent and
+     occupancy, and read there (the commercial lease-down; the Lab's working
+     of the break-even occupancy). Not the break-evens' split: see below. */
   const variableCostRate = ((managed ? num0(d.mgmtPct) : 0) + num0(d.repairReservePct)) / 100;
-  /* The flat half of management belongs here, with the other costs that do not
-     move with rent — a minimum fee and a placement fee are owed whatever the
-     rent turns out to be. */
   const fixedOperatingCosts = maintenanceY + sinkingY + statutoryY + insuranceY + mgmtFixedAnnual;
+  /* THE BREAK-EVENS ARE ZEROS OF THIS MODEL'S OWN MONTHLY POSITION (the
+     20 Oct 2026 sweep: managed-1, stress-1, lab-refurb-1, managed-3,
+     stress-2, taxed-3). The break-even rent is the year-1 rent at which the
+     monthly position is nil; the break-even occupancy the share of the year
+     let at the entered rent at which it is nil. Both are solved on opexAt's
+     own composition, in closed form, exactly:
+       - the placement fee is months of the very rent being solved for, so
+         on the break-even rent it is a rate on the answer (months × tenancies
+         a year), taken off the denominator; on the occupancy it is fixed —
+         it is charged on the asking rent, however full the year;
+       - the management fee is the larger of the minimum and the percentage
+         of the rent collected, so each break-even is solved twice — the
+         percentage owed, then the minimum — and the answer is the one whose
+         own fee is the fee it assumed. The monthly position rises with the
+         rent and the occupancy (while the percentage branch's rate is
+         positive), so exactly one of the two holds.
+     They had frozen the top-up to the minimum, and the placement fee, at
+     their values at the entered rent: a figure at which the model's own
+     month was not nil (−RM74 a month at the "break-even rent" of the sample
+     managed at 8%), an occupancy that disagreed with the vacancy crossing on
+     the same page ("Survives vacancy to", below), and an after-tax gap that
+     was partly this error rather than tax. On a self-managed deal — no fee,
+     no minimum, no placement — every term below is the old one, bit for bit. */
+  const beBase = maintenanceY + sinkingY + statutoryY + insuranceY;
   const beDenominator = 12 * (1 - num0(d.vacancyPct) / 100) * (1 - variableCostRate);
+  const placementPerRent = managed ? num0(d.leasingFeeMonths) * cyclesPerYear : 0;
+  const minimumBinds = (collected) => mgmtMinAnnual > 0 && collected * (managed ? num0(d.mgmtPct) : 0) / 100 < mgmtMinAnnual;
   /* No break-even while the debt service is unknown: adding a null loan
      payment added nothing, and the page quoted the rent that covers the
-     running costs alone as the rent that covers "everything". */
-  const breakEvenRent = (letsToTenant && beDenominator > 0 && !debtUnknown)
-    ? (fixedOperatingCosts + annualDebtService) / beDenominator
-    : null;
+     running costs alone as the rent that covers "everything". And none
+     where a higher rent adds no more than its own placement fee takes. */
+  const breakEvenRent = (() => {
+    if (!letsToTenant || debtUnknown || !(beDenominator - placementPerRent > 0)) return null;
+    const r = (beBase + annualDebtService) / (beDenominator - placementPerRent);
+    if (!minimumBinds(12 * (1 - num0(d.vacancyPct) / 100) * r)) return r;
+    return (beBase + mgmtMinAnnual + annualDebtService)
+      / (12 * (1 - num0(d.vacancyPct) / 100) * (1 - num0(d.repairReservePct) / 100) - placementPerRent);
+  })();
 
-  /* Occupancy at which the property covers its fixed costs and the loan, per
+  /* Occupancy at which the property covers its costs and the loan, per
      31.5. Above 100% means it cannot break even at the entered rent however
      full it is — which is a different and more serious statement than a thin
-     margin, and one of the grade's hard gates. */
+     margin, and one of the grade's hard gates. 100 less it is the vacancy
+     at which the month crosses nought ("Survives vacancy to"), where that
+     lies between none and all. */
+  /* With the terms it was solved on — the costs that do not move with the
+     occupancy, and the share of the rent collected that is charged — so a
+     working can print the arithmetic that gives the figure. */
   const beOccDenominator = letsToTenant ? grossAnnualRentN * (1 - variableCostRate) : 0;
-  const breakEvenOccupancy = (beOccDenominator > 0 && !debtUnknown)
-    ? (fixedOperatingCosts + annualDebtService) / beOccDenominator * 100
-    : null;
+  const beOcc = (() => {
+    if (!(beOccDenominator > 0) || debtUnknown) return null;
+    const o = (beBase + placementAnnual + annualDebtService) / beOccDenominator * 100;
+    if (!minimumBinds(grossAnnualRentN * o / 100)) return { value: o, fixed: beBase + placementAnnual, rate: variableCostRate };
+    const rate = num0(d.repairReservePct) / 100;
+    return { value: (beBase + placementAnnual + mgmtMinAnnual + annualDebtService) / (grossAnnualRentN * (1 - rate)) * 100,
+      fixed: beBase + placementAnnual + mgmtMinAnnual, rate };
+  })();
+  const breakEvenOccupancy = beOcc ? beOcc.value : null;
   /* What the owner pays each year to hold a property that does not pay for
      itself. Shown rather than buried in a negative cash-flow figure, because
      "minus RM1,200 a month" and "RM14,400 a year out of your pocket, RM72,000
@@ -1450,6 +1495,11 @@ function dealModel(d) {
            reserveMonths, reserveScenarios, burnWithRent, burnWithoutRent,
            reserveComputable, tenureValid, zeroRateModelled,
            breakEvenOccupancy, annualOwnerSubsidy, fixedOperatingCosts, variableCostRate,
+           /* The break-even occupancy's own terms, where they are not the
+              entered-rent split beside it: on a managed deal with a minimum
+              fee, whose top-up moves with the rent collected. A key no other
+              deal carries (P1 R1's fingerprints). */
+           ...(managed && mgmtMinAnnual > 0 && beOcc ? { breakEvenOccupancyTerms: { fixed: beOcc.fixed, rate: beOcc.rate } } : {}),
            inputRatePct: d.ratePct, tenureYears: d.tenureYears,
            bankValuation, lenderValueBasis, valuationGapCash, marginOfFinancePct,
            financingBasisConfirmed, financingCoverageOfPrice, financingScenarios, valuationRule,

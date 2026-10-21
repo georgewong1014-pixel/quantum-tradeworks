@@ -217,6 +217,83 @@ try {
     else ok(`breakEvenRent is a true zero of the monthly position — RM${r.rent.toFixed(2)}`, r);
   }
 
+  /* 3b — THE BREAK-EVENS ON A MANAGED DEAL (the 20 Oct 2026 sweep:
+          managed-1, stress-1, lab-refurb-1, managed-3, stress-2, taxed-3).
+          Check 3 holds the break-even rent on the sample, which is self-
+          managed: no fee, no minimum and no placement, so the terms that
+          move with the answer are nought on it. Here, deals that carry them,
+          against figures worked by hand from their inputs (the annuity, the
+          running costs and the fee rules written out below, not the app's):
+          - M: the sample managed at 8% with a RM200 minimum a month, a
+            month's placement fee per 24-month tenancy, a 70% deposit. The
+            minimum binds at both answers, so the fee is the floor, RM2,400 a
+            year, and the placement is half a month's rent a year:
+              rent      = (5,078 + 2,400 + ADS) ÷ (12 × 0.91 × 0.95 − 1 × 12/24)
+              occupancy = (5,078 + 925 + 2,400 + ADS) ÷ (22,200 × 0.95)
+            where 5,078 is the maintenance (294 × 12), assessment, quit rent
+            and insurance, 925 the placement at the entered RM1,850, and ADS
+            twelve instalments on RM171,600 at 4.3% over 35 years. At each,
+            the model's own monthly position is nil to the sen, and the
+            occupancy is 100 less the model's "Survives vacancy to".
+          - S: the sample managed at 8% (no minimum), the 90% loan: the fee
+            is the percentage, so rent = (5,078 + ADS) ÷ (12 × 0.91 × 0.87 −
+            0.5) — RM3,727.9985, where the old closed form gave RM3,629.16,
+            at which the month was −RM74.13.
+          - G: the grade's "Cannot break even" gate follows the model: rent
+            RM2,000, 30% vacancy, 8% with a RM200 minimum, price RM283,113 —
+            the month at full occupancy is +RM19.00, so the gate does not
+            fire (it fired at "102%" on the frozen top-up).
+          - T: the after-tax gap is tax alone: at the break-even rent of S
+            at 24%, and of a managed cash purchase (10%, 6-month tenancies,
+            25%), year 1's cash flow before tax is nil, and the after-tax
+            break-even is above it (the cash purchase's read RM178 BELOW it,
+            printed "more"). */
+  {
+    const r = await evaluate(`(() => {
+      const base = { ...window.__T.base, evidence: { ...window.__T.base.evidence }, checks: {}, touched: {} };
+      const M = { ...base, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, leasingFeeMonths: 1, tenancyMonths: 24, downPct: 70 };
+      const S = { ...base, selfManaged: false, mgmtPct: 8 };
+      const G = { ...base, rent: 2000, vacancyPct: 30, selfManaged: false, mgmtPct: 8, mgmtMinMonthly: 200, price: 283113 };
+      const C = { ...base, downPct: 100, selfManaged: false, mgmtPct: 10, tenancyMonths: 6, marginalTaxPct: 25 };
+      const T = { ...S, marginalTaxPct: 24 };
+      const mM = dealModel(M), mS = dealModel(S), mG = dealModel(G);
+      const at = (d, k, v) => dealModel({ ...d, [k]: v });
+      const after = (d) => { const m = dealModel(d); const bp = propertyBreakPoint(d, 'rent', { measure: 'cashflowAfterTax', lo: 0, hi: Math.max(d.rent * 6, 30000) });
+        return { pre: m.breakEvenRent, post: bp.value, preTaxMonthAtPre: isNum(m.breakEvenRent) ? at(d, 'rent', m.breakEvenRent).path[0].cfPreTax / 12 : null }; };
+      return { base: { rent: base.rent, price: base.price },
+        M: { rent: mM.breakEvenRent, occ: mM.breakEvenOccupancy, atRent: at(M, 'rent', mM.breakEvenRent).cashflowMonthly,
+             atOcc: at(M, 'vacancyPct', 100 - mM.breakEvenOccupancy).cashflowMonthly, survives: mM.breakEvenVacancy, why: mM.breakEvenVacancyWhy },
+        S: { rent: mS.breakEvenRent, atRent: at(S, 'rent', mS.breakEvenRent).cashflowMonthly },
+        G: { occ: mG.breakEvenOccupancy, full: at(G, 'vacancyPct', 0).cashflowMonthly, gates: propertyGrade(G, mG).gates.map(g => g.id) },
+        T: after(T), C: after(C) };
+    })()`);
+    const i = 0.043 / 12, pmt = (P) => P * i / (1 - Math.pow(1 + i, -420));
+    const F0 = 294 * 12 + 800 + 300 + 450;
+    const adsM = 12 * pmt(572000 * 0.30), adsS = 12 * pmt(572000 * 0.90);
+    const want = {
+      Mrent: (F0 + 2400 + adsM) / (12 * 0.91 * 0.95 - 1 * 12 / 24),
+      Mocc: (F0 + 1850 * 12 / 24 + 2400 + adsM) / (1850 * 12 * 0.95) * 100,
+      Srent: (F0 + adsS) / (12 * 0.91 * 0.87 - 1 * 12 / 24),
+    };
+    const p = [];
+    if (r.base.rent !== 1850 || r.base.price !== 572000) p.push(`the sample is not the one worked by hand (rent ${r.base.rent}, price ${r.base.price})`);
+    /* The worked figures' own premises: the minimum binds at M's answers. */
+    if (!(0.08 * 12 * 0.91 * want.Mrent < 2400) || !(0.08 * 1850 * 12 * want.Mocc / 100 < 2400)) p.push('the hand-worked case does not bind the minimum: the test is wrong');
+    if (!(Math.abs(r.M.rent - want.Mrent) < 0.005)) p.push(`M: break-even rent ${r.M.rent}, worked by hand ${want.Mrent.toFixed(4)}`);
+    if (!(Math.abs(r.M.atRent) < 0.005)) p.push(`M: at the break-even rent the monthly position is ${r.M.atRent}, not nil`);
+    if (!(Math.abs(r.M.occ - want.Mocc) < 1e-6)) p.push(`M: break-even occupancy ${r.M.occ}%, worked by hand ${want.Mocc.toFixed(6)}%`);
+    if (!(Math.abs(r.M.atOcc) < 0.005)) p.push(`M: at the break-even occupancy the monthly position is ${r.M.atOcc}, not nil`);
+    if (r.M.why !== 'crosses' || !(Math.abs(100 - r.M.survives - r.M.occ) < 1e-6)) p.push(`M: "Survives vacancy to" ${r.M.survives}% (${r.M.why}) beside a break-even occupancy of ${r.M.occ}%`);
+    if (!(Math.abs(r.S.rent - want.Srent) < 0.005) || !(Math.abs(r.S.atRent) < 0.005)) p.push(`S: break-even rent ${r.S.rent} (by hand ${want.Srent.toFixed(4)}), the month there ${r.S.atRent}`);
+    if (!(r.G.occ < 100) || !(r.G.full > 0) || r.G.gates.includes('breakeven')) p.push(`G: break-even occupancy ${r.G.occ}%, the month at full occupancy ${r.G.full}, gates ${r.G.gates.join(', ')}`);
+    for (const k of ['T', 'C']) {
+      const x = r[k];
+      if (!isFinite(x.post) || !(Math.abs(x.preTaxMonthAtPre) < 0.005) || !(x.post > x.pre)) p.push(`${k}: before tax ${x.pre}, after tax ${x.post}; year 1's month before tax at the first ${x.preTaxMonthAtPre}`);
+    }
+    if (p.length) fail('the break-evens on a managed deal are zeros of the model\'s own monthly position, worked by hand', p);
+    else ok(`the break-evens on a managed deal are zeros of the model's own monthly position, worked by hand — a binding RM200 minimum and a month's placement: RM${r.M.rent.toFixed(2)} and ${r.M.occ.toFixed(4)}% (= 100 − "Survives vacancy to"), the month nil at each; managed at 8%: RM${r.S.rent.toFixed(2)}; the "Cannot break even" gate follows (${r.G.occ.toFixed(2)}%, +RM${r.G.full.toFixed(2)} at full occupancy); the after-tax gap is tax alone (RM${(r.T.post - r.T.pre).toFixed(2)}, RM${(r.C.post - r.C.pre).toFixed(2)} on a managed cash purchase)`);
+  }
+
   /* 4 — a solved break-point is a zero of the thing it breaks. */
   {
     const r = await evaluate(`(() => {
