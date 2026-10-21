@@ -1133,7 +1133,17 @@ function dealModel(d) {
        that it is spent; if it is genuinely banked and not spent, the deduction
        belongs in the year it is finally used. */
     const scale = Math.pow(1.02, y - 1);
-    const firstTenancyFee = y === 1 ? placementAnnual * scale : 0;
+    /* THE FIRST TENANT'S FEE, AND ONLY IT (the 20 Oct 2026 sweep: taxed-2,
+       managed-8). The placement fee is spread over its tenancy as a running
+       cost (placementAnnual: a fee every monthsPerCycle months), so the
+       first tenant's fee is the part of each year's charge that falls in
+       the first tenancy's months — 1 to monthsPerCycle — and that part is
+       left out of the deduction; every later fee is a replacement tenant's
+       and is deducted. It left out year one's whole charge and nothing
+       after: on a 24-month tenancy half the first fee was deducted in year
+       two; on a 6-month tenancy a replacement's fee was left out in year
+       one. On a 12-month tenancy the two rules are the same. */
+    const firstTenancyFee = placementAnnual * scale * clamp((monthsPerCycle - 12 * (y - 1)) / 12, 0, 1);
     const deductibleOpexY = opexY - firstTenancyFee;
     const interestY = interestInYear(loan, d.ratePct, d.tenureYears, y);
     const taxY = rentalTaxYear({

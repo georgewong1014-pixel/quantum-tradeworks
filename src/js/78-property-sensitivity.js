@@ -322,28 +322,52 @@ function propertySensitivityPanel(d, m) {
      the interest, but what left the account is the whole instalment. The
      principal inside it is taxed in the year it is repaid while never being
      available to pay the tax on itself. */
+  /* TAX ALONE, AND ITS OWN REASONS (the 20 Oct 2026 sweep: taxed-3,
+     taxed-6). The cash break-even is a zero of the model's own month, and
+     year one's cash before tax is that month (check 2 of model-test), so
+     the after-tax figure exceeds it by the tax and nothing else. At the cash
+     break-even, what is taxed is what was paid and is not deductible: the
+     principal inside the instalment, and the first tenant's placement fee —
+     each named only where the deal has it. With neither (a cash purchase
+     with no placement fee) nothing is taxed there, and the two are one
+     figure; a cash purchase is not told about an instalment it does not
+     pay. */
   if (m && m.taxComputed) {
     const rentBase = num0(d.rent);
     const afterTax = propertyBreakPoint(d, 'rent', {
       measure: 'cashflowAfterTax', lo: 0, hi: Math.max(rentBase * 6, 30000),
     });
-    if (isNum(afterTax.value) && isNum(m.breakEvenRent)) {
-      const gap = afterTax.value - m.breakEvenRent;
-      card.append(el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' }, [
-        el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'Breaking even on cash is not breaking even after tax.'),
-        el('p', { class: 'metaline', style: 'margin-top:6px' },
-          `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month. Covering them and the tax on the rent takes `
-          + `${fmtMoney(afterTax.value, 'MYR', 0)} — ${fmtMoney(Math.abs(gap), 'MYR', 0)} more.`),
-        el('p', { class: 'metaline', style: 'margin-top:6px' },
-          'The two figures measure different things. At the cash break-even the whole instalment has left the account, but only '
-          + 'the interest inside it was deductible. The principal is taxed as income in the year it is repaid while never being '
-          + 'available to pay the tax on itself — so a property that exactly covers its costs still generates a bill.'),
-      ]));
+    const atBE = isNum(m.breakEvenRent) ? dealModel({ ...d, rent: m.breakEvenRent }).path?.[0] : null;
+    if (isNum(afterTax.value) && isNum(m.breakEvenRent) && atBE && isNum(atBE.taxable)) {
+      const principal = num0(atBE.principal);
+      const fee = atBE.taxable - (atBE.rent - atBE.opex - atBE.interest);
+      const gap = Math.max(0, afterTax.value - m.breakEvenRent);
+      /* What is taxed at the cash break-even is the principal and the fee
+         left out, and nothing else: with neither, no more than rounding. */
+      if (!(principal > 0) && !(fee >= 0.5)) {
+        card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
+          `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month, and at that rent no tax on the rent is due, so it is the after-tax break-even too.`));
+      } else {
+        const why = [
+          principal > 0 ? 'At the cash break-even the whole instalment has left the account, but only '
+            + 'the interest inside it was deductible. The principal is taxed as income in the year it is repaid while never being '
+            + 'available to pay the tax on itself — so a property that exactly covers its costs still generates a bill.' : null,
+          fee >= 0.5 ? `${principal > 0 ? 'The first tenant’s placement fee adds to it: it is paid' : 'At the cash break-even the first tenant’s placement fee has been paid'} `
+            + 'but is not deductible, so the rent that pays it is taxed.' : null,
+        ].filter(Boolean).join(' ');
+        card.append(el('div', { style: 'margin-top:var(--lg);padding:var(--md);border:1px solid var(--bronze);border-radius:var(--r-md)' }, [
+          el('p', { class: 'body', style: 'font-weight:600;margin:0' }, 'Breaking even on cash is not breaking even after tax.'),
+          el('p', { class: 'metaline', style: 'margin-top:6px' },
+            `Covering the outgoings takes ${fmtMoney(m.breakEvenRent, 'MYR', 0)} a month. Covering them and the tax on the rent takes `
+            + `${fmtMoney(afterTax.value, 'MYR', 0)} — ${fmtMoney(gap, 'MYR', 0)} more.`),
+          el('p', { class: 'metaline', style: 'margin-top:6px' }, `The two figures measure different things. ${why}`),
+        ]));
+      }
     }
   } else if (propertyInputApplies(d, 'rent')) {
     card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
-      'These are before tax on the rent. Enter your marginal rate above and the after-tax break-even appears here — it is higher '
-      + 'than this one, because the principal inside the instalment is taxed but not deductible.'));
+      'These are before tax on the rent. Enter your marginal rate above and the after-tax break-even appears here'
+      + (num0(m && m.loan) > 0 ? ' — it is higher than this one, because the principal inside the instalment is taxed but not deductible.' : '.')));
   }
 
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--sm)' },

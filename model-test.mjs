@@ -1661,6 +1661,70 @@ try {
     else ok(`deducting the instalment understates taxable income by the principal alone — ${r.said}`, r);
   }
 
+  /* P3b — THE FIRST TENANT'S FEE IS NOT DEDUCTIBLE, A REPLACEMENT'S IS,
+           WHATEVER THE TENANCY LENGTH (the 20 Oct 2026 sweep: taxed-2,
+           managed-8, taxed-6). The model spreads each placement fee over
+           its tenancy (a fee every so many months), so the first tenant's
+           fee is the part of each year's charge in the first tenancy's
+           months, and that part is left out of the deduction. Worked by
+           hand on the sample bought for cash, managed at 8% with a month's
+           placement, taxed at 30% — running costs RM8,629.26 in year one
+           (5,078 + 8% and 5% of RM20,202 collected + the placement), grown
+           2% a year; rent grown 2.5%:
+           - 24-month tenancies: RM925 left out in year one AND RM943.50 in
+             year two (it left out year one's only, so half the first fee
+             was deducted in year two) — year two's tax RM3,854.61, not
+             RM3,571.56;
+           - 6-month tenancies: RM1,850 left out in year one, one fee (it
+             left out RM3,700, a replacement's too) — tax RM3,194.32;
+           - 12-month tenancies: RM1,850 in year one, as before.
+           The panel says each part only where the deal has it: no
+           instalment on a cash purchase ("pays RM0 to the bank …
+           understating it by RM0"), the loan's last split from the year it
+           ends, the fee where one is left out; and the after-tax break-even
+           names the reasons the deal has. */
+  {
+    const r = await evaluate(`(() => {
+      const T5 = { ...window.__T.base, downPct: 100, marginalTaxPct: 30, selfManaged: false, mgmtPct: 8, leasingFeeMonths: 1 };
+      const left = (m, y) => { const p = m.path[y - 1]; return p.taxable - (p.rent - p.opex - p.interest); };
+      const run = (d) => { const m = dealModel(d); return { m, l1: left(m, 1), l2: left(m, 2), l3: left(m, 3), t1: m.path[0].tax, t2: m.path[1].tax }; };
+      const a = run({ ...T5, tenancyMonths: 24 }), b = run({ ...T5, tenancyMonths: 6 }), c = run({ ...T5, tenancyMonths: 12 });
+      const text = (d) => returnsAndTaxPanel(d, dealModel(d)).textContent;
+      const sens = (d) => propertySensitivityPanel(d, dealModel(d)).textContent;
+      const cashSelf = { ...window.__T.base, downPct: 100, marginalTaxPct: 30 };
+      const shortLoan = { ...window.__T.taxed, tenureYears: 5, holdYears: 10 };
+      const pick = (x) => ({ l1: x.l1, l2: x.l2, l3: x.l3, t1: x.t1, t2: x.t2 });
+      return { base: { rent: window.__T.base.rent, maint: window.__T.base.maintenance, rr: window.__T.base.repairReservePct, v: window.__T.base.vacancyPct, g: window.__T.base.rentGrowthPct },
+        a: pick(a), b: pick(b), c: pick(c),
+        cashManaged: text({ ...T5, tenancyMonths: 24 }), cashSelf: text(cashSelf), shortLoan: text(shortLoan),
+        shortLast: (() => { const m = dealModel(shortLoan); const p = m.path[4]; return { y: p.y, i: fmtMoney(p.interest, 'MYR', 0), pr: fmtMoney(p.principal, 'MYR', 0), after: m.path[5].debt }; })(),
+        sensSelf: sens(cashSelf), sensManaged: sens({ ...T5, tenancyMonths: 24 }), sensLoan: sens(window.__T.taxed) };
+    })()`);
+    const p = [];
+    if (r.base.rent !== 1850 || r.base.maint !== 294 || r.base.rr !== 5 || r.base.v !== 9 || r.base.g !== 2.5) p.push(`the sample is not the one worked by hand: ${JSON.stringify(r.base)}`);
+    const eff1 = 1850 * 12 * 0.91, eff2 = eff1 * 1.025;
+    const opex1 = (pl) => 294 * 12 + 800 + 300 + 450 + eff1 * 0.08 + pl + eff1 * 0.05;
+    const tax = (eff, opexY, out) => Math.max(0, eff - (opexY - out)) * 0.30;
+    const want = {
+      a: { l1: 925, l2: 925 * 1.02, l3: 0, t2: tax(eff2, opex1(925) * 1.02, 925 * 1.02) },
+      b: { l1: 1850, l2: 0, t1: tax(eff1, opex1(3700), 1850) },
+      c: { l1: 1850, l2: 0 },
+    };
+    const near = (x, y, e = 0.005) => Math.abs(x - y) < e;
+    if (!near(r.a.l1, want.a.l1) || !near(r.a.l2, want.a.l2) || !near(r.a.l3, 0) || !near(r.a.t2, want.a.t2)) p.push(`24-month tenancies: left out ${r.a.l1} / ${r.a.l2} / ${r.a.l3}, year two's tax ${r.a.t2}; by hand 925 / 943.50 / 0 and ${want.a.t2.toFixed(2)}`);
+    if (!near(r.b.l1, want.b.l1) || !near(r.b.l2, 0) || !near(r.b.t1, want.b.t1)) p.push(`6-month tenancies: left out ${r.b.l1} / ${r.b.l2}, year one's tax ${r.b.t1}; by hand 1,850 / 0 and ${want.b.t1.toFixed(2)}`);
+    if (!near(r.c.l1, want.c.l1) || !near(r.c.l2, 0)) p.push(`12-month tenancies: left out ${r.c.l1} / ${r.c.l2}; by hand 1,850 / 0`);
+    if (/to the bank|The instalment is not deductible|is principal/.test(r.cashManaged)) p.push('a cash purchase is told about an instalment it does not pay');
+    if (!/The first tenant’s placement fee is not deductible either/.test(r.cashManaged) || !/RM925 in year one/.test(r.cashManaged) || !/24-month tenancy/.test(r.cashManaged)) p.push('the managed cash purchase does not say its first tenant\'s fee is left out (RM925 in year one, over its 24-month tenancy)');
+    if (/not deductible|to the bank/.test(r.cashSelf)) p.push('a cash purchase with no placement fee shows the box');
+    if (!r.shortLoan.includes(`in its last year, year ${r.shortLast.y}, the split is ${r.shortLast.i} interest to ${r.shortLast.pr} principal. After it there is no instalment.`) || r.shortLast.after !== 0 || /widens every year/.test(r.shortLoan)) p.push(`a 5-year loan in a 10-year hold: the split is not from its last year (${JSON.stringify(r.shortLast)})`);
+    if (/not breaking even after tax|whole instalment/.test(r.sensSelf) || !/no tax on the rent is due, so it is the after-tax break-even too/.test(r.sensSelf)) p.push('the after-tax break-even of a cash purchase with no placement fee: ' + (r.sensSelf.match(/Covering the outgoings[^.]*\./) || ['—'])[0]);
+    if (!/first tenant’s placement fee has been paid but is not deductible/.test(r.sensManaged) || /whole instalment/.test(r.sensManaged)) p.push('the after-tax break-even of a managed cash purchase does not give its own reason (the first tenant\'s fee), or speaks of an instalment');
+    if (!/whole instalment has left the account/.test(r.sensLoan)) p.push('the after-tax break-even of a financed deal no longer explains the principal');
+    if (p.length) fail('the first tenant\'s placement fee is left out of the deduction whatever the tenancy length, and the panels say each part only where the deal has it', p);
+    else ok(`the first tenant's placement fee is left out of the deduction whatever the tenancy length, worked by hand — 24-month tenancies RM${r.a.l1.toFixed(2)} and RM${r.a.l2.toFixed(2)} (year two's tax RM${r.a.t2.toFixed(2)}), 6-month RM${r.b.l1.toFixed(2)} (RM${r.b.t1.toFixed(2)}), 12-month RM${r.c.l1.toFixed(2)}; no instalment words on a cash purchase; a 5-year loan's last split from year ${r.shortLast.y}`);
+  }
+
   /* P4 — "the figure shown is the first one found" only beside a figure. */
   {
     const r = await evaluate(`(() => {
