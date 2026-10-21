@@ -43,6 +43,22 @@ const illusOf = (stamp, ids) => {
 };
 const tkOf = (id) => BY_ID.get(id)?.c.tk || id;
 
+/* What a saved case's row says beyond its name: the reviews, the linked run,
+   any default still the tool's and not the reader's (never the reader's plan),
+   and the research it was saved against. A case from before snapshots says
+   so and is not given one. */
+function caseRowDetail(t, nReviews) {
+  const sug = [...suggestedFields(t).map(([, label]) => label.toLowerCase()),
+    ...(suggestedConds(t).length ? [`${suggestedConds(t).length} condition${suggestedConds(t).length === 1 ? '' : 's'}`] : [])];
+  const snap = isRecord(t.snapshot) ? t.snapshot : null;
+  const moved = snap ? stampDiff(snap.stamp) : null;
+  return [`${nReviews} review${nReviews === 1 ? '' : 's'}`,
+    t.runRef ? 'linked to a saved run' : null,
+    sug.length ? `Suggested defaults not yet confirmed by you: ${sug.join(', ')}` : null,
+    snap ? `Research when saved, ${fmtSaved(snap.at)}${moved && moved.status !== 'current' ? ` (${moved.label.toLowerCase()})` : ''}` : 'Saved before snapshots',
+  ].filter(Boolean).join(' · ');
+}
+
 function workspaceItems() {
   const items = [];
 
@@ -94,7 +110,7 @@ function workspaceItems() {
       kind: 'thesis', key: t.id, name: `${tkOf(t.ticker)} — ${t.oneLine || 'no one-line case written yet'}`,
       sample: SEEDED_THESIS_IDS.includes(t.id), subject: tkOf(t.ticker), ids: [t.ticker],
       created: t.stamp?.savedAt || t.created, stamp: t.stamp, legacy: null, illustrative: illusOf(t.stamp, [t.ticker]),
-      detail: `${nReviews} review${nReviews === 1 ? '' : 's'}${t.runRef ? ' · linked to a saved run' : ''}`,
+      detail: caseRowDetail(t, nReviews),
       open: () => { navigate('/my/theses'); openThesisEditor(t); },
       remove: () => {
         const rv = store.read('reviews', {});

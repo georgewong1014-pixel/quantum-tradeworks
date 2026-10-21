@@ -5592,6 +5592,133 @@ for (const w of [360, 390]) {
   else console.log(`ok   eq-comparability: /compare (Apple and Microsoft) at 360, 390 and 430, in the page's font and in Verdana — "Same fiscal year (FY2025)" and "Each company’s latest" each a 44px target inside the screen, nothing sideways on the common year or with every figure's year beside it (${said.length} views)`);
 }
 /* ---- end eq-comparability ---- */
+/* ---- research-case ---- */
+/* A RESEARCH CASE'S NEW CONTROLS, ON A PHONE AND A DESK (QT-D08-01, the
+   21 Oct 2026 Day-8 report; 50-views-studio.js). A case started on a filed
+   company (the page's own creator), drawn on /my/theses and on the company's
+   own Thesis tab, at 360×640, 390×844 and 1440×900, in the page's font and in
+   Verdana (CI's sans is as wide):
+     - the page does not scroll sideways;
+     - the draft line, each suggested default, each Confirm, the research
+       record and "Review against today's research" sit inside the card's
+       width;
+     - every Confirm and the review control is a 44px target on both axes;
+     - walked with the keyboard through the card, no stop is hidden: each
+       control's top and bottom edges are hit-tested, and none lands under
+       something else or off the screen.
+   Fails on the base commit, where a case has none of these. */
+{
+  const fails = [], said = [];
+  const ev = async (expression) => {
+    const r = await send('Runtime.evaluate', { returnByValue: true, awaitPromise: true, expression }, sessionId);
+    if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description?.split('\n')[0] || r.result.exceptionDetails.text);
+    return r.result?.result?.value;
+  };
+  const load = async (path) => {
+    await send('Page.navigate', { url: BASE + path }, sessionId);
+    for (let i = 0; i < 80; i++) {
+      await sleep(200);
+      try { if (await ev(`document.readyState === 'complete' && typeof realPending !== 'undefined' && !realPending && typeof State !== 'undefined' && !!State.view && BY_ID.has('AAPL-SEC')`)) break; } catch { /* booting */ }
+    }
+    await sleep(500);
+    return ev('State.view');
+  };
+  const forget = () => ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); sessionStorage.clear(); return true; })()`);
+  const tab = async (back) => {
+    const modifiers = back ? 8 : 0;
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, modifiers }, sessionId);
+  };
+  const MEASURE = `(async () => {
+    await document.fonts.ready;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const shown = (n) => !!n && n.getClientRects().length > 0 && getComputedStyle(n).visibility !== 'hidden';
+    const card = document.querySelector('[id^="thesis-card-t"]:not(#thesis-card-t1):not(#thesis-card-t2)');
+    if (!card) return { none: true };
+    const det = card.querySelector('.case-moves'); if (det) det.open = true;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const p = card.getBoundingClientRect();
+    const ctrls = [...card.querySelectorAll('.case-confirm, .case-review-btn')].filter(shown);
+    const small = ctrls.map(n => [n, n.getBoundingClientRect()]).filter(([, b]) => b.height < 43.5 || b.width < 43.5).map(([n, b]) => (n.id || n.className) + ' ' + Math.round(b.width) + '×' + Math.round(b.height));
+    const inside = [...card.querySelectorAll('.case-draft, .case-draft-line, .case-sug, .case-sug-what, .case-sug-cond, .case-confirm, .case-record, .case-moves, .case-review, .case-review-btn')].filter(shown)
+      .filter(n => { const b = n.getBoundingClientRect(); return b.left < p.left - 0.5 || b.right > p.right + 0.5; }).map(n => (n.id || n.className.split(' ')[0]) + ' ' + Math.round(n.getBoundingClientRect().right - p.right) + 'px past');
+    return { over: document.documentElement.scrollWidth - document.documentElement.clientWidth, n: ctrls.length, confirms: card.querySelectorAll('.case-confirm').length, small, inside,
+      face: getComputedStyle(card.querySelector('.case-draft-line') || card).fontFamily, id: card.id,
+      line: !!card.querySelector('.case-draft-line'), record: !!card.querySelector('.case-record'), review: !!card.querySelector('.case-review-btn') };
+  })()`;
+  const STOP = `(async () => {
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const n = document.activeElement;
+    if (!n || n === document.body) return { end: true };
+    const card = n.closest('[id^="thesis-card-"]');
+    const b = n.getBoundingClientRect();
+    const x = Math.min(innerWidth - 2, Math.max(1, b.left + Math.min(b.width, 40) / 2));
+    const covered = [b.top + 3, b.bottom - 3].map(y => {
+      if (y < 0 || y > innerHeight) return 'off-screen';
+      const t = document.elementFromPoint(x, y);
+      if (!t || n.contains(t) || t.contains(n)) return '';
+      const c = t.closest('.dock,.topbar,.ticker-sticky') || t;
+      return c.tagName.toLowerCase() + (c.className && typeof c.className === 'string' ? '.' + c.className.split(' ')[0] : '');
+    });
+    const why = b.height > innerHeight - 40 ? '' : b.height < 2 ? 'invisible' : covered.every(Boolean) ? covered.join(' / ') : '';
+    return { inCard: !!card, why, who: n.tagName.toLowerCase() + ' “' + (n.getAttribute('aria-label') || n.textContent || '').trim().slice(0, 30) + '”', id: n.id || n.textContent.slice(0, 20) };
+  })()`;
+  try {
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
+    for (const [w, h, mob] of [[360, 640, true], [390, 844, true], [1440, 900, false]]) for (const font of [null, 'Verdana, sans-serif']) {
+      const at = `${w}×${h}${font ? ' in Verdana' : ''}`;
+      await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: mob }, sessionId);
+      for (const [path, want] of [['/my/theses', 'theses'], ['/company/AAPL-SEC?tab=thesis', 'research']]) {
+        await load('/privacy'); await forget();
+        await load('/company/AAPL-SEC');
+        if (font) await ev(`(() => { const s = document.createElement('style'); s.textContent = '*{font-family:${font} !important}'; document.head.append(s); return true; })()`);
+        await ev(`(() => { addToThesis('AAPL-SEC'); return true; })()`);
+        await sleep(500);
+        if (path !== '/my/theses') { await ev(`navigate(companyPath(BY_ID.get('AAPL-SEC').c) + '?tab=thesis'); true`); await sleep(500); }
+        const got = await ev('State.view');
+        if (got !== (want === 'theses' ? 'thesis' : 'research')) { fails.push(`${at} ${path}: opened ${got}`); continue; }
+        const r = await ev(MEASURE);
+        if (r.none) { fails.push(`${at} ${path}: no case card for the started case`); continue; }
+        if (r.over > 0) fails.push(`${at} ${path}: the page scrolls ${r.over}px sideways`);
+        if (!r.line || !r.record || !r.review || r.confirms !== 4) fails.push(`${at} ${path}: the card has the draft line ${r.line}, the record ${r.record}, the review control ${r.review} and ${r.confirms} Confirm controls (want 4)`);
+        if (r.small.length) fails.push(`${at} ${path}: ${r.small.length} of ${r.n} controls under 44px: ${r.small.slice(0, 4).join('; ')}`);
+        if (r.inside.length) fails.push(`${at} ${path}: outside the card's width: ${r.inside.slice(0, 4).join(', ')}`);
+        if (font && !/Verdana/.test(r.face)) fails.push(`${at} ${path}: drawn in ${r.face}, not Verdana`);
+        /* The keyboard through the card: from its Edit button forwards. */
+        await ev(`(() => { document.documentElement.style.scrollBehavior = 'auto'; const c = document.getElementById(${JSON.stringify(r.id)}); const e = c.querySelector('[id^="thesis-edit-"]'); e.focus(); return true; })()`);
+        const seen = new Set(), hidden = [];
+        for (let i = 0; i < 40; i++) {
+          await tab(false);
+          const v = await ev(STOP);
+          if (!v || v.end || !v.inCard) break;
+          if (seen.has(v.id)) continue;
+          seen.add(v.id);
+          if (v.why) hidden.push(`${v.who} (${v.why})`);
+        }
+        if (seen.size < 5) fails.push(`${at} ${path}: the keyboard walk through the card reached only ${seen.size} controls`);
+        if (hidden.length) fails.push(`${at} ${path}: ${hidden.length} of ${seen.size} focus stops hidden: ${hidden.slice(0, 4).join('; ')}`);
+        /* Operated by the keyboard alone: Enter on the first Confirm settles its
+           default, and focus is still in the page afterwards. */
+        const nBefore = await ev(`document.querySelectorAll('#${r.id} .case-confirm').length`);
+        const focused = await ev(`(() => { const b = document.querySelector('#${r.id} .case-confirm'); b.focus(); return document.activeElement === b; })()`);
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' }, sessionId);
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+        await sleep(500);
+        const key = await ev(`({ n: document.querySelectorAll('#${r.id} .case-confirm').length, focus: !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('main') })`);
+        if (!focused || key.n !== nBefore - 1 || !key.focus) fails.push(`${at} ${path}: Enter on a Confirm left ${key.n} of ${nBefore} Confirm controls, focus kept ${key.focus}`);
+        said.push(`${at.replace(' in Verdana', ' V')} ${want === 'theses' ? 'cases' : 'tab'}: ${r.n} controls, ${seen.size} stops`);
+      }
+    }
+  } catch (e) {
+    fails.push(`the check could not run: ${e.message}`);
+  } finally {
+    await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
+    await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
+  }
+  if (fails.length) { bad++; console.log(`FAIL research-case — a started research case on a phone and a desk: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  else console.log(`ok   research-case: a started case on /my/theses and on the company's Thesis tab at 360, 390 and 1440, in the page's font and in Verdana: no sideways scroll, the draft line, defaults, Confirms, record and review control inside the card, every Confirm and the review control 44px on both axes, and no hidden focus stop on a keyboard walk through the card (${said.join('; ')})`);
+}
+/* ---- end research-case ---- */
 /* ---- d11-decide ---- */
 /* THE CALCULATOR'S "DECIDE" SECTION ON A PHONE (plan item 6.1(a); the
    owner's 16 Oct 2026 decision, D11). The last section is "Decide" and its
