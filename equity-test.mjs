@@ -830,7 +830,7 @@ try {
     })()`);
     const p = [];
     if (r.leaks.length) p.push(`${r.leaks.length} misassembled figures still shown: ${r.leaks.slice(0, 6).join(', ')}`);
-    if (r.koPayout.reason !== 'withheld' || !/CommonStockSharesIssued/.test(r.koPayout.text)) p.push(`KO payout: ${r.koPayout.reason} — ${r.koPayout.text}`);
+    if (r.koPayout.reason !== 'withheld' || !/treasury stock/.test(r.koPayout.text)) p.push(`KO payout: ${r.koPayout.reason} — ${r.koPayout.text}`);
     if (r.apdDe.reason !== 'withheld' || r.apdCash != null) p.push(`APD debt/equity: ${r.apdDe.reason}, net cash ${r.apdCash}`);
     if (p.length) fail('the shipped file\'s misassembled shares, debt and sector labels are withheld with their reason', p);
     else ok('no share count read from the issued tag, no current-portion-only or double-counted debt, no misfiled sector is shown; KO\'s payout and APD\'s debt/equity read "withheld" with the reason');
@@ -2207,7 +2207,7 @@ try {
     if (r.illus !== 'all' || r.mixed !== 'some') p.push(`illustrative flags ${r.illus}, ${r.mixed}`);
     if (r.current !== 'current') p.push(`a fresh stamp reads ${r.current}`);
     if (r.model.status !== 'model' || !/valuation 1\.4\.0 → 1\.5\.0|valuation 1\.4\.0 →/.test(r.model.text) || r.model.dataMoved) p.push(`model move ${JSON.stringify(r.model)}`);
-    if (r.data.status !== 'data' || r.data.modelMoved || !/Data moved: saved against us\.json a635756/.test(r.data.text)) p.push(`data move ${JSON.stringify(r.data)}`);
+    if (r.data.status !== 'data' || r.data.modelMoved || !/Data moved: saved against SEC filings a635756/.test(r.data.text)) p.push(`data move ${JSON.stringify(r.data)}`);
     if (r.legacy.status !== 'unstamped' || r.legacy.modelMoved !== false || r.none.status !== 'unstamped') p.push('an unstamped item is not reported as such');
     /* The NAPIC file of the deal's division (plan item 1.6: one file a
        division; the whole extract is not served), and the geography. The
@@ -10112,8 +10112,8 @@ try {
           if (!before.length || after.length || !/No filters applied/.test(document.getElementById('views').textContent)) out.bad.push('Clear all left ' + JSON.stringify(after) + ' of ' + JSON.stringify(before));
           const chips = () => { const lab = [...document.querySelectorAll('#views label.caption')].find(l => l.textContent === 'Business model'); return lab ? [...lab.parentElement.querySelectorAll('button.chip')] : []; };
           const unmarked = chips().filter(b => !['true', 'false'].includes(b.getAttribute('aria-pressed')));
-          chips().find(b => b.textContent === 'bank')?.click(); await w(300);
-          const bank = chips().find(b => b.textContent === 'bank');
+          chips().find(b => b.getAttribute('data-type') === 'bank')?.click(); await w(300);
+          const bank = chips().find(b => b.getAttribute('data-type') === 'bank');
           out.seen.push('bank chip aria-pressed=' + bank?.getAttribute('aria-pressed'));
           if (!chips().length || unmarked.length || bank?.getAttribute('aria-pressed') !== 'true' || chips().some(b => b !== bank && b.getAttribute('aria-pressed') !== 'false'))
             out.bad.push('business-model chips: ' + chips().map(b => b.textContent + '=' + b.getAttribute('aria-pressed')).join(', '));

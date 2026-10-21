@@ -1058,7 +1058,7 @@ VIEWS.tradingIndex = () => {
   const bd = el('div', { class: 'card' });
   bd.append(cardHead('What this will not do', 'Named rather than implied.'));
   bd.append(el('ul', { class: 'ticklist' }, [
-    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded; reading a screenshot automatically is not built.'),
+    el('li', {}, 'It does not read your screenshot. Every state above is one you recorded. A phase-2 extraction script exists off-page; it writes a draft, and nothing it produces is scored until a person has confirmed it against the image.'),
     el('li', {}, 'It does not predict the next candle, and it does not claim any indicator here is effective. That needs point-in-time backtesting on licensed price history, which is not available here.'),
     el('li', {}, 'It carries 0% weight in the research composite. A trend reading never moves business quality or valuation.'),
     el('li', {}, 'It does not say buy, sell or hold, and it does not size a position from your income, wealth or risk tolerance. It reports whether the rules you declared are met.'),
