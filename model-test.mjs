@@ -9954,6 +9954,305 @@ try {
   }
   /* ---- end qt-quick-full ---- */
 
+  /* ---- qt-day8-bands ---- */
+  /* THE EVIDENCE BANDS AND THE RESEARCH CASE, BY KNOWN ANSWER (the Day-8
+     report, QT-D08-01: "known-answer scoring and boundary tests;
+     incomplete-data and unavailable-price tests"). The page's own functions
+     — fitGrade, coverageTier, STRATEGY_FITS and BAND_MEANING
+     (45-views-research.js), researchComposite and COMPOSITE_BANDS
+     (15-derivation.js) — run on synthetic companies named as tests (filed,
+     US-listed, priced and every statement line present unless a case says
+     otherwise), each input worked by hand from the fit's own formula so the
+     score lands on the boundary:
+       Income      60 + 5 × yield − the payout above 70%, rounded
+       Compounder  0.7 × business quality + 2 × revenue growth (at most 30)
+       Value       50 + the price's gap below the base-case estimate (%)
+       DCA, Wheel  the business-quality score
+       Cyclical    45, capped without cycle evidence
+     B1 — nothing missing: 80 reads A and 79 B, 65 B and 64 C, 50 C and 49 D,
+          on the Income and the Compounder fits alike.
+     B2 — evidence missing holds a fit to B or lower: DCA at a quality of 95,
+          80 and 65 reads B, 64 and 50 C, 49 D; Value at 95 and 80 and the US
+          Cash Wheel at 95 read B; the Cyclical fit's 45 reads D.
+     B3 — the tiers and the states: coverageTier at the 90% and 70% bounds,
+          with and without a price; on a Basic Directory company every fit
+          that scores at the Standard tier is withheld, no score and one
+          reason added; an illustrative company's fits read illustrative,
+          bar the Cash Wheel on a Bursa one; Trend is not built on any filer,
+          at any tier, priced or not; the Cash Wheel does not apply outside
+          the US, filed or illustrative.
+     B4 — incomplete data and an unavailable price: with no price, Income
+          and Value / re-rating are Unassessed and name the price, with no
+          score and no figure in their words; a fit missing the one input it
+          needs is Unassessed and names it; every filed company of this
+          build without a price reads the same on both.
+     B5 — BAND_MEANING says what fitGrade does: every score 0 to 100 run
+          through fitGrade, with nothing missing and with something missing,
+          gives each letter's range, and the numbers each meaning states are
+          those ranges' bounds.
+     B6 — every strategy in STRATEGY_FITS comes back under its own label, in
+          a state FIT_STATES explains, with a score and a letter or a reason.
+     C1 — researchComposite classifies at a data coverage of 70 and not at
+          69, which keeps the score and adds the coverage gate naming 69%
+          and 70%.
+     C2 — the bands at 85/84, 70/69 and 55/54, each score worked by hand
+          over the 80% tested (35 quality, 30 valuation, 15 balance sheet).
+     C3 — an untested pillar carries no score and the divisor is the weight
+          tested (valuation untested: (35 × 80 + 15 × 50) ÷ 50 = 71);
+          catalysts and macro are untested even when a score is offered for
+          them; the governance gate is manual review on every composite; and
+          with no pillar tested there is no score and no classification.
+     Each passes on 68f3da44 and fails on a copy of the page with its rule
+     broken (A from 81; the cap lifted; the directory, illustrative, trend
+     or Bursa rule dropped; the price gate dropped; a meaning's number moved;
+     a strategy with no branch; the gate at 69; a band from 86; the divisor
+     100; catalysts read; governance passed; no pillar scored nought). */
+  {
+    const nm = 'qt-day8-bands';
+    /* By hand, from each fit's formula (fitGrade): [score, inputs, letter]. */
+    const INCOME = [
+      [80, { dy: 4, payout: 70 }, 'A'], [79, { dy: 4, payout: 71 }, 'B'],
+      [65, { dy: 1, payout: 70 }, 'B'], [64, { dy: 1, payout: 71 }, 'C'],
+      [50, { dy: 0, payout: 80 }, 'C'], [49, { dy: 0, payout: 81 }, 'D']];
+    /* Return on equity 15% throughout, which the fit needs and does not score. */
+    const COMPOUNDER = [
+      [80, { q: 100, rev5: 5 }, 'A'], [79, { q: 100, rev5: 4.5 }, 'B'],
+      [65, { q: 50, rev5: 15 }, 'B'], [64, { q: 50, rev5: 14.5 }, 'C'],
+      [50, { q: 50, rev5: 7.5 }, 'C'], [49, { q: 50, rev5: 7 }, 'D']];
+    const DCA = [[95, 'B'], [80, 'B'], [65, 'B'], [64, 'C'], [50, 'C'], [49, 'D']];
+    const VALUE = [[95, 45, 'B'], [80, 30, 'B']];
+    /* [statement lines present and price, metrics, tier]. */
+    const TIERS = [
+      [{ completeness: 0.9 }, {}, 'verified'], [{ completeness: 0.89 }, {}, 'standard'],
+      [{ completeness: 0.7 }, {}, 'standard'], [{ completeness: 0.69 }, {}, 'directory'],
+      [{ px: { p: null } }, {}, 'standard'], [{ completeness: 0.69, px: { p: null } }, {}, 'directory'],
+      [{ completeness: null }, { coverage: 90 }, 'verified'], [{ completeness: null }, { coverage: 69 }, 'directory'],
+      [{ real: false }, {}, 'unassessed']];
+    /* (35 × quality + 30 × valuation + 15 × balance sheet) ÷ 80, quality the
+       mean of its three: [score, pillars, the band's lower bound]. */
+    const RC = [
+      [85, { t: [100, 100, 100], v: 70, s: 80 }, 85],  /* 3,500 + 2,100 + 1,200 = 6,800 */
+      [84, { t: [92, 96, 100], v: 80, s: 64 }, 70],    /* 3,360 + 2,400 +   960 = 6,720 */
+      [70, { t: [60, 64, 68], v: 90, s: 44 }, 70],     /* 2,240 + 2,700 +   660 = 5,600 */
+      [69, { t: [66, 72, 78], v: 60, s: 80 }, 55],     /* 2,520 + 1,800 + 1,200 = 5,520 */
+      [55, { t: [30, 40, 50], v: 70, s: 60 }, 55],     /* 1,400 + 2,100 +   900 = 4,400 */
+      [54, { t: [55, 60, 65], v: 50, s: 48 }, 0]];     /* 2,100 + 1,500 +   720 = 4,320 */
+    const T = { income: INCOME.map(x => x[1]), compounder: COMPOUNDER.map(x => x[1]), dca: DCA.map(x => x[0]),
+      value: VALUE.map(x => x[1]), tiers: TIERS.map(([c, m]) => [c, m]), rc: RC.map(x => x[1]) };
+    try {
+      const r = JSON.parse(await evaluate(`(() => {
+        const kinds = { fitGrade: typeof fitGrade, coverageTier: typeof coverageTier, researchComposite: typeof researchComposite,
+          STRATEGY_FITS: typeof STRATEGY_FITS, BAND_MEANING: typeof BAND_MEANING, COMPOSITE_BANDS: typeof COMPOSITE_BANDS, FIT_STATES: typeof FIT_STATES };
+        const absent = Object.keys(kinds).filter(k => kinds[k] === 'undefined');
+        if (absent.length) return JSON.stringify({ absent });
+        const T = ${JSON.stringify(T)};
+        /* A score that is neither a number nor null (NaN, undefined) said as
+           itself: JSON would carry NaN across as null, the "no score" it is not. */
+        const v = (n) => (n === null || isNum(n) ? n : String(n));
+        const co = (x) => ({ c: { id: 'QT-MODEL-TEST', tk: 'QTTEST', name: 'Model-test company, not a real one', mkt: 'US', type: 'mature', real: true, completeness: 1, px: { p: 100 }, ...(x.c || {}) },
+          m: { coverage: 100, ...(x.m || {}) }, scores: { quality: { score: isNum(x.q) ? x.q : null } }, val: x.val || null });
+        const fit = (x, key) => { const r = co(x), tier = coverageTier(r), f = fitGrade(r, key, tier);
+          return { key, tier: tier.id, label: f.label, state: f.state, grade: f.grade, score: v(f.score), missing: f.missing.slice(), cap: f.cap || null,
+            supports: f.supports.slice(), weakens: f.weakens.slice() }; };
+        const all = (x) => STRATEGY_FITS.map(s => fit(x, s.k));
+        const FULL = { m: { dy: 4, payout: 70, rev5: 5, roe: 15 }, q: 100, val: { mos: { base: 45 } } };
+        const on = (c) => ({ ...FULL, c });
+        const b1 = { income: T.income.map(m => fit({ m }, 'income')),
+          compounder: T.compounder.map(x => fit({ m: { rev5: x.rev5, roe: 15 }, q: x.q }, 'compounder')) };
+        const b2 = { dca: T.dca.map(q => fit({ q }, 'dca')), value: T.value.map(mos => fit({ val: { mos: { base: mos } } }, 'value')),
+          wheel: fit({ q: 95 }, 'wheel'), cyclical: fit({ c: { type: 'cyclical' }, m: { revDD: -30 } }, 'cyclical') };
+        const b3 = { tiers: T.tiers.map(([c, m]) => coverageTier(co({ c, m })).id),
+          lists: { verified: all(on({})), standard: all(on({ completeness: 0.8 })), directory: all(on({ completeness: 0.5 })),
+            illusUS: all(on({ real: false })), illusMY: all(on({ real: false, mkt: 'MY' })), filedMY: all(on({ mkt: 'MY' })),
+            unpriced: all(on({ px: { p: null } })) } };
+        const b4 = { income: fit(on({ px: { p: null } }), 'income'), value: fit(on({ px: { p: null } }), 'value'),
+          incomeNoPx: fit(on({ px: null }), 'income'), valueNoPx: fit(on({ px: null }), 'value'),
+          incomplete: [
+            ['Income with a price and no distribution or payout record', fit({}, 'income')],
+            ['Quality compounder with no growth record', fit({ m: { roe: 15 }, q: 100 }, 'compounder')],
+            ['Quality compounder with no business-quality assessment', fit({ m: { rev5: 5, roe: 15 } }, 'compounder')],
+            ['Cyclical with no revenue drawdown history', fit({ c: { type: 'cyclical' } }, 'cyclical')],
+            ['Value / re-rating with no valuation model', fit({ val: { err: 'no model' } }, 'value')],
+            ['DCA with no business-quality assessment', fit({}, 'dca')],
+            ['US Cash Wheel with no business-quality assessment', fit({}, 'wheel')]],
+          filed: U.filter(x => x.c.real && !isNum(x.c.px && x.c.px.p)).map(x => { const tier = coverageTier(x), i = fitGrade(x, 'income', tier), w = fitGrade(x, 'value', tier);
+            return [x.c.tk, i.state, v(i.score), i.missing[0] || null, w.state, v(w.score), w.missing[0] || null]; }),
+          filedAll: U.filter(x => x.c.real).length };
+        const scan = [];
+        for (let s = 0; s <= 100; s++) {
+          const a = fit({ m: s >= 60 ? { dy: (s - 60) / 5 } : { dy: 0, payout: 130 - s } }, 'income'), d = fit({ q: s }, 'dca');
+          scan.push([s, a.score, a.state, a.grade, a.missing.length, d.score, d.state, d.grade, d.missing.length]);
+        }
+        const b5 = { scan, meaning: BAND_MEANING };
+        const b6 = { fits: STRATEGY_FITS.map(s => [s.k, s.label]), states: Object.keys(FIT_STATES) };
+        const rc = (x) => { const o = researchComposite({ c: { id: 'QT-MODEL-TEST', real: true }, m: { coverage: x.cov === undefined ? 100 : x.cov },
+            scores: { quality: { score: x.t[0] }, growth: { score: x.t[1] }, capital: { score: x.t[2] }, value: { score: x.v }, strength: { score: x.s }, ...(x.extra || {}) } });
+          return { score: v(o.score), classified: o.classified, testedWeight: o.testedWeight, dataCoverage: o.dataCoverage,
+            band: o.band ? { min: o.band.min, state: o.band.state } : null, parts: o.parts.map(p => [p.id, p.w, p.score, p.absent || null]),
+            untested: o.untested.map(p => p.id), gates: o.gates.map(g => [g.id, g.state, g.why || '']) }; };
+        const k85 = T.rc[0];
+        const c = { bands: T.rc.map(rc), at70: rc({ ...k85, cov: 70 }), at69: rc({ ...k85, cov: 69 }), noCov: rc({ ...k85, cov: null }),
+          offered: rc({ ...k85, extra: { catalysts: { score: 100 }, macro: { score: 100 } } }),
+          noValue: rc({ t: [70, 80, 90], v: null, s: 50 }), qualityOnly: rc({ t: [70, 80, 90], v: null, s: null }),
+          none: rc({ t: [null, null, null], v: null, s: null }), table: COMPOSITE_BANDS.map(b => [b.min, b.state]),
+          every: U.map(x => { const o = researchComposite(x); return [x.c.tk, o.testedWeight, o.untested.map(p => p.id), o.gates.map(g => g.id + ':' + g.state)]; }) };
+        return JSON.stringify({ b1, b2, b3, b4, b5, b6, c });
+      })()`));
+      if (r.absent) throw new Error(`the page holds no ${r.absent.join(', ')}`);
+      const reason = (f) => f.cap || f.missing[0] || '';
+      const said = (f) => `${f.state}${f.state === 'graded' ? ` ${f.grade}` : ''} at ${f.score}, ${f.missing.length} missing`;
+      const byKey = (list) => Object.fromEntries(list.map(f => [f.key, f]));
+      const L = r.b3.lists;
+
+      /* B1 */
+      const p1 = [];
+      for (const [k, rows] of [['Income', INCOME], ['Quality compounder', COMPOUNDER]]) rows.forEach(([score, x, letter], i) => {
+        const f = r.b1[k === 'Income' ? 'income' : 'compounder'][i];
+        if (f.score !== score || f.state !== 'graded' || f.grade !== letter || f.missing.length) p1.push(`${k} on ${JSON.stringify(x)}: ${said(f)} — by hand ${score}, ${letter}, nothing missing`);
+      });
+      if (p1.length) fail(`${nm} B1: with nothing missing, fitGrade reads A from 80, B from 65 and C from 50`, p1);
+      else ok(`${nm} B1: with nothing missing, 80 reads A and 79 B, 65 B and 64 C, 50 C and 49 D — on Income (60 + 5 × yield − payout above 70) and Quality compounder (0.7 × quality + 2 × growth, at most 30) alike, each score worked by hand`);
+
+      /* B2 */
+      const p2 = [];
+      const held = (f, score, letter, what) => { if (f.score !== score || f.state !== 'graded' || f.grade !== letter || !f.missing.length || !f.cap) p2.push(`${what}: ${said(f)}, cap ${JSON.stringify(f.cap)} — by hand ${score}, ${letter}, held with something missing`); };
+      DCA.forEach(([q, letter], i) => held(r.b2.dca[i], q, letter, `DCA at a business quality of ${q}`));
+      VALUE.forEach(([score, mos, letter], i) => held(r.b2.value[i], score, letter, `Value / re-rating with the price ${mos}% below the base-case estimate`));
+      held(r.b2.wheel, 95, 'B', 'the US Cash Wheel at a business quality of 95');
+      held(r.b2.cyclical, 45, 'D', 'Cyclical with a revenue drawdown history');
+      if (p2.length) fail(`${nm} B2: a fit with evidence missing is held to B or lower`, p2);
+      else ok(`${nm} B2: with evidence missing a fit is held to B or lower and says it is capped — DCA at a quality of 95, 80 and 65 reads B, 64 and 50 C, 49 D; Value at 95 and 80 and the US Cash Wheel at 95 read B; Cyclical's 45 reads D`);
+
+      /* B3 */
+      const p3 = [];
+      TIERS.forEach(([c, m, want], i) => { if (r.b3.tiers[i] !== want) p3.push(`coverageTier on ${JSON.stringify({ ...c, ...m })}: ${r.b3.tiers[i]}, not ${want}`); });
+      const std = byKey(L.standard), dir = byKey(L.directory);
+      if (L.standard[0]?.tier !== 'standard' || L.directory[0]?.tier !== 'directory') p3.push(`the test companies sit at the ${L.standard[0]?.tier} and ${L.directory[0]?.tier} tiers, not standard and directory`);
+      const withheld = [];
+      for (const [k, s] of Object.entries(std)) {
+        const d = dir[k];
+        if (s.state !== 'graded') { if (d.state !== s.state) p3.push(`${s.label}: ${s.state} at the Standard tier, ${d.state} at the Basic Directory tier`); continue; }
+        const added = d.missing.filter(x => !s.missing.includes(x));
+        if (d.state !== 'missing' || d.score !== null || added.length !== 1 || !added[0]) p3.push(`${s.label} at the Basic Directory tier: ${said(d)}, ${added.length} reasons added (${JSON.stringify(added)}) — at the Standard tier ${s.grade} at ${s.score}`);
+        else withheld.push(s.label);
+      }
+      if (withheld.length < 5) p3.push(`only ${withheld.length} fits score at the Standard tier for the Basic Directory tier to withhold (${withheld.join(', ')})`);
+      for (const [name, list, wheel] of [['an illustrative US company', L.illusUS, 'illustrative'], ['an illustrative Bursa company', L.illusMY, 'not_applicable']])
+        for (const f of list) { const want = f.key === 'wheel' ? wheel : 'illustrative';
+          if (f.tier !== 'unassessed' || f.state !== want || f.score !== null || !reason(f)) p3.push(`${f.label} on ${name}: ${said(f)} at the ${f.tier} tier, reason ${JSON.stringify(reason(f))} — ${want}, no score`); }
+      for (const [name, list] of [['a priced US filer', L.verified], ['a Standard Coverage filer', L.standard], ['a Basic Directory filer', L.directory], ['a filer with no price', L.unpriced], ['a Bursa filer', L.filedMY]]) {
+        const t = list.find(f => f.key === 'trend');
+        if (!t || t.state !== 'not_built' || t.score !== null || !t.cap) p3.push(`Trend on ${name}: ${t ? said(t) : 'absent'}, cap ${JSON.stringify(t?.cap)} — not built`);
+      }
+      for (const [name, list] of [['a Bursa filer at a business quality of 100', L.filedMY], ['an illustrative Bursa company', L.illusMY]]) {
+        const w = list.find(f => f.key === 'wheel');
+        if (!w || w.state !== 'not_applicable' || w.score !== null || !w.cap) p3.push(`the Cash Wheel on ${name}: ${w ? said(w) : 'absent'}, cap ${JSON.stringify(w?.cap)} — not applicable`);
+      }
+      if (byKey(L.verified).wheel?.state !== 'graded') p3.push(`the Cash Wheel on the same company listed in the US reads ${byKey(L.verified).wheel?.state}, so the Bursa case shows nothing`);
+      if (p3.length) fail(`${nm} B3: the tiers, and the Basic Directory, illustrative, trend and Cash Wheel states`, p3);
+      else ok(`${nm} B3: coverageTier reads Verified Core at 90% of statement lines with a price and Standard at 89%, Standard at 70% and Basic Directory at 69%, Standard with no price, the metric coverage when no line count is held, Unassessed on illustrative figures; at the Basic Directory tier ${withheld.join(', ')}, which score at the Standard tier, are withheld — no score, one reason added; every fit of an illustrative company reads illustrative, bar the Cash Wheel on a Bursa one; Trend is not built on any filer, at any tier, priced or not; the Cash Wheel does not apply to a Bursa company, filed or illustrative`);
+
+      /* B4 */
+      const p4 = [];
+      const figure = (f) => /\d/.test([...f.supports, ...f.weakens, ...f.missing, f.cap || ''].join(' '));
+      const priced = byKey(L.verified);
+      for (const [k, name] of [['income', 'Income'], ['value', 'Value / re-rating']]) for (const [how, f] of [['a price of null', r.b4[k]], ['no price record', r.b4[`${k}NoPx`]]]) {
+        if (f.state !== 'missing' || f.score !== null || f.grade !== 'U' || f.supports.length || f.weakens.length || !f.missing[0] || figure(f))
+          p4.push(`${name} with ${how}: ${said(f)}, supports ${JSON.stringify(f.supports)}, weakens ${JSON.stringify(f.weakens)}, missing ${JSON.stringify(f.missing)} — Unassessed, a reason, no figure`);
+        else if (priced[k].state !== 'graded' || priced[k].missing.includes(f.missing[0])) p4.push(`${name}'s reason "${f.missing[0]}" is not the price's: priced, the same company reads ${said(priced[k])} (${JSON.stringify(priced[k].missing)})`);
+      }
+      for (const [what, f] of r.b4.incomplete) if (f.state !== 'missing' || f.score !== null || f.grade !== 'U' || !f.missing[0]) p4.push(`${what}: ${said(f)} (${JSON.stringify(f.missing)}) — Unassessed, no score, the gap named`);
+      const why = { income: r.b4.income.missing[0], value: r.b4.value.missing[0] };
+      const off = r.b4.filed.filter(([, is, isc, im, vs, vsc, vm]) => is !== 'missing' || isc !== null || im !== why.income || vs !== 'missing' || vsc !== null || vm !== why.value);
+      if (off.length) p4.push(`${off.length} of the ${r.b4.filed.length} filed companies without a price read otherwise on Income or Value / re-rating: ${JSON.stringify(off.slice(0, 3))}`);
+      if (p4.length) fail(`${nm} B4: with data missing or no price, a fit says its state and reason, never a figure`, p4);
+      else ok(`${nm} B4: with no price, Income and Value / re-rating read Unassessed — "${why.income}" and "${why.value}" — with no score and no figure, a null price and no price record alike; ${r.b4.incomplete.length} fits each missing the one input they need read Unassessed and name it; ${r.b4.filed.length} of this build's ${r.b4.filedAll} filed companies have no price, and each reads the same on both`);
+
+      /* B5 */
+      const p5 = [];
+      const ladder = (col, nothing) => { const g = {}, order = [];
+        for (const row of r.b5.scan) { const [s] = row, score = row[col], state = row[col + 1], letter = row[col + 2], missing = row[col + 3];
+          if (score !== s || state !== 'graded' || (nothing ? missing !== 0 : missing === 0)) { p5.push(`the scan's input for ${s} (${nothing ? 'Income' : 'DCA'}) gave ${state} ${letter} at ${score}, ${missing} missing`); continue; }
+          if (order[order.length - 1] !== letter) order.push(letter);
+          g[letter] = g[letter] ? [g[letter][0], s] : [s, s]; }
+        return { g, order }; };
+      const full = ladder(1, true), capped = ladder(5, false);
+      if (full.order.join() !== 'D,C,B,A') p5.push(`with nothing missing the letters run ${full.order.join(', ')} from 0 to 100`);
+      if (capped.order.join() !== 'D,C,B') p5.push(`with something missing the letters run ${capped.order.join(', ')} from 0 to 100 — never above B`);
+      const meaning = r.b5.meaning;
+      if (Object.keys(meaning).sort().join() !== [...new Set([...full.order, ...capped.order])].sort().join()) p5.push(`BAND_MEANING explains ${Object.keys(meaning).join(', ')}; fitGrade gives ${[...new Set([...full.order, ...capped.order])].join(', ')}`);
+      const bounds = {};
+      for (const letter of Object.keys(meaning)) {
+        const t = String(meaning[letter]);
+        const said5 = { range: [...t.matchAll(/(\d+)\s*(?:to|–)\s*(\d+)/g)].map(m => `${m[1]}-${m[2]}`),
+          from: [...t.matchAll(/(\d+)\s+(?:or more|and over|or above)/g)].map(m => +m[1]), below: [...t.matchAll(/(?:below|under|less than)\s+(\d+)/g)].map(m => +m[1]) };
+        const want = new Set();
+        for (const [which, g] of [['with nothing missing', full.g[letter]], ['with something missing', capped.g[letter]]]) {
+          if (!g) continue;
+          const [lo, hi] = g;
+          if (lo > 0 && hi < 100) { want.add(lo).add(hi); if (!said5.range.includes(`${lo}-${hi}`)) p5.push(`${letter} ${which} is ${lo} to ${hi}; its meaning says ${JSON.stringify(t)}`); }
+          else if (lo > 0) { want.add(lo); if (!said5.from.includes(lo)) p5.push(`${letter} ${which} is ${lo} or more; its meaning says ${JSON.stringify(t)}`); }
+          else if (hi < 100) { want.add(hi + 1); if (!said5.below.includes(hi + 1)) p5.push(`${letter} ${which} is below ${hi + 1}; its meaning says ${JSON.stringify(t)}`); }
+        }
+        const stray = [...t.matchAll(/\d+/g)].map(m => +m[0]).filter(n => n !== 100 && !want.has(n));
+        if (stray.length) p5.push(`${letter}'s meaning states ${stray.join(', ')}, which bound nothing fitGrade does (${JSON.stringify(t)})`);
+        bounds[letter] = [...want].join('/');
+      }
+      if (p5.length) fail(`${nm} B5: BAND_MEANING's numbers are fitGrade's thresholds`, p5);
+      else ok(`${nm} B5: BAND_MEANING says what fitGrade does — every score 0–100 through fitGrade gives ${['A', 'B', 'C', 'D'].map(l => `${l} ${full.g[l].join('–')}`).join(', ')} with nothing missing and ${['B', 'C', 'D'].map(l => `${l} ${capped.g[l].join('–')}`).join(', ')} with something missing, and each meaning states those bounds (${Object.entries(bounds).map(([l, b]) => `${l} ${b}`).join(', ')})`);
+
+      /* B6 */
+      const p6 = [];
+      const keys = r.b6.fits.map(([k]) => k), labels = Object.fromEntries(r.b6.fits);
+      for (const k of ['income', 'compounder', 'cyclical', 'value', 'catalyst', 'trend', 'dca', 'wheel']) if (!keys.includes(k)) p6.push(`STRATEGY_FITS holds no ${k}`);
+      for (const [name, list] of Object.entries(L)) {
+        if (list.map(f => f.key).join() !== keys.join()) p6.push(`${name}: fitGrade answered ${list.map(f => f.key).join(', ')}`);
+        for (const f of list) {
+          if (f.label !== labels[f.key]) p6.push(`${name}, ${f.key}: labelled "${f.label}", STRATEGY_FITS says "${labels[f.key]}"`);
+          if (!r.b6.states.includes(f.state)) p6.push(`${name}, ${f.label}: ${f.state}, a state FIT_STATES does not explain`);
+          else if (f.state === 'graded' ? !(Number.isFinite(f.score) && /^[A-D]$/.test(f.grade)) : (f.score !== null || !reason(f))) p6.push(`${name}, ${f.label}: ${said(f)}, reason ${JSON.stringify(reason(f))}`);
+        }
+      }
+      if (p6.length) fail(`${nm} B6: every strategy in STRATEGY_FITS comes back with a state, and a score or a reason`, p6);
+      else ok(`${nm} B6: each of the ${keys.length} strategies in STRATEGY_FITS comes back from fitGrade under its own label on ${Object.keys(L).length} test companies, in a state FIT_STATES explains — graded with a score and a letter, or no score and a reason`);
+
+      /* C1 */
+      const c = r.c, pc1 = [];
+      const cov = c.at69.gates.find(g => g[0] === 'coverage');
+      if (!c.at70.classified || c.at70.score !== 85 || c.at70.band?.min !== 85 || c.at70.gates.some(g => g[0] === 'coverage')) pc1.push(`at a data coverage of 70: ${c.at70.score}, classified ${c.at70.classified}, band ${JSON.stringify(c.at70.band)}, gates ${c.at70.gates.map(g => g[0]).join(', ')}`);
+      if (c.at69.classified || c.at69.band !== null || c.at69.score !== 85 || cov?.[1] !== 'not_classified' || !/\b69%/.test(cov?.[2] || '') || !/\b70%/.test(cov?.[2] || '')) pc1.push(`at 69: ${c.at69.score}, classified ${c.at69.classified}, band ${JSON.stringify(c.at69.band)}, the coverage gate ${JSON.stringify(cov)}`);
+      if (c.noCov.classified || c.noCov.dataCoverage !== 0 || c.noCov.band !== null) pc1.push(`with no data coverage recorded: classified ${c.noCov.classified} at ${c.noCov.dataCoverage}%`);
+      if (pc1.length) fail(`${nm} C1: researchComposite classifies at a data coverage of 70 and not at 69`, pc1);
+      else ok(`${nm} C1: researchComposite classifies 85 at a data coverage of 70 ("${c.at70.band.state}") and not at 69, where the 85 stays and the coverage gate says "${cov[2]}"; with no coverage recorded nothing is classified`);
+
+      /* C2 */
+      const pc2 = [];
+      if (c.table.map(([m]) => m).join() !== '85,70,55,0') pc2.push(`COMPOSITE_BANDS starts its bands at ${c.table.map(([m]) => m).join(', ')}, not 85, 70, 55 and 0`);
+      if (new Set(c.table.map(([, s]) => s)).size !== c.table.length) pc2.push(`two bands say the same: ${JSON.stringify(c.table)}`);
+      RC.forEach(([score, x, min], i) => { const o = c.bands[i];
+        if (o.score !== score || o.testedWeight !== 80 || !o.classified || o.band?.min !== min) pc2.push(`quality ${x.t.join('/')}, valuation ${x.v}, balance sheet ${x.s}: ${o.score} over ${o.testedWeight}%, ${o.band ? `the band from ${o.band.min}, "${o.band.state}"` : 'no band'} — by hand ${score} over 80%, the band from ${min}`); });
+      if (pc2.length) fail(`${nm} C2: the research case's bands at 85/84, 70/69 and 55/54`, pc2);
+      else ok(`${nm} C2: worked by hand over the 80% tested, ${RC.map(([s], i) => `${s} reads "${c.bands[i].band.state}"`).join(', ')}`);
+
+      /* C3 */
+      const pc3 = [];
+      const part = (o, id) => o.parts.find(p => p[0] === id);
+      const all3 = [...c.bands, c.at70, c.at69, c.noCov, c.offered, c.noValue, c.qualityOnly, c.none];
+      if (c.offered.score !== 85 || c.offered.testedWeight !== 80) pc3.push(`catalysts and macro offered 100 each: ${c.offered.score} over ${c.offered.testedWeight}% — by hand 85 over 80%, neither read`);
+      for (const o of all3) for (const id of ['catalysts', 'macro']) { const pp = part(o, id); if (!pp || pp[2] !== null || !o.untested.includes(id) || !pp[3]) pc3.push(`${id}: ${JSON.stringify(pp)}, untested ${o.untested.join(', ')} — untested, no score, with a reason`); }
+      if (c.noValue.score !== 71 || c.noValue.testedWeight !== 50 || c.noValue.untested.join() !== 'value,catalysts,macro' || part(c.noValue, 'value')?.[2] !== null) pc3.push(`quality 70/80/90 and balance sheet 50, valuation untested: ${c.noValue.score} over ${c.noValue.testedWeight}% (untested ${c.noValue.untested.join(', ')}) — by hand (35 × 80 + 15 × 50) ÷ 50 = 71, not ÷ 80 = 44 or ÷ 100 = 36`);
+      if (c.qualityOnly.score !== 80 || c.qualityOnly.testedWeight !== 35) pc3.push(`quality 70/80/90 alone: ${c.qualityOnly.score} over ${c.qualityOnly.testedWeight}% — by hand 80 over 35%`);
+      if (c.none.score !== null || c.none.testedWeight !== 0 || c.none.classified || c.none.band !== null || c.none.gates.map(g => g[0]).join() !== 'governance') pc3.push(`no pillar tested, at a data coverage of 100: ${c.none.score} over ${c.none.testedWeight}%, classified ${c.none.classified}, gates ${c.none.gates.map(g => g[0]).join(', ')} — no score, no classification, the governance gate alone`);
+      for (const o of all3) { const g = o.gates[0];
+        if (!g || g[0] !== 'governance' || g[1] !== 'manual_review' || !g[2] || o.gates.some(x => !['manual_review', 'not_classified'].includes(x[1]))) pc3.push(`a composite at ${o.score}: gates ${JSON.stringify(o.gates.map(x => [x[0], x[1]]))} — governance first, manual review, never passed`); }
+      const offU = c.every.filter(([, w, un, gates]) => w > 80 || !un.includes('catalysts') || !un.includes('macro') || gates[0] !== 'governance:manual_review');
+      if (offU.length) pc3.push(`${offU.length} of the ${c.every.length} companies in this build: ${JSON.stringify(offU.slice(0, 3))}`);
+      if (pc3.length) fail(`${nm} C3: untested pillars carry no score, the divisor is the weight tested, catalysts and macro are untested, governance is manual review`, pc3);
+      else ok(`${nm} C3: valuation untested, quality 70/80/90 and balance sheet 50 give (35 × 80 + 15 × 50) ÷ 50 = 71 over 50%, quality alone 80 over 35%; catalysts and macro carry no score even when offered 100, here and on all ${c.every.length} companies of this build; governance is manual review on every composite; with no pillar tested there is no score and no classification`);
+    } catch (e) { fail(`${nm}: the evidence bands and the research case by known answer`, String(e.message).split('\n')[0]); }
+  }
+  /* ---- end qt-day8-bands ---- */
+
   /* ---- calc-fixes ---- */
   /* THREE DEFECTS THE CALCULATION CHECK PACK FOUND (the owner, 17 Oct 2026:
      "fix clear defects; ask on the rest"; the handoff's
