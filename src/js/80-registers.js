@@ -952,7 +952,7 @@ VIEWS.wheel = () => {
 
     /* Downside scenarios. */
     const sc = el('div', { class: 'card' });
-    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at the moves 41A.8 requires.', null, WK));
+    sc.append(cardHead('If the underlying falls', 'Put result at expiry, at each move below.', null, WK));
     const st = el('table', { class: 'dt' });
     st.append(el('thead', {}, el('tr', {}, ['Underlying move', 'Price at expiry', 'Put result'].map(h => el('th', {}, h)))));
     const stb = el('tbody');

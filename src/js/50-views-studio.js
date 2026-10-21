@@ -1062,9 +1062,9 @@ function openRunDrawer(runId, ticker, from = 'workspace') {
 
 function seedTheses() {
   return [
-    { id:'t1', ticker:'MAYBANK', oneLine:'A low-cost deposit franchise that should sustain a mid-teens return on equity while paying most of it out.',
-      quality:'CASA of 36.5% funds the book below peers, and the domestic branch network is not economically replicable at current returns.',
-      valCase:'Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity supports a justified price-to-book above the current multiple.',
+    { id:'t1', ticker:'MAYBANK', oneLine:'Invented example — not a view on Malayan Banking Berhad: the test is whether a low-cost deposit franchise can sustain a mid-teens return on equity while paying most of it out.',
+      quality:'The test is whether a CASA ratio of 36.5% keeps funding the book below peers, and whether the domestic branch network can be replicated at current returns.',
+      valCase:'Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity, set beside the current price-to-book, is the test this example case would run.',
       catalysts:['Net interest margin stabilising as the rate cycle turns', 'Loan growth returning to nominal GDP', 'Credit costs normalising below the guided range'],
       risks:['Regional credit variance from the Indonesian book', 'Payout near the top of policy leaves less retained capital'],
       conds:[
@@ -1076,9 +1076,9 @@ function seedTheses() {
       horizon:'3–5 years', review:'2026-10-30', conf:'Medium',
       questions:['How much of the margin improvement is structural rather than cyclical?', 'What is the through-cycle credit cost for the Indonesian book?'],
       created:'2026-05-14' },
-    { id:'t2', ticker:'AXREIT', oneLine:'Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.',
-      quality:'Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.',
-      valCase:'Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price.',
+    { id:'t2', ticker:'AXREIT', oneLine:'Invented example — not a view on Axis Real Estate Investment Trust: the test is whether industrial rent reversion outruns unit issuance — distribution per unit, not total distributions.',
+      quality:'Logistics demand and rent reversion are the evidence this example case would check. The assets themselves are replicable, so its moat rating would be set low.',
+      valCase:'A distribution discount model on a 2% growth assumption against a required return near 8%, set beside the current unit price, is the test this example case would run.',
       catalysts:['A full year without a placement', 'Occupancy recovering above 96%'],
       risks:['Continued unit issuance diluting distribution per unit', 'Gearing rising toward the ceiling'],
       conds:[
@@ -1092,6 +1092,28 @@ function seedTheses() {
   ];
 }
 if (!State.theses) { State.theses = seedTheses(); store.write('theses', State.theses); }
+/* The seeded cases once stated conclusions about two named companies in the
+   product's voice ("supports a justified price-to-book above the current
+   multiple"). They now open "Invented example — not a view on <company>:" and
+   word each conclusion as the test the case would run (owner decision, 21 Oct
+   2026; the 20 Oct sweep, copy-equities-17). A browser that stored the earlier
+   wording gets the new, but only where a field is still exactly the seeded
+   text, so a case a reader has edited or made is never touched. */
+const SEED_WORDING_BEFORE = {
+  t1: { oneLine: "A low-cost deposit franchise that should sustain a mid-teens return on equity while paying most of it out.",
+    quality: "CASA of 36.5% funds the book below peers, and the domestic branch network is not economically replicable at current returns.",
+    valCase: "Residual income on a 12.5% sustainable ROE against a 9.0% cost of equity supports a justified price-to-book above the current multiple." },
+  t2: { oneLine: "Industrial rent reversion is real, but unit issuance has been absorbing most of it — the test is distribution per unit, not total distributions.",
+    quality: "Logistics demand supports positive reversion; the assets themselves are replicable, so the moat rating is deliberately low.",
+    valCase: "Distribution discount model on a 2% growth assumption against a required return near 8% leaves little difference to model estimate at the current unit price." },
+};
+(function refreshSeedWording() {
+  let changed = false;
+  const now = Object.fromEntries(seedTheses().map(t => [t.id, t]));
+  State.theses.forEach(t => { const before = SEED_WORDING_BEFORE[t?.id];
+    if (before) for (const k of Object.keys(before)) if (t[k] === before[k] && now[t.id]) { t[k] = now[t.id][k]; changed = true; } });
+  if (changed) store.write('theses', State.theses);
+})();
 
 function saveTheses() { store.write('theses', State.theses); }
 
@@ -1662,7 +1684,7 @@ VIEWS.thesis = () => {
   /* The one head (pageHead, 36-layouts.js), under My workspace's header. */
   wrap.append(pageHead({ title: 'What you believe, and what would prove you wrong', lede: 'Your investment cases, each checked against the latest data held.',
     note: 'Conditions are evaluated against the latest data every time this page loads. A breach is reported as a changed fact with its source — never as an instruction to trade.',
-    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New thesis from a screen` }) }));
+    action: el('button', { class: 'btn btn-ghost btn-sm', 'data-tool-path': '/discover/screener', onclick: () => go('discover', { tab: 'screener' }), html: `${icon('plus', 13)} New case from a screen` }) }));
   /* Under the heading, on every personal page: the page says what it is
      before it says whose data is on it. */
   appendSampleBanner(wrap);
@@ -1686,7 +1708,7 @@ VIEWS.thesis = () => {
      every thesis has one — a new thesis starts without. */
   const covered = State.watchlist.filter(id => State.theses.some(t => t.ticker === id)).length;
   const linked = State.theses.filter(t => t.runRef).length;
-  [['Open theses', String(State.theses.length), `${linked} linked to a saved valuation run`],
+  [['Open cases', String(State.theses.length), `${linked} linked to a saved valuation run`],
    ['Conditions breached', String(breached), breached ? 'Read the evidence before acting' : 'Nothing has changed state'],
    ['Reviews due within 30 days', String(dueSoon), 'Overdue included. Review discipline is scored, not returns'],
    ['Watchlist coverage', `${covered}/${State.watchlist.length}`, 'Watchlist entries with a written thesis']]
@@ -1784,7 +1806,7 @@ function fyAlignment(rows) {
   const same = labels.length === 1;
   const ends = known.map((x, i) => (i && same ? `${x.tk}’s ends ${FY_MONTHS[x.month]}` : `${x.tk}’s FY${x.fy} ends ${FY_MONTHS[x.month]}`));
   const notHeld = !unknown.length ? ''
-    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the shipped statements predate the ingest that records it — so ${known.length
+    : `The year-end month is not held for ${andList(unknown.map(x => x.tk))} in this dataset — the statements held were stored before it was recorded — so ${known.length
       ? `${unknown.length === 1 ? 'that column' : 'those columns'} cannot be placed against the others`
       : `whether ${same ? `these FY${labels[0]} columns` : 'these columns'} cover the same twelve months cannot be checked here`}.`;
   if (known.length >= 2 && months.size > 1)
@@ -2206,7 +2228,7 @@ VIEWS.compare = () => {
     el('p', { class: 'body', style: 'flex:1 1 320px;font-size:13px;margin:0' }, pack.why),
   ]));
   if (pack.id === 'general' && kinds.length > 1) packNote.append(el('p', { class: 'metaline', style: 'margin-top:8px' },
-    `The selection mixes ${kinds.join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
+    `The selection mixes ${kinds.map(archetypeName).join(', ')}. Only measures that mean the same thing across all of them are shown — select one business model to get its own comparison.`));
   wrap.append(packNote);
 
   /* Totals in the chosen currency, converted at the rate the chip above
@@ -2261,7 +2283,7 @@ VIEWS.compare = () => {
   const METRIC_ROWS = [
     ['Price', r => isNum(r.c.px?.p) ? fmtMoney(r.c.px.p, r.c.ccy) : absentCell('needs a price', NO_PRICE)],
     ['Market capitalisation', r => fmtCap(showLocal ? r.m.mcap : toBase(r.m.mcap, r.c.ccy), showLocal ? r.c.ccy : State.baseCcy), 'mcap'],
-    ['Business model', r => r.c.type],
+    ['Business model', r => archetypeName(r.c.type)],
     /* Which twelve months, and under which standard — so a column is read as
        what it is before any figure in it is compared. Where the filed
        columns' latest years differ, whether this is the company's latest. */
@@ -2309,7 +2331,7 @@ VIEWS.compare = () => {
     el('p', { class: 'metaline', style: 'flex:1 1 260px;margin:0' },
       `Kept in this browser only, with the model and data versions and every cell as it reads now, so reopening it shows what has moved. ${nSaved ? `${nSaved} saved so far.` : ''}`),
     el('a', { class: 'btn btn-ghost btn-sm', href: href('/my/workspace'),
-      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Workspace'),
+      onclick: e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/my/workspace'); } }, 'Saved work'),
   ]));
   wrap.append(saveBar);
 
@@ -2389,7 +2411,7 @@ VIEWS.compare = () => {
      a common year the chart says it does not. */
   const chartYears = yrs.mode === 'common' && shown.some(r => r.c.asAt)
     ? ` Each company’s latest year, against a price held now — not FY${yrs.common}.` : '';
-  mx.append(cardHead('Quality against valuation', `Same axes as the Value Radar, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
+  mx.append(cardHead('Quality against valuation', `Same axes as the Quality vs Value Map, restricted to the selected companies.${chartYears}`, null, { kind: kindFirst([...rows.map(r => rowKind(r.c)), 'modelled']), fine: 'Scores and the model estimate' }));
   const host = el('div', { style: 'width:100%' });
   mx.append(host);
   mx.append(el('div', { class: 'legend', style: 'margin-top:var(--sm)' }, [
@@ -2678,7 +2700,7 @@ VIEWS.portfolio = () => {
                      : (pos.length ? 'No holding here has a price, so there is no return to measure' : 'No holdings yet'),
       tone: !totalCost ? null : securities >= totalCost ? '--ok-text' : '--dn-text', ...(totalCost ? PK : { kind: 'unavailable', fine: 'No priced holding' }) })));
   const withThesis = pos.filter(p => p.thesis);
-  tiles.append(el('div', { class: 'card' }, statTile('Covered by a thesis', `${withThesis.length}/${pos.length}`,
+  tiles.append(el('div', { class: 'card' }, statTile('Covered by a case', `${withThesis.length}/${pos.length}`,
     { sub: securities ? `${fmtPct(sum(withThesis.map(p => p.valBase)) / securities * 100, 0)} of securities value` : '—', ...PK })));
   tiles.append(el('div', { class: 'card' }, statTile('Transaction costs paid', fmtAmount(feeTotal, State.baseCcy),
     { sub: 'Fees net of rebates, included in the cost base', ...PK })));
@@ -2756,15 +2778,17 @@ VIEWS.portfolio = () => {
        missing from (WS-06, equity-test) — not said once for both. */
     if (leftOut) card.append(el('p', { class: 'metaline', style: 'margin-bottom:var(--sm)' }, leftOut));
     const entries = Object.entries(obj).sort((a, b) => b[1] - a[1]);
+    /* A business model by its name, not its key (copy-equities-20). */
+    const nameOf = label === 'Business-model exposure' ? archetypeName : (x => x);
     const bar = el('div', { class: 'pillbar', style: 'height:14px;margin-bottom:var(--md)' });
     /* Widths rounded to 1/10000 of a per cent, as the range strip's are: /my/portfolio
        is pre-rendered, and a served page must match its render on Linux and Windows. */
-    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: k })));
+    entries.forEach(([k, v], i) => bar.append(el('i', { style: `width:${Math.round(v / totalVal * 100 * 1e4) / 1e4}%;background:var(${SERIES[i % 8]})`, title: nameOf(k) })));
     card.append(bar);
     const l = el('div');
     entries.forEach(([k, v], i) => l.append(el('div', { class: 'row', style: 'gap:8px;padding:6px 0;border-bottom:1px solid var(--grid)' }, [
       el('span', { class: 'legend-key', style: `background:var(${SERIES[i % 8]})` }),
-      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, k),
+      el('span', { style: 'font-size:13px;color:var(--ink-2)' }, nameOf(k)),
       el('span', { class: 'spacer' }),
       el('span', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtPct(v / totalVal * 100, 1)),
     ])));

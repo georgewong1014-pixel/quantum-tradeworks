@@ -222,7 +222,7 @@ VIEWS.ips = () => {
     el('h1', {}, 'Investment Policy Statement'),
     el('p', { class: 'body-lg', style: 'margin-top:8px' },
       'The governing document. Everything this product computes is an execution of what is written here, and where the two '
-      + 'ever disagree, this page is what is wrong — not the code.'),
+      + 'ever disagree, that is a defect — report it under Corrections.'),
     el('p', { class: 'metaline', style: 'margin-top:6px' }, IPS_VERSION),
   ])));
 
@@ -348,7 +348,7 @@ VIEWS.ips = () => {
       const ul = el('ul', { class: 'ticklist blocklist', style: 'margin-top:var(--md)' });
       [
         'IPS §4 tier 3 — no market-data provider is licensed to this product. NAPIC transaction data can be sourced and analysed; record-level republication is licence-pending, and the data-sources page lists the seven permissions still to be confirmed.',
-        'IPS §5 — the equity engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
+        'IPS §5 — the engine answers the eight gates only for property so far. Equities and the cash wheel still use their own scorecards.',
         'IPS §7 — cross-asset comparison of after-cost risk-adjusted forward return is not built.',
         'IPS §9 — portfolio-level correlation, concentration and stress testing across positions is not built.',
         'IPS §6.2 — the mortgage stress test here uses three percentage points, not the one point the IPS specifies. The more conservative figure was already in place and has been kept; this is a deliberate departure and not an oversight.',

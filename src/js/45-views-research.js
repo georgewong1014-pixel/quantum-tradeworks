@@ -38,6 +38,11 @@ const BUSINESS_ARCHETYPES = {
   growth:'Secular grower', saas:'Software and subscription', cyclical:'Cyclical or commodity-linked',
   holding:'Holding company', early:'Early-stage or loss-making',
 };
+/* A business model by the name a reader sees, never its key: the screener's
+   chips, the peers' caption, Compare and the portfolio said "saas" and
+   "mature" beside pages saying "Software and subscription" (the 20 Oct 2026
+   sweep, copy-equities-20). */
+const archetypeName = (t) => BUSINESS_ARCHETYPES[t] || t;
 const RETURN_ROLES = {
   income:     { label:'Dividend income',        why:'Recurring distributions supported by earnings and a balance sheet that can keep paying them.' },
   compounder: { label:'Long-term compounding',  why:'Growth in per-share earnings and business value over several years.' },
@@ -606,9 +611,12 @@ function fitGrade(r, key, tier) {
   else if (key === 'value') {
     if (!need(priced, 'A price. Without one there is no gap between price and model to measure.')) return out;
     if (!need(!r.val?.err && isNum(r.val?.mos?.base), 'A valuation model that could be built.')) return out;
+    /* (estimate − price) ÷ price, said that way round: "Price sits 69%
+       below the estimate" overstated a price about 41% below it (the 20 Oct
+       2026 sweep, copy-equities-2). The grade is unchanged. */
     const mos = r.val.mos.base;
-    if (mos > 20) out.supports.push(`Price sits ${fmtPct(mos, 0)} below the base-case model estimate.`);
-    else out.weakens.push(`Price is ${fmtPct(Math.abs(mos), 0)} ${mos < 0 ? 'above' : 'below'} the base-case estimate.`);
+    if (mos > 20) out.supports.push(`The base-case model estimate is ${fmtPct(mos, 0)} above the price.`);
+    else out.weakens.push(`The base-case model estimate is ${fmtPct(Math.abs(mos), 0)} ${mos < 0 ? 'below' : 'above'} the price.`);
     out.missing.push('A named mechanism and time path for the gap to close.');
     out.score = Math.round(clamp(50 + mos, 0, 100));
   }
@@ -629,8 +637,11 @@ function fitGrade(r, key, tier) {
     const q = r.scores?.quality?.score;
     if (!need(isNum(q), 'A business-quality assessment of the underlying.')) return out;
     out.missing.push('A verified contract, its deliverable, an authorised quote and your full collateral. Those are entered in the Wheel workspace, and no chain data exists in this build.');
+    /* The evidence and the strategy's own threshold, never a verdict on the
+       company: "a business you would not want to own" was said of 54 named
+       filers below 60 (the 20 Oct 2026 sweep, copy-equities-1). */
     if (q >= 60) out.supports.push(`Business quality ${q}/100 — the Wheel means being willing to own this company.`);
-    else out.weakens.push(`Business quality ${q}/100. A Wheel on a business you would not want to own is a way of acquiring it anyway.`);
+    else out.weakens.push(`Business quality ${q}/100, below this strategy’s 60. A Wheel means being willing to own the company at the strike.`);
     out.cap = 'Underlying assessment only. Wheel fit itself is decided in the workspace, where collateral is checked.';
     out.score = Math.round(clamp(q, 0, 100));
   }
@@ -734,7 +745,7 @@ const RESEARCH_TABS = [
 /* Where the Malaysian set's Shariah and PN17 flags come from (the claims
    audit of 11 Oct 2026, R-22): only an illustrative company carries one. */
 const FLAG_PROVENANCE = 'Authored for the illustrative set — not checked against the Securities Commission’s list of Shariah-compliant securities or Bursa’s PN17 and GN3 lists.';
-const EXCH_UNKNOWN = 'SEC companyfacts carries no listing venue. The ingest records it from the filer’s submissions record, and it appears here once data/us.json is regenerated.';
+const EXCH_UNKNOWN = 'The SEC filings held here do not record the listing venue. It appears here with the next data update.';
 const listingOf = (c) => (c.cik && !c.exchKnown ? 'an exchange not recorded in this dataset' : c.exch);
 
 /* The one toggle in the app, on top of the watchlist service — so a company
@@ -774,7 +785,7 @@ function companyActions(r) {
      control in use again by id first, and by its words it found nothing and
      left focus on <main> after every press (35-ui.js, giveFocusBack). */
   acts.append(el('button', { class: `btn ${watching ? 'btn-ghost' : 'btn-primary'} btn-sm`, id: 'co-watch', 'aria-pressed': watching ? 'true' : 'false',
-    onclick: () => toggleWatch(c.id) }, watching ? '✓ On your watchlist' : 'Add to watchlist'));
+    onclick: () => toggleWatch(c.id) }, watching ? watchingLabel() : 'Add to watchlist'));
   /* Compare adds this company to the selection already held, rather than
      replacing it, and drops the oldest when the plan's cap is reached — with a
      toast naming it, so a comparison is never cut silently. */
@@ -1143,11 +1154,12 @@ VIEWS.research = () => {
       isNum(c.fin?.length) && c.fin.length < 6
         ? el('span', { class: 'chip chip-bronze' }, `${c.fin.length} years held`) : null,
       /* The rules that wrote the record. A filed company from the shipped
-         file has none, and the chip says the stamp is not in this dataset yet
-         rather than implying the current rules produced it. */
+         file has none, and the chip says the version is not recorded
+         rather than implying the current rules produced it — in a reader's
+         words, not the pipeline's (the 20 Oct 2026 sweep, copy-equities-9). */
       !c.personal ? (c.ingestVersion
-        ? el('span', { class: 'chip', title: 'The version of the SEC ingest rules that produced these statements.' }, `ingest ${c.ingestVersion.replace(/^sec /, '')}`)
-        : el('span', { class: 'chip chip-bronze', title: 'This file was written before the ingest stamped its version, under rules since corrected — the misassembled figures are withheld on the page. A regeneration writes the version here.' }, 'ingest version not in this dataset yet')) : null,
+        ? el('span', { class: 'chip', title: 'The version of the rules that read these statements from the SEC filings.' }, `import ${c.ingestVersion.replace(/^sec /, '')}`)
+        : el('span', { class: 'chip chip-bronze', title: 'These statements were stored before each import recorded its version. Figures known to have been read wrongly are withheld on this page; the next data update records the version here.' }, 'import version not recorded')) : null,
       c.px?.eod ? (c.pricePersonal
           ? el('span', { class: 'chip chip-bronze' }, `read from your screen${c.px.asOf ? ' ' + c.px.asOf : ''}`)
           : sevChip('good', `end-of-day close${c.px.asOf ? ' ' + c.px.asOf : ''}`))
@@ -1285,6 +1297,7 @@ VIEWS.research = () => {
   lensCard.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
     wheelFitRow && wheelFitRow.state === 'not_applicable'
       ? `The Cash Wheel does not apply to this company — ${wheelFitRow.cap} Neither workspace changes any evidence band above.`
+      : wsLinks.length === 1 ? 'This workspace changes no evidence band above. It records your own plan and is weighted zero in the research composite.'
       : 'Neither workspace changes any evidence band above. Both record your own plan and are weighted zero in the research composite.'));
 
   /* Counted per state, because "not assessable from the data held" was false
@@ -1381,7 +1394,7 @@ VIEWS.research = () => {
   /* A tablist with arrow keys between the tabs (tabStrip, 40-views-discover).
      Through the address, so Back returns to the previous tab and a link
      carries the one it was copied from. */
-  stick.append(tabStrip(`Sections of the ${c.name} report`, RESEARCH_TABS, State.researchTab,
+  stick.append(tabStrip(`Sections of the ${c.name} page`, RESEARCH_TABS, State.researchTab,
     id => openResearch(State.ticker, id)));
   wrap.append(stick);
 
@@ -1488,7 +1501,7 @@ function companySummary(r) {
     attention.length
       ? attention.map(f => el('p', { class: 'body', style: 'margin:0 0 4px' }, [
           el('span', { class: `chip chip-${f.sev === 'serious' || f.sev === 'critical' ? 'critical' : 'warn'}`,
-                       style: 'margin-right:6px' }, f.sev), f.t || f.title || '']))
+                       style: 'margin-right:6px' }, SEV_STYLE[f.sev]?.label || f.sev), f.t || f.title || '']))
       : ['No risk threshold is crossed on the reported figures.'],
     attention.length ? 'Open Risks for what each one is measuring.' : null));
 
@@ -1498,7 +1511,7 @@ function companySummary(r) {
     el('span', { class: m.coverage >= 90 ? 'chip chip-ok' : m.coverage >= 70 ? 'chip' : 'chip chip-bronze' },
       `${m.coverage}% complete`),
     val?.confBand ? el('span', { class: val.confBand === 'High' ? 'chip chip-ok' : val.confBand === 'Low' ? 'chip chip-bronze' : 'chip' },
-      `${val.confBand} confidence`) : null,
+      `${val.confBand} valuation confidence`) : null,
     c.real ? el('span', { class: 'chip' }, 'audited filings') : el('span', { class: 'chip chip-bronze' }, 'sample data'),
   ]));
   const gaps = [];
@@ -1570,7 +1583,7 @@ function overviewTiles(r) {
        there, and says why it holds no figure. */
     if (!line) {
       g.append(el('div', { class: 'tile-static' }, statTile(label, 'not shown',
-        { sub: 'Not a meaningful measure for a deposit-taking balance sheet, so the statements omit it for a bank.' })));
+        { sub: 'Not a meaningful measure for a deposit-taking balance sheet, so this page does not show it for a bank.' })));
       return;
     }
     const v = line.arr[i], st = lineCellStatus(r, line, i), ch = lineChange(r, line, i);
@@ -1623,12 +1636,12 @@ function peerSet(r, n) {
   const Kind = kind[0].toUpperCase() + kind.slice(1);
   const mktName = c.mkt === 'US' ? 'United States' : c.mkt === 'MY' ? 'Bursa Malaysia' : c.mkt;
   const rule = !peers.length
-    ? `No other ${kind} company of the ${c.type} business model is carried here.`
+    ? `No other ${kind} company of the ${archetypeName(c.type)} business model is carried here.`
     : inSector === peers.length
-    ? `Matched on business model (${c.type}) and sector (${c.sector}), ${kind} companies only, nearest in latest-year revenue first.`
+    ? `Matched on business model (${archetypeName(c.type)}) and sector (${c.sector}), ${kind} companies only, nearest in latest-year revenue first.`
     : `${inSector
-        ? `${inSector} ${inSector === 1 ? 'shares' : 'share'} the business model (${c.type}) and sector (${c.sector}); too few do, so ${peers.length - inSector} more`
-        : `None shares the business model (${c.type}) and ${classified ? `sector (${c.sector})` : 'a sector — this one is unclassified here'}, so these ${peers.length}`} share the business model and market (${mktName}). ${Kind} companies only, nearest in latest-year revenue first.`;
+        ? `${inSector} ${inSector === 1 ? 'shares' : 'share'} the business model (${archetypeName(c.type)}) and sector (${c.sector}); too few do, so ${peers.length - inSector} more`
+        : `None shares the business model (${archetypeName(c.type)}) and ${classified ? `sector (${c.sector})` : 'a sector — this one is unclassified here'}, so these ${peers.length}`} share the business model and market (${mktName}). ${Kind} companies only, nearest in latest-year revenue first.`;
   return { peers, inSector, rule };
 }
 /* "Open full comparison" from a peer set. Both peer buttons cut the set to
@@ -1685,7 +1698,8 @@ function tabSnapshot(r) {
       el('td', { style: isNum(p.score) ? '' : 'color:var(--ink-3)' }, p.label),
       el('td', { class: 'num' }, `${p.w}%`),
       el('td', { class: 'num' }, isNum(p.score) ? fmtNum(p.score, 0) : 'not tested'),
-      el('td', { class: 'metaline' }, isNum(p.score) ? `From ${p.from}.` : p.absent),
+      el('td', { class: 'metaline' }, isNum(p.score) ? (typeof p.from === 'function' ? p.from(r) : `From ${p.from}.`)
+        : (typeof p.absent === 'function' ? p.absent(r) : p.absent) || null),
     ]));
   });
   pt.append(pb);
@@ -1875,7 +1889,7 @@ function tabSnapshot(r) {
     pc.append(cardHead('Price history', 'Not available for this company.'));
     pc.append(el('p', { class: 'body', style: 'font-size:13px' },
       c.real
-        ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
+        ? 'This company was loaded from SEC filings, which carry statements and not market data. A price series needs a licensed feed, or closes you add under Your data & settings. Everything above that does not depend on a price — statements, quality, the valuation itself — is computed from the filings as normal.'
         : 'No price series is attached to this company.'));
   } else {
     /* priceHistory is a seeded walk pinned to the sample price, range and
@@ -1922,10 +1936,18 @@ function tabSnapshot(r) {
     [r, ...peers].forEach(p => {
       const tr = el('tr', p.c.id === c.id ? { style: 'background:color-mix(in srgb, var(--brand) 7%, transparent)' } : {});
       const td0 = el('td', { class: 'pin ident' }); td0.append(tickerCell(p)); tr.append(td0);
-      const cells = isB ? [fmtPct(p.m.roe), fmtPct(p.m.cet1), fmtPct(p.m.npl, 2), fmtX(p.m.pb, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality)]
-                  : isR ? [fmtPct(p.m.occ), fmtPct(p.m.gearing), fmtX(p.m.pnav, 2), fmtPct(p.m.dy, 2), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`]
-                        : [isNum(p.m.roic) ? fmtPct(p.m.roic) : absentMark(p, 'roic'), isNum(p.m.om) ? fmtPct(p.m.om) : absentMark(p, 'om'),
-                           isNum(p.m.pe) ? fmtX(p.m.pe) : absentMark(p, 'pe'), isNum(p.m.fcfy) ? fmtPct(p.m.fcfy, 2) : absentMark(p, 'fcfy'), scorePill(p.scores.quality.score, p.pct.quality), `<span class="${diffClass(p.val.mos?.base)}">${withSign(p.val.mos?.base, 0)}</span>`];
+      /* A cell that is empty says why (copy-equities-7, the 20 Oct 2026
+         sweep): a measure the screener lists takes its short reason
+         (absentMark); one it does not list says "not reported", with its
+         sentence as the title. The row used to print bare dashes under a line
+         saying none is shown "rather than a row of dashes". */
+      const peerCell = (k, fmt) => isNum(p.m[k]) ? fmt(p.m[k])
+        : FIELD_BY_K[k] ? absentMark(p, k)
+        : '<span class="caption cell-absent" title="Not carried in the statements held for this company.">not reported</span>';
+      const vsBase = isNum(p.val.mos?.base) ? `<span class="${diffClass(p.val.mos.base)}">${withSign(p.val.mos.base, 0)}</span>` : absentMark(p, 'mosBase');
+      const cells = isB ? [peerCell('roe', fmtPct), peerCell('cet1', fmtPct), peerCell('npl', v => fmtPct(v, 2)), peerCell('pb', v => fmtX(v, 2)), peerCell('dy', v => fmtPct(v, 2)), scorePill(p.scores.quality.score, p.pct.quality)]
+                  : isR ? [peerCell('occ', fmtPct), peerCell('gearing', fmtPct), peerCell('pnav', v => fmtX(v, 2)), peerCell('dy', v => fmtPct(v, 2)), scorePill(p.scores.quality.score, p.pct.quality), vsBase]
+                        : [peerCell('roic', fmtPct), peerCell('om', fmtPct), peerCell('pe', fmtX), peerCell('fcfy', v => fmtPct(v, 2)), scorePill(p.scores.quality.score, p.pct.quality), vsBase];
       cells.forEach(v => tr.append(el('td', { html: v })));
       tb2.append(tr);
     });
@@ -2016,7 +2038,7 @@ function tabBusiness(r) {
   const prof = el('div', { class: 'card' });
   prof.append(cardHead('Business profile', 'How this company is classified, and what that means for the models it is routed to.'));
   const kv = el('dl', { class: 'kv' });
-  [['Business model', c.type], ['Model pack', r.val.pack.name], ['Reporting currency', c.ccy],
+  [['Business model', archetypeName(c.type)], ['Model pack', r.val.pack.name], ['Reporting currency', c.ccy],
    ['Primary listing', `${listingOf(c)} · ${c.tk}`], ['Sector / industry', `${c.sector} — ${c.industry}`],
    ['Cyclicality', isNum(m.revDD) ? `Revenue drawdown ${fmtPct(m.revDD, 0)} in the window` : '—'],
    ['Capital intensity', isNum(m.reinv) ? `Capex is ${fmtPct(m.reinv, 0)} of operating cash flow` : 'Not meaningful'],
@@ -2377,7 +2399,7 @@ function tabFinancials(r) {
     wrap.append(el('div', { class: 'card' },
       [cardHead('Quarterly figures', 'Not carried in this build.'),
        el('p', { class: 'body', style: 'font-size:13px' }, c.cik
-         ? 'The ingest reads annual XBRL facts — periods of a year — and no quarterly line is held for any filed company. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.'
+         ? 'Only annual figures — periods of a year — are held for filed companies, and no quarterly line is held for any of them. Quarterly statements are in the 10-Q filings on EDGAR, linked from the Filings tab.'
          : 'Only annual statements were loaded for this company, so there is no quarterly line to draw and none is invented.')]));
     return wrap;
   }
@@ -2877,7 +2899,7 @@ function tabFilings(r) {
     }
 
     const acts = el('div', { class: 'row', style: 'gap:6px;margin-top:var(--md)' });
-    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => addToThesis(c.id) }, 'Add to thesis'));
+    acts.append(el('button', { class: 'btn btn-ghost btn-sm', onclick: () => addToThesis(c.id) }, 'Add to investment case'));
     /* This went to the alerts page and toasted "Alert rule builder opened",
        with no builder open and nothing about the company carried. The only
        rule editor that exists is the price alert, so the button opens it here,

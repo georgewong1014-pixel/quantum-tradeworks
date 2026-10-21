@@ -39,6 +39,11 @@ function marketSummary(mkt) {
 /* Whether the active watchlist is still the seeded sample (isSeededWL,
    50-views-studio.js). */
 const activeWLIsSample = () => { try { const w = activeWL(); return !!w && typeof isSeededWL === 'function' && isSeededWL(w); } catch { return false; } };
+/* A company on the seeded list is on a sample list, not on the reader's:
+   Apple's page said "On your watchlist" on a first visit, beside Watchlists
+   saying "None of your own yet" (the 20 Oct 2026 sweep, copy-equities-26).
+   A list the reader has changed is theirs (isSeededWL). */
+const watchingLabel = () => (activeWLIsSample() ? '✓ On the sample watchlist' : '✓ On your watchlist');
 VIEWS.researchQueue = () => {
   const wrap = el('div');
 
@@ -194,7 +199,7 @@ VIEWS.researchQueue = () => {
     const acts = el('div', { class: 'row', style: 'gap:4px;margin-top:6px' });
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(f.id) }, 'Open research'));
     acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => openResearch(f.id, 'valuation') }, 'Valuation'));
-    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => addToThesis(f.id) }, 'Add to thesis'));
+    acts.append(el('button', { class: 'btn btn-quiet btn-sm', onclick: () => addToThesis(f.id) }, 'Add to investment case'));
     body.append(acts);
     item.append(body);
     list.append(item);
@@ -236,11 +241,19 @@ VIEWS.researchQueue = () => {
       nm.append(el('div', { class: 'row row-wrap', style: 'gap:6px;font-size:13px;font-weight:600' }, [r.c.tk, pk === 'illustrative' ? null : dataChip(r.c), kindBadge(pk, { link: false, fine: 'The price and its move' })]));
       nm.append(el('div', { class: 'metaline', style: 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px' }, r.c.name));
       row.append(nm);
-      row.append(sparkline(priceHistory(r.c)));
-      const pv = el('div', { style: 'text-align:right' });
-      pv.append(el('div', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
-      pv.append(el('div', { class: 'metaline ' + signClass(r.c.px.d1) }, withSign(r.c.px.d1, 2)));
-      row.append(pv);
+      /* Unavailable says why beside it, as the badge's own title promises
+         and the company page does: AAPL and NVDA read "Unavailable" over
+         three bare dashes (the 20 Oct 2026 sweep, copy-equities-30). One
+         short caption in place of the chart and the price, so the column
+         is no wider than it was. */
+      if (!isNum(r.c.px?.p)) row.append(el('span', { class: 'metaline', style: 'white-space:nowrap' }, 'no licensed price'));
+      else {
+        row.append(sparkline(priceHistory(r.c)));
+        const pv = el('div', { style: 'text-align:right' });
+        pv.append(el('div', { class: 'num', style: 'font-size:13px;font-weight:600' }, fmtMoney(r.c.px.p, r.c.ccy)));
+        pv.append(el('div', { class: 'metaline ' + signClass(r.c.px.d1) }, withSign(r.c.px.d1, 2)));
+        row.append(pv);
+      }
       t.append(row);
     });
     wl.append(t);
@@ -290,7 +303,7 @@ VIEWS.researchQueue = () => {
   const lastOpened = (State.recentCompanies || []).map(id => BY_ID.get(id)).find(Boolean) || null;
   const companyStep = (tab) => () => lastOpened ? openResearch(lastOpened.c.id, tab) : go('researchHome');
   const steps = [['Discover candidates', () => go('discover')], ['Inspect evidence', companyStep(null), true],
-    ['Build a valuation range', companyStep('valuation'), true], ['Save a thesis', () => go('thesis')],
+    ['Build a valuation range', companyStep('valuation'), true], ['Save an investment case', () => go('thesis')],
     ['Monitor changes', () => go('alerts')], ['Review decision quality', () => go('thesis')]];
   const ol = el('ol', { style: 'list-style:none;padding:0;display:flex;flex-direction:column;gap:2px' });
   steps.forEach(([label, act, onCompany], i) => {
@@ -1217,7 +1230,11 @@ const SCREEN_TEMPLATES = [
      claims five is the failure this product exists to avoid. */
   { id:'my_quality_reasonable_value_v1', name:'Quality at reasonable valuation', version:'1.0.0',
     spec:'section 18.1',
-    why:'Business quality of 80 or better, valuation evidence of 60 or better, and a price at least 20% below the base-case model estimate — on companies with at least 80% data completeness.',
+    /* The third rule is mosBase ≥ 20, (estimate − price) ÷ price: an
+       estimate at least 20% above the price, which is a price about 16.7%
+       below the estimate, not 20% — a price-discount screen, said as the
+       measure it tests (DECISIONS 3; the 20 Oct 2026 sweep, copy-equities-2). */
+    why:'Business quality of 80 or better, valuation evidence of 60 or better, and a base-case model estimate at least 20% above the price — on companies with at least 80% data completeness.',
     untestable:[{ rule:'governance_critical_flags == 0',
       because:'No governance event register exists in this build, so the flag cannot be evaluated. Under section 4.1 an untested hard gate is manual review, not a pass — check governance yourself before treating a match as complete.' }],
     apply: (s) => { s.minCoverage = 80;
@@ -1330,7 +1347,7 @@ function evaluateScreen(row, sc) {
   if (sc.universe === 'MY' && c.mkt !== 'MY') fails.push('Not in the Bursa universe');
   if (sc.universe === 'watchlist' && !State.watchlist.includes(c.id)) fails.push('Not on the watchlist');
   if (sc.sectors.length && !sc.sectors.includes(c.sector)) fails.push(`Sector ${c.sector} is not selected`);
-  if (sc.types.length && !sc.types.includes(c.type)) fails.push(`Business model "${c.type}" is not selected`);
+  if (sc.types.length && !sc.types.includes(c.type)) fails.push(`Business model "${archetypeName(c.type)}" is not selected`);
   if (m.coverage < sc.minCoverage) fails.push(`Data completeness ${m.coverage}% is below the ${sc.minCoverage}% threshold`);
   if (sc.local.shariahOnly && c.flags.shariah !== true) fails.push('Not recorded as Shariah-compliant in this dataset');
   if (sc.local.excludePn17 && c.flags.pn17) fails.push('Classified under PN17');
@@ -1402,7 +1419,7 @@ function activeFilters(sc) {
     { US:'United States', MY:'Bursa Malaysia', watchlist:'Only companies I follow' }[sc.universe] || sc.universe }`,
     clear: () => { sc.universe = 'all'; } });
   if (sc.minCoverage > 0) active.push({ label: `Data completeness ≥ ${sc.minCoverage}%`, clear: () => { sc.minCoverage = 0; } });
-  (sc.types || []).forEach(t => active.push({ label: `Type: ${t}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
+  (sc.types || []).forEach(t => active.push({ label: `Type: ${archetypeName(t)}`, clear: () => { sc.types = sc.types.filter(x => x !== t); } }));
   (sc.sectors || []).forEach(t => active.push({ label: `Sector: ${t}`, clear: () => { sc.sectors = sc.sectors.filter(x => x !== t); } }));
   Object.entries(sc.crit || {}).forEach(([k, c3]) => {
     if (!c3 || (c3.min == null && c3.max == null)) return;
@@ -1626,9 +1643,11 @@ function renderScreener() {
   const bmRow = el('div', { class: 'row row-wrap', role: 'group', 'aria-labelledby': 'scr-bm-label', style: 'gap:5px' });
   [...new Set(U.map(r => r.c.type))].forEach(t => {
     const on = sc.types.includes(t);
-    /* aria-pressed: the on state was only the chip's colour. */
+    /* aria-pressed: the on state was only the chip's colour. Named as the
+       company pages name the class ("Software and subscription"), not by
+       its key ("saas"); the key stays the filter's value. */
     bmRow.append(el('button', { class: 'chip' + (on ? ' chip-brand' : ''), style: 'cursor:pointer', 'aria-pressed': on ? 'true' : 'false',
-      onclick: () => { sc.types = on ? sc.types.filter(x => x !== t) : [...sc.types, t]; render(); } }, t));
+      'data-type': t, onclick: () => { sc.types = on ? sc.types.filter(x => x !== t) : [...sc.types, t]; render(); } }, archetypeName(t)));
   });
   bm.append(bmRow);
   railRules.append(bm);
@@ -2423,7 +2442,7 @@ function metricStatus(r, k) {
      withheld (withholdMisassembled) is not a tag that failed to resolve. */
   const fyNow = c?.real ? latestFy(c) : null;
   const heldBack = inputs.filter(l => c?.withheld?.[l]?.years?.includes(fyNow));
-  if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  if (heldBack.length) return why('withheld', heldBack.map(l => `${LINE_LABEL[l]} for FY${fyNow} is withheld: ${c.withheld[l].why}.`).join(' ') + ' It returns with the next data update.');
   /* As at an earlier year (statementsAt, 15-derivation.js; Compare's common
      year): the rows the measure reads run off the start of the statements
      held, and derive() computes nothing over fewer. */
@@ -2665,7 +2684,7 @@ function lineFiling(c, l, fy) {
   out.end = out.end || fyEndOf(c, fy);
   return out;
 }
-const NOT_YET_HELD = 'not in this dataset yet — the shipped statements predate the ingest that records it, and it fills in here when they are regenerated';
+const NOT_YET_HELD = 'not in this dataset yet — the statements held were stored before it was recorded, and it fills in here with the next data update';
 function filingText(c, l, fy) {
   if (!c?.real) return 'None — a synthetic sample statement is not a filing.';
   if (c.personal) return 'None held — annual statements you supplied, with no filing index behind them.';
@@ -2742,7 +2761,7 @@ function edgarLinkRow(c, opts) {
   /* Said beside the links, where the missing one would have been. */
   if (opts?.fy != null && !links.some(x => x.exact)) return el('div', {}, [row,
     el('p', { class: 'metaline', style: 'margin-top:6px' },
-      `No link to the exact filing: that needs its accession number, which the ingest does not record yet. The FY${opts.fy} annual report is in the list above — the one whose period matches.`)]);
+      `No link to the exact filing: that needs its accession number, which is not held yet. The FY${opts.fy} annual report is in the list above — the one whose period matches.`)]);
   return row;
 }
 
@@ -2767,7 +2786,7 @@ function lineCellStatus(r, line, i) {
   const why = (reason, text) => ({ id: 'unavailable', available: false, reason, label: ABSENCE[reason].short, text });
   const keys = line.derived ? line.inputs : [line.key];
   const held = keys.filter(k => c.withheld?.[k]?.years?.includes(fy));
-  if (held.length) return why('withheld', held.map(k => `${LINE_LABEL[k]} for FY${fy} is withheld: ${c.withheld[k].why}.`).join(' ') + ' The ingest rule has been corrected; the figure returns when the statements are regenerated.');
+  if (held.length) return why('withheld', held.map(k => `${LINE_LABEL[k]} for FY${fy} is withheld: ${c.withheld[k].why}.`).join(' ') + ' It returns with the next data update.');
   if (line.derived) {
     const missing = line.inputs.filter(k => !isNum(c.fin?.[i]?.[LINE_COL[k]]));
     if (missing.length) return why('not reported', `${missing.map(k => LINE_LABEL[k]).join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not in the stored statements for FY${fy}, and a derived line needs every input from the same year. Nothing is imputed.`);
@@ -3469,7 +3488,7 @@ function openRadarDetail(id, yi = YEARS.length - 1) {
      refused, which leaves the list as it was. */
   const watchBtn = el('button', { class: 'btn btn-ghost btn-sm' });
   const showWatch = () => { const on = State.watchlist.includes(id);
-    watchBtn.textContent = on ? '✓ On your watchlist' : 'Add to watchlist'; watchBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+    watchBtn.textContent = on ? watchingLabel() : 'Add to watchlist'; watchBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); };
   watchBtn.addEventListener('click', () => { toggleWatch(id); showWatch(); });
   showWatch();
   acts.append(watchBtn);
