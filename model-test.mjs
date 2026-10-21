@@ -9317,6 +9317,420 @@ try {
   }
   /* ---- end eq-comparability ---- */
 
+  /* ---- qt-day8-cases ---- */
+  /* INDEPENDENT EXPECTED FIGURES (the Day-8 report, item 3, 21 Oct 2026:
+     "add independent expected cases for zero-interest loan, no loan,
+     vacancy changes, management/repair fee bases, and upfront
+     cash/reserve; then test supported exit/tax/IRR scenarios separately;
+     do not infer accuracy from UI consistency"). The page gives
+     dealModel's results for synthetic deals and nothing else. Every
+     expected figure is worked here, in Node, from the deal's inputs and
+     the rules written out below, never through the app's own helpers: a
+     figure that agrees with the rest of the page but not with its rule
+     fails. Money agrees to the sen where the model rounds to the sen (the
+     fee lines and their service tax; the reserve, to the ringgit) and to
+     ±RM0.01 otherwise; a rate of return to ±0.0001 percentage points.
+
+     THE DEAL, B. Every input that moves a figure here is set, so a change
+     to the sample deal moves no case: a residential condominium bought on
+     the subsale route, sold later by a citizen; price RM410,000, no bank
+     valuation; 10% down, a RM369,000 loan at 4.2% a year over 35 years;
+     renovation RM18,000, none of it recovered at the sale; rent RM1,900 a
+     month, 2.5% a year more from year 2, 9% vacancy; service charge RM310
+     and sinking fund RM31 a month, assessment RM620, quit rent RM160 and
+     insurance RM380 a year; self-managed (no management, placement or
+     minimum fee); repair reserve 5%; a 3-month reserve; held 10 years at
+     3% a year capital growth, 6 months to sell, agent 2%, legal 0.5% (at
+     least RM500); no tax rate; no booking deposit, mortgage protection or
+     charges passed on; 6% the return the capital could earn elsewhere.
+
+     THE RULES, as the model states them (the calculation check pack's
+     assumptions 1–23), written out here:
+     - The loan is the lower of the price and the valuation × (100 −
+       deposit %). A level instalment, L × i ÷ (1 − (1 + i)^−n), i the rate
+       ÷ 12 and n the tenure × 12; at 0%, L ÷ n. The balance is the
+       schedule run month by month (balance × (1 + i) − instalment) and a
+       year's interest the sum of its months' balance × i, not the model's
+       closed forms.
+     - Running costs: the fixed outgoings (service charge and sinking fund
+       × 12, assessment, quit rent, insurance), and the management fee and
+       the repair reserve, each a share of the rent collected after
+       vacancy. Year y's costs are year 1's × 1.02^(y − 1), a rate in the
+       code (the pack's open question C); its rent collected the rent × 12
+       × (1 + growth)^(y − 1) × (1 − vacancy).
+     - The fees, each to the sen: the transfer duty on the price rounded up
+       to RM100, 1% of the first RM100,000, 2% to RM500,000, 3% to RM1m, 4%
+       above; Sarawak's advocates' scale, 2.5% of the first RM10,000, 1% of
+       the next 40,000, 0.9% of 50,000, 0.8% of 200,000, 0.7% of 400,000,
+       0.6% of 500,000, 0.55% of 1m, 0.5% of 3m and 0.45% above, at least
+       RM500: on the price for the purchase, and on the loan × 1.25 for the
+       loan (rule 7); the loan agreement's duty RM5 a RM1,000 or part; the
+       charge's stamp a fifth of it, at most RM10; registration RM10 an
+       instrument (the transfer, and the charge with a loan); with a loan
+       only, the valuation fee, 0.25% of the first RM100,000 of the price
+       and 0.2% of the next RM1.9m, at least RM400; service tax 8% on the
+       two legal fees, and on the valuation fee; the searches RM1,170 and
+       the utility deposits RM1,500 (the rulebook's estimates). No case's
+       loan meets a half-sen tie in the × 1.25.
+     - The reserve: its months (3 unless entered, 1 to 24) × the larger of
+       the instalment plus the outgoings that do not move with rent, and
+       the shortfall in a month with the rent coming in; to the ringgit.
+     - The cash required: the deposit on the lender's basis, any valuation
+       gap, every fee line, the renovation, the utility deposits and the
+       reserve. A booking deposit already paid splits it and adds nothing.
+     - The sale in year N: the price × (1 + growth)^N; the agent and the
+       legal costs shares of it, the legal at least RM500; the instalments
+       of the months spent selling and that many months of year N's costs
+       carried; the loan settled at its balance after those instalments;
+       gains tax. Net proceeds: the value less all of them.
+     - Gains tax: the value less the price, the transfer duty and the
+       purchase legal fee, the agent and the legal, and the renovation;
+       less, for a citizen, the greater of RM10,000 and 10% of the gain; at
+       30% in years 1 to 3, 20% in year 4, 15% in year 5 and nil after (a
+       company: 10% after, no relief; a non-citizen: 30% to year 5, 10%
+       after, no relief). Nothing on a loss. The sale is taken in year N,
+       at the end of the hold, not when it completes months later.
+     - Tax on the rent, where a rate is entered: the rent collected less
+       the year's running costs and interest (not the principal), at the
+       rate; a loss pays none and is not carried forward.
+     - The rate of return: the cash required out at 0, each year's cash
+       flow after tax at its end, and the net proceeds and the reserve back
+       with year N's; solved by bisection on the NPV.
+
+     1 — ZERO INTEREST. B at 0%: RM369,000 ÷ 420 = RM878.57 a month; no
+         interest in any year; RM258,300 owed at the sale (after 126
+         instalments); the reserve, the cash required, the net proceeds
+         and the rate of return all finite and as worked.
+     2 — NO LOAN. B at 100% down: no instalment, and the loan agreement's
+         duty, the charge's stamp, the loan legal fee, the valuation fee
+         and the tax on it each nought; one instrument registered; service
+         tax on the purchase legal fee alone; nothing owed at the sale.
+     3 — VACANCY at 0%, 9% and 25%, on B managed at 10% with no minimum
+         and no placement fee: the rent collected, the fee, the repair
+         reserve, the running costs, the NOI and the monthly position at
+         each; year 2's rent collected; the stress rows at 15, 25 and 40%.
+     4 — THE BASES at 25%: the fee 10% and the reserve 5% of the RM17,100
+         collected, RM1,710 and RM855 — not of the RM22,800 let (RM2,280
+         and RM1,140).
+     5 — UPFRONT CASH AND THE RESERVE. B with a 6-month reserve and
+         RM5,000 already paid; B with a RM400,000 valuation: every line of
+         the cash required and no other, the two burns, the reserve, the
+         totals and what is still to pay at completion.
+     6 — EXIT, TAX AND THE RATE OF RETURN, each on its own. X is B with 40%
+         down, held 5 years, legal 0.1% of the sale and a 24% tax rate:
+         6a the sale in year 5 (legal at its RM500 minimum) by a citizen, a
+         company and a non-citizen, and at no growth; in year 10 (0.1% is
+         above RM500; nil gains tax); and in each year 1 to 5 (30, 30, 30,
+         20, 15%). 6b each year's tax on the rent, on X and on B at 24%
+         (its first two years a loss). 6c the rate of return of X's hold,
+         of a sale in each year 1 to 5 and in year 10, and of B at 24%; and
+         X's NPV at 6%.
+     Not here (the report names them): a managed deal with a placement fee
+     or a minimum fee, the auction route, the break-evens. */
+  {
+    const D8 = 'qt-day8-cases';
+    const B = { propertyType: 'Condominium', propertyClassOverride: null, route: 'subsale', disposerCategory: 'citizen',
+      price: 410000, bankValuation: 0, valuationRule: 'lower_of', downPct: 10, ratePct: 4.2, tenureYears: 35,
+      renovation: 18000, renoValueRecoveryPct: 0, renoRentUpliftPct: 0, mrtaPremium: null, mortgageProtection: null,
+      chargesToBuyer: 0, bookingDepositPaid: 0, reserveMonths: 3,
+      rent: 1900, rentGrowthPct: 2.5, vacancyPct: 9, maintenance: 310, sinkingFund: 31, assessment: 620, quitRent: 160, insurance: 380,
+      selfManaged: true, mgmtPct: 0, mgmtMinMonthly: 0, leasingFeeMonths: 0, renewalFeeMonths: 0, tenancyMonths: 12, repairReservePct: 5,
+      holdYears: 10, apprecPct: 3, sellMonths: 6, agentPct: 2, exitLegalPct: 0.5, equityReturnPct: 6, marginalTaxPct: null };
+    const MANAGED = { selfManaged: false, mgmtPct: 10 };
+    const X = { downPct: 40, holdYears: 5, exitLegalPct: 0.1, marginalTaxPct: 24 };
+    const CASES = {
+      zero: { ...B, ratePct: 0 },
+      cash: { ...B, downPct: 100 },
+      v0: { ...B, ...MANAGED, vacancyPct: 0 }, v9: { ...B, ...MANAGED, vacancyPct: 9 }, v25: { ...B, ...MANAGED, vacancyPct: 25 },
+      upfront: { ...B, reserveMonths: 6, bookingDepositPaid: 5000 },
+      lowVal: { ...B, bankValuation: 400000 },
+      x: { ...B, ...X }, xCo: { ...B, ...X, disposerCategory: 'company' }, xNc: { ...B, ...X, disposerCategory: 'foreign' }, xFlat: { ...B, ...X, apprecPct: 0 },
+      taxB: { ...B, marginalTaxPct: 24 },
+    };
+
+    /* THE PAGE: dealModel's results for each deal, and nothing worked. */
+    let got = null;
+    try {
+      got = JSON.parse(await evaluate(`(() => {
+        const CASES = ${JSON.stringify(CASES)};
+        const sale = (e) => ({ value: e.value, owed: e.outstanding, agent: e.agentFee, legal: e.exitLegal, carry: e.carry, rate: e.rpgtPct, rpgt: e.rpgt, net: e.net, irr: e.irrPct });
+        const out = {};
+        for (const [k, c] of Object.entries(CASES)) {
+          const m = dealModel({ ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, ...c });
+          out[k] = { loan: m.loan, deposit: m.deposit, gap: m.valuationGapCash, inst: m.instalment, ads: m.annualDebtService, zeroRate: m.zeroRateModelled,
+            ledger: m.costGroups.flatMap(g => g.items.map(it => [g.id + '/' + (g.id === 'reserve' ? 'reserve' : (it[2] && it[2].id) || it[0]), it[1]])),
+            transaction: m.transactionCash, improvement: m.improvementCash, reserveCash: m.reserveCash, cash: m.safeCashRequired,
+            paid: m.cashAlreadyPaid, still: m.cashStillRequiredToComplete,
+            reserveMonths: m.reserveMonths, burnNoRent: m.burnWithoutRent, burnWithRent: m.burnWithRent,
+            gross: m.grossAnnualRent, eff: m.effectiveRent, mgmt: m.mgmtY, repair: m.repairY, opex: m.opex, noi: m.noi, monthly: m.cashflowMonthly,
+            stressVacancy: m.stress.vacancy.map(s => [s.vacancyPct, s.monthly]),
+            path: m.path.map(p => ({ rent: p.rent, opex: p.opex, debt: p.debt, interest: p.interest, balance: p.balance, taxable: p.taxable, tax: p.tax, cf: p.cf })),
+            taxComputed: m.taxComputed, cumTax: m.cumTax,
+            sale: { value: m.exitValue, owed: m.outstanding, agent: m.agentFee, legal: m.exitLegal, carry: m.carryWhileSelling, rate: m.rpgtPct,
+                    gain: m.gain, relief: m.rpgtResult.relief, rpgt: m.rpgt, net: m.netExitProceeds },
+            exits: m.exits.map(sale), hold: m.holdVsSell.map(sale), irr: m.irrPct, npv: m.npvAtHurdle };
+        }
+        return JSON.stringify(out);
+      })()`));
+    } catch (e) { fail(`${D8}: dealModel could not be run on the cases`, String(e.message).split('\n')[0]); }
+
+    /* NODE: the expected figures, from the rules above. A scale is a list
+       of [slice, rate in basis points]; worked in hundredths of a sen,
+       exact in integers on a whole-ringgit base, then rounded to the sen. */
+    const ADVOCATES = [[10000, 250], [40000, 100], [50000, 90], [200000, 80], [400000, 70], [500000, 60], [1000000, 55], [3000000, 50], [5000000, 45], [Infinity, 45]];
+    const TRANSFER = [[100000, 100], [400000, 200], [500000, 300], [Infinity, 400]];
+    const VALUER = [[100000, 25], [1900000, 20]];
+    /* Gains tax by year of disposal: years 1, 2, 3, 4, 5, and 6 on. */
+    const RPGT = { citizen: [30, 30, 30, 20, 15, 0], company: [30, 30, 30, 20, 15, 10], foreign: [30, 30, 30, 30, 30, 10] };
+    const scaleSen = (base, tiers, unit = 1) => {
+      let left = Math.ceil(base / unit) * unit, h = 0;
+      for (const [size, bp] of tiers) { const s = Math.min(left, size); h += s * bp; left -= s; if (left <= 0) break; }
+      if (left > 0 || !Number.isInteger(h)) throw new Error(`the test's scale is not worked for a base of ${base}`);
+      return Math.round(h / 100);
+    };
+    const work = (d) => {
+      if (!d.selfManaged && (d.mgmtMinMonthly || d.leasingFeeMonths)) throw new Error('a minimum or a placement fee is not worked here');
+      const e = {};
+      const basis = d.bankValuation > 0 ? Math.min(d.price, d.bankValuation) : d.price;
+      const loan = basis * (100 - d.downPct) / 100;
+      Object.assign(e, { loan, deposit: basis - loan, gap: d.price - basis });
+      const n = d.tenureYears * 12, i = d.ratePct / 100 / 12;
+      e.inst = !(loan > 0) ? 0 : i === 0 ? loan / n : loan * i / (1 - Math.pow(1 + i, -n));
+      /* The schedule, month by month: the balance after k instalments, and month k's interest. */
+      const bal = [loan], monthInt = [0];
+      for (let k = 1; k <= n; k++) { monthInt.push(bal[k - 1] * i); bal.push(Math.max(0, bal[k - 1] * (1 + i) - e.inst)); }
+      const owedAfter = (k) => bal[Math.min(k, n)];
+      /* The ledger, in sen. */
+      const dutySen = scaleSen(d.price, TRANSFER, 100);
+      const purchaseSen = Math.max(scaleSen(d.price, ADVOCATES), 50000);
+      let loanLegalSen = 0;
+      if (loan > 0) {
+        const s = Math.max(scaleSen(loan, ADVOCATES), 50000);
+        if (s % 4 === 2) throw new Error(`the loan's legal fee meets a half-sen tie at a loan of ${loan}: choose another`);
+        loanLegalSen = Math.round(s * 1.25);
+      }
+      const loanDutySen = loan > 0 ? Math.ceil(loan / 1000) * 500 : 0;
+      const chargeSen = Math.min(loanDutySen / 5, 1000);
+      const valuerSen = loan > 0 ? Math.max(scaleSen(d.price, VALUER), 40000) : 0;
+      const legalTaxSen = Math.round((purchaseSen + loanLegalSen) * 8 / 100);
+      const valuerTaxSen = Math.round(valuerSen * 8 / 100);
+      e.duty = dutySen / 100; e.purchaseLegal = purchaseSen / 100;
+      /* Year 1. */
+      e.gross = d.rent * 12;
+      e.eff = e.gross * (1 - d.vacancyPct / 100);
+      e.fixed = d.maintenance * 12 + d.sinkingFund * 12 + d.assessment + d.quitRent + d.insurance;
+      e.mgmt = d.selfManaged ? 0 : e.eff * d.mgmtPct / 100;
+      e.repair = e.eff * d.repairReservePct / 100;
+      e.opex = e.fixed + e.mgmt + e.repair;
+      e.noi = e.eff - e.opex;
+      e.monthly = e.noi / 12 - e.inst;
+      /* The reserve. */
+      e.reserveMonths = Math.min(24, Math.max(1, d.reserveMonths || 3));
+      e.burnNoRent = e.inst + e.fixed / 12;
+      e.burnWithRent = Math.max(0, e.burnNoRent + (e.mgmt + e.repair) / 12 - e.eff / 12);
+      e.reserve = Math.round(e.reserveMonths * Math.max(e.burnNoRent, e.burnWithRent));
+      e.ledger = Object.fromEntries([
+        ['acquisition/Deposit', e.deposit], ...(e.gap > 0 ? [['acquisition/Valuation-gap cash', e.gap]] : []),
+        ['acquisition/transferStampDuty', dutySen / 100], ['acquisition/purchaseLegal', purchaseSen / 100], ['acquisition/registration', loan > 0 ? 20 : 10],
+        ['acquisition/disbursements', 1170], ['acquisition/professionalServiceTax', legalTaxSen / 100],
+        ['financing/loanStampDuty', loanDutySen / 100], ['financing/chargeStampDuty', chargeSen / 100], ['financing/loanLegal', loanLegalSen / 100],
+        ['financing/valuationFee', valuerSen / 100], ['financing/valuationServiceTax', valuerTaxSen / 100],
+        ['improvement/Renovation and furnishing', d.renovation], ['improvement/utilityDeposits', 1500], ['reserve/reserve', e.reserve]]);
+      const groupSum = (g) => Object.entries(e.ledger).filter(([k]) => k.startsWith(`${g}/`)).reduce((t, [, v]) => t + v, 0);
+      e.transaction = groupSum('acquisition') + groupSum('financing');
+      e.improvement = groupSum('improvement');
+      e.cash = e.transaction + e.improvement + e.reserve;
+      e.paid = Math.min(Math.max(d.bookingDepositPaid, 0), e.transaction);
+      e.still = e.transaction - e.paid;
+      /* Each year, to the hold or to year 10 if later. */
+      e.path = [];
+      for (let y = 1; y <= Math.max(d.holdYears, 10); y++) {
+        const rent = e.gross * Math.pow(1 + d.rentGrowthPct / 100, y - 1) * (1 - d.vacancyPct / 100);
+        const opex = e.opex * Math.pow(1.02, y - 1);
+        let debt = 0, interest = 0;
+        for (let k = 12 * (y - 1) + 1; k <= Math.min(12 * y, n); k++) { debt += e.inst; interest += monthInt[k]; }
+        const taxable = rent - opex - interest;
+        const tax = d.marginalTaxPct > 0 && taxable > 0 ? taxable * d.marginalTaxPct / 100 : 0;
+        e.path.push({ rent, opex, debt, interest, balance: owedAfter(12 * y), taxable, tax, cf: rent - opex - debt - tax });
+      }
+      /* A sale at the end of year N. */
+      e.sale = (N) => {
+        const value = d.price * Math.pow(1 + d.apprecPct / 100, N) + d.renovation * d.renoValueRecoveryPct / 100;
+        const agent = value * d.agentPct / 100, legal = Math.max(500, value * d.exitLegalPct / 100);
+        const paid = Math.min(d.sellMonths, Math.max(0, n - 12 * N));
+        const owed = owedAfter(12 * N + paid);
+        const carry = e.inst * paid + d.sellMonths * e.opex * Math.pow(1.02, N - 1) / 12;
+        const rate = RPGT[d.disposerCategory][Math.min(Math.max(1, Math.ceil(N)), 6) - 1];
+        const rawGain = value - d.price - (e.duty + e.purchaseLegal) - (agent + legal) - d.renovation;
+        const relief = rawGain > 0 && d.disposerCategory === 'citizen' ? Math.min(rawGain, Math.max(10000, rawGain * 0.1)) : 0;
+        const rpgt = rawGain > 0 ? (rawGain - relief) * rate / 100 : 0;
+        return { value, agent, legal, owed, carry, rate, gain: Math.max(0, rawGain), relief, rpgt, net: value - owed - agent - legal - rpgt - carry };
+      };
+      /* The flows of a sale in year N: the cash required out, each year's cash, the net proceeds and the reserve back. */
+      e.flows = (N) => { const s = e.sale(N); return [-e.cash, ...e.path.slice(0, N).map((p, k) => p.cf + (k === N - 1 ? s.net + e.reserve : 0))]; };
+      return e;
+    };
+    const npv = (r, f) => f.reduce((t, x, k) => t + x / Math.pow(1 + r, k), 0);
+    const bisect = (f) => {
+      let lo = -0.99, hi = 1;
+      if (Math.sign(npv(lo, f)) === Math.sign(npv(hi, f))) return null;
+      for (let k = 0; k < 200; k++) { const mid = (lo + hi) / 2; if (Math.sign(npv(mid, f)) === Math.sign(npv(lo, f))) lo = mid; else hi = mid; }
+      return (lo + hi) / 2 * 100;
+    };
+
+    const rmw = (v) => (typeof v === 'number' ? `${v < 0 ? '−' : ''}RM${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : String(v));
+    const pct = (v) => (typeof v === 'number' ? `${v < 0 ? '−' : ''}${Math.abs(v).toFixed(4)}%` : String(v));
+    const SEN = 0.005, CENT = 0.01, IRR_TOL = 0.0001;
+    const chk = (p, what, have, want, tol = CENT, f = rmw) => {
+      if (!(typeof have === 'number' && typeof want === 'number' && Math.abs(have - want) <= tol)) p.push(`${what}: the model ${f(have)}, by hand ${f(want)}`);
+    };
+    const ledgerChk = (p, what, g, e) => {
+      const have = Object.fromEntries(g.ledger);
+      for (const [k, v] of Object.entries(e.ledger)) chk(p, `${what} ${k}`, have[k], v, SEN);
+      const extra = Object.keys(have).filter(k => !(k in e.ledger));
+      if (extra.length) p.push(`${what}: lines not worked by hand: ${extra.join(', ')}`);
+      if (g.ledger.length !== Object.keys(have).length) p.push(`${what}: a line appears twice`);
+    };
+    const yearsChk = (p, what, g, e, years, keys) => {
+      for (let y = 1; y <= years; y++) for (const k of keys) chk(p, `${what ? `${what} ` : ''}year ${y}'s ${k}`, g.path[y - 1]?.[k], e.path[y - 1][k]);
+    };
+    const saleChk = (p, what, have, s) => {
+      for (const k of ['value', 'agent', 'legal', 'owed', 'carry', 'rpgt', 'net']) chk(p, `${what} ${k}`, have?.[k], s[k]);
+      if (have?.rate !== s.rate) p.push(`${what}: gains tax at ${have?.rate}%, by hand ${s.rate}%`);
+    };
+    const d8 = (label, fn) => {
+      if (!got) return;
+      const p = [];
+      let words = '';
+      try { words = fn(p); } catch (e) { p.push(`the case could not be worked: ${e.message}`); }
+      if (p.length) fail(`${D8} ${label}`, p);
+      else ok(`${D8} ${label}: ${words}`);
+    };
+
+    d8('1, a zero-interest loan', (p) => {
+      const g = got.zero, e = work(CASES.zero), s = e.sale(10), irr = bisect(e.flows(10));
+      chk(p, 'the instalment, the loan ÷ the months', g.inst, e.loan / 420);
+      chk(p, 'the instalment', g.inst, e.inst);
+      if (g.zeroRate !== true) p.push(`a 0% rate on a loan is not flagged (zeroRateModelled ${g.zeroRate})`);
+      chk(p, 'a year\'s instalments', g.ads, 12 * e.inst);
+      yearsChk(p, '', g, e, 10, ['debt', 'interest', 'balance', 'cf']);
+      chk(p, 'the monthly position', g.monthly, e.monthly);
+      chk(p, 'owed at the sale', g.sale.owed, s.owed);
+      chk(p, 'owed at the sale, 369,000 × (1 − 126 ÷ 420)', g.sale.owed, 258300);
+      chk(p, 'carried while selling', g.sale.carry, s.carry);
+      chk(p, 'the reserve', g.reserveCash, e.reserve, SEN);
+      chk(p, 'the cash required', g.cash, e.cash, SEN);
+      chk(p, 'the net proceeds', g.sale.net, s.net);
+      chk(p, 'the rate of return', g.irr, irr, IRR_TOL, pct);
+      return `RM369,000 at 0% over 420 months — ${rmw(e.inst)} a month (the loan ÷ the months), ${rmw(12 * e.inst)} a year and no interest in any year; ${rmw(s.owed)} owed at the sale after 126 instalments; monthly position ${rmw(e.monthly)}; the reserve ${rmw(e.reserve)}, the cash required ${rmw(e.cash)}, net proceeds ${rmw(s.net)} and the rate of return ${pct(irr)}, by hand, all finite and the model's to the sen`;
+    });
+
+    d8('2, no loan', (p) => {
+      const g = got.cash, e = work(CASES.cash), s = e.sale(10), irr = bisect(e.flows(10));
+      const have = Object.fromEntries(g.ledger);
+      if (g.loan !== 0 || g.inst !== 0 || g.ads !== 0) p.push(`the loan ${g.loan}, its instalment ${g.inst} and a year's ${g.ads}: by hand none`);
+      for (const k of ['loanStampDuty', 'chargeStampDuty', 'loanLegal', 'valuationFee', 'valuationServiceTax']) chk(p, `${k}, no loan`, have[`financing/${k}`], 0, SEN);
+      chk(p, 'registration, the transfer alone', have['acquisition/registration'], 10, SEN);
+      chk(p, 'service tax, 8% of the purchase legal fee alone', have['acquisition/professionalServiceTax'], Math.round(e.purchaseLegal * 8) / 100, SEN);
+      ledgerChk(p, 'the ledger', g, e);
+      yearsChk(p, '', g, e, 10, ['debt', 'interest', 'balance', 'cf']);
+      chk(p, 'owed at the sale', g.sale.owed, 0);
+      chk(p, 'carried while selling, 6 months of year 10\'s costs and no instalment', g.sale.carry, s.carry);
+      chk(p, 'the reserve', g.reserveCash, e.reserve, SEN);
+      chk(p, 'the cash required', g.cash, e.cash, SEN);
+      chk(p, 'the net proceeds', g.sale.net, s.net);
+      chk(p, 'the rate of return', g.irr, irr, IRR_TOL, pct);
+      return `B bought outright — no instalment; the loan agreement's duty, the charge's stamp, the loan legal fee, the valuation fee and its service tax each RM0.00; registration RM10.00 (the transfer alone); service tax ${rmw(e.ledger['acquisition/professionalServiceTax'])}, 8% of the ${rmw(e.purchaseLegal)} purchase legal fee alone; nothing owed at the sale and ${rmw(s.carry)} carried (costs only); the reserve ${rmw(e.reserve)}, the cash required ${rmw(e.cash)}, net proceeds ${rmw(s.net)}, the rate of return ${pct(irr)} — by hand, the model's to the sen`;
+    });
+
+    d8('3, vacancy at 0%, 9% and 25%', (p) => {
+      const words = [];
+      for (const [k, v] of [['v0', 0], ['v9', 9], ['v25', 25]]) {
+        const g = got[k], e = work(CASES[k]);
+        for (const f of ['gross', 'eff', 'mgmt', 'repair', 'opex', 'noi', 'monthly']) chk(p, `at ${v}%, ${f}`, g[f], e[f]);
+        chk(p, `at ${v}%, year 2's rent collected`, g.path[1]?.rent, e.path[1].rent);
+        words.push(`${v}%: collected ${rmw(e.eff)}, fee ${rmw(e.mgmt)}, repairs ${rmw(e.repair)}, monthly ${rmw(e.monthly)}`);
+      }
+      const rows = got.v9.stressVacancy.slice(1);
+      if (rows.map(r => r[0]).join() !== '15,25,40') p.push(`the stress rows are at ${rows.map(r => r[0]).join(', ')}% vacant, not 15, 25 and 40`);
+      for (const [v, monthly] of rows) chk(p, `the stress row at ${v}% vacant`, monthly, work({ ...CASES.v9, vacancyPct: v }).monthly);
+      return `B managed at 10% with no minimum and no placement fee — ${words.join('; ')}; year 2's rent collected and the stress rows at 15, 25 and 40% (${rows.map(r => rmw(r[1])).join(', ')}) as worked at each vacancy`;
+    });
+
+    d8('4, the management and repair bases', (p) => {
+      const g = got.v25, e = work(CASES.v25);
+      const letMgmt = e.gross * 10 / 100, letRepair = e.gross * 5 / 100;
+      if (Math.abs(letMgmt - e.mgmt) < 1 || Math.abs(letRepair - e.repair) < 1) p.push('the case cannot tell the rent collected from the rent let');
+      chk(p, 'the management fee, 10% of the rent collected', g.mgmt, e.mgmt);
+      chk(p, 'the repair reserve, 5% of the rent collected', g.repair, e.repair);
+      if (Math.abs(g.mgmt - letMgmt) <= CENT) p.push(`the management fee is 10% of the rent let (${rmw(letMgmt)}), not of the rent collected`);
+      if (Math.abs(g.repair - letRepair) <= CENT) p.push(`the repair reserve is 5% of the rent let (${rmw(letRepair)}), not of the rent collected`);
+      chk(p, 'the running costs', g.opex, e.opex);
+      return `at 25% vacancy the fee is 10% and the repair reserve 5% of the ${rmw(e.eff)} collected — ${rmw(e.mgmt)} and ${rmw(e.repair)}, running costs ${rmw(e.opex)} — not of the ${rmw(e.gross)} let (${rmw(letMgmt)} and ${rmw(letRepair)})`;
+    });
+
+    d8('5, upfront cash and the reserve', (p) => {
+      const words = [];
+      for (const [k, months, what] of [['upfront', 6, 'a 6-month reserve, RM5,000 already paid'], ['lowVal', 3, 'a RM400,000 valuation']]) {
+        const g = got[k], e = work(CASES[k]);
+        for (const f of ['loan', 'deposit', 'gap']) chk(p, `${k}: the ${f}`, g[f], e[f]);
+        ledgerChk(p, `${k}:`, g, e);
+        if (g.reserveMonths !== months) p.push(`${k}: the reserve is of ${g.reserveMonths} months, entered ${months}`);
+        chk(p, `${k}: a month with no rent`, g.burnNoRent, e.burnNoRent);
+        chk(p, `${k}: a month with the rent coming in`, g.burnWithRent, e.burnWithRent);
+        for (const [f, h] of [['transaction', 'transaction'], ['improvement', 'improvement'], ['reserveCash', 'reserve'], ['cash', 'cash'], ['paid', 'paid'], ['still', 'still']]) chk(p, `${k}: ${f}`, g[f], e[h], SEN);
+        const noRentLarger = e.burnNoRent >= e.burnWithRent;
+        words.push(`${what}: deposit ${rmw(e.deposit)}${e.gap ? ` and ${rmw(e.gap)} below the valuation` : ''}, fees and duties ${rmw(e.transaction - e.deposit - e.gap)}, renovation and deposits ${rmw(e.improvement)}, the reserve ${e.reserveMonths} × ${rmw(Math.max(e.burnNoRent, e.burnWithRent))} (a month ${noRentLarger ? 'with no rent' : 'with the rent coming in'}, the larger; ${rmw(noRentLarger ? e.burnWithRent : e.burnNoRent)} ${noRentLarger ? 'with it' : 'without'}) = ${rmw(e.reserve)}; cash required ${rmw(e.cash)}, ${rmw(e.still)} still to pay at completion`);
+      }
+      return words.join('; ');
+    });
+
+    d8('6a, the sale', (p) => {
+      const words = [];
+      for (const [k, who] of [['x', 'a citizen'], ['xCo', 'a company'], ['xNc', 'a non-citizen'], ['xFlat', 'a citizen, at no growth']]) {
+        const s = work(CASES[k]).sale(5), g = got[k];
+        saleChk(p, `${k}, year 5:`, g.sale, s);
+        chk(p, `${k}, year 5: the gain`, g.sale.gain, s.gain);
+        chk(p, `${k}, year 5: the relief`, g.sale.relief, s.relief);
+        words.push(`by ${who}, gains tax ${rmw(s.rpgt)} (${s.gain > 0 ? `${s.rate}% of ${rmw(s.gain)} less ${rmw(s.relief)}` : `no gain: ${rmw(s.value)} less the price and the allowable costs is below nought`})`);
+      }
+      const e = work(CASES.x), s5 = e.sale(5), s10 = e.sale(10);
+      if (!(s5.value * 0.1 / 100 < 500 && s10.value * 0.1 / 100 > 500)) p.push('the case does not straddle the RM500 minimum');
+      saleChk(p, 'x, year 10 (the exits table):', got.x.exits[1], s10);
+      saleChk(p, 'x, year 5 (the exits table):', got.x.exits[0], s5);
+      got.x.hold.forEach((h, k) => saleChk(p, `x, a sale in year ${k + 1}:`, h, e.sale(k + 1)));
+      if (got.x.hold.length !== 5) p.push(`${got.x.hold.length} years of hold-or-sell, not 5`);
+      return `X sold in year 5 for ${rmw(s5.value)}: agent ${rmw(s5.agent)}, legal ${rmw(s5.legal)} (0.1% is ${rmw(s5.value / 1000)}), ${rmw(s5.owed)} settled after 66 instalments, ${rmw(s5.carry)} carried, net ${rmw(s5.net)}; ${words.join('; ')}; in year 10 for ${rmw(s10.value)}, legal ${rmw(s10.legal)} and nil gains tax; a sale in each year 1–5 at ${got.x.hold.map(h => `${h.rate}%`).join(', ')}`;
+    });
+
+    d8('6b, tax on the rent', (p) => {
+      const words = [];
+      for (const [k, years] of [['x', 5], ['taxB', 10]]) {
+        const g = got[k], e = work(CASES[k]);
+        if (g.taxComputed !== true) p.push(`${k}: tax not computed with a 24% rate entered`);
+        yearsChk(p, `${k}:`, g, e, years, ['rent', 'opex', 'interest', 'taxable', 'tax', 'cf']);
+        const cum = e.path.slice(0, years).reduce((t, x) => t + x.tax, 0);
+        chk(p, `${k}: the tax over the hold`, g.cumTax, cum);
+        words.push(`${k === 'x' ? 'X' : 'B at 24%'}: ${e.path.slice(0, years).map(x => rmw(x.tax)).join(', ')} (${rmw(cum)} in all)`);
+      }
+      const losses = work(CASES.taxB).path.slice(0, 10).filter(x => x.taxable < 0).length;
+      if (!losses) p.push('the case has no year of loss');
+      return `each year's tax at 24% on the rent collected less the running costs and the interest — ${words.join('; ')}; B's ${losses} years of loss pay none and carry nothing forward`;
+    });
+
+    d8('6c, the rate of return', (p) => {
+      const e = work(CASES.x), irr = bisect(e.flows(5));
+      chk(p, 'x: the rate of return', got.x.irr, irr, IRR_TOL, pct);
+      chk(p, 'x: the NPV at 6%', got.x.npv, npv(0.06, e.flows(5)));
+      got.x.hold.forEach((h, k) => chk(p, `x: a sale in year ${k + 1}`, h.irr, bisect(e.flows(k + 1)), IRR_TOL, pct));
+      chk(p, 'x: a sale in year 10', got.x.exits[1].irr, bisect(e.flows(10)), IRR_TOL, pct);
+      const b = work(CASES.taxB), irrB = bisect(b.flows(10));
+      chk(p, 'B at 24%: the rate of return', got.taxB.irr, irrB, IRR_TOL, pct);
+      return `bisection on the NPV — X ${pct(irr)} (NPV at 6% ${rmw(npv(0.06, e.flows(5)))}); a sale in each year 1–5 ${got.x.hold.map(h => pct(h.irr)).join(', ')} and in year 10 ${pct(bisect(e.flows(10)))}; B at 24% ${pct(irrB)}`;
+    });
+  }
+  /* ---- end qt-day8-cases ---- */
+
   /* ---- qt-quick ---- */
   /* THE CALCULATOR'S TWO VIEWS (the owner's QT-003, 14 Oct 2026;
      75-property-grade.js, pcQuickView). One deal, unlike the default in
