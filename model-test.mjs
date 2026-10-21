@@ -9119,7 +9119,7 @@ try {
       risks: ['Model-test risk one', 'Model-test risk two', 'Model-test risk three'],
       questions: ['Model-test question one?', 'Model-test question two?'],
       horizon: '4–6 years', review: '2031-03-15', conf: 'High' };
-    const FIELDS = ['id', 'ticker', 'oneLine', 'quality', 'valCase', 'catalysts', 'risks', 'conds', 'horizon', 'review', 'conf', 'questions', 'created', 'stamp', 'runRef'];
+    const FIELDS = ['id', 'ticker', 'oneLine', 'quality', 'valCase', 'catalysts', 'risks', 'conds', 'horizon', 'review', 'conf', 'questions', 'created', 'stamp', 'runRef', 'suggested', 'snapshot'];
     const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
     if (!r.id || !r.created) p.push('the case was not created');
     if (r.typed && r.typed.some(x => !x)) p.push(`an editor control was not found: ${JSON.stringify(r.typed)}`);
@@ -9442,6 +9442,301 @@ try {
     else ok('qt-quick: one deal in Quick and Full — the cash required and the monthly position byte for byte (tile and badge), the net yield, the grade and its verdict, every Quick box and dealModel\'s whole output the same; switching both ways keeps the deal, what is stored and the address\'s d=; 48000 typed with no Tab commits after the pause and not before, the keyboard in the box, and a 0 typed after the redraw makes 480000; Enter commits at once; “−5” and an emptied box neither commit nor toast at the pause, Tab refuses each with its toast; the full model\'s capital growth commits after the pause', typed);
   }
   /* ---- end qt-quick ---- */
+
+  /* ---- qt-day8-case ---- */
+  /* WHAT "START A RESEARCH CASE" CREATES, AND WHAT A SAVED CASE KEEPS (the
+     21 Oct 2026 Day-8 report, QT-D08-01). On a filed company with no price,
+     through the company page's own button, in this browser's own profile,
+     and everything it found put back:
+     - the button reads "Start a research case", opens My investment cases
+       and toasts "Draft created in this browser. Review every assumption
+       before treating this as your case."; the draft line is on the case;
+     - the review date, the horizon, the confidence and the condition the
+       tool added are marked "Suggested default — not yet confirmed by you."
+       and the condition is awaiting (no price), never counted as passing,
+       and says the tool suggested it;
+     - Confirm on one default and a typed change to another take those marks
+       off and only those; the draft line stays until the last one goes;
+     - the snapshot holds the composite (score, classified, completeness,
+       tested weight, each pillar's score or null, the gates), each lens fit,
+       the scorecard, the coverage tier, the base-case estimate with its
+       range and confidence, and the assumptions the reader edited; a figure
+       the page did not have is null, never 0, and each is what the page's
+       own function says now;
+     - after a real reload the case is as it was; the card says "Research
+       when saved" with its versions, marks what moved, and does not touch
+       the saved snapshot or the assumptions — only "Review against today's
+       research" takes a new one;
+     - "Download a backup" and "Export everything" each carry it: cleared
+       and restored twice, the case is in storage once with every field the
+       same;
+     - a case from before (no suggested, no snapshot) reads "Saved before
+       snapshots", shows no mark, and is not given a field it never had; the
+       storage shape check takes the new and the old alike;
+     - a timing workspace entry does not change the research composite.
+     The page-side steps are written as functions and sent as their source,
+     so nothing in them needs a second layer of escaping. */
+  {
+    const d8a = async () => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      for (let i = 0; i < 160 && (typeof realPending === 'undefined' || realPending || !BY_ID.has('AAPL-SEC')); i++) await w(250);
+      const own = {};
+      for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vl.')) own[k] = localStorage.getItem(k); }
+      const out = { own, keepTheses: JSON.stringify(State.theses), keepQtti: JSON.stringify(State.qtti), problems: [] };
+      const text = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : '');
+      const parts = (cid) => { const r = document.getElementById('thesis-record-' + cid); return r ? { head: text(r.querySelector('h4')), meta: text(r.querySelector('.metaline')), after: text(r.querySelector('.metaline + .caption')), cap: text(r.querySelector('.case-review .caption')), summary: text(r.querySelector('summary')), btn: text(r.querySelector('.case-review-btn')), chip: text(r.querySelector('.metaline .chip')), movedRows: [...r.querySelectorAll('tr.case-moved td:first-child')].map(text) } : null; };
+      const MARK = 'Suggested default — not yet confirmed by you.';
+      try {
+        const row = ['AAPL-SEC', 'MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.real && !isNum(x.c.px?.p) && !State.theses.some(t => t.ticker === x.c.id));
+        if (!row) throw new Error('no filed company without a price and without a case');
+        const id = row.c.id; out.id = id;
+
+        /* the button, on the company page, and what it opens */
+        navigate(companyPath(row.c)); await w(500);
+        out.buttons = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim());
+        const start = [...document.querySelectorAll('main .company-acts button')].find(b => /^Start a research case$/.test(b.textContent.trim()));
+        if (!start) throw new Error('no "Start a research case" button on the company page');
+        start.click(); await w(600);
+        out.path = location.pathname; out.toast = document.getElementById('toast')?.textContent || '';
+        let t = State.theses.find(x => x.ticker === id);
+        if (!t) throw new Error('the button made no case');
+        const cid = t.id;
+        const card = () => document.getElementById('thesis-card-' + cid);
+        const box = () => document.getElementById('thesis-draft-' + cid);
+        out.line = text(box()?.querySelector('.case-draft-line'));
+        const q = box()?.getBoundingClientRect();
+        out.lineInSight = !!q && q.top >= 0 && q.bottom <= innerHeight;
+        out.suggested0 = JSON.parse(JSON.stringify(t.suggested || null));
+        out.cond0 = JSON.parse(JSON.stringify(t.conds));
+        out.marks0 = [...(card()?.querySelectorAll('.caption') || [])].filter(n => text(n) === MARK).length;
+        out.confirmHeights = [...(card()?.querySelectorAll('.case-confirm') || [])].map(b => Math.round(b.getBoundingClientRect().height));
+        const ev = evaluateThesis(t);
+        out.eval0 = { breaches: ev.breaches.length, ok: ev.ok.map(c => ({ actual: c.actual, state: conditionState(c).label })) };
+        const cr = [...(card()?.querySelectorAll('table.dt tbody tr') || [])].find(tr => /base-case model estimate/.test(tr.cells[0]?.textContent || ''));
+        out.condRow = cr ? [...cr.cells].map(c => text(c)) : null;
+        out.step6 = sevenSteps(row, t)[5]; out.step6 = { ok: out.step6.ok, note: out.step6.note };
+        const s7 = sevenSteps(row, t)[6]; out.step7 = { ok: s7.ok, note: s7.note };
+        out.snap0 = JSON.parse(JSON.stringify(t.snapshot || null));
+        out.nowComposite = (() => { const rc = researchComposite(row); return { score: rc.score, classified: rc.classified, testedWeight: rc.testedWeight, pillars: rc.parts.map(p => isNum(p.score) ? p.score : null), gates: rc.gates.map(g => g.state) }; })();
+        out.nowLenses = strategyLens(row).fits.map(f => [f.key, f.score]);
+        out.nowScores = Object.fromEntries(['quality', 'growth', 'strength', 'capital', 'value'].map(k => [k, row.scores[k]?.score ?? null]));
+        out.nowVal = { base: row.val.vals?.base ?? null, bear: row.val.vals?.bear ?? null, bull: row.val.vals?.bull ?? null, conf: row.val.conf, band: row.val.confBand, tier: coverageTier(row).label };
+
+        /* Confirm one (the review date, by its button) */
+        document.getElementById('case-confirm-' + cid + '-review').click(); await w(300);
+        t = State.theses.find(x => x.id === cid);
+        out.afterConfirm = { suggested: JSON.parse(JSON.stringify(t.suggested)), line: !!box()?.querySelector('.case-draft-line'), rows: [...(box()?.querySelectorAll('.case-sug strong') || [])].map(text), focus: !!document.activeElement && document.activeElement !== document.body };
+        /* Change another (the horizon, through the editor) */
+        openThesisEditor(t); await w(300);
+        const hz = document.getElementById('th-horizon'); hz.focus(); hz.value = '4–6 years'; hz.dispatchEvent(new Event('input', { bubbles: true })); await w(60);
+        out.editorMarkConf = !!document.getElementById('th-sug-conf'); out.editorMarkHorizonGone = !document.getElementById('th-sug-horizon');
+        await w(450); closeDrawer(); await w(250);
+        t = State.theses.find(x => x.id === cid);
+        out.afterChange = { suggested: JSON.parse(JSON.stringify(t.suggested)), horizon: t.horizon, line: !!box()?.querySelector('.case-draft-line'), rows: [...(box()?.querySelectorAll('.case-sug strong') || [])].map(text), condMarked: [...(card()?.querySelectorAll('table.dt .caption') || [])].some(n => text(n) === MARK) };
+        const s7b = sevenSteps(row, t)[6]; out.step7b = { ok: s7b.ok, note: s7b.note };
+
+        /* the reader edits an assumption; opening the case replaces nothing */
+        const al = assumptionList(row.inputs, row.val.pack.id).find(a => typeof row.inputs[a.k] === 'number' && row.inputs[a.k] !== 0);
+        if (!al) throw new Error('no valuation assumption could be edited');
+        out.editKey = al.k;
+        const inputs = studioInputs(row); inputs[al.k] = +(row.inputs[al.k] * 1.1).toFixed(6); persistValuation(row, true);
+        out.editedValue = inputs[al.k];
+        const kept = () => valuationEdits()[id]?.over?.[al.k] ?? null;
+        out.snapBefore = t.snapshot.at;
+        navigate('/my/theses'); await w(400);
+        out.record0 = parts(cid);
+        out.snapKeptByReading = JSON.stringify(State.theses.find(x => x.id === cid).snapshot) === JSON.stringify(out.snap0);
+        out.editsKeptNull = State.theses.find(x => x.id === cid).snapshot.edits === null;
+        out.assumption0 = kept();
+        /* a figure saved differently from today's, and a model version that has moved */
+        const tt = State.theses.find(x => x.id === cid);
+        const bumped = (tt.snapshot.composite.score ?? 0) + 1;
+        tt.snapshot.composite.score = bumped; tt.snapshot.stamp.model = 'metrics 0.0.1 · scores 0.0.1 · valuation 0.0.1'; saveTheses();
+        render(); await w(400);
+        out.moved = parts(cid);
+        out.keptWhileMoved = JSON.parse(localStorage.getItem('vl.theses')).find(x => x.id === cid).snapshot.composite.score === bumped && State.theses.find(x => x.id === cid).snapshot.composite.score === bumped;
+        out.assumptionWhileMoved = kept();
+        document.querySelector('#thesis-record-' + cid + ' .case-review-btn').click(); await w(400);
+        const t2 = State.theses.find(x => x.id === cid);
+        out.retaken = { at: t2.snapshot.at, score: t2.snapshot.composite.score, model: t2.snapshot.stamp.model, edits: JSON.parse(JSON.stringify(t2.snapshot.edits)), suggested: JSON.parse(JSON.stringify(t2.suggested)), conds: JSON.parse(JSON.stringify(t2.conds)) };
+        out.nowComposite2 = researchComposite(row).score;
+        out.recordAfter = parts(cid);
+        out.assumptionAfter = kept();
+        out.theses1 = JSON.stringify(store.read('theses', []).find(x => x.id === cid));
+        out.id1 = cid;
+        navigate('/property/calculator?view=full'); await w(300);
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      return JSON.parse(JSON.stringify(out));
+    };
+    const d8b = async (A) => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = { problems: [] };
+      const text = (n) => (n ? n.textContent.replace(/\s+/g, ' ').trim() : '');
+      const parts = (cid) => { const r = document.getElementById('thesis-record-' + cid); return r ? { head: text(r.querySelector('h4')), meta: text(r.querySelector('.metaline')), cap: text(r.querySelector('.case-review .caption')), btn: text(r.querySelector('.case-review-btn')) } : null; };
+      const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+      const MARK = 'Suggested default — not yet confirmed by you.';
+      const find = () => store.read('theses', []).filter(x => x.id === A.id1);
+      try {
+        /* after a real reload */
+        out.reloaded = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)), inState: State.theses.some(x => x.id === A.id1) };
+        const row = BY_ID.get(A.id);
+        navigate('/my/theses'); await w(500);
+        let t = State.theses.find(x => x.id === A.id1);
+        out.reopened = { record: parts(t.id), draft: text(document.getElementById('thesis-draft-' + t.id)), snapSame: canon(t.snapshot) === canon(JSON.parse(A.theses1).snapshot) };
+        /* export, clear, restore, restore — the full backup */
+        const clear = () => { store.write('theses', store.read('theses', []).filter(x => x.id !== A.id1)); State.theses = store.read('theses', []); };
+        const text1 = JSON.stringify(backupPayload());
+        out.inBackup = JSON.stringify(JSON.parse(text1).data.theses || []).includes(A.id1);
+        clear(); out.goneBackup = find().length;
+        out.b1 = restoreBackup(text1).ok; out.afterB1 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        out.b2 = restoreBackup(text1).ok; out.afterB2 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        /* export everything, clear, restore, restore */
+        const doc = exportEverything();
+        out.inEverything = JSON.stringify(doc.data.theses || []).includes(A.id1);
+        clear(); out.goneEverything = find().length;
+        const i1 = importEverything(JSON.parse(JSON.stringify(doc))); if (i1.ok) i1.apply(); out.e1 = i1.ok; out.afterE1 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        const i2 = importEverything(JSON.parse(JSON.stringify(doc))); if (i2.ok) i2.apply(); out.e2 = i2.ok; out.afterE2 = { n: find().length, same: canon(find()[0]) === canon(JSON.parse(A.theses1)) };
+        State.theses = store.read('theses', []);
+        t = State.theses.find(x => x.id === A.id1);
+        navigate('/my/theses'); await w(500);
+        out.restoredCard = parts(t.id);
+
+        /* a case from before: no suggested, no snapshot — one made as the old button made it, and the seeded sample */
+        const other = ['MSFT-SEC', 'WMT-SEC', 'KO-SEC', 'PG-SEC'].map(x => BY_ID.get(x)).find(x => x && x.c.id !== A.id && !State.theses.some(y => y.ticker === x.c.id));
+        const old = { id: 'told-day8', ticker: other.c.id, oneLine: '', quality: '', valCase: '', catalysts: [], risks: [],
+          conds: [{ type: 'val', op: '>', v: 15, label: 'Price moves more than 15% above the base-case model estimate' }],
+          horizon: '3–5 years', review: '2027-01-19', conf: 'Low', questions: [], created: '2026-09-01', stamp: buildStamp(other.c) };
+        const oldJson = JSON.stringify(old);
+        out.shapeNewAndOld = storedShapeFault('theses', [JSON.parse(A.theses1), JSON.parse(oldJson), seedTheses()[0]]);
+        store.write('theses', [...store.read('theses', []), JSON.parse(oldJson)]); State.theses = store.read('theses', []);
+        navigate('/my/theses'); await w(500);
+        const oc = document.getElementById('thesis-card-told-day8');
+        const olds = State.theses.find(x => x.id === 'told-day8');
+        out.old = { found: !!oc, record: parts('told-day8'), draft: !!document.getElementById('thesis-draft-told-day8'), marks: [...(oc?.querySelectorAll('.caption') || [])].filter(n => text(n) === MARK).length,
+          suggestedWords: /suggested/i.test(text(oc)),
+          condRow: (() => { const tr = [...(oc?.querySelectorAll('table.dt tbody tr') || [])][0]; return tr ? [...tr.cells].map(text) : null; })(),
+          steps: sevenSteps(other, olds).slice(5).map(s => [s.ok, s.note]),
+          row: workspaceItems().find(i => i.key === 'told-day8')?.detail || null,
+          untouched: JSON.stringify(store.read('theses', []).find(x => x.id === 'told-day8')) === oldJson,
+          noFields: !('suggested' in olds) && !('snapshot' in olds) && !('suggested' in olds.conds[0]) };
+        const sample = seedTheses()[0]; delete sample.stamp;
+        store.write('theses', [sample]); State.theses = store.read('theses', []);
+        navigate('/my/theses'); await w(400);
+        out.sample = { record: parts(sample.id), button: !!document.querySelector('#thesis-record-' + sample.id + ' .case-review-btn') };
+        navigate('/my/workspace'); await w(400);
+        out.sampleRow = text([...document.querySelectorAll('.ws-list .ws-row')].find(x => /Investment case/.test(x.textContent)));
+
+        /* a timing workspace entry does not change the research composite */
+        const cmp = () => canon({ rc: (() => { const rc = researchComposite(row); return { score: rc.score, classified: rc.classified, tw: rc.testedWeight, parts: rc.parts.map(p => isNum(p.score) ? p.score : null), gates: rc.gates.map(g => g.state) }; })(), snap: (() => { const s = caseSnapshot(row); return { composite: s.composite, lenses: s.lenses, scorecard: s.scorecard }; })() });
+        const c0 = cmp();
+        State.qtti = qttiWorkedExample(); saveQtti();
+        out.timing = { entered: !!State.qtti.symbol, same: cmp() === c0 };
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      return JSON.parse(JSON.stringify(out));
+    };
+    /* the browser's own work, put back — whatever happened above */
+    const d8c = async (A) => {
+      const w = (ms) => new Promise(res => setTimeout(res, ms));
+      const out = { problems: [] };
+      try {
+        navigate('/property/calculator?view=full'); await w(400);
+        if (A.id) delete State.valuation[A.id];
+        for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('vl.') && !(k in A.own)) localStorage.removeItem(k); }
+        for (const [k, v] of Object.entries(A.own)) localStorage.setItem(k, v);
+        State.theses = JSON.parse(A.keepTheses); State.qtti = JSON.parse(A.keepQtti);
+        out.differ = Object.keys(A.own).filter(k => localStorage.getItem(k) !== A.own[k]);
+        out.extra = Object.keys(localStorage).filter(k => k.startsWith('vl.') && !(k in A.own));
+      } catch (e) { out.problems.push('restore threw: ' + (e && e.message || e)); }
+      return JSON.parse(JSON.stringify(out));
+    };
+    const A = await evaluate(`(${d8a.toString()})()`);
+    const p = [...A.problems];
+    const LINE = 'Draft created in this browser. Review every assumption before treating this as your case.';
+    const MARK = 'Suggested default — not yet confirmed by you.';
+    const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
+    let B = null;
+    if (!A.problems.length) {
+      /* start */
+      if (!A.buttons.includes('Start a research case') || A.buttons.includes('Save research')) p.push(`the company page's buttons read ${JSON.stringify(A.buttons)}`);
+      if (A.path !== '/my/theses') p.push(`the button opened ${A.path}`);
+      if (A.toast !== LINE) p.push(`the toast reads "${A.toast}"`);
+      if (A.line !== LINE || !A.lineInSight) p.push(`the draft line reads "${A.line}" and is ${A.lineInSight ? '' : 'not '}in sight on arrival`);
+      if (canon(A.suggested0) !== canon({ review: true, horizon: true, conf: true }) || A.cond0.length !== 1 || A.cond0[0].suggested !== true) p.push(`the case is marked ${canon(A.suggested0)} with its condition ${canon(A.cond0)}`);
+      if (A.marks0 !== 4) p.push(`the case shows "${MARK}" ${A.marks0} times — want the review date, the horizon, the confidence and the condition`);
+      if (A.confirmHeights.length !== 4 || A.confirmHeights.some(h => h < 44)) p.push(`Confirm controls measure ${JSON.stringify(A.confirmHeights)} high, not four of 44px or more`);
+      if (A.eval0.breaches !== 0 || A.eval0.ok.length !== 1 || A.eval0.ok[0].actual !== null || A.eval0.ok[0].state !== 'Awaiting update') p.push(`with no price the condition evaluates ${canon(A.eval0)} — want awaiting, no value, not passing`);
+      if (!A.condRow || !/^Awaiting update/.test(A.condRow[4]) || !/Not counted as passing/.test(A.condRow[4]) || /Within|Approaching|Breached/.test(A.condRow[4]) || !A.condRow[0].includes(MARK)) p.push(`the condition's row reads ${canon(A.condRow)}`);
+      if (A.step7.ok !== false || !/suggested, unconfirmed/.test(A.step7.note) || A.step6.ok !== false || !/1 suggested, not confirmed/.test(A.step6.note)) p.push(`the seven-step review, step 6 ${canon(A.step6)}, step 7 ${canon(A.step7)}`);
+      /* snapshot, field by field, against the page's own figures */
+      const s = A.snap0;
+      if (!s) p.push('the new case holds no snapshot');
+      else {
+        for (const k of ['at', 'stamp', 'composite', 'lenses', 'scorecard', 'tier', 'valuation', 'edits']) if (!(k in s)) p.push(`the snapshot lacks ${k}`);
+        if (!s.stamp?.model || !/^\d{4}-\d{2}-\d{2}T/.test(s.at || '')) p.push(`the snapshot's date and version: ${s.at}, ${canon(s.stamp)}`);
+        const c = s.composite, n = A.nowComposite;
+        if (c.score !== n.score || c.classified !== n.classified || c.testedWeight !== n.testedWeight || canon(c.pillars.map(x => x.score)) !== canon(n.pillars) || canon(c.gates.map(g => g.state)) !== canon(n.gates)) p.push(`the snapshot's composite ${canon(c)} is not the page's ${canon(n)}`);
+        if (!c.gates.some(g => g.id === 'governance' && g.state === 'manual_review')) p.push('the snapshot does not keep governance as manual review');
+        if (!c.pillars.some(x => x.score === null) || c.pillars.some(x => x.score === 0)) p.push(`an untested pillar is not kept as null: ${canon(c.pillars)}`);
+        if (typeof c.dataCompleteness !== 'number') p.push(`data completeness is ${c.dataCompleteness}`);
+        if (s.lenses.length !== 8 || canon(s.lenses.map(f => [f.key, f.score])) !== canon(A.nowLenses)) p.push(`the snapshot's lens scores ${canon(s.lenses.map(f => [f.key, f.score]))} are not the page's ${canon(A.nowLenses)}`);
+        if (s.lenses.some(f => !f.shown || (f.state === 'graded') !== /^Evidence band [A-D]$/.test(f.shown))) p.push(`a lens fit is not shown as the page shows it: ${canon(s.lenses)}`);
+        if (s.lenses.some(f => f.score === null && f.state === 'graded') || !s.lenses.some(f => f.score === null)) p.push(`lens scores: ${canon(s.lenses.map(f => [f.key, f.state, f.score]))}`);
+        if (canon(Object.fromEntries(s.scorecard.map(x => [x.key, x.score]))) !== canon(A.nowScores) || s.scorecard.find(x => x.key === 'value')?.score !== null) p.push(`the snapshot's scorecard ${canon(s.scorecard)} is not the page's ${canon(A.nowScores)} (a filed company with no price has no valuation score)`);
+        if (s.tier.label !== A.nowVal.tier) p.push(`coverage tier ${canon(s.tier)} against ${A.nowVal.tier}`);
+        const v = s.valuation;
+        if (v.base !== A.nowVal.base || v.bear !== A.nowVal.bear || v.bull !== A.nowVal.bull || v.conf !== A.nowVal.conf || v.confBand !== A.nowVal.band) p.push(`the snapshot's valuation ${canon(v)} is not the page's ${canon(A.nowVal)}`);
+        if (s.edits !== null) p.push(`the snapshot of a company with no edited assumption holds ${canon(s.edits)}, not null`);
+        if (/undefined|NaN|Infinity/.test(JSON.stringify(s))) p.push('the snapshot holds a value that is not a value');
+      }
+      /* confirm one, change another */
+      if (canon(A.afterConfirm.suggested) !== canon({ review: false, horizon: true, conf: true }) || !A.afterConfirm.line || A.afterConfirm.rows.length !== 2 || A.afterConfirm.rows.some(x => /Next review/.test(x)) || !A.afterConfirm.focus) p.push(`after Confirm on the review date: ${canon(A.afterConfirm)}`);
+      if (canon(A.afterChange.suggested) !== canon({ review: false, horizon: false, conf: true }) || A.afterChange.horizon !== '4–6 years' || !A.afterChange.line || A.afterChange.rows.length !== 1 || !/^Confidence: Low$/.test(A.afterChange.rows[0]) || !A.afterChange.condMarked) p.push(`after the horizon was changed: ${canon(A.afterChange)}`);
+      if (!A.editorMarkConf || !A.editorMarkHorizonGone) p.push(`the editor's marks: confidence ${A.editorMarkConf}, horizon gone ${A.editorMarkHorizonGone}`);
+      if (!A.step7b.ok || !/^Next review \d{4}-\d{2}-\d{2}, horizon 4–6 years\.$/.test(A.step7b.note)) p.push(`step 7 after the review date is confirmed and the horizon changed: ${canon(A.step7b)}`);
+      /* the record beside today's, and only the reader's press replaces it */
+      const r0 = A.record0;
+      if (!r0 || !/^Research when saved, \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/.test(r0.head) || !/^Model version metrics .* · Data version us\.json /.test(r0.meta) || !/^Beside today’s: 1 of \d+ moved$/.test(r0.summary) || canon(r0.movedRows) !== canon(['Assumptions you edited'])) p.push(`the record, with an assumption edited since, reads ${canon(r0)}`);
+      if (!A.snapKeptByReading || !A.editsKeptNull || A.assumption0 !== A.editedValue) p.push(`opening the case, with an assumption edited since, replaced the saved snapshot (${A.snapKeptByReading}), its assumptions (${A.editsKeptNull}) or the reader's edit (${A.assumption0} against ${A.editedValue})`);
+      const mv = A.moved;
+      if (!mv || !/^Beside today’s: 2 of \d+ moved$/.test(mv.summary) || mv.chip !== 'Model moved' || !/^Model moved: metrics 0\.0\.1 → /.test(mv.after) || canon(mv.movedRows) !== canon(['Research case score', 'Assumptions you edited']) || !A.keptWhileMoved || A.assumptionWhileMoved !== A.editedValue) p.push(`with a score and a model version moved, the card says ${canon(mv)}; saved kept ${A.keptWhileMoved}, edit ${A.assumptionWhileMoved}`);
+      if (!mv || mv.btn !== 'Review against today’s research' || !/^Replaces the saved research above with today’s; your assumptions stay.$/.test(mv.cap)) p.push(`"Review against today's research" says ${canon(mv && { btn: mv.btn, cap: mv.cap })}`);
+      const rt = A.retaken;
+      if (rt.score !== A.nowComposite2 || rt.model === 'metrics 0.0.1 · scores 0.0.1 · valuation 0.0.1' || rt.at === A.snapBefore || !rt.edits || rt.edits[A.editKey] !== A.editedValue || A.assumptionAfter !== A.editedValue) p.push(`the new snapshot holds ${canon(rt)}, today's score being ${A.nowComposite2} and the edit ${A.editKey} ${A.editedValue}`);
+      if (canon(rt.suggested) !== canon({ review: false, horizon: false, conf: true }) || rt.conds.length !== 1 || rt.conds[0].suggested !== true) p.push(`taking a new snapshot changed the defaults' state: ${canon({ s: rt.suggested, c: rt.conds })}`);
+      if (!A.recordAfter || !/^Beside today’s: none of \d+ moved$/.test(A.recordAfter.summary)) p.push(`after the new snapshot the card says ${canon(A.recordAfter)}`);
+      /* a real reload, then the backups */
+      await send('Page.reload', {}, sessionId);
+      for (let i = 0; i < 160; i++) {
+        await sleep(250);
+        try { if (await evaluate(`typeof realPending !== 'undefined' && !realPending && typeof BY_ID !== 'undefined' && BY_ID.has('AAPL-SEC') && typeof State !== 'undefined' && !!State.view`)) break; } catch { /* between documents */ }
+      }
+      B = await evaluate(`(${d8b.toString()})(${JSON.stringify(A)})`);
+      p.push(...B.problems);
+      if (!B.reloaded || B.reloaded.n !== 1 || !B.reloaded.same || !B.reloaded.inState) p.push(`after a reload ${canon(B.reloaded)}`);
+      if (!B.reopened || !/^Research when saved, /.test(B.reopened.record?.head || '') || !B.reopened.snapSame || !B.reopened.draft.includes(LINE) || !B.reopened.draft.includes('Confidence: Low')) p.push(`reopened after a reload: ${canon(B.reopened)}`);
+      if (!B.inBackup || !B.inEverything) p.push(`the file lacks the case: backup ${B.inBackup}, everything ${B.inEverything}`);
+      if (B.goneBackup !== 0 || B.goneEverything !== 0) p.push(`the case was not cleared before a restore: ${B.goneBackup}, ${B.goneEverything}`);
+      for (const [when, ok1, x] of [['backup, once', B.b1, B.afterB1], ['backup, twice', B.b2, B.afterB2], ['export everything, once', B.e1, B.afterE1], ['export everything, twice', B.e2, B.afterE2]])
+        if (!ok1 || !x || x.n !== 1 || !x.same) p.push(`restored from the ${when}: ${canon({ ok: ok1, x })}`);
+      if (!/^Research when saved, /.test(B.restoredCard?.head || '')) p.push(`the restored case reads ${canon(B.restoredCard)}`);
+      /* before: no suggested, no snapshot */
+      const o = B.old;
+      if (B.shapeNewAndOld !== null) p.push(`the storage shape check refuses a case with the new fields, or one without them: ${B.shapeNewAndOld}`);
+      if (!o || !o.found || o.record?.head !== 'Saved before snapshots' || o.record.btn !== 'Review against today’s research' || !/^Saves today’s research with this case\./.test(o.record.cap)) p.push(`an old case's research record reads ${canon(o && o.record)}`);
+      if (!o || o.draft || o.marks || o.suggestedWords || !o.condRow || /Suggested|Confirmed/.test(o.condRow[0]) || !/^Awaiting update/.test(o.condRow[4])) p.push(`an old case shows ${canon(o && { draft: o.draft, marks: o.marks, suggestedWords: o.suggestedWords, cond: o.condRow })}`);
+      if (!o || !o.row || !/Saved before snapshots/.test(o.row) || /Suggested defaults/.test(o.row) || !o.untouched || !o.noFields) p.push(`an old case in Saved work reads "${o && o.row}", untouched ${o && o.untouched}, with no field invented ${o && o.noFields}`);
+      if (!o || o.steps[1][1] !== 'Next review 2027-01-19, horizon 3–5 years.' || o.steps[0][1] !== '1 invalidation condition(s), but no investment case written yet.') p.push(`an old case's steps 6 and 7 read ${canon(o && o.steps)}`);
+      if (B.sample?.record?.head !== 'Saved before snapshots' || B.sample.button) p.push(`the seeded sample reads ${canon(B.sample)}`);
+      if (!/Saved before snapshots/.test(B.sampleRow || '') || !/Saved before stamping/.test(B.sampleRow || '')) p.push(`the seeded sample's Saved work row reads "${B.sampleRow}"`);
+      if (!B.timing || !B.timing.entered || !B.timing.same) p.push(`a timing workspace entry ${B.timing && B.timing.entered ? 'changed' : 'was not made, so did not test'} the research composite and the snapshot's figures`);
+    }
+    const C = await evaluate(`(${d8c.toString()})(${JSON.stringify({ own: A.own, keepTheses: A.keepTheses, keepQtti: A.keepQtti, id: A.id || null })})`);
+    p.push(...C.problems);
+    if (C.differ?.length || C.extra?.length) p.push(`the browser's own work was not put back: ${canon({ differ: C.differ, extra: C.extra })}`);
+    if (p.length) fail('qt-day8-case: a research case is a draft whose defaults are marked suggested until confirmed, keeps the research as it stood, and survives a reload and both backups', p);
+    else ok('qt-day8-case: "Start a research case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged', A.id);
+  }
+  /* ---- end qt-day8-case ---- */
 
   /* ---- qt-quick-full ---- */
   /* WHAT THE CALCULATOR WAS SERVED WITH, THE FULL MODEL DRAWS (QT-003).

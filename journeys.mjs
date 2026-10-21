@@ -11,7 +11,7 @@
  *   --markdown <file>    the result as a table: the workflow's job summary and its issue body
  *   --commit <sha>       the commit a deployment event names: wait up to --wait seconds (300)
  *                        for the site to serve that commit's build, and record it as served
- *   --only <id,id>       some journeys: equities, screener, compare, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, ctas
+ *   --only <id,id>       some journeys: equities, screener, compare, property, quick, lab, evidence, newdev, commercial, routes, refurb, costs, property-flow, journey-bar, map, scanner, return, records, registers, cases, settings, backup, replay, research-case, ctas
  *   --trigger <what>     what started the run, recorded: deployment, schedule or dispatch
  *   --run <url>          the Actions run that made the result, recorded (its public log)
  *   --decide <recorded.json> <new.json> [--trigger <what>] [--deployed-files <list.txt>]
@@ -3261,11 +3261,13 @@ const JOURNEYS = [
       await step(j, tab, 'My Alerts lists the case’s breached condition as research, with its source period', BUDGET.load, async () => {
         await tab.goto('/my/alerts');
         await tab.expect(`State.view === 'alerts' && !!document.getElementById('al-research')`, async () => `/my/alerts opened ${await tab.eval('State.view')}`);
-        const it = await tab.eval(item(`t => /^${CO}\\b.* — thesis condition breached$/.test(t)`));
+        /* The case was started by the button, so its one condition is the tool's
+           suggestion and the alert says so (QT-D08-01). */
+        const it = await tab.eval(item(`t => /^${CO}\\b.* — suggested condition breached, not yet confirmed by you$/.test(t)`));
         if (!breached) { if (it) throw new StepError('My Alerts lists a breach of a condition the case shows as not breached'); return; }
         if (!it) throw new StepError(`My Alerts lists no research alert for the breached condition on ${CO}`);
         if (it.chip !== 'Thesis condition') throw new StepError(`the breach is labelled “${it.chip}”, not as a thesis condition`);
-        if (!/FY\d{4} reported · /.test(it.text) || !/against your threshold of > 15\.0%/.test(it.text)) throw new StepError(`the breach does not give its source period and the threshold: ${it.text.slice(0, 200)}`);
+        if (!/FY\d{4} reported · /.test(it.text) || !/against the tool’s suggested threshold of > 15\.0%/.test(it.text)) throw new StepError(`the breach does not give its source period and the threshold: ${it.text.slice(0, 200)}`);
       });
       await step(j, tab, 'Set a price threshold: crossed, and listed with its source once price moves are shown', BUDGET.action * 4, async () => {
         const add = `(() => { const h = [...document.querySelectorAll('main .card-hd h3, main .card-hd .h-card')].find(n => /^Price alerts — /.test(n.textContent.trim())); return h ? [...h.closest('.card').querySelectorAll('button')].find(b => /Add$/.test(b.textContent.trim())) : null; })()`;
@@ -3595,6 +3597,85 @@ const JOURNEYS = [
         await tab.key('ArrowLeft');
         await tab.expect(`${slider(HIW)}.value === '65'`, 'the how-it-works replay did not step back to bar 65', 2000);
         await holds(HIW, 65);
+      });
+    },
+  },
+  {
+    /* WHAT "START A RESEARCH CASE" CREATES (the 21 Oct 2026 Day-8 report,
+       QT-D08-01): from a filed company, a draft whose review date, horizon,
+       confidence and condition are the tool's suggestions and are marked so,
+       until the reader confirms or changes each; and the research as it stood
+       when the case was started, reopened from Saved work. From an empty
+       workspace of the reader's own: a fresh browser is given sample cases. */
+    id: 'research-case', name: 'Research case: started from a company, a default confirmed, reopened from Saved work',
+    storage: () => ({ theses: [] }),
+    outcomes: ['Start a research case: a draft, its defaults marked suggested', 'Confirm the review date: its mark goes and the others stay',
+      'Reopen from Saved work: the research when saved, with its versions'],
+    async run(j, tab) {
+      const CO = 'AAPL-SEC', MARK = 'Suggested default — not yet confirmed by you.';
+      const LINE = 'Draft created in this browser. Review every assumption before treating this as your case.';
+      let id = null;
+      await step(j, tab, 'Open a filed company', BUDGET.load, async () => {
+        await tab.goto('/research');
+        const path = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}) ? companyPath(BY_ID.get(${JSON.stringify(CO)}).c) : null`);
+        if (!path) throw new StepError(`${CO} is not among the companies loaded`);
+        await tab.goto(path);
+        await tab.expect(`State.view === 'research' && !!BY_ID.get(State.ticker)?.c.real && !!(${byText('main button', '/^Start a research case$/')})`,
+          async () => `${path} offers no “Start a research case” (its buttons: ${await tab.eval(`JSON.stringify([...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()))`)})`);
+      });
+      await step(j, tab, 'Start a research case: a draft, its defaults marked suggested', BUDGET.action * 2, async () => {
+        await tab.click(byText('main button', '/^Start a research case$/'), 'Start a research case');
+        await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && State.theses.some(t => t.ticker === ${JSON.stringify(CO)})`,
+          '“Start a research case” did not open My investment cases with a case on the company');
+        id = await tab.eval(`State.theses.find(t => t.ticker === ${JSON.stringify(CO)}).id`);
+        const r = await tab.eval(`(() => { const box = document.getElementById('thesis-draft-' + ${JSON.stringify(id)}); const q = box?.getBoundingClientRect();
+          const card = document.getElementById('thesis-card-' + ${JSON.stringify(id)});
+          const cond = card ? [...card.querySelectorAll('table.dt tbody tr')].map(tr => [...tr.cells].map(td => td.textContent.replace(/\\s+/g, ' ').trim())) : [];
+          return { toast: document.getElementById('toast')?.textContent || '', line: box?.querySelector('.case-draft-line')?.textContent || null,
+            inSight: !!q && q.top >= 0 && q.bottom <= innerHeight, marks: box ? [...box.querySelectorAll('.caption')].filter(n => n.textContent.trim() === ${JSON.stringify(MARK)}).length : 0,
+            condMarks: card ? [...card.querySelectorAll('table.dt .caption')].filter(n => n.textContent.trim() === ${JSON.stringify(MARK)}).length : 0,
+            confirms: card ? [...card.querySelectorAll('.case-confirm')].map(b => Math.round(b.getBoundingClientRect().height)) : [], cond,
+            priced: isNum(BY_ID.get(${JSON.stringify(CO)}).c.px?.p), snap: State.theses.find(t => t.id === ${JSON.stringify(id)}).snapshot?.at || null }; })()`);
+        if (r.toast !== LINE) throw new StepError(`the toast reads “${r.toast}”, not “${LINE}”`);
+        if (r.line !== LINE || !r.inSight) throw new StepError(`the draft line ${r.line ? `reads “${r.line}” and is ${r.inSight ? '' : 'not '}in sight` : 'is not on the case'} on arrival`);
+        if (r.marks !== 3 || r.condMarks !== 1) throw new StepError(`the case marks ${r.marks} of its review date, horizon and confidence, and ${r.condMarks} of its condition, as suggested defaults — want 3 and 1`);
+        if (r.confirms.length !== 4 || r.confirms.some(h => h < 44)) throw new StepError(`its Confirm controls are ${JSON.stringify(r.confirms)} high, not four of 44px or more`);
+        if (r.priced) throw new StepError(`${CO} carries a price, so its price-based condition cannot be shown awaiting`);
+        const row = r.cond.find(c => /base-case model estimate/.test(c[0] || ''));
+        if (!row || !/^Awaiting update/.test(row[4]) || !/Not counted as passing/.test(row[4]) || /Within|Breached|Approaching/.test(row[4])) throw new StepError(`with no price the condition reads “${row ? row[4] : 'nothing'}”, not awaiting`);
+        if (!r.snap) throw new StepError('the case holds no snapshot of the research when it was started');
+      });
+      await step(j, tab, 'Confirm the review date: its mark goes and the others stay', BUDGET.action * 2, async () => {
+        await tab.click(`document.getElementById(${JSON.stringify(`case-confirm-${id}-review`)})`, 'Confirm beside the review date');
+        await tab.expect(`!document.getElementById(${JSON.stringify(`case-confirm-${id}-review`)})`, 'the review date still asks to be confirmed');
+        const r = await tab.eval(`(() => { const t = State.theses.find(x => x.id === ${JSON.stringify(id)}); const box = document.getElementById('thesis-draft-' + t.id);
+          return { suggested: t.suggested, line: !!box?.querySelector('.case-draft-line'), rows: box ? [...box.querySelectorAll('.case-sug strong')].map(s => s.textContent.trim()) : [],
+            kept: JSON.parse(localStorage.getItem('vl.theses')).find(x => x.id === t.id)?.suggested || null,
+            focus: !!document.activeElement && document.activeElement !== document.body && !!document.activeElement.closest('main') }; })()`);
+        if (r.suggested?.review !== false || r.suggested?.horizon !== true || r.suggested?.conf !== true) throw new StepError(`after Confirm the case holds ${JSON.stringify(r.suggested)}, not the review date settled and the other two still suggested`);
+        if (JSON.stringify(r.kept) !== JSON.stringify(r.suggested)) throw new StepError('the confirmed state was not kept in the browser');
+        if (!r.line || r.rows.some(s => /Next review/.test(s)) || r.rows.length !== 2) throw new StepError(`the draft block lists ${JSON.stringify(r.rows)} with its line ${r.line ? 'kept' : 'gone'} — want the horizon and the confidence, and the line, until every default is settled`);
+        if (!r.focus) throw new StepError('after Confirm, keyboard focus is on nothing in the page');
+      });
+      await step(j, tab, 'Reopen from Saved work: the research when saved, with its versions', BUDGET.load + BUDGET.action * 3, async () => {
+        await tab.goto('/my/workspace');
+        const row = `(() => { const li = [...document.querySelectorAll('.ws-list .ws-row')].find(x => /AAPL/.test(x.textContent) && /Investment case/.test(x.textContent)); return li || null; })()`;
+        await tab.expect(`!!(${row})`, 'Saved work lists no investment case on AAPL');
+        const said = await tab.eval(`(${row}).querySelector('.ws-name .metaline')?.textContent || ''`);
+        if (!/Suggested defaults not yet confirmed by you: intended holding horizon, confidence, 1 condition/.test(said) || /next review date/.test(said)) throw new StepError(`the row says “${said}” of the defaults still the tool’s`);
+        if (!/Research when saved, \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC/.test(said)) throw new StepError(`the row says “${said}”, with no research when saved`);
+        await tab.click(`(${row}).querySelector('.ws-open')`, 'Open on the case’s row');
+        await tab.expect(`location.pathname === '/my/theses' && document.querySelector('#drawer')?.dataset.open === '1'`, 'Open did not bring up the case');
+        await tab.key('Escape');
+        await tab.expect(`document.querySelector('#drawer')?.dataset.open !== '1'`, 'the case editor did not close');
+        const r = await tab.eval(`(() => { const t = State.theses.find(x => x.id === ${JSON.stringify(id)}); const rec = document.getElementById('thesis-record-' + t.id);
+          return { head: rec?.querySelector('h4')?.textContent.trim() || null, meta: rec?.querySelector('.metaline')?.textContent.replace(/\\s+/g, ' ').trim() || '',
+            want: fmtSaved(t.snapshot.at), model: MODEL_VERSION, data: stampDataText(t.snapshot.stamp), summary: rec?.querySelector('summary')?.textContent.trim() || '',
+            review: t.suggested?.review, line: !!document.querySelector('#thesis-draft-' + t.id + ' .case-draft-line') }; })()`);
+        if (r.head?.toLowerCase() !== `research when saved, ${r.want}`.toLowerCase()) throw new StepError(`the case reads “${r.head}” for its date, not “Research when saved, ${r.want}”`);
+        if (!r.meta.includes(`Model version ${r.model}`) || !r.meta.includes(`Data version ${r.data}`)) throw new StepError(`its version labels read “${r.meta}”, not “Model version ${r.model} · Data version ${r.data}”`);
+        if (!/^Beside today’s: none of \d+ moved$/.test(r.summary)) throw new StepError(`beside today's research the case says “${r.summary}” — nothing has moved in this run`);
+        if (r.review !== false || !r.line) throw new StepError(`after reopening, the review date is ${r.review === false ? 'confirmed' : 'not confirmed'} and the draft line is ${r.line ? 'kept' : 'gone'}`);
       });
     },
   },
