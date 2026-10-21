@@ -9188,6 +9188,284 @@ try {
     if (p.length) fail('qt-day7b: a malformed backup is refused with a reason and changes nothing', p);
     else ok(`qt-day7b: a backup that is not JSON, of another format, without data, or cut off half-way is refused with a reason ("${String(r.notJson.why).slice(0, 60)}…") and leaves the saved work and the deal as they were`);
   }
+  /* THE BACKUP ROUND TRIP (the 21 Oct 2026 Day-8 report, Quantum block 5,
+     items 1, 2 and the export half of 4: "Verify export includes edited
+     inputs, saved model, scenarios and relevant evidence. Restore in
+     isolated test storage through the existing explicit … process. Test
+     malformed/older backup, failed storage and conflicting records.
+     Preserve existing work on failure and maintain format compatibility").
+     Beside qt-day5 to qt-day7b, which hold save -> reopen -> export ->
+     restore, a cancelled save, a refused save and a malformed file; this holds
+     what they do not. One synthetic property, named as a test: six edited
+     inputs, evidence marks on three of them, one saved scenario with changed
+     figures, one recorded actual (rent received for January 2026). Both
+     restores REPLACE, key by key; neither merges (the report: test the
+     existing process as it is, do not add a merge). Runs in the test
+     browser's own profile, and puts back every key it found. */
+  {
+    const r = JSON.parse(await evaluate(`(async () => {
+      const w = (ms) => new Promise(r => setTimeout(r, ms));
+      const NAME = 'Model-test property — not a real property', NAME2 = 'Model-test property two — not a real property';
+      const SCNAME = 'Model-test scenario — rent 3,100';
+      const snapAll = () => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith('vl.')) o[k] = localStorage.getItem(k); } return o; };
+      const sameSnap = (a, b) => JSON.stringify(Object.keys(a).sort().map(k => [k, a[k]])) === JSON.stringify(Object.keys(b).sort().map(k => [k, b[k]]));
+      const diffKeys = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(k => a[k] !== b[k]).map(k => k.slice(3));
+      const S0 = snapAll(), keepDeal = JSON.stringify(State.deal);
+      const putBack = (S) => { for (const k of Object.keys(snapAll())) if (!(k in S)) localStorage.removeItem(k); for (const [k, v] of Object.entries(S)) localStorage.setItem(k, v); };
+      const realSet = Storage.prototype.setItem;
+      const out = { problems: [] };
+      const EDITED = { price: 480000, rent: 2600, renovation: 30000, reserveMonths: 6, vacancyPct: 12, mgmtPct: 8 };
+      const EVID = { price: 'verified', rent: 'developer', vacancyPct: 'user' };
+      const SC_OV = { rent: 3100, vacancyPct: 5, evidence: { rent: 'verified' } };
+      const ACT = { kind: 'month', period: '2026-01', months: 1, rent: 2550 };
+      const modelOf = (inputs) => JSON.stringify(dealModel(inputs));
+      const figures = (rec) => ({ base: modelOf(pmSavedInputs(rec)), sc: modelOf(pmSavedInputs(rec, pmScenario(rec, SCID))) });
+      let SCID = null;
+      const clearProperty = (id, { actuals = true } = {}) => { persistWork(loadWork().filter(x => x.id !== id)); if (actuals) actualsWrite(id, null); newPropertyDeal({ show: false }); };
+      const dialogText = async (text) => {
+        navigate('/my/data'); await w(500);
+        const btn = [...document.querySelectorAll('#views button')].find(b => b.textContent.trim() === 'Restore from a backup');
+        const input = btn && btn.nextElementSibling;
+        if (!input || input.type !== 'file') return null;
+        const dt = new DataTransfer(); dt.items.add(new File([text], 'backup.json', { type: 'application/json' }));
+        input.files = dt.files; input.dispatchEvent(new Event('change'));
+        await w(400);
+        const box = document.querySelector('[data-clear-confirm]');
+        const t = box ? box.textContent : null;
+        closeDrawer({ restore: false }); await w(350);
+        return t;
+      };
+      const drawerText = async (doc) => {
+        openRestoreDrawer(); await w(200);
+        const ta = drawerBody.querySelector('textarea');
+        const go = [...drawerBody.querySelectorAll('button')].find(b => b.textContent.trim() === 'Check this file');
+        if (!ta || !go) return null;
+        ta.value = JSON.stringify(doc); go.click(); await w(200);
+        const t = drawerBody.textContent;
+        closeDrawer({ restore: false }); await w(350);
+        return t;
+      };
+      try {
+        /* ---- the property ---- */
+        newPropertyDeal({ show: false });
+        Object.assign(State.deal, EDITED);
+        State.deal.touched = { ...(State.deal.touched || {}), ...Object.fromEntries(Object.keys(EDITED).map(k => [k, true])) };
+        State.deal.evidence = { ...State.deal.evidence, ...EVID };
+        saveDeal();
+        const rec0 = saveActiveProperty({ name: NAME });
+        if (!rec0) throw new Error('the test property was not saved');
+        const id = rec0.id;
+        const base0 = pmFind(id);
+        const sc = pmAddScenario(id, pmDiff(pmMerge(pmInputsOf(base0), SC_OV), pmInputsOf(base0)), SCNAME);
+        if (!sc) throw new Error('the scenario was not saved');
+        SCID = sc.id;
+        actualsWrite(id, { start: '2026-01', entries: [ACT] });
+        openPropertyModel(id, { show: false });
+        const recBefore = pmCanon(pmFind(id)), actBefore = pmCanon(actualsAll()[id] || null), figBefore = figures(pmFind(id));
+        const nBefore = loadWork().length;
+        out.fig = { n: Object.keys(JSON.parse(figBefore.base)).length, differ: figBefore.base !== figBefore.sc, scOv: pmCanon(pmScenario(pmFind(id), SCID).overrides) };
+
+        /* ---- 1. what each file holds ---- */
+        const backupText = JSON.stringify(backupPayload());
+        const bDoc = JSON.parse(backupText);
+        const eDoc = JSON.parse(JSON.stringify(exportEverything()));
+        const holds = (data) => {
+          const rec = (data.savedWork || []).find(x => x.id === id), a = data.propertyActuals && data.propertyActuals[id];
+          const d = rec && rec.payload && rec.payload.deal, s = rec && (rec.scenarios || []).find(x => x.id === SCID);
+          return { name: !!rec && rec.name === NAME,
+            inputs: Object.keys(EDITED).filter(k => !(d && d[k] === EDITED[k] && d.touched && d.touched[k] === true)),
+            scenario: !!s && s.name === SCNAME && pmCanon(s.overrides) === pmCanon(SC_OV),
+            evidence: Object.keys(EVID).filter(k => !(d && d.evidence && d.evidence[k] === EVID[k])),
+            actual: !!a && a.start === '2026-01' && a.entries.length === 1 && pmCanon(a.entries[0]) === pmCanon(ACT),
+            once: (data.savedWork || []).filter(x => x.id === id).length === 1 };
+        };
+        out.holds = { backup: holds(bDoc.data), everything: holds(eDoc.data) };
+        out.kinds = { backup: Object.keys(bDoc.data).length, everything: Object.keys(eDoc.data).length,
+          backupOnly: Object.keys(bDoc.data).filter(k => !(k in eDoc.data)), everythingOnly: Object.keys(eDoc.data).filter(k => !(k in bDoc.data)),
+          left: ['servedReads', 'lastExport'].filter(k => k in bDoc.data), format: [bDoc.format, eDoc.format] };
+
+        /* ---- 2. a faithful restore, each file by its own restore ---- */
+        const after = () => {
+          const rec = pmFind(id), list = loadWork();
+          const o = { n: list.length, once: list.filter(x => x.id === id).length, unique: new Set(list.map(x => x.id)).size === list.length,
+            scenarios: rec ? (rec.scenarios || []).filter(x => x.id === SCID).length : 0, scenariosAll: rec ? (rec.scenarios || []).length : 0,
+            actualEntries: actualsOf(id).entries.length, sameRecord: !!rec && pmCanon(rec) === recBefore, sameActual: pmCanon(actualsAll()[id] || null) === actBefore };
+          o.opened = openPropertyModel(id, { show: false });
+          const f = figures(pmFind(id));
+          o.differ = ['base', 'sc'].filter(k => f[k] !== figBefore[k]);
+          o.labels = [shownEvidence(State.deal, 'price'), shownEvidence(State.deal, 'rent'), State.deal.price, State.deal.reserveMonths];
+          return o;
+        };
+        clearProperty(id);
+        const gone1 = !pmFind(id) && actualsOf(id).entries.length === 0;
+        const res1 = restoreBackup(backupText);
+        out.back = { gone: gone1, ok: !!res1.ok, restored: res1.restored, ...after() };
+        clearProperty(id);
+        const gone2 = !pmFind(id) && actualsOf(id).entries.length === 0;
+        const imp = importEverything(eDoc);
+        const done2 = imp.ok ? imp.apply() : null;
+        out.every = { gone: gone2, ok: !!imp.ok, kinds: imp.incoming ? imp.incoming.length : 0, ...after() };
+        out.nBefore = nBefore;
+
+        /* ---- 3. an older file: shapes this app really wrote ---- */
+        /* A property as saveWork wrote it before the property model
+           (46c0e768, 30 Sep 2026): the snapshot's record, with no createdAt,
+           updatedAt or scenarios, which migratePropertyStore gives it on load. */
+        const cur = pmFind(id);
+        const oldRec = {}; ['id', 'kind', 'name', 'savedAt', 'modelVersion', 'asOf', 'editor', 'stamp', 'payload'].forEach(k => { oldRec[k] = JSON.parse(JSON.stringify(cur[k])); });
+        out.oldRecKeys = Object.keys(oldRec).length;
+        const listWith = (rec) => [...loadWork().filter(x => x.id !== id), rec];
+        const old = {};
+        const afterOld = () => {
+          migratePropertyStore();
+          const rec = pmFind(id), list = loadWork();
+          const o = { once: list.filter(x => x.id === id).length, listed: list.length, hasRec: !!rec, createdAt: !!(rec && rec.createdAt), scenarios: rec && Array.isArray(rec.scenarios) ? rec.scenarios.length : null,
+            actualEntries: actualsOf(id).entries.length, sameActual: pmCanon(actualsAll()[id] || null) === actBefore };
+          o.opened = rec ? openPropertyModel(id, { show: false }) : false;
+          o.differ = rec ? (figures({ ...pmFind(id), scenarios: [] }).base !== figBefore.base ? ['base'] : []) : ['base'];
+          return o;
+        };
+        /* A: a backup written before the record grew, and before propertyActuals existed. */
+        const aDoc = JSON.parse(backupText); aDoc.data.savedWork = listWith(oldRec); delete aDoc.data.propertyActuals; aDoc.keys = Object.keys(aDoc.data).length;
+        clearProperty(id, { actuals: false });
+        old.backupText = await dialogText(JSON.stringify(aDoc));
+        const resA = restoreBackup(JSON.stringify(aDoc));
+        old.backup = { ok: !!resA.ok, ...afterOld() };
+        /* B: an "Export everything" file as the first build wrote it (cf3f618b^): sixteen kinds, no
+           dataVersions, no saved work. */
+        const OLD16 = ['portfolios', 'theses', 'watchlists', 'observations', 'areaProfiles', 'demand', 'registerLog', 'registerActor', 'corrections', 'deal', 'opportunities', 'wheelPlan', 'wheelLegs', 'qttiPlan', 'manualPrices', 'userData'];
+        const bDocOld = { format: eDoc.format, version: eDoc.version, exportedAt: eDoc.exportedAt, model: eDoc.model, data: {} };
+        OLD16.forEach(k => { if (k in eDoc.data) bDocOld.data[k] = eDoc.data[k]; });
+        const impB = importEverything(JSON.parse(JSON.stringify(bDocOld)));
+        old.everyDrawerB = await drawerText(bDocOld);
+        impB.apply();
+        old.everyB = { ok: !!impB.ok, kinds: impB.incoming ? impB.incoming.length : 0, missing: impB.missing || [], ...afterOld() };
+        /* C: one written after saved work joined it (0caa1e75^): thirty kinds, dataVersions, the old record, no propertyActuals. */
+        const cDoc = JSON.parse(JSON.stringify(eDoc)); cDoc.data.savedWork = listWith(oldRec); delete cDoc.data.propertyActuals;
+        clearProperty(id, { actuals: false });
+        const impC = importEverything(cDoc);
+        old.everyDrawerC = await drawerText(cDoc);
+        impC.apply();
+        old.everyC = { ok: !!impC.ok, kinds: impC.incoming ? impC.incoming.length : 0, missing: impC.missing || [], ...afterOld() };
+        out.old = old;
+        out.labelsOf = { actuals: portableLabel('propertyActuals'), work: portableLabel('savedWork') };
+
+        /* ---- 5. conflicting records ---- */
+        const conflict = async (kind) => {
+          restoreBackup(backupText); migratePropertyStore(); openPropertyModel(id, { show: false });
+          State.deal.price = 500000; saveDeal(); const p1 = saveActiveProperty();
+          newPropertyDeal({ show: false });
+          Object.assign(State.deal, { price: 350000, rent: 1800 }); State.deal.touched = { ...State.deal.touched, price: true, rent: true }; saveDeal();
+          const p2 = saveActiveProperty({ name: NAME2 });
+          if (p2) actualsWrite(p2.id, { start: '2026-02', entries: [{ kind: 'month', period: '2026-02', months: 1, rent: 1800 }] });
+          const o = { p1Saved: !!p1 && pmFind(id).payload.deal.price === 500000, p2Saved: !!p2 && !!pmFind(p2.id), p2Actual: !!p2 && actualsOf(p2.id).entries.length === 1 };
+          o.words = kind === 'backup' ? await dialogText(backupText) : await drawerText(eDoc);
+          if (kind === 'backup') { const x = restoreBackup(backupText); o.ok = !!x.ok; }
+          else { const x = importEverything(eDoc); o.ok = !!x.ok; x.apply(); }
+          const list = loadWork(), rec = pmFind(id);
+          o.p1Price = rec ? rec.payload.deal.price : null; o.p1Once = list.filter(x => x.id === id).length;
+          o.p2Left = p2 ? list.filter(x => x.id === p2.id).length : -1; o.p2Named = list.filter(x => x.name === NAME2).length;
+          o.p2ActualLeft = p2 ? actualsOf(p2.id).entries.length : -1;
+          o.sameList = JSON.stringify(list.map(x => x.id)) === JSON.stringify((kind === 'backup' ? bDoc : eDoc).data.savedWork.map(x => x.id));
+          o.sameRecord = !!rec && pmCanon(rec) === recBefore;
+          return o;
+        };
+        out.conflict = { backup: await conflict('backup'), everything: await conflict('everything') };
+
+        /* ---- 4. storage refusing the third write ---- */
+        const refuse = (fn) => { let n = 0; Storage.prototype.setItem = function (k, v) { if (String(k).startsWith('vl.') && ++n === 3) throw new DOMException('quota', 'QuotaExceededError'); return realSet.call(this, k, v); }; try { return fn(); } finally { Storage.prototype.setItem = realSet; out.writes = n; } };
+        const differing = (keys) => keys.slice(0, 2).forEach(k => localStorage.setItem('vl.' + k, JSON.stringify({ modelTestDiffers: k })));
+        const writable = (data) => Object.keys(data).filter(k => data[k] === null || !storedShapeFault(k, data[k]));
+        restoreBackup(backupText);
+        differing(writable(bDoc.data));
+        const S1 = snapAll();
+        let resF = null, threwF = null;
+        try { resF = refuse(() => restoreBackup(backupText)); } catch (e) { threwF = String(e && e.message || e); }
+        out.failBackup = { ok: resF && resF.ok, error: resF && resF.error || '', restored: resF && resF.restored, threw: threwF, writes: out.writes, same: sameSnap(S1, snapAll()), changed: diffKeys(S1, snapAll()), differedFirstTwo: writable(bDoc.data).slice(0, 2).length };
+        putBack(S1);
+        const impF = importEverything(eDoc);
+        differing(impF.incoming);
+        const S2 = snapAll();
+        let applied = null, threwE = null;
+        try { applied = refuse(() => impF.apply()); } catch (e) { threwE = String(e && e.message || e); }
+        out.failEvery = { threw: threwE, returned: applied === undefined ? 'nothing' : JSON.stringify(applied), writes: out.writes, same: sameSnap(S2, snapAll()), changed: diffKeys(S2, snapAll()).length, kinds: impF.incoming.length };
+      } catch (e) { out.problems.push('threw: ' + (e && e.message || e)); }
+      finally { Storage.prototype.setItem = realSet; }
+      navigate('/property/calculator?view=full'); await w(500);
+      putBack(S0); State.deal = JSON.parse(keepDeal); saveDeal();
+      out.cleaned = sameSnap(snapAll(), S0);
+      out.differ = diffKeys(snapAll(), S0);
+      return JSON.stringify(out); })()`));
+    const p = [...r.problems];
+    const SC = 'Model-test scenario — rent 3,100';
+    /* 1 */
+    for (const [file, h] of Object.entries(r.holds || {})) {
+      if (!h.name) p.push(`${file}: the property's name is not in the file`);
+      if (h.inputs.length) p.push(`${file}: edited inputs missing or not marked as entered: ${h.inputs.join(', ')}`);
+      if (!h.scenario) p.push(`${file}: the scenario "${SC}" with its changed figures is not in the file`);
+      if (h.evidence.length) p.push(`${file}: evidence marks missing: ${h.evidence.join(', ')}`);
+      if (!h.actual) p.push(`${file}: the recorded actual (January 2026, rent 2,550) is not in the file`);
+      if (!h.once) p.push(`${file}: the property is in the file ${h.once === false ? 'not once' : '?'}`);
+    }
+    if (!r.fig || r.fig.n < 20 || !r.fig.differ) p.push(`the test property's scenario does not change the model: ${JSON.stringify(r.fig)}`);
+    if (r.kinds && (r.kinds.format[0] !== 'quantum-tradeworks-backup' || r.kinds.format[1] !== 'quantum-tradeworks/user-data')) p.push(`the files' formats: ${JSON.stringify(r.kinds.format)}`);
+    if (r.kinds && r.kinds.left.length) p.push(`the backup carries what the page makes again itself: ${r.kinds.left.join(', ')}`);
+    /* 2 */
+    for (const [file, x] of [['backup', r.back], ['Export everything', r.every]]) {
+      if (!x) { p.push(`${file}: no restore result`); continue; }
+      if (!x.gone) p.push(`${file}: the property was not cleared before the restore`);
+      if (!x.ok) p.push(`${file}: the restore was refused`);
+      if (x.once !== 1 || !x.unique || x.n !== r.nBefore) p.push(`${file}: the property is in saved work ${x.once} times, ${x.n} records listed (${r.nBefore} before), unique ${x.unique}`);
+      if (x.scenarios !== 1 || x.scenariosAll !== 1) p.push(`${file}: the scenario is there ${x.scenarios} time(s) of ${x.scenariosAll}`);
+      if (x.actualEntries !== 1 || !x.sameActual) p.push(`${file}: the actual comes back ${x.actualEntries} time(s), same: ${x.sameActual}`);
+      if (!x.sameRecord) p.push(`${file}: the saved record is not the one that was saved, field for field`);
+      if (!x.opened || x.differ.length) p.push(`${file}: reopened, the figures differ in ${x.differ.join(', ') || 'nothing — but it did not open'}`);
+      if (x.labels[0] !== 'verified' || x.labels[1] !== 'developer' || x.labels[2] !== 480000 || x.labels[3] !== 6) p.push(`${file}: reopened, price/rent labels and price/reserve read ${JSON.stringify(x.labels)}`);
+    }
+    /* 3 */
+    const o = r.old || {};
+    for (const [what, x] of [['an older backup (the record before createdAt, updatedAt and scenarios; no propertyActuals)', o.backup], ['Export everything from the first build (16 kinds, no saved work)', o.everyB], ['Export everything with the older record and no propertyActuals', o.everyC]]) {
+      if (!x) { p.push(`${what}: no result`); continue; }
+      if (!x.ok) p.push(`${what}: refused`);
+      if (x.once !== 1 || !x.hasRec) p.push(`${what}: the property is in saved work ${x.once} times`);
+      if (!x.createdAt || x.scenarios === null) p.push(`${what}: the record was not given its createdAt and scenarios on load (${x.createdAt}, ${x.scenarios})`);
+      if (!x.opened || x.differ.length) p.push(`${what}: the property does not open with its figures (${x.differ.join(', ') || 'not opened'})`);
+      if (x.actualEntries !== 1 || !x.sameActual) p.push(`${what}: the actual, not in the file, was not kept as it was (${x.actualEntries} entries)`);
+    }
+    if (o.everyB && !(o.everyB.missing.includes('savedWork') && o.everyB.missing.includes('propertyActuals'))) p.push(`the first-build file's missing kinds do not include saved work and the actuals: ${(o.everyB.missing || []).join(', ')}`);
+    if (o.everyC && !o.everyC.missing.includes('propertyActuals')) p.push(`the older file's missing kinds do not include the actuals: ${(o.everyC.missing || []).join(', ')}`);
+    const L = r.labelsOf || {};
+    if (!/Not in this backup, so kept as this browser holds them:[^]*Actual rent, vacancy and costs you recorded/.test(o.backupText || '')) p.push(`the older backup's confirmation does not name the actuals it keeps as they are: ${String(o.backupText).slice(0, 300)}`);
+    for (const [k, t, need] of [['first-build file', o.everyDrawerB, [L.work, L.actuals]], ['older file', o.everyDrawerC, [L.actuals]]]) {
+      const m = (t || '').match(/Not in this file, so kept as this browser holds them:[^.]*\./);
+      if (!m || need.some(x => !m[0].includes(x))) p.push(`the ${k}'s restore report does not name ${need.join(' and ')} as kept: ${m ? m[0] : String(t).slice(0, 200)}`);
+    }
+    /* 5 */
+    for (const [file, x] of [['backup', r.conflict && r.conflict.backup], ['Export everything', r.conflict && r.conflict.everything]]) {
+      if (!x) { p.push(`${file}: no conflict result`); continue; }
+      if (!x.p1Saved || !x.p2Saved || !x.p2Actual) p.push(`${file}: the conflict was not set up: ${JSON.stringify([x.p1Saved, x.p2Saved, x.p2Actual])}`);
+      if (!x.ok) p.push(`${file}: the restore was refused`);
+      if (x.p1Price !== 480000 || x.p1Once !== 1 || !x.sameRecord) p.push(`${file}: after the restore P1 is at ${x.p1Price}, in the list ${x.p1Once} time(s), same record ${x.sameRecord} — the backup says 480,000, once`);
+      if (x.p2Left !== 0 || x.p2Named !== 0 || x.p2ActualLeft !== 0) p.push(`${file}: P2, saved after the backup, is ${x.p2Left} in the list, ${x.p2Named} by name, ${x.p2ActualLeft} actual(s) — the page says the saved work is replaced, so it should be gone`);
+      if (!x.sameList) p.push(`${file}: the saved-work list is not the file's`);
+    }
+    const bw = r.conflict && r.conflict.backup && r.conflict.backup.words, ew = r.conflict && r.conflict.everything && r.conflict.everything.words;
+    if (!/replaces what this browser holds now[^]*under the same names/.test(bw || '')) p.push(`the backup's confirmation does not say it "replaces what this browser holds now … under the same names": ${String(bw).slice(0, 300)}`);
+    if (!/Saved work — REPLACES what is here now/.test(ew || '')) p.push(`Export everything's restore report does not say saved work is replaced: ${String(ew).slice(0, 300)}`);
+    /* 4 */
+    const fb = r.failBackup, fe = r.failEvery;
+    if (!fb || fb.threw || fb.ok !== false || !fb.error || fb.restored !== 0) p.push(`backup, the third write refused: ${JSON.stringify(fb)}`);
+    else if (!fb.same) p.push(`backup, the third write refused: the restore was refused ("${String(fb.error).slice(0, 60)}…") but these keys are not as they were: ${fb.changed.join(', ')}`);
+    if (!fb || fb.writes < 3) p.push(`backup, the third write was never reached (${fb && fb.writes} writes)`);
+    if (!fe || fe.threw) p.push(`Export everything, the third write refused: ${JSON.stringify(fe)}`);
+    if (!fe || fe.writes < 3) p.push(`Export everything, the third write was never reached (${fe && fe.writes} writes)`);
+    if (!r.cleaned) p.push(`the browser's own work was not put back; changed: ${(r.differ || []).join(', ')}`);
+    if (p.length) fail('qt-day8: a backup and an "Export everything" file each hold the property, its scenario, evidence and actual; restore them whole, older files too; a refused write and a conflict leave what the page says', p);
+    else {
+      const h = r.holds.backup, k = r.kinds;
+      ok(`qt-day8: a test property — six edited inputs (price 480,000, rent 2,600, renovation 30,000, 6-month reserve, vacancy 12%, management 8%), evidence marks on price, rent and vacancy, one scenario (rent 3,100, vacancy 5%) and one actual (rent 2,550 for January 2026) — is in both files: the backup (${k.backup} kinds) and Export everything (${k.everything} kinds) each carry the name, all six inputs, the scenario with its figures, the evidence marks and the actual, through saved work and the recorded actuals; the backup alone also carries ${k.backupOnly.length} kinds Export everything does not (settings, what was open, the deal kept aside; the fingerprint and last-export time are left out of it); each restores through its own restore, every field once, and reopened the base and the scenario give the same ${r.fig.n} model figures; a backup from before the record grew, and two Export everything files an earlier build wrote, restore and open with their figures, the page naming what it keeps as it is (the actuals, and saved work for the first build's file); with the third write refused the backup says why and every key is as it was; a backup taken at 480,000 restores P1 at 480,000, once, and removes P2 saved after it (the saved-work list and the recorded actuals are replaced whole, as the page says: "replaces what this browser holds now … under the same names"). Export everything's restore, with the third write refused, ${r.failEvery.changed === 0 ? 'leaves every key as it was' : `replaces ${r.failEvery.changed} of its ${r.failEvery.kinds} kinds and says nothing: it is not all or nothing (reported, not changed)`}`);
+    }
+  }
   /* ---- end qt-day1 ---- */
   /* ---- eq-comparability ---- */
   /* EQUITIES COMPARABILITY ON COMPARE (the 12 and 13 Oct 2026 audits,
