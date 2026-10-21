@@ -220,6 +220,35 @@ function priceGapFormula(g) {
     + (g.notUsed ? ` ${g.notUsed} named record${g.notUsed === 1 ? ' is' : 's are'} not used: no longer in the register, or not a price of this kind of property.` : '')
     + ' Each comparable is a record you made; its standing is the register’s. Not a valuation.';
 }
+/* WHAT MOVES THE MEASURE WITH THE PRICE, by its cause (the 20 Oct 2026
+   sweep, stress-5). Every solve said the loan and its repayment rise with
+   the price, and every unbounded one that a valuation held the loan — a
+   purchase with no loan and no valuation included, where nothing in the
+   monthly position moves with the price at all. The loan is a share of the
+   price, of the lower of it and an entered valuation, or of the valuation
+   alone (dealModel's lender basis); net yield is before the loan. */
+function priceSolveLoan(d) {
+  if (num0(d?.downPct) >= 100) return { kind: 'none' };
+  const val = isNum(d?.bankValuation) && d.bankValuation > 0 ? d.bankValuation : null;
+  const rule = d?.valuationRule || 'lower_of';
+  if (val != null && rule === 'valuation_only') return { kind: 'valuation', val };
+  if (val != null && rule === 'lower_of') return { kind: 'capped', val };
+  return { kind: 'price' };
+}
+function priceSolveMoves(t, d) {
+  if (t.id !== 'monthly') return 'as the price rises the net yield falls, so the target holds below one price and fails above it';
+  const L = priceSolveLoan(d);
+  if (L.kind === 'none') return 'with no loan, nothing in the monthly position moves with the price, so the target holds at every price or at none';
+  if (L.kind === 'valuation') return `the loan is lent on the ${pqMoney(L.val)} valuation you entered, not on the price, so nothing in the monthly position moves with the price: the target holds at every price or at none`;
+  if (L.kind === 'capped') return `as the price rises the loan and its repayment rise up to the ${pqMoney(L.val)} valuation you entered and no further, so the monthly position falls until then and holds after it`;
+  return 'as the price rises the loan and its repayment rise and the monthly position falls, so the target holds below one price and fails above it';
+}
+function priceSolveUnboundedWhy(s, d) {
+  const t = s.target, L = t.id === 'monthly' ? priceSolveLoan(d) : { kind: 'yield' };
+  if (L.kind === 'none') return 'With no loan, the price does not move the monthly position.';
+  if (L.kind === 'valuation' || (L.kind === 'capped' && L.val < s.ceiling)) return 'A loan held to an entered valuation stops following the price.';
+  return `At ${pqMoney(s.ceiling)} the ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}.`;
+}
 /* The solve, in words. */
 function priceSolveWords(s, d) {
   const t = s.target;
@@ -235,13 +264,13 @@ function priceSolveWords(s, d) {
     sub: t.id === 'monthly' ? 'The rent, the running costs or the loan terms, not the price, stand in the way.' : 'The rent and the running costs, not the price, stand in the way.' };
   if (s.status === 'unbounded') return { figure: `Above ${pqMoney(s.ceiling)}`,
     finding: `The figures you entered give ${t.words} of at least ${t.fmt(s.value)} at every price up to ${pqMoney(s.ceiling)}, the top of the range tried.`,
-    sub: 'A loan held to an entered valuation stops following the price.' };
+    sub: priceSolveUnboundedWhy(s, d) };
   return { figure: '—', finding: s.why || 'Not computable for these inputs.', sub: null };
 }
 function priceSolveFormula(s, d) {
   if (!s || s.status === 'no-target') return 'Set a target — a monthly position or a net yield — and the price that meets it is found by running the calculator’s own model at trial prices, every other input held.';
   const t = s.target && { ...s.target, fmt: s.target.id === 'monthly' ? (v) => fmtMoney(v, 'MYR', 2) : (v) => fmtPct(v, 4) };
-  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: as the price rises the loan and its repayment rise and the net yield falls, so the target holds below one price and fails above it.`;
+  const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: ${priceSolveMoves(t || {}, d)}.`;
   if (s.status === 'solved') return `${how} Tolerance: one ringgit on the price, none on the target — at ${pqMoney(s.price)} ${t.label.toLowerCase()} is ${t.fmt(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price + 1)} it is ${t.fmt(s.above)}${s.aboveMeets ? '' : ', short of it'}. ${s.runs} runs of the model.`;
   if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)} — so no price in the range meets it. ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
   if (s.status === 'unbounded') return `${how} At ${pqMoney(s.ceiling)}, the top of the range, ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}. ${s.runs} runs of the model.`;
@@ -1193,11 +1222,14 @@ function cmSustainWords(c) {
 const CM_UNIT_OPEN = new Set();
 function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, fold = false }) {
   const box = el('div', { class: 'au-inputs cm-inputs', id: `${prefix}-cm-inputs` });
-  const field = (k, label, control, fine = null) => {
+  /* `note`: a line in sight under the field, for what its badge's title
+     alone cannot carry to a phone. */
+  const field = (k, label, control, fine = null, note = null) => {
     const kind = auKindOfInput(d, k);
     return el('div', { class: 'au-field', 'data-cm': k, 'data-kind': kind }, [
       el('label', { for: `${prefix}-cm-${k}`, class: 'au-label' }, label), control,
-      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null])]);
+      el('p', { class: 'au-kind' }, [auBadge(kind, fine), evidence && d[k] != null ? evidence(k, label.toLowerCase()) : null]),
+      note ? el('p', { class: 'au-note', 'data-cm-note': k }, note) : null]);
   };
   const input = (k, attrs) => el('input', { class: 'input au-in', id: `${prefix}-cm-${k}`, value: d[k] ?? '', placeholder: 'Not entered',
     onchange: (e) => { const raw = String(e.target.value).trim(); answer(k, raw === '' ? null : raw); }, ...attrs });
@@ -1238,7 +1270,12 @@ function cmInputs({ d, prefix, answer, evidence = null, extra = {}, where = {}, 
     vacant ? null : field('cmRentFreeMonths', 'Rent-free months still to run', input('cmRentFreeMonths', { type: 'number', min: '0', max: '120', step: '1', inputmode: 'numeric', class: 'input au-in num' }), d.cmRentFreeMonths == null ? 'not entered — none counted' : 'from now, as the tenancy grants them'),
     vacant ? null : field('cmServiceCharge', 'Service charge the tenant pays you (RM a month)', money('cmServiceCharge', 10), d.cmServiceCharge == null ? 'not entered — none counted' : 'as the tenancy states it'),
     field('cmFitOut', 'Fit-out for a re-let (RM)', money('cmFitOut', 500), 'what letting it again would cost you'),
-    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal')),
+    /* Words, not figures (70-property.js): the escalation is the tenancy's
+       record and moves no figure — the contract rent is held flat to the
+       expiry (cmTermFormula, cmLeaseDownFormula). Said beside the field, not
+       on the Learn page alone (the 20 Oct 2026 sweep, land-commercial-3). */
+    vacant ? null : field('cmEscalation', 'Escalation, as the tenancy states it', text('cmEscalation', 'e.g. 10% at each renewal'),
+      'recorded with the tenancy — no figure uses it', 'Recorded only: no figure applies it, and the contract rent is held flat to the expiry.'),
     vacant ? null : field('cmDeposit', 'Deposit held (months of rent)', input('cmDeposit', { type: 'number', min: '0', step: '0.5', inputmode: 'decimal', class: 'input au-in num' })),
     vacant ? null : field('cmTenant', 'Current tenant', text('cmTenant', 'As you know them')),
     field('cmBusiness', vacant ? 'Business the unit suits' : 'Tenant’s business', text('cmBusiness', 'e.g. clinic, café, office')),
@@ -1376,7 +1413,7 @@ function cmTermCard(c) {
     badge: auBadge(t.kind, ok ? 'the contract rent, its rent-free months and service charge as you entered them' : t.status === 'vacant' ? 'vacant — no contract' : 'not entered'),
     value: ok && isNum(t.effYield) ? `${fmtPct(t.effYield, 2)} a year` : 'Unavailable', attrs: { 'data-cm-fig': 'term', 'data-status': t.status },
     valueAttrs: { 'data-value': ok && isNum(t.effYield) ? String(auR4(t.effYield)) : '', 'data-monthly': ok && isNum(t.monthly) ? String(auR4(t.monthly)) : '' },
-    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
+    sub: ok ? `The figures you entered imply an effective yield of ${fmtPct(t.effYield, 2)} a year over the ${cmPlural(t.months, 'month')} to the expiry, the contract rent held flat — ${cmTermWhat(t)} — and a monthly position of ${isNum(t.monthly) ? `${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))}` : 'Unavailable'} on average after the instalment.`
       : t.status === 'vacant' ? 'The unit is vacant: there is no contract rent to run.'
         : t.status === 'expired' ? 'The lease expiry you entered has passed: no contract months are left to run.'
           : `Enter ${auList(t.missing)} — never assumed.` });
@@ -1386,7 +1423,7 @@ function cmTermFormula(c) {
   if (t.status !== 'ok') return t.status === 'vacant' ? 'The unit is vacant: no contract rent, so no contract cash flow.' : t.status === 'expired' ? 'The lease expiry has passed: no contract months remain.' : `Unavailable until you enter ${auList(t.missing)}.`;
   return `Over the ${t.months} months from ${cmMonthAt(L.now)} to the expiry: rent ${pqMoney(c.contract)} × (${t.months} − ${t.free} rent-free) = ${pqMoney(t.rentIn)}, of which ${fmtNum(L.rentKept * 100, 1)}% is kept after the management and repair shares; service charge received ${pqMoney(t.serviceCharge)} × ${t.months} = ${pqMoney(t.scIn)}, in full; fixed running costs ${pqMoney(L.fixedMonthly)} × ${t.months} = ${pqMoney(t.costs)}. `
     + `Net ${pqMoney(t.net)} ÷ ${fmtNum(t.months / 12, 2)} years ÷ the price ${pqMoney(L.price)} = ${fmtPct(t.effYield, 2)} a year; ${pqMoney(t.net)} ÷ ${t.months} − the instalment ${isNum(t.monthly) ? `= ${t.monthly < 0 ? '−' : ''}${pqMoney(Math.abs(t.monthly))} a month` : 'cannot be worked out'}. `
-    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. What the figures you entered imply — not a forecast.';
+    + 'Rent-free months are taken from now; the service charge is received for every contract month, rent-free or not. No vacancy allowance: the tenancy is in place. The contract rent is held flat to the expiry: an escalation you record is not applied. What the figures you entered imply — not a forecast.';
 }
 
 /* THE FIGURES: L1 and L2. `why` holds what each "How … is worked out"
