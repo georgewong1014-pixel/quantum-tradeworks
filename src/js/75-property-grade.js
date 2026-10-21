@@ -1610,12 +1610,15 @@ function renovationReturn(d, m) {
    every other input held. No second model, no shortcut formula: what the
    page shows at the solved price is what the solve tested.
 
-   WHY BISECTION IS ENOUGH. With every other input held, both measures can
-   only fall as the price rises: the loan is a share of the price (or of the
-   lower of the price and an entered valuation), so the repayment rises and
-   the monthly position falls or stays; the net operating income does not
-   depend on the price, so the net yield is it divided by a larger price.
-   So "meets the target" holds below some price and fails above it.
+   WHY BISECTION IS ENOUGH. With every other input held, each measure moves
+   one way only as the price rises: the loan is a share of the price (or of
+   the lower of the price and an entered valuation), so the repayment rises
+   and the monthly position falls or stays; the net operating income does
+   not depend on the price, so the net yield is it divided by a larger price
+   — falling while that income is positive, RISING towards nought while it
+   is negative. So "meets the target" holds below some price and fails above
+   it, or (a negative income, a yield target at or below nought) fails below
+   some price and holds above it; the two ends of the range say which.
 
    TOLERANCE: ONE RINGGIT, ON THE PRICE — NONE ON THE TARGET. The search is
    over whole ringgit, between RM1,000 and four times the larger of the
@@ -1623,7 +1626,11 @@ function renovationReturn(d, m) {
    is the highest whole-ringgit price at which the model's figure meets the
    target exactly (>=, no allowance), and at one ringgit more it does not;
    both runs are returned, so a test or a reader can see it. Said otherwise:
-   - infeasible — the target is not met even at RM1,000 (the rent, the
+   - from — met from a price up, not below it: the LOWEST whole-ringgit
+     price that meets it, and one ringgit less does not (a net yield on a
+     negative income);
+   - infeasible — the target is met at no price: not at RM1,000, and not at
+     the top of the range, widened while the measure rises (the rent, the
      running costs or the loan terms, not the price, stand in the way);
    - unbounded — it is met even at the top of the range (a loan held to an
      entered valuation stops following the price);
@@ -1635,6 +1642,7 @@ const PRICE_TARGETS = {
   yield: { id: 'yield', label: 'Net yield', field: 'netYield', words: 'a net yield', fmt: (v) => fmtPct(v, 2), unit: '%' },
 };
 const PRICE_SOLVE_FLOOR = 1000;
+const PRICE_SOLVE_TOP = 4e11;
 const dealTarget = (d) => (d && PRICE_TARGETS[d.targetKind] && isNum(d.targetValue) ? { kind: d.targetKind, value: d.targetValue } : null);
 function solveDealPrice(d, target = dealTarget(d)) {
   const t = target && PRICE_TARGETS[target.kind];
@@ -1649,10 +1657,39 @@ function solveDealPrice(d, target = dealTarget(d)) {
   const mLo = at(lo);
   if (!isNum(reads(mLo))) return { status: 'unknown', target: t, value: target.value, runs,
     why: 'The model cannot compute this figure for these inputs: the loan has no schedule of repayments (a tenure of 0).' };
-  if (!meets(mLo)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
   let hi = Math.ceil(Math.max(num0(d.price), num0(d.askingPrice), 100000) * 4);
-  const mHi = at(hi);
-  if (meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
+  let mHi = at(hi);
+  /* WHICHEVER WAY THE MEASURE MOVES WITH THE PRICE (the 20 Oct 2026 sweep,
+     stress-4). A net yield is the net operating income over the price, and
+     that income does not move with the price: when it is negative, a higher
+     price makes the yield less negative, so a target at or below nought is
+     met from some price UP — and "No price" was said of a target the
+     entered price itself met. So the measure is read at both ends first.
+     Rising with the price and short at the top, the range is widened (ten
+     times, up to RM400 billion) until the target is met or plainly is not:
+     a negative income never reaches a yield of nought or more, at any
+     price. */
+  let failsAt = lo;
+  if (!meets(mLo) && !meets(mHi) && reads(mHi) > reads(mLo)) {
+    while (hi < PRICE_SOLVE_TOP && !meets(mHi)) { failsAt = hi; hi *= 10; mHi = at(hi); }
+  }
+  if (!meets(mLo) && !meets(mHi)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
+  if (meets(mLo) && meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
+  if (!meets(mLo)) {
+    /* Met at the top and not at the bottom: the LOWEST whole-ringgit price
+       at which it is met, and at one ringgit less it is not. */
+    lo = failsAt;
+    while (hi - lo > 1) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (meets(at(mid))) hi = mid; else lo = mid;
+    }
+    const m = at(hi), under = at(hi - 1);
+    return { status: 'from', target: t, value: target.value, price: hi, achieved: reads(m), below: reads(under), belowMeets: meets(under),
+      vsPrice: num0(d.price) > 0 ? hi - num0(d.price) : null,
+      vsAsking: isNum(d.askingPrice) && d.askingPrice > 0 ? hi - d.askingPrice : null, runs,
+      why: `At ${fmtMoney(hi, 'MYR', 0)} or more, the figures you entered give ${t.words} of at least ${t.fmt(target.value)}: `
+        + `the rent does not cover the running costs, so a higher price spreads that loss thinner. At ${fmtMoney(hi - 1, 'MYR', 0)} it falls short.` };
+  }
   while (hi - lo > 1) {
     const mid = Math.floor((lo + hi) / 2);
     if (meets(at(mid))) lo = mid; else hi = mid;

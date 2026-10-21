@@ -6272,6 +6272,38 @@ try {
     if (p.length) fail('p2 R3: the price that makes this work meets its target in the model\'s own figures, to the ringgit', p);
     else ok(`p2 R3: the price solved for ${r.out.length} targets meets each in dealModel's own figures and RM1 more does not (${r.out.map(x => `${x.name} → RM${x.price}, ${x.runs} runs`).join('; ')}); RM5,000 a month is out of reach and says so ("${r.inf.finding.slice(0, 80)}…"); a parcel's yield is not applicable, a loan with no schedule unknown, a loan held to a valuation unbounded; the deal on the calculator untouched`);
   });
+
+  /* R3b — WHICHEVER WAY THE NET YIELD MOVES WITH THE PRICE (the 20 Oct 2026
+           sweep, stress-4). The net operating income does not move with the
+           price, so on a negative income a higher price makes the yield
+           less negative: a target at or below nought is met from a price
+           UP. Worked by hand on the sample let at RM400: RM4,368 collected
+           (400 × 12 × 0.91) less RM5,078 of running costs and RM218.40 of
+           repair reserve is −RM928.40 a year, so a net yield of at least
+           −0.5% is met at RM185,680 (928.40 × 100 ÷ 0.5) and above, the
+           entered RM572,000 among them, and at RM185,679 it is not. It said
+           "No price … at any price from RM1,000". A yield of nought or more
+           a negative income reaches at no price, and says so. */
+  await p1try("p2 R3b: a net-yield target on a negative income is met from a price up", async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rent: 400 };
+      const s = solveDealPrice(d, { kind: 'yield', value: -0.5 }), w = priceSolveWords(s, d);
+      const zero = solveDealPrice(d, { kind: 'yield', value: 0 });
+      return JSON.stringify({ noi: dealModel(d).noi, entered: dealModel(d).netYield, status: s.status, price: s.price,
+        at: dealModel({ ...d, price: s.price }).netYield, under: dealModel({ ...d, price: s.price - 1 }).netYield,
+        achieved: s.achieved, belowMeets: s.belowMeets, figure: w.figure, finding: w.finding,
+        zero: { status: zero.status, figure: priceSolveWords(zero, d).figure } });
+    })()`));
+    const p = [];
+    if (Math.abs(r.noi - (400 * 12 * 0.91 - 5078 - 400 * 12 * 0.91 * 0.05)) > 1e-6) p.push(`the income is ${r.noi}, by hand −928.40`);
+    if (!(r.entered >= -0.5)) p.push(`the entered price's own yield ${r.entered}% does not meet −0.5%: the case is wrong`);
+    if (r.status !== 'from' || r.price !== 185680 || !(r.at >= -0.5) || r.under >= -0.5 || r.achieved !== r.at || r.belowMeets) p.push(`a yield of at least −0.5%: ${r.status} at RM${r.price} (${r.at}%; RM1 less ${r.under}%) — by hand RM185,680 and up`);
+    if (r.figure === 'No price' || !/At RM185,680 or more/.test(r.finding)) p.push(`the card reads "${r.figure}" — "${r.finding}"`);
+    if (r.zero.status !== 'infeasible' || r.zero.figure !== 'No price') p.push(`a yield of nought or more on a negative income: ${JSON.stringify(r.zero)} — it is met at no price`);
+    if (p.length) fail('p2 R3b: a net-yield target on a negative income is met from a price up, worked by hand', p);
+    else ok(`p2 R3b: on an income of −RM928.40 a year a net yield of at least −0.50% is met from RM${r.price.toLocaleString('en')} up, worked by hand, and RM1 less is not — never "No price" ("${r.finding.slice(0, 60)}…"); a yield of nought or more is met at no price, and says so`);
+  });
+
   await p1try("p2 R4: the price gap is worked out only from the comparables named", async () => {
     const r = await evaluate(`(() => {
       const keep = State.observations;
