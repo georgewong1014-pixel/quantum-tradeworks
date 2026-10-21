@@ -424,6 +424,34 @@ const store = {
 };
 const STORE_REFUSED = 'Not saved — this browser refused the write (its storage is full or switched off), so nothing was kept.';
 
+/* A RESTORE FROM A FILE IS KEPT WHOLE, OR NOT AT ALL. "Restore from a file"
+   wrote one stored record per kind its file carries, one after the other, and
+   checked none: a browser that refused the third write (its storage full, or
+   switched off part-way) kept the first two from the file and the rest as
+   they were, and the page reloaded into that mixture, saying nothing — the
+   half-merged state the backup's restore (restoreBackup, 15-derivation.js)
+   already refuses to make. A refused write now puts back every record already
+   written, as it was, and the caller says the restore did not happen. Returns
+   { ok:true }, or { ok:false, unrestored }: how many of the records already
+   written could not be put back. */
+function writeAllOrNothing(entries) {
+  const before = [];
+  for (const [k, v] of entries) {
+    let prior = null;
+    try { prior = localStorage.getItem('vl.' + k); } catch { /* storage unreadable: the write below is refused too */ }
+    if (!store.write(k, v)) {
+      let unrestored = 0;
+      before.reverse().forEach(([key, raw]) => {
+        try { if (raw === null) localStorage.removeItem('vl.' + key); else localStorage.setItem('vl.' + key, raw); }
+        catch { unrestored++; }
+      });
+      return { ok:false, unrestored };
+    }
+    before.push([k, prior]);
+  }
+  return { ok:true };
+}
+
 /* EVERYTHING A READER HAS MADE, IN ONE PLACE.
    ---------------------------------------------------------------------------
    All of it lives in this browser's localStorage. A cleared browser, a second
@@ -569,7 +597,14 @@ function importEverything(doc) {
   const version = Number.isFinite(Number(doc.version)) ? Number(doc.version) : null;
   return { ok:true, incoming, ignored, refused, missing, version, newer: version !== null && version > EXPORT_VERSION,
     model: typeof doc.model === 'string' ? doc.model : null, exportedAt:doc.exportedAt,
-    apply() { incoming.forEach(k => store.write(k, doc.data[k])); } };
+    /* Every kind replaced, or none (writeAllOrNothing): { ok:true }, or
+       { ok:false, error } with what this browser held left as it was. */
+    apply() {
+      const w = writeAllOrNothing(incoming.map(k => [k, doc.data[k]]));
+      if (w.ok) return { ok:true, restored: incoming.length };
+      return { ok:false, error: 'Not restored — this browser refused part of the file (its storage is full or switched off), so what it held before is left as it was.'
+        + (w.unrestored ? ` ${w.unrestored} of the items already written could not be put back as they were.` : '') };
+    } };
 }
 
 /* ==========================================================================
@@ -32457,7 +32492,14 @@ function openRestoreDrawer() {
       el('button', { class: 'btn btn-ghost btn-sm', 'data-export-first': '', onclick: () => { if (downloadEverything()) toast('Exported what this browser holds now — the file is in your downloads'); } }, 'Export first'),
       el('button', { class: 'btn btn-primary btn-sm', onclick: () => {
         if (!confirm('Replace the listed items in this browser? What is here now cannot be recovered afterwards.')) return;
-        r.apply();
+        /* Refused part-way, nothing is replaced (apply, 00-core.js): the
+           reason is said here, and the page is not reloaded over it. */
+        const done = r.apply();
+        if (!done.ok) {
+          report.querySelector('[data-restore-refused]')?.remove();
+          report.append(el('p', { class: 'body', role: 'alert', 'data-restore-refused': '', style: 'font-size:13px;margin-top:var(--sm);color:var(--dn-text)' }, done.error));
+          return;
+        }
         closeDrawer();
         /* A full reload rather than render(): half this state was read into
            module-level variables at boot, and repainting over them would show a
