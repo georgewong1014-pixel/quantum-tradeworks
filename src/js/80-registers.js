@@ -102,7 +102,7 @@ const CAPABILITY_REGISTER = [
   { name:'Property underwriting grade', status:'active-core', path:'/property/calculator',
     now:'A/B/C/D/U with hard gates and evidence caps.' },
   { name:'Scenario Lab', status:'beta', path:'/property/lab',
-    now:'Five inputs moved live; seven results from the calculator’s model; up to three scenarios compared six ways.',
+    now:'Nine inputs moved live; eight results from the calculator’s model; up to three scenarios compared six ways.',
     gate:'Moves are kept in this tab until saved as a scenario. Appreciation is your assumption; no price history is held.' },
   { name:'Property opportunity register', status:'active-core', path:'/property/opportunities',
     now:'Records real candidates with source, availability date, four separate prices, grade and a next action with an owner.',

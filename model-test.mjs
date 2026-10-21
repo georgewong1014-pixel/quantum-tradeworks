@@ -5184,12 +5184,22 @@ try {
           applyDealParam(linked, 'tenureYears:-5~vacancyPct:101~maintenance:-10~holdYears:12~rent:2100');
           out.link = { tenure: linked.tenureYears, vac: linked.vacancyPct, maint: linked.maintenance, hold: linked.holdYears, rent: linked.rent,
             def: [PROPERTY_DEFAULT_DEAL.tenureYears, PROPERTY_DEFAULT_DEAL.vacancyPct, PROPERTY_DEFAULT_DEAL.maintenance] };
-          /* A refused entry typed into a box keeps its figure. */
-          for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3]]) {
-            const was = A().work[k];
-            const n = await typeBox(k, v);
-            if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
-          }
+          /* A refused entry typed into a box keeps its figure — the rate,
+             the rent and the renovation's too, as the calculator's boxes
+             refuse them, with the calculator's reason in the toast (the 20
+             Oct 2026 sweep, lab-refurb-2: a rate of −1%, a rent of −RM500
+             and a renovation of −RM20,000 were taken and priced). */
+          const toasts = [], realToast = window.toast;
+          window.toast = (m) => { toasts.push(String(m)); };
+          try {
+            for (const [k, v] of [['maintenance', -50], ['vacancyPct', 101], ['tenureYears', -3], ['ratePct', -1], ['ratePct', 101], ['rent', -500], ['renovation', -20000]]) {
+              const was = A().work[k];
+              toasts.length = 0;
+              const n = await typeBox(k, v);
+              if (A().work[k] !== was || n.value !== String(was)) out.refusedTyped.push(k + ' typed ' + v + ' left the column at ' + A().work[k] + ' and the box at ' + n.value);
+              else if (!toasts.some(t => t.includes(dealEntryRefused(k, v)))) out.refusedTyped.push(k + ' typed ' + v + ' was refused without the calculator\\'s reason ("' + dealEntryRefused(k, v) + '"): ' + JSON.stringify(toasts));
+            }
+          } finally { window.toast = realToast; }
           const whole = await typeBox('tenureYears', 27.6);
           if (A().work.tenureYears !== 28) out.refusedTyped.push('a tenure typed as 27.6 years is ' + A().work.tenureYears + ', not whole years (28)');
           const longHold = await typeBox('holdYears', 99);
@@ -5220,7 +5230,7 @@ try {
           if (!/Assumed occupancy is exactly 100 less this allowance: 86%/.test(r.occ)) p.push(`the vacancy knob's note reads "${r.occ}"`);
         }
         if (p.length) fail('scenario-lab L18: the tenure, vacancy, maintenance and holding-period knobs', p);
-        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy and a negative tenure keep their figures, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
+        else ok(`scenario-lab L18: the four knobs added in phase 2 each stand as a slider; every span, at twelve anchors, holds only what dealEntryRefused takes (and whole years, and the model's own hold limits); a move of each travels in the address as ${r.param.split('~').filter(x => /^(tenureYears|vacancyPct|maintenance|holdYears):/.test(x)).join(', ')} and comes back the same, marked the reader's; an address of tenureYears:-5, vacancyPct:101 and maintenance:-10 skips those and applies holdYears:12 and rent:2100; typed, a negative maintenance, a 101% vacancy, a negative tenure, a rate of −1% or 101%, a rent of −RM500 and a renovation of −RM20,000 keep their figures, each refused with the calculator's reason, 27.6 years is 28 and 99 is held to ${30}; a 100% deposit shows the tenure off in place, its reason in sight, and on again at 10%; the vacancy knob says its occupancy is exactly 100 less it`);
       });
     } finally {
       await send('Emulation.setCPUThrottlingRate', { rate: 1 }, sessionId).catch(() => {});
@@ -5252,12 +5262,17 @@ try {
            report is locked (F9);
        V10 Open and Update say what they do to whose figures, and the toast
            says the grade stays U while a driving figure is the tool's (F10);
-       V11 the unlocked total profit reads as a sentence (F11);
+       V11 the unlocked total profit reads as a sentence (F11), its flows
+           before tax on the rent where no rate is entered (the 20 Oct 2026
+           sweep, taxed-7);
        V12 a "Sliders move" radio is named by its letter, and a chain row's
            name does not begin with its chevron (interaction F6, F7);
        V13 a budget typed into an empty renovation draws its slider
            (interaction F12);
-       V14 a reference line stands inside its scale (interaction F13). */
+       V14 a reference line stands inside its scale (interaction F13);
+       V16 with no row moved, "Moved by" counts no rows by hand (the 20 Oct
+           2026 sweep, lab-refurb-8: "none of the seven" after the chain
+           grew to eight). */
   {
     const VKEYS = ['savedWork', 'deal', 'dealBeforeLink', 'propertyReportsBought', 'plan', 'observations', 'lang', 'propertyReportLog', 'servedReads'];
     const vKept = await evaluate(`JSON.stringify(Object.fromEntries(${JSON.stringify(VKEYS)}.map(k => [k, localStorage.getItem('vl.' + k)])))`);
@@ -5618,7 +5633,10 @@ try {
           State.propertyReportsBought = State.propertyReportsBought.filter(x => x !== State.deal.projectId); render(); await frame();
           return out;
         })()`);
-        if (!/Every year’s cash flow after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
+        /* The sample enters no marginal rate, so its yearly flows are before
+           tax on the rent, and the sentence says so (the 20 Oct 2026 sweep,
+           taxed-7: it said "after tax" with none computed). */
+        if (!/Every year’s cash flow before tax on the rent/.test(s) || /after tax/.test(s) || /less the RM[\d,]+ the purchase cost/.test(s)) fail('scenario-lab-verify V11: the unlocked total profit reads as a sentence', s);
         else ok(`scenario-lab-verify V11: "${(s.match(/Every year’s cash flow[^.]*\./) || [s])[0]}"`);
       });
 
@@ -5708,6 +5726,20 @@ try {
         }
         if (p.length) fail('scenario-lab-verify V15: a property opened with labOpen stays open, and the address names it', p.slice(0, 6));
         else ok(`scenario-lab-verify V15: a property opened with labOpen stays open through a theme change and render(), at ${r.drawn.url}`);
+      });
+
+      /* V16: a purchase for cash has no loan, so a move of its rate moves no
+         printed row — and "Moved by" says so without a count of rows kept by
+         hand ("none of the seven" stood after the chain grew to eight). */
+      await vStep('V16', async () => {
+        await vDeal({ downPct: 100 });
+        const r = await evaluate(`(async () => { ${VH}
+          await setRange('ratePct', 6); await frame(); await w(100);
+          return { s: txt(document.getElementById('lab-movedby')), loan: A().cur?.m?.loan ?? null, rows: LAB_FIGURES.length, rate: A().work.ratePct };
+        })()`);
+        if (r.loan !== 0 || r.rate !== 6) fail('scenario-lab-verify V16: the check could not run', r);
+        else if (!/\(interest rate\): none of the results\./.test(r.s) || /none of the seven/.test(r.s)) fail('scenario-lab-verify V16: with no row moved, "Moved by" says so without a count kept by hand', r);
+        else ok(`scenario-lab-verify V16: a purchase for cash with its rate moved to 6% reads "${r.s}" — none of the ${r.rows} rows moved, and no count is kept by hand`);
       });
     } finally {
       await evaluate(`(() => { const k = ${vKept}; Object.entries(k).forEach(([key, v]) => v == null ? localStorage.removeItem('vl.' + key) : localStorage.setItem('vl.' + key, v)); return true; })()`).catch(() => {});
