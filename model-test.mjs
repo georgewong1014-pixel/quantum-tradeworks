@@ -6198,9 +6198,24 @@ try {
          land 0f43d4a2:30964, shophouse fdc0d1ec:32067, condoAsCommercial
          ee82214b:32236, taxed 3d9d1af4:31386, cash 98e5de34:29978,
          lowValuation 631d6040:31439, noTenure 4e07c073:28917, managed
-         88aa4cd7:31266. */
+         88aa4cd7:31266.
+         Recorded again for "managed" only, for two fixes of the 20 Oct 2026
+         sweep (track T1, Day 8), each shown alone by a probe run commit by
+         commit on these nine deals (no other deal moves at any commit of the
+         branch, the sample a27fbebd:31517 throughout):
+         (managed-1 and five more) the break-even rent and occupancy are
+         zeros of the model's own month — managed's minimum fee and
+         placement now move with the answer: breakEvenRent, breakEvenOccupancy
+         and the key breakEvenOccupancyTerms, which only a managed deal with
+         a minimum fee carries (93fc8436:31578 -> 71f592ad:31631); (managed-4)
+         the reserve's no-rent burn is the instalment and the running costs
+         at no rent, opexAt(0), the RM150 minimum in full: burnWithoutRent,
+         and from it the reserve, the cash required and everything measured
+         on it — cash-on-cash, the flows, the rate of return, the NPV, the
+         exits and the equities comparison (-> e5b40f7a:31632). Was: managed
+         93fc8436:31578. */
       const BASE = { sample: 'a27fbebd:31517', land: '85288185:31396', shophouse: '80e1f5ca:32382', condoAsCommercial: 'c2d3db97:32537',
-        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: '93fc8436:31578' };
+        taxed: 'd948fe97:31707', cash: '4b67c9ab:30156', lowValuation: '0e3902c3:31743', noTenure: '21477857:29223', managed: 'e5b40f7a:31632' };
       const p = [];
       for (const [k, d] of Object.entries(deals)) {
         const was = pmCanon(d), cls = propertyClassOf(d);
