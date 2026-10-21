@@ -49,6 +49,9 @@ const PROPERTY_DRIVERS = [
     why: 'Longer lowers the instalment and raises the total interest.' },
 ];
 
+/* The drivers only a loan gives anything to move. */
+const LOAN_DRIVERS = new Set(['ratePct', 'tenureYears']);
+
 /* Computed here rather than inside dealModel, because dealModel is what it
    calls — putting it in the model would make the model run itself sixteen
    times per render, and then sixteen times inside each of those. */
@@ -62,8 +65,13 @@ function propertySensitivity(d) {
   /* Only drivers this class has. A parcel's rent, vacancy and service
      charge move nothing the model uses, so they ranked at 0.00 pp and were
      named as "the two that move it least" — a statement about inputs the
-     page says it withholds. */
-  const drivers = PROPERTY_DRIVERS.filter(p => propertyInputApplies(d, p.k)).map(p => {
+     page says it withholds. And only drivers this deal has: with no loan
+     the rate and the tenure move nothing either (the 20 Oct 2026 sweep,
+     land-commercial-5) — "the two that move it least are interest rate and
+     loan tenure, at 0.00 and 0.00 points" on every cash purchase, beside a
+     Lab saying nothing uses a tenure there. */
+  const noLoan = !(num0(base.loan) > 0);
+  const drivers = PROPERTY_DRIVERS.filter(p => propertyInputApplies(d, p.k) && !(noLoan && LOAN_DRIVERS.has(p.k))).map(p => {
     const cur = num0(d[p.k]);
     const step = isNum(p.step) ? p.step : Math.abs(cur * (p.pct / 100));
     if (!(step > 0)) return null;
@@ -263,9 +271,11 @@ function propertySensitivityPanel(d, m) {
   /* Interest rate and the two term lengths carry no evidence grade because
      they are not observations. Saying so prevents the list above reading as
      though the ungraded drivers were verified. */
-  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' },
-    'Interest rate is quoted by a bank, and the holding period and loan tenure are your decisions, so none of the three '
-    + 'carries an evidence grade. Their absence from the list above is not a sign that they have been checked.'));
+  card.append(el('p', { class: 'metaline', style: 'margin-top:6px' }, num0(s.base.loan) > 0
+    ? 'Interest rate is quoted by a bank, and the holding period and loan tenure are your decisions, so none of the three '
+      + 'carries an evidence grade. Their absence from the list above is not a sign that they have been checked.'
+    : 'The holding period is your decision, so it carries no evidence grade. Its absence from the list above is not a sign '
+      + 'that it has been checked. With no loan, the interest rate and the loan tenure move nothing, so they are not ranked.'));
 
   /* ----------------------------------------------------------- break-points */
   card.append(el('h4', { class: 'eyebrow', style: 'margin:var(--lg) 0 6px' }, 'Where it stops covering itself'));
@@ -279,7 +289,7 @@ function propertySensitivityPanel(d, m) {
       fmt: v => fmtPct(v, 1), room: v => `${fmtPct(Math.abs(v - num0(d.vacancyPct)), 1)} more vacancy`,
       now: fmtPct(num0(d.vacancyPct), 1),
       none: 'Does not cover itself even at zero vacancy, so a perfect letting record does not fix it.' },
-  ].filter(r => propertyInputApplies(d, r.key))
+  ].filter(r => propertyInputApplies(d, r.key) && !(num0(s.base.loan) <= 0 && LOAN_DRIVERS.has(r.key)))
    .map(r => ({ ...r, res: propertyBreakPoint(d, r.key, { measure: 'cashflow', lo: r.lo, hi: r.hi }) }));
 
   const bt = el('table', { class: 'dt' });

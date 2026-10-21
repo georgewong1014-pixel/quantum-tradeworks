@@ -373,6 +373,34 @@ try {
     }
   }
 
+  /* 7b — ONLY DRIVERS THIS DEAL HAS (the 20 Oct 2026 sweep,
+          land-commercial-5). With no loan the rate and the tenure move
+          nothing, so they are not ranked, and no break-point is solved for
+          the rate: a cash purchase read "the two that move it least are
+          interest rate and loan tenure, at 0.00 and 0.00 points". With a
+          loan both stay. */
+  {
+    const r = await evaluate(`(() => {
+      const cash = { ...window.__T.base, downPct: 100 };
+      const s = propertySensitivity(cash), sl = propertySensitivity(window.__T.base);
+      const text = propertySensitivityPanel(cash, dealModel(cash)).textContent;
+      const textLoan = propertySensitivityPanel(window.__T.base, dealModel(window.__T.base)).textContent;
+      return { ok: s.ok, loan: s.base.loan, drivers: s.drivers.map(x => ({ k: x.k, span: x.span })), withLoan: sl.drivers.map(x => x.k),
+        least: (text.match(/The two that move it least are [^.]*\\./) || [''])[0], rateRow: /Interest rate/.test(text),
+        says: /With no loan, the interest rate and the loan tenure move nothing/.test(text), loanSays: /Interest rate is quoted by a bank/.test(textLoan) };
+    })()`);
+    const p = [];
+    if (!r.ok || r.loan !== 0) p.push(`the cash purchase did not run (${JSON.stringify({ ok: r.ok, loan: r.loan })})`);
+    if (r.drivers.some(x => x.k === 'ratePct' || x.k === 'tenureYears')) p.push(`with no loan the ranking still has ${r.drivers.filter(x => x.k === 'ratePct' || x.k === 'tenureYears').map(x => x.k).join(' and ')}`);
+    if (r.drivers.some(x => !(x.span > 1e-6))) p.push(`a ranked driver moves nothing: ${JSON.stringify(r.drivers.filter(x => !(x.span > 1e-6)))}`);
+    if (/interest rate|loan tenure/.test(r.least)) p.push(`"${r.least}"`);
+    if (r.rateRow) p.push('with no loan the panel still ranks, or solves a break-point for, the interest rate');
+    if (!r.says) p.push('the panel does not say why the rate and the tenure are not ranked');
+    if (!r.withLoan.includes('ratePct') || !r.withLoan.includes('tenureYears') || !r.loanSays) p.push(`with a loan the rate and the tenure are gone: ${r.withLoan.join(', ')}`);
+    if (p.length) fail('with no loan the sensitivity ranks no rate and no tenure', p);
+    else ok(`with no loan the sensitivity ranks ${r.drivers.length} drivers, each moving the return, and no rate or tenure — "${r.least}"; with a loan both are ranked`);
+  }
+
   /* 9 — sixteen model runs and nothing leaked into State. */
   {
     const r = await evaluate(`(() => {
