@@ -187,6 +187,7 @@ function rentVersusBuyPanel(d, m) {
        reader saying the words on screen reached nothing (WCAG 2.5.3). */
     /* renderKeepFocus, for the reason the demand selects above use it. */
     onchange: e => { State.deal.ownUseWeeks = Number(e.target.value) || 0; saveDeal(); renderKeepFocus(); } }));
+  f.append(el('p', { class: 'metaline', style: 'margin-top:4px' }, 'Used here only: every other figure assumes no own use.'));
   card.append(f);
 
   const r = rentVersusBuy(d, m, weeks > 0 ? weeks : null);
@@ -209,8 +210,7 @@ function rentVersusBuyPanel(d, m) {
   card.append(el('p', { class: 'body', style: 'font-size:var(--ls-support);margin-top:6px' }, r.why));
   card.append(el('p', { class: 'metaline', style: 'margin-top:var(--md)' },
     'Classifying a purchase as consumption is not a judgement about whether to make it. People buy things they enjoy, and that is a '
-    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns, '
-    + 'and every figure elsewhere in this report would inherit that.'));
+    + 'complete reason. It matters here only because consumption modelled as income overstates what the property returns.'));
   return card;
 }
 
