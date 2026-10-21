@@ -337,8 +337,10 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    own — the subsale's lines, said. */
 /* On the auction route the rulebook's lines stand as for a transfer on the
    winning bid, with one exception the reader makes: their lawyer's quote
-   for the legal and search costs, once entered, takes the place of the
-   purchase legal fees (an auction has no SPA). */
+   for the legal fees, once entered, takes the place of the purchase legal
+   fees (an auction has no SPA). The searches stay the rulebook's separate
+   estimate, and the service tax is on the legal fees only (the owner, 21
+   Oct 2026: the quote is legal fees only). */
 /* On the new-development route the rulebook's lines stand as on any SPA:
    it prices the SPA, the loan and the transfer on the SPA price. A legal
    fee the developer pays, a cash rebate or another incentive is the
@@ -348,7 +350,7 @@ const dealRoute = (d) => (d && Object.hasOwn(PROPERTY_ROUTES, d.route) ? d.route
    the route, so the rulebook's line stands and the reader's lawyer's quote
    takes its place once entered. */
 const newDevFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the SPA, the loan and the transfer on the SPA price as on any price. Its purchase legal fees are rule 1’s full scale; Sarawak’s rules charge three-quarters where your lawyer acts on the SPA alone, or the transfer alone (rules 2 and 3), so which applies turns on your lawyer’s engagement and is not decided here — enter your lawyer’s quote and it takes the rulebook’s place. A legal fee the developer pays for you, a cash rebate or another incentive is not assumed: enter its value as developer rebates and incentives and it comes off the cash required.`;
-const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price. Its purchase legal fees are rule 1’s full scale, which presumes an SPA; Sarawak’s rules do not settle the purchaser’s advocate’s share at auction (rules 3 and 13(b)), so it is not decided here — your lawyer’s quote for the legal and search costs, once entered, takes its place. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
+const auctionFeeNote = () => `The fee rulebook (${FEE_TABLE.version}) prices the transfer on the winning bid as on any price. Its purchase legal fees are rule 1’s full scale, which presumes an SPA; Sarawak’s rules do not settle the purchaser’s advocate’s share at auction (rules 3 and 13(b)), so it is not decided here — your lawyer’s quote for the legal fees, once entered, takes its place; the searches stay the rulebook’s separate estimate. No term of the sale is assumed: the deposit, the days to pay the balance and the arrears are the ones you enter from the Proclamation.`;
 const feeRouteNote = (route) => (PROPERTY_ROUTES[route]?.modelled === false
   ? `The fee rulebook (${FEE_TABLE.version}) prices an SPA and the transfer; no ${route === 'auction' ? 'auction term — the deposit, the balance and its days, arrears a Proclamation of Sale passes to you —' : 'developer (HDA) term — progressive billing, a developer’s rebate or legal-fee arrangement —'} is applied until the ${PROPERTY_ROUTES[route].label.toLowerCase()} model arrives.`
   : null);

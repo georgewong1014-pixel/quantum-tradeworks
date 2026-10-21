@@ -6503,7 +6503,7 @@ try {
         partial: { effective: partial.effective, notEntered: partial.notEntered, arrears: partial.steps.find(s => s.id === 'arrears').amount, missing: partial.steps.find(s => s.id === 'arrears').partsMissing },
         partialWant: 500000 + 3600 + 6000 + partial.steps.find(s => s.id === 'transaction').amount,
         noComps: auctionModel({ ...d, auctionComp1: undefined, auctionComp2: undefined, auctionComp3: undefined }).trueDiscount,
-        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|your quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
+        subsale: (() => { const s = { ...d }; delete s.route; const ms = dealModel(s); return ms.costGroups.flatMap(g => g.items).filter(it => /Proclamation|^Repairs$|^Possession cost$|lawyer’s quote$/.test(it[0]) && it[2]?.id !== 'mortgageProtection').length; })() });
     })()`));
     const near = (x, y) => Number.isFinite(x) && Number.isFinite(y) && Math.abs(x - y) < 1e-6;
     const p = [];
@@ -6523,6 +6523,30 @@ try {
     if (r.subsale !== 0) p.push(`the same deal as a subsale still carries ${r.subsale} auction line(s)`);
     if (p.length) fail('p3 A1: the auction waterfall adds up', p);
     else ok(`p3 A1: the waterfall — market value RM600,000 (the median of three comparables), reserve RM420,000, bid RM500,000, + repairs 15,000 + arrears 4,200 + possession 6,000 + transaction ${Math.round(r.transaction)} (the ledger's fee lines, the RM7,000 legal quote in the scale's place) + holding ${Math.round(r.holding)} (3 × ${Math.round(r.burn)}) = effective RM${Math.round(r.effective)}, a true discount of ${r.td.pct.toFixed(2)}%; a cost not entered named and not counted; no comparable, no discount; the subsale carries none of it`);
+  });
+  /* A1b — THE LAWYER'S QUOTE IS LEGAL FEES ONLY (the owner, 21 Oct 2026;
+           the 20 Oct sweep, auction-2). The input, its ledger line and its
+           note say legal fees; the searches stay the rulebook's separate
+           estimate, charged beside the quote; the service tax is 8% of the
+           legal fees — the quote and the loan's — and of nothing else. No
+           figure changes: on P3's deal, by hand, RM1,170 of searches and
+           8% × (7,000 + the loan legal fees). */
+  await p3try('p3 A1b: the lawyer\'s quote is legal fees only', async () => {
+    const r = JSON.parse(await evaluate(`(() => {
+      const d = ${P3_DEAL};
+      const m = dealModel(d), items = m.costGroups.flatMap(g => g.items);
+      const by = (id) => items.find(it => it[2]?.id === id);
+      const q = by('auctionLegal'), loanLegal = by('loanLegal'), tax = by('professionalServiceTax'), search = by('disbursements');
+      const field = AU_GROUPS(d).flatMap(g => g.fields).find(f => f[0] === 'auctionLegal');
+      return JSON.stringify({ label: q?.[0], note: q?.[2]?.note || '', quote: q?.[1], field: field?.[1], search: search?.[1], tax: tax?.[1], loanLegal: loanLegal?.[1],
+        words: PM_FIELD_WORDS?.auctionLegal || null, feeNote: auctionFeeNote() });
+    })()`));
+    const p = [];
+    if (r.label !== 'Legal fees — your lawyer’s quote' || r.field !== 'Legal fees — your lawyer’s quote (RM)') p.push(`the ledger line reads "${r.label}" and the input "${r.field}"`);
+    if (/search/i.test(r.label + r.field + (r.words || '')) || !/the searches stay the rulebook’s separate estimate/.test(r.note) || !/the searches stay the rulebook’s separate estimate/.test(r.feeNote)) p.push(`the words still put the searches in the quote: "${r.note}" / "${r.feeNote.slice(-160)}" / "${r.words}"`);
+    if (r.quote !== 7000 || r.search !== 1170 || Math.abs(r.tax - Math.round((7000 + r.loanLegal) * 8) / 100) > 1e-9) p.push(`quote ${r.quote}, searches ${r.search}, service tax ${r.tax} — by hand 7,000, 1,170 and 8% × (7,000 + ${r.loanLegal})`);
+    if (p.length) fail('p3 A1b: the lawyer\'s quote is legal fees only', p);
+    else ok(`p3 A1b: the lawyer's quote is legal fees only — "${r.field}", its ledger line "${r.label}"; the RM1,170 searches estimate stays beside it and the service tax is 8% of the legal fees alone (RM${r.tax.toFixed(2)}), no figure changed`);
   });
   await p3try('p3 A2: the forfeiture exposure is the deposit at the terms entered', async () => {
     const r = JSON.parse(await evaluate(`(() => {

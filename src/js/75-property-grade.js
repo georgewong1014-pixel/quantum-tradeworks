@@ -640,9 +640,15 @@ function dealModel(d) {
      absent from the missing-lines list because it had a number. A tax on
      an unknown fee is unknown, and no better than the fee it is on. */
   /* THE AUCTION ROUTE (the decision layer, P3): the reader's lawyer's quote
-     for the legal and search costs, once entered, takes the place of the
-     rulebook's purchase legal fees — an auction has no SPA — and is marked
-     as theirs, as an MRTA quote is. Not entered, the rulebook's line stands. */
+     for the legal fees, once entered, takes the place of the rulebook's
+     purchase legal fees — an auction has no SPA — and is marked as theirs,
+     as an MRTA quote is. Not entered, the rulebook's line stands. LEGAL FEES
+     ONLY (the owner, 21 Oct 2026; the 20 Oct sweep, auction-2): it was
+     asked for and labelled as the legal AND search costs while the
+     rulebook's searches estimate was charged beside it and the service tax
+     on all of it. The searches stay the rulebook's separate estimate, and
+     the service tax is on the legal fees, as it always was charged: the
+     words change, no figure. */
   const auctionRoute = dealRoute(d) === 'auction';
   const legalQuote = auctionRoute && isNum(d.auctionLegal) && d.auctionLegal >= 0 ? d.auctionLegal : null;
   /* THE NEW-DEVELOPMENT ROUTE'S OWN QUOTE (the fee rulebook 1.3.0): which
@@ -655,8 +661,8 @@ function dealModel(d) {
      (ROUTE_ASSET_GATES 'newdev|land'). */
   const ndLegalQuote = !auctionRoute && dealRoute(d) === 'newdev' && propertyClassOf(d) !== 'land' && isNum(d.ndLegal) && d.ndLegal >= 0 ? d.ndLegal : null;
   const purchaseLegalR = legalQuote != null
-    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal and search costs — your quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
-        note: 'Your lawyer’s quote for the auction purchase: the searches, the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA.' }
+    ? { id: 'auctionLegal', amount: legalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Legal fees — your lawyer’s quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
+        note: 'Your lawyer’s quote for the legal fees of the auction purchase: the Proclamation’s review and the transfer. In place of the rulebook’s purchase legal fees, which price an SPA; the searches stay the rulebook’s separate estimate.' }
     : ndLegalQuote != null
     ? { id: 'ndLegal', amount: ndLegalQuote, provenance: 'quote', status: 'quote', quotedLine: true, label: 'Purchase legal fees — your lawyer’s quote', line: FEE_TABLE.lines.purchaseLegal, why: null,
         note: 'Your lawyer’s quote for the developer purchase: the SPA and the transfer, as your lawyer is engaged for them. In place of the rulebook’s purchase legal fees, which charge rule 1’s full scale.' }
