@@ -10873,9 +10873,9 @@ try {
      21 Oct 2026 Day-8 report, QT-D08-01). On a filed company with no price,
      through the company page's own button, in this browser's own profile,
      and everything it found put back:
-     - the button reads "Start a research case", opens My investment cases
+     - the button reads "Start an investment case", opens My investment cases
        and toasts "Draft created in this browser. Review the suggested
-       assumptions before treating this as your research case."; the draft
+       assumptions before treating this as your investment case."; the draft
        line is on the case;
      - the review date, the horizon, the confidence and the condition the
        tool added are marked "Suggested default — not yet confirmed by you."
@@ -10920,8 +10920,8 @@ try {
         /* the button, on the company page, and what it opens */
         navigate(companyPath(row.c)); await w(500);
         out.buttons = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim());
-        const start = [...document.querySelectorAll('main .company-acts button')].find(b => /^Start a research case$/.test(b.textContent.trim()));
-        if (!start) throw new Error('no "Start a research case" button on the company page');
+        const start = [...document.querySelectorAll('main .company-acts button')].find(b => /^Start an investment case$/.test(b.textContent.trim()));
+        if (!start) throw new Error('no "Start an investment case" button on the company page');
         start.click(); await w(600);
         out.path = location.pathname; out.toast = document.getElementById('toast')?.textContent || '';
         let t = State.theses.find(x => x.ticker === id);
@@ -11099,13 +11099,13 @@ try {
     };
     const A = await evaluate(`(${d8a.toString()})()`);
     const p = [...A.problems];
-    const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
+    const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
     const MARK = 'Suggested default — not yet confirmed by you.';
     const canon = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v)) ? Object.fromEntries(Object.keys(v).sort().map(x => [x, v[x]])) : v);
     let B = null;
     if (!A.problems.length) {
       /* start */
-      if (!A.buttons.includes('Start a research case') || A.buttons.includes('Save research')) p.push(`the company page's buttons read ${JSON.stringify(A.buttons)}`);
+      if (!A.buttons.includes('Start an investment case') || A.buttons.includes('Save research')) p.push(`the company page's buttons read ${JSON.stringify(A.buttons)}`);
       if (A.path !== '/my/theses') p.push(`the button opened ${A.path}`);
       if (A.toast !== LINE) p.push(`the toast reads "${A.toast}"`);
       if (A.line !== LINE || !A.lineInSight) p.push(`the draft line reads "${A.line}" and is ${A.lineInSight ? '' : 'not '}in sight on arrival`);
@@ -11193,7 +11193,7 @@ try {
     p.push(...C.problems);
     if (C.differ?.length || C.extra?.length) p.push(`the browser's own work was not put back: ${canon({ differ: C.differ, extra: C.extra })}`);
     if (p.length) fail('qt-day8-case: a research case is a draft whose defaults are marked suggested until confirmed, keeps the research as it stood, and survives a reload and both backups', p);
-    else ok('qt-day8-case: "Start a research case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged; the snapshot also keeps each default\'s state, the methodology and model version and the dates of the statements and price, and the company with least data and one with no model start a case with nothing invented', A.id);
+    else ok('qt-day8-case: "Start an investment case" on a filed company with no price opens a draft with the toast and the in-page line in sight; the review date, horizon, confidence and condition marked "Suggested default — not yet confirmed by you." (four 44px Confirms), the condition awaiting and not counted as passing; Confirm on the review date and a typed horizon take those two marks off, the line staying with the confidence and the condition; the snapshot holds the composite (nulls kept null, governance as manual review), eight lens fits, the scorecard, the tier, the base-case estimate with range and confidence, and edits as null; reading the card with an assumption edited, a score and the model moved replaces nothing and marks the one figure and the model; "Review against today\'s research" takes a new snapshot with the edit and leaves the defaults as they were; after a reload the case is as it was; "Download a backup" and "Export everything", each cleared and restored twice, leave it once with every field; a case from before reads "Saved before snapshots" with no mark and no field invented, the seeded sample too, and the shape check takes new and old; a timing workspace entry leaves the composite unchanged; the snapshot also keeps each default\'s state, the methodology and model version and the dates of the statements and price, and the company with least data and one with no model start a case with nothing invented', A.id);
   }
   /* ---- end qt-day8-case ---- */
   /* qt-quick-fee — THE FEE AND WHO MANAGES, SIDE BY SIDE (the 20 Oct 2026

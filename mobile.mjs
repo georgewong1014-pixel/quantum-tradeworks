@@ -5719,7 +5719,7 @@ for (const w of [360, 390]) {
     await send('Emulation.setEmulatedMedia', { features: [] }, sessionId).catch(() => {});
     await ev(`(() => { Object.keys(localStorage).filter(k => k.startsWith('vl.')).forEach(k => localStorage.removeItem(k)); return true; })()`).catch(() => {});
   }
-  if (fails.length) { bad++; console.log(`FAIL research-case — a started research case on a phone and a desk: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
+  if (fails.length) { bad++; console.log(`FAIL research-case — a started investment case on a phone and a desk: ${fails.length} problem(s):`); fails.slice(0, 30).forEach(f => console.log(`     ${f}`)); }
   else console.log(`ok   research-case: a started case on /my/theses and on the company's Thesis tab at 360, 390 and 1440, in the page's font and in Verdana: no sideways scroll, the draft line, defaults, Confirms, record and review control inside the card, every Confirm and the review control 44px on both axes, and no hidden focus stop on a keyboard walk through the card (${said.join('; ')})`);
 }
 /* ---- end research-case ---- */

@@ -1781,8 +1781,8 @@ try {
     if (r.badges.length !== 4 || r.badges.some(b => b !== 'Filed')) p.push(`source badges: ${JSON.stringify(r.badges)}`);
     if (!r.fyOk) p.push('a tile does not name its fiscal year');
     if (!r.dtxt.includes(r.concept) || !/Original unit/.test(r.dtxt) || !/Transformation/.test(r.dtxt)) p.push('the Revenue tile does not open a drawer naming its XBRL concept, original unit and transformation');
-    for (const a of ['Add to watchlist', 'Compare', 'Start a research case', 'Create a setup for MSFT'])
-      if (!r.acts.some(x => x === a || (a === 'Add to watchlist' && /watchlist/.test(x)) || (a === 'Start a research case' && /investment case|Start a research case/.test(x)))) p.push(`header action missing: ${a}`);
+    for (const a of ['Add to watchlist', 'Compare', 'Start an investment case', 'Create a setup for MSFT'])
+      if (!r.acts.some(x => x === a || (a === 'Add to watchlist' && /watchlist/.test(x)) || (a === 'Start an investment case' && /investment case|Start an investment case/.test(x)))) p.push(`header action missing: ${a}`);
     if (!r.cmpHref || !/\/compare\?companies=.*MSFT-SEC/.test(decodeURIComponent(r.cmpHref))) p.push(`Compare links to ${r.cmpHref}`);
     if (!r.scan) p.push('no scanner control');
     else if (r.scan.tag !== 'A' || !/\/app\/scanner\/setups\/new\?.*symbol=MSFT/.test(r.scan.href || '') || /none loaded here/.test(r.scanNote) === r.lane)
@@ -1791,7 +1791,7 @@ try {
     if (/SEC filer/.test(r.exch)) p.push(`the exchange chip reads "${r.exch}"`);
     if (!r.noDashRow) p.push('market tiles render as dashes on an unpriced filer');
     if (p.length) fail('the company page opens on its reported figures, its actions and one freshness line', p);
-    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Start a research case and "Create a setup for MSFT" to the builder, with the history it is checked on ${r.lane ? 'loaded' : 'said to be absent'}; one freshness line; exchange "${r.exch}"`);
+    else ok(`MSFT-SEC opens on four filed tiles equal to its stored lines (${r.got.join(', ')}), each opening its source; Watchlist, Compare, Start an investment case and "Create a setup for MSFT" to the builder, with the history it is checked on ${r.lane ? 'loaded' : 'said to be absent'}; one freshness line; exchange "${r.exch}"`);
   }
   {
     const r = await evaluate(`(() => {
@@ -9258,7 +9258,7 @@ try {
       {
         const r = await evaluate(`(async () => { ${W}
           navigate('/company/MAYBANK'); await w(250);
-          const btn = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()).find(t => /investment case|Start a research case/.test(t)) || '';
+          const btn = [...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()).find(t => /investment case|Start an investment case/.test(t)) || '';
           navigate('/company/MAYBANK?tab=thesis'); await w(250);
           const cards = [...document.querySelectorAll('main .card')];
           const seven = cards.find(c => /Seven-step review/.test(c.textContent));

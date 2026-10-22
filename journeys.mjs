@@ -3610,26 +3610,26 @@ const JOURNEYS = [
        until the reader confirms or changes each; and the research as it stood
        when the case was started, reopened from Saved work. From an empty
        workspace of the reader's own: a fresh browser is given sample cases. */
-    id: 'research-case', name: 'Research case: started from a company, a default confirmed, reopened from Saved work',
+    id: 'research-case', name: 'Investment case: started from a company, a default confirmed, reopened from Saved work',
     storage: () => ({ theses: [] }),
-    outcomes: ['Start a research case: a draft, its defaults marked suggested', 'Confirm the review date: its mark goes and the others stay',
+    outcomes: ['Start an investment case: a draft, its defaults marked suggested', 'Confirm the review date: its mark goes and the others stay',
       'Reopen from Saved work: the research when saved, with its versions'],
     async run(j, tab) {
       const CO = 'AAPL-SEC', MARK = 'Suggested default — not yet confirmed by you.';
-      const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
+      const LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
       let id = null;
       await step(j, tab, 'Open a filed company', BUDGET.load, async () => {
         await tab.goto('/research');
         const path = await tab.eval(`BY_ID.get(${JSON.stringify(CO)}) ? companyPath(BY_ID.get(${JSON.stringify(CO)}).c) : null`);
         if (!path) throw new StepError(`${CO} is not among the companies loaded`);
         await tab.goto(path);
-        await tab.expect(`State.view === 'research' && !!BY_ID.get(State.ticker)?.c.real && !!(${byText('main button', '/^Start a research case$/')})`,
-          async () => `${path} offers no “Start a research case” (its buttons: ${await tab.eval(`JSON.stringify([...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()))`)})`);
+        await tab.expect(`State.view === 'research' && !!BY_ID.get(State.ticker)?.c.real && !!(${byText('main button', '/^Start an investment case$/')})`,
+          async () => `${path} offers no “Start an investment case” (its buttons: ${await tab.eval(`JSON.stringify([...document.querySelectorAll('main .company-acts button')].map(b => b.textContent.trim()))`)})`);
       });
-      await step(j, tab, 'Start a research case: a draft, its defaults marked suggested', BUDGET.action * 2, async () => {
-        await tab.click(byText('main button', '/^Start a research case$/'), 'Start a research case');
+      await step(j, tab, 'Start an investment case: a draft, its defaults marked suggested', BUDGET.action * 2, async () => {
+        await tab.click(byText('main button', '/^Start an investment case$/'), 'Start an investment case');
         await tab.expect(`State.view === 'thesis' && location.pathname === '/my/theses' && State.theses.some(t => t.ticker === ${JSON.stringify(CO)})`,
-          '“Start a research case” did not open My investment cases with a case on the company');
+          '“Start an investment case” did not open My investment cases with a case on the company');
         id = await tab.eval(`State.theses.find(t => t.ticker === ${JSON.stringify(CO)}).id`);
         const r = await tab.eval(`(() => { const box = document.getElementById('thesis-draft-' + ${JSON.stringify(id)}); const q = box?.querySelector('.case-draft-line')?.getBoundingClientRect();
           const card = document.getElementById('thesis-card-' + ${JSON.stringify(id)});

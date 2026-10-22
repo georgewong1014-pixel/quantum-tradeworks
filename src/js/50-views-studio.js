@@ -1268,7 +1268,7 @@ function evaluateThesis(t) {
                  ("Review against today's research"). Values, not functions;
                  a figure the page did not have is null, never a number. A
                  case with none reads "Saved before snapshots". */
-const CASE_DRAFT_LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your research case.';
+const CASE_DRAFT_LINE = 'Draft created in this browser. Review the suggested assumptions before treating this as your investment case.';
 const SUGGESTED_MARK = 'Suggested default — not yet confirmed by you.';
 const SUGGESTED_FIELDS = [['review', 'Next review date'], ['horizon', 'Intended holding horizon'], ['conf', 'Confidence']];
 /* Still the tool's: only a flag that is true. false is confirmed; absent is a

@@ -742,13 +742,13 @@ const HOME_PAGE = read(HOME);
        below); an illustrative company's carries none. */
     if (skeleton(r.body, renderFileOf(co.path)) !== PAGE_SKELETON) p.push(`${co.path}: differs from index.html outside its own head, ${co.company.real ? 'its committed render, ' : ''}and the two app files it loads`);
     p.push(...headerProblems(r));
-    /* The button that starts a case reads "Start a research case" (the 21 Oct
+    /* The button that starts a case reads "Start an investment case" (the 21 Oct
        2026 Day-8 report, QT-D08-01): it was "Save research", which made a
        draft with defaults in it and said nothing of that. A filer's page
        carries its committed render, which holds the button; a company with a
        sample case reads "Open the sample investment case" instead. */
     if (/>Save research</.test(r.body)) p.push(`${co.path}: its committed render still offers "Save research"`);
-    if (co.company.real && !/>Start a research case</.test(r.body)) p.push(`${co.path}: its committed render does not offer "Start a research case"`);
+    if (co.company.real && !/>Start an investment case</.test(r.body)) p.push(`${co.path}: its committed render does not offer "Start an investment case"`);
     const size = Buffer.byteLength(r.body, 'utf8');
     total += size;
     if (size > largest[1]) largest = [co.path, size];
@@ -812,7 +812,7 @@ const HOME_PAGE = read(HOME);
 
   /* /company/AAPL-SEC, a filer's id, is a 308 to its own page since the 9 Oct
      2026 audit (deep-links, below). */
-  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files (and a filer's page its committed render), carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); a filer's committed render offers "Start a research case" and none offers "Save research"; each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
+  judge(p, `every company in the universe (${companies.length}: ${filers.length} filed with the SEC, ${companies.length - filers.length} illustrative) is served 200 at its own address with its own title, description, canonical, og: and twitter: tags — each description naming the company, its ticker, where it is listed and, as data/us.json has it, whether its figures are filed with the SEC or illustrative, the illustrative ones (noindex) asking not to be indexed — is index.html in every other byte but the two app files (and a filer's page its committed render), carries the headers and weighs at most ${(largest[1] / 1024).toFixed(1)}kB (${(total / 1048576).toFixed(2)}MB in all); a filer's committed render offers "Start an investment case" and none offers "Save research"; each has one exact rewrite before /company/:id; ${OTHER.length} other forms of a company address, reports and an unknown company are the generic page, and a query string changes nothing`,
     'a company\'s own address is not served its own head, or another form of it is not the generic page');
 }
 /* ---- end releaseB: D ---- */

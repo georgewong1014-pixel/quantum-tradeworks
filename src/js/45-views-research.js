@@ -803,7 +803,7 @@ function companyActions(r) {
   acts.append(el('button', { class: 'btn btn-ghost btn-sm',
     title: sampleCase ? 'A sample investment case, written into this browser on a first visit to show what one looks like. Not your work.'
       : 'Your investment case for this company: one line, quality, valuation, catalysts, risks and the conditions that would change your mind',
-    onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Start a research case'));
+    onclick: () => addToThesis(c.id) }, sampleCase ? 'Open the sample investment case' : thesis ? 'Open your investment case' : 'Start an investment case'));
   const sym = c.tk || c.code || c.id;
   const on = scannerLaneOn();
   /* A setup is written and kept in this browser wherever the page is; what
