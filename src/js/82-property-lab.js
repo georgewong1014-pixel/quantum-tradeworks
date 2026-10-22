@@ -1447,7 +1447,9 @@ function labPricePaint(P, lab, { initial = false } = {}) {
     setTarget: () => { const r = document.getElementById(`${P.idPrefix}-q-target-monthly`); if (r) { r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   /* The solved price, tried in the column the sliders move — as a move,
      a what-if like any other, kept in this tab until saved. */
-  const solved = s.status === 'solved' && Math.round(num0(d.price)) !== s.price;
+  /* The lowest price that meets a target met from a price up is a price to
+     try as well (solveDealPrice 'from'). */
+  const solved = (s.status === 'solved' || s.status === 'from') && Math.round(num0(d.price)) !== s.price;
   pe.tryBox.replaceChildren(...(solved ? [el('button', { type: 'button', class: 'btn btn-ghost btn-sm pe-try-btn', id: labId(P, 'pe-try-btn'),
     onclick: () => {
       const L = LAB[P.key], c = labActive(L);

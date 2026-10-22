@@ -1754,10 +1754,13 @@ function solveDealPrice(d, target = dealTarget(d)) {
      a negative income never reaches a yield of nought or more, at any
      price. */
   let failsAt = lo;
+  const hi0 = hi;
   if (!meets(mLo) && !meets(mHi) && reads(mHi) > reads(mLo)) {
     while (hi < PRICE_SOLVE_TOP && !meets(mHi)) { failsAt = hi; hi *= 10; mHi = at(hi); }
   }
-  if (!meets(mLo) && !meets(mHi)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs };
+  /* Widened and still short: the top it reached is said with the rest. */
+  if (!meets(mLo) && !meets(mHi)) return { status: 'infeasible', target: t, value: target.value, floor: lo, atFloor: reads(mLo), runs,
+    ...(hi > hi0 ? { widenedTo: hi, atTop: reads(mHi) } : {}) };
   if (meets(mLo) && meets(mHi)) return { status: 'unbounded', target: t, value: target.value, ceiling: hi, atCeiling: reads(mHi), runs };
   if (!meets(mLo)) {
     /* Met at the top and not at the bottom: the LOWEST whole-ringgit price

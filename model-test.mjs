@@ -6493,16 +6493,19 @@ try {
       const d = { ...PROPERTY_DEFAULT_DEAL, evidence: { ...PROPERTY_DEFAULT_DEAL.evidence }, checks: {}, touched: {}, rent: 400 };
       const s = solveDealPrice(d, { kind: 'yield', value: -0.5 }), w = priceSolveWords(s, d);
       const zero = solveDealPrice(d, { kind: 'yield', value: 0 });
+      const zf = priceSolveFormula(zero, d), sf = priceSolveFormula(s, d);
       return JSON.stringify({ noi: dealModel(d).noi, entered: dealModel(d).netYield, status: s.status, price: s.price,
         at: dealModel({ ...d, price: s.price }).netYield, under: dealModel({ ...d, price: s.price - 1 }).netYield,
         achieved: s.achieved, belowMeets: s.belowMeets, figure: w.figure, finding: w.finding,
-        zero: { status: zero.status, figure: priceSolveWords(zero, d).figure } });
+        zero: { status: zero.status, figure: priceSolveWords(zero, d).figure, widened: zero.widenedTo, formula: zf }, sub: w.sub, formula: sf });
     })()`));
     const p = [];
     if (Math.abs(r.noi - (400 * 12 * 0.91 - 5078 - 400 * 12 * 0.91 * 0.05)) > 1e-6) p.push(`the income is ${r.noi}, by hand −928.40`);
     if (!(r.entered >= -0.5)) p.push(`the entered price's own yield ${r.entered}% does not meet −0.5%: the case is wrong`);
     if (r.status !== 'from' || r.price !== 185680 || !(r.at >= -0.5) || r.under >= -0.5 || r.achieved !== r.at || r.belowMeets) p.push(`a yield of at least −0.5%: ${r.status} at RM${r.price} (${r.at}%; RM1 less ${r.under}%) — by hand RM185,680 and up`);
-    if (r.figure === 'No price' || !/At RM185,680 or more/.test(r.finding)) p.push(`the card reads "${r.figure}" — "${r.finding}"`);
+    if (r.figure !== 'From RM185,680' || !/At RM185,680 or more/.test(r.finding) || r.sub !== 'RM386,320 below the RM572,000 modelled.') p.push(`the card reads "${r.figure}" — "${r.finding}" — "${r.sub}"`);
+    if (!/RM185,680 is the lowest price that meets it: there net yield is −0\.500000%, at least the −0\.5000% you set; at RM185,679 it is −0\.500003%, short of it/.test(r.formula || '') || !/rises towards nought/.test(r.formula || '')) p.push(`the working reads "${(r.formula || '').slice(-260)}"`);
+    if (!(r.zero.widened > 572000 * 4) || !/the range was widened ten times at a time to RM[\d,]+, where it is still short of it — so no price meets it/.test(r.zero.formula || '')) p.push(`a yield of nought: the working does not say the range was widened ("${(r.zero.formula || '').slice(-200)}")`);
     if (r.zero.status !== 'infeasible' || r.zero.figure !== 'No price') p.push(`a yield of nought or more on a negative income: ${JSON.stringify(r.zero)} — it is met at no price`);
     if (p.length) fail('p2 R3b: a net-yield target on a negative income is met from a price up, worked by hand', p);
     else ok(`p2 R3b: on an income of −RM928.40 a year a net yield of at least −0.50% is met from RM${r.price.toLocaleString('en')} up, worked by hand, and RM1 less is not — never "No price" ("${r.finding.slice(0, 60)}…"); a yield of nought or more is met at no price, and says so`);

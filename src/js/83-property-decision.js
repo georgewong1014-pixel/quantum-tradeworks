@@ -236,7 +236,12 @@ function priceSolveLoan(d) {
   return { kind: 'price' };
 }
 function priceSolveMoves(t, d) {
-  if (t.id !== 'monthly') return 'as the price rises the net yield falls, so the target holds below one price and fails above it';
+  /* The net operating income does not move with the price: the yield falls
+     as the price rises while it is positive, and rises towards nought while
+     it is negative (solveDealPrice, the 20 Oct 2026 sweep's stress-4). */
+  if (t.id !== 'monthly') return isNum(d && dealModel(d).noi) && dealModel(d).noi < 0
+    ? 'the net operating income is negative, so as the price rises the net yield rises towards nought: the target holds above one price and fails below it'
+    : 'as the price rises the net yield falls, so the target holds below one price and fails above it';
   const L = priceSolveLoan(d);
   if (L.kind === 'none') return 'with no loan, nothing in the monthly position moves with the price, so the target holds at every price or at none';
   if (L.kind === 'valuation') return `the loan is lent on the ${pqMoney(L.val)} valuation you entered, not on the price, so nothing in the monthly position moves with the price: the target holds at every price or at none`;
@@ -252,12 +257,21 @@ function priceSolveUnboundedWhy(s, d) {
 /* The solve, in words. */
 function priceSolveWords(s, d) {
   const t = s.target;
+  const rel = () => [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
+    isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+  /* Met from a price UP (solveDealPrice 'from': a net yield on a negative
+     income): the lowest price that meets it, as a price, never a dash. */
+  if (s.status === 'from') {
+    const r = rel();
+    return { figure: `From ${pqMoney(s.price)}`,
+      finding: `At ${pqMoney(s.price)} or more, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}: the rent does not cover the running costs, so a higher price spreads that loss thinner.`,
+      sub: r.length ? `${r.join('; ')}.` : 'The price modelled.' };
+  }
   if (s.status === 'solved') {
-    const rel = [isNum(s.vsPrice) && s.vsPrice !== 0 ? `${pqMoney(Math.abs(s.vsPrice))} ${s.vsPrice < 0 ? 'below' : 'above'} the ${pqMoney(num0(d.price))} modelled` : null,
-      isNum(s.vsAsking) && s.vsAsking !== 0 ? `${pqMoney(Math.abs(s.vsAsking))} ${s.vsAsking < 0 ? 'below' : 'above'} the asking price` : null].filter(Boolean);
+    const r = rel();
     return { figure: pqMoney(s.price),
       finding: `At ${pqMoney(s.price)} or less, the figures you entered give ${t.words} of at least ${t.fmt(s.value)}.`,
-      sub: rel.length ? `${rel.join('; ')}.` : 'The price modelled.' };
+      sub: r.length ? `${r.join('; ')}.` : 'The price modelled.' };
   }
   if (s.status === 'infeasible') return { figure: 'No price',
     finding: `The figures you entered do not reach ${t.words} of ${t.fmt(s.value)} at any price from ${pqMoney(s.floor)}: at ${pqMoney(s.floor)} it is ${t.fmt(s.atFloor)}.`,
@@ -272,7 +286,12 @@ function priceSolveFormula(s, d) {
   const t = s.target && { ...s.target, fmt: s.target.id === 'monthly' ? (v) => fmtMoney(v, 'MYR', 2) : (v) => fmtPct(v, 4) };
   const how = `The calculator’s model (dealModel) is run at trial prices with every other figure as entered, halving the range each time between ${pqMoney(PRICE_SOLVE_FLOOR)} and four times the larger of the price and the asking price: ${priceSolveMoves(t || {}, d)}.`;
   if (s.status === 'solved') return `${how} Tolerance: one ringgit on the price, none on the target — at ${pqMoney(s.price)} ${t.label.toLowerCase()} is ${t.fmt(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price + 1)} it is ${t.fmt(s.above)}${s.aboveMeets ? '' : ', short of it'}. ${s.runs} runs of the model.`;
-  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)} — so no price in the range meets it. ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
+  /* To six places where a yield's last ringgit moves it in the sixth. */
+  const f6 = t && t.id !== 'monthly' ? (v) => fmtPct(v, 6) : t && t.fmt;
+  if (s.status === 'from') return `${how} Tolerance: one ringgit on the price, none on the target — ${pqMoney(s.price)} is the lowest price that meets it: there ${t.label.toLowerCase()} is ${f6(s.achieved)}, at least the ${t.fmt(s.value)} you set; at ${pqMoney(s.price - 1)} it is ${f6(s.below)}, short of it. ${s.runs} runs of the model.`;
+  if (s.status === 'infeasible') return `${how} At ${pqMoney(s.floor)}, the bottom of the range, ${t.label.toLowerCase()} is ${t.fmt(s.atFloor)} — short of ${t.fmt(s.value)}`
+    + (isNum(s.widenedTo) ? `; it rises with the price, so the range was widened ten times at a time to ${pqMoney(s.widenedTo)}, where it is still short of it — so no price meets it.` : ' — so no price in the range meets it.')
+    + ` ${s.runs} run${s.runs === 1 ? '' : 's'} of the model.`;
   if (s.status === 'unbounded') return `${how} At ${pqMoney(s.ceiling)}, the top of the range, ${t.label.toLowerCase()} is still ${t.fmt(s.atCeiling)}. ${s.runs} runs of the model.`;
   return s.why || '';
 }
@@ -315,7 +334,7 @@ function priceEvidenceCards({ d, g, s, prefix, gapWhy, solveWhy, enter = null, s
     const solveKind = dealKind(d, null, { also: ['modelled'] });
     cards.append(lsInsightCard({ label: 'The price that makes this work', cls: 'pe-card pe-solve',
       badge: auBadge(solveKind.kind, solveKind.fine),
-      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' ? String(s.price) : '' },
+      attrs: { 'data-pe': 'solve', 'data-status': s.status, 'data-value': s.status === 'solved' || s.status === 'from' ? String(s.price) : '' },
       figure: el('p', { class: 'ls-card-figure num pe-fig' }, w.figure),
       finding: el('p', { class: 'ls-card-title' }, w.finding),
       sub: w.sub ? el('p', { class: 'ls-card-sub' }, w.sub) : null,
@@ -466,7 +485,7 @@ function pcPriceEvidence(d) {
   sec.append(priceEvidenceCards({ d, g, s, prefix: 'pc', gapWhy: () => lsOpenEvidence(gapDet), solveWhy: () => lsOpenEvidence(solveDet),
     setTarget: () => { const r = document.getElementById('pc-q-target-monthly'); if (r) { pcShowFor(r); r.closest('.pe-target')?.scrollIntoView({ block: 'center' }); r.focus({ preventScroll: true }); } } }));
   sec.append(priceTargetControls({ d, prefix: 'pc', answer: (k, v) => { if (pqWriter(k, v)(d)) { saveDeal(); renderKeepFocus(); } } }));
-  if (s.status === 'solved' && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
+  if ((s.status === 'solved' || s.status === 'from') && Math.round(num0(d.price)) !== s.price) sec.append(el('p', { class: 'pe-try' }, el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-pe-use',
     onclick: () => { d.price = s.price; markTouched(d, 'price'); saveDeal(); renderKeepFocus(); toast(`The purchase price is now ${pqMoney(s.price)} — every figure follows it.`); } },
     `Model it at ${pqMoney(s.price)}`)));
   /* The month with the tenancy that is in place, beside the expected rent's. */
