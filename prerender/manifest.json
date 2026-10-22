@@ -4184,8 +4184,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "b10f96a25af0456a",
-      "changed": "2026-10-17"
+      "digest": "d5ecc7e60211002b",
+      "changed": "2026-10-22"
     },
     "pages/discover.html": {
       "path": "/discover",
@@ -4329,7 +4329,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "630798298dd0b935",
+      "digest": "5e0399529bf701f0",
       "changed": "2026-10-22"
     },
     "pages/learn.html": {
@@ -4528,8 +4528,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "e7f808445e0366d8",
-      "changed": "2026-10-15"
+      "digest": "8c1ebc16abd7cdf2",
+      "changed": "2026-10-22"
     },
     "pages/my/alerts.html": {
       "path": "/my/alerts",
@@ -4818,7 +4818,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "b92c0d6072d7bef5",
+      "digest": "88f73da443d536b9",
       "changed": "2026-10-22"
     },
     "pages/pricing.html": {
@@ -4849,8 +4849,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "76e8edffb2c1f4fe",
-      "changed": "2026-10-15"
+      "digest": "76acc2d8f04ef9b2",
+      "changed": "2026-10-22"
     },
     "pages/privacy.html": {
       "path": "/privacy",
@@ -4905,8 +4905,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "7f026ab4e8de3b37",
-      "changed": "2026-10-17"
+      "digest": "43debf509bcc9a5b",
+      "changed": "2026-10-22"
     },
     "pages/property.html": {
       "path": "/property",
@@ -4934,7 +4934,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "14a2b5a5659be5ea",
+      "digest": "abb4e6a459ab08dc",
       "changed": "2026-10-22"
     },
     "pages/property/areas.html": {
@@ -4963,8 +4963,8 @@
         "cellStops": 1,
         "emptyDetails": 0
       },
-      "digest": "c6d33b1b13df711e",
-      "changed": "2026-10-13"
+      "digest": "c6a3b416fa23c75f",
+      "changed": "2026-10-22"
     },
     "pages/property/areas/map.html": {
       "path": "/property/areas/map",
@@ -4992,8 +4992,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "9f44379dec7c9957",
-      "changed": "2026-10-13"
+      "digest": "1c86a788dab4af84",
+      "changed": "2026-10-22"
     },
     "pages/property/calculator.html": {
       "path": "/property/calculator",
@@ -5021,7 +5021,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "adf3098040699495",
+      "digest": "d6b9147bb89faad4",
       "changed": "2026-10-22"
     },
     "pages/property/comparables.html": {
@@ -5050,8 +5050,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "1e5a79609915bd3f",
-      "changed": "2026-10-21"
+      "digest": "3f8ed2e139aa8d2a",
+      "changed": "2026-10-22"
     },
     "pages/property/lab.html": {
       "path": "/property/lab",
@@ -5079,7 +5079,7 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "14a2b5a5659be5ea",
+      "digest": "abb4e6a459ab08dc",
       "changed": "2026-10-22"
     },
     "pages/property/models.html": {
@@ -5108,8 +5108,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "22a120f18a8ef095",
-      "changed": "2026-10-13"
+      "digest": "70787921fe40eee3",
+      "changed": "2026-10-22"
     },
     "pages/property/opportunities.html": {
       "path": "/property/opportunities",
@@ -5137,8 +5137,8 @@
         "cellStops": 0,
         "emptyDetails": 0
       },
-      "digest": "3bcc4609a4a84b60",
-      "changed": "2026-10-13"
+      "digest": "aea7f4ce59222b7a",
+      "changed": "2026-10-22"
     },
     "pages/research.html": {
       "path": "/research",
