@@ -1625,7 +1625,10 @@ const JOURNEYS = [
       await step(j, tab, 'Other running costs: opened in place, a box changed, the answer moves', BUDGET.action * 3, async () => {
         const sum = `document.querySelector('#pc-q-other > summary')`;
         const line = await tab.eval(`(${sum})?.textContent.replace(/\\s+/g, ' ').trim() || ''`);
-        if (!/^Other running costs RM[\d,]+ a year: sinking fund, assessment, quit rent, insurance, repair reserve$/.test(line)) throw new StepError(`the other running costs read “${line}”`);
+        /* The line names what is counted as a list (Day 8: "…, insurance and
+           repair reserve"; production before it: "…, insurance, repair
+           reserve"), so either reads as the five a let condominium counts. */
+        if (!/^Other running costs RM[\d,]+ a year: sinking fund, assessment, quit rent, insurance(?:,| and) repair reserve$/.test(line)) throw new StepError(`the other running costs read “${line}”`);
         if (await tab.eval(`document.getElementById('pc-q-other').open || !!document.getElementById('d-insurance')?.checkVisibility()`)) throw new StepError('the other running costs stand open before they are opened');
         await tab.click(sum, 'Other running costs');
         await tab.expect(`document.getElementById('pc-q-other').open && !!document.getElementById('d-insurance')?.checkVisibility()`, 'pressing the other running costs did not open their boxes in place');
