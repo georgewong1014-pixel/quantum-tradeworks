@@ -876,7 +876,7 @@ function propertyShareRow(d = State.deal, paid = false) {
     propertyProposalNext(d),
     el('button', { type: 'button', class: 'btn btn-ghost btn-sm', id: 'pc-share-report',
       title: paid ? 'The full investor report, in this section, previewed in this browser.' : 'The full investor report, in this section: the offer to preview it in this browser.',
-      onclick: jump }, 'Investor report'),
+      onclick: jump }, 'Full investor report'),
     el('a', { class: 'btn btn-ghost btn-sm', id: 'pm-record', href: href('/decision-record'),
       title: `Prints ${st.kind === 'model' ? `“${st.rec.name}”${st.sc ? `, scenario “${st.sc.name}”,` : ''}` : 'this deal'} on one page: the figures, every input with where it came from, and everything still open.`,
       onclick: e => { State.decisionSubject = 'property'; if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); navigate('/decision-record'); } },

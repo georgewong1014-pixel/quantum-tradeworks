@@ -1516,15 +1516,17 @@ VIEWS.plans = () => {
   body.append(el('p', { class: 'metaline' }, 'Price data is not available on any plan — no market-data licence is in place. The last row says what each plan would carry once one is.'));
   body.append(el('p', { class: 'metaline' }, `All-Access has not launched and cannot be bought: ${PLANS.all.blurb}`));
 
-  /* The per-report prices, the RM89 line as it reads today (D11(d)). */
-  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property Deal Check — proposed prices per report'));
+  /* The per-report prices, the RM89 line as it reads today (D11(d)). Headed
+     by what the cards above call them, "Property reports" — "Property Deal
+     Check" named a product nowhere else sold (the Day-10 pre-audit, CL-09). */
+  body.append(el('h3', { class: 'h-card plan-sub' }, 'Property reports — proposed prices per report'));
   body.append(el('p', { class: 'caption' }, 'Proposed as a fee per report rather than a subscription, and not on sale either. The anchor is the roughly RM75 a Malaysian buyer already pays for a single project transaction report; this would cover the same ground and add the investment model on top.'));
   const ptw = el('div', { class: 'tablewrap' });
   const pt = el('table', { class: 'dt dt-stack' });
   pt.append(el('thead', {}, el('tr', {}, ['Report', 'Proposed price', 'What it adds', 'Today'].map((h, i) => el('th', { style: i >= 2 ? 'text-align:left' : null }, h)))));
   pt.append(el('tbody', {}, [
     ['Saved analysis', `RM${PROPERTY_REPORT_PRICE.basic}`, 'Your own inputs saved, with yield, instalment, cash flow and break-even rent.', 'Available now, free: save a property in the Scenario Lab or the calculator.'],
-    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'The comparable transactions you record, NAPIC’s published price and rental ranges, net operating income, ten-year scenarios, exit costs and the equity comparison.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
+    ['Full investor report', `RM${PROPERTY_REPORT_PRICE.full}`, 'Net operating income, ten-year scenarios, exit costs and the equity comparison, on your figures.', 'A preview, drawn from your own figures and recorded comparables; no licensed transaction data.'],
     ['Verified project report', `RM${PROPERTY_REPORT_PRICE.verified}`, 'The full report against a verified project dataset rather than user-entered figures.', 'Not available: it needs a verified project dataset, and none is held.'],
   ].map(r2 => el('tr', {}, r2.map((cell, i) =>
     el('td', { class: i === 0 ? 'ident' : '', style: i >= 2 ? 'text-align:left;white-space:normal;max-width:420px' : '' }, cell))))));

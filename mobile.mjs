@@ -5790,7 +5790,7 @@ for (const w of [360, 390]) {
         if (!r.shown) { fails.push(`${at}: no Share / Export row is in sight`); continue; }
         if (r.rowBox.l < -0.5 || r.rowBox.r > r.vw + 0.5) fails.push(`${at}: the row runs ${r.rowBox.l}–${r.rowBox.r}px in a ${r.vw}px screen`);
         const names = r.acts.map(a => a.t);
-        if (r.acts.length !== 3 || !(names[0] === (saved ? 'Client proposal' : 'Save this property first')) || names[1] !== 'Investor report' || names[2] !== 'Decision record') fails.push(`${at}: the row's controls read ${JSON.stringify(names)}`);
+        if (r.acts.length !== 3 || !(names[0] === (saved ? 'Client proposal' : 'Save this property first')) || names[1] !== 'Full investor report' || names[2] !== 'Decision record') fails.push(`${at}: the row's controls read ${JSON.stringify(names)}`);
         r.acts.forEach(a => {
           if (a.primary) fails.push(`${at}: "${a.t}" is btn-primary in a quiet row`);
           if (a.l < -0.5 || a.r > r.vw + 0.5) fails.push(`${at}: "${a.t}" runs ${a.l}–${a.r}px in a ${r.vw}px screen`);

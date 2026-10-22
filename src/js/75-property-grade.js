@@ -2430,18 +2430,24 @@ function propertyRiskFlags(d, m) {
     n: m.letsToTenant === false
       ? `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, with no rent to set against it.`
       : `This costs ${fmtAmount(Math.abs(m.cashflowMonthly), 'MYR')} a month to hold, after the ${fmtPct(num0(d.vacancyPct), 0)} vacancy allowance and the ${fmtPct(num0(d.repairReservePct), 0)} repair reserve modelled here.` });
-  /* Every comparison below needs a comparable to compare against. On a custom
+  /* THE SAMPLE'S FIGURES ARE SAID AS THE SAMPLE'S (the Day-10 pre-audit,
+     OP-03). A sample project's prices, rents and vacancy are synthetic,
+     and the reader's deal stays tied to one after they type their own
+     price and rent: "recently transacted here", "the observed rental
+     range" and "roughly 9% observed in Kuching" stated invented figures as
+     market fact. Each flag now names the synthetic sample.
+     Every comparison below needs a comparable to compare against. On a custom
      entry there is none, so the flag is absent rather than evaluated against a
      missing bound — `price > undefined` is false, and a silent false here would
      read as "within the transacted range" when nothing was checked. */
-  if (isNum(m.proj.psfHi) && m.psf && m.psf > m.proj.psfHi) out.push({ sev:'serious', t:'Above the transacted range',
-    n:`At RM${m.psf.toFixed(0)} psf you would be paying above the highest recent transaction in ${m.proj.name} (RM${m.proj.psfHi} psf).` });
-  else if (isNum(m.proj.psfMid) && m.psf && m.psf > m.proj.psfMid) out.push({ sev:'warning', t:'Above the median transaction',
-    n:`RM${m.psf.toFixed(0)} psf sits above the median of RM${m.proj.psfMid} psf recently transacted here.` });
-  if (isNum(m.proj.rentHi) && d.rent > m.proj.rentHi) out.push({ sev:'serious', t:'Rent assumption above the observed range',
-    n:`RM${d.rent} exceeds the top of the observed rental range (RM${m.proj.rentHi}). The whole model rests on this figure.` });
-  if (isNum(m.proj.vacancyPct) && !m.proj.custom && d.vacancyPct < m.proj.vacancyPct) out.push({ sev:'warning', t:'Vacancy assumed below the area norm',
-    n:`You have assumed ${fmtPct(d.vacancyPct, 0)} vacancy against roughly ${fmtPct(m.proj.vacancyPct, 0)} observed in ${m.proj.area}.` });
+  if (isNum(m.proj.psfHi) && m.psf && m.psf > m.proj.psfHi) out.push({ sev:'serious', t:'Above the sample’s range',
+    n:`At RM${m.psf.toFixed(0)} psf you would pay above the synthetic sample’s top, RM${m.proj.psfHi} psf.` });
+  else if (isNum(m.proj.psfMid) && m.psf && m.psf > m.proj.psfMid) out.push({ sev:'warning', t:'Above the sample’s median',
+    n:`RM${m.psf.toFixed(0)} psf is above the synthetic sample’s RM${m.proj.psfMid} psf median.` });
+  if (isNum(m.proj.rentHi) && d.rent > m.proj.rentHi) out.push({ sev:'serious', t:'Rent above the sample’s range',
+    n:`${fmtMoney(num0(d.rent), 'MYR', 0)} is above the synthetic sample’s rent range (top ${fmtMoney(m.proj.rentHi, 'MYR', 0)}). The whole model rests on this figure.` });
+  if (isNum(m.proj.vacancyPct) && !m.proj.custom && d.vacancyPct < m.proj.vacancyPct) out.push({ sev:'warning', t:'Vacancy below the sample’s',
+    n:`You have assumed ${fmtPct(d.vacancyPct, 0)} vacancy, below the synthetic sample’s ${fmtPct(m.proj.vacancyPct, 0)}.` });
   if (m.proj.custom) out.push({ sev:'warning', t:'No comparable attached',
     n:`This tool holds no transacted price, rental band or vacancy observation for ${m.proj.area}. The price, rent and vacancy below are entirely yours, and none of them has been checked against a market.` });
   /* By the gains tax's own holding period: on a timed new development it
@@ -2450,7 +2456,10 @@ function propertyRiskFlags(d, m) {
     /* The category as a sentence names it. Lower-casing the short label
        printed "charged at 30% for citizen or pr" — `who` exists for this. */
     n:`${m.ndTiming ? `Selling ${d.holdYears} years after vacant possession, ${ndYears(m.ndTiming.saleYears)} years after the SPA,` : `Selling in year ${d.holdYears}`} is charged at ${m.rpgtPct}% for ${m.rpgtResult.category.who}, which is ${fmtAmount(m.rpgt, 'MYR')} on this scenario.` });
-  if (m.proj.tenure === 'Leasehold') out.push({ sev:'warning', t:'Leasehold tenure',
+  /* From the reader's own answer — years remaining on the lease, 0 if
+     freehold, asked where the title is not strata — never from the sample
+     project's tenure (OP-03): it fired on a freehold the reader entered. */
+  if (d.titleType !== 'strata' && num0(d.remainingLease) > 0) out.push({ sev:'warning', t:'Leasehold tenure',
     n:'Financing and resale liquidity both tighten as the remaining lease shortens. Check the balance term before committing.' });
   /* Title class outranks everything financial. A restricted class is not a
      risk to be priced — it is a question about whether the purchase is open to
@@ -5060,8 +5069,12 @@ VIEWS.property = () => {
         /* Proposed per report. The line also offered it "included twice
            monthly on All-Access", a tier that is not launched and must not
            appear purchasable; it returns when the tier does. */
-        : `Adds comparable transactions and the price and rental range for this project, net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
-    /* The Share / Export row's "Investor report" goes here (propertyShareRow). */
+        /* No "comparable transactions … for this project" (the Day-10
+           pre-audit, OP-04): the only transactions it holds are the sample
+           project's synthetic quarters, said as what they are. Pricing's
+           "What it adds" drops them with it (OP-05; model-test PP9). */
+        : `Adds net operating income, a ten-year scenario, exit costs including real property gains tax, the equity comparison, and the risk flags, beside the sample project’s synthetic transactions. Proposed per report${PLANS.all.launched ? ', or included twice monthly on All-Access' : ''} — not on sale yet.`);
+    /* The Share / Export row's "Full investor report" goes here (propertyShareRow). */
     offer.id = 'property-report-offer';
     reportCards.push(offer);
     const buy = el('div', { class: 'row row-wrap', style: 'gap:8px' });

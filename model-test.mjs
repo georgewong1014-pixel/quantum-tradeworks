@@ -1247,6 +1247,37 @@ try {
     else ok(`the checklist is read by its answers — demand ${r.yes} all-yes, ${r.no} all-no, ${r.unsure} not sure`, r);
   }
 
+  /* 40b — THE SAMPLE'S FIGURES ARE SAID AS THE SAMPLE'S (the Day-10 pre-audit,
+           OP-03). The report's risk flags compared the reader's price, rent
+           and vacancy with the synthetic sample project's and called its
+           invented figures "recently transacted here", "the observed rental
+           range" and "roughly 9% observed in Kuching"; the leasehold flag came
+           from the sample's tenure, even where the reader entered 0 — freehold. */
+  {
+    const r = await evaluate(`(() => {
+      const flags = d => propertyRiskFlags(d, dealModel(d));
+      const over = flags({ ...${FRESH}, price: 700000, rent: 2600, vacancyPct: 5 });
+      const mid = flags({ ...${FRESH}, price: 600000 });
+      const lease = (t, y) => flags({ ...${FRESH}, titleType: t, remainingLease: y }).some(f => f.t === 'Leasehold tenure');
+      return { over: over.map(f => f.t + ' | ' + f.n), mid: mid.map(f => f.t + ' | ' + f.n),
+               strata: lease('strata', 88), free: lease('mixed-zone', 0), leased: lease('mixed-zone', 70) };
+    })()`);
+    const p = [];
+    const all = [...r.over, ...r.mid];
+    const want = [/^Above the sample’s range \| At RM667 psf you would pay above the synthetic sample’s top, RM610 psf\.$/,
+      /^Rent above the sample’s range \| RM2,600 is above the synthetic sample’s rent range \(top RM2,200\)\./,
+      /^Vacancy below the sample’s \| You have assumed 5% vacancy, below the synthetic sample’s 9%\.$/];
+    for (const re of want) if (!r.over.some(x => re.test(x))) p.push(`no flag reads ${re}: ${JSON.stringify(r.over)}`);
+    if (!r.mid.some(x => /^Above the sample’s median \| RM571 psf is above the synthetic sample’s RM545 psf median\.$/.test(x))) p.push(`at RM600,000 no flag reads "Above the sample’s median": ${JSON.stringify(r.mid)}`);
+    const fact = all.filter(x => /recently transacted|observed|highest recent transaction|area norm/i.test(x));
+    if (fact.length) p.push(`a flag states the sample's figures as market fact: ${JSON.stringify(fact)}`);
+    if (r.strata) p.push('the leasehold flag is raised on a strata parcel, from the sample project’s tenure');
+    if (r.free) p.push('the leasehold flag is raised where the reader entered 0 years — freehold');
+    if (!r.leased) p.push('the leasehold flag is not raised where the reader entered 70 years remaining');
+    if (p.length) fail('OP-03: the risk flags say the sample’s figures are the synthetic sample’s, and leasehold is the reader’s answer', p);
+    else ok('OP-03: the risk flags name the synthetic sample’s top, median, rent range and vacancy — none "observed" or "recently transacted" — and "Leasehold tenure" follows the years the reader entered (70: raised; 0, freehold: not; a strata parcel: not)');
+  }
+
   /* 41 — a loan-readiness total is withheld while credit or affordability is open. */
   {
     const r = await evaluate(`(() => {
@@ -4028,7 +4059,7 @@ try {
           if (!r.row.inSec || r.row.primary) p.push(`the row is ${r.row.inSec ? '' : 'not in the section, '}${r.row.primary ? 'holding a btn-primary' : 'quiet'}`);
           const names = r.row.acts.map(a => a.t);
           const first = names[0] === 'Client proposal' || names[0] === 'Save this property first';
-          if (!first || names[1] !== 'Investor report' || names[2] !== 'Decision record' || names.length !== 3) p.push(`the row's actions read ${JSON.stringify(names)}, not the client proposal (or its save-first), the investor report and the decision record`);
+          if (!first || names[1] !== 'Full investor report' || names[2] !== 'Decision record' || names.length !== 3) p.push(`the row's actions read ${JSON.stringify(names)}, not the client proposal (or its save-first), the investor report and the decision record`);
         }
         if (p.length) fail('D11 property-model: the calculator\'s last section is "Decide", #report lands on it, with one "See plans", one preview button and a quiet Share / Export row', p);
         else ok('D11 property-model: /property/calculator#report opens the full model at "Decide" (index, "Next: Decide →" and heading agree); the section holds one "See plans", one "Preview … in this browser" button and a quiet Share / Export row of the client proposal, the investor report and the decision record');
